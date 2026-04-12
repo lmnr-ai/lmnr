@@ -3,11 +3,13 @@ import { Check, X } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
+import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EventRow } from "@/lib/events/types.ts";
+import { cn } from "@/lib/utils";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
   if (!description) {
@@ -128,27 +130,28 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
+const SEVERITY_STYLES: Record<number, { label: string; className: string }> = {
+  0: {
+    label: "Info",
+    className: "rounded-3xl mr-1 text-muted-foreground/60",
+  },
+  1: {
+    label: "Warning",
+    className: "rounded-3xl mr-1 text-orange-400/80",
+  },
+  2: {
+    label: "Critical",
+    className: "rounded-3xl mr-1 text-red-400/100",
+  },
+};
+
 function SeverityCell({ value }: { value: number }) {
-  switch (value) {
-    case 2:
-      return (
-        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-          Critical
-        </span>
-      );
-    case 1:
-      return (
-        <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400">
-          Warning
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-400">
-          Info
-        </span>
-      );
-  }
+  const style = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  return (
+    <Badge variant="outline" className={cn("rounded-full font-medium", style.className)}>
+      {style.label}
+    </Badge>
+  );
 }
 
 const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
@@ -163,7 +166,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     accessorKey: "severity",
     header: "Severity",
     cell: (row) => <SeverityCell value={Number(row.getValue())} />,
-    size: 100,
+    size: 120,
     id: "severity",
   },
 ];
@@ -211,6 +214,16 @@ const staticFilters: ColumnFilter[] = [
     name: "Run ID",
     key: "run_id",
     dataType: "string",
+  },
+  {
+    name: "Severity",
+    key: "severity",
+    dataType: "enum",
+    options: [
+      { value: "0", label: "Info" },
+      { value: "1", label: "Warning" },
+      { value: "2", label: "Critical" },
+    ],
   },
 ];
 

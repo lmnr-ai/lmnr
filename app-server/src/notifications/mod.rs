@@ -188,6 +188,8 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        println!("MESSAGE: {:?}", message);
+
         // For usage warnings, acquire a dedup lock keyed on definition_id (the
         // warning row). Multiple ingestion workers can race through
         // check_soft_limits and enqueue duplicate NotificationMessages for the

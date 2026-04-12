@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, CircleAlert, FileText, Info, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
@@ -39,25 +39,68 @@ interface EventIdentification {
   extracted_information: Record<string, unknown> | null;
 }
 
-interface FormattedNotification {
+interface BaseNotification {
   title: string;
   summary: string;
+}
+
+interface AlertNotification extends BaseNotification {
+  kind: "alert";
+  extractedFields: [string, string][];
+  traceLink: string;
+  severity: number;
+}
+
+interface ReportNotification extends BaseNotification {
+  kind: "report";
   aiSummary: string | null;
   noteworthyEvents: NoteworthyEvent[];
-  traceLink: string | null;
-  severityColor: string | null;
 }
+
+type FormattedNotification = AlertNotification | ReportNotification;
+
+const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+
+const renderWithLinks = (text: string): ReactNode => {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(MARKDOWN_LINK_RE)) {
+    const [full, label, url] = match;
+    const idx = match.index!;
+    if (idx > lastIndex) {
+      parts.push(text.slice(lastIndex, idx));
+    }
+
+    let href = url;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname.endsWith("laminar.sh") || parsed.hostname.endsWith("lmnr.ai")) {
+        href = parsed.pathname + parsed.search;
+      }
+    } catch {
+      /* keep absolute url */
+    }
+
+    parts.push(
+      <Link key={idx} href={href} className="underline hover:text-foreground" onClick={(e) => e.stopPropagation()}>
+        {label}
+      </Link>
+    );
+    lastIndex = idx + full.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+};
 
 const SEVERITY_LABELS: Record<number, string> = {
   0: "info",
   1: "warning",
   2: "critical",
-};
-
-const SEVERITY_COLORS: Record<number, string> = {
-  0: "text-blue-600 dark:text-blue-400",
-  1: "text-orange-600 dark:text-orange-400",
-  2: "text-red-600 dark:text-red-400",
 };
 
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
@@ -67,21 +110,18 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     if (!event) return null;
 
     const severityLabel = SEVERITY_LABELS[event.severity] ?? "info";
-    const severityColor = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS[0];
 
-    const summary = event.extracted_information
-      ? Object.entries(event.extracted_information)
-          .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
-          .join(", ")
-      : "";
+    const extractedFields: [string, string][] = event.extracted_information
+      ? Object.entries(event.extracted_information).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])
+      : [];
 
     return {
-      title: `${event.event_name} - new ${severityLabel} event`,
-      summary: summary || `A ${severityLabel} event was detected.`,
-      aiSummary: null,
-      noteworthyEvents: [],
+      kind: "alert",
+      title: event.event_name,
+      summary: `New ${severityLabel} event detected`,
+      extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
-      severityColor,
+      severity: event.severity,
     };
   } catch {
     return null;
@@ -125,12 +165,11 @@ const formatReportNotification = (notification: WebNotification): FormattedNotif
     const noteworthyEvents = report.noteworthy_events ?? [];
 
     return {
-      title: "Signal Events Summary",
+      kind: "report",
+      title: "Events Summary",
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
-      traceLink: null,
-      severityColor: null,
     };
   } catch {
     return null;
@@ -144,7 +183,18 @@ export const formatNotification = (notification: WebNotification): FormattedNoti
   return formatReportNotification(notification);
 };
 
-const NotificationDetails = ({ formatted, projectId }: { formatted: FormattedNotification; projectId?: string }) => (
+const SeverityIcon = ({ severity }: { severity: number }) => {
+  switch (severity) {
+    case 1:
+      return <AlertTriangle className="size-3.5 shrink-0 text-orange-400/80" />;
+    case 2:
+      return <CircleAlert className="size-3.5 shrink-0 text-red-400/100" />;
+    default:
+      return <Info className="size-3.5 shrink-0 text-muted-foreground/60" />;
+  }
+};
+
+const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotification; projectId?: string }) => (
   <>
     {formatted.aiSummary && (
       <div className="flex flex-col gap-1 mt-1">
@@ -190,9 +240,10 @@ const NotificationItem = ({
   onViewed?: (id: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const hasDetails = formatted.aiSummary || formatted.noteworthyEvents.length > 0;
   const isUnread = !notification.isRead;
   const itemRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
 
   useEffect(() => {
     if (!isUnread || !onViewed) return;
@@ -212,6 +263,51 @@ const NotificationItem = ({
     return () => observer.disconnect();
   }, [isUnread, notification.id, onViewed]);
 
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || expanded) return;
+    setOverflows(el.scrollHeight > el.clientHeight);
+  }, [expanded]);
+
+  const contentBody = (
+    <>
+      {formatted.summary && (
+        <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
+          {formatted.summary}
+        </span>
+      )}
+      {formatted.kind === "alert" && (
+        <>
+          {formatted.extractedFields.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {formatted.extractedFields.map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-[11px] font-medium text-muted-foreground">{key}</span>
+                  <span
+                    className={cn(
+                      "text-xs leading-snug",
+                      isUnread ? "text-foreground/80" : "text-secondary-foreground"
+                    )}
+                  >
+                    {renderWithLinks(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <Link
+            href={formatted.traceLink}
+            className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+            onClick={(e) => e.stopPropagation()}
+          >
+            View trace
+          </Link>
+        </>
+      )}
+      {formatted.kind === "report" && <NotificationDetails formatted={formatted} projectId={projectId} />}
+    </>
+  );
+
   return (
     <div
       ref={itemRef}
@@ -221,52 +317,45 @@ const NotificationItem = ({
       )}
     >
       <div className="flex items-center justify-between">
-        <span
-          className={cn(
-            "text-xs",
-            formatted.severityColor ?? "text-foreground",
-            isUnread ? "font-semibold" : "font-medium"
+        <div className="flex items-center gap-1.5">
+          {formatted.kind === "alert" ? (
+            <SeverityIcon severity={formatted.severity} />
+          ) : (
+            <FileText className="size-3.5 shrink-0 text-purple-400/60" />
           )}
-        >
-          {formatted.title}
-        </span>
+          <span className={cn("text-xs", isUnread ? "font-semibold" : "font-medium")}>{formatted.title}</span>
+        </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {isUnread && <span className="size-1.5 rounded-full bg-orange-500 shrink-0" />}
           <span className="text-[11px] text-muted-foreground/70">{formatRelativeTime(notification.createdAt)}</span>
         </div>
       </div>
-      <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
-        {formatted.summary}
-      </span>
-      {formatted.traceLink && (
-        <Link
-          href={formatted.traceLink}
-          className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
-          onClick={(e) => e.stopPropagation()}
-        >
-          View trace
-        </Link>
-      )}
-      {hasDetails && !expanded && (
-        <div className="relative cursor-pointer" onClick={() => setExpanded(true)}>
-          <div className="max-h-21 overflow-hidden">
-            <NotificationDetails formatted={formatted} projectId={projectId} />
+      {!expanded ? (
+        <div className="relative">
+          <div ref={contentRef} className="max-h-27 overflow-hidden flex flex-col gap-1.5">
+            {contentBody}
           </div>
-          <div
-            className={cn(
-              "absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t to-transparent pointer-events-none",
-              isUnread ? "from-secondary/40" : "from-background"
-            )}
-          />
-          <button className="relative flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit mt-1">
-            <ChevronDown className="size-3" />
-            Show more
-          </button>
+          {overflows && (
+            <>
+              <div
+                className={cn(
+                  "absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t to-transparent pointer-events-none",
+                  isUnread ? "from-secondary/40" : "from-background"
+                )}
+              />
+              <button
+                onClick={() => setExpanded(true)}
+                className="relative flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit mt-1"
+              >
+                <ChevronDown className="size-3" />
+                Show more
+              </button>
+            </>
+          )}
         </div>
-      )}
-      {expanded && (
-        <>
-          <NotificationDetails formatted={formatted} projectId={projectId} />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {contentBody}
           <button
             onClick={() => setExpanded(false)}
             className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit"
@@ -274,7 +363,7 @@ const NotificationItem = ({
             <ChevronUp className="size-3" />
             Show less
           </button>
-        </>
+        </div>
       )}
     </div>
   );
