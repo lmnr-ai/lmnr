@@ -230,7 +230,9 @@ fn replace_span_tags_in_str(
     project_id: Uuid,
     trace_id: Uuid,
 ) -> String {
-    // 1. Replace proper <span id='...' name='...' /> XML tags
+    // 1. Replace proper <span id='...' name='...' /> XML tags.
+    //    The LLM prompt in prompts.rs explicitly instructs this attribute order (id before name),
+    //    so we rely on it here rather than making the pattern order-agnostic.
     let xml_pattern =
         Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#).unwrap();
 
