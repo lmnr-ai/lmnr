@@ -10,22 +10,21 @@ const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mu
 Array access: use .0. for nested arrays. When root is an array (paths start with []), wrap with {{#.}}...{{/.}} and use inner paths.
 
 Rules:
-- Pick 1-3 content fields. {{{ }}} for long text strings. **bold** for short labels.
+- Pick the single most descriptive content field. Use {{{ }}} (triple braces). Never add markdown or styling.
 - null ONLY if every field is [meta]/[id] or empty.
 
 Field classification:
 - [meta] fields (skip): id, status, type, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint.
-- [id] fields (skip when siblings have content): name, action, function, method, command, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other content fields exist.
+- [id] fields (skip when siblings have content): name, action, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other content fields exist.
 - Content fields (prefer): content, text, thinking, result, output, message, answer, query, description, summary, url, path. When multiple exist, pick the most descriptive one.
 
 Decision order:
 1. Content field present → {{{field}}}
-2. [id] field present + sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. Never use **bold** labels for these — just the raw value. If the only siblings are [meta] or null → null.
-3. [id] field is the only non-meta field → null
-4. Label + value pair (no [id] field present) → **{{label}}** — {{value}}
-5. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
-6. Deeply nested leaf → {{{path.0.to.0.field}}}
-7. All [meta]/[id]/empty → null
+2. [id] field present + sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta] or null → null.
+3. [id] field is the only non-meta field → {{{field}}}
+4. Multiple non-meta, non-id fields → pick the single most descriptive one as {{{field}}}
+5. Deeply nested leaf → {{{path.0.to.0.field}}}
+6. All [meta]/[id]/empty → null
 
 Examples:
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
@@ -33,10 +32,11 @@ Examples:
 - "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
 - "action: string [id]" + "params.file_name: string" + "params.old_str: string" → {{{params.file_name}}}
 - "action: string [id]" + "params.keys: string" → {{{params.keys}}}
-- "action: string [id]" + "params.index: number [meta]" → null
+- "action: string [id]" + "params.index: number [meta]" → {{{action}}}
 - "name: string [id]" + "arguments.command: string" → {{{arguments.command}}}
-- "score: number" + "grade: string" → **{{grade}}** — {{score}}
-- "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
+- "command: string" → {{{command}}}
+- "score: number" + "grade: string" → {{{grade}}}
+- "id: string [meta]" + "name: string" + "type: string [meta]" → {{{name}}}
 - "name: string [meta]" + "id: string [meta]" + "type: string [meta]" → null`;
 
 export type PreviewKeyResult = Array<string | null>;
