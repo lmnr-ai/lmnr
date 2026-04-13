@@ -1,37 +1,69 @@
-import fs from "fs";
-import matter from "gray-matter";
-import path from "path";
+import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type StrapiPost } from "./types";
 
-import { type BlogListItem, type MatterAndContent } from "./types";
+const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
+const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
-const BLOG_DIR = path.join(process.cwd(), "assets/blog");
-
-export const getBlogPosts = ({ sortByDate = true }: { sortByDate?: boolean }): BlogListItem[] => {
-  const files = fs.readdirSync(BLOG_DIR);
-  const posts = files
-    .filter((file) => file.endsWith(".mdx"))
-    .map((file) => {
-      const content = fs.readFileSync(path.join(BLOG_DIR, file), "utf8");
-      return {
-        ...(matter(content) as unknown as MatterAndContent),
-        slug: file.replace(".mdx", ""),
-      };
-    });
-  if (sortByDate) {
-    posts.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+const strapiHeaders = (): HeadersInit => {
+  const headers: HeadersInit = {};
+  if (STRAPI_API_TOKEN) {
+    headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
   }
-  return posts as unknown as BlogListItem[];
+  return headers;
 };
 
-export const getBlogPost = (slug: string): MatterAndContent => {
-  const filePath = path.join(BLOG_DIR, `${slug}.mdx`);
-  const content = fs.readFileSync(filePath, "utf8");
+const mapStrapiPost = (post: StrapiPost): BlogListItem => {
+  const data = {
+    title: post.title,
+    description: post.description ?? "",
+    date: post.date,
+    author: {
+      name: post.author_name ?? "Laminar",
+      url: post.author_url ?? undefined,
+    },
+    image: post.image ?? undefined,
+    excerpt: post.description ?? undefined,
+    tags: post.tags ?? undefined,
+  };
+  return { ...data, slug: post.slug, data };
+};
 
-  const parsed = matter(content);
-  if (parsed.excerpt === undefined || parsed.excerpt === "") {
-    parsed.excerpt = parsed.content.slice(0, 160).replace(/\s+/g, " ");
+export const getBlogPosts = async ({ sortByDate = true }: { sortByDate?: boolean }): Promise<BlogListItem[]> => {
+  const params = new URLSearchParams({ "pagination[pageSize]": "100" });
+  if (sortByDate) params.set("sort", "date:desc");
+
+  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+    headers: strapiHeaders(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    return [];
   }
-  return { ...parsed, slug } as unknown as MatterAndContent;
+
+  const json: StrapiListResponse = await res.json();
+  return json.data.map(mapStrapiPost);
+};
+
+export const getBlogPost = async (slug: string): Promise<MatterAndContent | null> => {
+  const params = new URLSearchParams({ "filters[slug][$eq]": slug });
+
+  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+    headers: strapiHeaders(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    return null;
+  }
+
+  const json: StrapiListResponse = await res.json();
+  const post = json.data[0];
+  if (!post) return null;
+
+  const mapped = mapStrapiPost(post);
+  return { data: mapped.data, content: post.content };
 };
 
 export const headingToUrl = (heading: string) =>

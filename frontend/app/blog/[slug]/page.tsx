@@ -11,55 +11,51 @@ import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
-import { type BlogMetadata } from "@/lib/blog/types";
 import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const params = await props.params;
-  try {
-    const { data } = getBlogPost(params.slug);
-    const description = data.description || `${data.title} - from the Laminar blog`;
-    const ogImageUrl = `/blog/${params.slug}/opengraph-image`;
-    return {
+  const post = await getBlogPost(params.slug);
+  if (!post) {
+    return { title: "Post Not Found" };
+  }
+
+  const { data } = post;
+  const description = data.description || `${data.title} - from the Laminar blog`;
+  const ogImageUrl = `/blog/${params.slug}/opengraph-image`;
+  return {
+    title: data.title,
+    description,
+    authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
+    openGraph: {
       title: data.title,
       description,
-      authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
-      openGraph: {
-        title: data.title,
-        description,
-        type: "article",
-        publishedTime: data.date,
-        url: `https://laminar.sh/blog/${params.slug}`,
-        images: [
-          {
-            url: ogImageUrl,
-            width: 1200,
-            height: 630,
-            alt: data.title,
-          },
-        ],
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: data.title,
-        description,
-        images: [ogImageUrl],
-      },
-    };
-  } catch {
-    return {
-      title: "Post Not Found",
-    };
-  }
+      type: "article",
+      publishedTime: data.date,
+      url: `https://laminar.sh/blog/${params.slug}`,
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: data.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: data.title,
+      description,
+      images: [ogImageUrl],
+    },
+  };
 };
 
 export default async function BlogPostPage(props0: { params: Promise<{ slug: string }> }) {
   const params = await props0.params;
 
-  let post: { data: BlogMetadata; content: string } | null;
-  try {
-    post = getBlogPost(params.slug);
-  } catch {
+  const post = await getBlogPost(params.slug);
+  if (!post) {
     notFound();
   }
 

@@ -4,8 +4,8 @@ import { getBlogPosts } from "@/lib/blog/utils";
 
 const BASE_URL = "https://laminar.sh";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const blogPosts = getBlogPosts({ sortByDate: false });
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const blogPosts = await getBlogPosts({ sortByDate: false });
 
   const blogUrls: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${BASE_URL}/blog/${post.slug}`,

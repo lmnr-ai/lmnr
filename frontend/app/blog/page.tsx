@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BlogsPage() {
-  const posts = getBlogPosts({ sortByDate: true });
+  const posts = await getBlogPosts({ sortByDate: true });
 
   return (
     <div className="px-4 mt-32 pb-16 grid grid-cols-1 gap-4 container w-full md:grid-cols-3">
