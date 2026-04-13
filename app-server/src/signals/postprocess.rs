@@ -31,15 +31,11 @@ pub async fn process_event_notifications_and_clustering(
             db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
 
         for alert in alerts {
-            // Check if the event severity meets the alert's minimum severity threshold.
-            // Default to CRITICAL (2) for alerts without metadata (historical data).
             let min_severity = alert
                 .metadata
-                .as_ref()
-                .and_then(|m| m.get("severity"))
+                .get("severity")
                 .and_then(|v| v.as_u64())
-                .and_then(|n| u8::try_from(n).ok())
-                .unwrap_or(2);
+                .unwrap_or(2) as u8;
 
             if signal_event.severity < min_severity {
                 continue;

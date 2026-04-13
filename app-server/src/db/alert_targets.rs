@@ -5,7 +5,7 @@ use uuid::Uuid;
 pub struct AlertInfo {
     pub alert_id: Uuid,
     pub workspace_id: Uuid,
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: serde_json::Value,
 }
 
 /// Look up all alerts for a given project and signal event name.
