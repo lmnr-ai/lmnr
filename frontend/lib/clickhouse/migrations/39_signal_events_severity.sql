@@ -1,7 +1,7 @@
 ALTER TABLE signal_events ADD COLUMN IF NOT EXISTS severity UInt8 DEFAULT 0;
 
 DROP VIEW IF EXISTS default.signal_events_v0;
-CREATE VIEW IF NOT EXISTS signal_events_v0
+CREATE VIEW signal_events_v0
 SQL SECURITY INVOKER
 AS
 SELECT * FROM (
