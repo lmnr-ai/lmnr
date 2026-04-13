@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
@@ -97,19 +98,13 @@ const renderWithLinks = (text: string): ReactNode => {
   return parts.length > 0 ? parts : text;
 };
 
-const SEVERITY_LABELS: Record<number, string> = {
-  0: "info",
-  1: "warning",
-  2: "critical",
-};
-
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
     const payload: { EventIdentification: EventIdentification } = JSON.parse(notification.payload);
     const event = payload.EventIdentification;
     if (!event) return null;
 
-    const severityLabel = SEVERITY_LABELS[event.severity] ?? "info";
+    const severityLabel = (SEVERITY_LABELS[event.severity as keyof typeof SEVERITY_LABELS] ?? "Info").toLowerCase();
 
     const extractedFields: [string, string][] = event.extracted_information
       ? Object.entries(event.extracted_information).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])

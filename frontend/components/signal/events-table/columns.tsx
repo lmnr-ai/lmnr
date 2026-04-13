@@ -8,6 +8,7 @@ import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type EventRow } from "@/lib/events/types.ts";
 import { cn } from "@/lib/utils";
 
@@ -130,26 +131,18 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
-const SEVERITY_STYLES: Record<number, { label: string; className: string }> = {
-  0: {
-    label: "Info",
-    className: "rounded-3xl mr-1 text-muted-foreground/60",
-  },
-  1: {
-    label: "Warning",
-    className: "rounded-3xl mr-1 text-orange-400/80",
-  },
-  2: {
-    label: "Critical",
-    className: "rounded-3xl mr-1 text-red-400/100",
-  },
+const SEVERITY_STYLES: Record<number, string> = {
+  0: "rounded-3xl mr-1 text-muted-foreground/60",
+  1: "rounded-3xl mr-1 text-orange-400/80",
+  2: "rounded-3xl mr-1 text-red-400/100",
 };
 
 function SeverityCell({ value }: { value: number }) {
-  const style = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  const className = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  const label = SEVERITY_LABELS[value as keyof typeof SEVERITY_LABELS] ?? "Info";
   return (
-    <Badge variant="outline" className={cn("rounded-full font-medium", style.className)}>
-      {style.label}
+    <Badge variant="outline" className={cn("rounded-full font-medium", className)}>
+      {label}
     </Badge>
   );
 }
