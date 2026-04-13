@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { CheckCircle2, Clock, Loader2, SquareArrowOutUpRight, StopCircle } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -15,6 +15,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const FETCH_SIZE = 50;
@@ -114,6 +115,10 @@ function DebuggerSessionsContent() {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  useEffect(() => {
+    track("sessions", "page_viewed");
+  }, []);
+
   const fetchDebuggerSessions = useCallback(
     async (pageNumber: number) => {
       try {
@@ -171,6 +176,7 @@ function DebuggerSessionsContent() {
             data={debuggerSessions ?? []}
             hasMore={hasMore}
             getRowHref={(row) => `debugger-sessions/${row.id}`}
+            onRowClick={() => track("sessions", "session_opened")}
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}

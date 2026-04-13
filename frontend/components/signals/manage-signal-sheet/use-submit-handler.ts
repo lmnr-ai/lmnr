@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
+import { track } from "@/lib/analytics";
 import { type useToast } from "@/lib/hooks/use-toast";
 
 import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
@@ -190,6 +191,9 @@ export default function useSubmitHandler({
         }
 
         if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
+        if (!isUpdate) {
+          track("signals", "created");
+        }
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);
         reset(getDefaultValues(projectId, defaultMode));

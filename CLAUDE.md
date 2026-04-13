@@ -124,6 +124,14 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Trigger evaluation flow: `process_span_messages` → `upsert_trace_statistics_batch` (returns merged DB trace) → `check_and_push_signals` → `matches_filters`. All filters use AND logic.
 - Run targeted tests with `cargo test --bin app-server db::trace::tests -- --nocapture`.
 
+## Analytics / PostHog
+
+- Client-side analytics is centralized in `frontend/lib/analytics/`. Feature code should import `track` from `@/lib/analytics` — never import `posthog-js` directly.
+- Server-side PostHog client lives at `@/lib/analytics/server` (separate import path to avoid bundling `posthog-node` into client bundles).
+- The `AnalyticsProvider` (in `lib/analytics/provider.tsx`) handles both PostHog init and user identification. It wraps `PostHogProvider` from `posthog-js/react` so `usePostHog()` still works as an escape hatch.
+- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type (`'sessions' | 'signals' | 'traces' | 'alerts'`) is defined in `lib/analytics/client.ts`.
+- All tracking is no-op when PostHog is disabled (`POSTHOG_TELEMETRY !== "true"`). No conditional checks needed in feature code.
+
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)

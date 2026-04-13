@@ -16,6 +16,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const SIGNAL_QUICK_RANGES: DateRange[] = [
@@ -40,6 +41,10 @@ function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    track("signals", "page_viewed");
+  }, []);
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
@@ -49,6 +54,15 @@ function SignalsContent() {
   const filter = searchParams.getAll("filter");
   const filterKey = useMemo(() => JSON.stringify(filter), [filter]);
   const search = searchParams.get("search");
+  const filterInitRef = useRef(true);
+
+  useEffect(() => {
+    if (filterInitRef.current) {
+      filterInitRef.current = false;
+      return;
+    }
+    track("signals", "table_interaction", { type: "filter" });
+  }, [filterKey]);
 
   const FETCH_SIZE = 50;
 
@@ -198,6 +212,7 @@ function SignalsContent() {
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       if (scrollHeight - scrollTop - clientHeight < 200) {
+        track("signals", "table_interaction", { type: "paginate" });
         fetchNextPage();
       }
     };
