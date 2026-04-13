@@ -108,7 +108,7 @@ pub async fn get_projects_for_workspace(
 pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,
-) -> Result<ProjectWithWorkspaceBillingInfo> {
+) -> Result<Option<ProjectWithWorkspaceBillingInfo>> {
     let result = sqlx::query_as::<_, ProjectWithWorkspaceBillingInfoDbRow>(
         "
         WITH workspace_project_ids AS (
@@ -141,8 +141,8 @@ pub async fn get_project_and_workspace_billing_info(
             projects.id = $1",
     )
     .bind(project_id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
-    Ok(result.into())
+    Ok(result.map(|r| r.into()))
 }
