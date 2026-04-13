@@ -231,7 +231,7 @@ export const getGroupByInterval = (
     groupByInterval = "minute";
   } else if (pastHours === "24") {
     groupByInterval = "hour";
-  } else if (parseInt(pastHours ?? "0") > 24) {
+  } else if (parseInt(pastHours ?? "0") > 24 * 7) {
     groupByInterval = "day";
   } else if (pastHours === "all") {
     groupByInterval = "day";
@@ -239,8 +239,8 @@ export const getGroupByInterval = (
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diff = end.getTime() - start.getTime();
-    if (diff > 48 * 60 * 60 * 1000) {
-      // 2 days
+    if (diff > 7 * 24 * 60 * 60 * 1000) {
+      // 1 week
       groupByInterval = "day";
     } else if (diff < 6 * 60 * 60 * 1000) {
       // 6 hours
