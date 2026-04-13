@@ -45,5 +45,5 @@ export interface AlertWithDetails {
   projectName: string;
   createdAt: string;
   targets: AlertTarget[];
-  metadata: SignalEventAlertMetadata | null;
+  metadata: SignalEventAlertMetadata;
 }

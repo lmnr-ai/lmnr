@@ -115,7 +115,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
   return await db.transaction(async (tx) => {
     const [alert] = await tx
       .insert(alerts)
-      .values({ projectId, name, type, sourceId, metadata: metadata ?? null })
+      .values({ projectId, name, type, sourceId, metadata: metadata ?? {} })
       .returning({ id: alerts.id });
 
     await tx.insert(alertTargets).values(
