@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
-import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
+import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
@@ -109,7 +109,9 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     const event = payload.EventIdentification;
     if (!event) return null;
 
-    const severityLabel = (SEVERITY_LABELS[event.severity as keyof typeof SEVERITY_LABELS] ?? "Info").toLowerCase();
+    // Historical alerts (before severity was added) default to CRITICAL to match the backend behavior.
+    const severity = event.severity ?? SEVERITY_LEVEL.CRITICAL;
+    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
 
     const extractedFields: [string, string][] = event.extracted_information
       ? Object.entries(event.extracted_information).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])
@@ -121,7 +123,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
       summary: `New ${severityLabel} event detected`,
       extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
-      severity: event.severity,
+      severity,
     };
   } catch {
     return null;
