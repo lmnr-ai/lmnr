@@ -24,5 +24,3 @@ CREATE TABLE IF NOT EXISTS notification_deliveries
 )
 ENGINE = MergeTree()
 ORDER BY (workspace_id, project_id, notification_id, created_at);
-
-DROP TABLE IF EXISTS notification_logs;
