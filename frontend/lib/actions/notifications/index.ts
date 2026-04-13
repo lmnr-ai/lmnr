@@ -18,8 +18,9 @@ export interface WebNotification {
 
 const GetWebNotificationsSchema = z.object({
   projectId: z.guid(),
+  workspaceId: z.guid(),
   userId: z.guid(),
-  limit: z.number().int().positive().optional().default(30),
+  limit: z.number().int().positive().optional().default(100),
 });
 
 const MarkNotificationsAsReadSchema = z.object({
@@ -31,7 +32,7 @@ const MarkNotificationsAsReadSchema = z.object({
 export const getWebNotifications = async (
   input: z.input<typeof GetWebNotificationsSchema>
 ): Promise<WebNotification[]> => {
-  const { projectId, userId, limit } = GetWebNotificationsSchema.parse(input);
+  const { projectId, workspaceId, userId, limit } = GetWebNotificationsSchema.parse(input);
 
   const result = await clickhouseClient.query({
     query: `
@@ -44,13 +45,14 @@ export const getWebNotifications = async (
         payload,
         formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt
       FROM notifications
-      WHERE project_id = {projectId: UUID}
+      WHERE workspace_id = {workspaceId: UUID}
+        AND project_id = {projectId: UUID}
         AND created_at >= now() - INTERVAL 1 MONTH
-        AND definition_type = 'REPORT'
+        AND definition_type IN ('ALERT', 'REPORT')
       ORDER BY created_at DESC
       LIMIT {limit: UInt32}
     `,
-    query_params: { projectId, limit },
+    query_params: { projectId, workspaceId, limit },
     format: "JSONEachRow",
   });
 

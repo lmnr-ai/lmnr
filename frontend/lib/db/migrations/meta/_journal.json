@@ -568,6 +568,13 @@
       "when": 1775557271129,
       "tag": "0080_third_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1776097866364,
+      "tag": "0081_slim_santa_claus",
+      "breakpoints": true
     }
   ]
 }

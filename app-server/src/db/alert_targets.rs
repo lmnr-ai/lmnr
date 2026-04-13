@@ -5,6 +5,7 @@ use uuid::Uuid;
 pub struct AlertInfo {
     pub alert_id: Uuid,
     pub workspace_id: Uuid,
+    pub metadata: serde_json::Value,
 }
 
 /// Look up all alerts for a given project and signal event name.
@@ -17,7 +18,7 @@ pub async fn get_alerts_for_event(
 ) -> anyhow::Result<Vec<AlertInfo>> {
     let records = sqlx::query_as::<_, AlertInfo>(
         r#"
-        SELECT a.id AS alert_id, p.workspace_id
+        SELECT a.id AS alert_id, p.workspace_id, a.metadata
         FROM alerts a
         INNER JOIN signals s ON s.id = a.source_id
         INNER JOIN projects p ON p.id = a.project_id

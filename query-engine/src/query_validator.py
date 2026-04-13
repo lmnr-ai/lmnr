@@ -154,6 +154,7 @@ class TableRegistry:
             "name",
             "payload",
             "timestamp",
+            "severity",
             "summary",
             "clusters",
         }
