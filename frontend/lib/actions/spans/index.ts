@@ -7,11 +7,10 @@ import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
 import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import {
-  type AgentPaths,
   aggregateSpanMetrics,
   buildSpansQueryWithParams,
   createParentRewiring,
-  fetchAgentPaths,
+  fetchAgentGroupSpanIds,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -275,11 +274,8 @@ const fetchTraceSpans = async ({
   });
 };
 
-export type { AgentPaths } from "@/lib/actions/spans/utils";
-
 export type TraceSpansResult = {
   spans: TraceViewSpan[];
-  agentPaths: AgentPaths;
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceSpansResult> {
@@ -300,7 +296,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
-    return { spans: [], agentPaths: [] };
+    return { spans: [] };
   }
 
   const shouldApplyRewiring = search || filters.length > 0;
@@ -320,7 +316,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   ]);
 
   if (spans.length === 0) {
-    return { spans: [], agentPaths: [] };
+    return { spans: [] };
   }
 
   const parentRewiring =
@@ -353,8 +349,14 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     }
   }
 
-  const agentPaths = await fetchAgentPaths(traceId, projectId);
-  return { spans: result, agentPaths };
+  const boundaryIds = new Set(await fetchAgentGroupSpanIds(traceId, projectId));
+  for (const span of result) {
+    if (boundaryIds.has(span.spanId)) {
+      span.isSubagent = true;
+    }
+  }
+
+  return { spans: result };
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

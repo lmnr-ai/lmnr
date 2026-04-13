@@ -7,7 +7,7 @@ import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/list/collapsed-text-with-more";
-import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder";
+import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
@@ -98,9 +98,9 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                   />
                 </div>
               ) : previewText ? (
-                <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
+                <span className="text-sm text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
               ) : isLoadingOutput ? (
-                <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px]" />
+                <Skeleton className="h-4 flex-1 min-w-0 w-full" />
               ) : null)}
 
             <div className="flex items-center shrink-0 ml-auto">
@@ -112,7 +112,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                     </div>
                   </NoSpanTooltip>
                 ) : (
-                  <PreviewLoadingPlaceholder />
+                  <Skeleton className="w-10 h-4 bg-secondary rounded-md" />
                 )
               ) : (
                 <SpanStatsShield
@@ -132,10 +132,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
             (previewText ? (
               <CollapsedTextWithMore text={previewText} lineHeight={17} />
             ) : isLoadingOutput ? (
-              <div className="flex flex-col gap-1 py-0.5">
-                <Skeleton className="h-3.5 w-full" />
-                <Skeleton className="h-3.5 w-3/4" />
-              </div>
+              <PreviewLoadingPlaceholder />
             ) : null)}
         </div>
       </div>

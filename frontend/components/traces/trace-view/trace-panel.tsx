@@ -147,7 +147,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                 </div>
               </div>
             </div>
-            {tab === "reader" && (
+            {tab === "transcript" && (
               <div className="flex flex-1 h-full overflow-hidden relative">
                 <List onSpanSelect={handleSpanSelect} />
               </div>

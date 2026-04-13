@@ -2,10 +2,11 @@ import { ChevronRight } from "lucide-react";
 import { useCallback } from "react";
 
 import SpanTypeIcon from "@/components/traces/span-type-icon";
+import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import {
-  type ReaderListGroup,
   type TraceViewListSpan,
+  type TranscriptListGroup,
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -15,21 +16,21 @@ import { cn } from "@/lib/utils";
 import { CollapsedTextWithMore } from "./collapsed-text-with-more";
 
 interface AgentGroupHeaderProps {
-  group: ReaderListGroup;
+  group: TranscriptListGroup;
   collapsed: boolean;
   preview: string | null | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
 }
 
 export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: AgentGroupHeaderProps) {
-  const toggleReaderGroup = useTraceViewBaseStore((s) => s.toggleReaderGroup);
+  const toggleTranscriptGroup = useTraceViewBaseStore((s) => s.toggleTranscriptGroup);
 
   const handleToggle = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      toggleReaderGroup(group.groupId);
+      toggleTranscriptGroup(group.groupId);
     },
-    [toggleReaderGroup, group.groupId]
+    [toggleTranscriptGroup, group.groupId]
   );
 
   const firstSpan = group.spans[0];
@@ -42,8 +43,8 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
   return (
     <div
       className={cn(
-        "mx-2 mt-1 border bg-muted overflow-hidden cursor-pointer transition-colors hover:bg-muted-foreground/10",
-        collapsed ? "rounded-lg" : "rounded-t-lg border-b"
+        "mx-2 mt-1 border bg-muted/90 overflow-hidden cursor-pointer transition-colors hover:bg-muted-foreground/10",
+        collapsed ? "rounded-lg border" : "rounded-t-lg"
       )}
       onClick={() => onSpanSelect(firstSpan)}
     >
@@ -62,7 +63,7 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
               (previewText ? (
                 <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
               ) : isLoadingPreview ? (
-                <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px]" />
+                <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px] bg-secondary" />
               ) : null)}
             <div className="flex items-center shrink-0 ml-auto gap-1">
               <SpanStatsShield
@@ -84,10 +85,7 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
             (previewText ? (
               <CollapsedTextWithMore text={previewText} lineHeight={17} maxLines={2} />
             ) : isLoadingPreview ? (
-              <div className="flex flex-col gap-1 py-0.5">
-                <Skeleton className="h-3.5 w-full" />
-                <Skeleton className="h-3.5 w-3/4" />
-              </div>
+              <PreviewLoadingPlaceholder />
             ) : null)}
         </div>
       </div>

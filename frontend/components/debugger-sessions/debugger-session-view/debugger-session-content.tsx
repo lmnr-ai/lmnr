@@ -498,7 +498,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
                   </div>
                 </div>
               </div>
-              {tab === "reader" && (
+              {tab === "transcript" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <List onSpanSelect={handleSpanSelect} />
                 </div>

@@ -9,9 +9,9 @@ import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-
 import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
 import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
 import {
-  type ReaderListGroup,
   type TraceViewListSpan,
   type TraceViewSpan,
+  type TranscriptListGroup,
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -25,48 +25,46 @@ interface ListProps {
 
 type FlatRow =
   | { type: "span"; span: TraceViewListSpan }
-  | { type: "group-header"; group: ReaderListGroup }
-  | { type: "group-span"; span: TraceViewListSpan; group: ReaderListGroup; isLast: boolean };
+  | { type: "group-header"; group: TranscriptListGroup }
+  | { type: "group-span"; span: TraceViewListSpan; group: TranscriptListGroup; isLast: boolean };
 
 const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const {
-    getReaderListData,
+    getTranscriptListData,
     spans,
     isSpansLoading,
     selectedSpan,
     trace,
     condensedTimelineVisibleSpanIds,
-    readerCollapsedGroups,
-    agentPaths,
+    transcriptCollapsedGroups,
   } = useTraceViewBaseStore((state) => ({
-    getReaderListData: state.getReaderListData,
+    getTranscriptListData: state.getTranscriptListData,
     spans: state.spans,
     isSpansLoading: state.isSpansLoading,
     selectedSpan: state.selectedSpan,
     trace: state.trace,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    readerCollapsedGroups: state.readerCollapsedGroups,
-    agentPaths: state.agentPaths,
+    transcriptCollapsedGroups: state.transcriptCollapsedGroups,
   }));
 
   const prevVisibleIdsRef = useRef<string>("");
 
-  const readerEntries = useMemo(
-    () => getReaderListData(),
+  const transcriptEntries = useMemo(
+    () => getTranscriptListData(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [getReaderListData, spans, condensedTimelineVisibleSpanIds, agentPaths]
+    [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
-    for (const entry of readerEntries) {
+    for (const entry of transcriptEntries) {
       if (entry.type === "span") {
         rows.push({ type: "span", span: entry.span });
       } else {
         rows.push({ type: "group-header", group: entry });
-        const isCollapsed = !readerCollapsedGroups.has(entry.groupId);
+        const isCollapsed = !transcriptCollapsedGroups.has(entry.groupId);
         if (!isCollapsed) {
           const childSpans = entry.spans.slice(1);
           for (let i = 0; i < childSpans.length; i++) {
@@ -81,11 +79,11 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       }
     }
     return rows;
-  }, [readerEntries, readerCollapsedGroups]);
+  }, [transcriptEntries, transcriptCollapsedGroups]);
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
-    for (const entry of readerEntries) {
+    for (const entry of transcriptEntries) {
       if (entry.type === "span") {
         types[entry.span.spanId] = entry.span.spanType;
       } else {
@@ -95,17 +93,17 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       }
     }
     return types;
-  }, [readerEntries]);
+  }, [transcriptEntries]);
 
   const inputSpanIds = useMemo(() => {
     const ids: string[] = [];
-    for (const entry of readerEntries) {
+    for (const entry of transcriptEntries) {
       if (entry.type === "group" && entry.firstLlmSpanId) {
         ids.push(entry.firstLlmSpanId);
       }
     }
     return ids;
-  }, [readerEntries]);
+  }, [transcriptEntries]);
 
   const virtualizer = useVirtualizer({
     count: flatRows.length,
@@ -142,8 +140,10 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       if (row.type === "span" || row.type === "group-span") {
         ids.push(row.span.spanId);
       } else if (row.type === "group-header") {
-        for (const s of row.group.spans) {
-          ids.push(s.spanId);
+        const firstSpan = row.group.spans[0];
+        if (firstSpan) ids.push(firstSpan.spanId);
+        if (row.group.firstLlmSpanId && row.group.firstLlmSpanId !== firstSpan?.spanId) {
+          ids.push(row.group.firstLlmSpanId);
         }
       }
     }
@@ -219,7 +219,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [spans, onSpanSelect]
   );
 
-  const hasEntries = readerEntries.length > 0;
+  const hasEntries = transcriptEntries.length > 0;
 
   if (isSpansLoading) {
     return (
@@ -240,7 +240,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
         <span className="text-base text-secondary-foreground">
           {isEmpty(spans)
             ? "No spans found."
-            : "No matching spans found. Reader mode omits default span types. Switch to tree view to see all spans."}
+            : "No matching spans found. Transcript mode omits default span types. Switch to tree view to see all spans."}
         </span>
       </div>
     );
@@ -275,7 +275,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               if (!row) return null;
 
               if (row.type === "group-header") {
-                const isCollapsed = !readerCollapsedGroups.has(row.group.groupId);
+                const isCollapsed = !transcriptCollapsedGroups.has(row.group.groupId);
                 const firstSpan = row.group.spans[0];
                 const firstSpanIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
                 const previewSpanId =

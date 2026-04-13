@@ -3,7 +3,7 @@ import type z from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import { aggregateSpanMetrics, fetchAgentPaths } from "@/lib/actions/spans/utils.ts";
+import { aggregateSpanMetrics, fetchAgentGroupSpanIds } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
@@ -11,7 +11,6 @@ import { tryParseJson } from "@/lib/utils";
 
 type SharedSpansResult = {
   spans: TraceViewSpan[];
-  agentPaths: string[];
 };
 
 export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>): Promise<SharedSpansResult> => {
@@ -62,7 +61,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
   });
 
   if (spans.length === 0) {
-    return { spans: [], agentPaths: [] };
+    return { spans: [] };
   }
 
   const transformedSpans = spans.map((span) => {
@@ -86,6 +85,13 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
   });
 
   const result = aggregateSpanMetrics(transformedSpans);
-  const agentPaths = await fetchAgentPaths(traceId, sharedTrace.projectId);
-  return { spans: result, agentPaths };
+
+  const boundaryIds = new Set(await fetchAgentGroupSpanIds(traceId, sharedTrace.projectId));
+  for (const span of result) {
+    if (boundaryIds.has(span.spanId)) {
+      span.isSubagent = true;
+    }
+  }
+
+  return { spans: result };
 };

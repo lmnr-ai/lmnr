@@ -34,7 +34,7 @@ function extractSystemMessageContent(message: any): string | null {
   return null;
 }
 
-function parseSystemMessageFromInput(input: string): string | null {
+export function parseSystemMessageFromInput(input: string): string | null {
   const parsed = tryParseJson(input);
   if (!parsed) return null;
 

@@ -18,7 +18,7 @@ export async function GET(
   );
 
   if (!parseResult.success) {
-    return NextResponse.json({ spans: [], agentPaths: [] });
+    return NextResponse.json({ spans: [] });
   }
 
   try {

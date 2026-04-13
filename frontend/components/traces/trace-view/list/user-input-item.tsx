@@ -1,7 +1,7 @@
 import { User } from "lucide-react";
 
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/list/collapsed-text-with-more";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
 
 interface UserInputItemProps {
   text: string | null;
@@ -9,16 +9,7 @@ interface UserInputItemProps {
 }
 
 export function UserInputItem({ text, isLoading }: UserInputItemProps) {
-  if (isLoading) {
-    return (
-      <div className="flex gap-2 items-start px-3 py-2">
-        <Skeleton className="w-5 h-5 shrink-0 rounded" />
-        <Skeleton className="h-5 flex-1" />
-      </div>
-    );
-  }
-
-  if (!text) return null;
+  if (!isLoading && !text) return null;
 
   return (
     <div className="flex gap-2 items-start px-3 py-2 border-l-4 border-l-transparent">
@@ -27,7 +18,7 @@ export function UserInputItem({ text, isLoading }: UserInputItemProps) {
       </div>
       <div className="flex flex-col flex-1 min-w-0 gap-0.5">
         <span className="font-medium text-sm whitespace-nowrap shrink-0">User</span>
-        <CollapsedTextWithMore text={text} lineHeight={17} />
+        {isLoading ? <PreviewLoadingPlaceholder /> : <CollapsedTextWithMore text={text!} lineHeight={17} />}
       </div>
     </div>
   );

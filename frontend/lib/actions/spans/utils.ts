@@ -14,6 +14,7 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { parseSystemMessageFromInput } from "@/lib/actions/spans/system-messages";
 import { executeQuery } from "@/lib/actions/sql";
 import { tryParseJson } from "@/lib/utils.ts";
 
@@ -359,41 +360,61 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
   });
 };
 
-/**
- * Ordered list of agent paths. The first element is the main agent path;
- * all subsequent elements are sub-agent paths in order of first appearance.
- * An empty array means no agent paths were detected.
- */
-export type AgentPaths = string[];
-
-const AGENT_PATHS_QUERY = `
-  SELECT path
+const AGENT_GROUPS_QUERY = `
+  SELECT
+    path,
+    parent_span_id as parentSpanId,
+    argMin(input, start_time) as firstInput,
+    min(start_time) as minStart
   FROM spans
   WHERE trace_id = {traceId: UUID}
     AND span_type IN ('LLM', 'CACHED')
     AND path != ''
-  GROUP BY path
-  ORDER BY min(start_time) ASC, sum(total_tokens) DESC
+  GROUP BY path, parent_span_id
+  ORDER BY minStart ASC
 `;
 
 /**
- * Fetch agent paths from ClickHouse, ordered by earliest start then most tokens.
- * The first path is the main agent; subsequent non-child paths are sub-agents.
+ * Fetch span IDs that serve as transcript group boundaries.
+ *
+ * Groups LLM spans by (path, parent_span_id), extracts the system prompt
+ * from the first LLM call in each group, then clusters by system prompt.
+ * The earliest cluster is the main agent — all other clusters are sub-agents
+ * whose parent span IDs become group boundaries on the client.
  */
-export async function fetchAgentPaths(traceId: string, projectId: string): Promise<AgentPaths> {
-  const rows = await executeQuery<{ path: string }>({
-    query: AGENT_PATHS_QUERY,
+export async function fetchAgentGroupSpanIds(traceId: string, projectId: string): Promise<string[]> {
+  const rows = await executeQuery<{
+    path: string;
+    parentSpanId: string;
+    firstInput: string;
+  }>({
+    query: AGENT_GROUPS_QUERY,
     parameters: { traceId },
     projectId,
   });
 
-  if (rows.length === 0) return [];
+  if (rows.length <= 1) return [];
 
-  const mainPath = rows[0].path;
-  const subAgentPaths = rows
-    .slice(1)
-    .filter((r) => !r.path.startsWith(mainPath + "."))
-    .map((r) => r.path);
+  // Extract system prompt per group and cluster by it
+  type GroupInfo = { parentSpanId: string; systemPrompt: string | null };
+  const groups: GroupInfo[] = rows.map((r) => ({
+    parentSpanId: r.parentSpanId,
+    systemPrompt: parseSystemMessageFromInput(r.firstInput),
+  }));
 
-  return [mainPath, ...subAgentPaths];
+  // The first group's system prompt is the main agent's
+  const mainPrompt = groups[0].systemPrompt;
+
+  // Every group whose system prompt differs from the main agent's is a sub-agent
+  const subAgentParentIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const g of groups) {
+    if (g.systemPrompt === mainPrompt) continue;
+    if (seen.has(g.parentSpanId)) continue;
+    seen.add(g.parentSpanId);
+    subAgentParentIds.push(g.parentSpanId);
+  }
+
+  return subAgentParentIds;
 }

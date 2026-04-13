@@ -2,7 +2,6 @@ import { clamp, has } from "lodash";
 import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 
-import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
@@ -50,6 +49,7 @@ export type TraceViewSpan = {
     reasoningTokens?: number;
     hasLLMDescendants: boolean;
   };
+  isSubagent?: boolean;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
@@ -77,7 +77,7 @@ export type TraceViewListSpan = {
   attributesSnippet?: SnippetInfo;
 };
 
-export type ReaderListGroup = {
+export type TranscriptListGroup = {
   type: "group";
   groupId: string;
   name: string;
@@ -90,7 +90,7 @@ export type ReaderListGroup = {
   totalCost: number;
 };
 
-export type ReaderListEntry = { type: "span"; span: TraceViewListSpan } | ReaderListGroup;
+export type TranscriptListEntry = { type: "span"; span: TraceViewListSpan } | TranscriptListGroup;
 
 export type TraceViewTrace = {
   id: string;
@@ -133,7 +133,7 @@ export interface BaseTraceViewState {
   langGraph: boolean;
   sessionTime?: number;
   sessionStartTime?: number;
-  tab: "tree" | "reader";
+  tab: "tree" | "transcript";
   hasBrowserSession: boolean;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
@@ -168,11 +168,8 @@ export interface BaseTraceViewState {
   // Layout options
   isAlwaysSelectSpan: boolean;
 
-  // Server-computed agent paths for reader mode grouping
-  agentPaths: AgentPaths;
-
-  // Reader mode group collapse state
-  readerCollapsedGroups: Set<string>;
+  // Transcript mode group collapse state
+  transcriptCollapsedGroups: Set<string>;
 }
 
 export interface BaseTraceViewActions {
@@ -217,13 +214,12 @@ export interface BaseTraceViewActions {
   openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
   consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
-  setAgentPaths: (agentPaths: AgentPaths) => void;
-  toggleReaderGroup: (groupId: string) => void;
+  toggleTranscriptGroup: (groupId: string) => void;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
-  getReaderListData: () => ReaderListEntry[];
+  getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
@@ -278,11 +274,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
 
-    // Server-computed agent paths for reader mode grouping
-    agentPaths: [],
-
-    // Reader mode group collapse state (all collapsed by default)
-    readerCollapsedGroups: new Set<string>(),
+    // Transcript mode group collapse state (all collapsed by default)
+    transcriptCollapsedGroups: new Set<string>(),
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -357,8 +350,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       return lightweightListSpans;
     },
 
-    getReaderListData: () => {
-      const { spans, condensedTimelineVisibleSpanIds, agentPaths } = get();
+    getTranscriptListData: () => {
+      const { spans, condensedTimelineVisibleSpanIds } = get();
 
       const selectionFilteredSpans =
         condensedTimelineVisibleSpanIds.size === 0
@@ -387,33 +380,87 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         attributesSnippet: span.attributesSnippet,
       });
 
-      const mainAgentPath = agentPaths[0] ?? null;
+      const groupBoundarySet = new Set(spans.filter((s) => s.isSubagent).map((s) => s.spanId));
+      if (groupBoundarySet.size === 0) {
+        return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span) }));
+      }
 
-      const isMainAgentSpan = (span: TraceViewSpan): boolean => {
-        if (!mainAgentPath) return true;
-        if (!span.path) return true;
-        return span.path === mainAgentPath || span.path.startsWith(mainAgentPath + ".");
+      const parentMap = new Map<string, string | undefined>();
+      const spanMap = new Map<string, TraceViewSpan>();
+      for (const s of spans) {
+        parentMap.set(s.spanId, s.parentSpanId);
+        spanMap.set(s.spanId, s);
+      }
+
+      // Walk up ancestors to find which boundary (if any) a span belongs to
+      const spanGroupCache = new Map<string, string | null>();
+      const findGroupBoundary = (spanId: string): string | null => {
+        if (spanGroupCache.has(spanId)) return spanGroupCache.get(spanId)!;
+
+        const visited: string[] = [spanId];
+        let current = spanId;
+        let result: string | null = null;
+
+        while (current) {
+          if (groupBoundarySet.has(current)) {
+            result = current;
+            break;
+          }
+          const parent = parentMap.get(current);
+          if (!parent) break;
+          if (spanGroupCache.has(parent)) {
+            result = spanGroupCache.get(parent)!;
+            break;
+          }
+          visited.push(parent);
+          current = parent;
+        }
+
+        for (const id of visited) {
+          spanGroupCache.set(id, result);
+        }
+        return result;
       };
 
-      const entries: ReaderListEntry[] = [];
-      let currentGroup: { path: string; spans: TraceViewSpan[] } | null = null;
+      // Pass 1: collect all spans per boundary, preserving time order
+      const groupSpansMap = new Map<string, TraceViewSpan[]>();
 
-      const flushGroup = () => {
-        if (!currentGroup || currentGroup.spans.length === 0) return;
-        const groupSpans = currentGroup.spans;
-        const groupPath = currentGroup.path;
+      for (const span of listSpans) {
+        const boundary = findGroupBoundary(span.spanId);
+        if (!boundary) continue;
 
+        if (!groupSpansMap.has(boundary)) {
+          groupSpansMap.set(boundary, []);
+        }
+        groupSpansMap.get(boundary)!.push(span);
+      }
+
+      // Pass 2: emit entries — standalone spans in order, groups at first occurrence
+      const emittedGroups = new Set<string>();
+      const entries: TranscriptListEntry[] = [];
+
+      for (const span of listSpans) {
+        const boundary = findGroupBoundary(span.spanId);
+
+        if (!boundary) {
+          entries.push({ type: "span", span: toLightweight(span) });
+          continue;
+        }
+
+        if (emittedGroups.has(boundary)) continue;
+        emittedGroups.add(boundary);
+
+        const groupSpans = groupSpansMap.get(boundary)!;
         const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
 
         if (!firstLlm) {
           for (const s of groupSpans) {
             entries.push({ type: "span", span: toLightweight(s) });
           }
-          currentGroup = null;
-          return;
+          continue;
         }
 
-        const groupId = `group-${groupPath}-${groupSpans[0].spanId}`;
+        const boundarySpan = spanMap.get(boundary);
 
         let totalTokens = 0;
         let totalCost = 0;
@@ -422,14 +469,11 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           totalCost += s.totalCost;
         }
 
-        const pathParts = groupPath.split(".");
-        const groupName = pathParts[pathParts.length - 1] || groupSpans[0].name;
-
         entries.push({
           type: "group",
-          groupId,
-          name: groupName,
-          path: groupPath,
+          groupId: `group-${boundary}`,
+          name: boundarySpan?.name ?? groupSpans[0].name,
+          path: boundarySpan?.path ?? "",
           spans: groupSpans.map(toLightweight),
           firstLlmSpanId: firstLlm.spanId,
           startTime: groupSpans[0].startTime,
@@ -437,37 +481,20 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           totalTokens,
           totalCost,
         });
-        currentGroup = null;
-      };
-
-      for (const span of listSpans) {
-        if (isMainAgentSpan(span)) {
-          flushGroup();
-          entries.push({ type: "span", span: toLightweight(span) });
-        } else {
-          if (currentGroup) {
-            currentGroup.spans.push(span);
-          } else {
-            currentGroup = { path: span.path, spans: [span] };
-          }
-        }
       }
-      flushGroup();
 
       return entries;
     },
 
-    setAgentPaths: (agentPaths: AgentPaths) => set({ agentPaths } as Partial<T>),
-
-    toggleReaderGroup: (groupId: string) => {
-      const prev = get().readerCollapsedGroups;
+    toggleTranscriptGroup: (groupId: string) => {
+      const prev = get().transcriptCollapsedGroups;
       const next = new Set(prev);
       if (next.has(groupId)) {
         next.delete(groupId);
       } else {
         next.add(groupId);
       }
-      set({ readerCollapsedGroups: next } as Partial<T>);
+      set({ transcriptCollapsedGroups: next } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
