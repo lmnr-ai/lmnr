@@ -11,9 +11,10 @@ interface AnalyticsProviderProps {
 }
 
 export function AnalyticsProvider({ children, telemetryEnabled, email }: PropsWithChildren<AnalyticsProviderProps>) {
-  useEffect(() => {
-    init(telemetryEnabled);
-  }, [telemetryEnabled]);
+  // Init eagerly during render (not in useEffect) so that child useEffect hooks
+  // — which React fires depth-first (children before parents) — can already call
+  // track() / identify() on initial mount without events being silently dropped.
+  init(telemetryEnabled);
 
   useEffect(() => {
     if (email) {
