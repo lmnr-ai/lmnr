@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
-import { SEVERITY_LABELS, SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
@@ -109,8 +109,10 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     const event = payload.EventIdentification;
     if (!event) return null;
 
-    // Historical alerts (before severity was added) default to CRITICAL to match the backend behavior.
-    const severity = event.severity ?? SEVERITY_LEVEL.CRITICAL;
+    // Do not show notification if severity is not specified (historical data)
+    if (event.severity == null) return null;
+
+    const severity = event.severity;
     const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
 
     const extractedFields: [string, string][] = event.extracted_information
@@ -326,7 +328,7 @@ const NotificationItem = ({
           {formatted.kind === "alert" ? (
             <SeverityIcon severity={formatted.severity} />
           ) : (
-            <FileText className="size-3.5 shrink-0 text-purple-400/60" />
+            <FileText className="size-3.5 shrink-0 text-muted-foreground/60" />
           )}
           <span className={cn("text-xs", isUnread ? "font-semibold" : "font-medium")}>{formatted.title}</span>
         </div>
