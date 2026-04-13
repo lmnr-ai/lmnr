@@ -1,8 +1,10 @@
+use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, LazyLock},
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -55,13 +57,14 @@ pub enum StepResult {
     Failed {
         error: String,
         finish_reason: Option<FinishReason>,
+        // Whether the error is due to processing the response, not the provider.
+        // Usually due to malformed function calls so is retryable.
         is_processing_error: bool,
     },
 }
 
 pub struct FailureMetadata {
-    pub finish_reason: Option<FinishReason>,
-    pub is_processing_error: bool,
+    pub retryable: bool,
 }
 
 pub struct ProcessedResponses {
@@ -176,6 +179,7 @@ pub async fn process_provider_responses(
                     }
                     Err(e) => {
                         log::error!("[SIGNAL JOB] Failed to create event: {:?}", e);
+                        failure_metadata.insert(run.run_id, FailureMetadata { retryable: false });
                         failed_runs.push(run.failed(format!("Failed to create event: {}", e)));
                     }
                 }
@@ -191,8 +195,11 @@ pub async fn process_provider_responses(
                 failure_metadata.insert(
                     run.run_id,
                     FailureMetadata {
-                        finish_reason,
-                        is_processing_error,
+                        retryable: is_processing_error
+                            || finish_reason
+                                .as_ref()
+                                .map(|fr| fr.is_retryable())
+                                .unwrap_or(true),
                     },
                 );
                 failed_runs.push(run.failed(error));
@@ -776,15 +783,54 @@ pub async fn handle_create_event(
         summary,
         severity,
     );
-    insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
-    process_event_notifications_and_clustering(
-        db,
-        queue.clone(),
-        signal_message.project_id,
-        run.trace_id,
-        signal_event,
-    )
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let ch_ref = &clickhouse;
+    let event_ref = &signal_event;
+    // NOTE: all errors treated as transient because anyhow::Error doesn't expose
+    // ClickHouse error kinds; permanent errors (schema mismatch, etc.) will retry
+    // until the 10s timeout before propagating.
+    backoff::future::retry(backoff, || async move {
+        insert_signal_events(ch_ref.clone(), vec![event_ref.clone()])
+            .await
+            .map_err(|e| {
+                log::warn!("[SIGNAL JOB] Retrying insert_signal_events: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    })
+    .await?;
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let db_ref = &db;
+    let queue_ref = &queue;
+    let project_id = signal_message.project_id;
+    let trace_id = run.trace_id;
+    let event_for_notif = signal_event.clone();
+    backoff::future::retry(backoff, || {
+        let event = event_for_notif.clone();
+        async move {
+            process_event_notifications_and_clustering(
+                db_ref.clone(),
+                queue_ref.clone(),
+                project_id,
+                trace_id,
+                event,
+            )
+            .await
+            .map_err(|e| {
+                log::warn!("[SIGNAL JOB] Retrying notifications/clustering: {:?}", e);
+                backoff::Error::transient(e)
+            })
+        }
+    })
     .await?;
 
     emit_internal_span(
