@@ -621,9 +621,12 @@ async fn get_workspace_info_for_project_id(
             let info =
                 db::projects::get_project_and_workspace_billing_info(&db.pool, &project_id).await?;
             if let Some(ref info) = info {
-                let _ = cache
+                if let Err(e) = cache
                     .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
-                    .await;
+                    .await
+                {
+                    log::error!("Failed to insert project info into cache: {:?}", e);
+                }
             }
             Ok(info)
         }
