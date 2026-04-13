@@ -26,7 +26,7 @@ export function SpanStatsShield({
   return (
     <div
       className={cn(
-        "items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex flex-shrink-0 animate-in fade-in duration-200",
+        "items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex shrink-0 animate-in fade-in duration-200",
         className
       )}
     >
@@ -36,7 +36,7 @@ export function SpanStatsShield({
       </div>
       {!!tokens && (
         <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <Coins size={14} className="min-w-[14px] min-h-[14px]" />
+          <Coins size={14} className="min-w-3.5 min-h-3.5" />
           <span>{numberFormatter.format(tokens)}</span>
           {!!cacheReadInputTokens && (
             <span className="text-success-bright">({numberFormatter.format(cacheReadInputTokens)})</span>
@@ -45,7 +45,7 @@ export function SpanStatsShield({
       )}
       {!!cost && (
         <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
+          <CircleDollarSign size={14} className="min-w-3.5 min-h-3.5" />
           <span>${cost.toFixed(4)}</span>
         </div>
       )}

@@ -1,5 +1,13 @@
 import type Stripe from "stripe";
 
+export type TierConfigEntry = {
+  lookupKey: string;
+  overageMegabytesLookupKey: string;
+  overageSignalRunsLookupKey: string;
+  includedBytes: number;
+  includedSignalRuns: number;
+};
+
 export const TIER_CONFIG = {
   hobby: {
     lookupKey: "hobby_monthly_2026_02",

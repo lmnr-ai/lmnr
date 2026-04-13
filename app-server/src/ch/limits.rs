@@ -88,11 +88,10 @@ pub async fn get_workspace_signal_runs_by_project_ids(
 
     let query = "
     SELECT
-      COUNT(*) as total_signal_runs
-    FROM signal_runs
+      SUM(steps_processed) as total_signal_runs
+    FROM signal_runs FINAL
     WHERE project_id IN { project_ids: Array(UUID) }
     AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
-    -- Only count completed signal runs
     AND signal_runs.status = 1
     ";
 

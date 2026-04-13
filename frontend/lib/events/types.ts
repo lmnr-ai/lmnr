@@ -12,4 +12,5 @@ export type EventRow = {
   traceId: string;
   payload: string;
   timestamp: string;
+  severity: number;
 };

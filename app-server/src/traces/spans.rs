@@ -512,9 +512,26 @@ impl SpanAttributes {
             .get(TRACING_LEVEL_ATTRIBUTE_NAME)
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
+
+    fn is_claude_code_span(&self) -> bool {
+        self.raw_attributes
+            .get("lmnr.internal.claude_code_proxy")
+            .is_some_and(|v| *v == Value::Bool(true))
+    }
+
+    fn is_skip_cc_span(&self) -> bool {
+        self.is_claude_code_span()
+            && self
+                .raw_attributes
+                .get("lmnr.internal.cc_skip_span")
+                .is_some_and(|v| *v == Value::Bool(true))
+    }
 }
 
 impl Span {
+    /// An early check to filter out spans. Intended primarily to filter out noise spans from
+    /// instrumentations. Assumes the skipped span, may have children, so it's the caller's
+    /// responsibility to remove this span from their paths.
     pub fn should_save(&self) -> bool {
         self.attributes.tracing_level() != Some(TracingLevel::Off) && !skip_span_name(&self.name)
     }
@@ -846,14 +863,8 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self
-                .input
-                .as_ref()
-                .map_or(0, |v| estimate_json_size(v))
-            + self
-                .output
-                .as_ref()
-                .map_or(0, |v| estimate_json_size(v))
+            + self.input.as_ref().map_or(0, |v| estimate_json_size(v))
+            + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
@@ -889,6 +900,79 @@ impl Span {
             && (self.attributes.span_type() == SpanType::LLM
                 || is_cached_llm_span
                 || self.span_type == SpanType::LLM)
+    }
+
+    pub fn should_record_to_clickhouse(&self) -> bool {
+        // This function is intended to filter out "signal" spans from record to clickhouse.
+        // Signal spans are assumed to be leaf spans, so they are not removed from path.
+        // They could be LLM spans though, so this check can/should be performed after
+        // aggregating trace token/cost stats.
+
+        // One of the signal spans is the span that carries the attribute to indicate whether
+        // the trace has a browser session or not and is named "cdp_use.session".
+        if self.attributes.has_browser_session().unwrap_or(false) && self.name == "cdp_use.session"
+        {
+            return false;
+        }
+        // Older Claude Code made LLM calls inside Bash tool calls, and we don't need these
+        // spans.
+        if self.name == "anthropic.messages" {
+            // New versions of our proxy annotate this via attributes
+            if self.attributes.is_skip_cc_span() {
+                return false;
+            }
+            // For older versions of our proxy, apply similar heuristics here directly
+            if self.attributes.is_claude_code_span()
+                && (self
+                    .attributes
+                    .request_model()
+                    .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                || self
+                    .attributes
+                    .response_model()
+                    .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                )
+                // input check is relatively heavy, so perform it after simpler checks
+                && self.is_input_cc_bash_check()
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn is_input_cc_bash_check(&self) -> bool {
+        // We stringify the input for this check, which causes newline chars to be escaped.
+        static IS_DISPLAYING_CONTENT_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+            "Format your response as:(?:\\\\n)*<is_displaying_contents>(?:\\\\n)*(?:true|false)(?:\\\\n)*</is_displaying_contents>(?:\\\\n)*<filepaths>(?:\\\\n)*path/to/file1(?:\\\\n)*path/to/file2(?:\\\\n)*</filepaths>"
+        ).unwrap()
+        });
+        static PREFIX_DETECTION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+                "<policy_spec>(?:\\\\n)*# Claude (?:Code ){1,2}Bash command prefix detection",
+            )
+            .unwrap()
+        });
+        static COMMAND_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(?:\\\\n)*[Cc]ommand: ").unwrap());
+
+        let maybe_input_str = self.input.as_ref().map(|i| json_value_to_string(i));
+        let is_displaying_content = maybe_input_str
+            .as_ref()
+            .is_some_and(|s| IS_DISPLAYING_CONTENT_REGEX.is_match(s));
+
+        if is_displaying_content {
+            return true;
+        }
+
+        let prefix_detection = maybe_input_str
+            .as_ref()
+            .is_some_and(|s| PREFIX_DETECTION_REGEX.is_match(s) && COMMAND_REGEX.is_match(s));
+        if prefix_detection {
+            return true;
+        }
+        false
     }
 }
 

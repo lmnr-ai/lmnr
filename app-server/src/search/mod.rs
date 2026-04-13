@@ -28,7 +28,7 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     '\u{2014}', // — em dash
 ];
 
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
+const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
 fn escape_quickwit_query(query: &str) -> String {
@@ -132,6 +132,7 @@ pub async fn search_spans(
             span_id: h.span_id,
             input_snippet: None,
             output_snippet: None,
+            attributes_snippet: None,
         })
         .collect();
 

@@ -32,6 +32,7 @@ function computeSpanStats(
   | "outputCost"
   | "totalCost"
   | "cacheReadInputTokens"
+  | "reasoningTokens"
 > {
   if (spans.length === 0) {
     return {
@@ -44,6 +45,7 @@ function computeSpanStats(
       outputCost: 0,
       totalCost: 0,
       cacheReadInputTokens: 0,
+      reasoningTokens: 0,
     };
   }
 
@@ -56,6 +58,7 @@ function computeSpanStats(
   let outputCost = 0;
   let totalCost = 0;
   let cacheReadInputTokens = 0;
+  let reasoningTokens = 0;
 
   for (const span of spans) {
     const start = new Date(span.startTime).getTime();
@@ -70,6 +73,7 @@ function computeSpanStats(
     outputCost += span.outputCost || 0;
     totalCost += span.totalCost || 0;
     cacheReadInputTokens += span.cacheReadInputTokens || 0;
+    reasoningTokens += span.reasoningTokens || 0;
   }
 
   return {
@@ -82,6 +86,7 @@ function computeSpanStats(
     outputCost,
     totalCost,
     cacheReadInputTokens,
+    reasoningTokens,
   };
 }
 
@@ -97,6 +102,7 @@ interface StatsShieldsProps {
     | "outputCost"
     | "totalCost"
     | "cacheReadInputTokens"
+    | "reasoningTokens"
   >;
   className?: string;
   variant?: "filled" | "outline";
@@ -143,6 +149,12 @@ function StatsShields({ stats, className, variant = "filled", labelPrefix }: Sta
               {!!stats.cacheReadInputTokens && (
                 <Label className="flex text-xs gap-1 text-success-bright">
                   <span>{label("cache input tokens")}</span> {numberFormat.format(stats.cacheReadInputTokens)}
+                </Label>
+              )}
+              {!!stats.reasoningTokens && (
+                <Label className="flex text-xs gap-1">
+                  <span className="text-secondary-foreground">{label("reasoning tokens")}</span>{" "}
+                  {numberFormat.format(stats.reasoningTokens)}
                 </Label>
               )}
             </div>
@@ -219,6 +231,7 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
       "outputTokens",
       "totalTokens",
       "cacheReadInputTokens",
+      "reasoningTokens",
       "inputCost",
       "outputCost",
       "totalCost",
@@ -243,6 +256,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
       "outputTokens",
       "totalTokens",
       "cacheReadInputTokens",
+      "reasoningTokens",
       "inputCost",
       "outputCost",
       "totalCost",

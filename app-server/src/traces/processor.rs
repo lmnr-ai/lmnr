@@ -22,7 +22,7 @@ use crate::{
     db::{
         DB,
         spans::{Span, SpanType},
-        trace::{Trace, upsert_trace_statistics_batch},
+        trace::{Trace, TraceType, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -139,7 +139,13 @@ pub async fn process_span_messages(
     // so the signal agent can see the trace data when processing.
     if let Some(updated_traces) = &updated_traces {
         if is_feature_enabled(Feature::Signals) {
-            let traces_by_project = group_traces_by_project(updated_traces);
+            let default_trace_type: i16 = Into::<u8>::into(TraceType::DEFAULT) as i16;
+            let default_traces: Vec<Trace> = updated_traces
+                .iter()
+                .filter(|trace| trace.trace_type() == default_trace_type)
+                .cloned()
+                .collect();
+            let traces_by_project = group_traces_by_project(&default_traces);
             for (project_id, project_traces) in &traces_by_project {
                 check_and_push_signals(
                     *project_id,

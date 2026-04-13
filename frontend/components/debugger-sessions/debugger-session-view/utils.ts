@@ -123,6 +123,7 @@ export const onRealtimeUpdateSpans =
     const inputTokens = get(newSpan.attributes, "gen_ai.usage.input_tokens", 0);
     const outputTokens = get(newSpan.attributes, "gen_ai.usage.output_tokens", 0);
     const cacheReadInputTokens = get(newSpan.attributes, "gen_ai.usage.cache_read_input_tokens", 0);
+    const reasoningTokens = get(newSpan.attributes, "gen_ai.usage.reasoning_tokens", 0);
     const totalTokens = inputTokens + outputTokens;
     const inputCost = get(newSpan.attributes, "gen_ai.usage.input_cost", 0);
     const outputCost = get(newSpan.attributes, "gen_ai.usage.output_cost", 0);
@@ -139,6 +140,7 @@ export const onRealtimeUpdateSpans =
           inputTokens: inputTokens,
           outputTokens: outputTokens,
           cacheReadInputTokens: cacheReadInputTokens,
+          reasoningTokens: reasoningTokens,
           inputCost: inputCost,
           outputCost: outputCost,
           totalCost: totalCost,
@@ -159,6 +161,7 @@ export const onRealtimeUpdateSpans =
           inputTokens: inputTokens,
           outputTokens: outputTokens,
           cacheReadInputTokens: cacheReadInputTokens,
+          reasoningTokens: reasoningTokens,
           inputCost: inputCost,
           outputCost: outputCost,
           totalCost: totalCost,
@@ -182,6 +185,7 @@ export const onRealtimeUpdateSpans =
       newTrace.inputTokens += inputTokens;
       newTrace.outputTokens += outputTokens;
       newTrace.cacheReadInputTokens = (newTrace.cacheReadInputTokens || 0) + cacheReadInputTokens;
+      newTrace.reasoningTokens = (newTrace.reasoningTokens || 0) + reasoningTokens;
       newTrace.inputCost += inputCost;
       newTrace.outputCost += outputCost;
       newTrace.totalCost += totalCost;
@@ -209,6 +213,7 @@ export const onRealtimeUpdateSpans =
           inputTokens,
           outputTokens,
           cacheReadInputTokens,
+          reasoningTokens,
           inputCost,
           outputCost,
           totalCost,
@@ -225,6 +230,7 @@ export const onRealtimeUpdateSpans =
           inputTokens,
           outputTokens,
           cacheReadInputTokens,
+          reasoningTokens,
           inputCost,
           outputCost,
           totalCost,

@@ -110,6 +110,7 @@ impl QueueConfig {
 pub enum WorkerType {
     SpansIndexer,
     Notifications,
+    NotificationDeliveries,
     Clustering,
     SignalJobSubmissionBatch,
     SignalJobPendingBatch,
@@ -123,6 +124,7 @@ impl std::fmt::Display for WorkerType {
         match self {
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
             WorkerType::Notifications => write!(f, "notifications"),
+            WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
             WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobSubmissionBatch => {
                 write!(f, "signal_job_submission_batch")
