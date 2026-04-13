@@ -13,7 +13,7 @@ export const GetEventStatsSchema = z.object({
   signalId: z.string(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
-  minSeverity: z.coerce.number().optional(),
+  minSeverity: z.coerce.number().int().min(0).max(2).optional(),
 });
 
 export interface EventsStatsDataPoint {
