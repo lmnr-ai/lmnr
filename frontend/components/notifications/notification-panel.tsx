@@ -76,7 +76,12 @@ const renderWithLinks = (text: string): ReactNode => {
     let href = url;
     try {
       const parsed = new URL(url);
-      if (parsed.hostname.endsWith("laminar.sh") || parsed.hostname.endsWith("lmnr.ai")) {
+      if (
+        parsed.hostname === "laminar.sh" ||
+        parsed.hostname.endsWith(".laminar.sh") ||
+        parsed.hostname === "lmnr.ai" ||
+        parsed.hostname.endsWith(".lmnr.ai")
+      ) {
         href = parsed.pathname + parsed.search;
       }
     } catch {
