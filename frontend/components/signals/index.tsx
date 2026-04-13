@@ -209,10 +209,14 @@ function SignalsContent() {
     const container = scrollContainerRef.current;
     if (!container || !hasMore || isFetching) return;
 
+    let tracked = false;
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       if (scrollHeight - scrollTop - clientHeight < 200) {
-        track("signals", "table_interaction", { type: "paginate" });
+        if (!tracked) {
+          tracked = true;
+          track("signals", "table_interaction", { type: "paginate" });
+        }
         fetchNextPage();
       }
     };

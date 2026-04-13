@@ -4,6 +4,9 @@ import { POSTHOG_HOST, POSTHOG_KEY } from "./constants";
 
 export type Feature = "sessions" | "signals" | "traces" | "alerts";
 
+// Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
+// so there is no concurrent-write race condition. The flag prevents calling posthog.init()
+// more than once (React 18 strict mode double-invokes effects; the second call is a no-op).
 let initialized = false;
 
 export const init = (telemetryEnabled: boolean) => {
