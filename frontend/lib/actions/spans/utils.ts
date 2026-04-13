@@ -357,3 +357,49 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     return metrics ? { ...span, aggregatedMetrics: metrics } : span;
   });
 };
+
+/**
+ * Ordered list of agent paths. The first element is the main agent path;
+ * all subsequent elements are sub-agent paths in order of first appearance.
+ * An empty array means no agent paths were detected.
+ */
+export type AgentPaths = string[];
+
+/**
+ * Compute agent paths from LLM/CACHED spans.
+ * The main agent path (earliest start, ties broken by most tokens) comes first.
+ * All other non-child paths follow, ordered by first appearance.
+ */
+export function computeAgentPaths(spans: TraceViewSpan[]): AgentPaths {
+  const llmSpans = spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+  if (llmSpans.length === 0) return [];
+
+  const pathStats = new Map<string, { minStart: string; totalTokens: number }>();
+  for (const s of llmSpans) {
+    if (!s.path) continue;
+    const existing = pathStats.get(s.path);
+    if (!existing) {
+      pathStats.set(s.path, { minStart: s.startTime, totalTokens: s.totalTokens });
+    } else {
+      if (s.startTime < existing.minStart) existing.minStart = s.startTime;
+      existing.totalTokens += s.totalTokens;
+    }
+  }
+
+  if (pathStats.size === 0) return [];
+
+  let bestPath = "";
+  let bestStart = "";
+  let bestTokens = -1;
+  for (const [path, stats] of pathStats) {
+    if (!bestPath || stats.minStart < bestStart || (stats.minStart === bestStart && stats.totalTokens > bestTokens)) {
+      bestPath = path;
+      bestStart = stats.minStart;
+      bestTokens = stats.totalTokens;
+    }
+  }
+
+  const subAgentPaths = [...pathStats.keys()].filter((p) => p !== bestPath && !p.startsWith(bestPath + "."));
+
+  return [bestPath, ...subAgentPaths];
+}

@@ -16,6 +16,7 @@ interface SharedEvalTraceViewProps {
 function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewProps) {
   const [trace, setTrace] = useState<TraceViewTrace | null>(null);
   const [spans, setSpans] = useState<TraceViewSpan[] | null>(null);
+  const [agentPaths, setAgentPaths] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +41,8 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
         if (cancelled) return;
 
         setTrace(traceData);
-        setSpans(spansData);
+        setSpans(spansData.spans);
+        setAgentPaths(spansData.agentPaths ?? []);
       } catch {
         if (!cancelled) {
           setError("Failed to load trace data");
@@ -84,7 +86,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     );
   }
 
-  return <PureTraceView trace={trace} spans={spans} onClose={onClose} />;
+  return <PureTraceView trace={trace} spans={spans} agentPaths={agentPaths} onClose={onClose} />;
 }
 
 export default function SharedEvalTraceView(props: SharedEvalTraceViewProps) {

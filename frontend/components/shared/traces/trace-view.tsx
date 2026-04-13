@@ -32,10 +32,11 @@ import { cn } from "@/lib/utils";
 interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
+  agentPaths?: string[];
   onClose?: () => void;
 }
 
-export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, agentPaths, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -43,6 +44,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const {
     tab,
     setSpans,
+    setAgentPaths,
     setTrace,
     selectedSpan,
     setSelectedSpan,
@@ -58,6 +60,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
+    setAgentPaths: state.setAgentPaths,
     setTrace: state.setTrace,
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
@@ -105,6 +108,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     const enrichedSpans = enrichSpansWithPending(spans);
     setSpans(enrichedSpans);
     setTrace(trace);
+    if (agentPaths) {
+      setAgentPaths(agentPaths);
+    }
 
     const spanId = searchParams.get("spanId");
     const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];

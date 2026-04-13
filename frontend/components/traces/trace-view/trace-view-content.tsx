@@ -68,6 +68,7 @@ export default function TraceViewContent({
     setSelectedSpan,
     spans,
     setSpans,
+    setAgentPaths,
     trace,
     setTrace,
     isSpansLoading,
@@ -82,6 +83,7 @@ export default function TraceViewContent({
       setSelectedSpan: state.setSelectedSpan,
       spans: state.spans,
       setSpans: state.setSpans,
+      setAgentPaths: state.setAgentPaths,
       trace: state.trace,
       setTrace: state.setTrace,
       isTraceLoading: state.isTraceLoading,
@@ -212,10 +214,14 @@ export default function TraceViewContent({
           return;
         }
 
-        const results = (await response.json()) as TraceViewSpan[];
+        const { spans: results, agentPaths } = (await response.json()) as {
+          spans: TraceViewSpan[];
+          agentPaths: string[];
+        };
         const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);
+        setAgentPaths(agentPaths);
 
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
@@ -248,6 +254,7 @@ export default function TraceViewContent({
       projectId,
       traceId,
       setSpans,
+      setAgentPaths,
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
