@@ -2,8 +2,7 @@ import { PostHog } from "posthog-node";
 
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-const POSTHOG_KEY = "phc_dUMdjfNKf11jcHgtn7juSnT4P1pO0tafsPUWt4PuwG7";
-const POSTHOG_HOST = "https://p.laminar.sh";
+import { POSTHOG_HOST, POSTHOG_KEY } from "./constants";
 
 export default function PostHogClient(): PostHog | null {
   if (!isFeatureEnabled(Feature.POSTHOG)) {

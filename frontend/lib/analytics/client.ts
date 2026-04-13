@@ -1,7 +1,6 @@
 import posthog from "posthog-js";
 
-const POSTHOG_KEY = "phc_dUMdjfNKf11jcHgtn7juSnT4P1pO0tafsPUWt4PuwG7";
-const POSTHOG_HOST = "https://p.laminar.sh";
+import { POSTHOG_HOST, POSTHOG_KEY } from "./constants";
 
 export type Feature = "sessions" | "signals" | "traces" | "alerts";
 

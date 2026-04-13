@@ -13,7 +13,7 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
-import { AnalyticsProvider } from "@/lib/analytics";
+import { AnalyticsIdentifier } from "@/lib/analytics";
 import PostHogClient from "@/lib/analytics/server";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -52,20 +52,19 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   return (
     <UserContextProvider user={user}>
       <SessionSyncProvider>
-        <AnalyticsProvider telemetryEnabled={isFeatureEnabled(Feature.POSTHOG)} email={user.email}>
-          <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
-            <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
-              <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-                <ProjectSidebar details={projectDetails} />
-                <SidebarInset className="relative flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-                  <NotificationPanel />
-                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                  {children}
-                </SidebarInset>
-              </SidebarProvider>
-            </div>
-          </ProjectContextProvider>
-        </AnalyticsProvider>
+        <AnalyticsIdentifier email={user.email} />
+        <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
+          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
+            <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
+              <ProjectSidebar details={projectDetails} />
+              <SidebarInset className="relative flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
+                <NotificationPanel />
+                {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                {children}
+              </SidebarInset>
+            </SidebarProvider>
+          </div>
+        </ProjectContextProvider>
       </SessionSyncProvider>
     </UserContextProvider>
   );

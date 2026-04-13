@@ -23,3 +23,14 @@ export function AnalyticsProvider({ children, telemetryEnabled, email }: PropsWi
 
   return <PHProvider client={posthog}>{children}</PHProvider>;
 }
+
+/** Lightweight component that only identifies the user without adding another PHProvider layer. */
+export function AnalyticsIdentifier({ email }: { email?: string }) {
+  useEffect(() => {
+    if (email) {
+      identify(email, { email });
+    }
+  }, [email]);
+
+  return null;
+}
