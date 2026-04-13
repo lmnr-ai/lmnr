@@ -25,7 +25,7 @@ const peekInner = (data: unknown, wrapperKey?: string): Obj | null => {
 
 const hasMessageContent = (choice: Obj): boolean => {
   const content = get(choice, "message.content");
-  return content === null || typeof content === "string";
+  return typeof content === "string" && content.trim().length > 0;
 };
 
 const hasGeminiText = (candidate: Obj): boolean => typeof get(candidate, "content.parts.0.text") === "string";
@@ -36,18 +36,27 @@ const hasAnthropicTextContent = (msg: Obj): boolean => {
     return content.some(
       (item) =>
         isPlainObject(item) &&
-        (((item as Obj).type === "text" && typeof (item as Obj).text === "string") ||
-          ((item as Obj).type === "thinking" && typeof (item as Obj).thinking === "string"))
+        (((item as Obj).type === "text" &&
+          typeof (item as Obj).text === "string" &&
+          ((item as Obj).text as string).trim().length > 0) ||
+          ((item as Obj).type === "thinking" &&
+            typeof (item as Obj).thinking === "string" &&
+            ((item as Obj).thinking as string).trim().length > 0))
     );
   }
-  return typeof content === "string" && has(msg, "role");
+  return typeof content === "string" && content.trim().length > 0 && has(msg, "role");
 };
 
 const isLangChainAssistant = (msg: Obj): boolean => {
   if (msg.role !== "assistant" && msg.role !== "ai") return false;
   const content = msg.content;
-  if (typeof content === "string") return true;
-  if (Array.isArray(content)) return get(content, "0.type") === "text" && typeof get(content, "0.text") === "string";
+  if (typeof content === "string") return content.trim().length > 0;
+  if (Array.isArray(content))
+    return (
+      get(content, "0.type") === "text" &&
+      typeof get(content, "0.text") === "string" &&
+      (get(content, "0.text") as string).trim().length > 0
+    );
   return false;
 };
 

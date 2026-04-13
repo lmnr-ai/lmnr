@@ -7,7 +7,6 @@ import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
   previews: Record<string, any>;
-  userInputs: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -28,13 +27,11 @@ export function useBatchedSpanPreviews(
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
-  const inputCache = useRef(new SimpleLRU<string, string | null>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
   const [previews, setPreviews] = useState<Record<string, any>>({});
-  const [userInputs, setUserInputs] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
   const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
 
@@ -49,10 +46,8 @@ export function useBatchedSpanPreviews(
     async (spanIds: string[]) => {
       if (spanIds.length === 0 || !trace?.id) return;
 
-      // Determine which inputSpanIds are relevant for this batch
       const inputSpanIdSet = new Set(inputSpanIdsRef.current);
       const batchInputSpanIds = spanIds.filter((id) => inputSpanIdSet.has(id));
-      // Regular span IDs are the ones not in inputSpanIds
       const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
 
       try {
@@ -63,7 +58,6 @@ export function useBatchedSpanPreviews(
 
         if (batchInputSpanIds.length > 0) {
           body.inputSpanIds = batchInputSpanIds;
-          // Include all IDs in spanIds for the query
           body.spanIds = [...new Set([...regularSpanIds, ...batchInputSpanIds])];
         }
 
@@ -92,36 +86,20 @@ export function useBatchedSpanPreviews(
 
         const data = (await response.json()) as {
           previews: Record<string, string | null>;
-          userInputs: Record<string, string | null>;
         };
 
-        regularSpanIds.forEach((id) => {
+        spanIds.forEach((id) => {
           cache.current.set(id, get(data.previews, id, null));
-          fetching.current.delete(id);
-        });
-
-        batchInputSpanIds.forEach((id) => {
-          inputCache.current.set(id, get(data.userInputs, id, null));
           fetching.current.delete(id);
         });
 
         setPreviews((prev) => {
           const next = { ...prev };
-          regularSpanIds.forEach((id) => {
+          spanIds.forEach((id) => {
             next[id] = cache.current.get(id);
           });
           return next;
         });
-
-        if (batchInputSpanIds.length > 0) {
-          setUserInputs((prev) => {
-            const next = { ...prev };
-            batchInputSpanIds.forEach((id) => {
-              next[id] = inputCache.current.get(id) ?? null;
-            });
-            return next;
-          });
-        }
       } catch (error) {
         toast({
           variant: "destructive",
@@ -157,7 +135,6 @@ export function useBatchedSpanPreviews(
     await fetchBatch(toFetch);
   }, [fetchBatch]);
 
-  // Combine visible span IDs + input span IDs for cache check
   const allIds = [...visibleSpanIds, ...(inputSpanIds ?? [])];
 
   useEffect(() => {
@@ -170,11 +147,7 @@ export function useBatchedSpanPreviews(
     lastIdsRef.current = currentIdsKey;
 
     const newIds = allIds.filter(
-      (id) =>
-        !cache.current.has(id) &&
-        !inputCache.current.has(id) &&
-        !fetching.current.has(id) &&
-        !pendingFetch.current.has(id)
+      (id) => !cache.current.has(id) && !fetching.current.has(id) && !pendingFetch.current.has(id)
     );
 
     if (newIds.length > 0) {
@@ -189,11 +162,9 @@ export function useBatchedSpanPreviews(
 
   const clearCache = useCallback(() => {
     cache.current.clear();
-    inputCache.current.clear();
     fetching.current.clear();
     setPreviews({});
-    setUserInputs({});
   }, []);
 
-  return { previews, userInputs, clearCache };
+  return { previews, clearCache };
 }

@@ -9,6 +9,7 @@ import {
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import { CollapsedTextWithMore } from "./collapsed-text-with-more";
@@ -35,13 +36,14 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
   if (!firstSpan) return null;
 
   const isLLMType = firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED";
+  const isLoadingPreview = preview === undefined;
   const previewText = typeof preview === "string" && preview !== "" ? preview : null;
 
   return (
     <div
       className={cn(
         "mx-2 mt-1 border bg-muted overflow-hidden cursor-pointer transition-colors hover:bg-muted-foreground/10",
-        collapsed ? "rounded-lg" : "rounded-t-lg border-b-0"
+        collapsed ? "rounded-lg" : "rounded-t-lg border-b"
       )}
       onClick={() => onSpanSelect(firstSpan)}
     >
@@ -56,9 +58,12 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
         <div className={cn("flex flex-col flex-1 min-w-0", isLLMType && "gap-0.5")}>
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium text-[13px] whitespace-nowrap shrink-0">{getSpanDisplayName(firstSpan)}</span>
-            {!isLLMType && previewText && (
-              <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
-            )}
+            {!isLLMType &&
+              (previewText ? (
+                <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
+              ) : isLoadingPreview ? (
+                <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px]" />
+              ) : null)}
             <div className="flex items-center shrink-0 ml-auto gap-1">
               <SpanStatsShield
                 variant="inline"
@@ -69,13 +74,21 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
               />
               <button onClick={handleToggle} className="p-0.5 rounded hover:bg-muted-foreground/20 transition-colors">
                 <ChevronRight
-                  size={14}
-                  className={cn("shrink-0 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
+                  size={16}
+                  className={cn("shrink-0 text-secondary-foreground transition-transform", !collapsed && "rotate-90")}
                 />
               </button>
             </div>
           </div>
-          {isLLMType && previewText && <CollapsedTextWithMore text={previewText} lineHeight={17} maxLines={2} />}
+          {isLLMType &&
+            (previewText ? (
+              <CollapsedTextWithMore text={previewText} lineHeight={17} maxLines={2} />
+            ) : isLoadingPreview ? (
+              <div className="flex flex-col gap-1 py-0.5">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-3/4" />
+              </div>
+            ) : null)}
         </div>
       </div>
     </div>

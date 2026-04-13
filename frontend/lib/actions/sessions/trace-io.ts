@@ -161,7 +161,7 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   return results[traceId]?.input ?? rawInput;
 }
 
-async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
+export async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
   try {
     return await fetcherJSON<string[]>(`/projects/${projectId}/skeleton-hashes`, {
       method: "POST",

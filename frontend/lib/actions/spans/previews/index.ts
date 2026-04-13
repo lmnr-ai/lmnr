@@ -2,8 +2,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types.ts";
-import { joinUserParts } from "@/lib/actions/sessions/extract-input";
-import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
+import { extractInputsForGroup, joinUserParts } from "@/lib/actions/sessions/extract-input";
+import { type ParsedInput, parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
+import { fetchSkeletonHashes } from "@/lib/actions/sessions/trace-io";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { spanRenderingKeys } from "@/lib/db/migrations/schema";
@@ -14,6 +15,7 @@ import {
   classifyPayload,
   detectOutputStructure,
   generateFingerprint,
+  isToolOnlyLlmOutput,
   type ProviderHint,
   validateMustacheKey,
 } from "./utils.ts";
@@ -148,6 +150,10 @@ const classifyRawSpans = (
         resolved[raw.spanId] = "";
         return;
       case "object": {
+        if ((spanType === "LLM" || spanType === "CACHED") && isToolOnlyLlmOutput(classification.data)) {
+          resolved[raw.spanId] = null;
+          return;
+        }
         needsProcessing.push({
           spanId: raw.spanId,
           name: raw.name,
@@ -356,10 +362,10 @@ export interface RawSpanData {
 }
 
 /**
- * Extract the user message from raw LLM span input data.
- * Tries to parse the input as a messages array and extract the last user message.
+ * Parse raw LLM span input data into system text + user parts,
+ * matching the same parsing logic as trace-io's fetchTraceInputOnly.
  */
-function extractUserMessageFromInput(rawData: string): string | null {
+function parseSpanInput(rawData: string): ParsedInput | null {
   if (!rawData) return null;
 
   let parsed: unknown;
@@ -369,7 +375,6 @@ function extractUserMessageFromInput(rawData: string): string | null {
     return null;
   }
 
-  // The input for LLM spans is typically a messages array or an object with a messages field
   let messagesArr: unknown[] | null = null;
   if (Array.isArray(parsed)) {
     messagesArr = parsed;
@@ -383,15 +388,93 @@ function extractUserMessageFromInput(rawData: string): string | null {
   const firstMsg = JSON.stringify(messagesArr[0]);
   const lastMsg = messagesArr.length > 1 ? JSON.stringify(messagesArr[messagesArr.length - 1]) : "";
 
-  const parsedInput = parseExtractedMessages(firstMsg, lastMsg);
-  if (!parsedInput) return null;
+  return parseExtractedMessages(firstMsg, lastMsg);
+}
 
-  return joinUserParts(parsedInput.userParts);
+/**
+ * Extract user inputs for input spans using the full skeleton-hash + regex
+ * extraction pipeline (same as getTraceUserInput in trace-io).
+ */
+async function extractUserInputsForSpans(
+  inputSpanRaws: RawSpanData[],
+  projectId: string
+): Promise<Record<string, string | null>> {
+  const userInputs: Record<string, string | null> = {};
+  if (inputSpanRaws.length === 0) return userInputs;
+
+  const parsedSpans: Array<{ spanId: string; parsed: ParsedInput; rawInput: string }> = [];
+
+  for (const raw of inputSpanRaws) {
+    const parsed = parseSpanInput(raw.data);
+    if (!parsed) {
+      userInputs[raw.spanId] = null;
+      continue;
+    }
+    const rawInput = joinUserParts(parsed.userParts);
+    if (!rawInput) {
+      userInputs[raw.spanId] = null;
+      continue;
+    }
+    parsedSpans.push({ spanId: raw.spanId, parsed, rawInput });
+  }
+
+  if (parsedSpans.length === 0) return userInputs;
+
+  // Group spans by whether they have a system prompt
+  const withSystem: typeof parsedSpans = [];
+  const withoutSystem: typeof parsedSpans = [];
+  for (const entry of parsedSpans) {
+    if (entry.parsed.systemText) {
+      withSystem.push(entry);
+    } else {
+      withoutSystem.push(entry);
+    }
+  }
+
+  for (const entry of withoutSystem) {
+    userInputs[entry.spanId] = entry.rawInput;
+  }
+
+  if (withSystem.length === 0) return userInputs;
+
+  // Batch-hash all system texts
+  const systemTexts = withSystem.map((e) => e.parsed.systemText!);
+  const hashes = await fetchSkeletonHashes(systemTexts, projectId);
+
+  // Group by hash for batch regex extraction
+  const byHash = new Map<string, typeof withSystem>();
+  for (let i = 0; i < withSystem.length; i++) {
+    const hash = hashes[i];
+    if (!hash) {
+      userInputs[withSystem[i].spanId] = withSystem[i].rawInput;
+      continue;
+    }
+    const group = byHash.get(hash) ?? [];
+    group.push(withSystem[i]);
+    byHash.set(hash, group);
+  }
+
+  // Run extractInputsForGroup per hash group (uses spanId as the keying id)
+  await Promise.all(
+    Array.from(byHash.entries()).map(async ([hash, entries]) => {
+      const traces = entries.map((e) => ({
+        traceId: e.spanId,
+        output: null,
+        parsed: e.parsed,
+      }));
+      const groupResults: Record<string, { input: string | null; output: string | null }> = {};
+      await extractInputsForGroup(hash, projectId, traces, groupResults);
+      for (const entry of entries) {
+        userInputs[entry.spanId] = groupResults[entry.spanId]?.input ?? entry.rawInput;
+      }
+    })
+  );
+
+  return userInputs;
 }
 
 export interface SpanPreviewsResult {
   previews: SpanPreviewResult;
-  userInputs: Record<string, string | null>;
 }
 
 /**
@@ -423,11 +506,7 @@ export async function processSpanPreviews(
     }
   }
 
-  // Extract user messages for input spans
-  const userInputs: Record<string, string | null> = {};
-  for (const raw of inputSpanRaws) {
-    userInputs[raw.spanId] = extractUserMessageFromInput(raw.data);
-  }
+  const userInputs = await extractUserInputsForSpans(inputSpanRaws, projectId);
 
   const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
   const { skipGeneration = false } = options;
@@ -435,7 +514,7 @@ export async function processSpanPreviews(
   const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(regularSpanRaws, spanTypes);
 
   if (needsProcessing.length === 0) {
-    return { previews: fillMissing(classifiedPreviews, regularSpanIds), userInputs };
+    return { previews: { ...fillMissing(classifiedPreviews, regularSpanIds), ...userInputs } };
   }
 
   const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing);
@@ -443,7 +522,7 @@ export async function processSpanPreviews(
   const cachedResult = { ...classifiedPreviews, ...cachedPreviews };
 
   if (uncached.length === 0) {
-    return { previews: fillMissing(cachedResult, regularSpanIds), userInputs };
+    return { previews: { ...fillMissing(cachedResult, regularSpanIds), ...userInputs } };
   }
 
   const { resolved: providerPreviews, needsLlm } = applyProviderMatching(uncached, spanTypes);
@@ -454,14 +533,14 @@ export async function processSpanPreviews(
     for (const span of needsLlm) {
       providerResult[span.spanId] = toJsonPreview(span.parsedData);
     }
-    return { previews: fillMissing(providerResult, regularSpanIds), userInputs };
+    return { previews: { ...fillMissing(providerResult, regularSpanIds), ...userInputs } };
   }
 
   const { resolved: llmPreviews, keysToSave: llmKeys } = await generateAndApplyKeys(needsLlm);
 
   await saveRenderingKeys(projectId, llmKeys);
 
-  return { previews: fillMissing({ ...providerResult, ...llmPreviews }, regularSpanIds), userInputs };
+  return { previews: { ...fillMissing({ ...providerResult, ...llmPreviews }, regularSpanIds), ...userInputs } };
 }
 
 export async function getSpanPreviews(

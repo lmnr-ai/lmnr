@@ -48,6 +48,78 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
 
 export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "unknown";
 
+/**
+ * Returns true when the parsed LLM output contains only tool calls
+ * and no meaningful text/thinking content worth showing as a preview.
+ */
+export const isToolOnlyLlmOutput = (data: unknown): boolean => {
+  const obj = isPlainObject(data) ? (data as Record<string, unknown>) : null;
+
+  // OpenAI: choices[0].message has tool_calls but content is null/empty
+  if (obj && Array.isArray(obj.choices)) {
+    const msg = (obj.choices as unknown[])[0];
+    if (isPlainObject(msg)) {
+      const message = (msg as Record<string, unknown>).message;
+      if (isPlainObject(message)) {
+        const m = message as Record<string, unknown>;
+        if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+          const content = m.content;
+          if (content === null || content === undefined || (isString(content) && content.trim().length === 0)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // Anthropic: content array has only tool_use blocks
+  const contentHolder =
+    obj ??
+    (Array.isArray(data) && data.length === 1 && isPlainObject(data[0]) ? (data[0] as Record<string, unknown>) : null);
+  if (contentHolder && Array.isArray(contentHolder.content)) {
+    const blocks = contentHolder.content as unknown[];
+    if (
+      blocks.length > 0 &&
+      blocks.every((b) => isPlainObject(b) && (b as Record<string, unknown>).type === "tool_use")
+    ) {
+      return true;
+    }
+  }
+
+  // Gemini: candidates[0].content.parts has only functionCall parts
+  if (obj && Array.isArray(obj.candidates)) {
+    const candidate = (obj.candidates as unknown[])[0];
+    if (isPlainObject(candidate)) {
+      const content = (candidate as Record<string, unknown>).content;
+      if (isPlainObject(content)) {
+        const parts = (content as Record<string, unknown>).parts;
+        if (
+          Array.isArray(parts) &&
+          parts.length > 0 &&
+          parts.every((p) => isPlainObject(p) && "functionCall" in (p as Record<string, unknown>))
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // LangChain: tool_calls present but content is empty
+  if (obj && Array.isArray(obj.tool_calls) && obj.tool_calls.length > 0) {
+    const content = obj.content;
+    if (
+      content === null ||
+      content === undefined ||
+      content === "" ||
+      (isString(content) && content.trim().length === 0)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 export const detectOutputStructure = (data: unknown): ProviderHint => {
   if (OpenAIOutputSchema.safeParse(data).success) return "openai";
   if (GeminiOutputSchema.safeParse(data).success) return "gemini";

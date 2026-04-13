@@ -150,7 +150,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return ids;
   }, [items, flatRows]);
 
-  const { previews, userInputs } = useBatchedSpanPreviews(
+  const { previews } = useBatchedSpanPreviews(
     projectId,
     allVisibleSpanIds,
     {
@@ -278,11 +278,9 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                 const isCollapsed = !readerCollapsedGroups.has(row.group.groupId);
                 const firstSpan = row.group.spans[0];
                 const firstSpanIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
-                const groupPreview = firstSpan
-                  ? firstSpanIsLlm && row.group.firstLlmSpanId
-                    ? userInputs[row.group.firstLlmSpanId]
-                    : previews[firstSpan.spanId]
-                  : null;
+                const previewSpanId =
+                  firstSpanIsLlm && row.group.firstLlmSpanId ? row.group.firstLlmSpanId : firstSpan?.spanId;
+                const groupPreview = previewSpanId ? previews[previewSpanId] : null;
                 return (
                   <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
                     <AgentGroupHeader
@@ -298,7 +296,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               if (row.type === "group-span") {
                 return (
                   <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
-                    <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
+                    <div className={`mx-2 border-x bg-muted/50 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
                       <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
                     </div>
                   </div>

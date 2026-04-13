@@ -14,6 +14,7 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { executeQuery } from "@/lib/actions/sql";
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
@@ -365,41 +366,34 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
  */
 export type AgentPaths = string[];
 
+const AGENT_PATHS_QUERY = `
+  SELECT path
+  FROM spans
+  WHERE trace_id = {traceId: UUID}
+    AND span_type IN ('LLM', 'CACHED')
+    AND path != ''
+  GROUP BY path
+  ORDER BY min(start_time) ASC, sum(total_tokens) DESC
+`;
+
 /**
- * Compute agent paths from LLM/CACHED spans.
- * The main agent path (earliest start, ties broken by most tokens) comes first.
- * All other non-child paths follow, ordered by first appearance.
+ * Fetch agent paths from ClickHouse, ordered by earliest start then most tokens.
+ * The first path is the main agent; subsequent non-child paths are sub-agents.
  */
-export function computeAgentPaths(spans: TraceViewSpan[]): AgentPaths {
-  const llmSpans = spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED");
-  if (llmSpans.length === 0) return [];
+export async function fetchAgentPaths(traceId: string, projectId: string): Promise<AgentPaths> {
+  const rows = await executeQuery<{ path: string }>({
+    query: AGENT_PATHS_QUERY,
+    parameters: { traceId },
+    projectId,
+  });
 
-  const pathStats = new Map<string, { minStart: string; totalTokens: number }>();
-  for (const s of llmSpans) {
-    if (!s.path) continue;
-    const existing = pathStats.get(s.path);
-    if (!existing) {
-      pathStats.set(s.path, { minStart: s.startTime, totalTokens: s.totalTokens });
-    } else {
-      if (s.startTime < existing.minStart) existing.minStart = s.startTime;
-      existing.totalTokens += s.totalTokens;
-    }
-  }
+  if (rows.length === 0) return [];
 
-  if (pathStats.size === 0) return [];
+  const mainPath = rows[0].path;
+  const subAgentPaths = rows
+    .slice(1)
+    .filter((r) => !r.path.startsWith(mainPath + "."))
+    .map((r) => r.path);
 
-  let bestPath = "";
-  let bestStart = "";
-  let bestTokens = -1;
-  for (const [path, stats] of pathStats) {
-    if (!bestPath || stats.minStart < bestStart || (stats.minStart === bestStart && stats.totalTokens > bestTokens)) {
-      bestPath = path;
-      bestStart = stats.minStart;
-      bestTokens = stats.totalTokens;
-    }
-  }
-
-  const subAgentPaths = [...pathStats.keys()].filter((p) => p !== bestPath && !p.startsWith(bestPath + "."));
-
-  return [bestPath, ...subAgentPaths];
+  return [mainPath, ...subAgentPaths];
 }

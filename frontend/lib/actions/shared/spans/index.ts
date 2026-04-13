@@ -3,7 +3,7 @@ import type z from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import { aggregateSpanMetrics, computeAgentPaths } from "@/lib/actions/spans/utils.ts";
+import { aggregateSpanMetrics, fetchAgentPaths } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
@@ -86,5 +86,6 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
   });
 
   const result = aggregateSpanMetrics(transformedSpans);
-  return { spans: result, agentPaths: computeAgentPaths(result) };
+  const agentPaths = await fetchAgentPaths(traceId, sharedTrace.projectId);
+  return { spans: result, agentPaths };
 };

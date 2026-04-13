@@ -12,6 +12,7 @@ import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
   const isLLMType = span.spanType === "LLM" || span.spanType === "CACHED";
   const isPending = span.pending;
+  const isLoadingOutput = output === undefined;
   const previewText = typeof output === "string" && output !== "" ? output : null;
   const isSelected = selectedSpan?.spanId === span.spanId;
 
@@ -97,6 +99,8 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                 </div>
               ) : previewText ? (
                 <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
+              ) : isLoadingOutput ? (
+                <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px]" />
               ) : null)}
 
             <div className="flex items-center shrink-0 ml-auto">
@@ -123,7 +127,16 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
             </div>
           </div>
 
-          {isLLMType && !isPending && previewText && <CollapsedTextWithMore text={previewText} lineHeight={17} />}
+          {isLLMType &&
+            !isPending &&
+            (previewText ? (
+              <CollapsedTextWithMore text={previewText} lineHeight={17} />
+            ) : isLoadingOutput ? (
+              <div className="flex flex-col gap-1 py-0.5">
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-3/4" />
+              </div>
+            ) : null)}
         </div>
       </div>
     </div>

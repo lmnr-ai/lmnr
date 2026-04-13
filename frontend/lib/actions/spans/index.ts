@@ -10,8 +10,8 @@ import {
   type AgentPaths,
   aggregateSpanMetrics,
   buildSpansQueryWithParams,
-  computeAgentPaths,
   createParentRewiring,
+  fetchAgentPaths,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -353,7 +353,8 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     }
   }
 
-  return { spans: result, agentPaths: computeAgentPaths(result) };
+  const agentPaths = await fetchAgentPaths(traceId, projectId);
+  return { spans: result, agentPaths };
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
