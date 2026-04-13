@@ -26,11 +26,25 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    if signal_event.severity >= 1 {
+    {
         let alerts =
             db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
 
         for alert in alerts {
+            // Check if the event severity meets the alert's minimum severity threshold.
+            // Default to CRITICAL (2) for alerts without metadata (historical data).
+            let min_severity = alert
+                .metadata
+                .as_ref()
+                .and_then(|m| m.get("severity"))
+                .and_then(|v| v.as_u64())
+                .and_then(|n| u8::try_from(n).ok())
+                .unwrap_or(2);
+
+            if signal_event.severity < min_severity {
+                continue;
+            }
+
             let notification_message = notifications::NotificationMessage {
                 definition_type: NotificationDefinitionType::Alert,
                 definition_id: alert.alert_id,
@@ -40,6 +54,7 @@ pub async fn process_event_notifications_and_clustering(
                     project_id,
                     trace_id,
                     event_name: event_name.clone(),
+                    severity: signal_event.severity,
                     extracted_information: Some(attributes.clone()),
                 }],
             };
