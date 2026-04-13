@@ -119,6 +119,11 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                     "summary":  {
                         "type": "string",
                         "description": "REQUIRED when identified=true. A short summary of the identification result, used for clustering of events. You MUST provide this field whenever identified=true."
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": ["critical", "warning", "info"],
+                        "description": "REQUIRED when identified=true. The severity of the identified event. 'critical' = system failures or problems with severe user impact that demand immediate attention. 'warning' = degraded behavior, notable issues, or problems that should be reviewed soon. 'info' = minor observations, expected edge cases, or low-impact findings."
                     }
                 },
                 "required": ["identified"]
@@ -223,9 +228,9 @@ pub async fn get_full_spans(
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
                 input: clean_whitespace(&stringify_value(&input_value)),
-                output: clean_whitespace(&stringify_value(
-                    &try_parse_json(&strip_noise(&ch_span.output)),
-                )),
+                output: clean_whitespace(&stringify_value(&try_parse_json(&strip_noise(
+                    &ch_span.output,
+                )))),
                 parent,
                 exception,
             }

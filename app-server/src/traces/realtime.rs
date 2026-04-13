@@ -34,7 +34,7 @@ struct RealtimeTrace {
     top_span_type: Option<String>,
     status: Option<String>,
     user_id: Option<String>,
-    tags: Vec<String>,
+    tags: Vec<String>, // Span tags
     root_span_input: Option<String>,
     root_span_output: Option<String>,
 }

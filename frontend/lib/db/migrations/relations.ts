@@ -44,6 +44,7 @@ import {
   rolloutSessions,
   workspaceUsage,
   signalTriggers,
+  notificationReads,
   spanRenderingKeys,
   tagClasses,
   traces,
@@ -102,6 +103,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   sharedPayloads: many(sharedPayloads),
   rolloutSessions: many(rolloutSessions),
   signalTriggers: many(signalTriggers),
+  notificationReads: many(notificationReads),
   spanRenderingKeys: many(spanRenderingKeys),
   tagClasses: many(tagClasses),
   traces: many(traces),
@@ -241,6 +243,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(apiKeys),
   userSubscriptionInfos: many(userSubscriptionInfo),
   membersOfWorkspaces: many(membersOfWorkspaces),
+  notificationReads: many(notificationReads),
 }));
 
 export const subscriptionTiersRelations = relations(subscriptionTiers, ({ many }) => ({
@@ -431,6 +434,17 @@ export const signalTriggersRelations = relations(signalTriggers, ({ one }) => ({
   signal: one(signals, {
     fields: [signalTriggers.signalId],
     references: [signals.id],
+  }),
+}));
+
+export const notificationReadsRelations = relations(notificationReads, ({ one }) => ({
+  project: one(projects, {
+    fields: [notificationReads.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [notificationReads.userId],
+    references: [users.id],
   }),
 }));
 

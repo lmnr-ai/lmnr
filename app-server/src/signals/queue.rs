@@ -37,9 +37,6 @@ pub const DEFAULT_BATCH_SIZE: usize = 64;
 pub struct SignalJobSubmissionBatchMessage {
     /// All signal messages in this batch (may contain different projects/signals)
     pub messages: Vec<SignalMessage>,
-    /// Unique ID for this batch message, used for idempotency on redelivery
-    #[serde(default = "Uuid::new_v4")]
-    pub id: Uuid,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -75,6 +72,9 @@ pub struct SignalMessage {
     /// 0 = batch, 1 = realtime. Determines billing and routing.
     #[serde(default)]
     pub mode: u8,
+    /// Number of LLM spans processed after filtering (set on step 0, carried across steps)
+    #[serde(default)]
+    pub steps_processed: u32,
 }
 
 pub async fn push_to_submissions_queue(

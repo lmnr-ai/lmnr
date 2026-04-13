@@ -22,7 +22,11 @@ interface SignalTabProps {
 
 function parsePayload(payload: string): Record<string, unknown> {
   try {
-    return JSON.parse(payload);
+    const result = JSON.parse(payload);
+    if (result == null || typeof result !== "object" || Array.isArray(result)) {
+      return {};
+    }
+    return result;
   } catch {
     return {};
   }

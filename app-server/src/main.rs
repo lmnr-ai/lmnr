@@ -5,10 +5,11 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use actix_limitation::{Limiter, RateLimiter};
 use actix_web::{
-    App, HttpServer, dev,
+    App, HttpMessage, HttpServer, dev,
     http::StatusCode,
-    middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
+    middleware::{Condition, ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -37,6 +38,10 @@ use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
+    delivery::{
+        NOTIFICATION_DELIVERIES_EXCHANGE, NOTIFICATION_DELIVERIES_QUEUE,
+        NOTIFICATION_DELIVERIES_ROUTING_KEY, NotificationDeliveryHandler,
+    },
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
@@ -164,10 +169,6 @@ fn main() -> anyhow::Result<()> {
             environment: Some(Cow::Owned(
                 env::var("ENVIRONMENT").unwrap_or("development".to_string()),
             )),
-            before_send: Some(Arc::new(|_| {
-                // We don't want Sentry to record events. We only use it for OTel tracing.
-                None
-            })),
             ..Default::default()
         },
     ));
@@ -177,7 +178,7 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    instrumentation::setup_tracing(is_feature_enabled(Feature::Tracing));
+    instrumentation::setup_tracing_and_logging(is_feature_enabled(Feature::Tracing));
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
@@ -457,6 +458,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.6b Notification Deliveries message queue ====
+            channel
+                .exchange_declare(
+                    NOTIFICATION_DELIVERIES_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    NOTIFICATION_DELIVERIES_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
@@ -711,6 +738,11 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
+        // ==== 3.6b Notification Deliveries message queue ====
+        queue.register_queue(
+            NOTIFICATION_DELIVERIES_EXCHANGE,
+            NOTIFICATION_DELIVERIES_QUEUE,
+        );
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
         // ==== 3.7b Event Clustering Batch message queue ====
@@ -917,22 +949,22 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        // == LLM Provider client ==
-        let llm_provider_client: Option<Arc<signals::provider::ProviderClient>> =
+        // == LLM Client ==
+        let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM provider client for signals");
-                match runtime_handle.block_on(signals::provider::create_provider_client()) {
+                log::info!("Initializing LLM client");
+                match runtime_handle.block_on(signals::provider::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
                         log::warn!(
-                            "Failed to create LLM provider client (signals will be disabled): {:?}",
+                            "Failed to create LLM client (signals will be disabled): {:?}",
                             e
                         );
                         None
                     }
                 }
             } else {
-                log::info!("Signals feature disabled - skipping LLM provider initialization");
+                log::info!("Signals feature disabled - skipping LLM client initialization");
                 None
             };
 
@@ -960,6 +992,11 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         let num_notification_workers = env::var("NUM_NOTIFICATION_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
+        let num_notification_delivery_workers = env::var("NUM_NOTIFICATION_DELIVERY_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
             .unwrap_or(2);
@@ -996,13 +1033,14 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_signals_workers,
             num_notification_workers,
+            num_notification_delivery_workers,
             num_clustering_batching_workers,
             num_clustering_workers,
             num_signal_job_submission_batch_workers,
@@ -1194,15 +1232,14 @@ fn main() -> anyhow::Result<()> {
                             QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
                         );
                     } else {
-                        log::warn!("Gemini client not available - skipping signals workers");
+                        log::warn!("LLM client not available - skipping signals workers");
                     }
 
-                    // Spawn notification workers
+                    // Spawn notification workers (stage 1: persist + fan-out to targets)
                     {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
-                        let client = reqwest::Client::new();
-                        let resend = resend_client.clone();
+                        let queue = mq_for_consumer.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
                             clickhouse_for_consumer.clone(),
                             db_for_consumer.pool.clone(),
@@ -1217,8 +1254,7 @@ fn main() -> anyhow::Result<()> {
                                 NotificationHandler::new(
                                     db.clone(),
                                     cache.clone(),
-                                    client.clone(),
-                                    resend.clone(),
+                                    queue.clone(),
                                     ch_service.clone(),
                                 )
                             },
@@ -1226,6 +1262,37 @@ fn main() -> anyhow::Result<()> {
                                 NOTIFICATIONS_QUEUE,
                                 NOTIFICATIONS_EXCHANGE,
                                 NOTIFICATIONS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn notification delivery workers (stage 2: format + send + log)
+                    {
+                        let db = db_for_consumer.clone();
+                        let client = reqwest::Client::new();
+                        let resend = resend_client.clone();
+                        let ch_service = Arc::new(ClickhouseService::new(
+                            clickhouse_for_consumer.clone(),
+                            db_for_consumer.pool.clone(),
+                            cache_for_consumer.clone(),
+                            reqwest::Client::new(),
+                        ));
+
+                        worker_pool_clone.spawn(
+                            WorkerType::NotificationDeliveries,
+                            num_notification_delivery_workers as usize,
+                            move || {
+                                NotificationDeliveryHandler::new(
+                                    db.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                    ch_service.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                NOTIFICATION_DELIVERIES_QUEUE,
+                                NOTIFICATION_DELIVERIES_EXCHANGE,
+                                NOTIFICATION_DELIVERIES_ROUTING_KEY,
                             ),
                         );
                     }
@@ -1442,6 +1509,41 @@ fn main() -> anyhow::Result<()> {
 
     if enable_producer() {
         log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
+
+        // === Rate limiter ===
+        let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
+            let redis_url = env::var("REDIS_URL").unwrap();
+            let limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
+            let period_secs: u64 = env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
+            // project_auth middleware populates ProjectApiKey in request extensions
+            match Limiter::builder(&redis_url)
+                .key_by(|req: &dev::ServiceRequest| {
+                    req.extensions()
+                        .get::<db::project_api_keys::ProjectApiKey>()
+                        .map(|k| format!("ratelimit:{}", k.project_id))
+                })
+                .limit(limit)
+                .period(Duration::from_secs(period_secs))
+                .build()
+            {
+                Ok(limiter) => {
+                    log::info!(
+                        "Rate limiter initialized ({} req/{} s per project)",
+                        limit,
+                        period_secs
+                    );
+                    Some(limiter)
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize rate limiter: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            log::info!("Rate limiter is disabled");
+            None
+        };
+
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
             .name("http".to_string())
@@ -1465,7 +1567,7 @@ fn main() -> anyhow::Result<()> {
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
 
-                        App::new()
+                        let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
@@ -1488,7 +1590,13 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()));
+
+                        if let Some(ref limiter) = rate_limiter {
+                            app = app.app_data(web::Data::new(limiter.clone()));
+                        }
+
+                        app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1540,6 +1648,15 @@ fn main() -> anyhow::Result<()> {
                                     ),
                             )
                             .service(
+                                web::scope("/v1/sql")
+                                    .wrap(Condition::new(
+                                        rate_limiter.is_some(),
+                                        RateLimiter::default(),
+                                    ))
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::sql::execute_sql_query),
+                            )
+                            .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::datasets::get_datasets)
@@ -1549,7 +1666,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
                                     .service(api::v1::rollouts::send_span_update)
@@ -1566,7 +1682,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
-                                    .service(routes::signals::submit_signal_job),
+                                    .service(routes::signals::submit_signal_job)
+                                    .service(routes::spans::get_skeleton_hashes),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)

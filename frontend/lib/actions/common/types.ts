@@ -4,6 +4,18 @@ import { FilterSchema } from "./filters";
 
 export { FilterSchema };
 
+const hasEmptyFilterValue = (value: unknown): boolean => {
+  if (typeof value === "string") {
+    return value.trim() === "";
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0 || value.every((item) => typeof item === "string" && item.trim() === "");
+  }
+
+  return false;
+};
+
 export const FiltersSchema = z.object({
   filter: z
     .array(z.string())
@@ -13,6 +25,9 @@ export const FiltersSchema = z.object({
         .map((filter) => {
           try {
             const parsed = JSON.parse(filter);
+            if (hasEmptyFilterValue((parsed as { value?: unknown })?.value)) {
+              return undefined;
+            }
             return FilterSchema.parse(parsed);
           } catch (error) {
             ctx.issues.push({

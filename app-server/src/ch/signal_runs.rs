@@ -30,6 +30,8 @@ pub struct CHSignalRun {
     pub updated_at: i64,
     /// Mode: 0 = batch, 1 = realtime
     pub mode: u8,
+    /// Number of LLM spans processed after filtering
+    pub steps_processed: u32,
 }
 
 impl From<&SignalRun> for CHSignalRun {
@@ -46,6 +48,7 @@ impl From<&SignalRun> for CHSignalRun {
             error_message: run.error_message.clone().unwrap_or_default(),
             updated_at: chrono_to_nanoseconds(run.updated_at),
             mode: run.mode.as_u8(),
+            steps_processed: run.steps_processed,
         }
     }
 }
@@ -60,7 +63,7 @@ pub async fn get_signal_runs_for_job(
 ) -> Result<Vec<CHSignalRun>> {
     let runs = clickhouse
         .query(
-            "SELECT project_id, signal_id, job_id, trigger_id, run_id, trace_id, status, event_id, error_message, updated_at, mode
+            "SELECT project_id, signal_id, job_id, trigger_id, run_id, trace_id, status, event_id, error_message, updated_at, mode, steps_processed
              FROM signal_runs FINAL
              WHERE project_id = ? AND signal_id = ? AND job_id = ?
              ORDER BY updated_at ASC",

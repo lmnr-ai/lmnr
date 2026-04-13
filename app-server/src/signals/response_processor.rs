@@ -1,15 +1,17 @@
+use backoff::ExponentialBackoffBuilder;
 use regex::Regex;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, LazyLock},
+    time::Duration,
 };
 use uuid::Uuid;
 
 use crate::{
     cache::Cache,
     ch::signal_events::{CHSignalEvent, insert_signal_events},
-    ch::signal_run_messages::{CHSignalRunMessage, delete_signal_run_messages},
+    ch::signal_run_messages::CHSignalRunMessage,
     ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::DB,
     db::spans::SpanType,
@@ -47,6 +49,7 @@ pub enum StepResult {
     CompletedWithEvent {
         attributes: serde_json::Value,
         summary: String,
+        severity: u8,
     },
     RequiresNextStep {
         reason: NextStepReason,
@@ -54,13 +57,14 @@ pub enum StepResult {
     Failed {
         error: String,
         finish_reason: Option<FinishReason>,
+        // Whether the error is due to processing the response, not the provider.
+        // Usually due to malformed function calls so is retryable.
         is_processing_error: bool,
     },
 }
 
 pub struct FailureMetadata {
-    pub finish_reason: Option<FinishReason>,
-    pub is_processing_error: bool,
+    pub retryable: bool,
 }
 
 pub struct ProcessedResponses {
@@ -154,12 +158,14 @@ pub async fn process_provider_responses(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => {
                 match handle_create_event(
                     signal_message,
                     &run,
                     attributes,
                     summary,
+                    severity,
                     clickhouse.clone(),
                     db.clone(),
                     queue.clone(),
@@ -173,6 +179,7 @@ pub async fn process_provider_responses(
                     }
                     Err(e) => {
                         log::error!("[SIGNAL JOB] Failed to create event: {:?}", e);
+                        failure_metadata.insert(run.run_id, FailureMetadata { retryable: false });
                         failed_runs.push(run.failed(format!("Failed to create event: {}", e)));
                     }
                 }
@@ -188,8 +195,11 @@ pub async fn process_provider_responses(
                 failure_metadata.insert(
                     run.run_id,
                     FailureMetadata {
-                        finish_reason,
-                        is_processing_error,
+                        retryable: is_processing_error
+                            || finish_reason
+                                .as_ref()
+                                .map(|fr| fr.is_retryable())
+                                .unwrap_or(true),
                     },
                 );
                 failed_runs.push(run.failed(error));
@@ -207,7 +217,7 @@ pub async fn process_provider_responses(
     })
 }
 
-/// Insert results into ClickHouse, clean up messages, and update job stats.
+/// Insert results into ClickHouse and update job stats.
 /// Callers must insert `new_messages` into ClickHouse **before** routing pending/failed runs to
 /// any queue, to avoid a race where a consumer picks up a run before its conversation history
 /// (e.g. tool results or retry guidance) has been persisted.
@@ -226,8 +236,7 @@ pub async fn finalize_runs(
     if is_feature_enabled(Feature::UsageLimit) {
         let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
         for run in succeeded_runs {
-            // Realtime signals are billed as 2 signal runs
-            let cost = if run.mode.is_realtime() { 2 } else { 1 };
+            let cost = run.steps_processed as usize;
             *runs_by_project_id.entry(run.project_id).or_insert(0) += cost;
         }
         let update_futures = runs_by_project_id.into_iter().map(|(project_id, runs)| {
@@ -236,8 +245,10 @@ pub async fn finalize_runs(
             let cache = cache.clone();
             let queue = queue.clone();
             async move {
-                if let Err(e) =
-                    update_workspace_signal_runs_used(db, clickhouse, cache, queue, project_id, runs).await
+                if let Err(e) = update_workspace_signal_runs_used(
+                    db, clickhouse, cache, queue, project_id, runs,
+                )
+                .await
                 {
                     log::error!("Failed to update workspace signal runs used: {}", e);
                 }
@@ -256,24 +267,6 @@ pub async fn finalize_runs(
             "[SIGNAL JOB] Failed to insert permanently failed runs: {:?}",
             e
         );
-    }
-
-    // Delete messages for completed and permanently failed runs
-    let final_runs: Vec<&SignalRun> = succeeded_runs
-        .iter()
-        .chain(permanently_failed_runs.iter())
-        .collect();
-    if !final_runs.is_empty() {
-        let project_run_pairs: Vec<(Uuid, Uuid)> = final_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for final runs: {:?}",
-                e
-            );
-        }
     }
 
     // Update job stats for succeeded runs
@@ -487,10 +480,12 @@ async fn process_single_response(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => (
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 },
                 new_messages,
             ),
@@ -702,11 +697,30 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .unwrap_or_default();
+            let severity = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("severity"))
+                .and_then(|v| v.as_str())
+                .map(|s| match s {
+                    "critical" => 2u8,
+                    "warning" => 1u8,
+                    "info" => 0u8,
+                    other => {
+                        log::warn!(
+                            "Unknown severity value '{}', defaulting to warning (1)",
+                            other
+                        );
+                        1u8
+                    }
+                })
+                .unwrap_or(0u8);
 
             if identified {
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 }
             } else {
                 StepResult::CompletedNoEvent
@@ -725,6 +739,7 @@ pub async fn handle_create_event(
     run: &SignalRun,
     attributes: serde_json::Value,
     summary: String,
+    severity: u8,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -766,16 +781,56 @@ pub async fn handle_create_event(
         attrs,
         timestamp,
         summary,
+        severity,
     );
-    insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
-    process_event_notifications_and_clustering(
-        db,
-        queue.clone(),
-        signal_message.project_id,
-        run.trace_id,
-        signal_event,
-    )
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let ch_ref = &clickhouse;
+    let event_ref = &signal_event;
+    // NOTE: all errors treated as transient because anyhow::Error doesn't expose
+    // ClickHouse error kinds; permanent errors (schema mismatch, etc.) will retry
+    // until the 10s timeout before propagating.
+    backoff::future::retry(backoff, || async move {
+        insert_signal_events(ch_ref.clone(), vec![event_ref.clone()])
+            .await
+            .map_err(|e| {
+                log::warn!("[SIGNAL JOB] Retrying insert_signal_events: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    })
+    .await?;
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let db_ref = &db;
+    let queue_ref = &queue;
+    let project_id = signal_message.project_id;
+    let trace_id = run.trace_id;
+    let event_for_notif = signal_event.clone();
+    backoff::future::retry(backoff, || {
+        let event = event_for_notif.clone();
+        async move {
+            process_event_notifications_and_clustering(
+                db_ref.clone(),
+                queue_ref.clone(),
+                project_id,
+                trace_id,
+                event,
+            )
+            .await
+            .map_err(|e| {
+                log::warn!("[SIGNAL JOB] Retrying notifications/clustering: {:?}", e);
+                backoff::Error::transient(e)
+            })
+        }
+    })
     .await?;
 
     emit_internal_span(

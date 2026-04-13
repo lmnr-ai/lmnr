@@ -12,6 +12,7 @@ export interface SpanSearchHit {
   span_id: string;
   input_snippet?: SnippetInfo;
   output_snippet?: SnippetInfo;
+  attributes_snippet?: SnippetInfo;
 }
 
 export const searchSpans = async ({

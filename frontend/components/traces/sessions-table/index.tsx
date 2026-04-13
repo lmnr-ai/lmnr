@@ -1,34 +1,32 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
-import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
+import { shallow } from "zustand/shallow";
 
-import SearchInput from "@/components/common/search-input";
-import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
+import AdvancedSearch from "@/components/common/advanced-search";
+import { filters } from "@/components/traces/sessions-table/columns";
+import { SessionsStoreProvider, useSessionsStoreContext } from "@/components/traces/sessions-table/sessions-store";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SessionRow, type TraceRow } from "@/lib/traces/types";
+
+import { type SessionSortColumn, type SortDirection } from "./session-table-header";
+import SessionsVirtualList from "./sessions-virtual-list";
 
 const FETCH_SIZE = 50;
 
 export default function SessionsTable() {
   return (
-    <DataTableStateProvider
-      storageKey="sessions-table"
-      uniqueKey="sessionId"
-      defaultColumnOrder={defaultSessionsColumnOrder}
-    >
-      <SessionsTableContent />
+    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId">
+      <SessionsStoreProvider>
+        <SessionsTableContent />
+      </SessionsStoreProvider>
     </DataTableStateProvider>
   );
 }
@@ -39,9 +37,8 @@ function SessionsTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { setTraceId, traceId } = useTracesStoreContext((state) => ({
+  const { setTraceId } = useTracesStoreContext((state) => ({
     setTraceId: state.setTraceId,
-    traceId: state.traceId,
   }));
 
   const filter = searchParams.getAll("filter");
@@ -50,18 +47,59 @@ function SessionsTableContent() {
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
 
-  const { setNavigationRefList } = useTraceViewNavigation();
+  const sortColumnParam = searchParams.get("sortColumn") as SessionSortColumn | null;
+  const sortDirectionParam = searchParams.get("sortDir") as SortDirection | null;
+  const sortColumn = sortColumnParam ?? undefined;
+  const sortDirection = sortDirectionParam ?? undefined;
 
-  // Initialize with default time range if needed - do this BEFORE useInfiniteScroll
+  const { expandedSessions, loadingSessions, sessionTraces } = useSessionsStoreContext(
+    (state) => ({
+      expandedSessions: state.expandedSessions,
+      loadingSessions: state.loadingSessions,
+      sessionTraces: state.sessionTraces,
+    }),
+    shallow
+  );
+
+  const { toggleSession, collapseSession, setLoadingSession, setSessionTraces, resetExpandState } =
+    useSessionsStoreContext(
+      (state) => ({
+        toggleSession: state.toggleSession,
+        collapseSession: state.collapseSession,
+        setLoadingSession: state.setLoadingSession,
+        setSessionTraces: state.setSessionTraces,
+        resetExpandState: state.resetExpandState,
+      }),
+      shallow
+    );
+
+  // Serialize filter array for stable dependency comparison
+  const filterKey = JSON.stringify(filter);
+
+  // Reset expanded/trace/timeline state when query params change
+  useEffect(() => {
+    resetExpandState();
+  }, [
+    endDate,
+    filterKey,
+    pastHours,
+    projectId,
+    sortColumn,
+    sortDirection,
+    startDate,
+    textSearchFilter,
+    resetExpandState,
+  ]);
+
+  // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
-      sp.set("pastHours", "24");
+      sp.set("pastHours", "72");
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  // Only enable fetching when we have valid time params
   const shouldFetch = !!(pastHours || startDate || endDate);
 
   const fetchSessions = useCallback(
@@ -75,20 +113,17 @@ function SessionsTableContent() {
         if (startDate != null) urlParams.set("startDate", startDate);
         if (endDate != null) urlParams.set("endDate", endDate);
 
-        filter.forEach((filter) => urlParams.append("filter", filter));
+        filter.forEach((f) => urlParams.append("filter", f));
 
         if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
           urlParams.set("search", textSearchFilter);
         }
 
-        const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
+        if (sortColumn) urlParams.set("sortColumn", sortColumn);
+        if (sortDirection) urlParams.set("sortDirection", sortDirection);
 
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
+        const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
 
         if (!res.ok) {
           const text = (await res.json()) as { error: string };
@@ -105,7 +140,7 @@ function SessionsTableContent() {
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast]
+    [endDate, filter, pastHours, projectId, sortColumn, sortDirection, startDate, textSearchFilter, toast]
   );
 
   const {
@@ -113,68 +148,36 @@ function SessionsTableContent() {
     hasMore,
     isFetching,
     isLoading,
+    error,
     fetchNextPage,
     refetch,
-    updateData,
-    error,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
     enabled: shouldFetch,
-    deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
+    deps: [endDate, filter, pastHours, projectId, sortColumn, sortDirection, startDate, textSearchFilter],
   });
 
-  useEffect(() => {
-    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t?.id));
-  }, [setNavigationRefList, sessions]);
+  const handleToggleSession = useCallback(
+    async (sessionId: string) => {
+      const result = toggleSession(sessionId);
+      if (result.action === "collapsed") return;
 
-  const handleRowClick = useCallback(
-    async (row: Row<SessionRow>) => {
-      // If clicking on a trace row (not a session row with subRows)
-      if (!row.original.subRows) {
-        const params = new URLSearchParams(searchParams);
-        setTraceId(row.original.id);
-        params.set("traceId", row.original.id);
-        router.push(`${pathName}?${params.toString()}`);
-        return;
-      }
-
-      const isCurrentlyExpanded = row.getIsExpanded();
-      row.toggleExpanded();
-
-      // If collapsing, clear the subRows
-      if (isCurrentlyExpanded) {
-        updateData((sessions) =>
-          sessions?.map((s) => {
-            if (s.sessionId === row.original.sessionId) {
-              return {
-                ...s,
-                subRows: [],
-              };
-            }
-            return s;
-          })
-        );
-        return;
-      }
-
-      // If expanding, fetch traces for this session
-      const filter = {
-        column: "session_id",
-        value: row.original.sessionId,
-        operator: "eq",
-      };
+      const controller = result.controller;
 
       try {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", "0");
         urlParams.set("pageSize", "50");
-        urlParams.set("filter", JSON.stringify(filter));
+        urlParams.set("filter", JSON.stringify({ column: "session_id", value: sessionId, operator: "eq" }));
+        urlParams.set("sortDirection", "ASC");
 
         if (pastHours != null) urlParams.set("pastHours", pastHours);
         if (startDate != null) urlParams.set("startDate", startDate);
         if (endDate != null) urlParams.set("endDate", endDate);
 
-        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`);
+        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`, {
+          signal: controller.signal,
+        });
 
         if (!res.ok) {
           throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
@@ -182,59 +185,102 @@ function SessionsTableContent() {
 
         const traces = (await res.json()) as { items: TraceRow[] };
 
-        // Update the session with its subRows (traces)
-        updateData((sessions) =>
-          sessions?.map((s) => {
-            if (s.sessionId === row.original.sessionId) {
-              return {
-                ...s,
-                subRows: traces.items.toReversed(),
-              };
-            }
-            return s;
-          })
-        );
+        if (controller.signal.aborted) return;
+
+        setSessionTraces(sessionId, traces.items);
+        setLoadingSession(sessionId, false);
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         toast({
-          title: "Failed to load traces. Please try again.",
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
           variant: "destructive",
         });
-        // Collapse the row again since we failed to fetch
-        row.toggleExpanded();
+        collapseSession(sessionId);
+        setLoadingSession(sessionId, false);
       }
     },
-    [setTraceId, pathName, projectId, router, searchParams, pastHours, startDate, endDate, toast, updateData]
+    [
+      pastHours,
+      startDate,
+      endDate,
+      projectId,
+      toast,
+      toggleSession,
+      setLoadingSession,
+      setSessionTraces,
+      collapseSession,
+    ]
   );
 
+  const handleTraceClick = useCallback(
+    (traceId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      setTraceId(traceId);
+      params.set("traceId", traceId);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [setTraceId, pathName, router, searchParams]
+  );
+
+  const handleSort = useCallback(
+    (column: SessionSortColumn, direction: SortDirection) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("sortColumn", column);
+      params.set("sortDir", direction);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
+  const handleClearSort = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("sortColumn");
+    params.delete("sortDir");
+    router.push(`${pathName}?${params.toString()}`);
+  }, [pathName, router, searchParams]);
+
   return (
-    <div className="flex overflow-hidden px-4 pb-6">
-      <InfiniteDataTable<SessionRow>
-        className="w-full"
-        columns={columns}
-        data={sessions}
-        getRowId={(session) => get(session, ["id"], session.sessionId)}
-        onRowClick={handleRowClick}
-        focusedRowId={traceId || searchParams.get("traceId")}
+    <div className="flex flex-col overflow-hidden px-4 pb-6 h-full">
+      <div className="flex flex-col gap-2 items-start mb-2">
+        <div className="flex flex-1 w-full h-full gap-2">
+          <DataTableFilter columns={filters} />
+          <DateRangeFilter />
+          <RefreshButton
+            onClick={() => {
+              resetExpandState();
+              refetch();
+            }}
+            variant="outline"
+          />
+        </div>
+        <div className="w-full px-px">
+          <AdvancedSearch
+            filters={filters}
+            placeholder="Search by session ID, duration, cost, tokens and more..."
+            className="w-full flex-1"
+            storageKey="sessions"
+          />
+        </div>
+      </div>
+      <SessionsVirtualList
+        sessions={sessions ?? []}
+        expandedSessions={expandedSessions}
+        loadingSessions={loadingSessions}
+        sessionTraces={sessionTraces}
+        onToggleSession={handleToggleSession}
+        onTraceClick={handleTraceClick}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
         fetchNextPage={fetchNextPage}
         error={error}
-      >
-        <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
-          <DateRangeFilter />
-          <RefreshButton onClick={refetch} variant="outline" />
-          <SearchInput placeholder="Search in sessions..." />
-        </div>
-        <DataTableFilterList />
-      </InfiniteDataTable>
+        onRetry={refetch}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        onClearSort={handleClearSort}
+      />
     </div>
   );
 }
