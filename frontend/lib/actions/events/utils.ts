@@ -14,6 +14,16 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
     ["id", createStringFilter],
     ["trace_id", createStringFilter],
     ["run_id", createStringFilter],
+    [
+      "severity",
+      (filter, paramKey) => {
+        const opSymbol = OperatorLabelMap[filter.operator];
+        return {
+          condition: `severity ${opSymbol} {${paramKey}:UInt8}`,
+          params: { [paramKey]: parseInt(String(filter.value), 10) },
+        };
+      },
+    ],
   ]),
   defaultProcessor: (filter, paramKey) => {
     const { column, value, dataType } = filter;
@@ -60,6 +70,7 @@ const eventsSelectColumns = [
   "trace_id traceId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "payload",
+  "severity",
 ];
 
 export interface BuildEventsQueryOptions {

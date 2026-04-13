@@ -1,35 +1,36 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
-use resend_rs::Resend;
-use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
-use crate::ch::notification_logs::CHNotificationLog;
+use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
+use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::reports::email_template::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
+pub mod delivery;
+mod email;
 mod slack;
-pub use slack::{EventIdentificationPayload, ReportPayload, SlackMessagePayload};
+mod utils;
+
+use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
+
+// ── Notifications queue (producers → notifications_consumer) ──
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
 pub const NOTIFICATIONS_ROUTING_KEY: &str = "notifications";
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum NotificationType {
-    Slack,
-    Email,
-}
+// ── Shared types ──
 
 /// The delivery channel for a notification target, as stored in the database.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TargetType {
     Email,
     Slack,
@@ -56,34 +57,6 @@ impl std::fmt::Display for TargetType {
     }
 }
 
-impl From<TargetType> for NotificationType {
-    fn from(t: TargetType) -> Self {
-        match t {
-            TargetType::Email => Self::Email,
-            TargetType::Slack => Self::Slack,
-        }
-    }
-}
-
-const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
-const LAMINAR_LOGO_CID: &str = "laminar-logo";
-
-/// How long the per-notification send lock is held. Long enough to cover email
-/// delivery + DB write; short enough to allow retry if the worker crashes.
-const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
-
-/// Payload for email notifications sent through the notification queue
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EmailPayload {
-    pub from: String,
-    pub to: Vec<String>,
-    pub subject: String,
-    pub html: String,
-    /// When true, the Laminar logo PNG is attached inline with CID for email rendering.
-    #[serde(default)]
-    pub inline_logo: bool,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NotificationDefinitionType {
@@ -92,36 +65,68 @@ pub enum NotificationDefinitionType {
     UsageWarning,
 }
 
-impl ToString for NotificationDefinitionType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for NotificationDefinitionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Alert => "ALERT".to_string(),
-            Self::Report => "REPORT".to_string(),
-            Self::UsageWarning => "USAGE_WARNING".to_string(),
+            Self::Alert => f.write_str("ALERT"),
+            Self::Report => f.write_str("REPORT"),
+            Self::UsageWarning => f.write_str("USAGE_WARNING"),
         }
     }
 }
 
+// ── Notification kind: the core event data ──
+
+/// Core notification data produced by various subsystems.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NotificationMessage {
-    #[serde(rename = "type")]
-    pub notification_type: NotificationType,
-    /// The notification payload. For both Slack and Email this is the inner struct
-    /// (e.g. `EventIdentificationPayload` or `EmailPayload`) — no enum wrapper.
-    /// The handler wraps it as needed for delivery and logs it directly to ClickHouse.
-    pub payload: serde_json::Value,
-    pub project_id: Uuid,
-    pub workspace_id: Uuid,
-    pub definition_type: NotificationDefinitionType,
-    pub definition_id: Uuid,
-    pub target_id: Uuid,
-    pub target_type: String,
+pub enum NotificationKind {
+    EventIdentification {
+        project_id: Uuid,
+        trace_id: Uuid,
+        event_name: String,
+        #[serde(default)]
+        severity: u8,
+        extracted_information: Option<serde_json::Value>,
+    },
+    SignalsReport {
+        workspace_name: String,
+        project_id: Uuid,
+        project_name: String,
+        title: String,
+        period_label: String,
+        period_start: String,
+        period_end: String,
+        signal_event_counts: BTreeMap<String, u64>,
+        ai_summary: String,
+        noteworthy_events: Vec<NoteworthyEvent>,
+    },
+    UsageWarning {
+        workspace_name: String,
+        usage_label: String,
+        formatted_limit: String,
+        usage_item: String,
+    },
 }
 
-/// Push a notification message to the notification queue.
+// ── NotificationMessage (producers → notifications queue) ──
+
+/// Message pushed to the `notifications` queue by producers (reports generator,
+/// signal processor, usage limits checker).
 ///
-/// Returns a plain `anyhow::Result` – callers on the handler side are responsible
-/// for checking payload size and mapping errors to `HandlerError` variants.
+/// Contains a list of notification events sharing the same definition. All notifications from
+/// the message are delivered together.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotificationMessage {
+    pub definition_type: NotificationDefinitionType,
+    pub definition_id: Uuid,
+    pub workspace_id: Uuid,
+    /// Optional project scope. Set for alerts and per-project report notifications.
+    /// `None` for workspace-level notifications (usage warnings, multi-project reports).
+    pub project_id: Option<Uuid>,
+    pub notifications: Vec<NotificationKind>,
+}
+
+/// Push a notification message to the notifications queue.
 pub async fn push_to_notification_queue(
     message: NotificationMessage,
     queue: Arc<MessageQueue>,
@@ -138,21 +143,28 @@ pub async fn push_to_notification_queue(
         .await?;
 
     log::debug!(
-        "Pushed notification message to queue: workspace_id={}, definition_type={}, target_id={}",
+        "Pushed notification message to queue: workspace_id={}, definition_type={}, count={}",
         message.workspace_id,
-        message.definition_type.to_string(),
-        message.target_id
+        message.definition_type,
+        message.notifications.len(),
     );
 
     Ok(())
 }
 
-/// Handler for notifications
+// ══════════════════════════════════════════════════════════════════════════════
+// notifications_consumer — stage 1: persist notifications + fan-out to targets
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// How long the per-warning dedup lock is held.
+/// This prevents concurrent ingestion workers from enqueuing duplicate
+/// usage-warning notifications for the same warning definition.
+const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
+
 pub struct NotificationHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
-    pub slack_client: reqwest::Client,
-    pub resend: Option<Arc<Resend>>,
+    pub queue: Arc<MessageQueue>,
     pub ch_service: Arc<ClickhouseService>,
 }
 
@@ -160,15 +172,13 @@ impl NotificationHandler {
     pub fn new(
         db: Arc<DB>,
         cache: Arc<Cache>,
-        slack_client: reqwest::Client,
-        resend: Option<Arc<Resend>>,
+        queue: Arc<MessageQueue>,
         ch_service: Arc<ClickhouseService>,
     ) -> Self {
         Self {
             db,
             cache,
-            slack_client,
-            resend,
+            queue,
             ch_service,
         }
     }
@@ -179,32 +189,150 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        let delivered = match message.notification_type {
-            NotificationType::Slack => self.handle_slack(&message).await?,
-            NotificationType::Email => self.handle_email(&message).await?,
-        };
-
-        if delivered {
-            let now_ms = chrono::Utc::now().timestamp_millis();
-            let log_entry = CHNotificationLog {
-                id: Uuid::new_v4(),
-                workspace_id: message.workspace_id,
-                project_id: message.project_id,
-                definition_type: message.definition_type.to_string(),
-                definition_id: message.definition_id,
-                target_id: message.target_id,
-                target_type: message.target_type,
-                payload: message.payload.to_string(),
-                created_at: now_ms,
-            };
-
-            if let Err(e) = self
-                .ch_service
-                .insert_batch_for_workspace(message.workspace_id, &[log_entry])
+        // For usage warnings, acquire a dedup lock keyed on definition_id (the
+        // warning row). Multiple ingestion workers can race through
+        // check_soft_limits and enqueue duplicate NotificationMessages for the
+        // same warning before mark_warning_as_notified takes effect.
+        if message.definition_type == NotificationDefinitionType::UsageWarning {
+            let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
+            match self
+                .cache
+                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
                 .await
             {
-                log::error!("Failed to insert notification log: {:?}", e);
+                Ok(true) => {} // Lock acquired – proceed.
+                Ok(false) => {
+                    log::debug!(
+                        "[Notifications] Usage warning send lock held for [{}], skipping",
+                        message.definition_id
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(HandlerError::Transient(anyhow::anyhow!(
+                        "Cache error acquiring usage warning notification lock: {}",
+                        e
+                    )));
+                }
             }
+        }
+
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        // 1. Persist each notification event to ClickHouse `notifications` table.
+        let mut notification_ids = Vec::with_capacity(message.notifications.len());
+        let mut ch_notifications = Vec::with_capacity(message.notifications.len());
+
+        for kind in &message.notifications {
+            let notification_id = Uuid::new_v4();
+            notification_ids.push(notification_id);
+
+            let project_id = match kind {
+                NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                NotificationKind::UsageWarning { .. } => Uuid::nil(),
+            };
+
+            let payload = serde_json::to_string(kind).map_err(|e| {
+                HandlerError::permanent(anyhow::anyhow!(
+                    "Failed to serialize notification_kind: {}",
+                    e
+                ))
+            })?;
+
+            ch_notifications.push(CHNotification {
+                notification_id,
+                project_id,
+                workspace_id: message.workspace_id,
+                definition_type: message.definition_type.to_string(),
+                definition_id: message.definition_id,
+                payload,
+                created_at: now_ms,
+            });
+        }
+
+        if !ch_notifications.is_empty() {
+            if let Err(e) = self
+                .ch_service
+                .insert_batch_for_workspace(message.workspace_id, &ch_notifications)
+                .await
+            {
+                log::error!(
+                    "[Notifications] Failed to insert {} notifications to CH: {:?}",
+                    ch_notifications.len(),
+                    e
+                );
+                // Non-fatal: continue with delivery fan-out. Blocking delivery on CH
+                // availability would be worse than having unmatched IDs in logs.
+            }
+        }
+
+        // 2. Fetch targets based on definition_type.
+        let targets = self.fetch_targets(&message).await?;
+
+        if targets.is_empty() {
+            log::info!(
+                "[Notifications] No targets for definition_type={}, definition_id={}",
+                message.definition_type,
+                message.definition_id,
+            );
+            return Ok(());
+        }
+
+        // 3. Fan-out: publish a delivery message per target with the full list of notifications.
+        let mut failures = 0;
+        let total = targets.len();
+
+        for target in targets {
+            let delivery = NotificationDeliveryMessage {
+                workspace_id: message.workspace_id,
+                project_id: message.project_id,
+                target,
+                notification_ids: notification_ids.clone(),
+                notifications: message.notifications.clone(),
+            };
+
+            let serialized_size = match serde_json::to_vec(&delivery) {
+                Ok(v) => v.len(),
+                Err(e) => {
+                    failures += 1;
+                    log::error!(
+                        "[Notifications] Failed to serialize delivery message: {:?}, target: {:?}",
+                        e,
+                        delivery.target,
+                    );
+                    continue;
+                }
+            };
+            if serialized_size >= mq_max_payload() {
+                failures += 1;
+                log::error!(
+                    "[Notifications] MQ payload limit exceeded for delivery message. \
+                     payload size: [{}], target: {:?}",
+                    serialized_size,
+                    delivery.target,
+                );
+                continue;
+            }
+
+            if let Err(e) = push_to_deliveries_queue(delivery, self.queue.clone()).await {
+                failures += 1;
+                log::error!("[Notifications] Failed to push delivery message: {:?}", e);
+            }
+        }
+
+        if failures == total {
+            // Release the usage warning dedup lock so the requeued message can
+            // re-acquire it on retry. Without this, the lock's TTL would cause
+            // the retry to silently skip, permanently losing the notification.
+            if message.definition_type == NotificationDefinitionType::UsageWarning {
+                let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
+                let _ = self.cache.remove(&lock_key).await;
+            }
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to push all {} delivery messages for definition {}",
+                total,
+                message.definition_id,
+            )));
         }
 
         Ok(())
@@ -212,189 +340,85 @@ impl MessageHandler for NotificationHandler {
 }
 
 impl NotificationHandler {
-    /// Returns `Ok(true)` if the Slack message was actually sent,
-    /// `Ok(false)` if delivery was skipped (e.g. integration not found).
-    async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
-        let slack_payload =
-            serde_json::from_value::<EventIdentificationPayload>(message.payload.clone())
-                .map(SlackMessagePayload::EventIdentification)
-                .or_else(|_| {
-                    serde_json::from_value::<slack::ReportPayload>(message.payload.clone())
-                        .map(SlackMessagePayload::Report)
-                })
-                .map_err(|e| anyhow::anyhow!("Failed to parse Slack payload: {}", e))?;
-
-        let integration = crate::db::slack_integrations::get_integration_by_id(
-            &self.db.pool,
-            slack_payload.integration_id(),
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
-
-        let Some(integration) = integration else {
-            log::warn!(
-                "Slack integration not found for integration_id: {}",
-                slack_payload.integration_id()
-            );
-            return Ok(false);
-        };
-
-        let decrypted_token = slack::decode_slack_token(
-            &integration.team_id,
-            &integration.nonce_hex,
-            &integration.token,
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
-
-        let channel_id = slack_payload.channel_id();
-
-        let blocks = slack::format_message_blocks(&slack_payload);
-
-        slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
-
-        log::debug!(
-            "Successfully sent Slack notification for target_id={}",
-            message.target_id
-        );
-
-        Ok(true)
-    }
-
-    /// Returns `Ok(true)` if the email was actually sent to at least one recipient,
-    /// `Ok(false)` if delivery was skipped (e.g. Resend not configured, no recipients).
-    async fn handle_email(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
-        // For usage-warning emails, claim a short-lived lock so that concurrent
-        // notification workers don't all send the same alert. The first worker to
-        // acquire the lock sends; others give up (their queue message is acked).
-        let is_usage_warning = message.definition_type == NotificationDefinitionType::UsageWarning;
-        if is_usage_warning {
-            let lock_key = format!("{USAGE_WARNING_SEND_LOCK_KEY}:{}", message.definition_id);
-            match self
-                .cache
-                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
-                .await
-            {
-                Ok(true) => {} // Lock acquired – proceed with send.
-                Ok(false) => {
-                    log::debug!(
-                        "[Notifications] Usage warning send lock held for warning [{}], skipping",
-                        message.definition_id
-                    );
-                    return Ok(false);
-                }
-                Err(e) => {
-                    log::warn!(
-                        "[Notifications] Failed to acquire send lock for warning [{}]: {:?}",
+    /// Fetch delivery targets based on the notification definition type.
+    async fn fetch_targets(
+        &self,
+        message: &NotificationMessage,
+    ) -> Result<Vec<DeliveryTarget>, HandlerError> {
+        match message.definition_type {
+            NotificationDefinitionType::Alert => {
+                let project_id = message.project_id.ok_or_else(|| {
+                    HandlerError::permanent(anyhow::anyhow!(
+                        "Alert notification must have project_id, definition_id={}",
                         message.definition_id,
-                        e
-                    );
-                    // transient error, reject requeue
-                    return Err(HandlerError::Transient(anyhow::anyhow!(
-                        "Cache error when trying to acquire lock for usage warning cache {}",
-                        e
-                    )));
-                }
+                    ))
+                })?;
+
+                let targets = crate::db::alert_targets::get_targets_for_alert(
+                    &self.db.pool,
+                    &message.definition_id,
+                    &project_id,
+                )
+                .await
+                .map_err(|e| HandlerError::transient(e))?;
+
+                Ok(targets
+                    .into_iter()
+                    .filter_map(|t| {
+                        let target_type = t.r#type.parse::<TargetType>().ok()?;
+                        Some(DeliveryTarget {
+                            target_id: t.id,
+                            target_type,
+                            email: t.email,
+                            channel_id: t.channel_id,
+                            integration_id: t.integration_id,
+                        })
+                    })
+                    .collect())
+            }
+            NotificationDefinitionType::Report => {
+                let targets = crate::db::reports::get_report_targets(
+                    &self.db.pool,
+                    &message.definition_id,
+                    &message.workspace_id,
+                )
+                .await
+                .map_err(|e| HandlerError::transient(e))?;
+
+                Ok(targets
+                    .into_iter()
+                    .filter_map(|t| {
+                        let target_type = t.r#type.parse::<TargetType>().ok()?;
+                        Some(DeliveryTarget {
+                            target_id: t.id,
+                            target_type,
+                            email: t.email,
+                            channel_id: t.channel_id,
+                            integration_id: t.integration_id,
+                        })
+                    })
+                    .collect())
+            }
+            NotificationDefinitionType::UsageWarning => {
+                // Usage warnings go to workspace owners via email.
+                let owner_emails = crate::db::usage_warnings::get_workspace_owner_emails(
+                    &self.db.pool,
+                    message.workspace_id,
+                )
+                .await
+                .map_err(|e| HandlerError::transient(e))?;
+
+                Ok(owner_emails
+                    .into_iter()
+                    .map(|email| DeliveryTarget {
+                        target_id: Uuid::nil(),
+                        target_type: TargetType::Email,
+                        email: Some(email),
+                        channel_id: None,
+                        integration_id: None,
+                    })
+                    .collect())
             }
         }
-
-        let resend = match &self.resend {
-            Some(r) => r.clone(),
-            None => {
-                log::warn!(
-                    "[Notifications] Resend client not configured (RESEND_API_KEY not set), \
-                     skipping email notification"
-                );
-                return Ok(false);
-            }
-        };
-
-        let email_payload: EmailPayload = serde_json::from_value(message.payload.clone())
-            .map_err(|e| anyhow::anyhow!("Failed to parse EmailPayload: {}", e))?;
-
-        if email_payload.to.is_empty() {
-            log::warn!("[Notifications] Email notification has no recipients, skipping");
-            return Ok(false);
-        }
-
-        let mut send_failures = 0;
-        let total = email_payload.to.len();
-
-        for recipient in &email_payload.to {
-            let mut email = CreateEmailBaseOptions::new(
-                &email_payload.from,
-                [recipient.as_str()],
-                &email_payload.subject,
-            )
-            .with_html(&email_payload.html);
-
-            if email_payload.inline_logo {
-                email = email.with_attachment(
-                    CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
-                        .with_filename("logo.png")
-                        .with_content_type("image/png")
-                        .with_content_id(LAMINAR_LOGO_CID),
-                );
-            }
-
-            match send_email_with_retry(&resend, email).await {
-                Ok(response) => {
-                    log::info!(
-                        "[Notifications] Email sent to recipient. Email ID: {:?}",
-                        response.id
-                    );
-                }
-                Err(e) => {
-                    send_failures += 1;
-                    log::error!("[Notifications] Failed to send email: {:?}", e);
-                }
-            }
-        }
-
-        if send_failures == total {
-            // Use permanent error: if every recipient fails, the cause is most likely
-            // a configuration issue (invalid API key, bad sender domain, etc.) that
-            // will not resolve on retry. This is consistent with the Slack handler.
-            return Err(HandlerError::permanent(anyhow::anyhow!(
-                "Failed to send email to all {} recipients",
-                total
-            )));
-        }
-
-        if send_failures > 0 {
-            log::warn!(
-                "[Notifications] Failed to send email to {}/{} recipients",
-                send_failures,
-                total
-            );
-        }
-
-        Ok(true)
     }
-}
-
-async fn send_email_with_retry(
-    resend: &Resend,
-    email: CreateEmailBaseOptions,
-) -> resend_rs::Result<resend_rs::types::CreateEmailResponse> {
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(10)))
-        .build();
-
-    backoff::future::retry(backoff, || async {
-        resend
-            .emails
-            .send(email.clone())
-            .await
-            .map_err(|e| match &e {
-                resend_rs::Error::RateLimit { .. } => {
-                    log::info!("[Notifications] Rate limited, will retry");
-                    backoff::Error::transient(e)
-                }
-                _ => backoff::Error::permanent(e),
-            })
-    })
-    .await
 }

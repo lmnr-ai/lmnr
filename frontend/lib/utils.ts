@@ -231,7 +231,7 @@ export const getGroupByInterval = (
     groupByInterval = "minute";
   } else if (pastHours === "24") {
     groupByInterval = "hour";
-  } else if (parseInt(pastHours ?? "0") > 24) {
+  } else if (parseInt(pastHours ?? "0") > 24 * 7) {
     groupByInterval = "day";
   } else if (pastHours === "all") {
     groupByInterval = "day";
@@ -239,8 +239,8 @@ export const getGroupByInterval = (
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diff = end.getTime() - start.getTime();
-    if (diff > 48 * 60 * 60 * 1000) {
-      // 2 days
+    if (diff > 7 * 24 * 60 * 60 * 1000) {
+      // 1 week
       groupByInterval = "day";
     } else if (diff < 6 * 60 * 60 * 1000) {
       // 6 hours
@@ -336,6 +336,38 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
   }
   return null;
 };
+export function formatTimeRange(start: Date, end: Date): string {
+  const sameDay = start.toDateString() === end.toDateString();
+
+  const startHours = start.getHours();
+  const startMinutes = String(start.getMinutes()).padStart(2, "0");
+  const startAmPm = startHours >= 12 ? "PM" : "AM";
+  const startH = startHours % 12 || 12;
+  const startTimeStr = `${startH}:${startMinutes} ${startAmPm}`;
+
+  const endHours = end.getHours();
+  const endMinutes = String(end.getMinutes()).padStart(2, "0");
+  const endAmPm = endHours >= 12 ? "PM" : "AM";
+  const endH = endHours % 12 || 12;
+  const endTimeStr = `${endH}:${endMinutes} ${endAmPm}`;
+
+  const isToday = start.toDateString() === new Date().toDateString();
+
+  if (isToday && sameDay) {
+    return `${startTimeStr} – ${endTimeStr}`;
+  }
+
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const startDateStr = `${months[start.getMonth()]} ${start.getDate()}`;
+
+  if (sameDay) {
+    return `${startDateStr}, ${startTimeStr} – ${endTimeStr}`;
+  }
+
+  const endDateStr = `${months[end.getMonth()]} ${end.getDate()}`;
+  return `${startDateStr}, ${startTimeStr} – ${endDateStr}, ${endTimeStr}`;
+}
+
 export const getDurationString = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);

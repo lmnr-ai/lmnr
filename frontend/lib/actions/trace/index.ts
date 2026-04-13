@@ -173,7 +173,7 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
   });
 
-  const [[trace], [cacheTokens]] = await Promise.all([
+  const [[trace], [extraTokens]] = await Promise.all([
     executeQuery<Omit<TraceViewTrace, "visibility">>({
       query: `
       SELECT
@@ -189,7 +189,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         metadata,
         status,
         trace_type as traceType,
-        has_browser_session as hasBrowserSession
+        has_browser_session as hasBrowserSession,
+        session_id as sessionId
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1
@@ -199,13 +200,14 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         traceId,
       },
     }),
-    executeQuery<{ cacheReadInputTokens: number }>({
+    executeQuery<{ cacheReadInputTokens: number; reasoningTokens: number }>({
       query: `
-      SELECT 
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens
+      SELECT
+          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
+          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
       FROM spans
       WHERE trace_id = {traceId: UUID}
-        AND span_type = 'LLM'  
+        AND span_type = 'LLM'
       `,
       projectId,
       parameters: {
@@ -220,7 +222,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
 
   return {
     ...trace,
-    cacheReadInputTokens: cacheTokens?.cacheReadInputTokens ?? 0,
+    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
+    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
     visibility: sharedTrace ? "public" : "private",
   };
 }

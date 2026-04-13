@@ -14,7 +14,8 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { subscriptionTiers, modelCosts } = await import("@/lib/db/migrations/schema.ts");
+      const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
+        await import("@/lib/db/migrations/schema.ts");
       const { db } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
@@ -137,6 +138,60 @@ export async function register() {
       console.log("Applying ClickHouse schema. This may take a while...");
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
+
+      // Seed default signals for projects that don't have any
+      const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } = await import("@/lib/db/default-signals.ts");
+
+      const initializeDefaultSignals = async () => {
+        try {
+          // Find all project IDs that already have at least one signal
+          const projectsWithSignals = await db.selectDistinct({ projectId: signals.projectId }).from(signals);
+
+          const projectIdsWithSignals = new Set(projectsWithSignals.map((r) => r.projectId));
+
+          // Get all projects
+          const allProjects = await db.select({ id: projects.id }).from(projects);
+
+          // Filter to projects that have no signals
+          const projectsWithoutSignals = allProjects.filter((p) => !projectIdsWithSignals.has(p.id));
+
+          if (projectsWithoutSignals.length === 0) {
+            console.log("No projects need default signals, skipping seeding");
+            return;
+          }
+
+          let seeded = 0;
+          for (const project of projectsWithoutSignals) {
+            try {
+              const [signal] = await db
+                .insert(signals)
+                .values({
+                  projectId: project.id,
+                  ...DEFAULT_SIGNAL,
+                })
+                .onConflictDoNothing()
+                .returning({ id: signals.id });
+
+              if (signal) {
+                await db.insert(signalTriggers).values({
+                  projectId: project.id,
+                  signalId: signal.id,
+                  value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+                });
+                seeded++;
+              }
+            } catch (err) {
+              console.error(`Failed to seed default signal for project ${project.id}:`, err);
+            }
+          }
+
+          console.log(`Seeded default signals for ${seeded}/${projectsWithoutSignals.length} project(s)`);
+        } catch (error) {
+          console.error("Failed to initialize default signals:", error);
+          console.log("Continuing without default signals...");
+        }
+      };
+      await initializeDefaultSignals();
 
       // Run Quickwit index initialization
       const initializeQuickwit = async () => {

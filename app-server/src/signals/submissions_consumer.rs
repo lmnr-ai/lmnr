@@ -3,24 +3,21 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
+use futures_util::stream::{self, StreamExt};
 use std::sync::Arc;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::{
-    cache::{
-        CacheTrait,
-        keys::{SIGNAL_BATCH_LOCK_CACHE_KEY, SIGNAL_BATCH_SUBMITTED_CACHE_KEY},
-    },
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
     signals::{
         SignalRun, SignalWorkerConfig, llm_model, llm_provider,
-        provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
+        provider::{LlmClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
-            push_to_submissions_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -36,12 +33,14 @@ use crate::{
     },
 };
 
+const DEFAULT_PROCESS_RUN_CONCURRENCY: usize = 16;
+
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
     pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -51,7 +50,7 @@ impl SignalJobSubmissionBatchHandler {
         cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -71,9 +70,8 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[SIGNAL JOB] Processing submission message. runs: {}, batch_message_id: {}",
+            "[SIGNAL JOB] Processing submission message. runs: {}",
             message.messages.len(),
-            message.id,
         );
 
         process(
@@ -89,124 +87,75 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
-const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
-const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
-
-async fn process(
-    msg: SignalJobSubmissionBatchMessage,
-    db: Arc<DB>,
+#[tracing::instrument(skip_all, name = "prepare_batch_requests", fields(batch_size = messages.len()))]
+async fn prepare_batch_requests(
+    messages: &[SignalMessage],
+    clickhouse: clickhouse::Client,
     cache: Arc<crate::cache::Cache>,
-    clickhouse: clickhouse::Client,
+    llm_client: Arc<LlmClient>,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
-    config: Arc<SignalWorkerConfig>,
-) -> Result<(), HandlerError> {
-    let batch_message_id = msg.id;
-    let submitted_key = format!("{SIGNAL_BATCH_SUBMITTED_CACHE_KEY}:{batch_message_id}");
-    let lock_key = format!("{SIGNAL_BATCH_LOCK_CACHE_KEY}:{batch_message_id}");
-
-    // Check if this batch was already submitted (idempotency on redelivery)
-    if let Ok(Some(true)) = cache.get::<bool>(&submitted_key).await {
-        log::info!(
-            "[SIGNAL JOB] Batch {} already submitted, skipping",
-            batch_message_id
-        );
-        return Ok(());
-    }
-
-    // Acquire distributed lock to prevent concurrent processing
-    // This can happen if worker is taking long to process the batch and the message is redelivered to another worker
-    match cache
-        .try_acquire_lock(&lock_key, BATCH_LOCK_TTL_SECONDS)
-        .await
-    {
-        Ok(true) => {}
-        Ok(false) => {
-            log::info!(
-                "[SIGNAL JOB] Batch {} is locked by another worker, re-publishing to back of queue",
-                batch_message_id,
-            );
-            if let Err(e) = push_to_submissions_queue(msg, queue).await {
-                log::error!(
-                    "[SIGNAL JOB] Failed to re-publish locked batch {}: {:?}",
-                    batch_message_id,
-                    e
-                );
-            }
-            return Ok(());
-        }
-        Err(e) => {
-            log::warn!(
-                "[SIGNAL JOB] Failed to acquire lock for batch {}: {:?}, proceeding without lock",
-                batch_message_id,
-                e
-            );
-        }
-    }
-
-    let result = process_batch(msg, db, clickhouse, queue, llm_client, config).await;
-
-    if result.is_ok() {
-        if let Err(e) = cache
-            .insert_with_ttl(&submitted_key, true, BATCH_SUBMITTED_TTL_SECONDS)
-            .await
-        {
-            log::warn!(
-                "[SIGNAL JOB] Failed to set submitted flag for batch {}: {:?}",
-                batch_message_id,
-                e
-            );
-        }
-    }
-
-    if let Err(e) = cache.release_lock(&lock_key).await {
-        log::warn!(
-            "[SIGNAL JOB] Failed to release lock for batch {}: {:?}",
-            batch_message_id,
-            e
-        );
-    }
-
-    result
-}
-
-async fn process_batch(
-    msg: SignalJobSubmissionBatchMessage,
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
-    config: Arc<SignalWorkerConfig>,
-) -> Result<(), HandlerError> {
-    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(msg.messages.len());
+    config: &SignalWorkerConfig,
+) -> (
+    Vec<ProviderRequestItem>,
+    Vec<CHSignalRunMessage>,
+    Vec<SignalRun>,
+    Vec<SignalMessage>,
+) {
+    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
 
-    for message in msg.messages.iter() {
-        let project_id = message.project_id;
-        let signal = &message.signal;
-        let trace_id = message.trace_id;
+    let concurrency = get_unsigned_env_with_default(
+        "SIGNALS_PROCESS_RUN_CONCURRENCY",
+        DEFAULT_PROCESS_RUN_CONCURRENCY,
+    )
+    .max(1);
+    let results: Vec<_> = stream::iter(messages.iter().cloned())
+        .map(|message| {
+            let clickhouse = clickhouse.clone();
+            let cache = cache.clone();
+            let llm_client = llm_client.clone();
+            let queue = queue.clone();
+            let config = config.clone();
+            async move {
+                let result = process_run(
+                    message.project_id,
+                    message.trace_id,
+                    message.run_id,
+                    message.signal.id,
+                    &message.signal.prompt,
+                    &message.signal.structured_output_schema,
+                    clickhouse,
+                    cache,
+                    llm_client,
+                    queue,
+                    &config,
+                )
+                .await;
+                (message, result)
+            }
+            .in_current_span()
+        })
+        .buffer_unordered(concurrency)
+        .collect()
+        .await;
 
-        match process_run(
-            project_id,
-            trace_id,
-            message.run_id,
-            &signal.prompt,
-            &signal.structured_output_schema,
-            clickhouse.clone(),
-        )
-        .await
-        {
+    for (message, result) in results {
+        match result {
             Ok(ProcessRunResult {
                 request,
                 new_messages,
                 request_start_time,
+                steps_processed,
             }) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
+                if steps_processed > 0 {
+                    updated_message.steps_processed = steps_processed;
+                }
                 successful_messages.push(updated_message);
             }
             Err(e) => {
@@ -216,12 +165,36 @@ async fn process_batch(
                     e
                 );
                 failed_runs.push(
-                    SignalRun::from_message(message, signal.id)
+                    SignalRun::from_message(&message, message.signal.id)
                         .failed(&format!("Failed to process run: {}", e)),
                 );
             }
         }
     }
+
+    (requests, all_new_messages, failed_runs, successful_messages)
+}
+
+#[tracing::instrument(skip_all, name = "process_batch_submission", fields(batch_size = msg.messages.len()))]
+async fn process(
+    msg: SignalJobSubmissionBatchMessage,
+    db: Arc<DB>,
+    cache: Arc<crate::cache::Cache>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
+    llm_client: Arc<LlmClient>,
+    config: Arc<SignalWorkerConfig>,
+) -> Result<(), HandlerError> {
+    let (requests, all_new_messages, mut failed_runs, successful_messages) =
+        prepare_batch_requests(
+            &msg.messages,
+            clickhouse.clone(),
+            cache.clone(),
+            llm_client.clone(),
+            queue.clone(),
+            &config,
+        )
+        .await;
 
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
@@ -238,7 +211,6 @@ async fn process_batch(
     }
 
     let batch_result = submit_batch_to_llm(
-        &llm_model(),
         llm_client,
         requests,
         successful_messages.clone(),
@@ -304,9 +276,9 @@ async fn emit_submit_spans(
 
 /// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
+#[tracing::instrument(skip_all, fields(batch_size = requests.len()))]
 async fn submit_batch_to_llm(
-    model: &str,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     requests: Vec<ProviderRequestItem>,
     messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
@@ -314,11 +286,7 @@ async fn submit_batch_to_llm(
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
     let span_requests = requests.clone();
     match llm_client
-        .create_batch(
-            model,
-            requests,
-            Some(format!("signal_batch_{}", Uuid::new_v4())),
-        )
+        .create_batch(requests, Some(format!("signal_batch_{}", Uuid::new_v4())))
         .await
     {
         Ok(operation) => {
