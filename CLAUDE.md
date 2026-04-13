@@ -116,6 +116,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - `pnpm schema-pull:lint` heavily reformats `schema.ts`, `relations.ts`, and `tsconfig.json`. After running it, revert unrelated formatting changes before committing.
 - `npx drizzle-kit generate` requires a TTY for interactive prompts. In non-interactive shells (CI, sandbox), write migration SQL files and `_journal.json` entries manually.
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
+- **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
 
 ## Signals and Alerts
 
