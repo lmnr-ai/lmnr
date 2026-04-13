@@ -2,12 +2,14 @@
 
 import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, ChevronDown, ChevronsRight, Copy, Search } from "lucide-react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
+import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
 import { AgentGroupHeader } from "@/components/traces/trace-view/list/agent-group-item";
 import ListItem from "@/components/traces/trace-view/list/list-item";
-import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
+import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { useSessionViewStore } from "./store";
-import TraceHeaderItem from "./trace-header-item";
+import TraceItem from "./trace-item";
 import { useSessionSpanPreviews } from "./use-session-span-previews";
 import { buildSessionFlatRows, type SessionFlatRow } from "./utils";
 
@@ -132,6 +134,33 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
 
   const items = virtualizer.getVirtualItems();
 
+  // Declarative scroll-to-selected-span. When `selectedSpan` changes (e.g. via
+  // the URL resolver in session-view-content), flat rows rebuild once the
+  // trace's spans are loaded — at which point `findIndex` succeeds and we
+  // scroll. Fires at most once per selection via `lastScrolledSpanIdRef`.
+  const lastScrolledSpanIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedSpan) {
+      lastScrolledSpanIdRef.current = null;
+      return;
+    }
+    if (lastScrolledSpanIdRef.current === selectedSpan.spanId) return;
+
+    const idx = flatRows.findIndex(
+      (r) =>
+        (r.type === "span" || r.type === "group-span") &&
+        r.traceId === selectedSpan.traceId &&
+        r.span.spanId === selectedSpan.spanId
+    );
+    if (idx === -1) return; // rows haven't settled yet; effect re-runs as flatRows changes
+
+    lastScrolledSpanIdRef.current = selectedSpan.spanId;
+    const rafId = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: "center" });
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [selectedSpan, flatRows, virtualizer]);
+
   // --- Preview fetching (batched across traces) ---
   //
   // Derive the set of span IDs currently visible in the virtualizer window,
@@ -139,7 +168,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
   //   - visible "span" / "group-span" rows
   //   - "group-header" firstLlmSpanId (as an input-span for userInputs)
   //   - For collapsed trace-headers in view: the first and last displayable
-  //     span IDs (used by TraceHeaderItem's preview).
+  //     span IDs (used by TraceItem's preview).
   //
   // We use a stable key (via the hook's internal string compare) so scroll
   // jitter doesn't trigger refetches.
@@ -154,6 +183,8 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
       if (!map[traceId].includes(spanId)) map[traceId].push(spanId);
     };
 
+    // Collapsed trace-headers no longer need per-span previews — the
+    // `/traces/io` endpoint delivers the output text + span payload directly.
     for (let i = rangeStart; i <= rangeEnd; i++) {
       const row = flatRows[i];
       if (!row) continue;
@@ -165,21 +196,10 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           pushUnique(visible, row.traceId, row.group.firstLlmSpanId);
           pushUnique(inputs, row.traceId, row.group.firstLlmSpanId);
         }
-      } else if (row.type === "trace-header" && !row.expanded) {
-        // Collapsed trace-headers render first/last span previews inside
-        // TraceHeaderItem — fetch them eagerly.
-        const spans = traceSpans[row.trace.id];
-        if (!spans) continue;
-        const displaySpans = spans.filter((s) => s.spanType !== "DEFAULT");
-        if (displaySpans.length === 0) continue;
-        pushUnique(visible, row.trace.id, displaySpans[0].spanId);
-        if (displaySpans.length > 1) {
-          pushUnique(visible, row.trace.id, displaySpans[displaySpans.length - 1].spanId);
-        }
       }
     }
     return { visibleSpanIdsByTrace: visible, inputSpanIdsByTrace: inputs };
-  }, [rangeStart, rangeEnd, flatRows, traceSpans]);
+  }, [rangeStart, rangeEnd, flatRows]);
 
   // Span types per trace (used as a hint by the preview endpoint).
   const spanTypesByTrace = useMemo(() => {
@@ -205,6 +225,13 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     spanTypesByTrace,
   });
 
+  // Main-agent input/output text + output span, fetched in one batched call
+  // per session. Reuses the `/traces/io` endpoint + hook that powers the
+  // sessions-table trace cards. Sessions can have many traces, so we pass
+  // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
+  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
+  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds, { isIncludeSpanCounts: true });
+
   const handleCopySessionId = async () => {
     if (!session?.sessionId) return;
     try {
@@ -215,22 +242,10 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     }
   };
 
-  // Derived session-level aggregates from the loaded traces. Figma header
-  // shows a combined stats pill (duration / tokens / cost).
-  const sessionAggregates = useMemo(() => {
-    if (traces.length === 0) return null;
-    let totalTokens = 0;
-    let totalCost = 0;
-    let earliestStart: string | undefined;
-    let latestEnd: string | undefined;
-    for (const t of traces) {
-      totalTokens += t.totalTokens ?? 0;
-      totalCost += t.totalCost ?? 0;
-      if (!earliestStart || new Date(t.startTime) < new Date(earliestStart)) earliestStart = t.startTime;
-      if (!latestEnd || new Date(t.endTime) > new Date(latestEnd)) latestEnd = t.endTime;
-    }
-    return { totalTokens, totalCost, startTime: earliestStart, endTime: latestEnd };
-  }, [traces]);
+  // Session aggregate stats — sessions-table gets these pre-aggregated from the
+  // server, but here we only have the traces loaded, so sum them client-side.
+  // Same shape/shield as `TraceStatsShields` for visual parity with trace view.
+  const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
@@ -260,17 +275,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </span>
-            {sessionAggregates && (
-              <div className="flex items-center gap-2 h-5 rounded-md bg-muted px-1.5 shrink-0 ml-1">
-                <SpanStatsShield
-                  variant="inline"
-                  startTime={sessionAggregates.startTime ?? new Date().toISOString()}
-                  endTime={sessionAggregates.endTime ?? new Date().toISOString()}
-                  tokens={sessionAggregates.totalTokens}
-                  cost={sessionAggregates.totalCost}
-                />
-              </div>
-            )}
+            {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" className="ml-1" />}
           </div>
           {/* TODO(session-view): expand-to-fullscreen slot (figma reserves 28x28 on the right). Not in scope per spec. */}
           <div className="size-7 shrink-0" />
@@ -344,13 +349,13 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
                   style={{ ...positionStyle, left: 0, width: "100%" }}
                 >
                   {row.type === "trace-header" ? (
-                    <TraceHeaderItem
+                    <TraceItem
                       trace={row.trace}
                       expanded={row.expanded}
                       traceIndex={traceIndexById.get(row.trace.id) ?? 0}
                       totalTraces={traces.length}
                       onToggle={() => toggleTraceExpanded(row.trace.id)}
-                      previews={previews}
+                      traceIO={traceIO[row.trace.id]}
                     />
                   ) : row.type === "trace-loading" ? (
                     <div className="flex flex-col gap-2 px-3 py-2">
@@ -363,9 +368,17 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
                   ) : row.type === "trace-empty" ? (
                     <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
                   ) : row.type === "user-input" ? (
-                    // TODO(session-view): render `UserInputItem` — needs per-trace
-                    // user-input fetch. Skipped for initial version.
-                    <div className="hidden" />
+                    // Reuse the same `inputPreview` the collapsed trace-item
+                    // pill uses — one batched /traces/io fetch powers both
+                    // states. FLAG: trace-view proper uses a different
+                    // per-trace `/user-input` endpoint. They share the
+                    // server-side extraction pipeline today; if that ever
+                    // forks, session-view expanded will silently diverge from
+                    // trace-view for the same trace.
+                    <UserInputItem
+                      text={traceIO[row.traceId]?.inputPreview ?? null}
+                      isLoading={!traceIO[row.traceId]}
+                    />
                   ) : row.type === "group-header" ? (
                     (() => {
                       // Mirror trace-view/list: prefer the LLM group-head's

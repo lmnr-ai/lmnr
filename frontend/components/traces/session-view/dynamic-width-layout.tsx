@@ -13,9 +13,7 @@ const instantTransition = { duration: 0 } as const;
 export interface SessionViewPanels {
   sessionPanel: React.ReactNode;
   spanPanel: React.ReactNode;
-  chatPanel: React.ReactNode;
   showSpan: boolean;
-  showChat: boolean;
 }
 
 interface DynamicWidthLayoutProps {
@@ -24,11 +22,10 @@ interface DynamicWidthLayoutProps {
 }
 
 export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidthLayoutProps) {
-  const { sessionPanelWidth, spanPanelWidth, chatPanelWidth, resizePanel, setMaxWidth } = useSessionViewStore(
+  const { sessionPanelWidth, spanPanelWidth, resizePanel, setMaxWidth } = useSessionViewStore(
     (state) => ({
       sessionPanelWidth: state.sessionPanelWidth,
       spanPanelWidth: state.spanPanelWidth,
-      chatPanelWidth: state.chatPanelWidth,
       resizePanel: state.resizePanel,
       setMaxWidth: state.setMaxWidth,
     }),
@@ -53,9 +50,8 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
 
   const sessionResize = useSessionPanelResize("session", resizePanel);
   const spanResize = useSessionPanelResize("span", resizePanel);
-  const chatResize = useSessionPanelResize("chat", resizePanel);
 
-  const isResizing = sessionResize.isResizing || spanResize.isResizing || chatResize.isResizing;
+  const isResizing = sessionResize.isResizing || spanResize.isResizing;
   const transition = isResizing ? instantTransition : enterExitTransition;
 
   return (
@@ -81,23 +77,6 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
               <div className="absolute inset-y-0 left-0 flex" style={{ width: spanPanelWidth }}>
                 <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
                 {panels.spanPanel}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Chat Panel */}
-          {panels.showChat && panels.chatPanel && (
-            <motion.div
-              key="chat-panel"
-              className="relative h-full flex-shrink-0 overflow-hidden"
-              initial={{ width: 0, opacity: 0.5 }}
-              animate={{ width: chatPanelWidth, opacity: 1 }}
-              exit={{ width: 0, opacity: 0.5 }}
-              transition={transition}
-            >
-              <div className="absolute inset-y-0 left-0 flex" style={{ width: chatPanelWidth }}>
-                <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
-                {panels.chatPanel}
               </div>
             </motion.div>
           )}

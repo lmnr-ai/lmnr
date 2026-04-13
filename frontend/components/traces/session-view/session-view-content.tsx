@@ -7,10 +7,10 @@ import { shallow } from "zustand/shallow";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 
 import DynamicWidthLayout, { type SessionViewPanels } from "./dynamic-width-layout";
-import SessionChatPanel from "./session-chat-panel";
 import SessionPanel from "./session-panel";
 import SessionSpanPanel from "./session-span-panel";
 import { useSessionViewStore, useSessionViewStoreRaw } from "./store";
@@ -30,29 +30,30 @@ export default function SessionViewContent({ sessionId, spanId, onClose, sidePan
   const {
     traces,
     spanPanelOpen,
-    chatOpen,
+    selectedSpan,
     setTraces,
     setIsTracesLoading,
     setTracesError,
-    setTraceExpanded,
     setSession,
     setProjectId,
+    setTraceExpanded,
     setSelectedSpan,
   } = useSessionViewStore(
     (s) => ({
       traces: s.traces,
       spanPanelOpen: s.spanPanelOpen,
-      chatOpen: s.chatOpen,
+      selectedSpan: s.selectedSpan,
       setTraces: s.setTraces,
       setIsTracesLoading: s.setIsTracesLoading,
       setTracesError: s.setTracesError,
-      setTraceExpanded: s.setTraceExpanded,
       setSession: s.setSession,
       setProjectId: s.setProjectId,
+      setTraceExpanded: s.setTraceExpanded,
       setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
   );
+  const { toast } = useToast();
 
   // Push projectId into the store so store-owned async actions
   // (e.g. ensureTraceSpans) can issue requests without prop-drilling.
@@ -96,32 +97,57 @@ export default function SessionViewContent({ sessionId, spanId, onClose, sidePan
     return () => controller.abort();
   }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError, setSession]);
 
-  // --- Auto-expand traces so URL-driven spanId can be found ---
-  const urlSpanHandledRef = useRef<string | null>(null);
+  // --- URL-driven span selection ---
+  //
+  // Resolve a `?spanId=…` param against this session: fetch the span, verify
+  // it belongs to this session, find the owning trace in our loaded page,
+  // expand it (store action kicks off span fetch), then select it. One-shot
+  // per spanId via `handledRef`; session-panel's scroll effect handles the
+  // actual scroll once the flat-row index is findable.
+  const handledSpanIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!spanId || urlSpanHandledRef.current === spanId || traces.length === 0) return;
-    // TODO(session-view): prefer a backend "which-trace-owns-span" lookup over
-    // brute-force expanding all traces.
-    for (const t of traces) setTraceExpanded(t.id, true);
-    urlSpanHandledRef.current = spanId;
-  }, [spanId, traces, setTraceExpanded]);
+    if (!spanId || !projectId || traces.length === 0 || selectedSpan) return;
+    if (handledSpanIdRef.current === spanId) return;
+    handledSpanIdRef.current = spanId;
+
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/spans/${spanId}`, { signal: controller.signal });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          toast({ variant: "destructive", title: err.error ?? "Failed to look up span" });
+          return;
+        }
+        const span = (await res.json()) as { traceId: string };
+
+        if (!traces.some((t) => t.id === span.traceId)) {
+          toast({ variant: "destructive", title: "Span's parent trace has not been loaded" });
+          return;
+        }
+
+        setTraceExpanded(span.traceId, true);
+        setSelectedSpan({ traceId: span.traceId, spanId });
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return;
+        toast({ variant: "destructive", title: "Failed to look up span" });
+      }
+    })();
+
+    return () => controller.abort();
+  }, [spanId, projectId, sessionId, traces, selectedSpan, setTraceExpanded, setSelectedSpan, toast]);
 
   const panels: SessionViewPanels = useMemo(
     () => ({
       sessionPanel: <SessionPanel onClose={onClose} />,
       spanPanel: <SessionSpanPanel />,
-      chatPanel: <SessionChatPanel />,
       showSpan: spanPanelOpen,
-      showChat: chatOpen,
     }),
-    [onClose, spanPanelOpen, chatOpen]
+    [onClose, spanPanelOpen]
   );
 
   return (
     <>
-      {/* Fetches are now triggered inside TraceHeaderItem as traces scroll into
-          view. Realtime stays subscription-per-trace. */}
-      <UrlSpanResolver spanId={spanId} onResolve={setSelectedSpan} />
       {traces.map((t) => (
         <PerTraceRealtime key={t.id} projectId={projectId} traceId={t.id} />
       ))}
@@ -129,33 +155,6 @@ export default function SessionViewContent({ sessionId, spanId, onClose, sidePan
       <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
     </>
   );
-}
-
-/** Resolves the URL-provided spanId against loaded traceSpans and selects it. */
-function UrlSpanResolver({
-  spanId,
-  onResolve,
-}: {
-  spanId?: string;
-  onResolve: (selection?: { traceId: string; spanId: string }) => void;
-}) {
-  const { traceSpans, selectedSpan } = useSessionViewStore(
-    (s) => ({ traceSpans: s.traceSpans, selectedSpan: s.selectedSpan }),
-    shallow
-  );
-
-  useEffect(() => {
-    if (!spanId || selectedSpan) return;
-    for (const [traceId, spans] of Object.entries(traceSpans)) {
-      const match = spans.find((s) => s.spanId === spanId);
-      if (match) {
-        onResolve({ traceId, spanId });
-        break;
-      }
-    }
-  }, [spanId, traceSpans, selectedSpan, onResolve]);
-
-  return null;
 }
 
 /** One SSE subscription per trace in the session. */

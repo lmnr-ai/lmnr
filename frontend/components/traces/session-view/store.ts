@@ -8,15 +8,14 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type TraceRow } from "@/lib/traces/types";
 
-export type SessionResizablePanel = "session" | "span" | "chat";
+export type SessionResizablePanel = "session" | "span";
 
-type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth" | "chatPanelWidth";
+type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth";
 type PanelDef = { key: PanelWidthKey; min: number; default: number };
 
 const ALL_PANELS: PanelDef[] = [
   { key: "sessionPanelWidth", min: 400, default: 520 },
   { key: "spanPanelWidth", min: 400, default: 405 },
-  { key: "chatPanelWidth", min: 375, default: 385 },
 ];
 
 export type SessionViewSelectedSpan = {
@@ -60,12 +59,10 @@ interface SessionViewState {
   // Selection & panel visibility
   selectedSpan?: SessionViewSelectedSpan;
   spanPanelOpen: boolean;
-  chatOpen: boolean;
 
   // Panel widths
   sessionPanelWidth: number;
   spanPanelWidth: number;
-  chatPanelWidth: number;
   maxWidth: number;
 }
 
@@ -77,7 +74,7 @@ interface SessionViewActions {
   setTracesError: (error?: string) => void;
 
   /** Fetch spans for a trace if not already loaded or currently loading.
-   *  Idempotent: safe to call repeatedly on mount of TraceHeaderItem. */
+   *  Idempotent: safe to call repeatedly on mount of TraceItem. */
   ensureTraceSpans: (trace: TraceRow) => Promise<void>;
 
   toggleTraceExpanded: (traceId: string) => void;
@@ -94,7 +91,6 @@ interface SessionViewActions {
 
   setSelectedSpan: (selection?: SessionViewSelectedSpan) => void;
   setSpanPanelOpen: (open: boolean) => void;
-  setChatOpen: (open: boolean) => void;
 
   resizePanel: (panel: SessionResizablePanel, delta: number) => void;
   setMaxWidth: (maxWidth: number) => void;
@@ -106,7 +102,6 @@ export type SessionViewStore = SessionViewState & SessionViewActions;
 function getVisiblePanels(state: SessionViewStore): PanelDef[] {
   const result: PanelDef[] = [ALL_PANELS[0]]; // session always visible
   if (state.spanPanelOpen) result.push(ALL_PANELS[1]);
-  if (state.chatOpen) result.push(ALL_PANELS[2]);
   return result;
 }
 
@@ -180,11 +175,9 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         selectedSpan: undefined,
         spanPanelOpen: false,
-        chatOpen: false,
 
         sessionPanelWidth: ALL_PANELS[0].default,
         spanPanelWidth: ALL_PANELS[1].default,
-        chatPanelWidth: ALL_PANELS[2].default,
         maxWidth: Infinity,
 
         setSession: (session) => set({ session }),
@@ -243,20 +236,36 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           }
         },
 
+        // Any transition to `expanded=true` also kicks off span loading (idempotent
+        // via `ensureTraceSpans`'s internal dedupe). Callers — user click, URL
+        // span resolver, programmatic — never need to remember this.
         toggleTraceExpanded: (traceId) => {
-          const prev = get().expandedTraceIds;
+          const state = get();
+          const prev = state.expandedTraceIds;
           const next = new Set(prev);
-          if (next.has(traceId)) next.delete(traceId);
-          else next.add(traceId);
+          const willExpand = !next.has(traceId);
+          if (willExpand) next.add(traceId);
+          else next.delete(traceId);
           set({ expandedTraceIds: next });
+
+          if (willExpand) {
+            const trace = state.traces.find((t) => t.id === traceId);
+            if (trace) void get().ensureTraceSpans(trace);
+          }
         },
         setTraceExpanded: (traceId, expanded) => {
-          const prev = get().expandedTraceIds;
+          const state = get();
+          const prev = state.expandedTraceIds;
           if (expanded === prev.has(traceId)) return;
           const next = new Set(prev);
           if (expanded) next.add(traceId);
           else next.delete(traceId);
           set({ expandedTraceIds: next });
+
+          if (expanded) {
+            const trace = state.traces.find((t) => t.id === traceId);
+            if (trace) void get().ensureTraceSpans(trace);
+          }
         },
         expandAllTraces: () => {
           const all = new Set(get().traces.map((t) => t.id));
@@ -295,11 +304,6 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         setSpanPanelOpen: (open) => {
           set({ spanPanelOpen: open });
           if (!open) set({ selectedSpan: undefined });
-          get().fitPanelsToMaxWidth();
-        },
-
-        setChatOpen: (open) => {
-          set({ chatOpen: open });
           get().fitPanelsToMaxWidth();
         },
 
@@ -375,7 +379,6 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         partialize: (state) => ({
           sessionPanelWidth: state.sessionPanelWidth,
           spanPanelWidth: state.spanPanelWidth,
-          chatPanelWidth: state.chatPanelWidth,
         }),
         merge: (persistedState, currentState) => {
           const persisted = (persistedState ?? {}) as Record<string, unknown>;
@@ -383,7 +386,6 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             ...currentState,
             ...(typeof persisted.sessionPanelWidth === "number" && { sessionPanelWidth: persisted.sessionPanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
-            ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
           };
         },
       }

@@ -1,13 +1,15 @@
 "use client";
 
 import { ChevronDown, ChevronsUpDown } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import ListItem from "@/components/traces/trace-view/list/list-item";
+import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { computePathInfoMap } from "@/components/traces/trace-view/store/utils";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -15,15 +17,17 @@ import { cn } from "@/lib/utils";
 import { useSessionViewStore } from "./store";
 import { spanToListSpan } from "./utils";
 
-interface TraceHeaderItemProps {
+interface TraceItemProps {
   trace: TraceRow;
   expanded: boolean;
   /** 1-based index within the session, for "2/4" display. */
   traceIndex: number;
   totalTraces: number;
   onToggle: () => void;
-  /** Flat spanId → preview text map from useSessionSpanPreviews. */
-  previews: Record<string, any>;
+  /** Main-agent input/output for this trace from the `/traces/io` endpoint.
+   *  Undefined while batched fetch is pending; null if the backend returned
+   *  no result for this trace. */
+  traceIO?: TraceIOEntry | null;
 }
 
 /**
@@ -36,56 +40,43 @@ interface TraceHeaderItemProps {
  *   chevron-down. Spans are rendered by the flat-list virtualizer below.
  * - The outer padding animates on transition (spec-driven).
  */
-export default function TraceHeaderItem({
-  trace,
-  expanded,
-  traceIndex,
-  totalTraces,
-  onToggle,
-  previews,
-}: TraceHeaderItemProps) {
-  const { spans, isSpansLoading, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewStore(
+export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle, traceIO }: TraceItemProps) {
+  const { spansError, selectedSpan, setSelectedSpan } = useSessionViewStore(
     (s) => ({
-      spans: s.traceSpans[trace.id],
-      isSpansLoading: !!s.traceSpansLoading[trace.id],
       spansError: s.traceSpansError[trace.id],
       selectedSpan: s.selectedSpan,
-      ensureTraceSpans: s.ensureTraceSpans,
       setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
   );
 
-  // Trigger span fetch on mount (idempotent per trace). The virtualizer only
-  // mounts header items for visible traces, so this naturally avoids fetching
-  // spans for off-screen traces.
-  useEffect(() => {
-    ensureTraceSpans(trace);
-  }, [trace, ensureTraceSpans]);
+  // Span fetching is triggered by the store's `setTraceExpanded` / `toggleTraceExpanded`
+  // when a trace transitions to expanded. No mount-time pre-fetch here — avoids
+  // fetching spans for every collapsed trace header in view.
 
-  // TODO(session-view): properly identify which spans represent the trace's
-  // "input" and "output". Today we take the first and last non-DEFAULT spans.
-  // See `sessions-table/session-trace-card.tsx` for how the table surfaces
-  // trace input/output — it uses a server-side IO endpoint, but here we need
-  // actual span rows (so we can reuse ListItem for selection).
-  const { firstSpan, lastSpan, middleSpanCount } = useMemo(() => {
-    if (!spans || spans.length === 0) {
-      return { firstSpan: null, lastSpan: null, middleSpanCount: 0 };
-    }
-    const displaySpans = spans.filter((s) => s.spanType !== "DEFAULT");
-    if (displaySpans.length === 0) return { firstSpan: null, lastSpan: null, middleSpanCount: 0 };
-    const pathInfoMap = computePathInfoMap(spans);
-    const first = spanToListSpan(displaySpans[0], pathInfoMap.get(displaySpans[0].spanId) ?? null);
-    const last =
-      displaySpans.length > 1
-        ? spanToListSpan(
-            displaySpans[displaySpans.length - 1],
-            pathInfoMap.get(displaySpans[displaySpans.length - 1].spanId) ?? null
-          )
-        : null;
-    const middle = Math.max(0, displaySpans.length - (last ? 2 : 1));
-    return { firstSpan: first, lastSpan: last, middleSpanCount: middle };
-  }, [spans]);
+  // Input/output derivation now comes from the `/traces/io` endpoint. The
+  // sessions-table logic (main agent path → last LLM span = output) is reused
+  // unchanged server-side; here we just consume the `outputSpan` payload.
+  //
+  // Shape note: `Span` (endpoint) is a superset of what `TraceViewListSpan`
+  // needs, minus `inputSnippet` / `outputSnippet` / `attributesSnippet`. That's
+  // fine — ListItem uses the `output` prop for preview text (which we fill
+  // from `traceIO.outputPreview`), so the snippet fields would be unused here
+  // anyway. `pathInfo` is null: without the full span list at collapse time,
+  // we skip the breadcrumb — acceptable for the figma layout.
+  const lastSpan = useMemo(() => {
+    if (!traceIO?.outputSpan) return null;
+    return spanToListSpan(traceIO.outputSpan as unknown as TraceViewSpan, null);
+  }, [traceIO?.outputSpan]);
+
+  // Middle divider count: total spans − 2 (one input pill, one output row).
+  // `spanCount` comes from `/traces/span-count` via useBatchedTraceIO
+  // (`isIncludeSpanCounts: true`). Undefined until the batch resolves;
+  // divider hides (count=0) in that window.
+  const middleSpanCount = useMemo(() => {
+    if (traceIO?.spanCount == null) return 0;
+    return Math.max(0, traceIO.spanCount - 2);
+  }, [traceIO?.spanCount]);
 
   const relativeTime = useMemo(() => {
     try {
@@ -143,41 +134,34 @@ export default function TraceHeaderItem({
           </div>
         </button>
 
-        {/* Collapsed-state body: first span + N-spans divider + last span */}
+        {/* Collapsed-state body: synthetic user input pill + N-spans divider + output span */}
         {!expanded && (
           <div className="flex flex-col">
             {spansError ? (
               <div className="px-3 py-2 text-xs text-destructive">{spansError}</div>
-            ) : isSpansLoading && !spans ? (
-              <div className="flex flex-col gap-2 px-3 py-2">
-                <Skeleton className="h-5 w-full" />
-                <Skeleton className="h-5 w-3/4" />
-              </div>
-            ) : firstSpan ? (
+            ) : (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <ListItem
-                    span={firstSpan}
-                    output={previews[firstSpan.spanId]}
-                    onSpanSelect={(s) => handleSpanSelect(s.spanId)}
-                    isSelected={
-                      !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === firstSpan.spanId
-                    }
-                  />
+                  <UserInputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
                 </div>
                 {lastSpan && middleSpanCount > 0 && <MiddleSpansDivider count={middleSpanCount} onClick={onToggle} />}
-                {lastSpan && (
+                {lastSpan ? (
                   <ListItem
                     span={lastSpan}
-                    output={previews[lastSpan.spanId]}
+                    output={traceIO?.outputPreview}
                     onSpanSelect={(s) => handleSpanSelect(s.spanId)}
                     isSelected={
                       !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId
                     }
                   />
-                )}
+                ) : !traceIO ? (
+                  <div className="flex flex-col gap-2 px-3 py-2">
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-3/4" />
+                  </div>
+                ) : null}
               </>
-            ) : null}
+            )}
           </div>
         )}
       </div>
