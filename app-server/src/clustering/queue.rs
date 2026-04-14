@@ -24,6 +24,7 @@ pub async fn push_to_event_clustering_queue(
         signal_id: signal_event.signal_id,
         event_id: signal_event.id,
         content: signal_event.summary,
+        severity: signal_event.severity,
     };
 
     let serialized = serde_json::to_vec(&message)?;

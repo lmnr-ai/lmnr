@@ -175,6 +175,7 @@ mod tests {
             signal_id,
             event_id: Uuid::new_v4(),
             content: "test".to_string(),
+            severity: 0,
         }
     }
 
