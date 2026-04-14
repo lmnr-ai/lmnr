@@ -3,7 +3,7 @@ import type z from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import { aggregateSpanMetrics, fetchAgentGroupSpanIds } from "@/lib/actions/spans/utils.ts";
+import { aggregateSpanMetrics, fetchAgentGroupBoundaries } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
@@ -86,7 +86,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
 
   const result = aggregateSpanMetrics(transformedSpans);
 
-  const boundaryIds = new Set(await fetchAgentGroupSpanIds(traceId, sharedTrace.projectId));
+  const boundaries = await fetchAgentGroupBoundaries(traceId, sharedTrace.projectId);
+  const boundaryIds = new Set(boundaries.map((b) => b.boundaryId));
   for (const span of result) {
     if (boundaryIds.has(span.spanId)) {
       span.isSubagent = true;

@@ -12,18 +12,20 @@ Array access: use .0. for nested arrays. When root is an array (paths start with
 Rules:
 - Pick the single most descriptive content field. Use {{{ }}} (triple braces). Never add markdown or styling.
 - null ONLY if every field is [meta]/[id] or empty.
+- Prefer scalar fields over primitive arrays. Paths ending in []: type (e.g. ids[]: string, tags[]: string) are primitive-value lists with unstable element order. Never use .0. to index into them. Treat them as [meta] when any scalar field exists. Using .0. is only acceptable for arrays of objects with known nested structure (e.g. choices[].message.content).
+- Dictionary paths: paths containing {*} (e.g. tasks{*}: string) represent objects with dynamic/arbitrary key names that vary across instances. They cannot be referenced in Mustache templates. Treat as [meta].
 
 Field classification:
-- [meta] fields (skip): id, status, type, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint.
-- [id] fields (skip when siblings have content): name, action, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other content fields exist.
+- [meta] fields (skip): id, ids, status, type, types, kind, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint. Also includes fields whose values are opaque references (serialized object pointers, memory addresses).
+- [id] fields (skip when siblings have scalar content): name, action, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other scalar content fields exist. Primitive array siblings do not count as content.
 - Content fields (prefer): content, text, thinking, result, output, message, answer, query, description, summary, url, path. When multiple exist, pick the most descriptive one.
 
 Decision order:
-1. Content field present → {{{field}}}
-2. [id] field present + sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta] or null → null.
-3. [id] field is the only non-meta field → {{{field}}}
-4. Multiple non-meta, non-id fields → pick the single most descriptive one as {{{field}}}
-5. Deeply nested leaf → {{{path.0.to.0.field}}}
+1. Scalar content field present → {{{field}}}
+2. [id] field present + scalar sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta], primitive arrays, or null → use the [id] field.
+3. [id] field is the only non-meta scalar field → {{{field}}}
+4. Multiple non-meta, non-id scalar fields → pick the single most descriptive one as {{{field}}}
+5. Deeply nested scalar leaf → {{{path.0.to.0.field}}}
 6. All [meta]/[id]/empty → null
 
 Examples:
@@ -33,6 +35,8 @@ Examples:
 - "action: string [id]" + "params.file_name: string" + "params.old_str: string" → {{{params.file_name}}}
 - "action: string [id]" + "params.keys: string" → {{{params.keys}}}
 - "action: string [id]" + "params.index: number [meta]" → {{{action}}}
+- "command: string [id]" + "ids[]: string [meta]" + "agent_types[]: string" → {{{command}}}
+- "command: string [id]" + "tasks{*}: string" + "kind: string [meta]" → {{{command}}}
 - "name: string [id]" + "arguments.command: string" → {{{arguments.command}}}
 - "command: string" → {{{command}}}
 - "score: number" + "grade: string" → {{{grade}}}

@@ -88,6 +88,7 @@ export type TranscriptListGroup = {
   endTime: string;
   totalTokens: number;
   totalCost: number;
+  isSubagent: boolean;
 };
 
 export type TranscriptListEntry = { type: "span"; span: TraceViewListSpan } | TranscriptListGroup;
@@ -480,6 +481,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           endTime: groupSpans[groupSpans.length - 1].endTime,
           totalTokens,
           totalCost,
+          isSubagent: true,
         });
       }
 

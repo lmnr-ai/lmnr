@@ -67,7 +67,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
         rows.push({ type: "group-header", group: entry });
         const isCollapsed = !transcriptCollapsedGroups.has(entry.groupId);
         if (!isCollapsed) {
-          const childSpans = entry.spans.slice(1);
+          const childSpans = entry.isSubagent ? entry.spans : entry.spans.slice(1);
           for (let i = 0; i < childSpans.length; i++) {
             rows.push({
               type: "group-span",
@@ -133,7 +133,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return ids;
   }, [items, flatRows]);
 
-  const { previews } = useBatchedSpanPreviews(
+  const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,
     allVisibleSpanIds,
     {
@@ -227,15 +227,24 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               const isCollapsed = !transcriptCollapsedGroups.has(row.group.groupId);
               const firstSpan = row.group.spans[0];
               const firstSpanIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
-              const previewSpanId =
-                firstSpanIsLlm && row.group.firstLlmSpanId ? row.group.firstLlmSpanId : firstSpan?.spanId;
-              const groupPreview = previewSpanId ? previews[previewSpanId] : null;
+
+              let groupPreview: string | null | undefined;
+              if (row.group.isSubagent && row.group.firstLlmSpanId) {
+                groupPreview = inputPreviews[row.group.firstLlmSpanId];
+              } else {
+                const previewSpanId =
+                  firstSpanIsLlm && row.group.firstLlmSpanId ? row.group.firstLlmSpanId : firstSpan?.spanId;
+                groupPreview = previewSpanId ? previews[previewSpanId] : null;
+              }
+
+              const agentName = row.group.firstLlmSpanId ? agentNames[row.group.firstLlmSpanId] : undefined;
               return (
                 <div key={virtualRow.key} data-index={virtualRow.index} ref={virtualizer.measureElement}>
                   <AgentGroupHeader
                     group={row.group}
                     collapsed={isCollapsed}
                     preview={groupPreview}
+                    agentName={agentName}
                     onSpanSelect={handleSpanSelect}
                   />
                 </div>

@@ -1,7 +1,9 @@
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types";
+import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
 
+import { type AgentNamesResult, resolveAgentNames } from "./agent-names";
 import { extractUserInputsForSpans } from "./input-extraction";
 import { fetchSpanData, type InputSpanRow, PREVIEW_SPAN_TYPES } from "./queries";
 import { type ResolveOptions, resolvePreviews, type SpanPreviewResult } from "./resolve";
@@ -25,6 +27,8 @@ export interface RawSpanData {
 
 export interface SpanPreviewsResult {
   previews: SpanPreviewResult;
+  inputPreviews?: Record<string, string | null>;
+  agentNames?: AgentNamesResult;
 }
 
 /**
@@ -39,19 +43,21 @@ export async function processSpanPreviews(
   options: ResolveOptions = {},
   inputSpanRows?: InputSpanRow[]
 ): Promise<SpanPreviewsResult> {
-  const inputSpanIdSet = new Set((inputSpanRows ?? []).map((r) => r.spanId));
-  const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
-
   const [userInputs, previews] = await Promise.all([
     extractUserInputsForSpans(inputSpanRows ?? [], projectId),
-    resolvePreviews(rawSpans, regularSpanIds, spanTypes, projectId, options),
+    resolvePreviews(rawSpans, spanIds, spanTypes, projectId, options),
   ]);
 
-  return { previews: { ...previews, ...userInputs } };
+  const hasInputPreviews = Object.keys(userInputs).length > 0;
+  return {
+    previews,
+    ...(hasInputPreviews && { inputPreviews: userInputs }),
+  };
 }
 
 /**
  * Main entry point: fetch span data from ClickHouse, then resolve previews.
+ * Also resolves agent names for inputSpanIds that have a system prompt.
  */
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>,
@@ -72,5 +78,32 @@ export async function getSpanPreviews(
     inputSpanIds
   );
 
-  return processSpanPreviews(regularSpans, projectId, spanIds, spanTypes, options, inputSpanRows);
+  const [previewsResult, agentNames] = await Promise.all([
+    processSpanPreviews(regularSpans, projectId, spanIds, spanTypes, options, inputSpanRows),
+    resolveAgentNamesFromInputRows(inputSpanRows, projectId, options.skipGeneration),
+  ]);
+
+  return {
+    ...previewsResult,
+    ...(Object.keys(agentNames).length > 0 && { agentNames }),
+  };
+}
+
+async function resolveAgentNamesFromInputRows(
+  inputSpanRows: InputSpanRow[],
+  projectId: string,
+  skipGeneration = false
+): Promise<AgentNamesResult> {
+  if (inputSpanRows.length === 0) return {};
+
+  const entries = new Map<string, string>();
+  for (const row of inputSpanRows) {
+    const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
+    if (parsed?.systemText) {
+      entries.set(row.spanId, parsed.systemText);
+    }
+  }
+
+  if (entries.size === 0) return {};
+  return resolveAgentNames(entries, projectId, skipGeneration);
 }

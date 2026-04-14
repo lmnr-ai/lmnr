@@ -27,7 +27,7 @@ export async function fetchSpanData(
 }> {
   const inputSpanIdSet = new Set(inputSpanIds ?? []);
   const previewSpanIds = spanIds.filter((id) => PREVIEW_SPAN_TYPES.has(spanTypes[id] ?? ""));
-  const regularSpanIds = previewSpanIds.filter((id) => !inputSpanIdSet.has(id));
+  const regularSpanIds = previewSpanIds;
   const inputSpanIdList = previewSpanIds.filter((id) => inputSpanIdSet.has(id));
 
   const timeConditions = buildTimeConditions(startDate, endDate);

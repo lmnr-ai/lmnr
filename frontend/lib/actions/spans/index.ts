@@ -10,7 +10,7 @@ import {
   aggregateSpanMetrics,
   buildSpansQueryWithParams,
   createParentRewiring,
-  fetchAgentGroupSpanIds,
+  fetchAgentGroupBoundaries,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -349,7 +349,8 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     }
   }
 
-  const boundaryIds = new Set(await fetchAgentGroupSpanIds(traceId, projectId));
+  const boundaries = await fetchAgentGroupBoundaries(traceId, projectId);
+  const boundaryIds = new Set(boundaries.map((b) => b.boundaryId));
   for (const span of result) {
     if (boundaryIds.has(span.spanId)) {
       span.isSubagent = true;

@@ -133,6 +133,69 @@ export const detectOutputStructure = (data: unknown): ProviderHint => {
   return "unknown";
 };
 
+const KNOWN_FIELD_NAMES = new Set([
+  "id",
+  "ids",
+  "status",
+  "type",
+  "types",
+  "kind",
+  "mode",
+  "version",
+  "role",
+  "model",
+  "usage",
+  "timestamp",
+  "duration",
+  "finish_reason",
+  "token_count",
+  "index",
+  "logprobs",
+  "created",
+  "object",
+  "system_fingerprint",
+  "name",
+  "action",
+  "function",
+  "method",
+  "command",
+  "tool",
+  "content",
+  "text",
+  "thinking",
+  "result",
+  "output",
+  "message",
+  "answer",
+  "query",
+  "description",
+  "summary",
+  "url",
+  "path",
+  "args",
+  "arguments",
+  "input",
+  "params",
+  "body",
+  "data",
+  "response",
+  "error",
+  "code",
+]);
+
+/**
+ * Detect dictionary/map-like objects: 3+ entries, all primitive values of the
+ * same type, and no keys matching well-known structured field names.
+ */
+const isDictionaryLike = (obj: Record<string, unknown>): boolean => {
+  const keys = Object.keys(obj);
+  if (keys.length < 3) return false;
+  if (keys.some((k) => KNOWN_FIELD_NAMES.has(k))) return false;
+  const firstType = typeof obj[keys[0]];
+  if (firstType !== "string" && firstType !== "number" && firstType !== "boolean") return false;
+  return keys.every((k) => typeof obj[k] === firstType);
+};
+
 const describeShape = (value: unknown): string => {
   if (isNil(value)) return "null";
   if (isString(value)) return "string";
@@ -147,6 +210,9 @@ const describeShape = (value: unknown): string => {
 
   if (isPlainObject(value)) {
     const obj = value as Record<string, unknown>;
+    if (isDictionaryLike(obj)) {
+      return `{*:${describeShape(obj[Object.keys(obj)[0]])}}`;
+    }
     const entries = Object.keys(obj)
       .sort()
       .map((key) => `${key}:${describeShape(obj[key])}`);
@@ -163,8 +229,11 @@ export const generateFingerprint = (spanName: string, data: unknown): string => 
 
 const METADATA_KEYS = new Set([
   "id",
+  "ids",
   "status",
   "type",
+  "types",
+  "kind",
   "mode",
   "version",
   "role",
@@ -183,6 +252,8 @@ const METADATA_KEYS = new Set([
 
 const IDENTIFIER_KEYS = new Set(["name", "action", "function", "method", "command", "tool"]);
 
+const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
+
 export const flattenPaths = (data: unknown): string[] => {
   const paths: string[] = [];
 
@@ -191,7 +262,10 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isString(value) || typeof value === "number" || typeof value === "boolean") {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
-      const tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
+      let tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
+      if (!tag && isString(value) && OPAQUE_VALUE_PATTERN.test(value)) {
+        tag = " [meta]";
+      }
       paths.push(`${prefix}: ${typeof value}${tag}`);
       return;
     }
@@ -203,6 +277,10 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isPlainObject(value)) {
       const obj = value as Record<string, unknown>;
+      if (isDictionaryLike(obj)) {
+        paths.push(`${prefix}{*}: ${typeof obj[Object.keys(obj)[0]]}`);
+        return;
+      }
       for (const key of Object.keys(obj)) {
         walk(obj[key], prefix ? `${prefix}.${key}` : key);
       }

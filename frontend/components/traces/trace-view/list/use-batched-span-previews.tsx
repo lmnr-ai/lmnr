@@ -7,6 +7,8 @@ import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
   previews: Record<string, any>;
+  inputPreviews: Record<string, string | null>;
+  agentNames: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -32,6 +34,8 @@ export function useBatchedSpanPreviews(
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
   const [previews, setPreviews] = useState<Record<string, any>>({});
+  const [inputPreviews, setInputPreviews] = useState<Record<string, string | null>>({});
+  const [agentNames, setAgentNames] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
   const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
 
@@ -48,17 +52,15 @@ export function useBatchedSpanPreviews(
 
       const inputSpanIdSet = new Set(inputSpanIdsRef.current);
       const batchInputSpanIds = spanIds.filter((id) => inputSpanIdSet.has(id));
-      const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
 
       try {
         const body: Record<string, any> = {
-          spanIds: regularSpanIds.length > 0 ? regularSpanIds : spanIds,
+          spanIds,
           spanTypes: spanTypesRef.current,
         };
 
         if (batchInputSpanIds.length > 0) {
           body.inputSpanIds = batchInputSpanIds;
-          body.spanIds = [...new Set([...regularSpanIds, ...batchInputSpanIds])];
         }
 
         if (trace?.startTime && trace?.endTime) {
@@ -86,6 +88,8 @@ export function useBatchedSpanPreviews(
 
         const data = (await response.json()) as {
           previews: Record<string, string | null>;
+          inputPreviews?: Record<string, string | null>;
+          agentNames?: Record<string, string | null>;
         };
 
         spanIds.forEach((id) => {
@@ -100,6 +104,14 @@ export function useBatchedSpanPreviews(
           });
           return next;
         });
+
+        if (data.inputPreviews) {
+          setInputPreviews((prev) => ({ ...prev, ...data.inputPreviews }));
+        }
+
+        if (data.agentNames) {
+          setAgentNames((prev) => ({ ...prev, ...data.agentNames }));
+        }
       } catch (error) {
         toast({
           variant: "destructive",
@@ -164,7 +176,9 @@ export function useBatchedSpanPreviews(
     cache.current.clear();
     fetching.current.clear();
     setPreviews({});
+    setInputPreviews({});
+    setAgentNames({});
   }, []);
 
-  return { previews, clearCache };
+  return { previews, inputPreviews, agentNames, clearCache };
 }
