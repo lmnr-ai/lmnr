@@ -29,9 +29,16 @@ const mapStrapiPost = (post: StrapiPost): BlogListItem => {
   return { ...data, slug: post.slug, data };
 };
 
-export const getBlogPosts = async ({ sortByDate = true }: { sortByDate?: boolean }): Promise<BlogListItem[]> => {
+export const getBlogPosts = async ({
+  sortByDate = true,
+  category,
+}: {
+  sortByDate?: boolean;
+  category?: "blog" | "article";
+}): Promise<BlogListItem[]> => {
   const params = new URLSearchParams({ "pagination[pageSize]": "100" });
   if (sortByDate) params.set("sort", "date:desc");
+  if (category) params.set("filters[category][$eq]", category);
 
   const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
     headers: strapiHeaders(),

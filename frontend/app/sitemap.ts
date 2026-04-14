@@ -5,10 +5,20 @@ import { getBlogPosts } from "@/lib/blog/utils";
 const BASE_URL = "https://laminar.sh";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const blogPosts = await getBlogPosts({ sortByDate: false });
+  const [blogPosts, articlePosts] = await Promise.all([
+    getBlogPosts({ sortByDate: false, category: "blog" }),
+    getBlogPosts({ sortByDate: false, category: "article" }),
+  ]);
 
   const blogUrls: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${BASE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.data.date),
+    changeFrequency: "monthly",
+    priority: 0.7,
+  }));
+
+  const articleUrls: MetadataRoute.Sitemap = articlePosts.map((post) => ({
+    url: `${BASE_URL}/article/${post.slug}`,
     lastModified: new Date(post.data.date),
     changeFrequency: "monthly",
     priority: 0.7,
@@ -34,7 +44,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly",
       priority: 0.8,
     },
+    {
+      url: `${BASE_URL}/article`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
     ...blogUrls,
+    ...articleUrls,
     {
       url: `${BASE_URL}/policies/privacy`,
       lastModified: new Date(),

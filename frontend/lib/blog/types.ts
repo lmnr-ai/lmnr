@@ -37,6 +37,7 @@ export interface StrapiPost {
   author_name: string | null;
   author_url: string | null;
   tags: string[] | null;
+  category: "blog" | "article" | null;
   publishedAt: string | null;
 }
 
