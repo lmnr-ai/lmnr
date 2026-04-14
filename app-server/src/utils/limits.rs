@@ -71,7 +71,16 @@ pub async fn get_workspace_bytes_limit_exceeded(
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await? {
+            Some(info) => info,
+            None => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes limit check",
+                    project_id,
+                );
+                return Ok(false);
+            }
+        };
 
     let effective_limit = match get_effective_bytes_limit(&project_info) {
         Some(limit) => limit,
@@ -125,8 +134,22 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<bool> {
-    let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await?
+    {
+        Some(info) => info,
+        None => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs limit check",
+                project_id,
+            );
+            return Ok(false);
+        }
+    };
 
     let effective_limit = match get_effective_signal_runs_limit(&project_info) {
         Some(limit) => limit,
@@ -189,7 +212,14 @@ pub async fn update_workspace_bytes_ingested(
 ) -> Result<()> {
     let project_info =
         match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
+            Ok(Some(info)) => info,
+            Ok(None) => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes usage update",
+                    project_id,
+                );
+                return Ok(());
+            }
             Err(e) => {
                 log::error!(
                     "Failed to get workspace info for project [{}]: {:?}",
@@ -278,22 +308,34 @@ pub async fn update_workspace_signal_runs_used(
     project_id: Uuid,
     runs: usize,
 ) -> Result<()> {
-    let project_info =
-        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
-            Err(e) => {
-                log::error!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                return Err(anyhow::anyhow!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                ));
-            }
-        };
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await
+    {
+        Ok(Some(info)) => info,
+        Ok(None) => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs usage update",
+                project_id,
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            );
+            return Err(anyhow::anyhow!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            ));
+        }
+    };
 
     let workspace_id = project_info.workspace_id;
 
@@ -568,19 +610,24 @@ async fn get_workspace_info_for_project_id(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,
-) -> Result<ProjectWithWorkspaceBillingInfo> {
+) -> Result<Option<ProjectWithWorkspaceBillingInfo>> {
     let cache_key = format!("{PROJECT_CACHE_KEY}:{project_id}");
     let cache_res = cache
         .get::<ProjectWithWorkspaceBillingInfo>(&cache_key)
         .await;
     match cache_res {
-        Ok(Some(info)) => Ok(info),
+        Ok(Some(info)) => Ok(Some(info)),
         Ok(None) | Err(_) => {
             let info =
                 db::projects::get_project_and_workspace_billing_info(&db.pool, &project_id).await?;
-            cache
-                .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
-                .await?;
+            if let Some(ref info) = info {
+                if let Err(e) = cache
+                    .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
+                    .await
+                {
+                    log::error!("Failed to insert project info into cache: {:?}", e);
+                }
+            }
             Ok(info)
         }
     }
