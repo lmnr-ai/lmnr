@@ -18,6 +18,7 @@ export default function BlogMeta({ data, className }: BlogMetaProps) {
         </h1>
         <div className="flex space-x-3 text-sm text-secondary-foreground">
           <p>{formatUTCDate(data.date)}</p>
+          {data.updated && <p>(Updated {formatUTCDate(data.updated)})</p>}
           <p>·</p>
           {data.author.url ? (
             <Link href={data.author.url} className="hover:text-primary">
