@@ -4,23 +4,59 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import React from "react";
 import remarkGfm from "remark-gfm";
 
-import BlogMeta from "@/components/blog/blog-meta";
 import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
 import { type BlogMetadata } from "@/lib/blog/types";
 
+import BlogMeta from "../blog-meta";
+
 interface PostContentProps {
   data: BlogMetadata;
   content: string;
   backHref: string;
   backLabel: string;
+  slug: string;
+  routePrefix: string;
 }
 
-export default function PostContent({ data, content, backHref, backLabel }: PostContentProps) {
+function ArticleJsonLd({ data, slug, routePrefix }: { data: BlogMetadata; slug: string; routePrefix: string }) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: data.title,
+    description: data.description || undefined,
+    datePublished: data.date,
+    url: `https://laminar.sh/${routePrefix}/${slug}`,
+    image: data.image || undefined,
+    author: [
+      {
+        "@type": "Person",
+        name: data.author.name,
+        url: data.author.url || undefined,
+      },
+      ...(data.coAuthors ?? []).map((a) => ({
+        "@type": "Person" as const,
+        name: a.name,
+        url: a.url || undefined,
+      })),
+    ],
+    keywords: data.tags?.join(", ") || undefined,
+    publisher: {
+      "@type": "Organization",
+      name: "Laminar",
+      url: "https://laminar.sh",
+    },
+  };
+
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
+}
+
+export default function PostContent({ data, content, backHref, backLabel, slug, routePrefix }: PostContentProps) {
   return (
     <div className="mt-8 md:mt-14 lg:mt-20 flex justify-center flex-col items-center pb-16 px-4">
+      <ArticleJsonLd data={data} slug={slug} routePrefix={routePrefix} />
       <div className="w-full md:w-[700px] lg:max-w-3xl">
         <Link
           href={backHref}

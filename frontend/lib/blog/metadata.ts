@@ -16,17 +16,22 @@ export async function generatePostMetadata(
   const { data } = post;
   const description = data.description || `${data.title} - from the Laminar team`;
   const ogImageUrl = `/${routePrefix}/${slug}/opengraph-image`;
+  const canonicalUrl = `https://laminar.sh/${routePrefix}/${slug}`;
 
   return {
     title: data.title,
     description,
     authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title: data.title,
       description,
       type: "article",
       publishedTime: data.date,
-      url: `https://laminar.sh/${routePrefix}/${slug}`,
+      url: canonicalUrl,
+      tags: data.tags,
       images: [{ url: ogImageUrl, width: 1200, height: 630, alt: data.title }],
     },
     twitter: {

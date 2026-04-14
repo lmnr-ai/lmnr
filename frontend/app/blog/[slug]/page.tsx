@@ -14,5 +14,14 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
   const post = await getPostOrNull(slug);
   if (!post) notFound();
 
-  return <PostContent data={post.data} content={post.content} backHref="/blog" backLabel="Blog" />;
+  return (
+    <PostContent
+      data={post.data}
+      content={post.content}
+      backHref="/blog"
+      backLabel="Blog"
+      slug={slug}
+      routePrefix="blog"
+    />
+  );
 }
