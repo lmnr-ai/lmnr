@@ -190,12 +190,12 @@ export default function useSubmitHandler({
           syncedTriggers = await syncTriggers(projectId, signalId, triggersToSync, isUpdate ? previousTriggerIds : []);
         }
 
-        if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
         if (isUpdate) {
           track("signals", "edited");
         } else {
           track("signals", "created", { filter_count: syncedTriggers.reduce((sum, t) => sum + t.filters.length, 0) });
         }
+        if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);
         reset(getDefaultValues(projectId, defaultMode));
