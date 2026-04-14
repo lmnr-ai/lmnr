@@ -7,10 +7,10 @@ import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const { slug } = await props.params;
-  return generatePostMetadata(slug, "blog", "Post Not Found");
+  return generatePostMetadata(slug, "article", "Article Not Found");
 };
 
-export default async function BlogPostPage(props: { params: Promise<{ slug: string }> }) {
+export default async function ArticlePostPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params;
   const post = await getBlogPost(slug);
   if (!post) notFound();
@@ -19,10 +19,10 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
     <PostContent
       data={post.data}
       content={post.content}
-      backHref="/blog"
-      backLabel="Blog"
+      backHref="/article"
+      backLabel="Articles"
       slug={slug}
-      routePrefix="blog"
+      routePrefix="article"
     />
   );
 }

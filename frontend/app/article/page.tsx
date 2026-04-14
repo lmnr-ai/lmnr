@@ -8,28 +8,28 @@ import { getBlogPosts } from "@/lib/blog/utils";
 import { formatUTCDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Blog",
-  description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+  title: "Articles",
+  description: "In-depth articles on AI observability, agent frameworks, and LLM tooling from the Laminar team.",
   openGraph: {
-    title: "Laminar Blog",
-    description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
-    url: "https://laminar.sh/blog",
+    title: "Laminar Articles",
+    description: "In-depth articles on AI observability, agent frameworks, and LLM tooling from the Laminar team.",
+    url: "https://laminar.sh/article",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laminar Blog",
-    description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    title: "Laminar Articles",
+    description: "In-depth articles on AI observability, agent frameworks, and LLM tooling from the Laminar team.",
   },
 };
 
-export default async function BlogsPage() {
-  const posts = await getBlogPosts({ sortByDate: true, category: "blog" });
+export default async function ArticlesPage() {
+  const posts = await getBlogPosts({ sortByDate: true, category: "article" });
 
   return (
     <div className="px-4 mt-32 pb-16 grid grid-cols-1 gap-4 container w-full md:grid-cols-3">
       {posts.map((post, index) => (
-        <Link href={`/blog/${post.slug}`} key={index}>
+        <Link href={`/article/${post.slug}`} key={index}>
           <Card className="overflow-hidden h-[300px] bg-background flex flex-col">
             {post.data.image && (
               <Image
