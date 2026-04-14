@@ -349,11 +349,13 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     }
   }
 
-  const boundaries = await fetchAgentGroupBoundaries(traceId, projectId);
-  const boundaryIds = new Set(boundaries.map((b) => b.boundaryId));
-  for (const span of result) {
-    if (boundaryIds.has(span.spanId)) {
-      span.isSubagent = true;
+  if (!shouldApplyRewiring) {
+    const boundaries = await fetchAgentGroupBoundaries(traceId, projectId);
+    const boundaryIds = new Set(boundaries.map((b) => b.boundaryId));
+    for (const span of result) {
+      if (boundaryIds.has(span.spanId)) {
+        span.isSubagent = true;
+      }
     }
   }
 

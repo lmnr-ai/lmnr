@@ -43,8 +43,9 @@ export type TraceViewSpan = {
   outputCost: number;
   totalCost: number;
   aggregatedMetrics?: {
+    inputTokens: number;
+    outputTokens: number;
     totalCost: number;
-    totalTokens: number;
     cacheReadInputTokens?: number;
     reasoningTokens?: number;
     hasLLMDescendants: boolean;
@@ -64,7 +65,8 @@ export type TraceViewListSpan = {
   path: string;
   startTime: string;
   endTime: string;
-  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
   cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
@@ -86,7 +88,9 @@ export type TranscriptListGroup = {
   firstLlmSpanId: string | null;
   startTime: string;
   endTime: string;
-  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
   totalCost: number;
   isSubagent: boolean;
 };
@@ -338,7 +342,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         path: span.path,
         startTime: span.startTime,
         endTime: span.endTime,
-        totalTokens: span.totalTokens,
+        inputTokens: span.inputTokens,
+        outputTokens: span.outputTokens,
         cacheReadInputTokens: span.cacheReadInputTokens,
         totalCost: span.totalCost,
         pending: span.pending,
@@ -371,7 +376,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         path: span.path,
         startTime: span.startTime,
         endTime: span.endTime,
-        totalTokens: span.totalTokens,
+        inputTokens: span.inputTokens,
+        outputTokens: span.outputTokens,
         cacheReadInputTokens: span.cacheReadInputTokens,
         totalCost: span.totalCost,
         pending: span.pending,
@@ -463,10 +469,14 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
         const boundarySpan = spanMap.get(boundary);
 
-        let totalTokens = 0;
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let cacheReadInputTokens = 0;
         let totalCost = 0;
         for (const s of groupSpans) {
-          totalTokens += s.totalTokens;
+          inputTokens += s.inputTokens;
+          outputTokens += s.outputTokens;
+          cacheReadInputTokens += s.cacheReadInputTokens ?? 0;
           totalCost += s.totalCost;
         }
 
@@ -479,7 +489,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           firstLlmSpanId: firstLlm.spanId,
           startTime: groupSpans[0].startTime,
           endTime: groupSpans[groupSpans.length - 1].endTime,
-          totalTokens,
+          inputTokens,
+          outputTokens,
+          cacheReadInputTokens,
           totalCost,
           isSubagent: true,
         });

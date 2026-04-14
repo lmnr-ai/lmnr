@@ -52,7 +52,12 @@ export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "un
  * Returns true when the parsed LLM output contains only tool calls
  * and no meaningful text/thinking content worth showing as a preview.
  */
+const hasNoMeaningfulContent = (content: unknown): boolean =>
+  content === null || content === undefined || content === "" || (isString(content) && content.trim().length === 0);
+
 export const isToolOnlyLlmOutput = (data: unknown): boolean => {
+  const unwrapped =
+    Array.isArray(data) && data.length === 1 && isPlainObject(data[0]) ? (data[0] as Record<string, unknown>) : null;
   const obj = isPlainObject(data) ? (data as Record<string, unknown>) : null;
 
   // OpenAI: choices[0].message has tool_calls but content is null/empty
@@ -62,20 +67,15 @@ export const isToolOnlyLlmOutput = (data: unknown): boolean => {
       const message = (msg as Record<string, unknown>).message;
       if (isPlainObject(message)) {
         const m = message as Record<string, unknown>;
-        if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
-          const content = m.content;
-          if (content === null || content === undefined || (isString(content) && content.trim().length === 0)) {
-            return true;
-          }
+        if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0 && hasNoMeaningfulContent(m.content)) {
+          return true;
         }
       }
     }
   }
 
   // Anthropic: content array has only tool_use blocks
-  const contentHolder =
-    obj ??
-    (Array.isArray(data) && data.length === 1 && isPlainObject(data[0]) ? (data[0] as Record<string, unknown>) : null);
+  const contentHolder = obj ?? unwrapped;
   if (contentHolder && Array.isArray(contentHolder.content)) {
     const blocks = contentHolder.content as unknown[];
     if (
@@ -104,17 +104,10 @@ export const isToolOnlyLlmOutput = (data: unknown): boolean => {
     }
   }
 
-  // LangChain: tool_calls present but content is empty
-  if (obj && Array.isArray(obj.tool_calls) && obj.tool_calls.length > 0) {
-    const content = obj.content;
-    if (
-      content === null ||
-      content === undefined ||
-      content === "" ||
-      (isString(content) && content.trim().length === 0)
-    ) {
-      return true;
-    }
+  // Generic: any message (object or array-wrapped) with tool_calls but no content
+  const msg = obj ?? unwrapped;
+  if (msg && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0 && hasNoMeaningfulContent(msg.content)) {
+    return true;
   }
 
   return false;
@@ -291,20 +284,6 @@ export const flattenPaths = (data: unknown): string[] => {
   return paths;
 };
 
-const HTML_ENTITY_MAP: Record<string, string> = {
-  "&quot;": '"',
-  "&#x27;": "'",
-  "&#x2F;": "/",
-  "&#x60;": "`",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&amp;": "&",
-};
-
-const ENTITY_REGEX = new RegExp(Object.keys(HTML_ENTITY_MAP).join("|"), "g");
-
-const unescapeHtml = (str: string): string => str.replace(ENTITY_REGEX, (match) => HTML_ENTITY_MAP[match]);
-
 /**
  * Add a non-enumerable toString to objects/arrays so Mustache renders them
  * as JSON strings when used as {{variable}}, while still allowing section
@@ -338,7 +317,7 @@ const prepareRenderTarget = (data: unknown): unknown => {
 
 export const validateMustacheKey = (key: string, data: unknown): string | null => {
   try {
-    const rendered = unescapeHtml(Mustache.render(key, prepareRenderTarget(data)));
+    const rendered = Mustache.render(key, prepareRenderTarget(data), undefined, { escape: (v) => v });
     if (!rendered || rendered.trim() === "" || rendered.includes("[object Object]")) return null;
     return rendered;
   } catch {

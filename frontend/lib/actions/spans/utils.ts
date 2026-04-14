@@ -271,8 +271,9 @@ export const transformSpanWithEvents = (
 };
 
 interface AggregatedMetrics {
+  inputTokens: number;
+  outputTokens: number;
   totalCost: number;
-  totalTokens: number;
   cacheReadInputTokens: number;
   reasoningTokens: number;
   hasLLMDescendants: boolean;
@@ -303,13 +304,13 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     if (children.length === 0) {
       if (span.spanType === "LLM") {
         const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-        const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
         const cacheTokens = span.cacheReadInputTokens ?? 0;
         const reasoningTkns = span.reasoningTokens ?? 0;
 
         const metrics = {
+          inputTokens: span.inputTokens ?? 0,
+          outputTokens: span.outputTokens ?? 0,
           totalCost: cost,
-          totalTokens: tokens,
           cacheReadInputTokens: cacheTokens,
           reasoningTokens: reasoningTkns,
           hasLLMDescendants: true,
@@ -321,8 +322,9 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       return null;
     }
 
+    let inputTokens = 0;
+    let outputTokens = 0;
     let totalCost = 0;
-    let totalTokens = 0;
     let cacheReadInputTokens = 0;
     let reasoningTokens = 0;
     let hasLLMDescendants = false;
@@ -330,8 +332,9 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     for (const childId of children) {
       const childMetrics = calculateMetrics(childId);
       if (childMetrics) {
+        inputTokens += childMetrics.inputTokens;
+        outputTokens += childMetrics.outputTokens;
         totalCost += childMetrics.totalCost;
-        totalTokens += childMetrics.totalTokens;
         cacheReadInputTokens += childMetrics.cacheReadInputTokens;
         reasoningTokens += childMetrics.reasoningTokens;
         hasLLMDescendants = true;
@@ -340,8 +343,9 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
 
     if (hasLLMDescendants) {
       const metrics = {
+        inputTokens,
+        outputTokens,
         totalCost,
-        totalTokens,
         cacheReadInputTokens,
         reasoningTokens,
         hasLLMDescendants: true,
@@ -364,53 +368,28 @@ const NULL_SPAN_ID = "00000000-0000-0000-0000-000000000000";
 
 const AGENT_GROUPS_QUERY = `
   SELECT
-    path,
     parent_span_id as parentSpanId,
+    path,
     argMin(input, start_time) as firstInput,
+    argMin(simpleJSONExtractRaw(attributes, 'lmnr.span.ids_path'), start_time) as idsPathRaw,
     min(start_time) as minStart
   FROM spans
   WHERE trace_id = {traceId: UUID}
     AND span_type IN ('LLM', 'CACHED')
     AND path != ''
-  GROUP BY path, parent_span_id
+  GROUP BY parent_span_id, path
   ORDER BY minStart ASC
 `;
 
-const TREE_STRUCTURE_QUERY = `
-  SELECT span_id as spanId, parent_span_id as parentSpanId
-  FROM spans
-  WHERE trace_id = {traceId: UUID}
-`;
-
-/** Walk from `spanId` to root, returning the chain [spanId, parent, grandparent, …]. */
-function getAncestorChain(spanId: string, parentMap: Map<string, string | undefined>): string[] {
-  const chain: string[] = [];
-  let current: string | undefined = spanId;
-  while (current && !chain.includes(current)) {
-    chain.push(current);
-    current = parentMap.get(current);
+/** Find the LCA of two root-to-leaf ID paths (last element of the longest common prefix). */
+function findLCAFromPaths(pathA: string[], pathB: string[]): string | undefined {
+  let lca: string | undefined;
+  for (let i = 0; i < Math.min(pathA.length, pathB.length); i++) {
+    if (pathA[i] === pathB[i]) lca = pathA[i];
+    else break;
   }
-  return chain;
+  return lca;
 }
-
-/**
- * Find the Lowest Common Ancestor of a set of span IDs.
- * Returns the deepest span present in every span's ancestor chain.
- */
-function findLCA(spanIds: string[], parentMap: Map<string, string | undefined>): string | undefined {
-  if (spanIds.length === 0) return undefined;
-  if (spanIds.length === 1) return spanIds[0];
-
-  const chains = spanIds.map((id) => getAncestorChain(id, parentMap));
-  const ancestorSets = chains.map((c) => new Set(c));
-
-  for (const ancestor of chains[0]) {
-    if (ancestorSets.every((set) => set.has(ancestor))) return ancestor;
-  }
-  return undefined;
-}
-
-type AgentGroupInfo = { parentSpanId: string; path: string; systemPrompt: string | null };
 
 export type AgentGroupBoundary = {
   boundaryId: string;
@@ -418,23 +397,18 @@ export type AgentGroupBoundary = {
 };
 
 /**
- * Fetch span IDs that serve as transcript group boundaries.
+ * Fetch span IDs that serve as sub-agent boundary markers.
  *
- * Groups LLM spans by (path, parent_span_id), extracts the system prompt
- * from the first LLM call in each group, then clusters by system prompt.
- * The earliest cluster is the main agent — all other clusters are sub-agents
- * whose parent span IDs become group boundaries on the client.
- *
- * When multiple groups share the same (path, systemPrompt) — e.g. an agent
- * that runs several steps under sibling DEFAULT spans — the function merges
- * them into a single boundary at their Lowest Common Ancestor, as long as
- * that LCA is below the main agent's execution level.
+ * Groups LLM spans by (parent_span_id, path) so only one input is fetched per group,
+ * then uses `lmnr.span.ids_path` to identify where execution diverges from the main
+ * agent into sub-agent subtrees.
  */
 export async function fetchAgentGroupBoundaries(traceId: string, projectId: string): Promise<AgentGroupBoundary[]> {
   const rows = await executeQuery<{
-    path: string;
     parentSpanId: string;
+    path: string;
     firstInput: string;
+    idsPathRaw: string;
   }>({
     query: AGENT_GROUPS_QUERY,
     parameters: { traceId },
@@ -443,40 +417,69 @@ export async function fetchAgentGroupBoundaries(traceId: string, projectId: stri
 
   if (rows.length <= 1) return [];
 
-  const groups: AgentGroupInfo[] = rows.map((r) => ({
-    parentSpanId: r.parentSpanId,
-    path: r.path,
-    systemPrompt: parseSystemMessageFromInput(r.firstInput),
-  }));
+  type GroupInfo = { parentSpanId: string; path: string; systemPrompt: string | null; idsPath: string[] };
+  const groups: GroupInfo[] = [];
 
-  const mainPrompt = groups[0].systemPrompt;
-  const mainParentSpanId = groups[0].parentSpanId === NULL_SPAN_ID ? undefined : groups[0].parentSpanId;
-
-  const subAgentGroups = groups.filter((g) => g.systemPrompt !== mainPrompt);
-  if (subAgentGroups.length === 0) return [];
-
-  // Cluster sub-agent groups by (path, systemPrompt). Groups in the same
-  // cluster are candidates for merging into a single sub-agent boundary
-  // (e.g. one agent running multiple steps under sibling DEFAULT spans).
-  const clusters = new Map<string, AgentGroupInfo[]>();
-  for (const g of subAgentGroups) {
-    const key = `${g.path}\0${g.systemPrompt ?? ""}`;
-    if (!clusters.has(key)) clusters.set(key, []);
-    clusters.get(key)!.push(g);
+  for (const row of rows) {
+    const idsPath: string[] | null = tryParseJson(row.idsPathRaw);
+    if (!Array.isArray(idsPath) || idsPath.length === 0) continue;
+    groups.push({
+      parentSpanId: row.parentSpanId,
+      path: row.path,
+      systemPrompt: parseSystemMessageFromInput(row.firstInput),
+      idsPath: idsPath.filter((id) => id !== NULL_SPAN_ID),
+    });
   }
 
-  const needsMerging = [...clusters.values()].some((c) => c.length > 1);
+  if (groups.length <= 1) return [];
 
-  let parentMap: Map<string, string | undefined> | null = null;
-  let mainAncestors: Set<string> | null = null;
-  if (needsMerging) {
-    const treeRows = await executeQuery<{ spanId: string; parentSpanId: string }>({
-      query: TREE_STRUCTURE_QUERY,
-      parameters: { traceId },
-      projectId,
-    });
-    parentMap = new Map(treeRows.map((r) => [r.spanId, r.parentSpanId === NULL_SPAN_ID ? undefined : r.parentSpanId]));
-    mainAncestors = mainParentSpanId ? new Set(getAncestorChain(mainParentSpanId, parentMap)) : new Set();
+  const mainPrompt = groups[0].systemPrompt;
+
+  const mainSpanIds = new Set<string>();
+  const mainGroups: GroupInfo[] = [];
+  const nonMainGroups: GroupInfo[] = [];
+
+  for (const group of groups) {
+    if (group.systemPrompt === mainPrompt) {
+      mainGroups.push(group);
+      for (const id of group.idsPath) mainSpanIds.add(id);
+    } else {
+      nonMainGroups.push(group);
+    }
+  }
+
+  if (nonMainGroups.length === 0) return [];
+
+  // Collect parent span IDs of all main-agent groups.
+  // Any non-main group whose parent is in this set is a peer call, not a sub-agent.
+  const mainParentIds = new Set(mainGroups.map((g) => g.parentSpanId));
+
+  const subAgentGroups = nonMainGroups.filter((g) => !mainParentIds.has(g.parentSpanId));
+  if (subAgentGroups.length === 0) return [];
+
+  type GroupWithBoundary = GroupInfo & { boundaryId: string };
+  const resolved: GroupWithBoundary[] = [];
+
+  for (const group of subAgentGroups) {
+    let deepestMainIndex = -1;
+    for (let i = 0; i < group.idsPath.length; i++) {
+      if (mainSpanIds.has(group.idsPath[i])) deepestMainIndex = i;
+    }
+
+    const boundaryId = deepestMainIndex + 1 < group.idsPath.length ? group.idsPath[deepestMainIndex + 1] : undefined;
+
+    if (boundaryId) {
+      resolved.push({ ...group, boundaryId });
+    }
+  }
+
+  if (resolved.length === 0) return [];
+
+  const clusters = new Map<string, GroupWithBoundary[]>();
+  for (const group of resolved) {
+    const key = `${group.path}\0${group.systemPrompt ?? ""}`;
+    if (!clusters.has(key)) clusters.set(key, []);
+    clusters.get(key)!.push(group);
   }
 
   const seen = new Set<string>();
@@ -486,15 +489,22 @@ export async function fetchAgentGroupBoundaries(traceId: string, projectId: stri
     const systemPrompt = cluster[0].systemPrompt;
     let ids: string[];
 
-    if (cluster.length > 1 && parentMap && mainAncestors) {
-      const lca = findLCA(
-        cluster.map((g) => g.parentSpanId),
-        parentMap
-      );
-
-      ids = lca && !mainAncestors.has(lca) ? [lca] : cluster.map((g) => g.parentSpanId);
+    if (cluster.length === 1) {
+      ids = [cluster[0].boundaryId];
     } else {
-      ids = cluster.map((g) => g.parentSpanId);
+      const ancestorPaths = cluster.map((g) => g.idsPath.slice(0, -1));
+      let lca = findLCAFromPaths(ancestorPaths[0], ancestorPaths[1]);
+      for (let i = 2; i < ancestorPaths.length; i++) {
+        if (lca === undefined) break;
+        const lcaIndex = ancestorPaths[0].indexOf(lca);
+        lca = findLCAFromPaths(ancestorPaths[0].slice(0, lcaIndex + 1), ancestorPaths[i]);
+      }
+
+      if (lca && !mainSpanIds.has(lca)) {
+        ids = [lca];
+      } else {
+        ids = cluster.map((g) => g.boundaryId);
+      }
     }
 
     for (const id of ids) {

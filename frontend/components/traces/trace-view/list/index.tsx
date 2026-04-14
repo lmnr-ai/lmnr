@@ -3,8 +3,7 @@ import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useMemo, useRef } from "react";
 
-import { AgentGroupHeader } from "@/components/traces/trace-view/list/agent-group-item";
-import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
+import ListItem, { AgentGroupHeader } from "@/components/traces/trace-view/list/list-item.tsx";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
 import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
@@ -111,6 +110,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 123,
     overscan: 20,
+    paddingEnd: 64,
   });
 
   const items = virtualizer.getVirtualItems();

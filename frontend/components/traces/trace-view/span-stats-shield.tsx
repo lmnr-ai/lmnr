@@ -1,4 +1,4 @@
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { ArrowRight, CircleDollarSign, Clock3, Coins } from "lucide-react";
 
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -9,7 +9,8 @@ const numberFormatter = new Intl.NumberFormat("en-US", {
 interface SpanStatsShieldProps {
   startTime: string;
   endTime: string;
-  tokens?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
   cost?: number | null;
   cacheReadInputTokens?: number | null;
   className?: string;
@@ -19,7 +20,8 @@ interface SpanStatsShieldProps {
 export function SpanStatsShield({
   startTime,
   endTime,
-  tokens,
+  inputTokens,
+  outputTokens,
   cost,
   cacheReadInputTokens,
   className,
@@ -27,6 +29,7 @@ export function SpanStatsShield({
 }: SpanStatsShieldProps) {
   const isInline = variant === "inline";
   const itemColor = isInline ? "text-muted-foreground" : "text-secondary-foreground";
+  const hasTokens = !!inputTokens || !!outputTokens;
 
   return (
     <div
@@ -40,13 +43,15 @@ export function SpanStatsShield({
         <Clock3 size={12} className="min-w-3 min-h-3" />
         <span>{getDurationString(startTime, endTime)}</span>
       </div>
-      {!!tokens && (
-        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+      {hasTokens && (
+        <div className={cn(itemColor, "inline-flex items-center gap-0.5 whitespace-nowrap", !isInline && "py-0.5")}>
           <Coins size={isInline ? 12 : 14} className={isInline ? "min-w-3 min-h-3" : "min-w-3.5 min-h-3.5"} />
-          <span>{numberFormatter.format(tokens)}</span>
+          <span>{numberFormatter.format(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
             <span className="text-success-bright">({numberFormatter.format(cacheReadInputTokens)})</span>
           )}
+          <ArrowRight size={10} className="mx-0.5 opacity-50" />
+          <span>{numberFormatter.format(outputTokens ?? 0)}</span>
         </div>
       )}
       {!!cost && (
