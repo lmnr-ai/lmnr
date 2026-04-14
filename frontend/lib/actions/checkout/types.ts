@@ -58,7 +58,7 @@ export const METER_EVENT_NAMES = {
     payloadKey: "megabytes",
   },
   overageSignalRuns: {
-    eventName: "2026_02_overage_signal_runs",
+    eventName: "2026_04_overage_signal_steps_processed",
     payloadKey: "signal_steps_processed",
   },
 } as const;
