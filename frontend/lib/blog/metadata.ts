@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { type MatterAndContent } from "./types";
 import { getBlogPost } from "./utils";
 
 export async function generatePostMetadata(
@@ -41,8 +40,4 @@ export async function generatePostMetadata(
       images: [ogImageUrl],
     },
   };
-}
-
-export async function getPostOrNull(slug: string): Promise<MatterAndContent | null> {
-  return getBlogPost(slug);
 }

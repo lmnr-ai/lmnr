@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import PostContent from "@/components/blog/post-content";
-import { generatePostMetadata, getPostOrNull } from "@/lib/blog/metadata";
+import { generatePostMetadata } from "@/lib/blog/metadata";
+import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const { slug } = await props.params;
@@ -11,7 +12,7 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
 
 export default async function BlogPostPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params;
-  const post = await getPostOrNull(slug);
+  const post = await getBlogPost(slug);
   if (!post) notFound();
 
   return (
