@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronsUpDown } from "lucide-react";
-import { useMemo } from "react";
+import { ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
@@ -41,18 +41,55 @@ interface TraceItemProps {
  * - The outer padding animates on transition (spec-driven).
  */
 export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle, traceIO }: TraceItemProps) {
-  const { spansError, selectedSpan, setSelectedSpan } = useSessionViewStore(
+  const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewStore(
     (s) => ({
+      spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
       selectedSpan: s.selectedSpan,
+      ensureTraceSpans: s.ensureTraceSpans,
       setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
   );
 
-  // Span fetching is triggered by the store's `setTraceExpanded` / `toggleTraceExpanded`
-  // when a trace transitions to expanded. No mount-time pre-fetch here — avoids
-  // fetching spans for every collapsed trace header in view.
+  // Two-phase expand: when the user clicks to expand, we start loading spans
+  // but keep the collapsed card visible (with a "Loading..." divider) until
+  // spans arrive. This prevents the layout shift that would occur if we
+  // immediately switched to the expanded header + skeleton rows.
+  //
+  // `pendingExpandRef` tracks intent without triggering extra renders.
+  // `isPendingExpand` state drives the UI (spinner, "Loading..." text).
+  const pendingExpandRef = useRef(false);
+  const [isPendingExpand, setIsPendingExpand] = useState(false);
+
+  useEffect(() => {
+    if (!pendingExpandRef.current) return;
+    if (spans || spansError) {
+      pendingExpandRef.current = false;
+      // Defer the state updates to avoid synchronous setState within the
+      // effect body, which can trigger cascading renders.
+      queueMicrotask(() => {
+        setIsPendingExpand(false);
+        onToggle();
+      });
+    }
+  }, [spans, spansError, onToggle]);
+
+  const handleToggle = useCallback(() => {
+    if (expanded) {
+      onToggle();
+      return;
+    }
+    // Spans already loaded — expand immediately
+    if (spans) {
+      onToggle();
+      return;
+    }
+    // Start loading; expand deferred until spans arrive
+    pendingExpandRef.current = true;
+    setIsPendingExpand(true);
+    ensureTraceSpans(trace);
+  }, [expanded, spans, onToggle, ensureTraceSpans, trace]);
 
   // Input/output derivation now comes from the `/traces/io` endpoint. The
   // sessions-table logic (main agent path → last LLM span = output) is reused
@@ -99,7 +136,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
         {/* Header row (always visible, clickable) */}
         <button
           type="button"
-          onClick={onToggle}
+          onClick={handleToggle}
           className={cn(
             "w-full flex items-center justify-between text-left cursor-pointer transition-colors",
             // Expanded header (flat): bg-muted + slightly taller top padding
@@ -130,6 +167,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             <span className="text-[13px] leading-[17px] text-secondary-foreground whitespace-nowrap">
               {relativeTime}
             </span>
+            {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
             {expanded && <ChevronDown size={16} className="text-secondary-foreground" />}
           </div>
         </button>
@@ -144,7 +182,9 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
                   <UserInputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
                 </div>
-                {lastSpan && middleSpanCount > 0 && <MiddleSpansDivider count={middleSpanCount} onClick={onToggle} />}
+                {lastSpan && middleSpanCount > 0 && (
+                  <MiddleSpansDivider count={middleSpanCount} isLoading={isPendingExpand} onClick={handleToggle} />
+                )}
                 {lastSpan ? (
                   <ListItem
                     span={lastSpan}
@@ -169,15 +209,30 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
   );
 }
 
-function MiddleSpansDivider({ count, onClick }: { count: number; onClick: () => void }) {
+function MiddleSpansDivider({
+  count,
+  isLoading,
+  onClick,
+}: {
+  count: number;
+  isLoading?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center justify-between py-1.5 pl-11 pr-3 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)] transition-colors cursor-pointer"
+      disabled={isLoading}
+      className="flex items-center justify-between py-1.5 pl-11 pr-3 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)] transition-colors cursor-pointer disabled:cursor-default"
     >
-      <span className="text-[13px] leading-[17px] text-secondary-foreground">{count} spans</span>
-      <ChevronsUpDown size={16} className="text-muted-foreground" />
+      <span className="text-[13px] leading-[17px] text-secondary-foreground">
+        {isLoading ? "Loading..." : `${count} spans`}
+      </span>
+      {isLoading ? (
+        <Loader2 size={16} className="text-muted-foreground animate-spin" />
+      ) : (
+        <ChevronsUpDown size={16} className="text-muted-foreground" />
+      )}
     </button>
   );
 }

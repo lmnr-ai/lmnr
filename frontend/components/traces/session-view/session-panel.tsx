@@ -1,15 +1,17 @@
 "use client";
 
 import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
-import { AlertTriangle, ChevronDown, ChevronsRight, Copy, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronsRight, Copy } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
 import { AgentGroupHeader } from "@/components/traces/trace-view/list/agent-group-item";
 import ListItem from "@/components/traces/trace-view/list/list-item";
 import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
+import { filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,9 +19,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
+import SessionTimeline from "./session-timeline";
+import SessionTimelineToggle from "./session-timeline/timeline-toggle";
 import { useSessionViewStore } from "./store";
 import TraceItem from "./trace-item";
 import { useSessionSpanPreviews } from "./use-session-span-previews";
@@ -31,9 +38,6 @@ interface SessionPanelProps {
 
 export default function SessionPanel({ onClose }: SessionPanelProps) {
   const { toast } = useToast();
-
-  // TODO(session-view): add session timeline (figma shows a mini-gantt at the
-  // top of the session panel). Skipped for now per spec.
 
   const {
     session,
@@ -48,9 +52,15 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     expandedTraceIds,
     readerExpandedGroups,
     selectedSpan,
+    searchResults,
+    isSearchLoading,
+    searchSessionSpans,
+    clearSearch,
     toggleTraceExpanded,
     toggleReaderGroup,
     setSelectedSpan,
+    sessionTimelineEnabled,
+    setSessionTimelineEnabled,
   } = useSessionViewStore(
     (s) => ({
       session: s.session,
@@ -65,12 +75,20 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
       expandedTraceIds: s.expandedTraceIds,
       readerExpandedGroups: s.readerExpandedGroups,
       selectedSpan: s.selectedSpan,
+      searchResults: s.searchResults,
+      isSearchLoading: s.isSearchLoading,
+      searchSessionSpans: s.searchSessionSpans,
+      clearSearch: s.clearSearch,
       toggleTraceExpanded: s.toggleTraceExpanded,
       toggleReaderGroup: s.toggleReaderGroup,
       setSelectedSpan: s.setSelectedSpan,
+      sessionTimelineEnabled: s.sessionTimelineEnabled,
+      setSessionTimelineEnabled: s.setSessionTimelineEnabled,
     }),
     shallow
   );
+
+  const isSearchActive = !!searchResults;
 
   const flatRows: SessionFlatRow[] = useMemo(
     () =>
@@ -82,8 +100,18 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
         traceAgentPaths,
         expandedTraceIds,
         readerExpandedGroups,
+        searchResults,
       }),
-    [traces, traceSpans, traceSpansLoading, traceSpansError, traceAgentPaths, expandedTraceIds, readerExpandedGroups]
+    [
+      traces,
+      traceSpans,
+      traceSpansLoading,
+      traceSpansError,
+      traceAgentPaths,
+      expandedTraceIds,
+      readerExpandedGroups,
+      searchResults,
+    ]
   );
 
   const traceIndexById = useMemo(() => {
@@ -232,6 +260,17 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds, { isIncludeSpanCounts: true });
 
+  const handleSearch = useCallback(
+    (filters: Filter[], search: string) => {
+      if (!search && filters.length === 0) {
+        clearSearch();
+      } else {
+        searchSessionSpans(filters, search);
+      }
+    },
+    [searchSessionSpans, clearSearch]
+  );
+
   const handleCopySessionId = async () => {
     if (!session?.sessionId) return;
     try {
@@ -252,7 +291,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
       {/* Header (figma 3711:5056). Button/icon sizing mirrors
           `trace-view/header/index.tsx` and `trace-dropdown.tsx` for visual
           consistency across the two side panels. */}
-      <div className="flex flex-col gap-1.5 px-2 py-1.5 border-b shrink-0">
+      <div className="relative flex flex-col gap-1.5 px-2 py-1.5 shrink-0">
         <div className="flex h-7 items-center justify-between">
           <div className="flex items-center gap-1 min-w-0">
             {/* Collapse / close side panel — matches trace-view: h-7 px-0.5 + w-5 h-5 icon */}
@@ -275,24 +314,23 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </span>
-            {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" className="ml-1" />}
           </div>
-          {/* TODO(session-view): expand-to-fullscreen slot (figma reserves 28x28 on the right). Not in scope per spec. */}
-          <div className="size-7 shrink-0" />
         </div>
-        {/* TODO(session-view): wire up an AdvancedSearch component here (see
-            `components/common/advanced-search`). For now this is a visual-only
-            placeholder so the header matches the figma. */}
-        <div className="flex items-center gap-2 h-8 rounded-md border border-[#2b2b31] bg-[rgba(34,34,38,0.8)] px-1.5 w-full">
-          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <input
-            type="text"
-            disabled
-            readOnly
-            placeholder="Search text, name, id, tags..."
-            className="flex-1 bg-transparent border-0 outline-none text-[12px] text-muted-foreground placeholder:text-muted-foreground cursor-not-allowed"
-          />
-        </div>
+        {/* TODO(session-view): add autocomplete suggestions from loaded/matched spans */}
+        <AdvancedSearch
+          mode="state"
+          filters={filterColumns}
+          resource="spans"
+          value={{ filters: [], search: "" }}
+          onSubmit={handleSearch}
+          placeholder="Search text, name, id, tags..."
+          className="w-full"
+          disabled={isTracesLoading}
+          options={{ suggestions: new Map(), disableHotKey: true }}
+        />
+        {traces.length > 0 && (
+          <SessionTimelineToggle enabled={sessionTimelineEnabled} setEnabled={setSessionTimelineEnabled} />
+        )}
       </div>
 
       {/* Body */}
@@ -309,128 +347,154 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
-          <div
-            className="relative"
-            style={{
-              height: virtualizer.getTotalSize(),
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {items.map((virtualRow) => {
-              const row = flatRows[virtualRow.index];
-              if (!row) return null;
-
-              const activeSticky = isActiveSticky(virtualRow.index);
-              // Sticky row pins to the scroll container's top (the session
-              // header lives outside the scroll area, so top: 0 is correct).
-              const positionStyle: React.CSSProperties = activeSticky
-                ? { position: "sticky", top: 0 }
-                : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
-
-              // z-index strategy for stacking sticky trace-headers:
-              //   - Trace-header rows get z-index = virtualRow.index + 1.
-              //     Later (higher-index) trace-headers stack ABOVE earlier
-              //     ones, so the incoming sticky visually overlays the
-              //     outgoing one during hand-off.
-              //   - All other rows (spans, group headers, loading/error)
-              //     stay at the default z=0 so that trace-headers always
-              //     render above them when their y positions collide.
-              if (row.type === "trace-header") {
-                positionStyle.zIndex = virtualRow.index + 1;
-              }
-
-              return (
-                <div
-                  key={virtualRow.key}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  style={{ ...positionStyle, left: 0, width: "100%" }}
-                >
-                  {row.type === "trace-header" ? (
-                    <TraceItem
-                      trace={row.trace}
-                      expanded={row.expanded}
-                      traceIndex={traceIndexById.get(row.trace.id) ?? 0}
-                      totalTraces={traces.length}
-                      onToggle={() => toggleTraceExpanded(row.trace.id)}
-                      traceIO={traceIO[row.trace.id]}
-                    />
-                  ) : row.type === "trace-loading" ? (
-                    <div className="flex flex-col gap-2 px-3 py-2">
-                      <Skeleton className="h-5 w-full" />
-                      <Skeleton className="h-5 w-3/4" />
-                      <Skeleton className="h-5 w-2/3" />
-                    </div>
-                  ) : row.type === "trace-error" ? (
-                    <div className="px-3 py-4 text-sm text-destructive">{row.error}</div>
-                  ) : row.type === "trace-empty" ? (
-                    <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
-                  ) : row.type === "user-input" ? (
-                    // Reuse the same `inputPreview` the collapsed trace-item
-                    // pill uses — one batched /traces/io fetch powers both
-                    // states. FLAG: trace-view proper uses a different
-                    // per-trace `/user-input` endpoint. They share the
-                    // server-side extraction pipeline today; if that ever
-                    // forks, session-view expanded will silently diverge from
-                    // trace-view for the same trace.
-                    <UserInputItem
-                      text={traceIO[row.traceId]?.inputPreview ?? null}
-                      isLoading={!traceIO[row.traceId]}
-                    />
-                  ) : row.type === "group-header" ? (
-                    (() => {
-                      // Mirror trace-view/list: prefer the LLM group-head's
-                      // userInput when available, fall back to the first span's
-                      // regular preview.
-                      const firstSpan = row.group.spans[0];
-                      const firstIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
-                      const groupPreview = firstSpan
-                        ? firstIsLlm && row.group.firstLlmSpanId
-                          ? userInputs[row.group.firstLlmSpanId]
-                          : previews[firstSpan.spanId]
-                        : null;
-                      return (
-                        <AgentGroupHeader
-                          group={row.group}
-                          collapsed={row.collapsed}
-                          preview={groupPreview}
-                          onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                          onToggleGroup={(groupId) => toggleReaderGroup(row.traceId, groupId)}
-                        />
-                      );
-                    })()
-                  ) : row.type === "group-span" ? (
-                    <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
-                      <ListItem
-                        span={row.span}
-                        output={previews[row.span.spanId]}
-                        onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                        isSelected={
-                          !!selectedSpan &&
-                          selectedSpan.traceId === row.traceId &&
-                          selectedSpan.spanId === row.span.spanId
-                        }
-                      />
-                    </div>
-                  ) : (
-                    <ListItem
-                      span={row.span}
-                      output={previews[row.span.spanId]}
-                      onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                      isSelected={
-                        !!selectedSpan &&
-                        selectedSpan.traceId === row.traceId &&
-                        selectedSpan.spanId === row.span.spanId
-                      }
-                    />
-                  )}
+        <ResizablePanelGroup id="session-view-panels" orientation="vertical" className="flex-1 min-h-0">
+          {sessionTimelineEnabled && (
+            <>
+              <ResizablePanel defaultSize={120} minSize={80}>
+                <div className="border-t h-full">
+                  <SessionTimeline />
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </ResizablePanel>
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+            </>
+          )}
+          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+            <div
+              className={cn(
+                "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                sessionTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+              )}
+            >
+              {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
+            </div>
+            <div
+              ref={scrollRef}
+              className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar"
+            >
+              <div
+                className="relative"
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {items.map((virtualRow) => {
+                  const row = flatRows[virtualRow.index];
+                  if (!row) return null;
+
+                  const activeSticky = isActiveSticky(virtualRow.index);
+                  // Sticky row pins to the scroll container's top (the session
+                  // header lives outside the scroll area, so top: 0 is correct).
+                  const positionStyle: React.CSSProperties = activeSticky
+                    ? { position: "sticky", top: 0 }
+                    : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
+
+                  // z-index strategy for stacking sticky trace-headers:
+                  //   - Trace-header rows get z-index = virtualRow.index + 1.
+                  //     Later (higher-index) trace-headers stack ABOVE earlier
+                  //     ones, so the incoming sticky visually overlays the
+                  //     outgoing one during hand-off.
+                  //   - All other rows (spans, group headers, loading/error)
+                  //     stay at the default z=0 so that trace-headers always
+                  //     render above them when their y positions collide.
+                  if (row.type === "trace-header") {
+                    positionStyle.zIndex = virtualRow.index + 1;
+                  }
+
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      ref={virtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      style={{ ...positionStyle, left: 0, width: "100%" }}
+                    >
+                      {row.type === "trace-header" ? (
+                        <TraceItem
+                          trace={row.trace}
+                          expanded={row.expanded}
+                          traceIndex={traceIndexById.get(row.trace.id) ?? 0}
+                          totalTraces={traces.length}
+                          onToggle={() => toggleTraceExpanded(row.trace.id)}
+                          traceIO={traceIO[row.trace.id]}
+                        />
+                      ) : row.type === "trace-loading" ? (
+                        <div className="flex flex-col gap-2 px-3 py-2">
+                          <Skeleton className="h-5 w-full" />
+                          <Skeleton className="h-5 w-3/4" />
+                          <Skeleton className="h-5 w-2/3" />
+                        </div>
+                      ) : row.type === "trace-error" ? (
+                        <div className="px-3 py-4 text-sm text-destructive">{row.error}</div>
+                      ) : row.type === "trace-empty" ? (
+                        <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
+                      ) : row.type === "user-input" ? (
+                        // Reuse the same `inputPreview` the collapsed trace-item
+                        // pill uses — one batched /traces/io fetch powers both
+                        // states. FLAG: trace-view proper uses a different
+                        // per-trace `/user-input` endpoint. They share the
+                        // server-side extraction pipeline today; if that ever
+                        // forks, session-view expanded will silently diverge from
+                        // trace-view for the same trace.
+                        <UserInputItem
+                          text={traceIO[row.traceId]?.inputPreview ?? null}
+                          isLoading={!traceIO[row.traceId]}
+                        />
+                      ) : row.type === "group-header" ? (
+                        (() => {
+                          // Mirror trace-view/list: prefer the LLM group-head's
+                          // userInput when available, fall back to the first span's
+                          // regular preview.
+                          const firstSpan = row.group.spans[0];
+                          const firstIsLlm =
+                            firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
+                          const groupPreview = firstSpan
+                            ? firstIsLlm && row.group.firstLlmSpanId
+                              ? userInputs[row.group.firstLlmSpanId]
+                              : previews[firstSpan.spanId]
+                            : null;
+                          return (
+                            <AgentGroupHeader
+                              group={row.group}
+                              collapsed={row.collapsed}
+                              preview={groupPreview}
+                              onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                              onToggleGroup={(groupId) => toggleReaderGroup(row.traceId, groupId)}
+                            />
+                          );
+                        })()
+                      ) : row.type === "group-span" ? (
+                        <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
+                          <ListItem
+                            span={row.span}
+                            output={previews[row.span.spanId]}
+                            onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                            isSelected={
+                              !!selectedSpan &&
+                              selectedSpan.traceId === row.traceId &&
+                              selectedSpan.spanId === row.span.spanId
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <ListItem
+                          span={row.span}
+                          output={previews[row.span.spanId]}
+                          onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                          isSelected={
+                            !!selectedSpan &&
+                            selectedSpan.traceId === row.traceId &&
+                            selectedSpan.spanId === row.span.spanId
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
     </div>
   );

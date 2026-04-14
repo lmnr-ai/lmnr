@@ -3,8 +3,11 @@ import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
+import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { type Filter } from "@/lib/actions/common/filters";
+import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -56,6 +59,15 @@ interface SessionViewState {
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED reader groups (default collapsed). */
   readerExpandedGroups: Set<string>;
 
+  // Session timeline
+  sessionTimelineEnabled: boolean;
+  sessionTimelineZoom: number;
+
+  // Search state — non-null searchResults means a search is active.
+  searchResults?: Record<string, SessionSpansTraceResult>;
+  isSearchLoading: boolean;
+  searchError?: string;
+
   // Selection & panel visibility
   selectedSpan?: SessionViewSelectedSpan;
   spanPanelOpen: boolean;
@@ -88,6 +100,12 @@ interface SessionViewActions {
   setTraceSpansError: (traceId: string, error?: string) => void;
 
   toggleReaderGroup: (traceId: string, groupId: string) => void;
+
+  setSessionTimelineEnabled: (enabled: boolean) => void;
+  setSessionTimelineZoom: (zoom: number) => void;
+
+  searchSessionSpans: (filters: Filter[], search: string) => Promise<void>;
+  clearSearch: () => void;
 
   setSelectedSpan: (selection?: SessionViewSelectedSpan) => void;
   setSpanPanelOpen: (open: boolean) => void;
@@ -172,6 +190,13 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         expandedTraceIds: new Set<string>(),
         readerExpandedGroups: new Set<string>(),
+
+        sessionTimelineEnabled: false,
+        sessionTimelineZoom: 1,
+
+        searchResults: undefined,
+        isSearchLoading: false,
+        searchError: undefined,
 
         selectedSpan: undefined,
         spanPanelOpen: false,
@@ -296,6 +321,9 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           set({ readerExpandedGroups: next });
         },
 
+        setSessionTimelineEnabled: (enabled) => set({ sessionTimelineEnabled: enabled }),
+        setSessionTimelineZoom: (zoom) => set({ sessionTimelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
+
         setSelectedSpan: (selectedSpan) => {
           set({ selectedSpan, spanPanelOpen: !!selectedSpan });
           get().fitPanelsToMaxWidth();
@@ -305,6 +333,46 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           set({ spanPanelOpen: open });
           if (!open) set({ selectedSpan: undefined });
           get().fitPanelsToMaxWidth();
+        },
+
+        searchSessionSpans: async (filters, search) => {
+          const state = get();
+          const { projectId, session } = state;
+          if (!projectId || !session?.sessionId) return;
+
+          set({ isSearchLoading: true, searchError: undefined });
+
+          try {
+            const params = new URLSearchParams();
+            if (search) params.set("search", search);
+            params.append("searchIn", "input");
+            params.append("searchIn", "output");
+            for (const f of filters) params.append("filter", JSON.stringify(f));
+
+            const url = `/api/projects/${projectId}/sessions/${session.sessionId}/spans?${params.toString()}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+              const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
+              set({ searchError: err.error || "Search failed", isSearchLoading: false });
+              return;
+            }
+
+            const body = (await res.json()) as { traces: SessionSpansTraceResult[] };
+
+            const results: Record<string, SessionSpansTraceResult> = {};
+            for (const t of body.traces) results[t.traceId] = t;
+
+            set({ searchResults: results, isSearchLoading: false });
+          } catch (e) {
+            set({
+              searchError: e instanceof Error ? e.message : "Search failed",
+              isSearchLoading: false,
+            });
+          }
+        },
+
+        clearSearch: () => {
+          set({ searchResults: undefined, isSearchLoading: false, searchError: undefined });
         },
 
         setMaxWidth: (maxWidth) => {
@@ -379,6 +447,8 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         partialize: (state) => ({
           sessionPanelWidth: state.sessionPanelWidth,
           spanPanelWidth: state.spanPanelWidth,
+          sessionTimelineEnabled: state.sessionTimelineEnabled,
+          sessionTimelineZoom: state.sessionTimelineZoom,
         }),
         merge: (persistedState, currentState) => {
           const persisted = (persistedState ?? {}) as Record<string, unknown>;
@@ -386,6 +456,12 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             ...currentState,
             ...(typeof persisted.sessionPanelWidth === "number" && { sessionPanelWidth: persisted.sessionPanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
+            ...(typeof persisted.sessionTimelineEnabled === "boolean" && {
+              sessionTimelineEnabled: persisted.sessionTimelineEnabled,
+            }),
+            ...(typeof persisted.sessionTimelineZoom === "number" && {
+              sessionTimelineZoom: persisted.sessionTimelineZoom,
+            }),
           };
         },
       }

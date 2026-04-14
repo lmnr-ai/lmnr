@@ -5,6 +5,7 @@ import {
   type TraceViewSpan,
 } from "@/components/traces/trace-view/store/base";
 import { computePathInfoMap } from "@/components/traces/trace-view/store/utils";
+import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -126,6 +127,9 @@ interface BuildFlatRowsOpts {
   expandedTraceIds: Set<string>;
   /** Namespaced `${traceId}::${groupId}` set of EXPANDED groups (default collapsed). */
   readerExpandedGroups: Set<string>;
+  /** When set, a search is active: only matched traces appear, always expanded,
+   *  with only matching spans (flat, no reader-mode groups). */
+  searchResults?: Record<string, SessionSpansTraceResult>;
 }
 
 /** Build the hybrid (trace headers + spans) flat row list that drives the
@@ -139,8 +143,15 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     traceAgentPaths,
     expandedTraceIds,
     readerExpandedGroups,
+    searchResults,
   } = opts;
 
+  // --- Search mode: only matched traces, always expanded, flat spans ---
+  if (searchResults) {
+    return buildSearchFlatRows(traces, searchResults);
+  }
+
+  // --- Normal mode ---
   const rows: SessionFlatRow[] = [];
 
   for (const trace of traces) {
@@ -163,7 +174,6 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     }
 
     if (!spans) {
-      // Not yet loaded and not explicitly loading — treat as a pending fetch.
       rows.push({ type: "trace-loading", traceId: trace.id });
       continue;
     }
@@ -196,6 +206,32 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
           }
         }
       }
+    }
+  }
+
+  return rows;
+}
+
+function buildSearchFlatRows(
+  traces: TraceRow[],
+  searchResults: Record<string, SessionSpansTraceResult>
+): SessionFlatRow[] {
+  const rows: SessionFlatRow[] = [];
+
+  for (const trace of traces) {
+    const result = searchResults[trace.id];
+    if (!result || result.spans.length === 0) continue;
+
+    rows.push({ type: "trace-header", trace, expanded: true });
+
+    const pathInfoMap = computePathInfoMap(result.spans);
+    for (const span of result.spans) {
+      if (span.spanType === "DEFAULT") continue;
+      rows.push({
+        type: "span",
+        traceId: trace.id,
+        span: spanToListSpan(span, pathInfoMap.get(span.spanId) ?? null),
+      });
     }
   }
 

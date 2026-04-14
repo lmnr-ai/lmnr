@@ -100,7 +100,7 @@ pub async fn create_span(
 #[serde(rename_all = "camelCase")]
 pub struct SearchSpansRequest {
     #[serde(default)]
-    pub trace_id: Option<String>,
+    pub trace_ids: Option<Vec<String>>,
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
@@ -138,7 +138,7 @@ pub async fn search_spans(
         &clickhouse,
         project_id,
         trimmed_query,
-        request.trace_id.as_deref(),
+        request.trace_ids.as_deref(),
         request.limit,
         request.offset,
         request.start_time,

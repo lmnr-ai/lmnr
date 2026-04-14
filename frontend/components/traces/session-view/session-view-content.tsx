@@ -1,19 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
-import { onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 
 import DynamicWidthLayout, { type SessionViewPanels } from "./dynamic-width-layout";
 import SessionPanel from "./session-panel";
 import SessionSpanPanel from "./session-span-panel";
-import { useSessionViewStore, useSessionViewStoreRaw } from "./store";
+import { useSessionViewStore } from "./store";
 
 interface SessionViewContentProps {
   sessionId: string;
@@ -146,54 +143,5 @@ export default function SessionViewContent({ sessionId, spanId, onClose, sidePan
     [onClose, spanPanelOpen]
   );
 
-  return (
-    <>
-      {traces.map((t) => (
-        <PerTraceRealtime key={t.id} projectId={projectId} traceId={t.id} />
-      ))}
-
-      <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
-    </>
-  );
-}
-
-/** One SSE subscription per trace in the session. */
-function PerTraceRealtime({ projectId, traceId }: { projectId: string; traceId: string }) {
-  const store = useSessionViewStoreRaw();
-
-  // Stable callbacks that reach into the raw store — avoids re-subscribing on
-  // every store mutation.
-  const setSpansForTrace = useCallback(
-    (updater: TraceViewSpan[] | ((prev: TraceViewSpan[]) => TraceViewSpan[])) => {
-      const current = store.getState().traceSpans[traceId] ?? [];
-      const next = typeof updater === "function" ? updater(current) : updater;
-      store.getState().setTraceSpans(traceId, next);
-    },
-    [store, traceId]
-  );
-
-  const eventHandlers = useMemo(
-    () => ({
-      span_update: (event: MessageEvent) => {
-        const payload = JSON.parse(event.data);
-        if (!payload.spans || !Array.isArray(payload.spans)) return;
-        const apply = onRealtimeUpdateSpans(
-          setSpansForTrace,
-          () => {},
-          () => {}
-        );
-        for (const span of payload.spans) apply(span);
-      },
-    }),
-    [setSpansForTrace]
-  );
-
-  useRealtime({
-    key: `trace_${traceId}`,
-    projectId,
-    enabled: !!traceId && !!projectId,
-    eventHandlers,
-  });
-
-  return null;
+  return <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />;
 }
