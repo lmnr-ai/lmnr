@@ -82,7 +82,7 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                       variant="default"
                       size="sm"
                       onClick={() => {
-                        track("signals", "creation_started", { entry_point: "empty_state" });
+                        track("signals", "creation_started", { entry_point: "banner" });
                         onCreateSignal();
                       }}
                     >
