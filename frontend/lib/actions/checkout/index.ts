@@ -37,6 +37,7 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
     with: {
       subscriptionTier: true,
     },
+    where: eq(workspaces.id, workspaceId),
   });
 
   if (!workspace?.subscriptionId) {

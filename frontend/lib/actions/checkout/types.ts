@@ -14,14 +14,14 @@ export const TIER_CONFIG = {
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
     overageSignalStepsProcessedLookupKey: "hobby_monthly_2026_04_overage_signal_steps_processed",
     includedBytes: 3 * 1024 ** 3,
-    includedSignalRuns: 1_000,
+    includedSignalRuns: 5_000,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalStepsProcessedLookupKey: "pro_monthly_2026_04_overage_signal_steps_processed",
     includedBytes: 10 * 1024 ** 3,
-    includedSignalRuns: 10_000,
+    includedSignalRuns: 50_000,
   },
 } as const;
 

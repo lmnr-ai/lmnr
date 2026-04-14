@@ -81,7 +81,10 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       .select({ limitValue: workspaceUsageLimits.limitValue })
       .from(workspaceUsageLimits)
       .where(
-        and(eq(workspaceUsageLimits.workspaceId, row.workspaceId), eq(workspaceUsageLimits.limitType, "signal_runs"))
+        and(
+          eq(workspaceUsageLimits.workspaceId, row.workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_steps_processed")
+        )
       )
       .limit(1),
   ]);

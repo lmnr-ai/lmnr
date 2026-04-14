@@ -312,7 +312,7 @@ const insertNewTierUsageWarnings = async ({
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_runs"),
+          eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
           eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalRuns)
         )
       );

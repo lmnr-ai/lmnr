@@ -269,7 +269,7 @@ function EnterpriseTierColumn({
 type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
 
 function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
-  if (dataGB <= 1 && signalRuns <= 100) return "free";
+  if (dataGB <= 1 && signalRuns <= 1000) return "free";
   if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
   if (dataGB >= PRO_DATA_THRESHOLD_GB || proTotal < hobbyTotal) return "pro";
   return "hobby";
