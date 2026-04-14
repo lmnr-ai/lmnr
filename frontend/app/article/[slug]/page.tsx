@@ -1,144 +1,18 @@
-import { ChevronLeft } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MDXRemote } from "next-mdx-remote/rsc";
-import React from "react";
-import remarkGfm from "remark-gfm";
 
-import BlogMeta from "@/components/blog/blog-meta";
-import LightboxImage from "@/components/blog/lightbox-image";
-import MDHeading from "@/components/blog/md-heading";
-import PreHighlighter from "@/components/blog/pre-highlighter";
-import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
-import { getBlogPost } from "@/lib/blog/utils";
+import PostContent from "@/components/blog/post-content";
+import { generatePostMetadata, getPostOrNull } from "@/lib/blog/metadata";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
-  const params = await props.params;
-  const post = await getBlogPost(params.slug);
-  if (!post) {
-    return { title: "Article Not Found" };
-  }
-
-  const { data } = post;
-  const description = data.description || `${data.title} - from the Laminar team`;
-  const ogImageUrl = `/article/${params.slug}/opengraph-image`;
-  return {
-    title: data.title,
-    description,
-    authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
-    openGraph: {
-      title: data.title,
-      description,
-      type: "article",
-      publishedTime: data.date,
-      url: `https://laminar.sh/article/${params.slug}`,
-      images: [
-        {
-          url: ogImageUrl,
-          width: 1200,
-          height: 630,
-          alt: data.title,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: data.title,
-      description,
-      images: [ogImageUrl],
-    },
-  };
+  const { slug } = await props.params;
+  return generatePostMetadata(slug, "article", "Article Not Found");
 };
 
-export default async function ArticlePostPage(props0: { params: Promise<{ slug: string }> }) {
-  const params = await props0.params;
+export default async function ArticlePostPage(props: { params: Promise<{ slug: string }> }) {
+  const { slug } = await props.params;
+  const post = await getPostOrNull(slug);
+  if (!post) notFound();
 
-  const post = await getBlogPost(params.slug);
-  if (!post) {
-    notFound();
-  }
-
-  const { data, content } = post;
-
-  return (
-    <div className="mt-8 md:mt-14 lg:mt-20 flex justify-center flex-col items-center pb-16 px-4">
-      <div className="w-full md:w-[700px] lg:max-w-3xl">
-        <Link
-          href="/article"
-          className="text-sm text-secondary-foreground hover:text-primary flex items-center gap-0.5 w-fit"
-        >
-          <ChevronLeft size={16} />
-          Articles
-        </Link>
-      </div>
-      <BlogMeta data={data} className="mt-4" />
-      <article className="flex flex-col z-30 md:w-[700px] lg:max-w-3xl w-full md:px-0 sm:mt-8">
-        <div className="pt-4 text-base">
-          <MDXRemote
-            source={content}
-            options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
-            components={{
-              h1: (props) => <MDHeading props={props} level={0} />,
-              h2: (props) => <MDHeading props={props} level={1} />,
-              h3: (props) => <MDHeading props={props} level={2} />,
-              h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => {
-                const children = React.Children.toArray(props.children);
-                if (children.length === 1) {
-                  const child = children[0];
-                  if (
-                    React.isValidElement<{
-                      href?: string;
-                      children?: React.ReactNode;
-                    }>(child) &&
-                    typeof child.props.href === "string" &&
-                    extractYouTubeId(child.props.href)
-                  ) {
-                    const linkChildren = React.Children.toArray(child.props.children);
-                    const isBareUrl =
-                      linkChildren.length === 1 &&
-                      typeof linkChildren[0] === "string" &&
-                      linkChildren[0] === child.props.href;
-                    if (isBareUrl) {
-                      return <YouTubeEmbed url={child.props.href} />;
-                    }
-                  }
-                }
-                return <p className="pt-4 text-white/85 font-light" {...props} />;
-              },
-              a: (props) => (
-                <a
-                  className="text-white underline hover:text-primary"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  {...props}
-                />
-              ),
-              blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4" {...props} />,
-              pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
-              code: (props) => (
-                <span
-                  className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5"
-                  {...props}
-                />
-              ),
-              ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85 font-light" {...props} />,
-              ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85 font-light" {...props} />,
-              li: (props) => (
-                <li className="pt-1.5 text-white/85 leading-relaxed" {...props}>
-                  {props.children}
-                </li>
-              ),
-              strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
-              img: (props) => (
-                <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />
-              ),
-              YouTubeEmbed,
-            }}
-          />
-        </div>
-      </article>
-    </div>
-  );
+  return <PostContent data={post.data} content={post.content} backHref="/article" backLabel="Articles" />;
 }
