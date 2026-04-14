@@ -2,7 +2,7 @@ import posthog from "posthog-js";
 
 import { POSTHOG_HOST, POSTHOG_KEY } from "./constants";
 
-export type Feature = "sessions" | "signals" | "traces" | "alerts";
+export type Feature = "sessions" | "debugger_sessions" | "signals" | "traces" | "alerts";
 
 // Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
 // so there is no concurrent-write race condition. The flag prevents calling posthog.init()

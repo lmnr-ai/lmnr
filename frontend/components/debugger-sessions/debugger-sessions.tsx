@@ -116,7 +116,7 @@ function DebuggerSessionsContent() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
-    track("sessions", "page_viewed");
+    track("debugger_sessions", "page_viewed");
   }, []);
 
   const fetchDebuggerSessions = useCallback(
@@ -176,7 +176,7 @@ function DebuggerSessionsContent() {
             data={debuggerSessions ?? []}
             hasMore={hasMore}
             getRowHref={(row) => `debugger-sessions/${row.id}`}
-            onRowClick={() => track("sessions", "session_opened")}
+            onRowClick={() => track("debugger_sessions", "session_opened")}
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}
