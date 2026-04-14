@@ -11,7 +11,6 @@ pub struct ClusteringMessage {
     pub signal_id: Uuid,
     pub event_id: Uuid,
     pub content: String,
-    pub severity: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

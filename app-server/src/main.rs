@@ -1332,8 +1332,11 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn clustering workers
                     {
+                        let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         let client = reqwest::Client::new();
+                        let clickhouse = clickhouse_for_consumer.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
                             clickhouse_for_consumer.clone(),
                             db_for_consumer.pool.clone(),
@@ -1345,8 +1348,11 @@ fn main() -> anyhow::Result<()> {
                             num_clustering_workers as usize,
                             move || {
                                 ClusteringHandler::new(
+                                    db.clone(),
                                     cache.clone(),
+                                    queue.clone(),
                                     client.clone(),
+                                    clickhouse.clone(),
                                     ch_service.clone(),
                                 )
                             },

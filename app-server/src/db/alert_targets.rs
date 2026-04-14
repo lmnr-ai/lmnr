@@ -34,6 +34,29 @@ pub async fn get_alerts_for_event(
     Ok(records)
 }
 
+/// Look up all alerts for a given project and signal ID.
+pub async fn get_alerts_for_signal_id(
+    pool: &PgPool,
+    project_id: Uuid,
+    signal_id: Uuid,
+) -> anyhow::Result<Vec<AlertInfo>> {
+    let records = sqlx::query_as::<_, AlertInfo>(
+        r#"
+        SELECT a.id AS alert_id, p.workspace_id, a.metadata
+        FROM alerts a
+        INNER JOIN projects p ON p.id = a.project_id
+        WHERE a.project_id = $1
+          AND a.source_id = $2
+        "#,
+    )
+    .bind(project_id)
+    .bind(signal_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(records)
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct AlertDeliveryTarget {
     pub id: Uuid,

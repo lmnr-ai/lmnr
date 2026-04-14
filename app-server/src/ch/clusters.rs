@@ -17,6 +17,7 @@ pub struct CHCluster {
     pub level: u8,
     #[serde(with = "clickhouse::serde::uuid")]
     pub parent_id: Uuid,
+    pub centroid: Vec<f32>,
     pub num_signal_events: u32,
     pub num_children_clusters: u16,
     pub created_at: i64,
@@ -31,6 +32,7 @@ impl CHCluster {
         name: String,
         level: u8,
         parent_id: Option<Uuid>,
+        centroid: Vec<f32>,
         num_signal_events: u32,
         num_children_clusters: u16,
     ) -> Self {
@@ -42,6 +44,7 @@ impl CHCluster {
             name,
             level,
             parent_id: parent_id.unwrap_or(Uuid::nil()),
+            centroid,
             num_signal_events,
             num_children_clusters,
             created_at: now,

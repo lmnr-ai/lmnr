@@ -168,6 +168,38 @@ pub async fn get_signal_events_for_summary(
     Ok(rows)
 }
 
+/// Lightweight signal event fields needed for cluster notifications.
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventNotificationInfo {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    pub payload: String,
+    pub severity: u8,
+}
+
+/// Fetch notification-relevant fields for a signal event by its ID.
+pub async fn get_signal_event_for_notification(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    event_id: &Uuid,
+) -> Result<Option<SignalEventNotificationInfo>> {
+    let rows = clickhouse
+        .query(
+            "SELECT trace_id, payload, severity
+             FROM signal_events
+             WHERE project_id = ? AND signal_id = ? AND id = ?
+             LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(signal_id)
+        .bind(event_id)
+        .fetch_all::<SignalEventNotificationInfo>()
+        .await?;
+
+    Ok(rows.into_iter().next())
+}
+
 /// Insert signal events into ClickHouse
 pub async fn insert_signal_events(
     clickhouse: clickhouse::Client,
