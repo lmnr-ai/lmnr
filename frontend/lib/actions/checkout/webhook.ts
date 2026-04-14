@@ -313,7 +313,7 @@ const insertNewTierUsageWarnings = async ({
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
           eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalRuns)
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalSteps)
         )
       );
   }
@@ -328,7 +328,7 @@ const insertNewTierUsageWarnings = async ({
       {
         workspaceId,
         usageItem: "signal_runs",
-        limitValue: newTierConfig.includedSignalRuns,
+        limitValue: newTierConfig.includedSignalSteps,
       },
     ])
     .onConflictDoNothing();

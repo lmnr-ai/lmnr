@@ -227,7 +227,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalSteps - newTierConfig.includedSignalRuns);
+  const newSignalRunsOverage = Math.max(0, usage.totalSignalSteps - newTierConfig.includedSignalSteps);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
