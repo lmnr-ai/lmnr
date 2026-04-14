@@ -112,10 +112,8 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
           fallback="No input available"
           isExpanded={isExpanded}
           onExpand={(e) => {
-            setIsExpanded((prev) => {
-              if (!prev) track("sessions", "span_expanded");
-              return !prev;
-            });
+            if (!isExpanded) track("sessions", "span_expanded");
+            setIsExpanded((prev) => !prev);
             e.stopPropagation();
           }}
         />
@@ -127,10 +125,8 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
           fallback="No output available"
           isExpanded={isExpanded}
           onExpand={(e) => {
-            setIsExpanded((prev) => {
-              if (!prev) track("sessions", "span_expanded");
-              return !prev;
-            });
+            if (!isExpanded) track("sessions", "span_expanded");
+            setIsExpanded((prev) => !prev);
             e.stopPropagation();
           }}
         />

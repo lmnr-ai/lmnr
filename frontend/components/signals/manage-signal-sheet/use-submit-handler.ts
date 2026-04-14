@@ -194,7 +194,7 @@ export default function useSubmitHandler({
         if (isUpdate) {
           track("signals", "edited");
         } else {
-          track("signals", "created", { filter_count: syncedTriggers.length });
+          track("signals", "created", { filter_count: syncedTriggers.reduce((sum, t) => sum + t.filters.length, 0) });
         }
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);
