@@ -186,7 +186,7 @@ function TierColumn({
           </div>
         ) : (
           <div className="flex justify-between text-landing-text-300">
-            <span>Agent steps procesed in Signals ({formatNumber(signalStepsProcessed)})</span>
+            <span>Agent steps processed in Signals ({formatNumber(signalStepsProcessed)})</span>
             <span>Included</span>
           </div>
         )}
