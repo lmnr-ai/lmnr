@@ -1,7 +1,7 @@
 "use client";
 
 import { PostHogProvider as PHProvider } from "posthog-js/react";
-import { type PropsWithChildren, useEffect } from "react";
+import { type PropsWithChildren, useEffect, useLayoutEffect } from "react";
 
 import { identify, init, posthog } from "@/lib/analytics/client";
 
@@ -11,10 +11,12 @@ interface AnalyticsProviderProps {
 }
 
 export function AnalyticsProvider({ children, telemetryEnabled, email }: PropsWithChildren<AnalyticsProviderProps>) {
-  // Init eagerly during render (not in useEffect) so that child useEffect hooks
-  // — which React fires depth-first (children before parents) — can already call
-  // track() / identify() on initial mount without events being silently dropped.
-  init(telemetryEnabled);
+  // useLayoutEffect fires synchronously after DOM mutations but before any
+  // useEffect. This guarantees posthog.init() runs before child useEffect hooks
+  // that call track() / identify(), without being a side effect during render.
+  useLayoutEffect(() => {
+    init(telemetryEnabled);
+  }, [telemetryEnabled]);
 
   useEffect(() => {
     if (email) {
