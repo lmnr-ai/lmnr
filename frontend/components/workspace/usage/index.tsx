@@ -88,8 +88,8 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
   const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
-  const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
-  const signalRunsLimit = workspaceStats?.signalRunsLimit ?? 0;
+  const signalRunsUsed = workspaceStats?.signalStepsUsedThisMonth ?? 0;
+  const signalRunsLimit = workspaceStats?.signalStepsLimit ?? 0;
 
   const isUnlimited = !isFinite(gbLimit);
   const hasLimits = gbLimit > 0 && signalRunsLimit > 0;

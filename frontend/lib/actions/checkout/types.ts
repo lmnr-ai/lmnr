@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 export type TierConfigEntry = {
   lookupKey: string;
   overageMegabytesLookupKey: string;
-  overageSignalRunsLookupKey: string;
+  overageSignalStepsProcessedLookupKey: string;
   includedBytes: number;
   includedSignalRuns: number;
 };
@@ -12,14 +12,14 @@ export const TIER_CONFIG = {
   hobby: {
     lookupKey: "hobby_monthly_2026_02",
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
-    overageSignalRunsLookupKey: "hobby_monthly_2026_02_overage_signal_runs",
+    overageSignalStepsProcessedLookupKey: "hobby_monthly_2026_04_overage_signal_steps_processed",
     includedBytes: 3 * 1024 ** 3,
     includedSignalRuns: 1_000,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
-    overageSignalRunsLookupKey: "pro_monthly_2026_02_overage_signal_runs",
+    overageSignalStepsProcessedLookupKey: "pro_monthly_2026_04_overage_signal_steps_processed",
     includedBytes: 10 * 1024 ** 3,
     includedSignalRuns: 10_000,
   },
@@ -59,7 +59,7 @@ export const METER_EVENT_NAMES = {
   },
   overageSignalRuns: {
     eventName: "2026_02_overage_signal_runs",
-    payloadKey: "signal_runs",
+    payloadKey: "signal_steps_processed",
   },
 } as const;
 
@@ -91,6 +91,8 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   pro_monthly_2026_02_overage_signal_runs: "Signal runs overage",
   hobby_monthly_2025_04_overage_signal_runs: "Signal runs overage",
   pro_monthly_2025_04_overage_signal_runs: "Signal runs overage",
+  pro_monthly_2026_04_overage_signal_steps_processed: "Signal runs overage",
+  hobby_monthly_2026_04_overage_signal_steps_processed: "Signal runs overage",
   // Addons
   [DATAPLANE_ADDON_LOOKUP_KEY]: "Data Plane addon",
 };
