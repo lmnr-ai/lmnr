@@ -2,6 +2,8 @@ import type { MetadataRoute } from "next";
 
 import { getBlogPosts } from "@/lib/blog/utils";
 
+export const dynamic = "force-dynamic";
+
 const BASE_URL = "https://laminar.sh";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
