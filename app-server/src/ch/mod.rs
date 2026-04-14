@@ -1,5 +1,6 @@
 pub mod browser_events;
 pub mod cloud;
+pub mod clusters;
 pub mod data_plane;
 pub mod datapoints;
 pub mod evaluation_datapoints;
@@ -31,6 +32,7 @@ pub enum Table {
     Traces,
     NotificationDeliveries,
     Notifications,
+    SignalEventClusters,
 }
 
 impl Table {
@@ -40,6 +42,7 @@ impl Table {
             Table::Traces => "traces_replacing",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
+            Table::SignalEventClusters => "signal_event_clusters",
         }
     }
 }

@@ -1334,10 +1334,22 @@ fn main() -> anyhow::Result<()> {
                     {
                         let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::new();
+                        let ch_service = Arc::new(ClickhouseService::new(
+                            clickhouse_for_consumer.clone(),
+                            db_for_consumer.pool.clone(),
+                            cache_for_consumer.clone(),
+                            client.clone(),
+                        ));
                         worker_pool_clone.spawn(
                             WorkerType::Clustering,
                             num_clustering_workers as usize,
-                            move || ClusteringHandler::new(cache.clone(), client.clone()),
+                            move || {
+                                ClusteringHandler::new(
+                                    cache.clone(),
+                                    client.clone(),
+                                    ch_service.clone(),
+                                )
+                            },
                             QueueConfig::new(
                                 EVENT_CLUSTERING_BATCH_QUEUE,
                                 EVENT_CLUSTERING_BATCH_EXCHANGE,
