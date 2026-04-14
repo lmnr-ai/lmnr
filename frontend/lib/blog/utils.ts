@@ -3,6 +3,8 @@ import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type
 const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
 const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
+const stripStrapiBaseUrl = (text: string): string => text.replaceAll(STRAPI_URL, "");
+
 const strapiHeaders = (): HeadersInit => {
   const headers: HeadersInit = {};
   if (STRAPI_API_TOKEN) {
@@ -20,7 +22,7 @@ const mapStrapiPost = (post: StrapiPost): BlogListItem => {
       name: post.author_name ?? "Laminar",
       url: post.author_url ?? undefined,
     },
-    image: post.image ?? undefined,
+    image: post.image ? stripStrapiBaseUrl(post.image) : undefined,
     excerpt: post.description ?? undefined,
     tags: post.tags ?? undefined,
   };
@@ -63,7 +65,7 @@ export const getBlogPost = async (slug: string): Promise<MatterAndContent | null
   if (!post) return null;
 
   const mapped = mapStrapiPost(post);
-  return { data: mapped.data, content: post.content };
+  return { data: mapped.data, content: stripStrapiBaseUrl(post.content) };
 };
 
 export const headingToUrl = (heading: string) =>
