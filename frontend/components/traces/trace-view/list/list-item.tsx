@@ -78,7 +78,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
             <SpanDisplayTooltip isLLM={isLLMType} name={span.name}>
               <span
                 className={cn(
-                  "font-medium text-[13px] whitespace-nowrap shrink-0",
+                  "font-medium text-[13px] whitespace-nowrap truncate",
                   isPending && "text-muted-foreground shimmer"
                 )}
               >

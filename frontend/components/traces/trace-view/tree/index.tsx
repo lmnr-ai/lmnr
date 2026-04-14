@@ -1,13 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useBatchedSpanPreviews } from "../list/use-batched-span-previews";
-import { useScrollContext } from "../scroll-context";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
@@ -17,7 +16,7 @@ interface TreeProps {
 
 const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { scrollRef, updateState } = useScrollContext();
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
     useTraceViewBaseStore((state) => ({
       getTreeSpans: state.getTreeSpans,
@@ -82,33 +81,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     { isShared },
     spanTypes
   );
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || !virtualizer) return;
-
-    const newState = {
-      totalHeight: virtualizer.getTotalSize(),
-      viewportHeight: el.clientHeight,
-      scrollTop: el.scrollTop,
-    };
-
-    if (Object.values(newState).every((val) => isFinite(val) && val >= 0)) {
-      updateState(newState);
-    }
-  }, [scrollRef, updateState, virtualizer]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    el.addEventListener("scroll", handleScroll);
-    handleScroll();
-
-    return () => {
-      el.removeEventListener("scroll", handleScroll);
-    };
-  }, [handleScroll, scrollRef?.current]);
 
   if (isSpansLoading) {
     return (

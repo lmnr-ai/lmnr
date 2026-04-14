@@ -58,7 +58,7 @@ export function AgentGroupHeader({ group, collapsed, preview, onSpanSelect }: Ag
         />
         <div className={cn("flex flex-col flex-1 min-w-0", isLLMType && "gap-0.5")}>
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium text-[13px] whitespace-nowrap shrink-0">{getSpanDisplayName(firstSpan)}</span>
+            <span className="font-medium text-[13px] whitespace-nowrap truncate">{getSpanDisplayName(firstSpan)}</span>
             {!isLLMType &&
               (previewText ? (
                 <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>

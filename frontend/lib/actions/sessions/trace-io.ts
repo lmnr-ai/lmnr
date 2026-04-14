@@ -29,7 +29,7 @@ const TOP_PATH_QUERY = `
 const INPUT_QUERY = `
   SELECT
     arr[1] AS first_message,
-    if(length(arr) > 1, arr[length(arr)], '') AS last_message
+    if(length(arr) > 1, arr[2], '') AS second_message
   FROM (
     SELECT JSONExtractArrayRaw(input) AS arr
     FROM spans
@@ -53,7 +53,7 @@ const OUTPUT_QUERY = `
 
 interface InputQueryRow {
   first_message: string;
-  last_message: string;
+  second_message: string;
 }
 
 interface TraceIOResult {
@@ -196,7 +196,7 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
     return { traceId, output: null, parsed: null };
   }
 
-  const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
+  const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].second_message);
   return { traceId, output: null, parsed };
 }
 
@@ -232,7 +232,7 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
     return { traceId, output: outputText, parsed: null };
   }
 
-  const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
+  const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].second_message);
   return { traceId, output: outputText, parsed };
 }
 
