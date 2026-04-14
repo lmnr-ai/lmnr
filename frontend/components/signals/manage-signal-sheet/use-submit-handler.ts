@@ -191,8 +191,10 @@ export default function useSubmitHandler({
         }
 
         if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
-        if (!isUpdate) {
-          track("signals", "created");
+        if (isUpdate) {
+          track("signals", "edited");
+        } else {
+          track("signals", "created", { filter_count: syncedTriggers.length });
         }
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);

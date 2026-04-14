@@ -8,6 +8,7 @@ import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { track } from "@/lib/analytics";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -111,7 +112,10 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
           fallback="No input available"
           isExpanded={isExpanded}
           onExpand={(e) => {
-            setIsExpanded((prev) => !prev);
+            setIsExpanded((prev) => {
+              if (!prev) track("sessions", "span_expanded");
+              return !prev;
+            });
             e.stopPropagation();
           }}
         />
@@ -123,7 +127,10 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
           fallback="No output available"
           isExpanded={isExpanded}
           onExpand={(e) => {
-            setIsExpanded((prev) => !prev);
+            setIsExpanded((prev) => {
+              if (!prev) track("sessions", "span_expanded");
+              return !prev;
+            });
             e.stopPropagation();
           }}
         />

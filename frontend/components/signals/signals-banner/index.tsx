@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
 
 import { useSignalsBannerStore } from "./store";
 
@@ -77,7 +78,14 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                     Docs
                   </a>
                   {onCreateSignal && (
-                    <Button variant="default" size="sm" onClick={onCreateSignal}>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        track("signals", "creation_started", { entry_point: "empty_state" });
+                        onCreateSignal();
+                      }}
+                    >
                       Create a Signal
                     </Button>
                   )}

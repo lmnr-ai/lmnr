@@ -20,6 +20,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { track } from "@/lib/analytics";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -140,6 +141,7 @@ function PureEventsTable() {
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
       const traceId = row.original.traceId;
+      track("signals", "event_to_trace");
       setTraceId(traceId);
 
       const newParams = new URLSearchParams(searchParams.toString());

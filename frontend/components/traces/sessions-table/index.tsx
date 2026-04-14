@@ -13,6 +13,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SessionRow, type TraceRow } from "@/lib/traces/types";
 
@@ -161,6 +162,8 @@ function SessionsTableContent() {
     async (sessionId: string) => {
       const result = toggleSession(sessionId);
       if (result.action === "collapsed") return;
+
+      track("sessions", "detail_opened", { source: "table" });
 
       const controller = result.controller;
 

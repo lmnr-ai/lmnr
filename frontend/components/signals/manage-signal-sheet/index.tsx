@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { track } from "@/lib/analytics";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
@@ -189,6 +190,9 @@ export default function ManageSignalSheet({
 
   const onOpenChange = useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && !form.getValues("id")) {
+        track("signals", "creation_abandoned");
+      }
       setOpen(nextOpen);
       if (!nextOpen) {
         form.reset(getDefaultValues(String(projectId), defaultMode));

@@ -36,7 +36,7 @@ export default function SignalCard({
     <Link
       href={signalUrl}
       className="block h-full"
-      onClick={() => track("signals", "table_interaction", { type: "row_click" })}
+      onClick={() => track("signals", "events_viewed", { event_count: signal.eventsCount })}
     >
       <Card className="hover:border-primary/40 transition-colors h-full">
         <CardHeader className="px-3 pt-3 pb-1">
