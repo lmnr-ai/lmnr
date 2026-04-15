@@ -320,7 +320,7 @@ export default function PricingCalculator() {
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Signals: agent steps per month</span>
+              <span className="font-medium text-landing-text-100">Agent steps per month</span>
               <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
             </div>
             <Slider

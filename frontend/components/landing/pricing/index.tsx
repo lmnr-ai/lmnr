@@ -45,7 +45,7 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-400"
             features={[
               "1 GB data",
-              "Signals: 1,000 agent steps processing",
+              "1,000 agent steps processing",
               "15 day retention",
               "1 project",
               "1 seat",
@@ -68,7 +68,7 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-400"
             features={[
               "3 GB data included",
-              "Signals: 5,000 agent steps processing included",
+              "5,000 agent steps processing included",
               "30 day retention",
               "Unlimited projects",
               "Unlimited seats",
@@ -92,7 +92,7 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-100"
             features={[
               "10 GB data included",
-              "Signals: 50,000 agent steps processing included",
+              "50,000 agent steps processing included",
               "90 day retention",
               "Unlimited projects",
               "Unlimited seats",
