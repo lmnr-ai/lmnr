@@ -220,7 +220,6 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.queue.clone(),
                     self.config.clone(),
-                    self.db.clone(),
                 )
                 .await
                 {

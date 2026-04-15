@@ -86,7 +86,6 @@ pub async fn process_provider_responses(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
-    db: Arc<DB>,
 ) -> Result<ProcessedResponses, HandlerError> {
     let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
     for msg in messages.iter() {
