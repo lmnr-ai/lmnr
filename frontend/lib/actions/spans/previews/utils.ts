@@ -126,7 +126,7 @@ export const detectOutputStructure = (data: unknown): ProviderHint => {
   return "unknown";
 };
 
-const KNOWN_FIELD_NAMES = new Set([
+const METADATA_KEYS = new Set([
   "id",
   "ids",
   "status",
@@ -147,12 +147,17 @@ const KNOWN_FIELD_NAMES = new Set([
   "created",
   "object",
   "system_fingerprint",
-  "name",
-  "action",
-  "function",
-  "method",
-  "command",
-  "tool",
+]);
+
+const IDENTIFIER_KEYS = new Set(["name", "action", "function", "method", "command", "tool"]);
+
+/**
+ * Keys that indicate an object is a structured response, not a flat dictionary/map.
+ * Union of metadata, identifier, and common payload field names.
+ */
+const STRUCTURED_FIELD_NAMES = new Set([
+  ...METADATA_KEYS,
+  ...IDENTIFIER_KEYS,
   "content",
   "text",
   "thinking",
@@ -177,13 +182,15 @@ const KNOWN_FIELD_NAMES = new Set([
 ]);
 
 /**
- * Detect dictionary/map-like objects: 3+ entries, all primitive values of the
- * same type, and no keys matching well-known structured field names.
+ * Returns true when an object looks like a flat key→value map (e.g. locale
+ * codes to translations) rather than a structured response with known fields.
+ * Requires 3+ entries, all values of the same primitive type, and no keys
+ * that match well-known structured field names.
  */
 const isDictionaryLike = (obj: Record<string, unknown>): boolean => {
   const keys = Object.keys(obj);
   if (keys.length < 3) return false;
-  if (keys.some((k) => KNOWN_FIELD_NAMES.has(k))) return false;
+  if (keys.some((k) => STRUCTURED_FIELD_NAMES.has(k))) return false;
   const firstType = typeof obj[keys[0]];
   if (firstType !== "string" && firstType !== "number" && firstType !== "boolean") return false;
   return keys.every((k) => typeof obj[k] === firstType);
@@ -219,31 +226,6 @@ const describeShape = (value: unknown): string => {
  * Generate a deterministic schema fingerprint from a JSON structure.
  */
 export const generateFingerprint = (spanName: string, data: unknown): string => `${spanName}:${describeShape(data)}`;
-
-const METADATA_KEYS = new Set([
-  "id",
-  "ids",
-  "status",
-  "type",
-  "types",
-  "kind",
-  "mode",
-  "version",
-  "role",
-  "model",
-  "usage",
-  "timestamp",
-  "duration",
-  "finish_reason",
-  "token_count",
-  "index",
-  "logprobs",
-  "created",
-  "object",
-  "system_fingerprint",
-]);
-
-const IDENTIFIER_KEYS = new Set(["name", "action", "function", "method", "command", "tool"]);
 
 const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
 

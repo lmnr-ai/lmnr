@@ -274,11 +274,7 @@ const fetchTraceSpans = async ({
   });
 };
 
-export type TraceSpansResult = {
-  spans: TraceViewSpan[];
-};
-
-export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceSpansResult> {
+export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {
   const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
   const filters: Filter[] = compact(inputFilters);
 
@@ -296,7 +292,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const spanIds = spanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
-    return { spans: [] };
+    return [];
   }
 
   const shouldApplyRewiring = search || filters.length > 0;
@@ -316,7 +312,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   ]);
 
   if (spans.length === 0) {
-    return { spans: [] };
+    return [];
   }
 
   const parentRewiring =
@@ -359,7 +355,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
     }
   }
 
-  return { spans: result };
+  return result;
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

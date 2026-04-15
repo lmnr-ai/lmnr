@@ -211,9 +211,7 @@ export default function TraceViewContent({
           return;
         }
 
-        const { spans: results } = (await response.json()) as {
-          spans: TraceViewSpan[];
-        };
+        const results = (await response.json()) as TraceViewSpan[];
         const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
         setSpans(spans);

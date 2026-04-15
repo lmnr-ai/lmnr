@@ -40,7 +40,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
         if (cancelled) return;
 
         setTrace(traceData);
-        setSpans(spansData.spans);
+        setSpans(spansData);
       } catch {
         if (!cancelled) {
           setError("Failed to load trace data");

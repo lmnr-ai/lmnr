@@ -64,9 +64,7 @@ export default async function SharedTracePage(props: {
     return notFound();
   }
 
-  const result = await getSharedSpans({ traceId }).catch(
-    () => ({ spans: [] }) as Awaited<ReturnType<typeof getSharedSpans>>
-  );
+  const spans = await getSharedSpans({ traceId }).catch(() => []);
 
-  return <TraceView trace={trace} spans={result.spans} />;
+  return <TraceView trace={trace} spans={spans} />;
 }

@@ -1,4 +1,4 @@
-import { type TraceViewSpan } from "./base";
+import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./base";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -115,7 +115,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
   return spanItems;
 };
 
-export const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
+const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
   listSpans.reduce<TraceViewSpan[][]>((sections, span) => {
     const lastSection = sections[sections.length - 1];
 
@@ -153,7 +153,7 @@ const buildParentChainRecursive = (
  * Calculate occurrence counts [2], [3] for duplicate names within sections
  * Returns a Map of spanId -> structured data with name and optional count
  */
-export const buildSpanNameMap = (
+const buildSpanNameMap = (
   sections: TraceViewSpan[][],
   spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Map<string, { name: string; count?: number }> => {
@@ -194,7 +194,7 @@ export const buildSpanNameMap = (
   return map;
 };
 
-export const buildParentChain = (
+const buildParentChain = (
   span: TraceViewSpan,
   spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Array<{ spanId: string; name: string }> => {
@@ -208,7 +208,7 @@ export const buildParentChain = (
     .filter((ref): ref is { spanId: string; name: string } => ref !== null);
 };
 
-export const buildPathInfo = (
+const buildPathInfo = (
   parentChain: Array<{ spanId: string; name: string }>,
   spanNameMap: Map<string, { name: string; count?: number }>
 ): {
@@ -241,6 +241,205 @@ export const buildPathInfo = (
     display: displayPath,
     full: parentChain,
   };
+};
+
+// ============================================================================
+// Transcript List
+// ============================================================================
+
+const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>): TraceViewListSpan => ({
+  spanId: span.spanId,
+  parentSpanId: span.parentSpanId,
+  spanType: span.spanType,
+  name: span.name,
+  model: span.model,
+  path: span.path,
+  startTime: span.startTime,
+  endTime: span.endTime,
+  inputTokens: span.inputTokens,
+  outputTokens: span.outputTokens,
+  cacheReadInputTokens: span.cacheReadInputTokens,
+  totalCost: span.totalCost,
+  pending: span.pending,
+  pathInfo: pathInfoMap.get(span.spanId) ?? null,
+  inputSnippet: span.inputSnippet,
+  outputSnippet: span.outputSnippet,
+  attributesSnippet: span.attributesSnippet,
+});
+
+/**
+ * Builds the flat list of transcript entries from spans.
+ * Handles subagent grouping: spans under a subagent boundary are collapsed
+ * into group headers with expandable children.
+ */
+export const buildTranscriptListEntries = (
+  allSpans: TraceViewSpan[],
+  visibleSpanIds: Set<string>
+): TranscriptListEntry[] => {
+  const selectionFilteredSpans =
+    visibleSpanIds.size === 0 ? allSpans : allSpans.filter((s) => visibleSpanIds.has(s.spanId));
+
+  const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
+  const pathInfoMap = computePathInfoMap(allSpans);
+
+  const groupBoundarySet = new Set(allSpans.filter((s) => s.isSubagent).map((s) => s.spanId));
+  if (groupBoundarySet.size === 0) {
+    return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span, pathInfoMap) }));
+  }
+
+  const parentMap = new Map<string, string | undefined>();
+  const spanMap = new Map<string, TraceViewSpan>();
+  for (const s of allSpans) {
+    parentMap.set(s.spanId, s.parentSpanId);
+    spanMap.set(s.spanId, s);
+  }
+
+  const spanGroupCache = new Map<string, string | null>();
+  const findGroupBoundary = (spanId: string): string | null => {
+    if (spanGroupCache.has(spanId)) return spanGroupCache.get(spanId)!;
+
+    const visited: string[] = [spanId];
+    let current = spanId;
+    let result: string | null = null;
+
+    while (current) {
+      if (groupBoundarySet.has(current)) {
+        result = current;
+        break;
+      }
+      const parent = parentMap.get(current);
+      if (!parent) break;
+      if (spanGroupCache.has(parent)) {
+        result = spanGroupCache.get(parent)!;
+        break;
+      }
+      visited.push(parent);
+      current = parent;
+    }
+
+    for (const id of visited) {
+      spanGroupCache.set(id, result);
+    }
+    return result;
+  };
+
+  // Pass 1: collect all spans per boundary, preserving time order
+  const groupSpansMap = new Map<string, TraceViewSpan[]>();
+  for (const span of listSpans) {
+    const boundary = findGroupBoundary(span.spanId);
+    if (!boundary) continue;
+    if (!groupSpansMap.has(boundary)) {
+      groupSpansMap.set(boundary, []);
+    }
+    groupSpansMap.get(boundary)!.push(span);
+  }
+
+  // Pass 2: pre-compute group metadata
+  const groupMeta = new Map<
+    string,
+    {
+      groupId: string;
+      name: string;
+      path: string;
+      firstSpan: TraceViewListSpan;
+      firstLlmSpanId: string | null;
+      lastLlmSpanId: string | null;
+      startTime: string;
+      endTime: string;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens: number;
+      totalCost: number;
+      isSubagent: boolean;
+      childSpans: TraceViewListSpan[];
+    }
+  >();
+
+  for (const [boundary, groupSpans] of groupSpansMap) {
+    const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+    const lastLlm = groupSpans.findLast((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+
+    if (!firstLlm) continue;
+
+    const boundarySpan = spanMap.get(boundary);
+    const lightSpans = groupSpans.map((s) => toLightweight(s, pathInfoMap));
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadInputTokens = 0;
+    let totalCost = 0;
+    for (const s of groupSpans) {
+      inputTokens += s.inputTokens;
+      outputTokens += s.outputTokens;
+      cacheReadInputTokens += s.cacheReadInputTokens ?? 0;
+      totalCost += s.totalCost;
+    }
+
+    groupMeta.set(boundary, {
+      groupId: `group-${boundary}`,
+      name: boundarySpan?.name ?? groupSpans[0].name,
+      path: boundarySpan?.path ?? "",
+      firstSpan: lightSpans[0],
+      firstLlmSpanId: firstLlm.spanId,
+      lastLlmSpanId: lastLlm && lastLlm.spanId !== firstLlm.spanId ? lastLlm.spanId : null,
+      startTime: groupSpans[0].startTime,
+      endTime: groupSpans[groupSpans.length - 1].endTime,
+      inputTokens,
+      outputTokens,
+      cacheReadInputTokens,
+      totalCost,
+      isSubagent: true,
+      childSpans: lightSpans,
+    });
+  }
+
+  // Pass 3: emit flat entries — standalone spans, group headers + child spans
+  const emittedGroups = new Set<string>();
+  const entries: TranscriptListEntry[] = [];
+
+  for (const span of listSpans) {
+    const boundary = findGroupBoundary(span.spanId);
+
+    if (!boundary) {
+      entries.push({ type: "span", span: toLightweight(span, pathInfoMap) });
+      continue;
+    }
+
+    if (emittedGroups.has(boundary)) continue;
+    emittedGroups.add(boundary);
+
+    const meta = groupMeta.get(boundary);
+    if (!meta) {
+      const groupSpans = groupSpansMap.get(boundary)!;
+      for (const s of groupSpans) {
+        entries.push({ type: "span", span: toLightweight(s, pathInfoMap) });
+      }
+      continue;
+    }
+
+    const { childSpans, ...groupHeader } = meta;
+    entries.push({ ...groupHeader, type: "group" });
+
+    if (meta.isSubagent && meta.firstLlmSpanId) {
+      entries.push({
+        type: "group-input",
+        groupId: meta.groupId,
+        firstLlmSpanId: meta.firstLlmSpanId,
+      });
+    }
+
+    const expandedChildren = meta.isSubagent ? childSpans : childSpans.slice(1);
+    for (let i = 0; i < expandedChildren.length; i++) {
+      entries.push({
+        type: "group-span",
+        span: expandedChildren[i],
+        groupId: meta.groupId,
+        isLast: i === expandedChildren.length - 1,
+      });
+    }
+  }
+
+  return entries;
 };
 
 // ============================================================================

@@ -9,11 +9,7 @@ import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { tryParseJson } from "@/lib/utils";
 
-type SharedSpansResult = {
-  spans: TraceViewSpan[];
-};
-
-export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>): Promise<SharedSpansResult> => {
+export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewSpan[]> => {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
@@ -61,7 +57,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
   });
 
   if (spans.length === 0) {
-    return { spans: [] };
+    return [];
   }
 
   const transformedSpans = spans.map((span) => {
@@ -94,5 +90,5 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     }
   }
 
-  return { spans: result };
+  return result;
 };

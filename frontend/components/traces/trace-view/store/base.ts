@@ -8,6 +8,7 @@ import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
 import {
+  buildTranscriptListEntries,
   computePathInfoMap,
   type CondensedTimelineData,
   transformSpansToCondensedTimeline,
@@ -241,10 +242,8 @@ export interface BaseTraceViewActions {
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
-  getListData: () => TraceViewListSpan[];
   getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
-  getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -340,232 +339,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const pathInfoMap = computePathInfoMap(filteredSpans);
       return transformSpansToTree(filteredSpans, pathInfoMap);
     },
-    getListData: () => {
-      const { spans, condensedTimelineVisibleSpanIds } = get();
-
-      const selectionFilteredSpans =
-        condensedTimelineVisibleSpanIds.size === 0
-          ? spans
-          : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-      const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-      const pathInfoMap = computePathInfoMap(spans);
-
-      const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
-        spanId: span.spanId,
-        parentSpanId: span.parentSpanId,
-        spanType: span.spanType,
-        name: span.name,
-        model: span.model,
-        path: span.path,
-        startTime: span.startTime,
-        endTime: span.endTime,
-        inputTokens: span.inputTokens,
-        outputTokens: span.outputTokens,
-        cacheReadInputTokens: span.cacheReadInputTokens,
-        totalCost: span.totalCost,
-        pending: span.pending,
-        pathInfo: pathInfoMap.get(span.spanId) ?? null,
-        inputSnippet: span.inputSnippet,
-        outputSnippet: span.outputSnippet,
-        attributesSnippet: span.attributesSnippet,
-      }));
-
-      return lightweightListSpans;
-    },
-
     getTranscriptListData: () => {
       const { spans, condensedTimelineVisibleSpanIds } = get();
-
-      const selectionFilteredSpans =
-        condensedTimelineVisibleSpanIds.size === 0
-          ? spans
-          : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-      const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-      const pathInfoMap = computePathInfoMap(spans);
-
-      const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
-        spanId: span.spanId,
-        parentSpanId: span.parentSpanId,
-        spanType: span.spanType,
-        name: span.name,
-        model: span.model,
-        path: span.path,
-        startTime: span.startTime,
-        endTime: span.endTime,
-        inputTokens: span.inputTokens,
-        outputTokens: span.outputTokens,
-        cacheReadInputTokens: span.cacheReadInputTokens,
-        totalCost: span.totalCost,
-        pending: span.pending,
-        pathInfo: pathInfoMap.get(span.spanId) ?? null,
-        inputSnippet: span.inputSnippet,
-        outputSnippet: span.outputSnippet,
-        attributesSnippet: span.attributesSnippet,
-      });
-
-      const groupBoundarySet = new Set(spans.filter((s) => s.isSubagent).map((s) => s.spanId));
-      if (groupBoundarySet.size === 0) {
-        return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span) }));
-      }
-
-      const parentMap = new Map<string, string | undefined>();
-      const spanMap = new Map<string, TraceViewSpan>();
-      for (const s of spans) {
-        parentMap.set(s.spanId, s.parentSpanId);
-        spanMap.set(s.spanId, s);
-      }
-
-      // Walk up ancestors to find which boundary (if any) a span belongs to
-      const spanGroupCache = new Map<string, string | null>();
-      const findGroupBoundary = (spanId: string): string | null => {
-        if (spanGroupCache.has(spanId)) return spanGroupCache.get(spanId)!;
-
-        const visited: string[] = [spanId];
-        let current = spanId;
-        let result: string | null = null;
-
-        while (current) {
-          if (groupBoundarySet.has(current)) {
-            result = current;
-            break;
-          }
-          const parent = parentMap.get(current);
-          if (!parent) break;
-          if (spanGroupCache.has(parent)) {
-            result = spanGroupCache.get(parent)!;
-            break;
-          }
-          visited.push(parent);
-          current = parent;
-        }
-
-        for (const id of visited) {
-          spanGroupCache.set(id, result);
-        }
-        return result;
-      };
-
-      // Pass 1: collect all spans per boundary, preserving time order
-      const groupSpansMap = new Map<string, TraceViewSpan[]>();
-
-      for (const span of listSpans) {
-        const boundary = findGroupBoundary(span.spanId);
-        if (!boundary) continue;
-
-        if (!groupSpansMap.has(boundary)) {
-          groupSpansMap.set(boundary, []);
-        }
-        groupSpansMap.get(boundary)!.push(span);
-      }
-
-      // Pass 2: pre-compute group metadata
-      const groupMeta = new Map<
-        string,
-        {
-          groupId: string;
-          name: string;
-          path: string;
-          firstSpan: TraceViewListSpan;
-          firstLlmSpanId: string | null;
-          lastLlmSpanId: string | null;
-          startTime: string;
-          endTime: string;
-          inputTokens: number;
-          outputTokens: number;
-          cacheReadInputTokens: number;
-          totalCost: number;
-          isSubagent: boolean;
-          childSpans: TraceViewListSpan[];
-        }
-      >();
-
-      for (const [boundary, groupSpans] of groupSpansMap) {
-        const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
-        const lastLlm = groupSpans.findLast((s) => s.spanType === "LLM" || s.spanType === "CACHED");
-
-        if (!firstLlm) continue;
-
-        const boundarySpan = spanMap.get(boundary);
-        const lightSpans = groupSpans.map(toLightweight);
-
-        let inputTokens = 0;
-        let outputTokens = 0;
-        let cacheReadInputTokens = 0;
-        let totalCost = 0;
-        for (const s of groupSpans) {
-          inputTokens += s.inputTokens;
-          outputTokens += s.outputTokens;
-          cacheReadInputTokens += s.cacheReadInputTokens ?? 0;
-          totalCost += s.totalCost;
-        }
-
-        groupMeta.set(boundary, {
-          groupId: `group-${boundary}`,
-          name: boundarySpan?.name ?? groupSpans[0].name,
-          path: boundarySpan?.path ?? "",
-          firstSpan: lightSpans[0],
-          firstLlmSpanId: firstLlm.spanId,
-          lastLlmSpanId: lastLlm && lastLlm.spanId !== firstLlm.spanId ? lastLlm.spanId : null,
-          startTime: groupSpans[0].startTime,
-          endTime: groupSpans[groupSpans.length - 1].endTime,
-          inputTokens,
-          outputTokens,
-          cacheReadInputTokens,
-          totalCost,
-          isSubagent: true,
-          childSpans: lightSpans,
-        });
-      }
-
-      // Pass 3: emit flat entries — standalone spans, group headers + child spans
-      const emittedGroups = new Set<string>();
-      const entries: TranscriptListEntry[] = [];
-
-      for (const span of listSpans) {
-        const boundary = findGroupBoundary(span.spanId);
-
-        if (!boundary) {
-          entries.push({ type: "span", span: toLightweight(span) });
-          continue;
-        }
-
-        if (emittedGroups.has(boundary)) continue;
-        emittedGroups.add(boundary);
-
-        const meta = groupMeta.get(boundary);
-        if (!meta) {
-          const groupSpans = groupSpansMap.get(boundary)!;
-          for (const s of groupSpans) {
-            entries.push({ type: "span", span: toLightweight(s) });
-          }
-          continue;
-        }
-
-        const { childSpans, ...groupHeader } = meta;
-        entries.push({ ...groupHeader, type: "group" });
-
-        if (meta.isSubagent && meta.firstLlmSpanId) {
-          entries.push({
-            type: "group-input",
-            groupId: meta.groupId,
-            firstLlmSpanId: meta.firstLlmSpanId,
-          });
-        }
-
-        const expandedChildren = meta.isSubagent ? childSpans : childSpans.slice(1);
-        for (let i = 0; i < expandedChildren.length; i++) {
-          entries.push({
-            type: "group-span",
-            span: expandedChildren[i],
-            groupId: meta.groupId,
-            isLast: i === expandedChildren.length - 1,
-          });
-        }
-      }
-
-      return entries;
+      return buildTranscriptListEntries(spans, condensedTimelineVisibleSpanIds);
     },
 
     toggleTranscriptGroup: (groupId: string) => {
@@ -648,10 +424,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       !!get().spans.find(
         (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
       ),
-    getSpanAttribute: (spanId: string, attributeKey: string) => {
-      const span = get().spans.find((s) => s.spanId === spanId);
-      return span?.attributes?.[attributeKey];
-    },
 
     // Panel visibility actions
     setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),

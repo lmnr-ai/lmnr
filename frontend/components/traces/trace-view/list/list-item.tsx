@@ -69,7 +69,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
         </div>
       )}
 
-      <div className={cn("flex flex-col flex-1 min-w-0 px-3 py-2", isLLMType && "gap-2")}>
+      <div className="flex flex-col flex-1 min-w-0 px-3 py-2 gap-1">
         <div className="flex gap-2 items-center min-w-0">
           <SpanTypeIcon
             spanType={span.spanType}
@@ -88,23 +88,6 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
               {getSpanDisplayName(span)}
             </span>
           </SpanDisplayTooltip>
-
-          {!isLLMType &&
-            (hasSnippet ? (
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <SnippetPreview
-                  inputSnippet={span.inputSnippet}
-                  outputSnippet={span.outputSnippet}
-                  attributesSnippet={span.attributesSnippet}
-                  variant="span"
-                  className="truncate"
-                />
-              </div>
-            ) : previewText ? (
-              <span className="text-sm text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
-            ) : isLoadingOutput ? (
-              <Skeleton className="h-4 flex-1 min-w-0 w-full" />
-            ) : null)}
 
           <div className="flex items-center shrink-0 ml-auto">
             {isPending ? (
@@ -131,12 +114,34 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
           </div>
         </div>
 
+        {!isLLMType &&
+          !isPending &&
+          (hasSnippet ? (
+            <div className="min-w-0 overflow-hidden pl-7">
+              <SnippetPreview
+                inputSnippet={span.inputSnippet}
+                outputSnippet={span.outputSnippet}
+                attributesSnippet={span.attributesSnippet}
+                variant="span"
+                className="truncate"
+              />
+            </div>
+          ) : previewText ? (
+            <span className="text-sm text-secondary-foreground truncate min-w-0 pl-7">{previewText}</span>
+          ) : isLoadingOutput ? (
+            <Skeleton className="h-4 min-w-0 w-full max-w-[300px] ml-7" />
+          ) : null)}
+
         {isLLMType &&
           !isPending &&
           (previewText ? (
-            <CollapsedTextWithMore text={previewText} lineHeight={17} />
+            <div className="pl-7">
+              <CollapsedTextWithMore text={previewText} lineHeight={17} />
+            </div>
           ) : isLoadingOutput ? (
-            <PreviewLoadingPlaceholder />
+            <div className="pl-7">
+              <PreviewLoadingPlaceholder />
+            </div>
           ) : null)}
       </div>
     </div>
@@ -213,7 +218,7 @@ export function AgentGroupHeader({
       )}
       onClick={isSubagent ? handleToggle : () => onSpanSelect(firstSpan)}
     >
-      <div className={cn("flex flex-col flex-1 min-w-0 px-3 py-2", showPreviewBelow && "gap-2")}>
+      <div className={cn("flex flex-col flex-1 min-w-0 px-3 py-2", showPreviewBelow && "gap-1")}>
         <div className="flex gap-2 items-center min-w-0">
           {isSubagent ? (
             <div
@@ -238,15 +243,6 @@ export function AgentGroupHeader({
             />
           )}
           <span className="font-medium text-[13px] whitespace-nowrap truncate">{displayName}</span>
-          {collapsed &&
-            !showPreviewBelow &&
-            (previewText ? (
-              <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1 animate-in fade-in duration-150">
-                {previewText}
-              </span>
-            ) : isLoadingPreview ? (
-              <Skeleton className="h-4 flex-1 min-w-0 max-w-[200px] bg-secondary animate-in fade-in duration-150" />
-            ) : null)}
           <div className="flex items-center shrink-0 ml-auto gap-2">
             <SpanStatsShield
               variant="inline"
@@ -265,24 +261,37 @@ export function AgentGroupHeader({
             </button>
           </div>
         </div>
+        {collapsed &&
+          !showPreviewBelow &&
+          (previewText ? (
+            <span className="text-[13px] text-secondary-foreground truncate min-w-0 pl-7 animate-in fade-in duration-150">
+              {previewText}
+            </span>
+          ) : isLoadingPreview ? (
+            <Skeleton className="h-4 min-w-0 max-w-[200px] bg-secondary ml-7 animate-in fade-in duration-150" />
+          ) : null)}
         {showPreviewBelow &&
           (previewText ? (
-            <div className="flex flex-col min-w-0 animate-in fade-in duration-150">
+            <div className="flex flex-col min-w-0 pl-7 animate-in fade-in duration-150">
               {group.lastLlmSpanId && <span className="text-xs text-muted-foreground">Input</span>}
               <CollapsedTextWithMore text={previewText} lineHeight={17} maxLines={2} />
             </div>
           ) : isLoadingPreview ? (
-            <PreviewLoadingPlaceholder />
+            <div className="pl-7">
+              <PreviewLoadingPlaceholder />
+            </div>
           ) : null)}
         {showPreviewBelow &&
           group.lastLlmSpanId &&
           (outputPreview ? (
-            <div className="flex flex-col min-w-0 animate-in fade-in duration-150">
+            <div className="flex flex-col min-w-0 pl-7 animate-in fade-in duration-150">
               <span className="text-xs text-muted-foreground">Output</span>
               <CollapsedTextWithMore text={outputPreview} lineHeight={17} maxLines={2} />
             </div>
           ) : outputPreview === undefined ? (
-            <PreviewLoadingPlaceholder />
+            <div className="pl-7">
+              <PreviewLoadingPlaceholder />
+            </div>
           ) : null)}
       </div>
     </div>
