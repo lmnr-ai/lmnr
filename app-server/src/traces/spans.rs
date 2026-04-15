@@ -219,6 +219,14 @@ impl SpanAttributes {
             &format!("{prefix}.usage.cachedInputTokens"),
             GEN_AI_CACHE_READ_INPUT_TOKENS,
         );
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.inputTokenDetails.cacheReadTokens"),
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.inputTokenDetails.cacheWriteTokens"),
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
 
         self.normalize_if_absent(&format!("{prefix}.prompt.messages"), "ai.prompt.messages");
         self.normalize_if_absent(&format!("{prefix}.response.text"), "ai.response.text");
