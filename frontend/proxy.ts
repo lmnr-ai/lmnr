@@ -9,6 +9,7 @@ export default withAuth(
     if (req.nextUrl.pathname.startsWith("/uploads/")) {
       const strapiUrl = process.env.STRAPI_URL || "http://localhost:1337";
       const destination = new URL(req.nextUrl.pathname + req.nextUrl.search, strapiUrl);
+      return NextResponse.rewrite(destination);
     }
 
     const token = req.nextauth.token;
