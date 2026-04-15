@@ -3,7 +3,7 @@
 // the rendering structure. Review for deduplication once design stabilizes.
 
 import { isEmpty } from "lodash";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
@@ -23,22 +23,28 @@ function SessionTimeline() {
   const {
     traces,
     traceSpans,
+    traceSpansLoading,
+    traceSpansError,
     expandedTraceIds,
     isTracesLoading,
     selectedSpan,
     setSelectedSpan,
     toggleTraceExpanded,
+    ensureTraceSpans,
     zoom,
     setZoom,
   } = useSessionViewStore(
     (s) => ({
       traces: s.traces,
       traceSpans: s.traceSpans,
+      traceSpansLoading: s.traceSpansLoading,
+      traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
       isTracesLoading: s.isTracesLoading,
       selectedSpan: s.selectedSpan,
       setSelectedSpan: s.setSelectedSpan,
       toggleTraceExpanded: s.toggleTraceExpanded,
+      ensureTraceSpans: s.ensureTraceSpans,
       zoom: s.sessionTimelineZoom,
       setZoom: s.setSessionTimelineZoom,
     }),
@@ -46,8 +52,8 @@ function SessionTimeline() {
   );
 
   const { sections, sessionStartMs } = useMemo(
-    () => computeSessionTimelineSegments(traces, traceSpans, expandedTraceIds),
-    [traces, traceSpans, expandedTraceIds]
+    () => computeSessionTimelineSegments(traces, traceSpans, traceSpansLoading, expandedTraceIds),
+    [traces, traceSpans, traceSpansLoading, expandedTraceIds]
   );
 
   // Max rows across all segments — used so all segments share the same height.
@@ -70,7 +76,51 @@ function SessionTimeline() {
   // Hover needle — driven by segment callbacks
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
-  const handleTraceBarClick = useCallback((traceId: string) => toggleTraceExpanded(traceId), [toggleTraceExpanded]);
+  // Two-phase expand (mirrors list/trace-item.tsx): when the user clicks a
+  // collapsed trace whose spans aren't loaded yet, we DON'T flip
+  // `expandedTraceIds` immediately — we kick off `ensureTraceSpans` and
+  // flush to expand once spans arrive. The bar meanwhile shows a shimmer
+  // (driven by `traceSpansLoading` → `bar.shimmer` in utils.ts).
+  //
+  // Keeps the timeline's expansion state consistent with the list, and
+  // avoids flashing an empty container before spans arrive.
+  const pendingExpandIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (pendingExpandIdsRef.current.size === 0) return;
+    const toFlush: string[] = [];
+    for (const id of pendingExpandIdsRef.current) {
+      if (traceSpans[id] || traceSpansError[id]) toFlush.push(id);
+    }
+    if (toFlush.length === 0) return;
+    for (const id of toFlush) pendingExpandIdsRef.current.delete(id);
+    queueMicrotask(() => {
+      for (const id of toFlush) {
+        // FLAG: if the list's trace-item pending flush also fired for the
+        // same trace, it will have already toggled — guarding here avoids
+        // a double-toggle (expand → collapse). The symmetric guard in
+        // trace-item.tsx doesn't exist today; if the user triggers expand
+        // from both panes simultaneously, the list could still mis-toggle.
+        if (!expandedTraceIds.has(id)) toggleTraceExpanded(id);
+      }
+    });
+  }, [traceSpans, traceSpansError, expandedTraceIds, toggleTraceExpanded]);
+
+  const handleTraceBarClick = useCallback(
+    (traceId: string) => {
+      // Collapse or immediate expand if spans already loaded.
+      if (expandedTraceIds.has(traceId) || traceSpans[traceId]) {
+        toggleTraceExpanded(traceId);
+        return;
+      }
+      // Kick off loading; the effect above flushes the expansion when spans arrive.
+      const trace = traces.find((t) => t.id === traceId);
+      if (!trace) return;
+      pendingExpandIdsRef.current.add(traceId);
+      void ensureTraceSpans(trace);
+    },
+    [expandedTraceIds, traceSpans, traces, toggleTraceExpanded, ensureTraceSpans]
+  );
 
   const handleSpanBarClick = useCallback(
     (traceId: string, spanId: string) => setSelectedSpan({ traceId, spanId }),

@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useSessionViewStore } from "./store";
-import { spanToListSpan } from "./utils";
+import { useSessionViewStore } from "../store";
+import { spanToListSpan } from "../utils";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -126,11 +126,16 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
   const handleSpanSelect = (spanId: string) => setSelectedSpan({ traceId: trace.id, spanId });
 
   return (
-    <div className={cn("transition-[padding] duration-200 ease-out", expanded ? "p-0" : "p-1")}>
+    <div
+      className={cn(
+        "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4%",
+        expanded ? "p-0" : "p-1"
+      )}
+    >
       <div
         className={cn(
           "overflow-hidden w-full",
-          expanded ? "bg-muted border-t" : "bg-[rgba(34,34,38,0.75)] border border-[rgba(232,232,232,0.1)] rounded-lg"
+          expanded ? "bg-muted border-t" : "bg-muted/75 border border-[rgba(232,232,232,0.1)] rounded-lg"
         )}
       >
         {/* Header row (always visible, clickable) */}

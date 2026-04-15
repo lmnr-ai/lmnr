@@ -10,26 +10,41 @@ import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 // Types
 // ---------------------------------------------------------------------------
 
+/** A collapsed-state trace bar OR a pending-expand (loading) bar. */
 export interface SessionTimelineTraceBar {
   type: "trace";
   traceId: string;
   left: number; // percentage 0-100 within segment
   width: number; // percentage 0-100 within segment
   row: number;
-  expanded: boolean;
+  /** True when the user clicked to expand but spans haven't arrived yet.
+   *  Renders the bar with a shimmer pulse. Keeps the 2-row block geometry. */
+  shimmer: boolean;
 }
 
-export interface SessionTimelineSpanBar {
-  type: "span";
-  traceId: string;
+/** A span inside an expanded trace's container. Coordinates are
+ *  TRACE-RELATIVE (% of the container's width), not segment-relative. */
+export interface SessionTimelineContainerSpan {
   span: TraceViewSpan;
-  left: number;
-  width: number;
-  row: number;
+  left: number; // % of container width
+  width: number; // % of container width
+  row: number; // 0-based row within container
   color: string;
 }
 
-export type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanBar;
+/** Expanded trace rendered as a bordered container holding its spans.
+ *  Replaces the trace bar entirely when expanded + spans are loaded. */
+export interface SessionTimelineSpanContainer {
+  type: "span-container";
+  traceId: string;
+  left: number; // % of segment (matches underlying trace's time extent)
+  width: number; // % of segment
+  row: number; // starting row in segment
+  rowHeight: number; // number of rows this container occupies (>= 2)
+  spans: SessionTimelineContainerSpan[];
+}
+
+export type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanContainer;
 
 export interface SessionTimelineSegmentData {
   elements: SessionTimelineElement[];
@@ -63,6 +78,11 @@ export const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
 /** Fixed pixel width for gap dividers. */
 export const GAP_WIDTH_PX = 48;
+
+/** Minimum block height (in rows) for both trace bars and empty/loading
+ *  span containers. Matches the 2-row allocation used by the trace bar's
+ *  14px visual within a 16px slot, for visual consistency across states. */
+const MIN_BLOCK_ROWS = 2;
 
 // ---------------------------------------------------------------------------
 // Gap duration formatting
@@ -117,7 +137,99 @@ function clusterTraces(traces: TraceRow[]): TraceCluster[] {
 }
 
 // ---------------------------------------------------------------------------
-// Per-segment layout (gravity packing)
+// Per-container span packing
+// ---------------------------------------------------------------------------
+
+/**
+ * Pack a trace's spans inside its expanded container.
+ *
+ * Unlike the old algorithm, this is scoped entirely within the container:
+ * horizontal coords are trace-relative (% of trace duration), and row
+ * occupancy is local (starts at row 0). No segment-wide cross-contamination.
+ *
+ * DFS ordering from top-level spans + `parent.row + 1` constraint preserves
+ * the nested-below-parent visual. Siblings greedily share rows when their
+ * time ranges don't overlap.
+ */
+function packSpansInContainer(
+  spans: TraceViewSpan[],
+  trace: TraceRow
+): { spans: SessionTimelineContainerSpan[]; rowCount: number } {
+  if (spans.length === 0) return { spans: [], rowCount: 0 };
+
+  const traceStartMs = new Date(trace.startTime).getTime();
+  const traceEndMs = new Date(trace.endTime).getTime();
+  const traceDurationMs = Math.max(traceEndMs - traceStartMs, 1);
+
+  const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+  const childSpansMap: Record<string, TraceViewSpan[]> = {};
+  for (const span of spans) {
+    if (span.parentSpanId) {
+      if (!childSpansMap[span.parentSpanId]) childSpansMap[span.parentSpanId] = [];
+      childSpansMap[span.parentSpanId].push(span);
+    }
+  }
+
+  const topLevelSpans = spans.filter((s) => !s.parentSpanId);
+  const orderedSpans: TraceViewSpan[] = [];
+  const visited = new Set<string>();
+  const dfs = (spanId: string) => {
+    if (visited.has(spanId)) return;
+    visited.add(spanId);
+    const span = spanMap.get(spanId);
+    if (span) orderedSpans.push(span);
+    for (const child of childSpansMap[spanId] || []) dfs(child.spanId);
+  };
+  for (const span of topLevelSpans) dfs(span.spanId);
+
+  const rowOccupancy: Array<Array<{ left: number; right: number }>> = [];
+  const spanRowMap = new Map<string, number>();
+  const result: SessionTimelineContainerSpan[] = [];
+
+  const hasOverlap = (row: number, left: number, right: number): boolean => {
+    const slots = rowOccupancy[row];
+    if (!slots) return false;
+    for (const o of slots) {
+      if (!(right <= o.left || left >= o.right)) return true;
+    }
+    return false;
+  };
+  const occupy = (row: number, left: number, right: number) => {
+    if (!rowOccupancy[row]) rowOccupancy[row] = [];
+    rowOccupancy[row].push({ left, right });
+  };
+
+  for (const span of orderedSpans) {
+    const spanStartMs = new Date(span.startTime).getTime();
+    const spanEndMs = new Date(span.endTime).getTime();
+    const left = ((spanStartMs - traceStartMs) / traceDurationMs) * 100;
+    const width = ((spanEndMs - spanStartMs) / traceDurationMs) * 100;
+    const right = left + width;
+
+    const parentRow = span.parentSpanId ? (spanRowMap.get(span.parentSpanId) ?? -1) : -1;
+    const minRow = Math.max(0, parentRow + 1);
+
+    let targetRow = minRow;
+    while (hasOverlap(targetRow, left, right)) {
+      targetRow++;
+    }
+
+    spanRowMap.set(span.spanId, targetRow);
+    occupy(targetRow, left, right);
+
+    const color =
+      span.status === "error"
+        ? "rgba(204, 51, 51, 1)"
+        : (SPAN_TYPE_TO_COLOR[span.spanType] ?? "rgba(96, 165, 250, 0.7)");
+
+    result.push({ span, left, width, row: targetRow, color });
+  }
+
+  return { spans: result, rowCount: rowOccupancy.length };
+}
+
+// ---------------------------------------------------------------------------
+// Per-segment layout (gravity packing of variable-height blocks)
 // ---------------------------------------------------------------------------
 
 type RowInterval = { left: number; right: number };
@@ -125,17 +237,17 @@ type RowInterval = { left: number; right: number };
 function computeSegmentLayout(
   traces: TraceRow[],
   traceSpans: Record<string, TraceViewSpan[]>,
+  traceSpansLoading: Record<string, boolean>,
   expandedTraceIds: Set<string>,
   segmentStartMs: number,
   segmentDurationMs: number
 ): { elements: SessionTimelineElement[]; totalRows: number } {
-  // Percentages are relative to this (rounded up to nearest second).
+  // Percentages relative to this (rounded up to nearest second).
   const upperIntervalMs = Math.max(Math.ceil(segmentDurationMs / 1000) * 1000, 1);
 
-  // Shared row occupancy for the segment
   const rowOccupancy: RowInterval[][] = [];
 
-  const hasOverlap = (row: number, left: number, right: number, height: number = 1): boolean => {
+  const hasOverlap = (row: number, left: number, right: number, height: number): boolean => {
     for (let r = row; r < row + height; r++) {
       const slots = rowOccupancy[r];
       if (!slots) continue;
@@ -146,111 +258,99 @@ function computeSegmentLayout(
     return false;
   };
 
-  const occupy = (row: number, left: number, right: number, height: number = 1) => {
+  const occupy = (row: number, left: number, right: number, height: number) => {
     for (let r = row; r < row + height; r++) {
       if (!rowOccupancy[r]) rowOccupancy[r] = [];
       rowOccupancy[r].push({ left, right });
     }
   };
 
-  // --- Pass 1: Pack trace bars (2-row-tall) ---
-  const traceBarData = traces
-    .map((trace) => {
+  // --- Step 1: build one block descriptor per trace. ---
+  // Each block has an x-extent (from trace time) and a height (in rows).
+  // Blocks are the unit of vertical packing — a trace's spans NEVER share
+  // vertical space with another trace's block, so overlapping traces stack
+  // cleanly (per the "x-axis is time, no y-overlap" invariant).
+  type Block = {
+    trace: TraceRow;
+    left: number;
+    width: number;
+    height: number;
+    // Rendered element for this block (without `row` yet — assigned below).
+    render:
+      | { type: "trace"; shimmer: boolean }
+      | { type: "span-container"; rowHeight: number; spans: SessionTimelineContainerSpan[] };
+  };
+
+  const blocks: Block[] = traces
+    .map<Block>((trace) => {
       const startMs = new Date(trace.startTime).getTime();
       const endMs = new Date(trace.endTime).getTime();
+      const left = ((startMs - segmentStartMs) / upperIntervalMs) * 100;
+      const width = ((endMs - startMs) / upperIntervalMs) * 100;
+
+      const isExpanded = expandedTraceIds.has(trace.id);
+      const spans = traceSpans[trace.id];
+      const isLoading = !!traceSpansLoading[trace.id];
+
+      // Expanded + spans loaded → render as span container.
+      // Everything else → render as trace bar (shimmer if loading in-flight).
+      //
+      // With two-phase expansion in `index.tsx`, `isExpanded` only flips to
+      // true AFTER spans arrive (or error). The "expanded && !spans" branch
+      // is defensive — falls back to trace bar so layout doesn't break.
+      if (isExpanded && spans) {
+        const packed = packSpansInContainer(spans, trace);
+        const rowHeight = Math.max(packed.rowCount, MIN_BLOCK_ROWS);
+        return {
+          trace,
+          left,
+          width,
+          height: rowHeight,
+          render: { type: "span-container", rowHeight, spans: packed.spans },
+        };
+      }
+
+      const shimmer = isLoading && !spans;
       return {
-        traceId: trace.id,
-        left: ((startMs - segmentStartMs) / upperIntervalMs) * 100,
-        width: ((endMs - startMs) / upperIntervalMs) * 100,
+        trace,
+        left,
+        width,
+        height: MIN_BLOCK_ROWS,
+        render: { type: "trace", shimmer },
       };
     })
     .sort((a, b) => a.left - b.left);
 
-  const traceRowMap = new Map<string, number>();
+  // --- Step 2: gravity-pack blocks. Each block finds the lowest row where
+  //     it doesn't x-overlap any already-placed block across its full height. ---
+  const elements: SessionTimelineElement[] = [];
 
-  for (const bar of traceBarData) {
-    const right = bar.left + bar.width;
+  for (const block of blocks) {
+    const right = block.left + block.width;
     let row = 0;
-    while (hasOverlap(row, bar.left, right, 2)) {
+    while (hasOverlap(row, block.left, right, block.height)) {
       row++;
     }
-    traceRowMap.set(bar.traceId, row);
-    occupy(row, bar.left, right, 2);
-  }
+    occupy(row, block.left, right, block.height);
 
-  const elements: SessionTimelineElement[] = traceBarData.map((bar) => ({
-    type: "trace" as const,
-    traceId: bar.traceId,
-    left: bar.left,
-    width: bar.width,
-    row: traceRowMap.get(bar.traceId)!,
-    expanded: expandedTraceIds.has(bar.traceId),
-  }));
-
-  // --- Pass 2: Pack spans for expanded traces ---
-  for (const trace of traces) {
-    if (!expandedTraceIds.has(trace.id)) continue;
-    const spans = traceSpans[trace.id];
-    if (!spans || spans.length === 0) continue;
-
-    const traceRow = traceRowMap.get(trace.id)!;
-    const spanMinRow = traceRow + 2;
-
-    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
-    const childSpansMap: Record<string, TraceViewSpan[]> = {};
-    for (const span of spans) {
-      if (span.parentSpanId) {
-        if (!childSpansMap[span.parentSpanId]) childSpansMap[span.parentSpanId] = [];
-        childSpansMap[span.parentSpanId].push(span);
-      }
-    }
-
-    // DFS ordering
-    const topLevelSpans = spans.filter((s) => !s.parentSpanId);
-    const orderedSpans: TraceViewSpan[] = [];
-    const visited = new Set<string>();
-    const dfs = (spanId: string) => {
-      if (visited.has(spanId)) return;
-      visited.add(spanId);
-      const span = spanMap.get(spanId);
-      if (span) orderedSpans.push(span);
-      for (const child of childSpansMap[spanId] || []) dfs(child.spanId);
-    };
-    for (const span of topLevelSpans) dfs(span.spanId);
-
-    const spanRowMap = new Map<string, number>();
-
-    for (const span of orderedSpans) {
-      const spanStartMs = new Date(span.startTime).getTime();
-      const spanEndMs = new Date(span.endTime).getTime();
-      const left = ((spanStartMs - segmentStartMs) / upperIntervalMs) * 100;
-      const width = ((spanEndMs - spanStartMs) / upperIntervalMs) * 100;
-      const right = left + width;
-
-      const parentRow = span.parentSpanId ? (spanRowMap.get(span.parentSpanId) ?? spanMinRow - 1) : spanMinRow - 1;
-      const minRow = Math.max(spanMinRow, parentRow + 1);
-
-      let targetRow = minRow;
-      while (hasOverlap(targetRow, left, right)) {
-        targetRow++;
-      }
-
-      spanRowMap.set(span.spanId, targetRow);
-      occupy(targetRow, left, right);
-
-      const color =
-        span.status === "error"
-          ? "rgba(204, 51, 51, 1)"
-          : (SPAN_TYPE_TO_COLOR[span.spanType] ?? "rgba(96, 165, 250, 0.7)");
-
+    if (block.render.type === "trace") {
       elements.push({
-        type: "span",
-        traceId: trace.id,
-        span,
-        left,
-        width,
-        row: targetRow,
-        color,
+        type: "trace",
+        traceId: block.trace.id,
+        left: block.left,
+        width: block.width,
+        row,
+        shimmer: block.render.shimmer,
+      });
+    } else {
+      elements.push({
+        type: "span-container",
+        traceId: block.trace.id,
+        left: block.left,
+        width: block.width,
+        row,
+        rowHeight: block.render.rowHeight,
+        spans: block.render.spans,
       });
     }
   }
@@ -271,6 +371,7 @@ const EMPTY_SECTIONS: SessionTimelineSections = {
 export function computeSessionTimelineSegments(
   traces: TraceRow[],
   traceSpans: Record<string, TraceViewSpan[]>,
+  traceSpansLoading: Record<string, boolean>,
   expandedTraceIds: Set<string>
 ): SessionTimelineSections {
   if (traces.length === 0) return EMPTY_SECTIONS;
@@ -287,6 +388,7 @@ export function computeSessionTimelineSegments(
     const { elements, totalRows } = computeSegmentLayout(
       cluster.traces,
       traceSpans,
+      traceSpansLoading,
       expandedTraceIds,
       cluster.startMs,
       durationMs

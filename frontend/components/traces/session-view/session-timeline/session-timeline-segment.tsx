@@ -7,7 +7,7 @@ import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condense
 import { cn } from "@/lib/utils";
 
 import { type SessionViewSelectedSpan } from "../store";
-import SessionTimelineSpanBarElement from "./session-timeline-span-bar";
+import SessionTimelineSpanContainerElement from "./session-timeline-span-container";
 import SessionTimelineTraceBarElement from "./session-timeline-trace-bar";
 import { type SessionTimelineSegmentData } from "./utils";
 
@@ -58,7 +58,7 @@ function SessionTimelineSegment({
   });
 
   const traceBars = useMemo(() => segment.elements.filter((e) => e.type === "trace"), [segment.elements]);
-  const spanBars = useMemo(() => segment.elements.filter((e) => e.type === "span"), [segment.elements]);
+  const spanContainers = useMemo(() => segment.elements.filter((e) => e.type === "span-container"), [segment.elements]);
 
   const segmentOffsetMs = segment.startTimeMs - sessionStartMs;
 
@@ -116,17 +116,18 @@ function SessionTimelineSegment({
         ))}
       </div>
 
-      {/* Trace bars + span bars */}
+      {/* Trace bars (collapsed or pending) + expanded span containers */}
       <div className="relative" style={{ minHeight: contentHeight }}>
         {traceBars.map((bar) => (
           <SessionTimelineTraceBarElement key={bar.traceId} bar={bar} onClick={onTraceBarClick} />
         ))}
-        {spanBars.map((bar) => (
-          <SessionTimelineSpanBarElement
-            key={bar.span.spanId}
-            bar={bar}
+        {spanContainers.map((container) => (
+          <SessionTimelineSpanContainerElement
+            key={container.traceId}
+            container={container}
             selectedSpan={selectedSpan}
-            onClick={onSpanBarClick}
+            onClick={onTraceBarClick}
+            onSpanClick={onSpanBarClick}
           />
         ))}
       </div>

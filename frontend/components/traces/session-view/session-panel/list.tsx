@@ -1,0 +1,383 @@
+"use client";
+
+import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
+
+import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
+import { AgentGroupHeader } from "@/components/traces/trace-view/list/agent-group-item";
+import ListItem from "@/components/traces/trace-view/list/list-item";
+import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { useSessionViewStore } from "../store";
+import { buildSessionFlatRows } from "../utils";
+import TraceItem from "./trace-item";
+import { useSessionSpanPreviews } from "./use-session-span-previews";
+
+/**
+ * Virtualized body of the session panel. Reads everything it needs directly
+ * from the session-view store — no props. Owns:
+ *   - flat row construction from store state
+ *   - TanStack virtualizer with sticky trace-header support
+ *   - preview / trace-IO fetching driven by the visible window
+ *   - scroll-to-selected-span behavior
+ */
+export default function SessionList() {
+  const {
+    projectId,
+    traces,
+    traceSpans,
+    traceSpansLoading,
+    traceSpansError,
+    traceAgentPaths,
+    expandedTraceIds,
+    readerExpandedGroups,
+    selectedSpan,
+    searchResults,
+    toggleTraceExpanded,
+    toggleReaderGroup,
+    setSelectedSpan,
+  } = useSessionViewStore(
+    (s) => ({
+      projectId: s.projectId,
+      traces: s.traces,
+      traceSpans: s.traceSpans,
+      traceSpansLoading: s.traceSpansLoading,
+      traceSpansError: s.traceSpansError,
+      traceAgentPaths: s.traceAgentPaths,
+      expandedTraceIds: s.expandedTraceIds,
+      readerExpandedGroups: s.readerExpandedGroups,
+      selectedSpan: s.selectedSpan,
+      searchResults: s.searchResults,
+      toggleTraceExpanded: s.toggleTraceExpanded,
+      toggleReaderGroup: s.toggleReaderGroup,
+      setSelectedSpan: s.setSelectedSpan,
+    }),
+    shallow
+  );
+
+  const flatRows = useMemo(
+    () =>
+      buildSessionFlatRows({
+        traces,
+        traceSpans,
+        traceSpansLoading,
+        traceSpansError,
+        traceAgentPaths,
+        expandedTraceIds,
+        readerExpandedGroups,
+        searchResults,
+      }),
+    [
+      traces,
+      traceSpans,
+      traceSpansLoading,
+      traceSpansError,
+      traceAgentPaths,
+      expandedTraceIds,
+      readerExpandedGroups,
+      searchResults,
+    ]
+  );
+
+  const traceIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    traces.forEach((t, idx) => map.set(t.id, idx + 1));
+    return map;
+  }, [traces]);
+
+  // --- Sticky setup: canonical TanStack pattern (docs example verbatim). ---
+  // Sticky-eligible = expanded trace-headers only. We deliberately do NOT
+  // release a sticky at trace boundaries — it stays pinned until the next
+  // expanded trace-header replaces it. This is the natural CSS + TanStack
+  // default behavior; re-adding the "release at boundary" constraint means
+  // more machinery than it's worth right now.
+  const stickyIndexes = useMemo(
+    () =>
+      flatRows.reduce<number[]>((acc, row, idx) => {
+        if (row.type === "trace-header" && row.expanded) acc.push(idx);
+        return acc;
+      }, []),
+    [flatRows]
+  );
+
+  const activeStickyIndexRef = useRef<number | null>(null);
+  const isActiveSticky = useCallback((index: number) => activeStickyIndexRef.current === index, []);
+
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      if (stickyIndexes.length === 0) {
+        activeStickyIndexRef.current = null;
+        return defaultRangeExtractor(range);
+      }
+      activeStickyIndexRef.current = [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? null;
+      const next = new Set([
+        ...(activeStickyIndexRef.current !== null ? [activeStickyIndexRef.current] : []),
+        ...defaultRangeExtractor(range),
+      ]);
+      return [...next].sort((a, b) => a - b);
+    },
+    [stickyIndexes]
+  );
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Stable `getItemKey` callback identity: we look up via a ref so the
+  // callback reference doesn't change when `flatRows` rebuilds. Stable keys
+  // let TanStack's measurement cache track items across reorderings when
+  // expand/collapse shifts indices.
+  const flatRowsRef = useRef(flatRows);
+  flatRowsRef.current = flatRows;
+  const getItemKey = useCallback((index: number) => {
+    const row = flatRowsRef.current[index];
+    if (!row) return index;
+    switch (row.type) {
+      case "trace-header":
+        return `th::${row.trace.id}`;
+      case "trace-loading":
+        return `tl::${row.traceId}`;
+      case "trace-error":
+        return `te::${row.traceId}`;
+      case "trace-empty":
+        return `tm::${row.traceId}`;
+      case "user-input":
+        return `ui::${row.traceId}`;
+      case "span":
+        return `sp::${row.traceId}::${row.span.spanId}`;
+      case "group-header":
+        return `gh::${row.traceId}::${row.group.groupId}`;
+      case "group-span":
+        return `gs::${row.traceId}::${row.group.groupId}::${row.span.spanId}`;
+    }
+  }, []);
+
+  // Per-row-type estimates near the median of actual rendered heights.
+  // Keeping estimates close to actuals minimizes TanStack's scroll
+  // re-anchoring on measure — which is the natural behavior we're leaning
+  // on now (no override of shouldAdjustScrollPositionOnItemSizeChange).
+  const estimateSize = useCallback((index: number) => {
+    const row = flatRowsRef.current[index];
+    if (!row) return 70;
+    switch (row.type) {
+      case "trace-header":
+        return row.expanded ? 36 : 280;
+      case "group-header":
+        return 36;
+      case "trace-error":
+      case "trace-empty":
+        return 42;
+      case "trace-loading":
+      case "user-input":
+      case "span":
+      case "group-span":
+        return 70;
+    }
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: flatRows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize,
+    overscan: 20,
+    rangeExtractor,
+    getItemKey,
+  });
+
+  const items = virtualizer.getVirtualItems();
+
+  // Declarative scroll-to-selected-span. When `selectedSpan` changes (e.g. via
+  // the URL resolver in session-view-content), flat rows rebuild once the
+  // trace's spans are loaded — at which point `findIndex` succeeds and we
+  // scroll. Fires at most once per selection via `lastScrolledSpanIdRef`.
+  const lastScrolledSpanIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedSpan) {
+      lastScrolledSpanIdRef.current = null;
+      return;
+    }
+    if (lastScrolledSpanIdRef.current === selectedSpan.spanId) return;
+
+    const idx = flatRows.findIndex(
+      (r) =>
+        (r.type === "span" || r.type === "group-span") &&
+        r.traceId === selectedSpan.traceId &&
+        r.span.spanId === selectedSpan.spanId
+    );
+    if (idx === -1) return; // rows haven't settled yet; effect re-runs as flatRows changes
+
+    lastScrolledSpanIdRef.current = selectedSpan.spanId;
+    const rafId = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: "center" });
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [selectedSpan, flatRows, virtualizer]);
+
+  // --- Preview fetching (batched across traces) ---
+  //
+  // Derive the set of span IDs currently visible in the virtualizer window,
+  // grouped by trace. We include visible "span" / "group-span" rows and
+  // "group-header" firstLlmSpanId (as an input-span for userInputs).
+  // Collapsed trace-headers don't need per-span previews — the `/traces/io`
+  // endpoint delivers the output text + span payload directly.
+  const rangeStart = items[0]?.index ?? 0;
+  const rangeEnd = items[items.length - 1]?.index ?? -1;
+
+  const { visibleSpanIdsByTrace, inputSpanIdsByTrace } = useMemo(() => {
+    const visible: Record<string, string[]> = {};
+    const inputs: Record<string, string[]> = {};
+    const pushUnique = (map: Record<string, string[]>, traceId: string, spanId: string) => {
+      if (!map[traceId]) map[traceId] = [];
+      if (!map[traceId].includes(spanId)) map[traceId].push(spanId);
+    };
+
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (!row) continue;
+
+      if (row.type === "span" || row.type === "group-span") {
+        pushUnique(visible, row.traceId, row.span.spanId);
+      } else if (row.type === "group-header") {
+        if (row.group.firstLlmSpanId) {
+          pushUnique(visible, row.traceId, row.group.firstLlmSpanId);
+          pushUnique(inputs, row.traceId, row.group.firstLlmSpanId);
+        }
+      }
+    }
+    return { visibleSpanIdsByTrace: visible, inputSpanIdsByTrace: inputs };
+  }, [rangeStart, rangeEnd, flatRows]);
+
+  // Span types per trace (used as a hint by the preview endpoint).
+  const spanTypesByTrace = useMemo(() => {
+    const out: Record<string, Record<string, string>> = {};
+    for (const [tid, spans] of Object.entries(traceSpans)) {
+      const types: Record<string, string> = {};
+      for (const s of spans) types[s.spanId] = s.spanType;
+      out[tid] = types;
+    }
+    return out;
+  }, [traceSpans]);
+
+  const previewTraces = useMemo(
+    () => traces.map((t) => ({ id: t.id, startTime: t.startTime, endTime: t.endTime })),
+    [traces]
+  );
+
+  const { previews, userInputs } = useSessionSpanPreviews({
+    projectId,
+    traces: previewTraces,
+    visibleSpanIdsByTrace,
+    inputSpanIdsByTrace,
+    spanTypesByTrace,
+  });
+
+  // Main-agent input/output text + output span, fetched in one batched call
+  // per session. Reuses the `/traces/io` endpoint + hook that powers the
+  // sessions-table trace cards. Sessions can have many traces, so we pass
+  // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
+  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
+  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds, { isIncludeSpanCounts: true });
+
+  return (
+    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
+      <div
+        className="relative"
+        style={{
+          height: virtualizer.getTotalSize(),
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {items.map((virtualRow) => {
+          const row = flatRows[virtualRow.index];
+          if (!row) return null;
+
+          const activeSticky = isActiveSticky(virtualRow.index);
+
+          // Canonical TanStack sticky: active sticky uses
+          // `position: sticky; top: 0`; every other row uses plain
+          // absolute positioning at its natural Y. Nothing manages
+          // scroll — CSS + TanStack defaults do the work.
+          const positionStyle: React.CSSProperties = activeSticky
+            ? { position: "sticky", top: 0 }
+            : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
+
+          if (row.type === "trace-header") {
+            positionStyle.zIndex = virtualRow.index + 1;
+          }
+
+          return (
+            <div
+              key={virtualRow.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{ ...positionStyle, left: 0, width: "100%" }}
+            >
+              {row.type === "trace-header" ? (
+                <TraceItem
+                  trace={row.trace}
+                  expanded={row.expanded}
+                  traceIndex={traceIndexById.get(row.trace.id) ?? 0}
+                  totalTraces={traces.length}
+                  onToggle={() => toggleTraceExpanded(row.trace.id)}
+                  traceIO={traceIO[row.trace.id]}
+                />
+              ) : row.type === "trace-loading" ? (
+                <div className="flex flex-col gap-2 px-3 py-2">
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-5 w-2/3" />
+                </div>
+              ) : row.type === "trace-error" ? (
+                <div className="px-3 py-4 text-sm text-destructive">{row.error}</div>
+              ) : row.type === "trace-empty" ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
+              ) : row.type === "user-input" ? (
+                <UserInputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
+              ) : row.type === "group-header" ? (
+                (() => {
+                  const firstSpan = row.group.spans[0];
+                  const firstIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
+                  const groupPreview = firstSpan
+                    ? firstIsLlm && row.group.firstLlmSpanId
+                      ? userInputs[row.group.firstLlmSpanId]
+                      : previews[firstSpan.spanId]
+                    : null;
+                  return (
+                    <AgentGroupHeader
+                      group={row.group}
+                      collapsed={row.collapsed}
+                      preview={groupPreview}
+                      onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                      onToggleGroup={(groupId) => toggleReaderGroup(row.traceId, groupId)}
+                    />
+                  );
+                })()
+              ) : row.type === "group-span" ? (
+                <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
+                  <ListItem
+                    span={row.span}
+                    output={previews[row.span.spanId]}
+                    onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                    isSelected={
+                      !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                    }
+                  />
+                </div>
+              ) : (
+                <ListItem
+                  span={row.span}
+                  output={previews[row.span.spanId]}
+                  onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
+                  isSelected={
+                    !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                  }
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

@@ -21,8 +21,10 @@ const SessionTimelineTraceBarElement = ({ bar, onClick }: SessionTimelineTraceBa
   return (
     <div
       className={cn(
-        "absolute rounded-sm cursor-pointer hover:brightness-125",
-        bar.expanded ? "bg-muted-foreground/70" : "bg-muted-foreground/50"
+        "absolute rounded-xs cursor-pointer hover:brightness-125 bg-muted-foreground/50",
+        // Shimmer while spans are loading after a click. `animate-pulse`
+        // matches the convention used by `Skeleton` (ui/skeleton.tsx:9).
+        bar.shimmer && "animate-pulse bg-muted-foreground/70"
       )}
       style={{
         left: `${bar.left}%`,

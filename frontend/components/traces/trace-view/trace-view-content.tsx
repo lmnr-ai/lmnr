@@ -339,7 +339,13 @@ export default function TraceViewContent({
       {!selectedSpan ? (
         <SpanViewSkeleton />
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-        <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+        <HumanEvaluatorSpanView
+          traceId={selectedSpan.traceId}
+          spanId={selectedSpan.spanId}
+          key={selectedSpan.spanId}
+          onClose={() => setSelectedSpan(undefined)}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
+        />
       ) : (
         <SpanView
           key={selectedSpan.spanId}
@@ -347,6 +353,8 @@ export default function TraceViewContent({
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
           initialTab={snippetTab}
+          onClose={() => setSelectedSpan(undefined)}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       )}
     </div>

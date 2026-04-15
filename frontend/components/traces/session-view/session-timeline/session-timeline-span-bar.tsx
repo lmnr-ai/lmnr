@@ -7,26 +7,28 @@ import React, { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 import { type SessionViewSelectedSpan } from "../store";
-import { type SessionTimelineSpanBar } from "./utils";
+import { type SessionTimelineContainerSpan } from "./utils";
 
 const ROW_HEIGHT = 8;
 
 interface SessionTimelineSpanBarElementProps {
-  bar: SessionTimelineSpanBar;
+  /** Span bar inside an expanded trace's container. Coords are trace-relative. */
+  bar: SessionTimelineContainerSpan;
+  traceId: string;
   selectedSpan?: SessionViewSelectedSpan;
   onClick: (traceId: string, spanId: string) => void;
 }
 
-const SessionTimelineSpanBarElement = ({ bar, selectedSpan, onClick }: SessionTimelineSpanBarElementProps) => {
+const SessionTimelineSpanBarElement = ({ bar, traceId, selectedSpan, onClick }: SessionTimelineSpanBarElementProps) => {
   const isSelected = useMemo(
-    () => selectedSpan?.traceId === bar.traceId && selectedSpan?.spanId === bar.span.spanId,
-    [selectedSpan, bar.traceId, bar.span.spanId]
+    () => selectedSpan?.traceId === traceId && selectedSpan?.spanId === bar.span.spanId,
+    [selectedSpan, traceId, bar.span.spanId]
   );
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!bar.span.pending) {
-      onClick(bar.traceId, bar.span.spanId);
+      onClick(traceId, bar.span.spanId);
     }
   };
 
@@ -36,9 +38,10 @@ const SessionTimelineSpanBarElement = ({ bar, selectedSpan, onClick }: SessionTi
         "border border-white/70 z-20": isSelected,
       })}
       style={{
+        // left/width are percentages of the container's width (trace-relative).
         left: `${bar.left}%`,
         width: `max(${bar.width}%, 4px)`,
-        top: bar.row * ROW_HEIGHT + 1,
+        top: bar.row * ROW_HEIGHT,
         height: ROW_HEIGHT - 2,
         backgroundColor: bar.color,
       }}

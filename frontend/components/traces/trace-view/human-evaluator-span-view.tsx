@@ -15,9 +15,11 @@ import { swrFetcher } from "@/lib/utils";
 interface HumanEvaluatorSpanViewProps {
   spanId: string;
   traceId: string;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
-export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanViewProps) {
+export function HumanEvaluatorSpanView({ spanId, traceId, onClose, isAlwaysSelectSpan }: HumanEvaluatorSpanViewProps) {
   const { projectId, evaluationId: evaluationIdParams } = useParams();
   const searchParams = useSearchParams();
   const evaluationId = (evaluationIdParams || searchParams.get("evaluationId")) as string | null;
@@ -56,7 +58,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
   }
 
   return (
-    <SpanControls span={span}>
+    <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
       <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
         <div className="px-2 pb-2 mt-2 border-b w-full">
           <TabsList className="border-none text-xs h-7">

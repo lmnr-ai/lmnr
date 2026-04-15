@@ -168,12 +168,7 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
 
     const loading = traceSpansLoading[trace.id];
     const spans = traceSpans[trace.id];
-    if (loading && !spans) {
-      rows.push({ type: "trace-loading", traceId: trace.id });
-      continue;
-    }
-
-    if (!spans) {
+    if ((loading && !spans) || !spans) {
       rows.push({ type: "trace-loading", traceId: trace.id });
       continue;
     }
