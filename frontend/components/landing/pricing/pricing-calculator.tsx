@@ -14,7 +14,7 @@ const TOKEN_STEPS = [
   35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
   400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
 ];
-const SIGNAL_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
+const SIGNAL_STEPS = [1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 500_000];
 
 const BYTES_PER_TOKEN = 3;
 const PRO_DATA_THRESHOLD_GB = 30;
@@ -25,7 +25,7 @@ interface TierEstimate {
   name: string;
   basePrice: number;
   includedDataGB: number;
-  includedSignals: number;
+  includedSignalSteps: number;
   dataOverageRate: number;
   signalOverageRate: number;
   dataOverageCost: number;
@@ -43,21 +43,21 @@ function buildEstimate(
   name: string,
   basePrice: number,
   includedDataGB: number,
-  includedSignals: number,
+  includedSignalSteps: number,
   dataOverageRate: number,
   signalOverageRate: number,
   dataGB: number,
-  signalRuns: number,
+  signalStepsProcessed: number,
   retention: string,
   support: string
 ): TierEstimate {
   const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
-  const signalOverageCost = Math.max(0, signalRuns - includedSignals) * signalOverageRate;
+  const signalOverageCost = Math.max(0, signalStepsProcessed - includedSignalSteps) * signalOverageRate;
   return {
     name,
     basePrice,
     includedDataGB,
-    includedSignals,
+    includedSignalSteps,
     dataOverageRate,
     signalOverageRate,
     dataOverageCost,
@@ -129,16 +129,16 @@ function TierColumn({
   isRecommended,
   recommendationTooltip,
   dataGB,
-  signalRuns,
+  signalStepsProcessed,
 }: {
   estimate: TierEstimate;
   isRecommended: boolean;
   recommendationTooltip?: string;
   dataGB: number;
-  signalRuns: number;
+  signalStepsProcessed: number;
 }) {
   const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
-  const extraSignals = Math.max(0, signalRuns - estimate.includedSignals);
+  const extraSignals = Math.max(0, signalStepsProcessed - estimate.includedSignalSteps);
 
   return (
     <div
@@ -159,7 +159,7 @@ function TierColumn({
             <span>${formatDollars(estimate.basePrice)}</span>
           </div>
           <div className="text-xs text-landing-text-400">
-            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignals)} runs included
+            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} runs included
           </div>
         </div>
 
@@ -186,7 +186,7 @@ function TierColumn({
           </div>
         ) : (
           <div className="flex justify-between text-landing-text-300">
-            <span>Signals ({formatNumber(signalRuns)})</span>
+            <span>Agent steps processed in Signals ({formatNumber(signalStepsProcessed)})</span>
             <span>Included</span>
           </div>
         )}
@@ -236,15 +236,14 @@ function EnterpriseTierColumn({
             <span>Base</span>
             <span>Custom</span>
           </div>
-          <div className="text-xs text-landing-text-400">1 TB data + 100,000 runs included</div>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Data (1 TB)</span>
-          <span>Included</span>
+          <span>Additional data</span>
+          <span>Custom</span>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Signals (100,000)</span>
-          <span>Included</span>
+          <span>Additional Signal steps processing</span>
+          <span>Custom</span>
         </div>
       </div>
 
@@ -270,7 +269,7 @@ function EnterpriseTierColumn({
 type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
 
 function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
-  if (dataGB <= 1 && signalRuns <= 100) return "free";
+  if (dataGB <= 1 && signalRuns <= 1000) return "free";
   if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
   if (dataGB >= PRO_DATA_THRESHOLD_GB || proTotal < hobbyTotal) return "pro";
   return "hobby";
@@ -284,9 +283,9 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  const free = buildEstimate("Free", 0, 1, 100, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 10_000, 1.5, 0.015, dataGB, signalRuns, "90-day", "Slack");
+  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "15-day", "Community");
+  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30-day", "Email");
+  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "90-day", "Slack");
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 
@@ -321,7 +320,7 @@ export default function PricingCalculator() {
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Signal runs per month</span>
+              <span className="font-medium text-landing-text-100">Signals: agent steps per month</span>
               <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
             </div>
             <Slider
@@ -342,7 +341,7 @@ export default function PricingCalculator() {
               isRecommended
               recommendationTooltip={freeTooltip}
               dataGB={dataGB}
-              signalRuns={signalRuns}
+              signalStepsProcessed={signalRuns}
             />
           )}
           {state === "hobby" && (
@@ -351,7 +350,7 @@ export default function PricingCalculator() {
               isRecommended
               recommendationTooltip={hobbyTooltip}
               dataGB={dataGB}
-              signalRuns={signalRuns}
+              signalStepsProcessed={signalRuns}
             />
           )}
           {state === "pro" && (
@@ -360,7 +359,7 @@ export default function PricingCalculator() {
               isRecommended
               recommendationTooltip={proTooltip}
               dataGB={dataGB}
-              signalRuns={signalRuns}
+              signalStepsProcessed={signalRuns}
             />
           )}
           {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}

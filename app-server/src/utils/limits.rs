@@ -9,7 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{
             PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+            WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
@@ -46,9 +46,9 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if project_info.tier_name.is_free() {
-        return Some(project_info.signal_runs_limit);
+        return Some(project_info.signal_steps_limit);
     }
-    project_info.custom_signal_runs_limit
+    project_info.custom_signal_steps_limit
 }
 
 /// Compute the start of the current billing period from workspace reset_time.
@@ -157,7 +157,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let signal_runs = match cache.get::<i64>(&cache_key).await {
         Ok(Some(runs)) => runs,
@@ -300,7 +300,7 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-pub async fn update_workspace_signal_runs_used(
+pub async fn update_workspace_signal_steps_processed(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -339,7 +339,7 @@ pub async fn update_workspace_signal_runs_used(
 
     let workspace_id = project_info.workspace_id;
 
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
@@ -391,7 +391,7 @@ pub async fn update_workspace_signal_runs_used(
         queue,
         workspace_id,
         project_info.reset_time,
-        UsageItem::SignalRuns,
+        UsageItem::SignalStepsProcessed,
         current_value,
     )
     .await;
@@ -476,6 +476,7 @@ async fn send_soft_limit_notification(
     let usage_item_str = match usage_item {
         UsageItem::Bytes => "bytes",
         UsageItem::SignalRuns => "signal_runs",
+        UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
 
     let notification_message = NotificationMessage {
@@ -542,6 +543,10 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
         UsageItem::SignalRuns => {
             let formatted = format_number_with_commas(limit_value);
             ("Signal runs".to_string(), formatted)
+        }
+        UsageItem::SignalStepsProcessed => {
+            let formatted = format_number_with_commas(limit_value);
+            ("Signal steps processed".to_string(), formatted)
         }
     }
 }
