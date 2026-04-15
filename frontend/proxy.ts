@@ -6,6 +6,11 @@ import { isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorizat
 
 export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
+    if (req.nextUrl.pathname.startsWith("/uploads/")) {
+      const strapiUrl = process.env.STRAPI_URL || "http://localhost:1337";
+      const destination = new URL(req.nextUrl.pathname + req.nextUrl.search, strapiUrl);
+    }
+
     const token = req.nextauth.token;
 
     const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
@@ -67,6 +72,9 @@ export default withAuth(
         if (req.nextUrl.pathname.startsWith("/api/")) {
           return true;
         }
+        if (req.nextUrl.pathname.startsWith("/uploads/")) {
+          return true;
+        }
         return !!token;
       },
     },
@@ -83,5 +91,6 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
+    "/uploads/:path+",
   ],
 };

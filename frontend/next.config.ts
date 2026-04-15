@@ -50,14 +50,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async rewrites() {
-    return [
-      {
-        source: "/uploads/:path*",
-        destination: `${process.env.STRAPI_URL || "http://localhost:1337"}/uploads/:path*`,
-      },
-    ];
-  },
   images: {
     remotePatterns: [
       {
