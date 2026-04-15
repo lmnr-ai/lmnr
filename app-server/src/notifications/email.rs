@@ -53,8 +53,8 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 .unwrap_or(serde_json::Value::Object(Default::default()));
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("Alert: {}", event_name),
-                html: render_alert_email(event_name, &attributes, &trace_link),
+                subject: format!("New event type: {}", event_name),
+                html: render_alert_email(event_name, &attributes, &trace_link, project_id),
             }
         }
         NotificationKind::SignalsReport { .. } => {
@@ -95,6 +95,7 @@ fn render_alert_email(
     event_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
+    project_id: &Uuid,
 ) -> String {
     let attributes_html = if let Some(obj) = attributes.as_object() {
         if obj.is_empty() {
@@ -140,14 +141,14 @@ fn render_alert_email(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Alert: {event_name}</title>
+<title>New event type: {event_name}</title>
 </head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
   <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
     <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Signal Event Alert</h1>
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">New Event Type Detected</h1>
     <p style="margin:0;font-size:16px;color:#D0754E;">{event_name}</p>
   </div>
 
@@ -159,7 +160,9 @@ fn render_alert_email(
   </div>
 
   <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/project/{project_id}/settings" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
   </div>
 
 </div>
@@ -168,6 +171,7 @@ fn render_alert_email(
         event_name = html_escape(event_name),
         attributes_html = attributes_html,
         trace_link = trace_link,
+        project_id = project_id,
     )
 }
 

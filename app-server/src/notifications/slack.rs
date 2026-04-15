@@ -149,7 +149,7 @@ fn format_event_identification_blocks(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
+                    "text": format!("*New event type*: `{}`", event_name)
                 }
             }),
             json!({
@@ -181,7 +181,7 @@ fn format_event_identification_blocks(
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": format!("✅ *Event Detected: {}*", event_name)
+                "text": format!("✅ *New Event Type Detected: {}*", event_name)
             }
         },
         {

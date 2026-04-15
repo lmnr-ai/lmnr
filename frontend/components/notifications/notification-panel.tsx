@@ -122,7 +122,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     return {
       kind: "alert",
       title: event.event_name,
-      summary: `New ${severityLabel} event detected`,
+      summary: `New ${severityLabel} event type detected`,
       extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
       severity,
@@ -309,6 +309,9 @@ const NotificationItem = ({
           >
             View trace
           </Link>
+          <span className="text-[10px] text-muted-foreground/50 italic">
+            This alert is triggered only once for similar events
+          </span>
         </>
       )}
       {formatted.kind === "report" && <NotificationDetails formatted={formatted} projectId={projectId} />}

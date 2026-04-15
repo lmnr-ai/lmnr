@@ -19,7 +19,7 @@ use crate::{
     mq::MessageQueue,
     signals::{
         SignalRun, SignalWorkerConfig, llm_model, llm_provider,
-        postprocess::process_event_notifications_and_clustering,
+        postprocess::process_event_clustering,
         prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
         provider::models::{
             ProviderContent as Content, ProviderFinishReason as FinishReason,
@@ -167,7 +167,6 @@ pub async fn process_provider_responses(
                     summary,
                     severity,
                     clickhouse.clone(),
-                    db.clone(),
                     queue.clone(),
                     run.internal_span_id,
                     config.internal_project_id,
@@ -741,7 +740,6 @@ pub async fn handle_create_event(
     summary: String,
     severity: u8,
     clickhouse: clickhouse::Client,
-    db: Arc<DB>,
     queue: Arc<MessageQueue>,
     parent_span_id: Uuid,
     internal_project_id: Option<Uuid>,
@@ -809,24 +807,20 @@ pub async fn handle_create_event(
         .with_multiplier(2.0)
         .with_max_elapsed_time(Some(Duration::from_secs(10)))
         .build();
-    let db_ref = &db;
     let queue_ref = &queue;
     let project_id = signal_message.project_id;
-    let trace_id = run.trace_id;
     let event_for_notif = signal_event.clone();
     backoff::future::retry(backoff, || {
         let event = event_for_notif.clone();
         async move {
-            process_event_notifications_and_clustering(
-                db_ref.clone(),
+            process_event_clustering(
                 queue_ref.clone(),
                 project_id,
-                trace_id,
                 event,
             )
             .await
             .map_err(|e| {
-                log::warn!("[SIGNAL JOB] Retrying notifications/clustering: {:?}", e);
+                log::warn!("[SIGNAL JOB] Retrying clustering: {:?}", e);
                 backoff::Error::transient(e)
             })
         }
