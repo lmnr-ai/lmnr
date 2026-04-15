@@ -1142,7 +1142,6 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
     const AISDK_NORMALIZED_SUFFIXES: &[&str] = &[
         ".prompt.messages",
         ".response.text",
-        ".response.toolCalls",
         ".response.object",
         ".usage.inputTokens",
         ".usage.outputTokens",
