@@ -327,7 +327,7 @@ const insertNewTierUsageWarnings = async ({
       },
       {
         workspaceId,
-        usageItem: "signal_runs",
+        usageItem: "signal_steps_processed",
         limitValue: newTierConfig.includedSignalSteps,
       },
     ])

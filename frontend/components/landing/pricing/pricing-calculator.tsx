@@ -242,7 +242,7 @@ function EnterpriseTierColumn({
           <span>Custom</span>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Additional Signal runs</span>
+          <span>Additional Signal steps processing</span>
           <span>Custom</span>
         </div>
       </div>
