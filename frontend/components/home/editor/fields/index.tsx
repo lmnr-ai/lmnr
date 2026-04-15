@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ChartTypeField from "./ChartTypeField";
+import ColumnsField from "./ColumnsField";
 import DimensionsField from "./DimensionsField";
 import FiltersField from "./FiltersField";
 import LimitField from "./LimitField";
@@ -124,13 +125,13 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
 
       <ChartTypeField />
       <TableSelect />
-      <MetricsField />
+      {chartType === ChartType.Table ? <ColumnsField /> : <MetricsField />}
       <FiltersField />
-      <DimensionsField />
-      {chartType === ChartType.HorizontalBarChart && <OrderByField />}
+      {chartType !== ChartType.Table && <DimensionsField />}
+      {(chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) && <OrderByField />}
       <LimitField />
 
-      {(
+      {chartType !== ChartType.Table && (
         <div className="grid gap-1">
           <Label className="font-semibold text-xs">Display Value</Label>
           <Select value={displayMode} onValueChange={(value) => setDisplayMode(value as DisplayMode)}>

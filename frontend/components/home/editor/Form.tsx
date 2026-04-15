@@ -9,6 +9,7 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
+import { TABLE_DEFAULT_LIMIT, TABLE_MAX_LIMIT } from "@/components/home/editor/constants";
 import { QueryBuilderFields } from "@/components/home/editor/fields";
 import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
 import { getTimeColumn } from "@/components/home/editor/table-schemas";
@@ -77,6 +78,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return null;
     }
 
+    // Table charts don't have x/y/breakdown axes — config carries only the type.
+    if (chartType === ChartType.Table) {
+      return {
+        type: chartType,
+        displayMode: "none" as const,
+      };
+    }
+
     const isTimeSeries = needsTimeSeries(chartType);
     const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const firstMetric = metrics[0];
@@ -90,6 +99,11 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
       displayMode: "none" as const,
     };
+    // NOTE: deliberately omitting `columns` — it's derived from `data` which is
+    // set by executeQuery, so including it creates an infinite re-fetch cycle.
+    // The `columns[0]?.name` fallback below uses the value from the previous
+    // render's closure, which is acceptable for this UI.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType, formValues]);
 
   const chartConfigForRendering = useMemo(() => {
@@ -149,6 +163,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         }
       }
 
+      // Table charts cap result size client-side so a missing/oversized limit can't
+      // return an unbounded result set into the renderer.
+      const effectiveLimit =
+        chartType === ChartType.Table
+          ? Math.min(Math.max(1, limit ?? TABLE_DEFAULT_LIMIT), TABLE_MAX_LIMIT)
+          : limit;
+
       const queryStructure: QueryStructure = {
         table,
         metrics: injectedMetrics,
@@ -156,7 +177,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         filters: allFilters,
         orderBy: [],
         ...(orderBy && orderBy.length > 0 && { orderBy }),
-        limit,
+        limit: effectiveLimit,
       };
 
       if (needsTimeSeries(chartType)) {

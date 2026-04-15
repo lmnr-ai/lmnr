@@ -1,8 +1,9 @@
-import { ChartBar, ChartColumn, ChartLine } from "lucide-react";
+import { ChartBar, ChartColumn, ChartLine, Table2 } from "lucide-react";
 import { type ReactNode } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
+import { TABLE_DEFAULT_LIMIT } from "@/components/home/editor/constants";
 import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,10 +22,14 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
     label: "Horizontal Bar",
     icon: <ChartBar className="size-3.5" />,
   },
+  [ChartType.Table]: {
+    label: "Table",
+    icon: <Table2 className="size-3.5" />,
+  },
 };
 
 const ChartTypeField = () => {
-  const { setValue } = useFormContext<QueryStructure>();
+  const { setValue, getValues } = useFormContext<QueryStructure>();
   const { chartType, setChartConfig, chart } = useHomeEditorStoreContext((state) => ({
     chartType: state.chart.settings.config.type,
     setChartConfig: state.setChartConfig,
@@ -32,6 +37,7 @@ const ChartTypeField = () => {
   }));
 
   const handleChartTypeChange = (newType: ChartType) => {
+    const previousType = chart.settings.config.type;
     setChartConfig({
       ...chart.settings.config,
       type: newType,
@@ -39,6 +45,22 @@ const ChartTypeField = () => {
 
     if (newType === ChartType.LineChart || newType === ChartType.BarChart) {
       setValue("orderBy", []);
+    }
+
+    // When switching INTO Table, reset metrics/dimensions to a single empty raw column
+    // and seed a default limit. When switching OUT of Table, restore a sensible default
+    // metric so the existing aggregation-based chart types are valid.
+    if (newType === ChartType.Table && previousType !== ChartType.Table) {
+      setValue("metrics", [{ fn: "raw", column: "", alias: "", args: [] }], { shouldValidate: true });
+      setValue("dimensions", [], { shouldValidate: true });
+      setValue("orderBy", [], { shouldValidate: true });
+      const currentLimit = getValues("limit");
+      if (!currentLimit || currentLimit > 100) {
+        setValue("limit", TABLE_DEFAULT_LIMIT, { shouldValidate: true });
+      }
+    } else if (newType !== ChartType.Table && previousType === ChartType.Table) {
+      setValue("metrics", [{ fn: "count", column: "*", alias: "count", args: [] }], { shouldValidate: true });
+      setValue("orderBy", [], { shouldValidate: true });
     }
   };
 

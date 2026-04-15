@@ -4,6 +4,7 @@ import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-bu
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
+import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
   generateChartConfig,
   transformDataForBreakdown,
@@ -20,12 +21,14 @@ interface ChartRendererCoreProps {
 }
 
 export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRendererCoreProps) => {
+  const isTable = config.type === ChartType.Table;
+
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || !config.x || !config.y) {
+    if (!config.type || isTable || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
@@ -42,7 +45,11 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRe
     }
 
     return transformDataForSimpleChart(data, config.x, [config.y]);
-  }, [config, data, columns]);
+  }, [config, data, columns, isTable]);
+
+  if (isTable) {
+    return <TableChart data={data} columns={columns} />;
+  }
 
   if (!config.type || !config.x || !config.y) {
     return (
