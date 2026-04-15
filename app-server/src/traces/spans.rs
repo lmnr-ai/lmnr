@@ -1150,7 +1150,7 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
     ];
     if AISDK_OPERATION_PREFIXES
         .iter()
-        .any(|p| attribute.starts_with(p))
+        .any(|p| attribute.starts_with(&format!("{p}.")))
         && AISDK_NORMALIZED_SUFFIXES
             .iter()
             .any(|s| attribute.ends_with(s))
