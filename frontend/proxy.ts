@@ -8,8 +8,7 @@ export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
     if (req.nextUrl.pathname.startsWith("/uploads/")) {
       const strapiUrl = process.env.STRAPI_URL || "http://localhost:1337";
-      const destination = new URL(req.nextUrl.pathname, strapiUrl);
-      return NextResponse.rewrite(destination);
+      const destination = new URL(req.nextUrl.pathname + req.nextUrl.search, strapiUrl);
     }
 
     const token = req.nextauth.token;
