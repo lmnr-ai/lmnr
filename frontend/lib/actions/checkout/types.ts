@@ -91,8 +91,8 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   pro_monthly_2026_02_overage_signal_runs: "Signal runs overage",
   hobby_monthly_2025_04_overage_signal_runs: "Signal runs overage",
   pro_monthly_2025_04_overage_signal_runs: "Signal runs overage",
-  pro_monthly_2026_04_overage_signal_steps_processed: "Signal runs overage",
-  hobby_monthly_2026_04_overage_signal_steps_processed: "Signal runs overage",
+  pro_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
+  hobby_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
   // Addons
   [DATAPLANE_ADDON_LOOKUP_KEY]: "Data Plane addon",
 };
