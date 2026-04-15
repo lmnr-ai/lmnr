@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -31,13 +31,30 @@ export function CollapsedTextWithMore({
   className,
 }: CollapsedTextWithMoreProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(FALLBACK_WIDTH);
 
-  const charsPerLine = Math.floor(FALLBACK_WIDTH * charsPerPixel);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width && width > 0) setContainerWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const charsPerLine = Math.floor(containerWidth * charsPerPixel);
   const maxChars = charsPerLine * maxLines - MORE_TEXT.length;
   const truncated = isExpanded ? null : truncateText(text, maxChars);
 
   return (
-    <div className={cn("text-sm text-secondary-foreground", className)} style={{ lineHeight: `${lineHeight}px` }}>
+    <div
+      ref={containerRef}
+      className={cn("text-sm text-secondary-foreground", className)}
+      style={{ lineHeight: `${lineHeight}px` }}
+    >
       {truncated !== null ? (
         <p>
           {truncated}

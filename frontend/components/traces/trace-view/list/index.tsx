@@ -1,30 +1,48 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
-import React, { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
-import ListItem, { AgentGroupHeader } from "@/components/traces/trace-view/list/list-item.tsx";
+import ListItem, { AgentGroupHeader, GroupChildWrapper } from "@/components/traces/trace-view/list/list-item.tsx";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
-import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
+import { InputItem } from "@/components/traces/trace-view/list/user-input-item";
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
-  type TranscriptListGroup,
+  type TranscriptListEntry,
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { cn } from "@/lib/utils";
 
 interface ListProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
 
-type FlatRow =
-  | { type: "user-input" }
-  | { type: "span"; span: TraceViewListSpan }
-  | { type: "group-header"; group: TranscriptListGroup }
-  | { type: "group-span"; span: TraceViewListSpan; group: TranscriptListGroup; isLast: boolean };
+type FlatRow = { type: "user-input" } | TranscriptListEntry;
+
+function getSpanIdsForRow(row: FlatRow, collapsedGroups: Set<string>): string[] {
+  switch (row.type) {
+    case "span":
+    case "group-span":
+      return [row.span.spanId];
+    case "group": {
+      const ids: string[] = [row.firstSpan.spanId];
+      if (row.firstLlmSpanId && row.firstLlmSpanId !== row.firstSpan.spanId) {
+        ids.push(row.firstLlmSpanId);
+      }
+      const isCollapsed = !collapsedGroups.has(row.groupId);
+      if (isCollapsed && row.lastLlmSpanId) {
+        ids.push(row.lastLlmSpanId);
+      }
+      return ids;
+    }
+    default:
+      return [];
+  }
+}
 
 const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -59,23 +77,19 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     if (hasUserInput) {
       rows.push({ type: "user-input" });
     }
+    const collapsedGroupIds = new Set<string>();
     for (const entry of transcriptEntries) {
-      if (entry.type === "span") {
-        rows.push({ type: "span", span: entry.span });
-      } else {
-        rows.push({ type: "group-header", group: entry });
-        const isCollapsed = !transcriptCollapsedGroups.has(entry.groupId);
-        if (!isCollapsed) {
-          const childSpans = entry.isSubagent ? entry.spans : entry.spans.slice(1);
-          for (let i = 0; i < childSpans.length; i++) {
-            rows.push({
-              type: "group-span",
-              span: childSpans[i],
-              group: entry,
-              isLast: i === childSpans.length - 1,
-            });
-          }
+      if (entry.type === "group") {
+        rows.push(entry);
+        if (!transcriptCollapsedGroups.has(entry.groupId)) {
+          collapsedGroupIds.add(entry.groupId);
         }
+      } else if (entry.type === "group-span" || entry.type === "group-input") {
+        if (!collapsedGroupIds.has(entry.groupId)) {
+          rows.push(entry);
+        }
+      } else {
+        rows.push(entry);
       }
     }
     return rows;
@@ -84,12 +98,10 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
     for (const entry of transcriptEntries) {
-      if (entry.type === "span") {
+      if (entry.type === "span" || entry.type === "group-span") {
         types[entry.span.spanId] = entry.span.spanType;
-      } else {
-        for (const s of entry.spans) {
-          types[s.spanId] = s.spanType;
-        }
+      } else if (entry.type === "group") {
+        types[entry.firstSpan.spanId] = entry.firstSpan.spanType;
       }
     }
     return types;
@@ -108,30 +120,21 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 123,
+    estimateSize: () => 186,
     overscan: 20,
     paddingEnd: 64,
   });
 
   const items = virtualizer.getVirtualItems();
 
-  const allVisibleSpanIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const item of items) {
-      const row = flatRows[item.index];
-      if (!row) continue;
-      if (row.type === "span" || row.type === "group-span") {
-        ids.push(row.span.spanId);
-      } else if (row.type === "group-header") {
-        const firstSpan = row.group.spans[0];
-        if (firstSpan) ids.push(firstSpan.spanId);
-        if (row.group.firstLlmSpanId && row.group.firstLlmSpanId !== firstSpan?.spanId) {
-          ids.push(row.group.firstLlmSpanId);
-        }
-      }
-    }
-    return ids;
-  }, [items, flatRows]);
+  const allVisibleSpanIds = useMemo(
+    () =>
+      items.flatMap((item) => {
+        const row = flatRows[item.index];
+        return row ? getSpanIdsForRow(row, transcriptCollapsedGroups) : [];
+      }),
+    [items, flatRows, transcriptCollapsedGroups]
+  );
 
   const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,
@@ -155,6 +158,50 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       }
     },
     [spans, onSpanSelect]
+  );
+
+  const renderRow = useCallback(
+    (row: FlatRow) => {
+      switch (row.type) {
+        case "user-input":
+          return <InputItem text={userInput} isLoading={isUserInputLoading} />;
+
+        case "group": {
+          const isCollapsed = !transcriptCollapsedGroups.has(row.groupId);
+          return (
+            <AgentGroupHeader
+              group={row}
+              collapsed={isCollapsed}
+              previews={previews}
+              inputPreviews={inputPreviews}
+              agentNames={agentNames}
+              onSpanSelect={handleSpanSelect}
+            />
+          );
+        }
+
+        case "group-input": {
+          const inputText = inputPreviews[row.firstLlmSpanId] ?? null;
+          const isLoadingInput = inputPreviews[row.firstLlmSpanId] === undefined;
+          return (
+            <GroupChildWrapper>
+              <InputItem text={inputText} isLoading={isLoadingInput} />
+            </GroupChildWrapper>
+          );
+        }
+
+        case "group-span":
+          return (
+            <GroupChildWrapper isLast={row.isLast}>
+              <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
+            </GroupChildWrapper>
+          );
+
+        case "span":
+          return <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />;
+      }
+    },
+    [userInput, isUserInputLoading, transcriptCollapsedGroups, previews, inputPreviews, agentNames, handleSpanSelect]
   );
 
   const hasEntries = transcriptEntries.length > 0;
@@ -214,56 +261,16 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           {items.map((virtualRow) => {
             const row = flatRows[virtualRow.index];
             if (!row) return null;
-
-            if (row.type === "user-input") {
-              return (
-                <div key={virtualRow.key} data-index={virtualRow.index} ref={virtualizer.measureElement}>
-                  <UserInputItem text={userInput} isLoading={isUserInputLoading} />
-                </div>
-              );
-            }
-
-            if (row.type === "group-header") {
-              const isCollapsed = !transcriptCollapsedGroups.has(row.group.groupId);
-              const firstSpan = row.group.spans[0];
-              const firstSpanIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
-
-              let groupPreview: string | null | undefined;
-              if (row.group.isSubagent && row.group.firstLlmSpanId) {
-                groupPreview = inputPreviews[row.group.firstLlmSpanId];
-              } else {
-                const previewSpanId =
-                  firstSpanIsLlm && row.group.firstLlmSpanId ? row.group.firstLlmSpanId : firstSpan?.spanId;
-                groupPreview = previewSpanId ? previews[previewSpanId] : null;
-              }
-
-              const agentName = row.group.firstLlmSpanId ? agentNames[row.group.firstLlmSpanId] : undefined;
-              return (
-                <div key={virtualRow.key} data-index={virtualRow.index} ref={virtualizer.measureElement}>
-                  <AgentGroupHeader
-                    group={row.group}
-                    collapsed={isCollapsed}
-                    preview={groupPreview}
-                    agentName={agentName}
-                    onSpanSelect={handleSpanSelect}
-                  />
-                </div>
-              );
-            }
-
-            if (row.type === "group-span") {
-              return (
-                <div key={virtualRow.key} data-index={virtualRow.index} ref={virtualizer.measureElement}>
-                  <div className={`mx-2 border-x bg-muted/50 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
-                    <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
-                  </div>
-                </div>
-              );
-            }
-
+            const isTopLevel = row.type === "group" || row.type === "span" || row.type === "user-input";
+            const isFirst = virtualRow.index === 0;
             return (
-              <div key={virtualRow.key} data-index={virtualRow.index} ref={virtualizer.measureElement}>
-                <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                className={cn(isTopLevel && !isFirst && "pt-2")}
+              >
+                {renderRow(row)}
               </div>
             );
           })}

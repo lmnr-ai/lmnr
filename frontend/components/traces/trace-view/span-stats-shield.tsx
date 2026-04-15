@@ -40,17 +40,17 @@ export function SpanStatsShield({
       )}
     >
       <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
-        <Clock3 size={12} className="min-w-3 min-h-3" />
+        <Clock3 size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
         <span>{getDurationString(startTime, endTime)}</span>
       </div>
       {hasTokens && (
-        <div className={cn(itemColor, "inline-flex items-center gap-0.5 whitespace-nowrap", !isInline && "py-0.5")}>
-          <Coins size={isInline ? 12 : 14} className={isInline ? "min-w-3 min-h-3" : "min-w-3.5 min-h-3.5"} />
+        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+          <Coins size={isInline ? 12 : 14} className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")} />
           <span>{numberFormatter.format(inputTokens ?? 0)}</span>
           {!!cacheReadInputTokens && (
             <span className="text-success-bright">({numberFormatter.format(cacheReadInputTokens)})</span>
           )}
-          <ArrowRight size={10} className="mx-0.5 opacity-50" />
+          <ArrowRight size={12} />
           <span>{numberFormatter.format(outputTokens ?? 0)}</span>
         </div>
       )}
@@ -58,9 +58,9 @@ export function SpanStatsShield({
         <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
           <CircleDollarSign
             size={isInline ? 12 : 14}
-            className={isInline ? "min-w-3 min-h-3" : "min-w-3.5 min-h-3.5"}
+            className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")}
           />
-          <span>${cost.toFixed(4)}</span>
+          <span>{cost.toFixed(4)}</span>
         </div>
       )}
     </div>
