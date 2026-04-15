@@ -141,7 +141,13 @@ export const parseTools = (tools?: string) => {
 };
 
 const parseAiSdkToolsFromSpan = (
-  tools?: { name: string; type: string; description?: string; parameters: Record<string, any> }[]
+  tools?: {
+    name: string;
+    type: string;
+    description?: string;
+    parameters?: Record<string, any>;
+    inputSchema?: Record<string, any>;
+  }[]
 ) =>
   tools
     ? JSON.stringify(
@@ -150,7 +156,7 @@ const parseAiSdkToolsFromSpan = (
             ...acc,
             [tool.name]: {
               description: tool.description || "",
-              parameters: tool.parameters,
+              parameters: tool.parameters || tool.inputSchema,
             },
           }),
           {}

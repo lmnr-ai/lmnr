@@ -24,7 +24,14 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
       return aiPromptTools.map((tool: any) => ({
         name: get(tool, "name", ""),
         description: get(tool, "description", ""),
-        parameters: typeof tool.parameters === "string" ? tool.parameters : JSON.stringify(tool.parameters || {}),
+        parameters:
+          typeof tool.parameters === "string"
+            ? tool.parameters
+            : tool.parameters
+              ? JSON.stringify(tool.parameters)
+              : typeof tool.inputSchema === "string"
+                ? tool.inputSchema
+                : JSON.stringify(tool.inputSchema || {}),
       }));
     } catch (e) {
       console.error("Failed to parse ai.prompt.tools:", e);

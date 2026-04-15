@@ -42,6 +42,9 @@ use super::{
 
 /// Known operation prefixes used to namespace AI SDK span attributes.
 const AISDK_OPERATION_PREFIXES: &[&str] = &[
+    // raw AI SDK (we convert cached token info)
+    "ai",
+    // Mastra prefixes with operation name instead of `ai`
     "stream",
     "generateText",
     "streamText",
