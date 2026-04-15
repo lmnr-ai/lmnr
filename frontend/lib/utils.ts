@@ -297,15 +297,26 @@ export const formatSecondsToMinutesAndSeconds = (seconds: number) => {
 };
 
 export const formatSecsToHoursMinsSecs = (seconds: number): string => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  let h = Math.floor(seconds / 3600);
+  let m = Math.floor((seconds % 3600) / 60);
+  const rawSeconds = seconds % 60;
+  const secondPrecision = rawSeconds < 10 && (h > 0 || m > 0) ? 1 : rawSeconds < 1 ? 2 : 1;
+  let s = Number(rawSeconds.toFixed(secondPrecision));
+
+  if (s >= 60) {
+    s = 0;
+    m += 1;
+    if (m >= 60) {
+      h += Math.floor(m / 60);
+      m %= 60;
+    }
+  }
 
   const parts: string[] = [];
   if (h > 0) parts.push(`${h}h`);
   if (m > 0) parts.push(`${m}m`);
   if (parts.length === 0 || s > 0) {
-    parts.push(`${s < 10 && parts.length > 0 ? s.toFixed(1) : s.toFixed(s < 1 ? 2 : 1)}s`);
+    parts.push(`${s.toFixed(secondPrecision)}s`);
   }
   return parts.join(" ");
 };
