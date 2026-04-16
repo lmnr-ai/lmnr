@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
 
 import {
   type TraceViewListSpan,
@@ -27,7 +28,7 @@ interface ListProps {
 
 type FlatRow = { type: "user-input" } | TranscriptListEntry;
 
-function getSpanIdsForRow(row: FlatRow, collapsedGroups: Set<string>): string[] {
+function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   switch (row.type) {
     case "span":
     case "group-span":
@@ -37,7 +38,7 @@ function getSpanIdsForRow(row: FlatRow, collapsedGroups: Set<string>): string[] 
       if (row.firstLlmSpanId && row.firstLlmSpanId !== row.firstSpan.spanId) {
         ids.push(row.firstLlmSpanId);
       }
-      const isCollapsed = !collapsedGroups.has(row.groupId);
+      const isCollapsed = !expandedGroups.has(row.groupId);
       if (isCollapsed && row.lastLlmSpanId) {
         ids.push(row.lastLlmSpanId);
       }
@@ -57,15 +58,18 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     isSpansLoading,
     trace,
     condensedTimelineVisibleSpanIds,
-    transcriptCollapsedGroups,
-  } = useTraceViewBaseStore((state) => ({
-    getTranscriptListData: state.getTranscriptListData,
-    spans: state.spans,
-    isSpansLoading: state.isSpansLoading,
-    trace: state.trace,
-    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    transcriptCollapsedGroups: state.transcriptCollapsedGroups,
-  }));
+    transcriptExpandedGroups,
+  } = useTraceViewBaseStore(
+    (state) => ({
+      getTranscriptListData: state.getTranscriptListData,
+      spans: state.spans,
+      isSpansLoading: state.isSpansLoading,
+      trace: state.trace,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      transcriptExpandedGroups: state.transcriptExpandedGroups,
+    }),
+    shallow
+  );
 
   const transcriptEntries = useMemo(
     () => getTranscriptListData(),
@@ -81,15 +85,11 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     if (hasUserInput) {
       rows.push({ type: "user-input" });
     }
-    const collapsedGroupIds = new Set<string>();
     for (const entry of transcriptEntries) {
       if (entry.type === "group") {
         rows.push(entry);
-        if (!transcriptCollapsedGroups.has(entry.groupId)) {
-          collapsedGroupIds.add(entry.groupId);
-        }
       } else if (entry.type === "group-span" || entry.type === "group-input") {
-        if (!collapsedGroupIds.has(entry.groupId)) {
+        if (transcriptExpandedGroups.has(entry.groupId)) {
           rows.push(entry);
         }
       } else {
@@ -97,7 +97,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       }
     }
     return rows;
-  }, [transcriptEntries, transcriptCollapsedGroups, hasUserInput]);
+  }, [transcriptEntries, transcriptExpandedGroups, hasUserInput]);
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
@@ -143,9 +143,9 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     () =>
       items.flatMap((item) => {
         const row = flatRows[item.index];
-        return row ? getSpanIdsForRow(row, transcriptCollapsedGroups) : [];
+        return row ? getSpanIdsForRow(row, transcriptExpandedGroups) : [];
       }),
-    [items, flatRows, transcriptCollapsedGroups]
+    [items, flatRows, transcriptExpandedGroups]
   );
 
   const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
@@ -180,7 +180,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           return <InputItem text={userInput} isLoading={isUserInputLoading} />;
 
         case "group": {
-          const isCollapsed = !transcriptCollapsedGroups.has(row.groupId);
+          const isCollapsed = !transcriptExpandedGroups.has(row.groupId);
           return (
             <AgentGroupHeader
               group={row}
@@ -213,7 +213,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           return <SpanItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />;
       }
     },
-    [userInput, isUserInputLoading, transcriptCollapsedGroups, previews, inputPreviews, agentNames, handleSpanSelect]
+    [userInput, isUserInputLoading, transcriptExpandedGroups, previews, inputPreviews, agentNames, handleSpanSelect]
   );
 
   const hasEntries = transcriptEntries.length > 0;

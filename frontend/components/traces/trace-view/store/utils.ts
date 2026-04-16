@@ -424,7 +424,6 @@ export const buildTranscriptListEntries = (
       outputTokens: number;
       cacheReadInputTokens: number;
       totalCost: number;
-      isSubagent: boolean;
       childSpans: TraceViewListSpan[];
     }
   >();
@@ -462,7 +461,6 @@ export const buildTranscriptListEntries = (
       outputTokens,
       cacheReadInputTokens,
       totalCost,
-      isSubagent: true,
       childSpans: lightSpans,
     });
   }
@@ -494,7 +492,7 @@ export const buildTranscriptListEntries = (
     const { childSpans, ...groupHeader } = meta;
     entries.push({ ...groupHeader, type: "group" });
 
-    if (meta.isSubagent && meta.firstLlmSpanId) {
+    if (meta.firstLlmSpanId) {
       entries.push({
         type: "group-input",
         groupId: meta.groupId,
@@ -502,13 +500,12 @@ export const buildTranscriptListEntries = (
       });
     }
 
-    const expandedChildren = meta.isSubagent ? childSpans : childSpans.slice(1);
-    for (let i = 0; i < expandedChildren.length; i++) {
+    for (let i = 0; i < childSpans.length; i++) {
       entries.push({
         type: "group-span",
-        span: expandedChildren[i],
+        span: childSpans[i],
         groupId: meta.groupId,
-        isLast: i === expandedChildren.length - 1,
+        isLast: i === childSpans.length - 1,
       });
     }
   }

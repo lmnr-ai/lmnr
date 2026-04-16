@@ -3,7 +3,10 @@ import React, { useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TranscriptListGroup, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import { CollapsedPreviewBlock, type PreviewMap } from "@/components/traces/trace-view/transcript/item/shared";
+import {
+  CollapsedPreviewBlock,
+  type PreviewMap,
+} from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
 import { cn } from "@/lib/utils";
 
 interface AgentGroupHeaderProps {

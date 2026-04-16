@@ -28,7 +28,6 @@ export async function fetchSpanData(
 }> {
   const inputSpanIdSet = new Set(inputSpanIds ?? []);
   const previewSpanIds = spanIds.filter((id) => PREVIEW_SPAN_TYPES.has(spanTypes[id] ?? ""));
-  const regularSpanIds = previewSpanIds;
   const inputSpanIdList = previewSpanIds.filter((id) => inputSpanIdSet.has(id));
 
   const timeConditions = buildTimeConditions(startDate, endDate);
@@ -36,7 +35,7 @@ export async function fetchSpanData(
   const baseParams = { traceId, startDate, endDate };
 
   const [regularSpans, inputSpanRows] = await Promise.all([
-    regularSpanIds.length > 0
+    previewSpanIds.length > 0
       ? executeQuery<{ spanId: string; data: string; name: string }>({
           projectId,
           query: `
@@ -50,7 +49,7 @@ export async function fetchSpanData(
               AND span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')
               ${timeClause}
           `,
-          parameters: { ...baseParams, spanIds: regularSpanIds },
+          parameters: { ...baseParams, spanIds: previewSpanIds },
         })
       : ([] as Array<{ spanId: string; data: string; name: string }>),
 

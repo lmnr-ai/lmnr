@@ -51,7 +51,6 @@ export type TraceViewSpan = {
     reasoningTokens?: number;
     hasLLMDescendants: boolean;
   };
-  isSubagent?: boolean;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
@@ -94,7 +93,6 @@ export type TranscriptListGroup = {
   outputTokens: number;
   cacheReadInputTokens: number;
   totalCost: number;
-  isSubagent: boolean;
 };
 
 export type TranscriptGroupInput = {
@@ -192,8 +190,8 @@ export interface BaseTraceViewState {
   // Layout options
   isAlwaysSelectSpan: boolean;
 
-  // Transcript mode group collapse state
-  transcriptCollapsedGroups: Set<string>;
+  // Transcript mode: IDs of groups the user has expanded
+  transcriptExpandedGroups: Set<string>;
 }
 
 export interface BaseTraceViewActions {
@@ -296,8 +294,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
 
-    // Transcript mode group collapse state (all collapsed by default)
-    transcriptCollapsedGroups: new Set<string>(),
+    // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
+    transcriptExpandedGroups: new Set<string>(),
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -345,14 +343,14 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     },
 
     toggleTranscriptGroup: (groupId: string) => {
-      const prev = get().transcriptCollapsedGroups;
+      const prev = get().transcriptExpandedGroups;
       const next = new Set(prev);
       if (next.has(groupId)) {
         next.delete(groupId);
       } else {
         next.add(groupId);
       }
-      set({ transcriptCollapsedGroups: next } as Partial<T>);
+      set({ transcriptExpandedGroups: next } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),

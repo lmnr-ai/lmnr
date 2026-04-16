@@ -1,3 +1,3 @@
-export { AgentGroupHeader, GroupChildWrapper } from "./agent";
-export { InputItem } from "./input";
-export { default as SpanItem } from "./span";
+export { AgentGroupHeader, GroupChildWrapper } from "./agent-group-header";
+export { InputItem } from "./input-item";
+export { default as SpanItem } from "./span-item";
