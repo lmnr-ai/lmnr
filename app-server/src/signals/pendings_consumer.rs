@@ -307,6 +307,7 @@ pub async fn process_succeeded_batch(
         &response.responses,
         Some(message.batch_id.clone()),
         clickhouse.clone(),
+        db.clone(),
         queue.clone(),
         config.clone(),
     )

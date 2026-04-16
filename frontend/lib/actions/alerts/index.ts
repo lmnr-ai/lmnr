@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { alerts, alertTargets, projects } from "@/lib/db/migrations/schema";
+import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
 import { type AlertTarget, type AlertType, type AlertWithDetails, type SignalEventAlertMetadata } from "./types";
 
@@ -16,6 +16,7 @@ const TargetSchema = z.object({
 
 const MetadataSchema = z.object({
   severity: z.number().int().min(0).max(2),
+  skipSimilar: z.boolean().optional(),
 });
 
 const CreateAlertSchema = z.object({
@@ -58,11 +59,13 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
       name: alerts.name,
       type: alerts.type,
       sourceId: alerts.sourceId,
+      signalName: signals.name,
       projectId: alerts.projectId,
       createdAt: alerts.createdAt,
       metadata: alerts.metadata,
     })
     .from(alerts)
+    .leftJoin(signals, eq(alerts.sourceId, signals.id))
     .where(eq(alerts.projectId, projectId))
     .orderBy(alerts.createdAt);
 
@@ -103,6 +106,7 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
   return alertRows.map((a) => ({
     ...a,
     type: a.type as AlertType,
+    signalName: a.signalName,
     projectName: project.name,
     targets: targetsByAlert.get(a.id) ?? [],
     metadata: (a.metadata as SignalEventAlertMetadata) ?? null,

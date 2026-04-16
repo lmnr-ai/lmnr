@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
-import { type AlertWithDetails } from "@/lib/actions/alerts/types";
+import { type AlertWithDetails, SEVERITY_LABELS, type SeverityLevel } from "@/lib/actions/alerts/types";
 import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
@@ -55,7 +55,7 @@ export default function AlertsSettings({
   if (isFreeTier) {
     return (
       <SettingsSection>
-        <SettingsSectionHeader title="Alerts" description="Configure alerts for signal events." />
+        <SettingsSectionHeader title="Alerts" description="Configure alerts." />
         <div className="rounded-lg border border-border bg-muted/30 p-5 flex items-start gap-4">
           <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
             <Lock className="h-5 w-5" />
@@ -82,7 +82,7 @@ export default function AlertsSettings({
     <SettingsSection>
       <SettingsSectionHeader
         title="Alerts"
-        description="Configure alerts for signal events. Notifications can be sent to Slack and email."
+        description="Configure alerts for new events or clusters. Notifications can be sent to Slack and email."
       />
 
       <SlackConnectionCard
@@ -110,18 +110,28 @@ export default function AlertsSettings({
         isLoading={isLoadingAlerts}
         isEmpty={isNil(alertsList) || isEmpty(alertsList)}
         emptyMessage="No alerts configured. Create one to start receiving notifications."
-        headers={["Name", "Send to", "Created", ""]}
-        colSpan={4}
+        headers={["Name", "Signal", "Severity", "Send to", "Created", ""]}
+        colSpan={6}
       >
         {alertsList?.map((alert) => {
           // Only show the current user's own email target + all non-email targets
           const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
           return (
             <SettingsTableRow key={alert.id}>
-              <td className="px-4 text-sm font-medium max-w-36">
+              <td className="px-4 text-sm font-medium max-w-48">
                 <span title={alert.name} className="block truncate">
                   {alert.name}
                 </span>
+              </td>
+              <td className="px-4 text-sm text-muted-foreground max-w-48">
+                <span title={alert.signalName ?? undefined} className="block truncate">
+                  {alert.signalName ?? "—"}
+                </span>
+              </td>
+              <td className="px-4 text-xs text-muted-foreground">
+                {alert.metadata?.severity != null
+                  ? SEVERITY_LABELS[alert.metadata.severity as SeverityLevel]
+                  : "Critical"}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />

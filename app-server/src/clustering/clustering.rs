@@ -184,6 +184,7 @@ async fn process_clustering_logic(
         }
     };
 
+    // Process new cluster notifications
     process_new_cluster_notifications(&db, &clickhouse, &queue, project_id, signal_id, &response)
         .await;
 
@@ -229,8 +230,6 @@ async fn call_clustering_endpoint(
     Ok(cluster_response)
 }
 
-/// After clustering, check if any events created new clusters and send alert
-/// notifications for those events.
 async fn process_new_cluster_notifications(
     db: &Arc<DB>,
     clickhouse: &clickhouse::Client,
@@ -239,14 +238,12 @@ async fn process_new_cluster_notifications(
     signal_id: Uuid,
     response: &ClusterResponse,
 ) {
-    let new_cluster_events: Vec<&ClusterEventResult> = response
-        .events
-        .iter()
-        .filter(|e| e.is_new_cluster)
-        .collect();
-
-    if new_cluster_events.is_empty() {
-        return;
+    // TODO: remove this
+    for event in &response.events {
+        println!(
+            "==> id: {:?}: new cluster: {:?} - level: {:?} - name: {:?}",
+            event.signal_event_id, event.is_new_cluster, event.cluster_level, event.cluster_name,
+        );
     }
 
     let alerts =
@@ -266,7 +263,19 @@ async fn process_new_cluster_notifications(
         return;
     }
 
-    let event_ids: Vec<Uuid> = new_cluster_events
+    // First, notify about new L0 clusters for event alerts with skip_similar enabled.
+    let new_l0_cluster_events: Vec<&ClusterEventResult> = response
+        .events
+        .iter()
+        .filter(|e| e.is_new_cluster)
+        .filter(|e| e.cluster_level == 0u32)
+        .collect();
+
+    if new_l0_cluster_events.is_empty() {
+        return;
+    }
+
+    let event_ids: Vec<Uuid> = new_l0_cluster_events
         .iter()
         .map(|e| e.signal_event_id)
         .collect();
@@ -289,25 +298,39 @@ async fn process_new_cluster_notifications(
         }
     };
 
+    let cluster_id_by_event: std::collections::HashMap<Uuid, Uuid> = new_l0_cluster_events
+        .iter()
+        .map(|e| (e.signal_event_id, e.cluster_id))
+        .collect();
+
     for ch_event in &ch_events {
         let attributes = ch_event.payload_value().unwrap_or_default();
+        let cluster_id = cluster_id_by_event.get(&ch_event.id).copied();
 
         for alert in &alerts {
-            if ch_event.severity < alert.metadata.severity() {
+            if ch_event.severity != alert.metadata.severity() {
+                continue;
+            }
+
+            // skip_similar means notifications for L0 clusters
+            if !alert.metadata.skip_similar() {
                 continue;
             }
 
             let notification_message = notifications::NotificationMessage {
                 definition_type: NotificationDefinitionType::Alert,
-                definition_id: alert.alert_id,
+                definition_id: alert.id,
                 workspace_id: alert.workspace_id,
                 project_id: Some(project_id),
                 notifications: vec![NotificationKind::EventIdentification {
                     project_id,
+                    signal_id,
                     trace_id: ch_event.trace_id,
                     event_name: ch_event.name.clone(),
                     severity: ch_event.severity,
                     extracted_information: Some(attributes.clone()),
+                    alert_name: alert.name.clone(),
+                    cluster_id,
                 }],
             };
 
@@ -331,4 +354,7 @@ async fn process_new_cluster_notifications(
             }
         }
     }
+
+    // Second, notify about new L1+ clusters.
+    // TODO: implement this.
 }

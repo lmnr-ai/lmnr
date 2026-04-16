@@ -48,6 +48,7 @@ interface AlertFormValues {
   channelId: string;
   emailEnabled: boolean;
   severity: SeverityLevel;
+  skipSimilar: boolean;
 }
 
 const CHART_FIELDS = ["count"] as const;
@@ -58,6 +59,7 @@ const DEFAULT_VALUES: AlertFormValues = {
   channelId: "",
   emailEnabled: false,
   severity: SEVERITY_LEVEL.CRITICAL,
+  skipSimilar: true,
 };
 
 export default function ManageAlertSheet({
@@ -113,6 +115,7 @@ export default function ManageAlertSheet({
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
         severity: alert.metadata.severity ?? SEVERITY_LEVEL.CRITICAL,
+        skipSimilar: alert.metadata.skipSimilar ?? true,
       });
     },
     [alert, reset, userEmail]
@@ -299,7 +302,7 @@ export default function ManageAlertSheet({
             type: "SIGNAL_EVENT",
             sourceId: selectedSignal.id,
             targets,
-            metadata: { severity: data.severity },
+            metadata: { severity: data.severity, skipSimilar: data.skipSimilar },
           }),
         });
 
@@ -375,7 +378,7 @@ export default function ManageAlertSheet({
   const isSignalsSectionLoading = isLoadingSignals || isValidatingSignals;
 
   const sheetContent = (
-    <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0 focus:outline-none">
+    <SheetContent side="right" className="sm:max-w-none! w-[45vw] flex flex-col gap-0 focus:outline-none">
       <SheetHeader className="py-4 px-4 border-b">
         <SheetTitle>{isEditMode ? "Edit alert" : "New alert"}</SheetTitle>
       </SheetHeader>
@@ -443,9 +446,9 @@ export default function ManageAlertSheet({
                 control={control}
                 render={({ field }) => (
                   <div className="grid gap-2">
-                    <Label>Minimum severity</Label>
+                    <Label>Severity</Label>
                     <p className="text-xs text-muted-foreground">
-                      Only trigger notifications for events at or above this severity level.
+                      Only trigger notifications for events with this severity level.
                     </p>
                     <Select
                       value={String(field.value)}
@@ -464,6 +467,24 @@ export default function ManageAlertSheet({
                         )}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+              />
+            )}
+
+            {selectedSignal && (
+              <Controller
+                name="skipSimilar"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Skip notifications for similar events</p>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, only the first event in a group of similar events will trigger a notification.
+                      </p>
+                    </div>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
                   </div>
                 )}
               />

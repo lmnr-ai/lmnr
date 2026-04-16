@@ -218,6 +218,7 @@ impl SignalJobRealtimeHandler {
                     &batch_output.responses,
                     None,
                     self.clickhouse.clone(),
+                    self.db.clone(),
                     self.queue.clone(),
                     self.config.clone(),
                 )

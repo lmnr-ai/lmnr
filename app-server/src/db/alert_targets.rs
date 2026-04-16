@@ -7,19 +7,26 @@ use uuid::Uuid;
 const DEFAULT_SEVERITY: u8 = 2;
 
 #[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct AlertMetadata {
     pub severity: Option<u8>,
+    pub skip_similar: Option<bool>,
 }
 
 impl AlertMetadata {
     pub fn severity(&self) -> u8 {
         self.severity.unwrap_or(DEFAULT_SEVERITY)
     }
+
+    pub fn skip_similar(&self) -> bool {
+        self.skip_similar.unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct AlertInfo {
-    pub alert_id: Uuid,
+    pub id: Uuid,
+    pub name: String,
     pub workspace_id: Uuid,
     #[sqlx(json)]
     pub metadata: AlertMetadata,
@@ -34,7 +41,7 @@ pub async fn get_alerts_for_signal(
 ) -> anyhow::Result<Vec<AlertInfo>> {
     let records = sqlx::query_as::<_, AlertInfo>(
         r#"
-        SELECT a.id AS alert_id, p.workspace_id, a.metadata
+        SELECT a.id, a.name, p.workspace_id, a.metadata
         FROM alerts a
         INNER JOIN projects p ON p.id = a.project_id
         WHERE a.project_id = $1
