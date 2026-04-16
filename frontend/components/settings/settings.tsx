@@ -53,7 +53,7 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
 
   useEffect(() => {
     track("settings", "page_viewed", { tab: activeTab });
-  }, [activeTab]);
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
