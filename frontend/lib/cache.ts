@@ -110,6 +110,24 @@ class CacheManager {
     }
   }
 
+  async expire(key: string, seconds: number): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.expire(key, seconds);
+        return result === 1;
+      } catch (e) {
+        console.error("Error setting expiry in cache", e);
+        return false;
+      }
+    } else {
+      const entry = this.memoryCache.get(key);
+      if (!entry) return false;
+      entry.expiresAt = Date.now() + seconds * 1000;
+      return true;
+    }
+  }
+
   async zrange(key: string, start: number, stop: number): Promise<string[]> {
     if (this.useRedis) {
       const client = await this.getRedisClient();
@@ -161,7 +179,7 @@ export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
 export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
+export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";

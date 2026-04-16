@@ -88,7 +88,6 @@ export const createMetricFromOption = (functionValue: string, column: string): M
   return { ...metric, column } as Metric;
 };
 
-// Table chart limits — Table renders raw rows so we cap result size to keep the UI responsive.
 export const TABLE_DEFAULT_LIMIT = 10;
 export const TABLE_MAX_LIMIT = 100;
 

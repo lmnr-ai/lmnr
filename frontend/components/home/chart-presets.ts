@@ -1,17 +1,24 @@
 export type PresetTable = "traces" | "spans" | "signals";
 
+interface AxisPresetConfig {
+  type: "line" | "bar" | "horizontalBar";
+  x: string;
+  y: string;
+  breakdown?: string;
+  total?: boolean;
+  displayMode?: string;
+}
+
+interface TablePresetConfig {
+  type: "table";
+  hiddenColumns: string[];
+}
+
 export interface ChartPreset {
   name: string;
   table: PresetTable;
   query: string;
-  config: {
-    type: string;
-    x: string;
-    y: string;
-    breakdown?: string;
-    total?: boolean;
-    displayMode?: string;
-  };
+  config: AxisPresetConfig | TablePresetConfig;
 }
 
 export const CHART_PRESETS: ChartPreset[] = [
@@ -85,30 +92,36 @@ ORDER BY time WITH FILL
     config: { x: "time", y: "sum_duration", type: "line", displayMode: "total" },
   },
   {
-    name: "Longest traces (min)",
-    table: "traces",
-    query: `SELECT
-    (duration / 60) AS \`value\`
-FROM traces
-WHERE
-    start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
-LIMIT 10`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
-  },
-  {
     name: "Expensive traces",
     table: "traces",
     query: `SELECT
-    (total_cost) AS \`value\`
+    top_span_name,
+    total_cost,
+    duration,
+    id
 FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
+ORDER BY total_cost DESC
 LIMIT 10`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
+    config: { type: "table", hiddenColumns: ["id"] },
+  },
+  {
+    name: "Longest traces",
+    table: "traces",
+    query: `SELECT
+    top_span_name,
+    duration,
+    total_cost,
+    id
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+ORDER BY duration DESC
+LIMIT 10`,
+    config: { type: "table", hiddenColumns: ["id"] },
   },
   {
     name: "Total cost",
@@ -182,31 +195,40 @@ LIMIT 5`,
     config: { x: "count", y: "name", type: "horizontalBar", displayMode: "total" },
   },
   {
-    name: "Longest spans (min)",
-    table: "spans",
-    query: `SELECT
-    (duration / 60) AS \`value\`
-FROM spans
-WHERE
-    span_type = 'LLM'
-    AND start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
-LIMIT 10`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
-  },
-  {
     name: "Expensive spans",
     table: "spans",
     query: `SELECT
-    (total_cost) AS \`value\`
+    name,
+    model,
+    total_cost,
+    duration,
+    trace_id,
+    span_id
 FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
+ORDER BY total_cost DESC
 LIMIT 10`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
+    config: { type: "table", hiddenColumns: ["trace_id", "span_id"] },
+  },
+  {
+    name: "Longest spans",
+    table: "spans",
+    query: `SELECT
+    name,
+    model,
+    duration,
+    total_cost,
+    trace_id,
+    span_id
+FROM spans
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+ORDER BY duration DESC
+LIMIT 10`,
+    config: { type: "table", hiddenColumns: ["trace_id", "span_id"] },
   },
   {
     name: "Signal events",
@@ -222,5 +244,22 @@ GROUP BY name
 ORDER BY count DESC
 LIMIT 10`,
     config: { x: "count", y: "name", type: "horizontalBar", displayMode: "total" },
+  },
+  {
+    name: "Signal events table",
+    table: "signals",
+    query: `SELECT
+    name,
+    summary,
+    timestamp,
+    signal_id,
+    trace_id
+FROM signal_events
+WHERE
+    timestamp >= {start_time:DateTime64}
+    AND timestamp <= {end_time:DateTime64}
+ORDER BY timestamp DESC
+LIMIT 50`,
+    config: { type: "table", hiddenColumns: ["signal_id", "trace_id"] },
   },
 ];

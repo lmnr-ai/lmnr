@@ -118,7 +118,13 @@ const Chart = ({ chart }: ChartProps) => {
       ) : isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
-        <ChartRendererCore config={settings.config} data={data} columns={columns} onBarClick={handleBarClick} />
+        <ChartRendererCore
+          config={settings.config}
+          data={data}
+          columns={columns}
+          onBarClick={handleBarClick}
+          syncId="home"
+        />
       )}
       <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
     </div>

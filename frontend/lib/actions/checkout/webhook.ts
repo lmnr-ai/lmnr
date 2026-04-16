@@ -3,7 +3,7 @@ import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { invalidateUsageWarningsCacheForWorkspace } from "@/lib/actions/usage/utils";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -87,14 +87,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       .values({
         workspaceId: workspace.id,
         bytes: 0,
-        signalRuns: 0,
+        signalSteps: 0,
         lastReportedDate: sql`date_trunc('day', now())`,
       })
       .onConflictDoUpdate({
         target: workspaceUsage.workspaceId,
         set: {
           bytes: 0,
-          signalRuns: 0,
+          signalSteps: 0,
           lastReportedDate: sql`date_trunc('day', now())`,
         },
       });
@@ -145,7 +145,7 @@ const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boole
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   if (hasSignalRuns) {
-    await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+    await cache.remove(`${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -270,7 +270,7 @@ export const handleInvoiceFinalized = async (
     .values({
       workspaceId: workspaceId,
       bytes: 0,
-      signalRuns: 0,
+      signalSteps: 0,
       lastReportedDate: sql`date_trunc('day', ${resetDate})`,
     })
     .onConflictDoUpdate({
@@ -278,7 +278,7 @@ export const handleInvoiceFinalized = async (
       set: {
         lastReportedDate: sql`date_trunc('day', ${resetDate})`,
         ...(hasBytes ? { bytes: 0 } : {}),
-        ...(hasSignalRuns ? { signalRuns: 0 } : {}),
+        ...(hasSignalRuns ? { signalSteps: 0 } : {}),
       },
     });
   await db
@@ -312,8 +312,8 @@ const insertNewTierUsageWarnings = async ({
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_runs"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalRuns)
+          eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalSteps)
         )
       );
   }
@@ -327,8 +327,8 @@ const insertNewTierUsageWarnings = async ({
       },
       {
         workspaceId,
-        usageItem: "signal_runs",
-        limitValue: newTierConfig.includedSignalRuns,
+        usageItem: "signal_steps_processed",
+        limitValue: newTierConfig.includedSignalSteps,
       },
     ])
     .onConflictDoNothing();

@@ -1,13 +1,24 @@
+import { type ColumnDef } from "@tanstack/react-table";
 import { isNil, isObject } from "lodash";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 
+import { type TableColumnConfig } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { type ColumnConfig, DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+
+const PAGE_SIZE = 50;
 
 interface TableChartProps {
   data: Record<string, any>[];
   columns: ColumnInfo[];
+  hiddenColumns?: string[];
+  onRowClick?: (rowData: Record<string, any>) => void;
+  tableColumnConfig?: TableColumnConfig;
+  onColumnConfigChange?: (config: TableColumnConfig) => void;
+  hasMore?: boolean;
+  isFetching?: boolean;
+  fetchNextPage?: () => void;
 }
 
 const formatCell = (value: unknown): string => {
@@ -23,12 +34,79 @@ const formatCell = (value: unknown): string => {
   return String(value);
 };
 
-const TableChart = ({ data, columns }: TableChartProps) => {
-  // Prefer the columns prop (preserves SQL SELECT order); fall back to keys of first row.
-  const headers = useMemo(() => {
-    if (columns.length > 0) return columns.map((c) => c.name);
-    return data[0] ? Object.keys(data[0]) : [];
-  }, [columns, data]);
+const isRowClickable = (row: Record<string, any>): boolean => !!(row?.trace_id || row?.id || row?.signal_id);
+
+const TableChart = ({
+  data,
+  columns: columnInfos,
+  hiddenColumns,
+  onRowClick,
+  tableColumnConfig,
+  onColumnConfigChange,
+  hasMore = false,
+  isFetching = false,
+  fetchNextPage,
+}: TableChartProps) => {
+  const hiddenSet = useMemo(() => new Set(hiddenColumns ?? []), [hiddenColumns]);
+
+  const visibleColumnNames = useMemo(() => {
+    const all = columnInfos.length > 0 ? columnInfos.map((c) => c.name) : data[0] ? Object.keys(data[0]) : [];
+    return all.filter((h) => !hiddenSet.has(h));
+  }, [columnInfos, data, hiddenSet]);
+
+  const tableColumns: ColumnDef<Record<string, any>>[] = useMemo(
+    () =>
+      visibleColumnNames.map((name) => ({
+        id: name,
+        accessorKey: name,
+        header: name,
+        enableResizing: true,
+        size: 150,
+        cell: ({ getValue }) => {
+          const formatted = formatCell(getValue());
+          return (
+            <span className="whitespace-nowrap max-w-xs truncate block" title={formatted}>
+              {formatted}
+            </span>
+          );
+        },
+      })),
+    [visibleColumnNames]
+  );
+
+  const initialColumnConfig = useMemo((): ColumnConfig => {
+    const savedOrder = tableColumnConfig?.columnOrder;
+    const validOrder = savedOrder?.filter((col) => visibleColumnNames.includes(col)) ?? [];
+    const newCols = visibleColumnNames.filter((col) => !validOrder.includes(col));
+    const mergedOrder = [...validOrder, ...newCols];
+
+    return {
+      columnOrder: mergedOrder.length > 0 ? mergedOrder : visibleColumnNames,
+      columnSizing: tableColumnConfig?.columnSizing ?? {},
+      columnVisibility: tableColumnConfig?.columnVisibility ?? {},
+    };
+  }, [tableColumnConfig, visibleColumnNames]);
+
+  const handleColumnConfigChange = useCallback(
+    (config: ColumnConfig) => {
+      onColumnConfigChange?.({
+        columnOrder: config.columnOrder,
+        columnSizing: config.columnSizing,
+        columnVisibility: config.columnVisibility,
+      });
+    },
+    [onColumnConfigChange]
+  );
+
+  const handleRowClick = useCallback(
+    (row: any) => {
+      const original = row.original;
+      if (onRowClick && isRowClickable(original)) {
+        onRowClick(original);
+      }
+    },
+    [onRowClick]
+  );
 
   if (data.length === 0) {
     return (
@@ -39,34 +117,27 @@ const TableChart = ({ data, columns }: TableChartProps) => {
   }
 
   return (
-    <div className="flex-1 min-h-0 w-full h-full flex flex-col border rounded-md overflow-hidden">
-      <ScrollArea className="flex-1 min-h-0">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background z-10 border-b">
-            <TableRow>
-              {headers.map((h) => (
-                <TableHead key={h} className="px-2 font-medium whitespace-nowrap">
-                  {h}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((row, idx) => (
-              <TableRow key={idx}>
-                {headers.map((h) => {
-                  const formatted = formatCell(row[h]);
-                  return (
-                    <TableCell key={h} className="font-mono text-xs whitespace-nowrap max-w-xs truncate" title={formatted}>
-                      {formatted}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+    <div className="text-sm flex-1 min-h-0 w-full h-full">
+      <DataTableStateProvider
+        defaultColumnOrder={visibleColumnNames}
+        initialColumnConfig={initialColumnConfig}
+        onColumnConfigChange={handleColumnConfigChange}
+        pageSize={PAGE_SIZE}
+      >
+        <InfiniteDataTable
+          columns={tableColumns}
+          data={data}
+          hasMore={hasMore}
+          isFetching={isFetching}
+          isLoading={false}
+          fetchNextPage={fetchNextPage ?? (() => {})}
+          onRowClick={onRowClick ? handleRowClick : undefined}
+          className="h-full"
+          scrollContentClassName="border rounded-md"
+          hideSelectionPanel
+          estimatedRowHeight={35}
+        />
+      </DataTableStateProvider>
     </div>
   );
 };

@@ -18,7 +18,7 @@ export interface SystemMessageResponse {
   path: string[]; // Return as array
 }
 
-function extractSystemMessageContent(message: any): string | null {
+export function extractSystemMessageContent(message: any): string | null {
   if (!message || typeof message !== "object") return null;
   if (message.role !== "system") return null;
 
@@ -28,13 +28,19 @@ function extractSystemMessageContent(message: any): string | null {
 
   if (Array.isArray(message.content)) {
     const textParts = message.content.filter((part: any) => part.type === "text").map((part: any) => part.text);
-    return textParts.join("\n");
+    if (textParts.length > 0) return textParts.join("\n");
+  }
+
+  // Gemini format: { role: "system", parts: [{ text: "..." }] }
+  if (Array.isArray(message.parts)) {
+    const textParts = message.parts.filter((p: any) => p && typeof p.text === "string").map((p: any) => p.text);
+    if (textParts.length > 0) return textParts.join("\n");
   }
 
   return null;
 }
 
-function parseSystemMessageFromInput(input: string): string | null {
+export function parseSystemMessageFromInput(input: string): string | null {
   const parsed = tryParseJson(input);
   if (!parsed) return null;
 

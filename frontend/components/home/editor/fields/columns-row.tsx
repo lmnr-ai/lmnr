@@ -36,8 +36,7 @@ const isCustomMetric = (metric: Metric, availableColumnNames: Set<string>): bool
 /** Stable random alias for custom SQL columns. Generated once per source-switch
  *  so the alias survives reorders/removals (using index would shift on every
  *  remove and trigger a re-fetch). */
-const generateCustomAlias = (): string =>
-  `column_${Math.random().toString(36).slice(2, 8)}`;
+const generateCustomAlias = (): string => `column_${Math.random().toString(36).slice(2, 8)}`;
 
 const ColumnsRow = ({ index, table, disabledColumnNames, onRemove, canRemove }: ColumnsRowProps) => {
   const { control, setValue } = useFormContext<QueryStructure>();
@@ -66,8 +65,8 @@ const ColumnsRow = ({ index, table, disabledColumnNames, onRemove, canRemove }: 
   };
 
   return (
-    <div className="grid gap-2 border rounded p-2 bg-secondary/50">
-      <div className="flex gap-2 items-start">
+    <div className={cn("grid gap-2", isCustom && "border rounded p-2 bg-secondary/50")}>
+      <div className="flex gap-2 items-center">
         <Select value={sourceValue} onValueChange={handleSourceChange}>
           <SelectTrigger className="text-xs flex-1">
             <SelectValue placeholder="Select column">

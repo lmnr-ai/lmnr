@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
@@ -7,6 +7,8 @@ import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
   previews: Record<string, any>;
+  inputPreviews: Record<string, string | null>;
+  agentNames: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -21,7 +23,9 @@ export function useBatchedSpanPreviews(
   visibleSpanIds: string[],
   trace: { id?: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanPreviewsOptions = {},
-  spanTypes?: Record<string, string>
+  spanTypes?: Record<string, string>,
+  inputSpanIds?: string[],
+  promptHashes?: Record<string, string>
 ): BatchedPreviewsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
@@ -31,21 +35,47 @@ export function useBatchedSpanPreviews(
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
   const [previews, setPreviews] = useState<Record<string, any>>({});
+  const [inputPreviews, setInputPreviews] = useState<Record<string, string | null>>({});
+  const [agentNames, setAgentNames] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
+  const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
+  const promptHashesRef = useRef<Record<string, string>>(promptHashes ?? {});
 
   if (spanTypes) {
     spanTypesRef.current = spanTypes;
+  }
+  if (inputSpanIds) {
+    inputSpanIdsRef.current = inputSpanIds;
+  }
+  if (promptHashes) {
+    promptHashesRef.current = promptHashes;
   }
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
       if (spanIds.length === 0 || !trace?.id) return;
 
+      const inputSpanIdSet = new Set(inputSpanIdsRef.current);
+      const batchInputSpanIds = spanIds.filter((id) => inputSpanIdSet.has(id));
+
       try {
         const body: Record<string, any> = {
           spanIds,
           spanTypes: spanTypesRef.current,
         };
+
+        if (batchInputSpanIds.length > 0) {
+          body.inputSpanIds = batchInputSpanIds;
+
+          const batchHashes: Record<string, string> = {};
+          for (const id of batchInputSpanIds) {
+            const hash = promptHashesRef.current[id];
+            if (hash) batchHashes[id] = hash;
+          }
+          if (Object.keys(batchHashes).length > 0) {
+            body.promptHashes = batchHashes;
+          }
+        }
 
         if (trace?.startTime && trace?.endTime) {
           const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
@@ -70,7 +100,11 @@ export function useBatchedSpanPreviews(
           throw new Error(errorData.error || "Failed to fetch span previews");
         }
 
-        const data = (await response.json()) as { previews: Record<string, string | null> };
+        const data = (await response.json()) as {
+          previews: Record<string, string | null>;
+          inputPreviews?: Record<string, string | null>;
+          agentNames?: Record<string, string | null>;
+        };
 
         spanIds.forEach((id) => {
           cache.current.set(id, get(data.previews, id, null));
@@ -84,6 +118,14 @@ export function useBatchedSpanPreviews(
           });
           return next;
         });
+
+        if (data.inputPreviews) {
+          setInputPreviews((prev) => ({ ...prev, ...data.inputPreviews }));
+        }
+
+        if (data.agentNames) {
+          setAgentNames((prev) => ({ ...prev, ...data.agentNames }));
+        }
       } catch (error) {
         toast({
           variant: "destructive",
@@ -119,8 +161,10 @@ export function useBatchedSpanPreviews(
     await fetchBatch(toFetch);
   }, [fetchBatch]);
 
+  const allIds = useMemo(() => [...visibleSpanIds, ...(inputSpanIds ?? [])], [visibleSpanIds, inputSpanIds]);
+
   useEffect(() => {
-    const currentIdsKey = visibleSpanIds.join(",");
+    const currentIdsKey = allIds.join(",");
 
     if (currentIdsKey === lastIdsRef.current) {
       return;
@@ -128,7 +172,7 @@ export function useBatchedSpanPreviews(
 
     lastIdsRef.current = currentIdsKey;
 
-    const newIds = visibleSpanIds.filter(
+    const newIds = allIds.filter(
       (id) => !cache.current.has(id) && !fetching.current.has(id) && !pendingFetch.current.has(id)
     );
 
@@ -140,13 +184,15 @@ export function useBatchedSpanPreviews(
       }
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
-  }, [visibleSpanIds, scheduleFetch, debounceMs]);
+  }, [allIds, scheduleFetch, debounceMs]);
 
   const clearCache = useCallback(() => {
     cache.current.clear();
     fetching.current.clear();
     setPreviews({});
+    setInputPreviews({});
+    setAgentNames({});
   }, []);
 
-  return { previews, clearCache };
+  return { previews, inputPreviews, agentNames, clearCache };
 }

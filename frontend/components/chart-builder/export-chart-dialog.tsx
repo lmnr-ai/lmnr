@@ -37,7 +37,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
     setIsLoading(true);
     try {
       await fetch(`/api/projects/${projectId}/home-charts`, {
-        method: "PUT",
+        method: "POST",
         body: JSON.stringify({
           query,
           name,

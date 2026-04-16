@@ -1,4 +1,4 @@
-import { type TraceViewSpan } from "./base";
+import { type TraceViewListSpan, type TraceViewSpan, type TranscriptListEntry } from "./base";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -115,7 +115,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
   return spanItems;
 };
 
-export const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
+const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
   listSpans.reduce<TraceViewSpan[][]>((sections, span) => {
     const lastSection = sections[sections.length - 1];
 
@@ -153,7 +153,7 @@ const buildParentChainRecursive = (
  * Calculate occurrence counts [2], [3] for duplicate names within sections
  * Returns a Map of spanId -> structured data with name and optional count
  */
-export const buildSpanNameMap = (
+const buildSpanNameMap = (
   sections: TraceViewSpan[][],
   spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Map<string, { name: string; count?: number }> => {
@@ -194,7 +194,7 @@ export const buildSpanNameMap = (
   return map;
 };
 
-export const buildParentChain = (
+const buildParentChain = (
   span: TraceViewSpan,
   spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
 ): Array<{ spanId: string; name: string }> => {
@@ -208,7 +208,7 @@ export const buildParentChain = (
     .filter((ref): ref is { spanId: string; name: string } => ref !== null);
 };
 
-export const buildPathInfo = (
+const buildPathInfo = (
   parentChain: Array<{ spanId: string; name: string }>,
   spanNameMap: Map<string, { name: string; count?: number }>
 ): {
@@ -241,6 +241,276 @@ export const buildPathInfo = (
     display: displayPath,
     full: parentChain,
   };
+};
+
+// ============================================================================
+// Transcript List
+// ============================================================================
+
+const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>): TraceViewListSpan => ({
+  spanId: span.spanId,
+  parentSpanId: span.parentSpanId,
+  spanType: span.spanType,
+  name: span.name,
+  model: span.model,
+  path: span.path,
+  startTime: span.startTime,
+  endTime: span.endTime,
+  inputTokens: span.inputTokens,
+  outputTokens: span.outputTokens,
+  cacheReadInputTokens: span.cacheReadInputTokens,
+  totalCost: span.totalCost,
+  pending: span.pending,
+  pathInfo: pathInfoMap.get(span.spanId) ?? null,
+  inputSnippet: span.inputSnippet,
+  outputSnippet: span.outputSnippet,
+  attributesSnippet: span.attributesSnippet,
+});
+
+const NULL_SPAN_ID = "00000000-0000-0000-0000-000000000000";
+
+type LlmGroup = { parentSpanId: string; promptHash: string; idsPath: string[] };
+
+/**
+ * Detect sub-agent boundary span IDs from in-memory spans using frequency counting.
+ *
+ * Groups LLM/CACHED spans by (parentSpanId, promptHash), keeps the earliest
+ * idsPath per group, then finds the first ancestor ID exclusive to each
+ * sub-agent's hash group. See CLAUDE.md for the full algorithm explanation.
+ */
+export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> => {
+  const llmGroups = new Map<string, LlmGroup & { minStart: string }>();
+
+  for (const span of spans) {
+    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
+
+    const promptHash = span.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
+    const idsPath = span.attributes?.["lmnr.span.ids_path"] as string[] | undefined;
+
+    if (!promptHash || !Array.isArray(idsPath) || idsPath.length === 0) continue;
+
+    const filteredPath = idsPath.filter((id) => id !== NULL_SPAN_ID);
+    const key = `${span.parentSpanId ?? ""}\0${promptHash}`;
+
+    const existing = llmGroups.get(key);
+    if (!existing || span.startTime < existing.minStart) {
+      llmGroups.set(key, {
+        parentSpanId: span.parentSpanId ?? "",
+        promptHash,
+        idsPath: filteredPath,
+        minStart: span.startTime,
+      });
+    }
+  }
+
+  const groups = [...llmGroups.values()].sort((a, b) => a.minStart.localeCompare(b.minStart));
+  if (groups.length <= 1) return new Set();
+
+  const mainHash = groups[0].promptHash;
+  const mainRows = groups.filter((r) => r.promptHash === mainHash);
+  const nonMainRows = groups.filter((r) => r.promptHash !== mainHash);
+  if (nonMainRows.length === 0) return new Set();
+
+  const mainParentIds = new Set(mainRows.map((r) => r.parentSpanId));
+  const mainSpanIds = new Set(mainRows.flatMap((r) => r.idsPath));
+
+  const candidates = nonMainRows.filter((r) => !mainParentIds.has(r.parentSpanId));
+  if (candidates.length === 0) return new Set();
+
+  const hashGroupsPerSpan = new Map<string, Set<string>>();
+  for (const c of candidates) {
+    for (const id of c.idsPath) {
+      if (mainSpanIds.has(id)) continue;
+      if (!hashGroupsPerSpan.has(id)) hashGroupsPerSpan.set(id, new Set());
+      hashGroupsPerSpan.get(id)!.add(c.promptHash);
+    }
+  }
+
+  const boundaryIds = new Set<string>();
+  for (const c of candidates) {
+    for (const id of c.idsPath) {
+      if (mainSpanIds.has(id)) continue;
+      const hGroups = hashGroupsPerSpan.get(id);
+      if (hGroups && hGroups.size === 1) {
+        boundaryIds.add(id);
+        break;
+      }
+    }
+  }
+
+  return boundaryIds;
+};
+
+/**
+ * Builds the flat list of transcript entries from spans.
+ * Handles subagent grouping: spans under a subagent boundary are collapsed
+ * into group headers with expandable children.
+ */
+export const buildTranscriptListEntries = (
+  allSpans: TraceViewSpan[],
+  visibleSpanIds: Set<string>
+): TranscriptListEntry[] => {
+  const selectionFilteredSpans =
+    visibleSpanIds.size === 0 ? allSpans : allSpans.filter((s) => visibleSpanIds.has(s.spanId));
+
+  const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
+  const pathInfoMap = computePathInfoMap(allSpans);
+
+  const groupBoundarySet = computeSubagentBoundaries(allSpans);
+  if (groupBoundarySet.size === 0) {
+    return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span, pathInfoMap) }));
+  }
+
+  const parentMap = new Map<string, string | undefined>();
+  const spanMap = new Map<string, TraceViewSpan>();
+  for (const s of allSpans) {
+    parentMap.set(s.spanId, s.parentSpanId);
+    spanMap.set(s.spanId, s);
+  }
+
+  const spanGroupCache = new Map<string, string | null>();
+  const findGroupBoundary = (spanId: string): string | null => {
+    if (spanGroupCache.has(spanId)) return spanGroupCache.get(spanId)!;
+
+    const visited: string[] = [spanId];
+    let current = spanId;
+    let result: string | null = null;
+
+    while (current) {
+      if (groupBoundarySet.has(current)) {
+        result = current;
+        break;
+      }
+      const parent = parentMap.get(current);
+      if (!parent) break;
+      if (spanGroupCache.has(parent)) {
+        result = spanGroupCache.get(parent)!;
+        break;
+      }
+      visited.push(parent);
+      current = parent;
+    }
+
+    for (const id of visited) {
+      spanGroupCache.set(id, result);
+    }
+    return result;
+  };
+
+  // Pass 1: collect all spans per boundary, preserving time order
+  const groupSpansMap = new Map<string, TraceViewSpan[]>();
+  for (const span of listSpans) {
+    const boundary = findGroupBoundary(span.spanId);
+    if (!boundary) continue;
+    if (!groupSpansMap.has(boundary)) {
+      groupSpansMap.set(boundary, []);
+    }
+    groupSpansMap.get(boundary)!.push(span);
+  }
+
+  // Pass 2: pre-compute group metadata
+  const groupMeta = new Map<
+    string,
+    {
+      groupId: string;
+      name: string;
+      path: string;
+      firstSpan: TraceViewListSpan;
+      firstLlmSpanId: string | null;
+      lastLlmSpanId: string | null;
+      startTime: string;
+      endTime: string;
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens: number;
+      totalCost: number;
+      childSpans: TraceViewListSpan[];
+    }
+  >();
+
+  for (const [boundary, groupSpans] of groupSpansMap) {
+    const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+    const lastLlm = groupSpans.findLast((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+
+    if (!firstLlm) continue;
+
+    const boundarySpan = spanMap.get(boundary);
+    const lightSpans = groupSpans.map((s) => toLightweight(s, pathInfoMap));
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadInputTokens = 0;
+    let totalCost = 0;
+    for (const s of groupSpans) {
+      inputTokens += s.inputTokens;
+      outputTokens += s.outputTokens;
+      cacheReadInputTokens += s.cacheReadInputTokens ?? 0;
+      totalCost += s.totalCost;
+    }
+
+    groupMeta.set(boundary, {
+      groupId: `group-${boundary}`,
+      name: boundarySpan?.name ?? groupSpans[0].name,
+      path: boundarySpan?.path ?? "",
+      firstSpan: lightSpans[0],
+      firstLlmSpanId: firstLlm.spanId,
+      lastLlmSpanId: lastLlm && lastLlm.spanId !== firstLlm.spanId ? lastLlm.spanId : null,
+      startTime: groupSpans[0].startTime,
+      endTime: groupSpans[groupSpans.length - 1].endTime,
+      inputTokens,
+      outputTokens,
+      cacheReadInputTokens,
+      totalCost,
+      childSpans: lightSpans,
+    });
+  }
+
+  // Pass 3: emit flat entries — standalone spans, group headers + child spans
+  const emittedGroups = new Set<string>();
+  const entries: TranscriptListEntry[] = [];
+
+  for (const span of listSpans) {
+    const boundary = findGroupBoundary(span.spanId);
+
+    if (!boundary) {
+      entries.push({ type: "span", span: toLightweight(span, pathInfoMap) });
+      continue;
+    }
+
+    if (emittedGroups.has(boundary)) continue;
+    emittedGroups.add(boundary);
+
+    const meta = groupMeta.get(boundary);
+    if (!meta) {
+      const groupSpans = groupSpansMap.get(boundary)!;
+      for (const s of groupSpans) {
+        entries.push({ type: "span", span: toLightweight(s, pathInfoMap) });
+      }
+      continue;
+    }
+
+    const { childSpans, ...groupHeader } = meta;
+    entries.push({ ...groupHeader, type: "group" });
+
+    if (meta.firstLlmSpanId) {
+      entries.push({
+        type: "group-input",
+        groupId: meta.groupId,
+        firstLlmSpanId: meta.firstLlmSpanId,
+      });
+    }
+
+    for (let i = 0; i < childSpans.length; i++) {
+      entries.push({
+        type: "group-span",
+        span: childSpans[i],
+        groupId: meta.groupId,
+        isLast: i === childSpans.length - 1,
+      });
+    }
+  }
+
+  return entries;
 };
 
 // ============================================================================

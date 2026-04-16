@@ -7,7 +7,7 @@ import { workspaceUsageLimits } from "@/lib/db/migrations/schema";
 
 import { invalidateProjectCacheForWorkspace, isFreeTierWorkspace } from "./utils";
 
-export const USAGE_LIMIT_TYPES = ["bytes", "signal_runs"] as const;
+export const USAGE_LIMIT_TYPES = ["bytes", "signal_steps_processed"] as const;
 export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
 
 export interface WorkspaceUsageLimit {

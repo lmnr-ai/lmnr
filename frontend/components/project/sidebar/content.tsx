@@ -23,7 +23,13 @@ import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
-  const { gbLimit, gbUsedThisMonth, signalRunsLimit, signalRunsUsedThisMonth, workspaceId } = usageDetails;
+  const {
+    gbLimit,
+    gbUsedThisMonth,
+    signalStepsLimit: signalRunsLimit,
+    signalStepsUsedThisMonth: signalRunsUsedThisMonth,
+    workspaceId,
+  } = usageDetails;
   const formatGB = (gb: number) => {
     if (gb < 0.001) {
       return `${(gb * 1024).toFixed(0)} MB`;

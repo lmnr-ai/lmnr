@@ -129,7 +129,7 @@ pub(crate) fn resolve_provider_name() -> String {
 pub(crate) fn default_model_for_provider(provider: &str) -> String {
     match provider {
         "mock" => "".to_string(),
-        "bedrock" => "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
+        "bedrock" => "us.anthropic.claude-sonnet-4-6".to_string(),
         _ => "gemini-3-flash-preview".to_string(),
     }
 }
@@ -140,11 +140,9 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("gemini", ModelSize::Small) => "gemini-3-flash-preview".to_string(),
         ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
         ("gemini", ModelSize::Large) => "gemini-3-pro-preview".to_string(),
-        ("bedrock", ModelSize::Small) => {
-            "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
-        }
-        ("bedrock", ModelSize::Medium) => "global.anthropic.claude-sonnet-4-6".to_string(),
-        ("bedrock", ModelSize::Large) => "global.anthropic.claude-opus-4-6-v1".to_string(),
+        ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
+        ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-4-6".to_string(),
+        ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-6-v1".to_string(),
         _ => default_model_for_provider(provider),
     }
 }
@@ -240,15 +238,25 @@ impl LlmClient {
             .provider
             .as_deref()
             .unwrap_or(&self.default_provider);
-        let client = self.providers.get(provider_name).ok_or_else(|| {
-            ProviderError::ConfigError(format!(
-                "Provider '{}' not available. Available: {:?}",
+        let (resolved_provider, client) = if let Some(c) = self.providers.get(provider_name) {
+            (provider_name, c)
+        } else if let Some(c) = self.providers.get(&self.default_provider) {
+            log::warn!(
+                "Provider '{}' not available, falling back to default '{}'",
                 provider_name,
+                self.default_provider,
+            );
+            (self.default_provider.as_str(), c)
+        } else {
+            return Err(ProviderError::ConfigError(format!(
+                "Provider '{}' not available and default '{}' also missing. Available: {:?}",
+                provider_name,
+                self.default_provider,
                 self.providers.keys().collect::<Vec<_>>()
-            ))
-        })?;
+            )));
+        };
         let model = match request.model_size {
-            Some(size) => model_for_size(provider_name, size),
+            Some(size) => model_for_size(resolved_provider, size),
             None => self.default_model.clone(),
         };
         Ok((client, model))

@@ -149,3 +149,4 @@ pub async fn search_spans(
 
     Ok(HttpResponse::Ok().json(results))
 }
+

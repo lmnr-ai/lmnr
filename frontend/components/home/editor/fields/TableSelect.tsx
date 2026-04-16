@@ -1,12 +1,19 @@
 import { Controller, useFormContext } from "react-hook-form";
 
+import { ChartType } from "@/components/chart-builder/types";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
 import { tableSchemas } from "@/components/home/editor/table-schemas";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types";
 
 const TableSelect = () => {
-  const { control } = useFormContext<QueryStructure>();
+  const { control, setValue } = useFormContext<QueryStructure>();
+  const { chartType, setChartConfig, chart } = useHomeEditorStoreContext((state) => ({
+    chartType: state.chart.settings.config.type,
+    setChartConfig: state.setChartConfig,
+    chart: state.chart,
+  }));
 
   const availableTables = Object.keys(tableSchemas);
 
@@ -16,6 +23,17 @@ const TableSelect = () => {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
 
+  const handleTableChange = (newTable: string) => {
+    setValue("table", newTable, { shouldValidate: true });
+
+    if (chartType === ChartType.Table) {
+      setValue("metrics", [{ fn: "raw", column: "", alias: "", args: [] }], { shouldValidate: true });
+      setValue("filters", [], { shouldValidate: true });
+      setValue("orderBy", [], { shouldValidate: true });
+      setChartConfig({ ...chart.settings.config, hiddenColumns: [] } as typeof chart.settings.config);
+    }
+  };
+
   return (
     <div className="grid gap-1">
       <Label className="font-semibold text-xs">Table</Label>
@@ -23,7 +41,7 @@ const TableSelect = () => {
         control={control}
         name="table"
         render={({ field }) => (
-          <Select value={field.value} onValueChange={field.onChange}>
+          <Select value={field.value} onValueChange={handleTableChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select table" />
             </SelectTrigger>

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "reader";
+type ViewTab = "tree" | "transcript";
 
 const viewOptions: Record<
   ViewTab,
@@ -22,13 +22,13 @@ const viewOptions: Record<
     icon: ListTree,
     label: "Tree",
   },
-  reader: {
+  transcript: {
     icon: List,
-    label: "Reader",
+    label: "Transcript",
   },
 };
 
-const viewTabs: ViewTab[] = ["tree", "reader"];
+const viewTabs: ViewTab[] = ["tree", "transcript"];
 
 export default function ViewDropdown() {
   const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore((state) => ({
@@ -39,7 +39,7 @@ export default function ViewDropdown() {
   }));
 
   const isValidTab = viewTabs.includes(tab as ViewTab);
-  const displayTab: ViewTab = isValidTab ? (tab as ViewTab) : "tree";
+  const displayTab: ViewTab = isValidTab ? (tab as ViewTab) : "transcript";
   const currentView = viewOptions[displayTab];
   const CurrentIcon = currentView.icon;
 

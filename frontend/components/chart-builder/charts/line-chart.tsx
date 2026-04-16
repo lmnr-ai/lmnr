@@ -16,6 +16,7 @@ interface LineChartProps {
   chartConfig: ChartConfig;
   displayMode?: DisplayMode;
   metricColumn?: string;
+  syncId?: string;
 }
 
 const LineChart = ({
@@ -27,6 +28,7 @@ const LineChart = ({
   chartConfig,
   displayMode = "none",
   metricColumn,
+  syncId,
 }: LineChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
@@ -49,7 +51,7 @@ const LineChart = ({
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">
-        <RechartsLineChart data={data} margin={chartMargins}>
+        <RechartsLineChart data={data} margin={chartMargins} syncId={syncId}>
           <CartesianGrid vertical={false} />
           <XAxis
             type="category"

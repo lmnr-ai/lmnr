@@ -16,9 +16,10 @@ interface BarChartProps {
   chartConfig: ChartConfig;
   displayMode?: DisplayMode;
   metricColumn?: string;
+  syncId?: string;
 }
 
-const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn }: BarChartProps) => {
+const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn, syncId }: BarChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
@@ -54,7 +55,7 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-        <RechartsBarChart data={data} margin={chartMargins}>
+        <RechartsBarChart data={data} margin={chartMargins} syncId={syncId}>
           <CartesianGrid vertical={false} />
           <XAxis
             type="category"

@@ -140,6 +140,7 @@ pub struct SignalRun {
     pub event_id: Option<Uuid>,
     pub error_message: Option<String>,
     pub mode: SignalMode,
+    pub steps_processed: u32,
 }
 
 impl SignalRun {
@@ -181,6 +182,7 @@ impl SignalRun {
             event_id: None,
             error_message: None,
             mode: SignalMode::from_u8(message.mode),
+            steps_processed: message.steps_processed,
         }
     }
 
@@ -200,6 +202,7 @@ impl SignalRun {
             event_id: None,
             error_message: None,
             mode: SignalMode::Batch,
+            steps_processed: 0,
         }
     }
 }

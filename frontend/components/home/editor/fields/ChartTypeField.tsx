@@ -30,18 +30,23 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
 
 const ChartTypeField = () => {
   const { setValue, getValues } = useFormContext<QueryStructure>();
-  const { chartType, setChartConfig, chart } = useHomeEditorStoreContext((state) => ({
+  const { chartType, setChartConfig, chart, setData } = useHomeEditorStoreContext((state) => ({
     chartType: state.chart.settings.config.type,
     setChartConfig: state.setChartConfig,
     chart: state.chart,
+    setData: state.setData,
   }));
 
   const handleChartTypeChange = (newType: ChartType) => {
     const previousType = chart.settings.config.type;
-    setChartConfig({
-      ...chart.settings.config,
-      type: newType,
-    });
+    setChartConfig(
+      newType === ChartType.Table
+        ? { ...chart.settings.config, type: newType, hiddenColumns: [] }
+        : { ...chart.settings.config, type: newType }
+    );
+    // Clear stale data so the preview doesn't show results from the previous
+    // chart type's query (which may have had a different or no LIMIT).
+    setData([]);
 
     if (newType === ChartType.LineChart || newType === ChartType.BarChart) {
       setValue("orderBy", []);

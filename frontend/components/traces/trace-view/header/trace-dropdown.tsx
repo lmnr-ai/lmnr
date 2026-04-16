@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Database, Loader } from "lucide-react";
+import { ChevronDown, Copy, Database, Layers, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
@@ -34,6 +34,22 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
     }
   }, [trace?.id, toast]);
 
+  const sessionId = trace?.sessionId;
+  const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+
+  const handleOpenSession = useCallback(() => {
+    if (!hasSession || !trace) return;
+    const filter = JSON.stringify({ column: "session_id", value: sessionId, operator: "eq" });
+    const startDate = new Date(new Date(trace.startTime).getTime() - 3600_000).toISOString();
+    const endDate = new Date(new Date(trace.endTime).getTime() + 3600_000).toISOString();
+    const params = new URLSearchParams();
+    params.set("view", "sessions");
+    params.set("filter", filter);
+    params.set("startDate", startDate);
+    params.set("endDate", endDate);
+    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
+  }, [hasSession, trace, sessionId, projectId]);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,6 +66,12 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
           {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
           Open in SQL editor
         </DropdownMenuItem>
+        {hasSession && (
+          <DropdownMenuItem onClick={handleOpenSession}>
+            <Layers size={14} />
+            Open session
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

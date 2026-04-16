@@ -38,6 +38,10 @@ use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
+    delivery::{
+        NOTIFICATION_DELIVERIES_EXCHANGE, NOTIFICATION_DELIVERIES_QUEUE,
+        NOTIFICATION_DELIVERIES_ROUTING_KEY, NotificationDeliveryHandler,
+    },
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
@@ -165,10 +169,6 @@ fn main() -> anyhow::Result<()> {
             environment: Some(Cow::Owned(
                 env::var("ENVIRONMENT").unwrap_or("development".to_string()),
             )),
-            before_send: Some(Arc::new(|_| {
-                // We don't want Sentry to record events. We only use it for OTel tracing.
-                None
-            })),
             ..Default::default()
         },
     ));
@@ -178,7 +178,7 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    instrumentation::setup_tracing(is_feature_enabled(Feature::Tracing));
+    instrumentation::setup_tracing_and_logging(is_feature_enabled(Feature::Tracing));
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
@@ -458,6 +458,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.6b Notification Deliveries message queue ====
+            channel
+                .exchange_declare(
+                    NOTIFICATION_DELIVERIES_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    NOTIFICATION_DELIVERIES_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
@@ -712,6 +738,11 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
+        // ==== 3.6b Notification Deliveries message queue ====
+        queue.register_queue(
+            NOTIFICATION_DELIVERIES_EXCHANGE,
+            NOTIFICATION_DELIVERIES_QUEUE,
+        );
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
         // ==== 3.7b Event Clustering Batch message queue ====
@@ -921,7 +952,7 @@ fn main() -> anyhow::Result<()> {
         // == LLM Client ==
         let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM client for signals");
+                log::info!("Initializing LLM client");
                 match runtime_handle.block_on(signals::provider::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
@@ -965,6 +996,11 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_notification_delivery_workers = env::var("NUM_NOTIFICATION_DELIVERY_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
         let num_clustering_batching_workers = env::var("NUM_CLUSTERING_BATCHING_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
@@ -997,13 +1033,14 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_signals_workers,
             num_notification_workers,
+            num_notification_delivery_workers,
             num_clustering_batching_workers,
             num_clustering_workers,
             num_signal_job_submission_batch_workers,
@@ -1195,15 +1232,14 @@ fn main() -> anyhow::Result<()> {
                             QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
                         );
                     } else {
-                        log::warn!("Gemini client not available - skipping signals workers");
+                        log::warn!("LLM client not available - skipping signals workers");
                     }
 
-                    // Spawn notification workers
+                    // Spawn notification workers (stage 1: persist + fan-out to targets)
                     {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
-                        let client = reqwest::Client::new();
-                        let resend = resend_client.clone();
+                        let queue = mq_for_consumer.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
                             clickhouse_for_consumer.clone(),
                             db_for_consumer.pool.clone(),
@@ -1218,8 +1254,7 @@ fn main() -> anyhow::Result<()> {
                                 NotificationHandler::new(
                                     db.clone(),
                                     cache.clone(),
-                                    client.clone(),
-                                    resend.clone(),
+                                    queue.clone(),
                                     ch_service.clone(),
                                 )
                             },
@@ -1227,6 +1262,37 @@ fn main() -> anyhow::Result<()> {
                                 NOTIFICATIONS_QUEUE,
                                 NOTIFICATIONS_EXCHANGE,
                                 NOTIFICATIONS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn notification delivery workers (stage 2: format + send + log)
+                    {
+                        let db = db_for_consumer.clone();
+                        let client = reqwest::Client::new();
+                        let resend = resend_client.clone();
+                        let ch_service = Arc::new(ClickhouseService::new(
+                            clickhouse_for_consumer.clone(),
+                            db_for_consumer.pool.clone(),
+                            cache_for_consumer.clone(),
+                            reqwest::Client::new(),
+                        ));
+
+                        worker_pool_clone.spawn(
+                            WorkerType::NotificationDeliveries,
+                            num_notification_delivery_workers as usize,
+                            move || {
+                                NotificationDeliveryHandler::new(
+                                    db.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                    ch_service.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                NOTIFICATION_DELIVERIES_QUEUE,
+                                NOTIFICATION_DELIVERIES_EXCHANGE,
+                                NOTIFICATION_DELIVERIES_ROUTING_KEY,
                             ),
                         );
                     }

@@ -16,7 +16,6 @@ import { SpanView, type SpanViewTab } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
-import { ScrollContextProvider } from "./scroll-context";
 import TracePanel from "./trace-panel";
 
 export interface TraceViewPanels {
@@ -370,13 +369,9 @@ export default function TraceViewContent({
     showChat,
   };
 
-  return (
-    <ScrollContextProvider>
-      {isNil(sidePanelRef) ? (
-        <FillWidthLayout panels={panels} />
-      ) : (
-        <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
-      )}
-    </ScrollContextProvider>
+  return isNil(sidePanelRef) ? (
+    <FillWidthLayout panels={panels} />
+  ) : (
+    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
   );
 }

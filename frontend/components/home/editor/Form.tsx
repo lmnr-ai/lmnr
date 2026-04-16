@@ -7,7 +7,12 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
+import {
+  type ChartConfig,
+  ChartType,
+  resolveDisplayMode,
+  type TableColumnConfig,
+} from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
 import { TABLE_DEFAULT_LIMIT, TABLE_MAX_LIMIT } from "@/components/home/editor/constants";
 import { QueryBuilderFields } from "@/components/home/editor/fields";
@@ -68,6 +73,19 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
+  const handleColumnConfigChange = useCallback(
+    (columnConfig: TableColumnConfig) => {
+      const currentConfig = chart.settings.config;
+      if (currentConfig.type === ChartType.Table) {
+        setChartConfig({
+          ...currentConfig,
+          tableColumnConfig: columnConfig,
+        });
+      }
+    },
+    [chart.settings.config, setChartConfig]
+  );
+
   const chartType = chart.settings.config.type;
   const displayMode = resolveDisplayMode(chart.settings.config);
 
@@ -83,6 +101,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return {
         type: chartType,
         displayMode: "none" as const,
+        hiddenColumns: chart.settings.config.type === ChartType.Table ? chart.settings.config.hiddenColumns : [],
       };
     }
 
@@ -106,13 +125,18 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType, formValues]);
 
-  const chartConfigForRendering = useMemo(() => {
+  const chartConfigForRendering = useMemo((): ChartConfig | null => {
     if (!chartConfig) return null;
-    return {
-      ...chartConfig,
-      displayMode,
-    };
-  }, [chartConfig, displayMode]);
+    if (chartConfig.type === ChartType.Table && chart.settings.config.type === ChartType.Table) {
+      return {
+        ...chartConfig,
+        displayMode,
+        hiddenColumns: chart.settings.config.hiddenColumns,
+        tableColumnConfig: chart.settings.config.tableColumnConfig,
+      };
+    }
+    return { ...chartConfig, displayMode };
+  }, [chartConfig, displayMode, chart.settings.config]);
 
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
@@ -126,10 +150,11 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
-      const needsIdInjection = isHorizontalBar;
+      const isTable = chartType === ChartType.Table;
+      const needsIdInjection = isHorizontalBar || isTable;
       const allFilters = [...(filters || [])];
 
-      if (isHorizontalBar) {
+      if (isHorizontalBar || isTable) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
           { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
@@ -137,38 +162,35 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         );
       }
 
-      // Inject ID fields for clickable chart types
       const injectedMetrics = [...metrics];
-      const existingColumns = new Set(metrics.map((m) => m.column));
-      const existingDimensions = new Set(dimensions || []);
-      if (needsIdInjection && (!dimensions || dimensions.length === 0)) {
-        if (table === "spans") {
-          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
+      const injectedIdColumns: string[] = [];
+      if (needsIdInjection) {
+        const allExisting = new Set([
+          ...metrics.map((m) => m.column),
+          ...metrics.map((m) => m.alias),
+          ...(dimensions || []),
+        ]);
+        const inject = (column: string) => {
+          if (!allExisting.has(column)) {
+            injectedMetrics.push({ fn: "raw", column, alias: column, args: [] });
+            injectedIdColumns.push(column);
           }
-          if (!existingColumns.has("span_id") && !existingDimensions.has("span_id")) {
-            injectedMetrics.push({ fn: "raw", column: "span_id", args: [] });
-          }
-        } else if (table === "traces") {
-          if (!existingColumns.has("id") && !existingDimensions.has("id")) {
-            injectedMetrics.push({ fn: "raw", column: "id", args: [] });
-          }
-        } else if (table === "signal_events") {
-          if (!existingColumns.has("signal_id") && !existingDimensions.has("signal_id")) {
-            injectedMetrics.push({ fn: "raw", column: "signal_id", args: [] });
-          }
-          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
-          }
+        };
+
+        const idColumnsForTable: Record<string, string[]> = {
+          spans: ["trace_id", "span_id"],
+          traces: ["id"],
+          signal_events: ["signal_id", "trace_id"],
+        };
+        for (const col of idColumnsForTable[table] ?? []) {
+          inject(col);
         }
       }
 
       // Table charts cap result size client-side so a missing/oversized limit can't
       // return an unbounded result set into the renderer.
       const effectiveLimit =
-        chartType === ChartType.Table
-          ? Math.min(Math.max(1, limit ?? TABLE_DEFAULT_LIMIT), TABLE_MAX_LIMIT)
-          : limit;
+        chartType === ChartType.Table ? Math.min(Math.max(1, limit ?? TABLE_DEFAULT_LIMIT), TABLE_MAX_LIMIT) : limit;
 
       const queryStructure: QueryStructure = {
         table,
@@ -199,13 +221,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       // Update store with new query and config
       setQuery(sqlData.sql);
       if (chartConfig) {
-        setChartConfig({
-          type: chartConfig.type!,
-          x: chartConfig.x!,
-          y: chartConfig.y!,
-          breakdown: chartConfig.breakdown,
+        const updatedConfig = {
+          ...chartConfig,
           displayMode: resolveDisplayMode(chart.settings.config),
-        });
+        };
+        if (isTable && "hiddenColumns" in updatedConfig) {
+          updatedConfig.hiddenColumns = injectedIdColumns;
+        }
+        setChartConfig(updatedConfig as ChartConfig);
       }
 
       await executeQuery(projectId as string);
@@ -327,7 +350,12 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </div>
           ) : chartConfigForRendering ? (
             <div className="w-full h-full">
-              <ChartRendererCore config={chartConfigForRendering} data={data} columns={columns} />
+              <ChartRendererCore
+                config={chartConfigForRendering}
+                data={data}
+                columns={columns}
+                onColumnConfigChange={handleColumnConfigChange}
+              />
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-3 text-muted-foreground">

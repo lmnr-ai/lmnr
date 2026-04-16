@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartBar, ChartColumn, ChartLine, Pen } from "lucide-react";
+import { ChartBar, ChartColumn, ChartLine, Pen, Table2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -16,6 +16,7 @@ const CHART_TYPE_ICONS: Record<string, typeof ChartLine> = {
   line: ChartLine,
   bar: ChartColumn,
   horizontalBar: ChartBar,
+  table: Table2,
 };
 
 const TABLE_FILTERS: { label: string; value: PresetTable }[] = [

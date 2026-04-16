@@ -27,9 +27,9 @@ export default function Pricing() {
     },
     {
       id: "signal-run",
-      question: "What is a signal run?",
+      question: "What is an agent step in Signals?",
       answer:
-        "A signal run is a single execution of a signal job — for example, running an LLM-as-a-judge evaluator on one datapoint. The average cost per signal run is approximately $0.005.",
+        "Laminar Signals analyze your agents. Depending on signal definition, Laminar analyzes different number of steps of your agent. A step represents a single LLM call in your agent.",
     },
   ];
 
@@ -43,7 +43,14 @@ export default function Pricing() {
             price="$0 / month"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
-            features={["1 GB data", "100 signal runs", "15 day retention", "1 project", "1 seat", "Community support"]}
+            features={[
+              "1 GB data",
+              "1,000 agent steps processing",
+              "15 day retention",
+              "1 project",
+              "1 seat",
+              "Community support",
+            ]}
             subfeatures={["no overage", "no overage", null, null, null, null]}
           />
           <Link href="/projects">
@@ -61,13 +68,13 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-400"
             features={[
               "3 GB data included",
-              "1,000 signal runs included",
+              "5,000 agent steps processing included",
               "30 day retention",
               "Unlimited projects",
               "Unlimited seats",
               "Email support",
             ]}
-            subfeatures={["then $2 / GB", "then $0.02 / run", null, null, null, null]}
+            subfeatures={["then $2 / GB", "then $0.0075 / agent step", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -85,13 +92,13 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-100"
             features={[
               "10 GB data included",
-              "10,000 signal runs included",
+              "50,000 agent steps processing included",
               "90 day retention",
               "Unlimited projects",
               "Unlimited seats",
               "Slack support",
             ]}
-            subfeatures={["then $1.50 / GB", "then $0.015 / run", null, null, null, null]}
+            subfeatures={["then $1.50 / GB", "then $0.005 / agent step", null, null, null, null]}
           />
           <Link href="/projects" className="w-full z-20">
             <LandingButton

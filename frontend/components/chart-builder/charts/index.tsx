@@ -10,7 +10,12 @@ import {
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
-import { type ChartConfig, ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
+import {
+  type ChartConfig,
+  ChartType,
+  resolveDisplayMode,
+  type TableColumnConfig,
+} from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 
 interface ChartRendererCoreProps {
@@ -18,9 +23,18 @@ interface ChartRendererCoreProps {
   data: Record<string, any>[];
   columns: ColumnInfo[];
   onBarClick?: (rowData: Record<string, any>) => void;
+  syncId?: string;
+  onColumnConfigChange?: (config: TableColumnConfig) => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRendererCoreProps) => {
+export const ChartRendererCore = ({
+  config,
+  data,
+  columns,
+  onBarClick,
+  syncId,
+  onColumnConfigChange,
+}: ChartRendererCoreProps) => {
   const isTable = config.type === ChartType.Table;
 
   const {
@@ -48,7 +62,18 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRe
   }, [config, data, columns, isTable]);
 
   if (isTable) {
-    return <TableChart data={data} columns={columns} />;
+    const hiddenColumns = config.type === ChartType.Table ? config.hiddenColumns : undefined;
+    const tableColumnConfig = config.type === ChartType.Table ? config.tableColumnConfig : undefined;
+    return (
+      <TableChart
+        data={data}
+        columns={columns}
+        hiddenColumns={hiddenColumns}
+        onRowClick={onBarClick}
+        tableColumnConfig={tableColumnConfig}
+        onColumnConfigChange={onColumnConfigChange}
+      />
+    );
   }
 
   if (!config.type || !config.x || !config.y) {
@@ -75,6 +100,7 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRe
     metricColumn: config.type === ChartType.HorizontalBarChart ? config.x : config.y,
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
+    syncId,
   };
 
   if (keys.size === 0) {
@@ -90,8 +116,10 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRe
       return <LineChart {...props} />;
     case ChartType.BarChart:
       return <BarChart {...props} />;
-    case ChartType.HorizontalBarChart:
-      return <HorizontalBarChart {...props} onBarClick={onBarClick} />;
+    case ChartType.HorizontalBarChart: {
+      const { syncId: _, ...horizontalBarProps } = props;
+      return <HorizontalBarChart {...horizontalBarProps} onBarClick={onBarClick} />;
+    }
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">
