@@ -27,7 +27,7 @@ interface ListProps {
 
 type FlatRow = { type: "user-input" } | TranscriptListEntry;
 
-function getSpanIdsForRow(row: FlatRow, collapsedGroups: Set<string>): string[] {
+function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   switch (row.type) {
     case "span":
     case "group-span":
@@ -37,7 +37,7 @@ function getSpanIdsForRow(row: FlatRow, collapsedGroups: Set<string>): string[] 
       if (row.firstLlmSpanId && row.firstLlmSpanId !== row.firstSpan.spanId) {
         ids.push(row.firstLlmSpanId);
       }
-      const isCollapsed = !collapsedGroups.has(row.groupId);
+      const isCollapsed = !expandedGroups.has(row.groupId);
       if (isCollapsed && row.lastLlmSpanId) {
         ids.push(row.lastLlmSpanId);
       }

@@ -58,7 +58,6 @@ export function useBatchedSpanPreviews(
 
       const inputSpanIdSet = new Set(inputSpanIdsRef.current);
       const batchInputSpanIds = spanIds.filter((id) => inputSpanIdSet.has(id));
-      const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
 
       try {
         const {
