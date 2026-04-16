@@ -106,15 +106,23 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
+    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+    const setType = (id: string | null | undefined) => {
+      if (!id) return;
+      const s = spanMap.get(id);
+      if (s) types[id] = s.spanType;
+    };
     for (const entry of transcriptEntries) {
       if (entry.type === "span" || entry.type === "group-span") {
         types[entry.span.spanId] = entry.span.spanType;
       } else if (entry.type === "group") {
         types[entry.firstSpan.spanId] = entry.firstSpan.spanType;
+        setType(entry.firstLlmSpanId);
+        setType(entry.lastLlmSpanId);
       }
     }
     return types;
-  }, [transcriptEntries]);
+  }, [transcriptEntries, spans]);
 
   const { inputSpanIds, promptHashes } = useMemo(() => {
     const ids: string[] = [];
