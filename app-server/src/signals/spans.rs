@@ -206,7 +206,7 @@ pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
                     arr.iter()
                         .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
                         .collect::<Vec<_>>()
-                        .join("\n")
+                        .join(" ")
                 })
                 .filter(|s| !s.is_empty())
         })

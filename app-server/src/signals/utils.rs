@@ -154,19 +154,37 @@ static HEX_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9a-fA-F]{6}
 /// while preserving the stable identity of the prompt template.
 pub fn structural_skeleton_hash(text: &str) -> String {
     // Extract first sentence from original text (before whitespace normalization
-    // destroys newline boundaries). Cut at the first '.' or '\n' after 20+ chars.
-    let raw_first_sentence = text
-        .char_indices()
-        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
-        .map(|(i, _)| &text[..i])
-        .unwrap_or_else(|| {
-            let end = text
-                .char_indices()
-                .nth(200)
-                .map(|(i, _)| i)
-                .unwrap_or(text.len());
-            &text[..end]
-        });
+    // destroys newline boundaries). Cut at the first real sentence boundary after
+    // 20+ chars: either a newline, or a '.' followed by whitespace / end-of-text.
+    // Periods inside words (e.g. "3.5", "v1.0", "gpt-4.1") are not treated as
+    // boundaries.
+    let bytes = text.as_bytes();
+    let boundary = text.char_indices().find(|(i, c)| {
+        if *i < 20 {
+            return false;
+        }
+        if *c == '\n' {
+            return true;
+        }
+        if *c == '.' {
+            let next_byte_idx = *i + 1;
+            if next_byte_idx >= bytes.len() {
+                return true;
+            }
+            let next = bytes[next_byte_idx];
+            return next == b' ' || next == b'\n' || next == b'\t' || next == b'\r';
+        }
+        false
+    });
+
+    let raw_first_sentence = boundary.map(|(i, _)| &text[..i]).unwrap_or_else(|| {
+        let end = text
+            .char_indices()
+            .nth(200)
+            .map(|(i, _)| i)
+            .unwrap_or(text.len());
+        &text[..end]
+    });
 
     let first_sentence = raw_first_sentence
         .split_whitespace()
@@ -928,6 +946,27 @@ Do not fabricate data.
             structural_skeleton_hash(with_rules),
             structural_skeleton_hash(with_tools),
             "Same sentence but different tag names should produce different hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_period_inside_word_not_boundary() {
+        // Periods inside tokens (version numbers, decimals) should NOT end the sentence
+        let v1 = "You are running on gpt-4.1 with temperature 0.7 today. User: Alice.";
+        let v2 = "You are running on gpt-4.1 with temperature 0.7 today. User: Bob.";
+
+        assert_eq!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v2),
+            "Periods inside words should not be treated as sentence boundaries"
+        );
+
+        // Different leading sentence should differ
+        let v3 = "You are running on claude-3.5 with temperature 0.2 today. User: Alice.";
+        assert_ne!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v3),
+            "Different first sentences should still produce different hashes"
         );
     }
 

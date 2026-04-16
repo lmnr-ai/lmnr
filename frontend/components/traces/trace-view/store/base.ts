@@ -8,6 +8,7 @@ import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
 import {
+  buildTranscriptListEntries,
   computePathInfoMap,
   type CondensedTimelineData,
   transformSpansToCondensedTimeline,
@@ -43,8 +44,9 @@ export type TraceViewSpan = {
   outputCost: number;
   totalCost: number;
   aggregatedMetrics?: {
+    inputTokens: number;
+    outputTokens: number;
     totalCost: number;
-    totalTokens: number;
     cacheReadInputTokens?: number;
     reasoningTokens?: number;
     hasLLMDescendants: boolean;
@@ -60,9 +62,11 @@ export type TraceViewListSpan = {
   spanType: SpanType;
   name: string;
   model?: string;
+  path: string;
   startTime: string;
   endTime: string;
-  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
   cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
@@ -74,6 +78,41 @@ export type TraceViewListSpan = {
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
 };
+
+export type TranscriptListGroup = {
+  type: "group";
+  groupId: string;
+  name: string;
+  path: string;
+  firstSpan: TraceViewListSpan;
+  firstLlmSpanId: string | null;
+  lastLlmSpanId: string | null;
+  startTime: string;
+  endTime: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  totalCost: number;
+};
+
+export type TranscriptGroupInput = {
+  type: "group-input";
+  groupId: string;
+  firstLlmSpanId: string;
+};
+
+export type TranscriptGroupSpan = {
+  type: "group-span";
+  span: TraceViewListSpan;
+  groupId: string;
+  isLast: boolean;
+};
+
+export type TranscriptListEntry =
+  | { type: "span"; span: TraceViewListSpan }
+  | TranscriptListGroup
+  | TranscriptGroupInput
+  | TranscriptGroupSpan;
 
 export type TraceViewTrace = {
   id: string;
@@ -116,7 +155,7 @@ export interface BaseTraceViewState {
   langGraph: boolean;
   sessionTime?: number;
   sessionStartTime?: number;
-  tab: "tree" | "reader";
+  tab: "tree" | "transcript";
   hasBrowserSession: boolean;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
@@ -150,6 +189,9 @@ export interface BaseTraceViewState {
 
   // Layout options
   isAlwaysSelectSpan: boolean;
+
+  // Transcript mode: IDs of groups the user has expanded
+  transcriptExpandedGroups: Set<string>;
 }
 
 export interface BaseTraceViewActions {
@@ -194,11 +236,12 @@ export interface BaseTraceViewActions {
   openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
   consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
+  toggleTranscriptGroup: (groupId: string) => void;
+
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
-  getListData: () => TraceViewListSpan[];
+  getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
-  getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -251,6 +294,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
 
+    // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
+    transcriptExpandedGroups: new Set<string>(),
+
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
       if (typeof trace === "function") {
@@ -291,36 +337,20 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const pathInfoMap = computePathInfoMap(filteredSpans);
       return transformSpansToTree(filteredSpans, pathInfoMap);
     },
-    getListData: () => {
+    getTranscriptListData: () => {
       const { spans, condensedTimelineVisibleSpanIds } = get();
+      return buildTranscriptListEntries(spans, condensedTimelineVisibleSpanIds);
+    },
 
-      const selectionFilteredSpans =
-        condensedTimelineVisibleSpanIds.size === 0
-          ? spans
-          : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-      const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-      const pathInfoMap = computePathInfoMap(spans);
-
-      const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
-        spanId: span.spanId,
-        parentSpanId: span.parentSpanId,
-        spanType: span.spanType,
-        name: span.name,
-        model: span.model,
-        startTime: span.startTime,
-        endTime: span.endTime,
-        totalTokens: span.totalTokens,
-        cacheReadInputTokens: span.cacheReadInputTokens,
-        totalCost: span.totalCost,
-        pending: span.pending,
-        pathInfo: pathInfoMap.get(span.spanId) ?? null,
-        inputSnippet: span.inputSnippet,
-        outputSnippet: span.outputSnippet,
-        attributesSnippet: span.attributesSnippet,
-      }));
-
-      return lightweightListSpans;
+    toggleTranscriptGroup: (groupId: string) => {
+      const prev = get().transcriptExpandedGroups;
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      set({ transcriptExpandedGroups: next } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
@@ -392,10 +422,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       !!get().spans.find(
         (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
       ),
-    getSpanAttribute: (spanId: string, attributeKey: string) => {
-      const span = get().spans.find((s) => s.spanId === spanId);
-      return span?.attributes?.[attributeKey];
-    },
 
     // Panel visibility actions
     setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
