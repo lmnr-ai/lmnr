@@ -1,7 +1,8 @@
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 
-import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
+import { tryParseJson } from "@/lib/actions/common/utils";
+import { extractSystemMessageContent } from "@/lib/actions/spans/system-messages";
 import { executeQuery } from "@/lib/actions/sql";
 import { getLanguageModel } from "@/lib/ai/model";
 import { cache } from "@/lib/cache";
@@ -40,29 +41,26 @@ async function generateAgentName(systemPrompt: string): Promise<string | null> {
 async function fetchSystemPrompts(spanIds: string[], traceId: string, projectId: string): Promise<Map<string, string>> {
   if (spanIds.length === 0) return new Map();
 
-  const rows = await executeQuery<{ spanId: string; firstMessage: string; secondMessage: string }>({
+  const rows = await executeQuery<{ spanId: string; systemMessage: string }>({
     projectId,
     query: `
       SELECT
         span_id as spanId,
-        arr[1] as firstMessage,
-        if(length(arr) > 1, arr[2], '') as secondMessage
-      FROM (
-        SELECT span_id, JSONExtractArrayRaw(input) as arr
-        FROM spans
-        WHERE trace_id = {traceId: UUID}
-          AND span_id IN {spanIds: Array(UUID)}
-          AND span_type IN ('LLM', 'CACHED')
-      )
+        JSONExtractArrayRaw(input)[1] as systemMessage
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+        AND span_id IN {spanIds: Array(UUID)}
+        AND span_type IN ('LLM', 'CACHED')
     `,
     parameters: { traceId, spanIds },
   });
 
   const result = new Map<string, string>();
   for (const row of rows) {
-    const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
-    if (parsed?.systemText) {
-      result.set(row.spanId, parsed.systemText);
+    const parsed = tryParseJson(row.systemMessage);
+    const systemText = extractSystemMessageContent(parsed);
+    if (systemText) {
+      result.set(row.spanId, systemText);
     }
   }
   return result;
