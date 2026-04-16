@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -10,15 +10,32 @@ interface UseTraceUserInputResult {
 export function useTraceUserInput(
   projectId: string | undefined,
   traceId: string | undefined,
-  isShared: boolean
+  isShared: boolean,
+  hasLlmSpan: boolean
 ): UseTraceUserInputResult {
   const { toast } = useToast();
   const [userInput, setUserInput] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Track whether we've already successfully resolved input for this trace so
+  // we don't keep refetching on every LLM span arrival.
+  const resolvedRef = useRef<{ traceId: string; input: string | null } | null>(null);
 
   useEffect(() => {
     if (!traceId) {
       setUserInput(null);
+      resolvedRef.current = null;
+      return;
+    }
+
+    // Only fetch once we know there is at least one LLM span in the trace,
+    // since extraction relies on LLM span inputs. Before then, leave the hook
+    // in its idle state so the UI can skip rendering a placeholder input row.
+    if (!hasLlmSpan) {
+      return;
+    }
+
+    // If we've already resolved a non-null input for this trace, skip refetch.
+    if (resolvedRef.current?.traceId === traceId && resolvedRef.current.input !== null) {
       return;
     }
 
@@ -41,6 +58,7 @@ export function useTraceUserInput(
         }
         const data = (await res.json()) as { input: string | null };
         setUserInput(data.input);
+        resolvedRef.current = { traceId, input: data.input };
       } catch (error) {
         if (controller.signal.aborted) return;
         toast({
@@ -56,7 +74,7 @@ export function useTraceUserInput(
     fetchUserInput();
 
     return () => controller.abort();
-  }, [projectId, traceId, isShared, toast]);
+  }, [projectId, traceId, isShared, hasLlmSpan, toast]);
 
   return { userInput, isLoading };
 }

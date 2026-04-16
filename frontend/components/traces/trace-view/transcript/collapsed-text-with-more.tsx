@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const MORE_TEXT = "... more";
+const LESS_TEXT = "less";
 const CHARS_PER_PIXEL = 0.155;
 const FALLBACK_WIDTH = 500;
 
@@ -48,6 +49,7 @@ export function CollapsedTextWithMore({
   const charsPerLine = Math.floor(containerWidth * charsPerPixel);
   const maxChars = charsPerLine * maxLines - MORE_TEXT.length;
   const truncated = isExpanded ? null : truncateText(text, maxChars);
+  const canCollapse = truncateText(text, maxChars) !== null;
 
   return (
     <div
@@ -69,7 +71,23 @@ export function CollapsedTextWithMore({
           </button>
         </p>
       ) : (
-        <p>{text}</p>
+        <p>
+          {text}
+          {canCollapse && (
+            <>
+              {" "}
+              <button
+                className="text-muted-foreground hover:text-primary-foreground transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(false);
+                }}
+              >
+                {LESS_TEXT}
+              </button>
+            </>
+          )}
+        </p>
       )}
     </div>
   );

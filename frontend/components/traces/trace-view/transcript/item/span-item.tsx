@@ -147,7 +147,7 @@ export default function SpanItem({ span, output, onSpanSelect, inGroup = false }
           />
 
           {showInlinePreview ? (
-            <div className="flex gap-2 items-center min-w-0 overflow-hidden">
+            <div className="flex flex-1 gap-2 items-center min-w-0">
               <SpanDisplayTooltip isLLM={isLLMType} name={span.name}>
                 <span className="font-medium text-[13px] whitespace-nowrap shrink-0">{getSpanDisplayName(span)}</span>
               </SpanDisplayTooltip>
