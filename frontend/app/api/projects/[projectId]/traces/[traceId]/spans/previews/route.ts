@@ -12,7 +12,7 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { spanIds, spanTypes, startDate, endDate, inputSpanIds } = body;
+    const { spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } = body;
 
     const result = await getSpanPreviews({
       projectId,
@@ -22,6 +22,7 @@ export async function POST(
       startDate,
       endDate,
       inputSpanIds,
+      promptHashes,
     });
 
     return NextResponse.json(result);

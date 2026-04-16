@@ -2,7 +2,6 @@ import { z } from "zod/v4";
 
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
-import { fetcherJSON } from "@/lib/utils";
 
 import { extractInputsForGroup, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
@@ -29,9 +28,12 @@ const TOP_PATH_QUERY = `
 const INPUT_QUERY = `
   SELECT
     arr[1] AS first_message,
-    if(length(arr) > 1, arr[2], '') AS second_message
+    if(length(arr) > 1, arr[2], '') AS second_message,
+    prompt_hash
   FROM (
-    SELECT JSONExtractArrayRaw(input) AS arr
+    SELECT
+      JSONExtractArrayRaw(input) AS arr,
+      simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') AS prompt_hash
     FROM spans
     WHERE trace_id = {traceId: UUID}
       AND span_type = 'LLM'
@@ -54,6 +56,7 @@ const OUTPUT_QUERY = `
 interface InputQueryRow {
   first_message: string;
   second_message: string;
+  prompt_hash: string;
 }
 
 interface TraceIOResult {
@@ -65,6 +68,7 @@ interface TraceWithParsedInput {
   traceId: string;
   output: string | null;
   parsed: ParsedInput | null;
+  promptHash: string | null;
 }
 
 export async function getMainAgentIOBatch({
@@ -78,46 +82,22 @@ export async function getMainAgentIOBatch({
 
   const traceData = await Promise.all(parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
 
-  const textsToHash: string[] = [];
-  const traceIndexByTextIndex: number[] = [];
-  for (let i = 0; i < traceData.length; i++) {
-    const systemText = traceData[i].parsed?.systemText;
-    if (systemText) {
-      traceIndexByTextIndex.push(i);
-      textsToHash.push(systemText);
-    }
-  }
-
-  let hashes: string[] = [];
-  if (textsToHash.length > 0) {
-    hashes = await fetchSkeletonHashes(textsToHash, projectId);
-  }
-
   const bySystemHash = new Map<string, TraceWithParsedInput[]>();
-  const noSystemTraces: TraceWithParsedInput[] = [];
+  const noHashTraces: TraceWithParsedInput[] = [];
 
-  const traceHashMap = new Map<number, string>();
-  for (let j = 0; j < traceIndexByTextIndex.length; j++) {
-    if (hashes[j]) {
-      traceHashMap.set(traceIndexByTextIndex[j], hashes[j]);
-    }
-  }
-
-  for (let i = 0; i < traceData.length; i++) {
-    const trace = traceData[i];
-    const hash = traceHashMap.get(i);
-    if (!hash) {
-      noSystemTraces.push(trace);
+  for (const trace of traceData) {
+    if (!trace.promptHash) {
+      noHashTraces.push(trace);
       continue;
     }
-    const group = bySystemHash.get(hash) ?? [];
+    const group = bySystemHash.get(trace.promptHash) ?? [];
     group.push(trace);
-    bySystemHash.set(hash, group);
+    bySystemHash.set(trace.promptHash, group);
   }
 
   const results: Record<string, TraceIOResult> = {};
 
-  for (const trace of noSystemTraces) {
+  for (const trace of noHashTraces) {
     results[trace.traceId] = {
       input: joinUserParts(trace.parsed?.userParts ?? []),
       output: trace.output,
@@ -148,29 +128,12 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   const rawInput = joinUserParts(traceData.parsed.userParts);
   if (!rawInput) return null;
 
-  const systemText = traceData.parsed.systemText;
-  if (!systemText) return rawInput;
-
-  const hashes = await fetchSkeletonHashes([systemText], projectId);
-  const hash = hashes[0];
-  if (!hash) return rawInput;
+  if (!traceData.promptHash) return rawInput;
 
   const results: Record<string, { input: string | null; output: string | null }> = {};
-  await extractInputsForGroup(hash, projectId, [traceData], results);
+  await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results);
 
   return results[traceId]?.input ?? rawInput;
-}
-
-export async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
-  try {
-    return await fetcherJSON<string[]>(`/projects/${projectId}/skeleton-hashes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texts }),
-    });
-  } catch {
-    return [];
-  }
 }
 
 async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
@@ -181,7 +144,7 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   });
 
   if (pathRows.length === 0) {
-    return { traceId, output: null, parsed: null };
+    return { traceId, output: null, parsed: null, promptHash: null };
   }
 
   const topPath = pathRows[0].path;
@@ -193,11 +156,11 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   });
 
   if (inputRows.length === 0) {
-    return { traceId, output: null, parsed: null };
+    return { traceId, output: null, parsed: null, promptHash: null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].second_message);
-  return { traceId, output: null, parsed };
+  return { traceId, output: null, parsed, promptHash: inputRows[0].prompt_hash || null };
 }
 
 async function fetchTraceData(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
@@ -208,7 +171,7 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   });
 
   if (pathRows.length === 0) {
-    return { traceId, output: null, parsed: null };
+    return { traceId, output: null, parsed: null, promptHash: null };
   }
 
   const topPath = pathRows[0].path;
@@ -229,11 +192,11 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   const outputText = await resolveOutput(outputRows, projectId);
 
   if (inputRows.length === 0) {
-    return { traceId, output: outputText, parsed: null };
+    return { traceId, output: outputText, parsed: null, promptHash: null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].second_message);
-  return { traceId, output: outputText, parsed };
+  return { traceId, output: outputText, parsed, promptHash: inputRows[0].prompt_hash || null };
 }
 
 async function resolveOutput(

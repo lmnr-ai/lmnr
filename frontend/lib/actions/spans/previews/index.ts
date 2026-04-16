@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types";
-import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
 
 import { type AgentNamesResult, resolveAgentNames } from "./agent-names";
 import { extractUserInputsForSpans } from "./input-extraction";
@@ -17,6 +16,7 @@ export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).e
   spanIds: z.array(z.string()).min(1),
   spanTypes: z.record(z.string(), z.string()),
   inputSpanIds: z.array(z.string()).optional(),
+  promptHashes: z.record(z.string(), z.string()).optional(),
 });
 
 export interface RawSpanData {
@@ -57,13 +57,13 @@ export async function processSpanPreviews(
 
 /**
  * Main entry point: fetch span data from ClickHouse, then resolve previews.
- * Also resolves agent names for inputSpanIds that have a system prompt.
+ * Also resolves agent names using prompt hashes from span attributes.
  */
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>,
   options: ResolveOptions = {}
 ): Promise<SpanPreviewsResult> {
-  const { projectId, traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds } =
+  const { projectId, traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } =
     GetSpanPreviewsSchema.parse(input);
 
   const allSpanIds = [...new Set([...spanIds, ...(inputSpanIds ?? [])])];
@@ -80,30 +80,13 @@ export async function getSpanPreviews(
 
   const [previewsResult, agentNames] = await Promise.all([
     processSpanPreviews(regularSpans, projectId, spanIds, spanTypes, options, inputSpanRows),
-    resolveAgentNamesFromInputRows(inputSpanRows, projectId, options.skipGeneration),
+    promptHashes && Object.keys(promptHashes).length > 0
+      ? resolveAgentNames(promptHashes, traceId, projectId, options.skipGeneration)
+      : ({} as AgentNamesResult),
   ]);
 
   return {
     ...previewsResult,
     ...(Object.keys(agentNames).length > 0 && { agentNames }),
   };
-}
-
-async function resolveAgentNamesFromInputRows(
-  inputSpanRows: InputSpanRow[],
-  projectId: string,
-  skipGeneration = false
-): Promise<AgentNamesResult> {
-  if (inputSpanRows.length === 0) return {};
-
-  const entries = new Map<string, string>();
-  for (const row of inputSpanRows) {
-    const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
-    if (parsed?.systemText) {
-      entries.set(row.spanId, parsed.systemText);
-    }
-  }
-
-  if (entries.size === 0) return {};
-  return resolveAgentNames(entries, projectId, skipGeneration);
 }

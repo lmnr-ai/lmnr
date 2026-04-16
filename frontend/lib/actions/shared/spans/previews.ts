@@ -11,6 +11,7 @@ export const GetSharedSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: tru
   spanIds: z.array(z.string()).min(1),
   spanTypes: z.record(z.string(), z.string()),
   inputSpanIds: z.array(z.string()).optional(),
+  promptHashes: z.record(z.string(), z.string()).optional(),
 });
 
 /**
@@ -21,7 +22,8 @@ export const GetSharedSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: tru
 export async function getSharedSpanPreviews(
   input: z.infer<typeof GetSharedSpanPreviewsSchema>
 ): Promise<SpanPreviewsResult> {
-  const { traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds } = GetSharedSpanPreviewsSchema.parse(input);
+  const { traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } =
+    GetSharedSpanPreviewsSchema.parse(input);
 
   const sharedTrace = await db.query.sharedTraces.findFirst({
     where: eq(sharedTraces.id, traceId),
@@ -40,6 +42,7 @@ export async function getSharedSpanPreviews(
       startDate,
       endDate,
       inputSpanIds,
+      promptHashes,
     },
     { skipGeneration: true }
   );

@@ -1,7 +1,8 @@
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 
-import { fetchSkeletonHashes } from "@/lib/actions/sessions/trace-io";
+import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
+import { executeQuery } from "@/lib/actions/sql";
 import { getLanguageModel } from "@/lib/ai/model";
 import { cache } from "@/lib/cache";
 
@@ -36,40 +37,54 @@ async function generateAgentName(systemPrompt: string): Promise<string | null> {
   }
 }
 
-/**
- * Resolve agent names for a set of sub-agent spans given their system prompts.
- * Checks Redis cache first, generates via LLM for uncached entries.
- *
- * @param entries - Map of spanId → systemPrompt for each sub-agent boundary
- * @param projectId - Used as part of the cache key
- * @param skipGeneration - If true, only return cached names (for shared traces)
- */
+async function fetchSystemPrompts(spanIds: string[], traceId: string, projectId: string): Promise<Map<string, string>> {
+  if (spanIds.length === 0) return new Map();
+
+  const rows = await executeQuery<{ spanId: string; firstMessage: string; secondMessage: string }>({
+    projectId,
+    query: `
+      SELECT
+        span_id as spanId,
+        arr[1] as firstMessage,
+        if(length(arr) > 1, arr[2], '') as secondMessage
+      FROM (
+        SELECT span_id, JSONExtractArrayRaw(input) as arr
+        FROM spans
+        WHERE trace_id = {traceId: UUID}
+          AND span_id IN {spanIds: Array(UUID)}
+          AND span_type IN ('LLM', 'CACHED')
+      )
+    `,
+    parameters: { traceId, spanIds },
+  });
+
+  const result = new Map<string, string>();
+  for (const row of rows) {
+    const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
+    if (parsed?.systemText) {
+      result.set(row.spanId, parsed.systemText);
+    }
+  }
+  return result;
+}
+
 export async function resolveAgentNames(
-  entries: Map<string, string>,
+  promptHashes: Record<string, string>,
+  traceId: string,
   projectId: string,
   skipGeneration = false
 ): Promise<AgentNamesResult> {
-  if (entries.size === 0) return {};
+  const entries = Object.entries(promptHashes);
+  if (entries.length === 0) return {};
 
-  const spanIds = [...entries.keys()];
-  const systemPrompts = spanIds.map((id) => entries.get(id)!);
-
-  const hashes = await fetchSkeletonHashes(systemPrompts, projectId);
-
-  const result: AgentNamesResult = {};
-  const hashToSpanIds = new Map<string, { spanIds: string[]; systemPrompt: string }>();
-
-  for (let i = 0; i < spanIds.length; i++) {
-    const hash = hashes[i];
-    if (!hash) {
-      result[spanIds[i]] = null;
-      continue;
-    }
+  // Group span IDs by hash (multiple spans may share the same agent)
+  const hashToSpanIds = new Map<string, string[]>();
+  for (const [spanId, hash] of entries) {
     const existing = hashToSpanIds.get(hash);
     if (existing) {
-      existing.spanIds.push(spanIds[i]);
+      existing.push(spanId);
     } else {
-      hashToSpanIds.set(hash, { spanIds: [spanIds[i]], systemPrompt: systemPrompts[i] });
+      hashToSpanIds.set(hash, [spanId]);
     }
   }
 
@@ -78,34 +93,55 @@ export async function resolveAgentNames(
     uniqueHashes.map((h) => cache.get<string>(`${CACHE_PREFIX}${projectId}:${h}`).catch(() => null))
   );
 
-  const uncached: Array<{ hash: string; systemPrompt: string; spanIds: string[] }> = [];
+  const result: AgentNamesResult = {};
+  const uncachedHashes: string[] = [];
+  const uncachedSpanIds: string[] = [];
 
   for (let i = 0; i < uniqueHashes.length; i++) {
-    const entry = hashToSpanIds.get(uniqueHashes[i])!;
+    const hash = uniqueHashes[i];
+    const spanIds = hashToSpanIds.get(hash)!;
     const cachedName = cached[i];
 
     if (cachedName) {
-      for (const id of entry.spanIds) result[id] = cachedName;
+      for (const id of spanIds) result[id] = cachedName;
     } else {
-      uncached.push({ hash: uniqueHashes[i], ...entry });
+      uncachedHashes.push(hash);
+      uncachedSpanIds.push(spanIds[0]);
     }
   }
 
-  if (skipGeneration || uncached.length === 0) {
-    for (const entry of uncached) {
-      for (const id of entry.spanIds) result[id] = null;
+  if (skipGeneration || uncachedHashes.length === 0) {
+    for (const hash of uncachedHashes) {
+      for (const id of hashToSpanIds.get(hash)!) result[id] = null;
     }
     return result;
   }
 
-  const generated = await Promise.all(uncached.map((e) => generateAgentName(e.systemPrompt)));
+  // Fetch system prompts only for uncached spans
+  const systemPrompts = await fetchSystemPrompts(uncachedSpanIds, traceId, projectId);
+
+  const toGenerate: Array<{ hash: string; systemPrompt: string }> = [];
+  for (let i = 0; i < uncachedHashes.length; i++) {
+    const hash = uncachedHashes[i];
+    const spanId = uncachedSpanIds[i];
+    const systemPrompt = systemPrompts.get(spanId);
+
+    if (systemPrompt) {
+      toGenerate.push({ hash, systemPrompt });
+    } else {
+      for (const id of hashToSpanIds.get(hash)!) result[id] = null;
+    }
+  }
+
+  const generated = await Promise.all(toGenerate.map((e) => generateAgentName(e.systemPrompt)));
 
   const savePromises: Promise<void>[] = [];
-  for (let i = 0; i < uncached.length; i++) {
+  for (let i = 0; i < toGenerate.length; i++) {
     const name = generated[i];
-    for (const id of uncached[i].spanIds) result[id] = name;
+    const hash = toGenerate[i].hash;
+    for (const id of hashToSpanIds.get(hash)!) result[id] = name;
     if (name) {
-      const key = `${CACHE_PREFIX}${projectId}:${uncached[i].hash}`;
+      const key = `${CACHE_PREFIX}${projectId}:${hash}`;
       savePromises.push(cache.set(key, name, { expireAfterSeconds: CACHE_TTL_SECONDS }).catch(() => {}));
     }
   }

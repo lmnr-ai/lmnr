@@ -267,6 +267,80 @@ const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>):
   attributesSnippet: span.attributesSnippet,
 });
 
+const NULL_SPAN_ID = "00000000-0000-0000-0000-000000000000";
+
+type LlmGroup = { parentSpanId: string; promptHash: string; idsPath: string[] };
+
+/**
+ * Detect sub-agent boundary span IDs from in-memory spans using frequency counting.
+ *
+ * Groups LLM/CACHED spans by (parentSpanId, promptHash), keeps the earliest
+ * idsPath per group, then finds the first ancestor ID exclusive to each
+ * sub-agent's hash group. See CLAUDE.md for the full algorithm explanation.
+ */
+export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> => {
+  const llmGroups = new Map<string, LlmGroup & { minStart: string }>();
+
+  for (const span of spans) {
+    if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
+
+    const promptHash = span.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
+    const idsPath = span.attributes?.["lmnr.span.ids_path"] as string[] | undefined;
+
+    if (!promptHash || !Array.isArray(idsPath) || idsPath.length === 0) continue;
+
+    const filteredPath = idsPath.filter((id) => id !== NULL_SPAN_ID);
+    const key = `${span.parentSpanId ?? ""}\0${promptHash}`;
+
+    const existing = llmGroups.get(key);
+    if (!existing || span.startTime < existing.minStart) {
+      llmGroups.set(key, {
+        parentSpanId: span.parentSpanId ?? "",
+        promptHash,
+        idsPath: filteredPath,
+        minStart: span.startTime,
+      });
+    }
+  }
+
+  const groups = [...llmGroups.values()].sort((a, b) => a.minStart.localeCompare(b.minStart));
+  if (groups.length <= 1) return new Set();
+
+  const mainHash = groups[0].promptHash;
+  const mainRows = groups.filter((r) => r.promptHash === mainHash);
+  const nonMainRows = groups.filter((r) => r.promptHash !== mainHash);
+  if (nonMainRows.length === 0) return new Set();
+
+  const mainParentIds = new Set(mainRows.map((r) => r.parentSpanId));
+  const mainSpanIds = new Set(mainRows.flatMap((r) => r.idsPath));
+
+  const candidates = nonMainRows.filter((r) => !mainParentIds.has(r.parentSpanId));
+  if (candidates.length === 0) return new Set();
+
+  const hashGroupsPerSpan = new Map<string, Set<string>>();
+  for (const c of candidates) {
+    for (const id of c.idsPath) {
+      if (mainSpanIds.has(id)) continue;
+      if (!hashGroupsPerSpan.has(id)) hashGroupsPerSpan.set(id, new Set());
+      hashGroupsPerSpan.get(id)!.add(c.promptHash);
+    }
+  }
+
+  const boundaryIds = new Set<string>();
+  for (const c of candidates) {
+    for (const id of c.idsPath) {
+      if (mainSpanIds.has(id)) continue;
+      const hGroups = hashGroupsPerSpan.get(id);
+      if (hGroups && hGroups.size === 1) {
+        boundaryIds.add(id);
+        break;
+      }
+    }
+  }
+
+  return boundaryIds;
+};
+
 /**
  * Builds the flat list of transcript entries from spans.
  * Handles subagent grouping: spans under a subagent boundary are collapsed
@@ -282,7 +356,7 @@ export const buildTranscriptListEntries = (
   const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
   const pathInfoMap = computePathInfoMap(allSpans);
 
-  const groupBoundarySet = new Set(allSpans.filter((s) => s.isSubagent).map((s) => s.spanId));
+  const groupBoundarySet = computeSubagentBoundaries(allSpans);
   if (groupBoundarySet.size === 0) {
     return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span, pathInfoMap) }));
   }

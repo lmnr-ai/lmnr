@@ -14,6 +14,7 @@ use crate::{
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
+    signals::{spans::extract_system_message, utils::structural_skeleton_hash},
 };
 
 use super::span_attributes::{
@@ -21,7 +22,7 @@ use super::span_attributes::{
     GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
-    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
+    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER, SPAN_PROMPT_HASH,
 };
 use super::spans::{SpanAttributes, SpanUsage};
 
@@ -212,7 +213,20 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
         span.parent_span_id = None;
     }
 
+    if span.is_llm_span() {
+        if let Some(hash) = compute_prompt_hash(&span.input) {
+            span.attributes
+                .raw_attributes
+                .insert(SPAN_PROMPT_HASH.to_string(), Value::String(hash));
+        }
+    }
+
     span.attributes.update_path();
+}
+
+fn compute_prompt_hash(input: &Option<Value>) -> Option<String> {
+    let (system_text, _) = extract_system_message(input.as_ref()?)?;
+    Some(structural_skeleton_hash(&system_text))
 }
 
 pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>

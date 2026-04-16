@@ -9,7 +9,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ traceId:
 
   try {
     const body = await req.json();
-    const { spanIds, spanTypes, startDate, endDate, inputSpanIds } = body;
+    const { spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } = body;
 
     const result = await getSharedSpanPreviews({
       traceId,
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ traceId:
       startDate,
       endDate,
       inputSpanIds,
+      promptHashes,
     });
 
     return NextResponse.json(result);

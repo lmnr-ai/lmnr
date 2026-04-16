@@ -24,7 +24,8 @@ export function useBatchedSpanPreviews(
   trace: { id?: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanPreviewsOptions = {},
   spanTypes?: Record<string, string>,
-  inputSpanIds?: string[]
+  inputSpanIds?: string[],
+  promptHashes?: Record<string, string>
 ): BatchedPreviewsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
@@ -38,12 +39,16 @@ export function useBatchedSpanPreviews(
   const [agentNames, setAgentNames] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
   const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
+  const promptHashesRef = useRef<Record<string, string>>(promptHashes ?? {});
 
   if (spanTypes) {
     spanTypesRef.current = spanTypes;
   }
   if (inputSpanIds) {
     inputSpanIdsRef.current = inputSpanIds;
+  }
+  if (promptHashes) {
+    promptHashesRef.current = promptHashes;
   }
 
   const fetchBatch = useCallback(
@@ -61,6 +66,15 @@ export function useBatchedSpanPreviews(
 
         if (batchInputSpanIds.length > 0) {
           body.inputSpanIds = batchInputSpanIds;
+
+          const batchHashes: Record<string, string> = {};
+          for (const id of batchInputSpanIds) {
+            const hash = promptHashesRef.current[id];
+            if (hash) batchHashes[id] = hash;
+          }
+          if (Object.keys(batchHashes).length > 0) {
+            body.promptHashes = batchHashes;
+          }
         }
 
         if (trace?.startTime && trace?.endTime) {

@@ -6,6 +6,7 @@ export interface InputSpanRow {
   spanId: string;
   firstMessage: string;
   secondMessage: string;
+  promptHash: string;
 }
 
 const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
@@ -60,9 +61,10 @@ export async function fetchSpanData(
             SELECT
               span_id as spanId,
               arr[1] as firstMessage,
-              if(length(arr) > 1, arr[2], '') as secondMessage
+              if(length(arr) > 1, arr[2], '') as secondMessage,
+              simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') as promptHash
             FROM (
-              SELECT span_id, JSONExtractArrayRaw(input) as arr
+              SELECT span_id, JSONExtractArrayRaw(input) as arr, attributes
               FROM spans
               WHERE trace_id = {traceId: UUID}
                 AND span_id IN {spanIds: Array(UUID)}

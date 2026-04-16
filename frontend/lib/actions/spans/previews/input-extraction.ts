@@ -1,6 +1,5 @@
 import { extractInputsForGroup, joinUserParts } from "@/lib/actions/sessions/extract-input";
 import { type ParsedInput, parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
-import { fetchSkeletonHashes } from "@/lib/actions/sessions/trace-io";
 
 import type { InputSpanRow } from "./queries";
 
@@ -11,7 +10,7 @@ export async function extractUserInputsForSpans(
   const userInputs: Record<string, string | null> = {};
   if (rows.length === 0) return userInputs;
 
-  const parsedSpans: Array<{ spanId: string; parsed: ParsedInput; rawInput: string }> = [];
+  const parsedSpans: Array<{ spanId: string; parsed: ParsedInput; rawInput: string; promptHash: string }> = [];
 
   for (const row of rows) {
     const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
@@ -24,40 +23,32 @@ export async function extractUserInputsForSpans(
       userInputs[row.spanId] = null;
       continue;
     }
-    parsedSpans.push({ spanId: row.spanId, parsed, rawInput });
+    parsedSpans.push({ spanId: row.spanId, parsed, rawInput, promptHash: row.promptHash });
   }
 
   if (parsedSpans.length === 0) return userInputs;
 
-  const withSystem: typeof parsedSpans = [];
-  const withoutSystem: typeof parsedSpans = [];
+  const withHash: typeof parsedSpans = [];
+  const withoutHash: typeof parsedSpans = [];
   for (const entry of parsedSpans) {
-    if (entry.parsed.systemText) {
-      withSystem.push(entry);
+    if (entry.promptHash) {
+      withHash.push(entry);
     } else {
-      withoutSystem.push(entry);
+      withoutHash.push(entry);
     }
   }
 
-  for (const entry of withoutSystem) {
+  for (const entry of withoutHash) {
     userInputs[entry.spanId] = entry.rawInput;
   }
 
-  if (withSystem.length === 0) return userInputs;
+  if (withHash.length === 0) return userInputs;
 
-  const systemTexts = withSystem.map((e) => e.parsed.systemText!);
-  const hashes = await fetchSkeletonHashes(systemTexts, projectId);
-
-  const byHash = new Map<string, typeof withSystem>();
-  for (let i = 0; i < withSystem.length; i++) {
-    const hash = hashes[i];
-    if (!hash) {
-      userInputs[withSystem[i].spanId] = withSystem[i].rawInput;
-      continue;
-    }
-    const group = byHash.get(hash) ?? [];
-    group.push(withSystem[i]);
-    byHash.set(hash, group);
+  const byHash = new Map<string, typeof withHash>();
+  for (const entry of withHash) {
+    const group = byHash.get(entry.promptHash) ?? [];
+    group.push(entry);
+    byHash.set(entry.promptHash, group);
   }
 
   await Promise.all(

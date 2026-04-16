@@ -3,10 +3,9 @@ import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
 
-import ListItem, { AgentGroupHeader, GroupChildWrapper } from "@/components/traces/trace-view/list/list-item.tsx";
+import { AgentGroupHeader, GroupChildWrapper, InputItem, SpanItem } from "@/components/traces/trace-view/list/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
-import { InputItem } from "@/components/traces/trace-view/list/user-input-item";
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
@@ -107,15 +106,23 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return types;
   }, [transcriptEntries]);
 
-  const inputSpanIds = useMemo(() => {
+  const { inputSpanIds, promptHashes } = useMemo(() => {
     const ids: string[] = [];
+    const hashes: Record<string, string> = {};
+    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+
     for (const entry of transcriptEntries) {
       if (entry.type === "group" && entry.firstLlmSpanId) {
         ids.push(entry.firstLlmSpanId);
+        const span = spanMap.get(entry.firstLlmSpanId);
+        const hash = span?.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
+        if (hash) {
+          hashes[entry.firstLlmSpanId] = hash;
+        }
       }
     }
-    return ids;
-  }, [transcriptEntries]);
+    return { inputSpanIds: ids, promptHashes: hashes };
+  }, [transcriptEntries, spans]);
 
   const virtualizer = useVirtualizer({
     count: flatRows.length,
@@ -146,7 +153,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     },
     { isShared },
     spanTypes,
-    inputSpanIds
+    inputSpanIds,
+    promptHashes
   );
 
   const handleSpanSelect = useCallback(
@@ -175,7 +183,6 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               previews={previews}
               inputPreviews={inputPreviews}
               agentNames={agentNames}
-              onSpanSelect={handleSpanSelect}
             />
           );
         }
@@ -185,7 +192,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           const isLoadingInput = inputPreviews[row.firstLlmSpanId] === undefined;
           return (
             <GroupChildWrapper>
-              <InputItem text={inputText} isLoading={isLoadingInput} />
+              <InputItem text={inputText} isLoading={isLoadingInput} inGroup />
             </GroupChildWrapper>
           );
         }
@@ -193,12 +200,12 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
         case "group-span":
           return (
             <GroupChildWrapper isLast={row.isLast}>
-              <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
+              <SpanItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} inGroup />
             </GroupChildWrapper>
           );
 
         case "span":
-          return <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />;
+          return <SpanItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />;
       }
     },
     [userInput, isUserInputLoading, transcriptCollapsedGroups, previews, inputPreviews, agentNames, handleSpanSelect]
