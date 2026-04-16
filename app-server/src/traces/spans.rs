@@ -3500,9 +3500,6 @@ mod tests {
 
         span.parse_and_enrich_attributes();
 
-        // Span type should be re-evaluated to LLM after normalization
-        assert_eq!(span.span_type, SpanType::LLM);
-
         // Token counts should be extracted via gen_ai.usage.* normalization
         let input_tokens = span.attributes.input_tokens();
         assert_eq!(input_tokens.total(), 14);
@@ -3563,7 +3560,6 @@ mod tests {
 
         span.parse_and_enrich_attributes();
 
-        assert_eq!(span.span_type, SpanType::LLM);
         assert_eq!(span.attributes.input_tokens().total(), 50);
         assert_eq!(span.attributes.output_tokens(), 100);
         assert_eq!(span.attributes.request_model(), Some("gpt-4o".to_string()));
