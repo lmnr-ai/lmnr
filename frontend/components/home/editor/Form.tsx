@@ -224,11 +224,12 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       if (chartConfig) {
         const updatedConfig = {
           ...chartConfig,
-          displayMode: resolveDisplayMode(chart.settings.config),
+          displayMode,
         };
         if (isTable && "hiddenColumns" in updatedConfig) {
-          const allMetricColumns = new Set(injectedMetrics.map((m) => m.column));
-          updatedConfig.hiddenColumns = (ID_COLUMNS_BY_TABLE[table] ?? []).filter((col) => allMetricColumns.has(col));
+          const userColumns = new Set(metrics.map((m) => m.column));
+          const idCols = ID_COLUMNS_BY_TABLE[table] ?? [];
+          updatedConfig.hiddenColumns = idCols.filter((col) => !userColumns.has(col));
         }
         setChartConfig(updatedConfig as ChartConfig);
       }
@@ -244,6 +245,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     formState.isValid,
     projectId,
     chartConfig,
+    displayMode,
     getValues,
     setQuery,
     setChartConfig,
