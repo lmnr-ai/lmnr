@@ -1,5 +1,5 @@
-import { CollapsedTextWithMore } from "@/components/traces/trace-view/list/collapsed-text-with-more";
 import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
+import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export type PreviewMap = Record<string, string | null | undefined>;

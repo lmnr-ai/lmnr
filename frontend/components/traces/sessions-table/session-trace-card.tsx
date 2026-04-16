@@ -4,7 +4,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { useState } from "react";
 
-import Markdown from "@/components/traces/trace-view/list/markdown";
+import Markdown from "@/components/traces/trace-view/transcript/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

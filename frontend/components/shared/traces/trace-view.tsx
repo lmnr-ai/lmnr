@@ -14,12 +14,12 @@ import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import List from "@/components/traces/trace-view/list";
 import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
+import List from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";

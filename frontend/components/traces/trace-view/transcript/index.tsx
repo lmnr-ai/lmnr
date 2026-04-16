@@ -3,15 +3,20 @@ import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
 
-import { AgentGroupHeader, GroupChildWrapper, InputItem, SpanItem } from "@/components/traces/trace-view/list/item";
-import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-previews";
-import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
   type TranscriptListEntry,
   useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
+import {
+  AgentGroupHeader,
+  GroupChildWrapper,
+  InputItem,
+  SpanItem,
+} from "@/components/traces/trace-view/transcript/item";
+import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
+import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { cn } from "@/lib/utils";
 

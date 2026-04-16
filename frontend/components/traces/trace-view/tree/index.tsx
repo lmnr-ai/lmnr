@@ -6,7 +6,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useBatchedSpanPreviews } from "../list/use-batched-span-previews";
+import { useBatchedSpanPreviews } from "../transcript/use-batched-span-previews";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {

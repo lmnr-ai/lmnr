@@ -17,7 +17,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer from "../session-player";
 import CondensedTimeline from "./condensed-timeline";
 import Header from "./header";
-import List from "./list";
+import List from "./transcript";
 import Tree from "./tree";
 
 interface TracePanelProps {
