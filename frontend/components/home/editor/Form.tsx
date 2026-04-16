@@ -27,6 +27,12 @@ import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts"
 const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
 
+const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
+  spans: ["trace_id", "span_id"],
+  traces: ["id"],
+  signal_events: ["signal_id", "trace_id"],
+};
+
 const getDefaultTimeRange = (table: string): TimeRange => {
   const timeColumn = getTimeColumn(table);
   return {
@@ -177,12 +183,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           }
         };
 
-        const idColumnsForTable: Record<string, string[]> = {
-          spans: ["trace_id", "span_id"],
-          traces: ["id"],
-          signal_events: ["signal_id", "trace_id"],
-        };
-        for (const col of idColumnsForTable[table] ?? []) {
+        for (const col of ID_COLUMNS_BY_TABLE[table] ?? []) {
           inject(col);
         }
       }
@@ -226,7 +227,8 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           displayMode: resolveDisplayMode(chart.settings.config),
         };
         if (isTable && "hiddenColumns" in updatedConfig) {
-          updatedConfig.hiddenColumns = injectedIdColumns;
+          const allMetricColumns = new Set(injectedMetrics.map((m) => m.column));
+          updatedConfig.hiddenColumns = (ID_COLUMNS_BY_TABLE[table] ?? []).filter((col) => allMetricColumns.has(col));
         }
         setChartConfig(updatedConfig as ChartConfig);
       }
