@@ -1,12 +1,11 @@
 import {
-  type ReaderListEntry,
-  type ReaderListGroup,
   type TraceViewListSpan,
   type TraceViewSpan,
+  type TranscriptListEntry,
+  type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { computePathInfoMap } from "@/components/traces/trace-view/store/utils";
+import { buildTranscriptListEntries, computePathInfoMap } from "@/components/traces/trace-view/store/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
-import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type TraceRow } from "@/lib/traces/types";
 
 /** Convert a full TraceViewSpan to the lightweight TraceViewListSpan shape
@@ -22,7 +21,8 @@ export function spanToListSpan(span: TraceViewSpan, pathInfo?: TraceViewListSpan
     path: span.path,
     startTime: span.startTime,
     endTime: span.endTime,
-    totalTokens: span.totalTokens,
+    inputTokens: span.inputTokens,
+    outputTokens: span.outputTokens,
     cacheReadInputTokens: span.cacheReadInputTokens,
     totalCost: span.totalCost,
     pending: span.pending,
@@ -33,77 +33,11 @@ export function spanToListSpan(span: TraceViewSpan, pathInfo?: TraceViewListSpan
   };
 }
 
-/** Transform a trace's spans into reader-mode entries. Mirrors the logic in
- *  trace-view/store/base.ts `getReaderListData` but is store-free so session
- *  view can reuse it per-trace. */
-export function computeReaderEntries(spans: TraceViewSpan[], agentPaths: AgentPaths): ReaderListEntry[] {
-  // Session view doesn't use condensed timeline selection, so we never filter by it.
-  const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-  const pathInfoMap = computePathInfoMap(spans);
-
-  const toLightweight = (span: TraceViewSpan): TraceViewListSpan =>
-    spanToListSpan(span, pathInfoMap.get(span.spanId) ?? null);
-
-  const mainAgentPath = agentPaths[0] ?? null;
-  const isMainAgentSpan = (span: TraceViewSpan): boolean => {
-    if (!mainAgentPath) return true;
-    if (!span.path) return true;
-    return span.path === mainAgentPath || span.path.startsWith(mainAgentPath + ".");
-  };
-
-  const entries: ReaderListEntry[] = [];
-  let currentGroup: { path: string; spans: TraceViewSpan[] } | null = null;
-
-  const flushGroup = () => {
-    if (!currentGroup || currentGroup.spans.length === 0) return;
-    const groupSpans = currentGroup.spans;
-    const groupPath = currentGroup.path;
-
-    const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
-    if (!firstLlm) {
-      for (const s of groupSpans) entries.push({ type: "span", span: toLightweight(s) });
-      currentGroup = null;
-      return;
-    }
-
-    const groupId = `group-${groupPath}-${groupSpans[0].spanId}`;
-    let totalTokens = 0;
-    let totalCost = 0;
-    for (const s of groupSpans) {
-      totalTokens += s.totalTokens;
-      totalCost += s.totalCost;
-    }
-
-    const pathParts = groupPath.split(".");
-    const groupName = pathParts[pathParts.length - 1] || groupSpans[0].name;
-
-    entries.push({
-      type: "group",
-      groupId,
-      name: groupName,
-      path: groupPath,
-      spans: groupSpans.map(toLightweight),
-      firstLlmSpanId: firstLlm.spanId,
-      startTime: groupSpans[0].startTime,
-      endTime: groupSpans[groupSpans.length - 1].endTime,
-      totalTokens,
-      totalCost,
-    });
-    currentGroup = null;
-  };
-
-  for (const span of listSpans) {
-    if (isMainAgentSpan(span)) {
-      flushGroup();
-      entries.push({ type: "span", span: toLightweight(span) });
-    } else {
-      if (currentGroup) currentGroup.spans.push(span);
-      else currentGroup = { path: span.path, spans: [span] };
-    }
-  }
-  flushGroup();
-
-  return entries;
+/** Transform a trace's spans into transcript-mode entries. Uses the upstream
+ *  buildTranscriptListEntries which handles subagent detection automatically. */
+export function computeTranscriptEntries(spans: TraceViewSpan[]): TranscriptListEntry[] {
+  // Session view doesn't use condensed timeline selection, so pass empty set
+  return buildTranscriptListEntries(spans, new Set());
 }
 
 // ---------- Flat row synthesis ----------
@@ -115,20 +49,19 @@ export type SessionFlatRow =
   | { type: "trace-empty"; traceId: string }
   | { type: "user-input"; traceId: string }
   | { type: "span"; traceId: string; span: TraceViewListSpan }
-  | { type: "group-header"; traceId: string; group: ReaderListGroup; collapsed: boolean }
-  | { type: "group-span"; traceId: string; group: ReaderListGroup; span: TraceViewListSpan; isLast: boolean };
+  | { type: "group-header"; traceId: string; group: TranscriptListGroup; collapsed: boolean }
+  | { type: "group-span"; traceId: string; span: TraceViewListSpan; isLast: boolean };
 
 interface BuildFlatRowsOpts {
   traces: TraceRow[];
   traceSpans: Record<string, TraceViewSpan[]>;
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
-  traceAgentPaths: Record<string, AgentPaths>;
   expandedTraceIds: Set<string>;
   /** Namespaced `${traceId}::${groupId}` set of EXPANDED groups (default collapsed). */
-  readerExpandedGroups: Set<string>;
+  transcriptExpandedGroups: Set<string>;
   /** When set, a search is active: only matched traces appear, always expanded,
-   *  with only matching spans (flat, no reader-mode groups). */
+   *  with only matching spans (flat, no transcript-mode groups). */
   searchResults?: Record<string, SessionSpansTraceResult>;
 }
 
@@ -140,9 +73,8 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     traceSpans,
     traceSpansLoading,
     traceSpansError,
-    traceAgentPaths,
     expandedTraceIds,
-    readerExpandedGroups,
+    transcriptExpandedGroups,
     searchResults,
   } = opts;
 
@@ -180,24 +112,29 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
 
     rows.push({ type: "user-input", traceId: trace.id });
 
-    const entries = computeReaderEntries(spans, traceAgentPaths[trace.id] ?? []);
+    const entries = computeTranscriptEntries(spans);
     for (const entry of entries) {
       if (entry.type === "span") {
         rows.push({ type: "span", traceId: trace.id, span: entry.span });
-      } else {
+      } else if (entry.type === "group") {
         const nsKey = `${trace.id}::${entry.groupId}`;
-        const collapsed = !readerExpandedGroups.has(nsKey);
+        const collapsed = !transcriptExpandedGroups.has(nsKey);
         rows.push({ type: "group-header", traceId: trace.id, group: entry, collapsed });
         if (!collapsed) {
-          const childSpans = entry.spans.slice(1);
-          for (let i = 0; i < childSpans.length; i++) {
-            rows.push({
-              type: "group-span",
-              traceId: trace.id,
-              group: entry,
-              span: childSpans[i],
-              isLast: i === childSpans.length - 1,
-            });
+          // Flatten group-span and group-input children
+          const childEntries = entries.filter(
+            (e) => (e.type === "group-span" || e.type === "group-input") && e.groupId === entry.groupId
+          );
+          for (let i = 0; i < childEntries.length; i++) {
+            const child = childEntries[i];
+            if (child.type === "group-span") {
+              rows.push({
+                type: "group-span",
+                traceId: trace.id,
+                span: child.span,
+                isLast: i === childEntries.length - 1,
+              });
+            }
           }
         }
       }

@@ -4,13 +4,7 @@ import { z } from "zod/v4";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { type Filter } from "@/lib/actions/common/filters";
 import { FiltersSchema } from "@/lib/actions/common/types";
-import {
-  type AgentPaths,
-  aggregateSpanMetrics,
-  buildSpansQueryWithParams,
-  computeAgentPaths,
-  transformSpanWithEvents,
-} from "@/lib/actions/spans/utils";
+import { aggregateSpanMetrics, buildSpansQueryWithParams, transformSpanWithEvents } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 
@@ -26,7 +20,6 @@ export const GetSessionSpansSchema = FiltersSchema.extend({
 export interface SessionSpansTraceResult {
   traceId: string;
   spans: TraceViewSpan[];
-  agentPaths: AgentPaths;
 }
 
 export interface SessionSpansResult {
@@ -163,7 +156,6 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
     results.push({
       traceId,
       spans,
-      agentPaths: computeAgentPaths(spans),
     });
   }
 

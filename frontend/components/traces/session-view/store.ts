@@ -8,7 +8,6 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
-import { type AgentPaths } from "@/lib/actions/spans/utils";
 import { type TraceRow } from "@/lib/traces/types";
 
 export type SessionResizablePanel = "session" | "span";
@@ -52,12 +51,11 @@ interface SessionViewState {
   traceSpans: Record<string, TraceViewSpan[]>;
   traceSpansLoading: Record<string, boolean>;
   traceSpansError: Record<string, string | undefined>;
-  traceAgentPaths: Record<string, AgentPaths>;
 
   // UI state
   expandedTraceIds: Set<string>;
-  /** Namespaced `${traceId}::${groupId}` set — EXPANDED reader groups (default collapsed). */
-  readerExpandedGroups: Set<string>;
+  /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
+  transcriptExpandedGroups: Set<string>;
 
   // Session timeline
   sessionTimelineEnabled: boolean;
@@ -95,11 +93,10 @@ interface SessionViewActions {
 
   setTraceSpans: (traceId: string, spans: TraceViewSpan[]) => void;
   upsertTraceSpan: (traceId: string, span: TraceViewSpan) => void;
-  setTraceAgentPaths: (traceId: string, paths: AgentPaths) => void;
   setTraceSpansLoading: (traceId: string, loading: boolean) => void;
   setTraceSpansError: (traceId: string, error?: string) => void;
 
-  toggleReaderGroup: (traceId: string, groupId: string) => void;
+  toggleTranscriptGroup: (traceId: string, groupId: string) => void;
 
   setSessionTimelineEnabled: (enabled: boolean) => void;
   setSessionTimelineZoom: (zoom: number) => void;
@@ -186,10 +183,9 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         traceSpans: {},
         traceSpansLoading: {},
         traceSpansError: {},
-        traceAgentPaths: {},
 
         expandedTraceIds: new Set<string>(),
-        readerExpandedGroups: new Set<string>(),
+        transcriptExpandedGroups: new Set<string>(),
 
         sessionTimelineEnabled: false,
         sessionTimelineZoom: 1,
@@ -241,11 +237,10 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
               }));
               return;
             }
-            const body = (await res.json()) as { spans: TraceViewSpan[]; agentPaths: string[] };
+            const body = (await res.json()) as { spans: TraceViewSpan[] };
             const enriched = enrichSpansWithPending(body.spans);
             set((s) => ({
               traceSpans: { ...s.traceSpans, [trace.id]: enriched },
-              traceAgentPaths: { ...s.traceAgentPaths, [trace.id]: body.agentPaths },
             }));
           } catch (e) {
             set((s) => ({
@@ -305,20 +300,18 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             const next = idx === -1 ? [...existing, span] : existing.map((s) => (s.spanId === span.spanId ? span : s));
             return { traceSpans: { ...state.traceSpans, [traceId]: next } };
           }),
-        setTraceAgentPaths: (traceId, paths) =>
-          set((state) => ({ traceAgentPaths: { ...state.traceAgentPaths, [traceId]: paths } })),
         setTraceSpansLoading: (traceId, loading) =>
           set((state) => ({ traceSpansLoading: { ...state.traceSpansLoading, [traceId]: loading } })),
         setTraceSpansError: (traceId, error) =>
           set((state) => ({ traceSpansError: { ...state.traceSpansError, [traceId]: error } })),
 
-        toggleReaderGroup: (traceId, groupId) => {
+        toggleTranscriptGroup: (traceId, groupId) => {
           const key = `${traceId}::${groupId}`;
-          const prev = get().readerExpandedGroups;
+          const prev = get().transcriptExpandedGroups;
           const next = new Set(prev);
           if (next.has(key)) next.delete(key);
           else next.add(key);
-          set({ readerExpandedGroups: next });
+          set({ transcriptExpandedGroups: next });
         },
 
         setSessionTimelineEnabled: (enabled) => set({ sessionTimelineEnabled: enabled }),

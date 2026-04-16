@@ -6,8 +6,6 @@ import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
-import ListItem from "@/components/traces/trace-view/list/list-item";
-import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";
 import { spanToListSpan } from "../utils";
+import { SessionInputItem, SessionSpanItem } from "./session-transcript-items";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -134,7 +133,8 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
               variant="inline"
               startTime={trace.startTime}
               endTime={trace.endTime}
-              tokens={trace.totalTokens}
+              inputTokens={trace.inputTokens}
+              outputTokens={trace.outputTokens}
               cost={trace.totalCost}
               cacheReadInputTokens={trace.cacheReadInputTokens}
             />
@@ -155,13 +155,13 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             ) : (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <UserInputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
+                  <SessionInputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
                 </div>
                 {lastSpan && middleSpanCount > 0 && (
                   <MiddleSpansDivider count={middleSpanCount} isLoading={isPendingExpand} onClick={handleToggle} />
                 )}
                 {lastSpan ? (
-                  <ListItem
+                  <SessionSpanItem
                     span={lastSpan}
                     output={traceIO?.outputPreview}
                     onSpanSelect={(s) => handleSpanSelect(s.spanId)}

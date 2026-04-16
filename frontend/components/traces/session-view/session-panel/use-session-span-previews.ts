@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { fetchSpanPreviewsForTrace } from "@/components/traces/trace-view/list/fetch-span-previews";
+import { fetchSpanPreviewsForTrace } from "@/components/traces/trace-view/transcript/fetch-span-previews";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SimpleLRU } from "@/lib/simple-lru";
 

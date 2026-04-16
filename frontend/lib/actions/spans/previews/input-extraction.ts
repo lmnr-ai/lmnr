@@ -58,10 +58,13 @@ export async function extractUserInputsForSpans(
         output: null,
         parsed: e.parsed,
       }));
-      const groupResults: Record<string, { input: string | null; output: string | null }> = {};
+      const groupResults: Record<
+        string,
+        { inputPreview: string | null; outputPreview: string | null; outputSpan: unknown }
+      > = {};
       await extractInputsForGroup(hash, projectId, traces, groupResults);
       for (const entry of entries) {
-        userInputs[entry.spanId] = groupResults[entry.spanId]?.input ?? entry.rawInput;
+        userInputs[entry.spanId] = groupResults[entry.spanId]?.inputPreview ?? entry.rawInput;
       }
     })
   );

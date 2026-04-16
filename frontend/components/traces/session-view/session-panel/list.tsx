@@ -5,15 +5,14 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { AgentGroupHeader } from "@/components/traces/trace-view/list/agent-group-item";
-import ListItem from "@/components/traces/trace-view/list/list-item";
-import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
+import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSessionViewStore } from "../store";
 import { buildSessionFlatRows } from "../utils";
-import TraceItem from "./trace-item";
-import { useSessionSpanPreviews } from "./use-session-span-previews";
+import { SessionAgentGroupHeader, SessionInputItem, SessionSpanItem } from "./session-transcript-items";
+import TraceItem from "./trace-item.tsx";
+import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
 /**
  * Virtualized body of the session panel. Reads everything it needs directly
@@ -30,13 +29,12 @@ export default function SessionList() {
     traceSpans,
     traceSpansLoading,
     traceSpansError,
-    traceAgentPaths,
     expandedTraceIds,
-    readerExpandedGroups,
+    transcriptExpandedGroups,
     selectedSpan,
     searchResults,
     toggleTraceExpanded,
-    toggleReaderGroup,
+    toggleTranscriptGroup,
     setSelectedSpan,
   } = useSessionViewStore(
     (s) => ({
@@ -45,13 +43,12 @@ export default function SessionList() {
       traceSpans: s.traceSpans,
       traceSpansLoading: s.traceSpansLoading,
       traceSpansError: s.traceSpansError,
-      traceAgentPaths: s.traceAgentPaths,
       expandedTraceIds: s.expandedTraceIds,
-      readerExpandedGroups: s.readerExpandedGroups,
+      transcriptExpandedGroups: s.transcriptExpandedGroups,
       selectedSpan: s.selectedSpan,
       searchResults: s.searchResults,
       toggleTraceExpanded: s.toggleTraceExpanded,
-      toggleReaderGroup: s.toggleReaderGroup,
+      toggleTranscriptGroup: s.toggleTranscriptGroup,
       setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
@@ -64,21 +61,11 @@ export default function SessionList() {
         traceSpans,
         traceSpansLoading,
         traceSpansError,
-        traceAgentPaths,
         expandedTraceIds,
-        readerExpandedGroups,
+        transcriptExpandedGroups,
         searchResults,
       }),
-    [
-      traces,
-      traceSpans,
-      traceSpansLoading,
-      traceSpansError,
-      traceAgentPaths,
-      expandedTraceIds,
-      readerExpandedGroups,
-      searchResults,
-    ]
+    [traces, traceSpans, traceSpansLoading, traceSpansError, expandedTraceIds, transcriptExpandedGroups, searchResults]
   );
 
   const traceIndexById = useMemo(() => {
@@ -148,7 +135,7 @@ export default function SessionList() {
       case "group-header":
         return `gh::${row.traceId}::${row.group.groupId}`;
       case "group-span":
-        return `gs::${row.traceId}::${row.group.groupId}::${row.span.spanId}`;
+        return `gs::${row.traceId}::${row.span.spanId}`;
     }
   }, []);
 
@@ -238,9 +225,14 @@ export default function SessionList() {
       if (row.type === "span" || row.type === "group-span") {
         pushUnique(visible, row.traceId, row.span.spanId);
       } else if (row.type === "group-header") {
-        if (row.group.firstLlmSpanId) {
-          pushUnique(visible, row.traceId, row.group.firstLlmSpanId);
-          pushUnique(inputs, row.traceId, row.group.firstLlmSpanId);
+        const group = row.group as TranscriptListGroup;
+        if (group.firstLlmSpanId) {
+          pushUnique(visible, row.traceId, group.firstLlmSpanId);
+          pushUnique(inputs, row.traceId, group.firstLlmSpanId);
+        }
+        // Also fetch the last LLM span preview for collapsed groups
+        if (row.collapsed && group.lastLlmSpanId) {
+          pushUnique(visible, row.traceId, group.lastLlmSpanId);
         }
       }
     }
@@ -333,29 +325,18 @@ export default function SessionList() {
               ) : row.type === "trace-empty" ? (
                 <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
               ) : row.type === "user-input" ? (
-                <UserInputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
+                <SessionInputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
               ) : row.type === "group-header" ? (
-                (() => {
-                  const firstSpan = row.group.spans[0];
-                  const firstIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
-                  const groupPreview = firstSpan
-                    ? firstIsLlm && row.group.firstLlmSpanId
-                      ? userInputs[row.group.firstLlmSpanId]
-                      : previews[firstSpan.spanId]
-                    : null;
-                  return (
-                    <AgentGroupHeader
-                      group={row.group}
-                      collapsed={row.collapsed}
-                      preview={groupPreview}
-                      onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                      onToggleGroup={(groupId) => toggleReaderGroup(row.traceId, groupId)}
-                    />
-                  );
-                })()
+                <SessionAgentGroupHeader
+                  group={row.group}
+                  collapsed={row.collapsed}
+                  previews={previews}
+                  inputPreviews={userInputs}
+                  onToggle={() => toggleTranscriptGroup(row.traceId, row.group.groupId)}
+                />
               ) : row.type === "group-span" ? (
                 <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
-                  <ListItem
+                  <SessionSpanItem
                     span={row.span}
                     output={previews[row.span.spanId]}
                     onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
@@ -365,7 +346,7 @@ export default function SessionList() {
                   />
                 </div>
               ) : (
-                <ListItem
+                <SessionSpanItem
                   span={row.span}
                   output={previews[row.span.spanId]}
                   onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
