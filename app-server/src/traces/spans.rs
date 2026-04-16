@@ -714,11 +714,6 @@ impl Span {
 
         self.attributes.normalize_aisdk_attributes();
 
-        // Re-evaluate span type after normalization — gen_ai.system may now be present
-        if self.span_type == SpanType::Default {
-            self.span_type = self.attributes.span_type();
-        }
-
         if self.is_llm_span() {
             if self
                 .attributes
