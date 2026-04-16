@@ -350,42 +350,28 @@ export default function SessionList() {
                   onToggle={() => toggleTranscriptGroup(row.traceId, row.group.groupId)}
                 />
               ) : row.type === "group-span" ? (
-                (() => {
-                  const fullSpan = allSpansById.get(row.span.spanId);
-                  if (!fullSpan) return null;
-                  return (
-                    <GroupChildWrapper isLast={row.isLast}>
-                      <SpanItem
-                        span={fullSpan}
-                        output={previews[row.span.spanId]}
-                        onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
-                        isSelected={
-                          !!selectedSpan &&
-                          selectedSpan.traceId === row.traceId &&
-                          selectedSpan.spanId === row.span.spanId
-                        }
-                        inGroup
-                      />
-                    </GroupChildWrapper>
-                  );
-                })()
+                <GroupChildWrapper isLast={row.isLast}>
+                  <SpanItem
+                    span={row.span}
+                    fullSpan={allSpansById.get(row.span.spanId)}
+                    output={previews[row.span.spanId]}
+                    onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                    isSelected={
+                      !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                    }
+                    inGroup
+                  />
+                </GroupChildWrapper>
               ) : (
-                (() => {
-                  const fullSpan = allSpansById.get(row.span.spanId);
-                  if (!fullSpan) return null;
-                  return (
-                    <SpanItem
-                      span={fullSpan}
-                      output={previews[row.span.spanId]}
-                      onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
-                      isSelected={
-                        !!selectedSpan &&
-                        selectedSpan.traceId === row.traceId &&
-                        selectedSpan.spanId === row.span.spanId
-                      }
-                    />
-                  );
-                })()
+                <SpanItem
+                  span={row.span}
+                  fullSpan={allSpansById.get(row.span.spanId)}
+                  output={previews[row.span.spanId]}
+                  onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                  isSelected={
+                    !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                  }
+                />
               )}
             </div>
           );

@@ -8,7 +8,7 @@ import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-chec
 import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { type TraceViewListSpan, type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +20,7 @@ function InlinePreviewContent({
   previewText,
   isLoading,
 }: {
-  span: TraceViewSpan;
+  span: TraceViewListSpan;
   previewText: string | null;
   isLoading: boolean;
 }) {
@@ -86,14 +86,17 @@ function LLMOutputPreview({ previewText, isLoading }: { previewText: string | nu
 }
 
 export interface SpanItemProps {
-  span: TraceViewSpan;
+  span: TraceViewListSpan;
+  /** Full span data — only needed for debugger features (checkpoint, cache).
+   *  When omitted, the row renders normally but without debugger UI. */
+  fullSpan?: TraceViewSpan;
   output: any | undefined;
-  onSpanSelect: (span: TraceViewSpan) => void;
+  onSpanSelect: (span: TraceViewListSpan) => void;
   isSelected: boolean;
   inGroup?: boolean;
 }
 
-export default function SpanItem({ span, output, onSpanSelect, isSelected, inGroup = false }: SpanItemProps) {
+export default function SpanItem({ span, fullSpan, output, onSpanSelect, isSelected, inGroup = false }: SpanItemProps) {
   const {
     enabled: cachingEnabled,
     state: { isSpanCached },
@@ -101,7 +104,7 @@ export default function SpanItem({ span, output, onSpanSelect, isSelected, inGro
     isSpanCached: s.isSpanCached,
   }));
 
-  const isCached = cachingEnabled ? isSpanCached(span) : false;
+  const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
   const isLLMType = span.spanType === "LLM" || span.spanType === "CACHED";
   const isPending = span.pending;
@@ -123,9 +126,9 @@ export default function SpanItem({ span, output, onSpanSelect, isSelected, inGro
         }
       }}
     >
-      {cachingEnabled && (
+      {cachingEnabled && fullSpan && (
         <div className="flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5">
-          <DebuggerCheckpoint span={span} />
+          <DebuggerCheckpoint span={fullSpan} />
         </div>
       )}
 

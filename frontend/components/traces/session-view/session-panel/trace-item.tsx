@@ -14,6 +14,7 @@ import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";
+import { spanToListSpan } from "../utils";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -50,10 +51,15 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     }
   }, [spans, spansError, onToggle]);
 
-  const lastSpan = useMemo(() => {
+  const lastFullSpan = useMemo(() => {
     if (!traceIO?.outputSpan) return null;
     return traceIO.outputSpan as unknown as TraceViewSpan;
   }, [traceIO?.outputSpan]);
+
+  const lastSpan = useMemo(() => {
+    if (!lastFullSpan) return null;
+    return spanToListSpan(lastFullSpan);
+  }, [lastFullSpan]);
 
   // Subtract 4: two end rows (input pill + output LLM) plus the ~2 spans
   // they each represent internally (root/wrapper spans that don't carry
@@ -162,6 +168,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
                 {lastSpan ? (
                   <SpanItem
                     span={lastSpan}
+                    fullSpan={lastFullSpan ?? undefined}
                     output={traceIO?.outputPreview}
                     onSpanSelect={(s) => handleSpanSelect(s.spanId)}
                     isSelected={

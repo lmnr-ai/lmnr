@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
 
 import {
+  type TraceViewListSpan,
   type TraceViewSpan,
   type TranscriptListEntry,
   useTraceViewBaseStore,
@@ -172,11 +173,12 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   );
 
   const handleSpanSelect = useCallback(
-    (span: TraceViewSpan) => {
-      if (span.pending) return;
-      onSpanSelect(span);
+    (listSpan: TraceViewListSpan) => {
+      if (listSpan.pending) return;
+      const full = spansById.get(listSpan.spanId);
+      if (full) onSpanSelect(full);
     },
-    [onSpanSelect]
+    [onSpanSelect, spansById]
   );
 
   const renderRow = useCallback(
@@ -209,13 +211,12 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           );
         }
 
-        case "group-span": {
-          const fullSpan = spansById.get(row.span.spanId);
-          if (!fullSpan) return null;
+        case "group-span":
           return (
             <GroupChildWrapper isLast={row.isLast}>
               <SpanItem
-                span={fullSpan}
+                span={row.span}
+                fullSpan={spansById.get(row.span.spanId)}
                 output={previews[row.span.spanId]}
                 onSpanSelect={handleSpanSelect}
                 isSelected={selectedSpan?.spanId === row.span.spanId}
@@ -223,20 +224,17 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               />
             </GroupChildWrapper>
           );
-        }
 
-        case "span": {
-          const fullSpan = spansById.get(row.span.spanId);
-          if (!fullSpan) return null;
+        case "span":
           return (
             <SpanItem
-              span={fullSpan}
+              span={row.span}
+              fullSpan={spansById.get(row.span.spanId)}
               output={previews[row.span.spanId]}
               onSpanSelect={handleSpanSelect}
               isSelected={selectedSpan?.spanId === row.span.spanId}
             />
           );
-        }
       }
     },
     [
