@@ -60,7 +60,7 @@ export function SpanStatsShield({
             size={isInline ? 12 : 14}
             className={cn("min-w-3 min-h-3", isInline ? "size-3" : "size-3.5")}
           />
-          <span>{cost.toFixed(4)}</span>
+          <span>${cost.toFixed(4)}</span>
         </div>
       )}
     </div>

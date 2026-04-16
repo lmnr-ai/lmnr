@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
@@ -161,7 +161,7 @@ export function useBatchedSpanPreviews(
     await fetchBatch(toFetch);
   }, [fetchBatch]);
 
-  const allIds = [...visibleSpanIds, ...(inputSpanIds ?? [])];
+  const allIds = useMemo(() => [...visibleSpanIds, ...(inputSpanIds ?? [])], [visibleSpanIds, inputSpanIds]);
 
   useEffect(() => {
     const currentIdsKey = allIds.join(",");
