@@ -17,7 +17,7 @@ export async function GET(
   );
 
   if (!parseResult.success) {
-    return NextResponse.json({ traces: [] });
+    return NextResponse.json({ error: "Invalid request parameters" }, { status: 400 });
   }
 
   try {

@@ -2,9 +2,8 @@ import React, { memo } from "react";
 
 import { type SessionViewSelectedSpan } from "../store";
 import SessionTimelineSpanBarElement from "./session-timeline-span-bar";
+import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { type SessionTimelineSpanContainer } from "./utils";
-
-const ROW_HEIGHT = 8;
 
 interface SessionTimelineSpanContainerElementProps {
   container: SessionTimelineSpanContainer;

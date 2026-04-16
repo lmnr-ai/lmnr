@@ -30,10 +30,7 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
   const { projectId, sessionId, search, searchIn, filter: inputFilters } = input;
   const filters: Filter[] = compact(inputFilters);
 
-  // 1. Get trace IDs + time bounds for this session from the traces table.
-  //    ⚠️ FLAG: This reads from Postgres (traces table) while spans live in
-  //    ClickHouse. If there's ever eventual-consistency lag between the two,
-  //    a very fresh trace could be missing here while its spans already exist.
+  // 1. Get trace IDs + time bounds for this session from the ClickHouse traces table.
   const traceRows = await executeQuery<{
     id: string;
     startTime: string;

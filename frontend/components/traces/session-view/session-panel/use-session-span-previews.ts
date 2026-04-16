@@ -133,19 +133,19 @@ export function useSessionSpanPreviews({
             isShared,
           });
 
-          for (const id of regular) {
+          const allBatchIds = new Set([...regular, ...input]);
+          for (const id of allBatchIds) {
             cache.current.set(id, newPreviews[id] ?? null);
             fetching.current.delete(id);
           }
           for (const id of input) {
             inputCache.current.set(id, newUserInputs[id] ?? null);
-            fetching.current.delete(id);
           }
 
-          if (regular.length > 0) {
+          if (allBatchIds.size > 0) {
             setPreviews((prev) => {
               const next = { ...prev };
-              for (const id of regular) next[id] = cache.current.get(id) ?? null;
+              for (const id of allBatchIds) next[id] = cache.current.get(id) ?? null;
               return next;
             });
           }
@@ -213,15 +213,18 @@ export function useSessionSpanPreviews({
 
       for (const id of allIds) {
         const isInput = inputIds.has(id);
-        const already = isInput ? inputCache.current.has(id) : cache.current.has(id);
-        if (already) continue;
-        if (fetching.current.has(id)) continue;
-
         const entry = pendingByTrace.current.get(traceId) ?? { regular: new Set<string>(), input: new Set<string>() };
-        if (isInput) entry.input.add(id);
-        else entry.regular.add(id);
-        pendingByTrace.current.set(traceId, entry);
-        added = true;
+
+        if (isInput && !inputCache.current.has(id) && !fetching.current.has(id)) {
+          entry.input.add(id);
+          added = true;
+        }
+        if (!cache.current.has(id) && !fetching.current.has(id)) {
+          entry.regular.add(id);
+          added = true;
+        }
+
+        if (added) pendingByTrace.current.set(traceId, entry);
       }
     }
 

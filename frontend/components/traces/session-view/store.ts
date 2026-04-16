@@ -171,6 +171,8 @@ function distributeDeficit(
   return updates;
 }
 
+const inFlightTraceIds = new Set<string>();
+
 const createSessionViewStore = (options?: { initialSession?: SessionSummary; storeKey?: string }) =>
   createStore<SessionViewStore>()(
     persist(
@@ -208,12 +210,11 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         setTracesError: (tracesError) => set({ tracesError }),
 
         ensureTraceSpans: async (trace) => {
-          const state = get();
-          const { projectId } = state;
+          const { projectId } = get();
           if (!projectId) return;
-          if (state.traceSpans[trace.id] || state.traceSpansLoading[trace.id]) return;
+          if (inFlightTraceIds.has(trace.id) || get().traceSpans[trace.id]) return;
+          inFlightTraceIds.add(trace.id);
 
-          // Mark loading synchronously so concurrent callers dedupe.
           set((s) => ({
             traceSpansLoading: { ...s.traceSpansLoading, [trace.id]: true },
             traceSpansError: { ...s.traceSpansError, [trace.id]: undefined },
@@ -250,6 +251,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
               },
             }));
           } finally {
+            inFlightTraceIds.delete(trace.id);
             set((s) => ({
               traceSpansLoading: { ...s.traceSpansLoading, [trace.id]: false },
             }));
@@ -288,8 +290,12 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           }
         },
         expandAllTraces: () => {
-          const all = new Set(get().traces.map((t) => t.id));
+          const state = get();
+          const all = new Set(state.traces.map((t) => t.id));
           set({ expandedTraceIds: all });
+          for (const trace of state.traces) {
+            void get().ensureTraceSpans(trace);
+          }
         },
 
         setTraceSpans: (traceId, spans) => set((state) => ({ traceSpans: { ...state.traceSpans, [traceId]: spans } })),
