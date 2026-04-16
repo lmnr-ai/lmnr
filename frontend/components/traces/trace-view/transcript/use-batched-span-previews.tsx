@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
@@ -76,19 +76,18 @@ export function useBatchedSpanPreviews(
           isShared,
         });
 
-        regularSpanIds.forEach((id) => {
+        spanIds.forEach((id) => {
           cache.current.set(id, get(newPreviews, id, null));
           fetching.current.delete(id);
         });
 
         batchInputSpanIds.forEach((id) => {
           inputCache.current.set(id, get(newUserInputs, id, null));
-          fetching.current.delete(id);
         });
 
         setPreviews((prev) => {
           const next = { ...prev };
-          regularSpanIds.forEach((id) => {
+          spanIds.forEach((id) => {
             next[id] = cache.current.get(id);
           });
           return next;
@@ -142,8 +141,7 @@ export function useBatchedSpanPreviews(
     await fetchBatch(toFetch);
   }, [fetchBatch]);
 
-  // Combine visible span IDs + input span IDs for cache check
-  const allIds = [...visibleSpanIds, ...(inputSpanIds ?? [])];
+  const allIds = useMemo(() => [...visibleSpanIds, ...(inputSpanIds ?? [])], [visibleSpanIds, inputSpanIds]);
 
   useEffect(() => {
     const currentIdsKey = allIds.join(",");

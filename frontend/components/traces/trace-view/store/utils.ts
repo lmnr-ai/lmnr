@@ -247,7 +247,7 @@ const buildPathInfo = (
 // Transcript List
 // ============================================================================
 
-const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
+export const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
   spanId: span.spanId,
   parentSpanId: span.parentSpanId,
   spanType: span.spanType,

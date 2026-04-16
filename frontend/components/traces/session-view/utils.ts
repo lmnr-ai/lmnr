@@ -4,31 +4,11 @@ import {
   type TranscriptListEntry,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { buildTranscriptListEntries } from "@/components/traces/trace-view/store/utils";
+import { buildTranscriptListEntries, toLightweight } from "@/components/traces/trace-view/store/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
-/** Convert a full TraceViewSpan to the lightweight TraceViewListSpan shape. */
-export function spanToListSpan(span: TraceViewSpan): TraceViewListSpan {
-  return {
-    spanId: span.spanId,
-    parentSpanId: span.parentSpanId,
-    spanType: span.spanType,
-    name: span.name,
-    model: span.model,
-    path: span.path,
-    startTime: span.startTime,
-    endTime: span.endTime,
-    inputTokens: span.inputTokens,
-    outputTokens: span.outputTokens,
-    cacheReadInputTokens: span.cacheReadInputTokens,
-    totalCost: span.totalCost,
-    pending: span.pending,
-    inputSnippet: span.inputSnippet,
-    outputSnippet: span.outputSnippet,
-    attributesSnippet: span.attributesSnippet,
-  };
-}
+export const spanToListSpan = toLightweight;
 
 /** Transform a trace's spans into transcript-mode entries. Uses the upstream
  *  buildTranscriptListEntries which handles subagent detection automatically. */
