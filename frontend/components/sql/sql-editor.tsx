@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
+import { track } from "@/lib/analytics";
 import { toast } from "@/lib/hooks/use-toast";
 
 export interface SQLEditorProps {
@@ -74,6 +75,7 @@ export default function SQLEditor({
 
       if (data.query && onChange) {
         onChange(data.query);
+        track("sql_editor", "ai_generated", { mode: generationMode });
       }
     } catch (error) {
       toast({

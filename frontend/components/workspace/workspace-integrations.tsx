@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
+import { track } from "@/lib/analytics";
 
 interface WorkspaceIntegrationsProps {
   workspaceId: string;
@@ -14,6 +17,10 @@ export default function WorkspaceIntegrations({
   slackClientId,
   slackRedirectUri,
 }: WorkspaceIntegrationsProps) {
+  useEffect(() => {
+    track("integrations", "page_viewed");
+  }, []);
+
   return (
     <>
       <SettingsSectionHeader title="Integrations" description="Manage your workspace integrations" />

@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { type PaidTier } from "@/lib/actions/checkout/types";
+import { track } from "@/lib/analytics";
 
 interface SwitchTierDialogProps {
   children: ReactNode;
@@ -57,6 +58,7 @@ export default function SwitchTierDialog({
           const err = await res.json();
           throw new Error(err.error ?? "Failed to switch tier");
         }
+        track("billing", action === "upgrade" ? "upgrade_clicked" : "downgrade_clicked", { to_tier: targetTier });
         setOpen(false);
         router.refresh();
       } catch (e: any) {

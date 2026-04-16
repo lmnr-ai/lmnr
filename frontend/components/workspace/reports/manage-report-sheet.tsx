@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
 import { type SlackChannel } from "@/lib/actions/slack";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -143,6 +144,10 @@ export default function ManageReportSheet({
       toast({
         title: "Report updated",
         description: "Notification targets have been updated.",
+      });
+      track("reports", "edited", {
+        has_slack: !!channelId,
+        has_email: emailEnabled,
       });
       onSaved();
       onOpenChange(false);

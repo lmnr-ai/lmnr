@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
 
@@ -301,6 +302,10 @@ export default function ManageAlertSheet({
           description: isEditMode
             ? `"${data.name.trim()}" has been updated.`
             : `"${data.name.trim()}" is now active and will send notifications.`,
+        });
+        track("alerts", isEditMode ? "updated" : "created", {
+          has_slack: !!data.channelId,
+          has_email: data.emailEnabled,
         });
         onSaved();
         onOpenChange(false);

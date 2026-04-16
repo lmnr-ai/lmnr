@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useProjectContext } from "@/contexts/project-context";
+import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +56,7 @@ export default function DeleteProject() {
         title: "Project deleted successfully",
         description: "Redirecting to projects page...",
       });
+      track("project", "deleted");
 
       router.push("/projects");
     } catch (error) {

@@ -2,12 +2,13 @@
 
 import { ArrowRight, ExternalLink, Loader2, Mail, Radio } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { type FormEvent, useState } from "react";
+import React, { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { track } from "@/lib/analytics";
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
@@ -19,6 +20,10 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+
+  useEffect(() => {
+    track("onboarding", "page_viewed");
+  }, []);
 
   const handleButtonClick = async (e: FormEvent) => {
     e.preventDefault();
@@ -40,8 +45,10 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
 
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
+      track("onboarding", "project_created");
+
       if (newWorkspace.projectId) {
-        router.push(`/project/${newWorkspace.projectId}/traces`);
+        router.push(`/project/${newWorkspace.projectId}/traces?onboarding=true`);
       } else {
         router.push(`/workspace/${newWorkspace.id}`);
       }

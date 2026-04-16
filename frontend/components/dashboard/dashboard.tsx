@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import GridLayout from "@/components/dashboard/grid-layout";
 import { Button } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -11,6 +13,10 @@ import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 
 export default function Dashboard() {
+  useEffect(() => {
+    track("dashboards", "page_viewed");
+  }, []);
+
   return (
     <>
       <Header path={"dashboard"}>

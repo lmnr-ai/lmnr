@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ADDON_CONFIG } from "@/lib/actions/checkout/types";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceAddonsProps {
@@ -73,8 +74,10 @@ export default function WorkspaceAddons({
     try {
       if (action === "add") {
         await buyAddon(workspaceId, lookupKey);
+        track("billing", "addon_added", { addon: ADDON_CONFIG[lookupKey]?.name ?? lookupKey });
       } else {
         await removeAddon(workspaceId, lookupKey);
+        track("billing", "addon_removed", { addon: ADDON_CONFIG[lookupKey]?.name ?? lookupKey });
       }
       router.refresh();
     } catch (e) {
