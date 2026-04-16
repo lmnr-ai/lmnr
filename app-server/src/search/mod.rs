@@ -143,9 +143,7 @@ pub async fn search_spans(
         })
         .collect();
 
-    // Skip the 50-trace snippet cap when trace_ids were explicitly provided —
-    // the caller already scoped the search, so all matched traces are relevant.
-    let skip_trace_cap = trace_ids.is_some();
+    let skip_trace_cap = trace_ids.is_some_and(|ids| !ids.is_empty());
 
     let results = if get_snippets {
         snippets::enrich_hits_with_snippets(

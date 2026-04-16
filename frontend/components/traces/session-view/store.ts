@@ -495,12 +495,4 @@ export const useSessionViewStore = <T>(
   return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
-export const useSessionViewStoreRaw = () => {
-  const store = useContext(SessionViewStoreContext);
-  if (!store) {
-    throw new Error("useSessionViewStoreRaw must be used within a SessionViewStoreProvider");
-  }
-  return store;
-};
-
 export default SessionViewStoreProvider;
