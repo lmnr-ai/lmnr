@@ -262,5 +262,5 @@ export const calculateDisplayValue = (
     return { displayValue: values.length > 0 ? mean(values) : 0, totalMax };
   }
 
-  return { displayValue: null, totalMax: 0 };
+  return { displayValue: null, totalMax };
 };
