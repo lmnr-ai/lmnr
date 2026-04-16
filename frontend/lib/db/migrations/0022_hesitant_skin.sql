@@ -1,1 +1,0 @@
-ALTER TABLE "traces" ADD COLUMN "top_span_id" uuid;

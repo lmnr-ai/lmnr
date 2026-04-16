@@ -1,1 +1,0 @@
-ALTER TABLE "evaluation_results" ADD COLUMN "index" integer DEFAULT 0 NOT NULL;

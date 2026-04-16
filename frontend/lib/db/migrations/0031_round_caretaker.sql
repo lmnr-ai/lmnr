@@ -1,1 +1,0 @@
-ALTER TABLE "traces" ADD COLUMN "visibility" text;--> statement-breakpoint

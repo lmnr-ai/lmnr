@@ -1,1 +1,0 @@
-CREATE INDEX "datasets_project_id_hash_idx" ON "datasets" USING hash ("project_id" uuid_ops);

@@ -1,1 +1,0 @@
-ALTER TABLE "agent_chats" ADD COLUMN "agent_status" text DEFAULT 'idle' NOT NULL;--> statement-breakpoint

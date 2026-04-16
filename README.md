@@ -46,8 +46,7 @@ cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight but full-featured version of the stack. This is good for a quickstart 
-or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
+This will spin up a lightweight but full-featured version of the stack.
 
 You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
 
@@ -55,7 +54,7 @@ For production environment, we recommend using our [managed platform](https://la
 
 ### Enabling the Signals feature
 
-To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by the app-server.
 
 ```sh
 # In .env at the repo root

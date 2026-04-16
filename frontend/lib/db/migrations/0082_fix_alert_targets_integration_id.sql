@@ -1,1 +1,0 @@
-ALTER TABLE "alert_targets" ALTER COLUMN "integration_id" DROP NOT NULL;

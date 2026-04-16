@@ -11,20 +11,8 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-
   - package-ecosystem: "docker"
     directory: "/app-server"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "docker"
-    directory: "/frontend"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

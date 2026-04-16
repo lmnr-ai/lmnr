@@ -1,1 +1,0 @@
-CREATE INDEX "evaluations_project_id_hash_idx" ON "evaluations" USING hash ("project_id" uuid_ops);

@@ -1,1 +1,0 @@
-ALTER TABLE "labeling_queues" ADD COLUMN "annotation_schema" jsonb;
