@@ -141,8 +141,17 @@ async fn process(
         .await;
     }
 
-    // Done = true, no error. Check for batch state (expired, failed, etc.) - fallback to realtime
-    if result.state.as_ref() != Some(&ProviderBatchState::Succeeded) {
+    // Done = true, no error. Check for explicit non-success state (expired, failed, etc.)
+    // None state is allowed through (e.g. provider doesn't report metadata)
+    let is_non_success_state = matches!(
+        result.state,
+        Some(
+            ProviderBatchState::Failed
+                | ProviderBatchState::Cancelled
+                | ProviderBatchState::Expired
+        )
+    );
+    if is_non_success_state {
         log::error!(
             "[SIGNAL JOB] Batch {} done but state is {:?}, routing {} runs to realtime queue",
             message.batch_id,
@@ -164,7 +173,7 @@ async fn process(
         return Ok(());
     };
 
-    // Successfull batch with correct state and non-empty response
+    // Successful batch with correct state and non-empty response
     process_succeeded_batch(&message, response, db, queue, clickhouse, config, cache).await
 }
 
