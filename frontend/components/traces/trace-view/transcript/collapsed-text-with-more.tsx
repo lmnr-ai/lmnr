@@ -54,8 +54,8 @@ export function CollapsedTextWithMore({
   return (
     <div
       ref={containerRef}
-      className={cn("text-sm text-secondary-foreground", className)}
-      style={{ lineHeight: `${lineHeight}px` }}
+      className={cn("text-sm text-secondary-foreground/95", className)}
+      style={{ lineHeight: `${lineHeight + 4}px` }}
     >
       {truncated !== null ? (
         <p>
