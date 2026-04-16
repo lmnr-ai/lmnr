@@ -1,9 +1,11 @@
 import { isEmpty } from "lodash";
+import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatTimeMarkerLabel } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSessionViewStore } from "../store";
@@ -33,6 +35,7 @@ function SessionTimeline() {
     ensureTraceSpans,
     zoom,
     setZoom,
+    setSessionTimelineEnabled,
   } = useSessionViewStore(
     (s) => ({
       traces: s.traces,
@@ -47,6 +50,7 @@ function SessionTimeline() {
       ensureTraceSpans: s.ensureTraceSpans,
       zoom: s.sessionTimelineZoom,
       setZoom: s.setSessionTimelineZoom,
+      setSessionTimelineEnabled: s.setSessionTimelineEnabled,
     }),
     shallow
   );
@@ -226,6 +230,16 @@ function SessionTimeline() {
           <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
         </div>
       )}
+
+      {/* Close button — top-right above timeline markers */}
+      <Button
+        onClick={() => setSessionTimelineEnabled(false)}
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 right-1 z-40 size-5 min-w-5 text-muted-foreground hover:text-foreground"
+      >
+        <X className="size-3.5" />
+      </Button>
 
       {/* Zoom controls */}
       <SessionTimelineControls />

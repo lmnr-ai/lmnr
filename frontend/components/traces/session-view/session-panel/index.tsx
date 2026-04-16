@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronsRight, Copy } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronsRight, Copy, GanttChart } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -14,14 +14,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SessionTimeline from "../session-timeline";
-import SessionTimelineToggle from "../session-timeline/timeline-toggle";
 import { useSessionViewStore } from "../store";
 import SessionList from "./list";
 
@@ -81,40 +79,46 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     }
   };
 
-  // Session aggregate stats — sessions-table gets these pre-aggregated from the
-  // server, but here we only have the traces loaded, so sum them client-side.
-  // Same shape/shield as `TraceStatsShields` for visual parity with trace view.
   const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
-      {/* Header (figma 3711:5056). Button/icon sizing mirrors
-          `trace-view/header/index.tsx` and `trace-dropdown.tsx` for visual
-          consistency across the two side panels. */}
-      <div className="relative flex flex-col gap-1.5 px-2 py-1.5 shrink-0">
-        <div className="flex h-7 items-center justify-between">
-          <div className="flex items-center gap-1 min-w-0">
-            {/* Collapse / close side panel — matches trace-view: h-7 px-0.5 + w-5 h-5 icon */}
-            <Button variant="ghost" className="h-7 px-0.5" onClick={onClose} aria-label="Close session view">
-              <ChevronsRight className="w-5 h-5" />
+      {/* Header */}
+      <div className="flex flex-col gap-1.5 px-2 py-1.5 shrink-0">
+        <div className="flex h-7 items-center justify-start gap-1">
+          <Button variant="ghost" className="h-7 px-0.5" onClick={onClose} aria-label="Close session view">
+            <ChevronsRight className="w-5 h-5" />
+          </Button>
+          <span className="flex items-center h-7">
+            <span className="text-base font-medium flex-shrink-0">Session</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-6 px-1 hover:bg-secondary" disabled={!session?.sessionId}>
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleCopySessionId}>
+                  <Copy size={14} />
+                  Copy session ID
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
+          {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
+          {traces.length > 0 && (
+            <Button
+              onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
+              variant="outline"
+              className={cn(
+                "h-6 text-xs px-1.5",
+                sessionTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+              )}
+            >
+              <GanttChart size={14} className="mr-1" />
+              Timeline
             </Button>
-            <span className="flex items-center h-7">
-              <span className="text-base font-medium flex-shrink-0">Session</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary" disabled={!session?.sessionId}>
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={handleCopySessionId}>
-                    <Copy size={14} />
-                    Copy session ID
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </span>
-          </div>
+          )}
         </div>
         {/* TODO(session-view): add autocomplete suggestions from loaded/matched spans */}
         <AdvancedSearch
@@ -128,9 +132,6 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           disabled={isTracesLoading}
           options={{ suggestions: new Map(), disableHotKey: true }}
         />
-        {traces.length > 0 && (
-          <SessionTimelineToggle enabled={sessionTimelineEnabled} setEnabled={setSessionTimelineEnabled} />
-        )}
       </div>
 
       {/* Body */}
@@ -147,29 +148,16 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <ResizablePanelGroup id="session-view-panels" orientation="vertical" className="flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-h-0">
           {sessionTimelineEnabled && (
-            <>
-              <ResizablePanel defaultSize={120} minSize={80}>
-                <div className="border-t h-full">
-                  <SessionTimeline />
-                </div>
-              </ResizablePanel>
-              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-            </>
-          )}
-          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-            <div
-              className={cn(
-                "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                sessionTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
-              )}
-            >
-              {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
+            <div className="border-t shrink-0" style={{ height: 200 }}>
+              <SessionTimeline />
             </div>
+          )}
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <SessionList />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        </div>
       )}
     </div>
   );
