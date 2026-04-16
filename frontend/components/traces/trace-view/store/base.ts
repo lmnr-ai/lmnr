@@ -16,7 +16,7 @@ import {
   type TreeSpan,
 } from "./utils";
 
-export const MAX_ZOOM = 18;
+export const MAX_ZOOM = 25;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 

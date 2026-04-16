@@ -1,7 +1,3 @@
-// TODO: This component duplicates the shell of trace-view/condensed-timeline.
-// It reuses utility hooks (time intervals, wheel zoom) directly but duplicates
-// the rendering structure. Review for deduplication once design stabilizes.
-
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
