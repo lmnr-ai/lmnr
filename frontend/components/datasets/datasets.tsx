@@ -83,7 +83,7 @@ const EmptyRow = (
             one.
           </p>
           <a
-            href="https://docs.laminar.sh/datasets/introduction"
+            href="https://laminar.sh/docs/datasets/introduction"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

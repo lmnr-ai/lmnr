@@ -1,5 +1,5 @@
 export const LAMINAR_INSTALL_FROM_SCRATCH = `
-Instrument this codebase with Laminar tracing. Docs: https://docs.laminar.sh
+Instrument this codebase with Laminar tracing. Docs: https://laminar.sh/docs
 
 ## Goal
 
