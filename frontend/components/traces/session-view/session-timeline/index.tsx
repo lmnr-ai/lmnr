@@ -231,15 +231,12 @@ function SessionTimeline() {
         </div>
       )}
 
-      {/* Close button — top-right above timeline markers */}
-      <Button
-        onClick={() => setSessionTimelineEnabled(false)}
-        variant="ghost"
-        size="icon"
-        className="absolute top-1 right-1 z-40 size-5 min-w-5 text-muted-foreground hover:text-foreground"
-      >
-        <X className="size-3.5" />
-      </Button>
+      {/* Close button — top-right, styled as a flush tab */}
+      <div className="absolute top-0 right-0 z-40 h-6 w-7 bg-muted border-b border-l rounded-bl flex items-end overflow-hidden">
+        <Button onClick={() => setSessionTimelineEnabled(false)} variant="ghost" size="icon" className="size-5 min-w-5">
+          <X className="size-3.5" />
+        </Button>
+      </div>
 
       {/* Zoom controls */}
       <SessionTimelineControls />
