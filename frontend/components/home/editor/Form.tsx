@@ -169,22 +169,16 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       }
 
       const injectedMetrics = [...metrics];
-      const injectedIdColumns: string[] = [];
       if (needsIdInjection) {
         const allExisting = new Set([
           ...metrics.map((m) => m.column),
           ...metrics.map((m) => m.alias),
           ...(dimensions || []),
         ]);
-        const inject = (column: string) => {
-          if (!allExisting.has(column)) {
-            injectedMetrics.push({ fn: "raw", column, alias: column, args: [] });
-            injectedIdColumns.push(column);
-          }
-        };
-
         for (const col of ID_COLUMNS_BY_TABLE[table] ?? []) {
-          inject(col);
+          if (!allExisting.has(col)) {
+            injectedMetrics.push({ fn: "raw", column: col, alias: col, args: [] });
+          }
         }
       }
 
