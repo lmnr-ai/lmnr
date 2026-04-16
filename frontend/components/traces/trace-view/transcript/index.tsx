@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
 
 import {
   type TraceViewListSpan,
@@ -60,16 +61,19 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     condensedTimelineVisibleSpanIds,
     transcriptExpandedGroups,
     toggleTranscriptGroup,
-  } = useTraceViewBaseStore((state) => ({
-    getTranscriptListData: state.getTranscriptListData,
-    spans: state.spans,
-    isSpansLoading: state.isSpansLoading,
-    trace: state.trace,
-    selectedSpan: state.selectedSpan,
-    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    transcriptExpandedGroups: state.transcriptExpandedGroups,
-    toggleTranscriptGroup: state.toggleTranscriptGroup,
-  }));
+  } = useTraceViewBaseStore(
+    (state) => ({
+      getTranscriptListData: state.getTranscriptListData,
+      spans: state.spans,
+      isSpansLoading: state.isSpansLoading,
+      trace: state.trace,
+      selectedSpan: state.selectedSpan,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      transcriptExpandedGroups: state.transcriptExpandedGroups,
+      toggleTranscriptGroup: state.toggleTranscriptGroup,
+    }),
+    shallow
+  );
 
   const spansById = useMemo(() => {
     const map = new Map<string, TraceViewSpan>();

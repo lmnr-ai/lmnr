@@ -210,21 +210,25 @@ export function useSessionSpanPreviews({
     for (const [traceId, spanIds] of Object.entries(visibleSpanIdsByTrace)) {
       const inputIds = new Set(inputSpanIdsByTrace?.[traceId] ?? []);
       const allIds = new Set<string>([...spanIds, ...inputIds]);
+      let entryModified = false;
+      const entry = pendingByTrace.current.get(traceId) ?? { regular: new Set<string>(), input: new Set<string>() };
 
       for (const id of allIds) {
         const isInput = inputIds.has(id);
-        const entry = pendingByTrace.current.get(traceId) ?? { regular: new Set<string>(), input: new Set<string>() };
 
         if (isInput && !inputCache.current.has(id) && !fetching.current.has(id)) {
           entry.input.add(id);
-          added = true;
+          entryModified = true;
         }
         if (!cache.current.has(id) && !fetching.current.has(id)) {
           entry.regular.add(id);
-          added = true;
+          entryModified = true;
         }
+      }
 
-        if (added) pendingByTrace.current.set(traceId, entry);
+      if (entryModified) {
+        pendingByTrace.current.set(traceId, entry);
+        added = true;
       }
     }
 
