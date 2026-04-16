@@ -151,13 +151,13 @@ export function useBatchedSpanPreviews(
 
     lastIdsRef.current = currentIdsKey;
 
-    const newIds = allIds.filter(
-      (id) =>
-        !cache.current.has(id) &&
-        !inputCache.current.has(id) &&
-        !fetching.current.has(id) &&
-        !pendingFetch.current.has(id)
-    );
+    const inputIdSet = new Set(inputSpanIdsRef.current);
+    const newIds = allIds.filter((id) => {
+      if (fetching.current.has(id) || pendingFetch.current.has(id)) return false;
+      if (inputIdSet.has(id) && !inputCache.current.has(id)) return true;
+      if (!cache.current.has(id)) return true;
+      return false;
+    });
 
     if (newIds.length > 0) {
       newIds.forEach((id) => pendingFetch.current.add(id));
