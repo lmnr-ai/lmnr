@@ -245,7 +245,7 @@ export const calculateDisplayValue = (
   keys: string[],
   displayMode: string
 ): DisplayValueResult => {
-  if (displayMode === "none") return { displayValue: null, totalMax: 0 };
+  if (displayMode === "none") return { displayValue: null, totalMax: calculateDataMax(data, keys) };
 
   const totalMax = calculateDataMax(data, keys);
 

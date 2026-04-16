@@ -13,12 +13,19 @@ const GetChartsSchema = z.object({
 const ChartSettingsSchema = z.object({
   config: z.object({
     type: z.enum(ChartType),
-    // Table charts have no x/y axes — only line/bar/horizontal-bar require them.
     x: z.string().optional(),
     y: z.string().optional(),
     breakdown: z.string().optional(),
     total: z.boolean().optional(),
     displayMode: z.enum(["total", "average", "none"]).optional(),
+    hiddenColumns: z.array(z.string()).optional(),
+    tableColumnConfig: z
+      .object({
+        columnOrder: z.array(z.string()).optional(),
+        columnSizing: z.record(z.string(), z.number()).optional(),
+        columnVisibility: z.record(z.string(), z.boolean()).optional(),
+      })
+      .optional(),
   }),
   layout: z.object({
     x: z.number(),
