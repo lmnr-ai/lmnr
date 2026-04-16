@@ -5,12 +5,17 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import { type TraceViewSpan, type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import {
+  AgentGroupHeader,
+  GroupChildWrapper,
+  InputItem,
+  SpanItem,
+} from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSessionViewStore } from "../store";
 import { buildSessionFlatRows } from "../utils";
-import { SessionAgentGroupHeader, SessionInputItem, SessionSpanItem } from "./session-transcript-items";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
@@ -255,13 +260,22 @@ export default function SessionList() {
     [traces]
   );
 
-  const { previews, userInputs } = useSessionSpanPreviews({
+  const { previews, userInputs, agentNames } = useSessionSpanPreviews({
     projectId,
     traces: previewTraces,
     visibleSpanIdsByTrace,
     inputSpanIdsByTrace,
     spanTypesByTrace,
   });
+
+  // Flat spanId → TraceViewSpan lookup across all loaded traces.
+  const allSpansById = useMemo(() => {
+    const map = new Map<string, TraceViewSpan>();
+    for (const spans of Object.values(traceSpans)) {
+      for (const s of spans) map.set(s.spanId, s);
+    }
+    return map;
+  }, [traceSpans]);
 
   // Main-agent input/output text + output span, fetched in one batched call
   // per session. Reuses the `/traces/io` endpoint + hook that powers the
@@ -325,35 +339,53 @@ export default function SessionList() {
               ) : row.type === "trace-empty" ? (
                 <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
               ) : row.type === "user-input" ? (
-                <SessionInputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
+                <InputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
               ) : row.type === "group-header" ? (
-                <SessionAgentGroupHeader
+                <AgentGroupHeader
                   group={row.group}
                   collapsed={row.collapsed}
                   previews={previews}
                   inputPreviews={userInputs}
+                  agentNames={agentNames}
                   onToggle={() => toggleTranscriptGroup(row.traceId, row.group.groupId)}
                 />
               ) : row.type === "group-span" ? (
-                <div className={`mx-2 border-x bg-muted/80 ${row.isLast ? "border-b rounded-b-lg mb-1" : ""}`}>
-                  <SessionSpanItem
-                    span={row.span}
-                    output={previews[row.span.spanId]}
-                    onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                    isSelected={
-                      !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
-                    }
-                  />
-                </div>
+                (() => {
+                  const fullSpan = allSpansById.get(row.span.spanId);
+                  if (!fullSpan) return null;
+                  return (
+                    <GroupChildWrapper isLast={row.isLast}>
+                      <SpanItem
+                        span={fullSpan}
+                        output={previews[row.span.spanId]}
+                        onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                        isSelected={
+                          !!selectedSpan &&
+                          selectedSpan.traceId === row.traceId &&
+                          selectedSpan.spanId === row.span.spanId
+                        }
+                        inGroup
+                      />
+                    </GroupChildWrapper>
+                  );
+                })()
               ) : (
-                <SessionSpanItem
-                  span={row.span}
-                  output={previews[row.span.spanId]}
-                  onSpanSelect={(span) => setSelectedSpan({ traceId: row.traceId, spanId: span.spanId })}
-                  isSelected={
-                    !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
-                  }
-                />
+                (() => {
+                  const fullSpan = allSpansById.get(row.span.spanId);
+                  if (!fullSpan) return null;
+                  return (
+                    <SpanItem
+                      span={fullSpan}
+                      output={previews[row.span.spanId]}
+                      onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                      isSelected={
+                        !!selectedSpan &&
+                        selectedSpan.traceId === row.traceId &&
+                        selectedSpan.spanId === row.span.spanId
+                      }
+                    />
+                  );
+                })()
               )}
             </div>
           );

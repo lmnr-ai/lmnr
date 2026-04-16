@@ -247,7 +247,7 @@ const buildPathInfo = (
 // Transcript List
 // ============================================================================
 
-const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>): TraceViewListSpan => ({
+const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
   spanId: span.spanId,
   parentSpanId: span.parentSpanId,
   spanType: span.spanType,
@@ -261,7 +261,6 @@ const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>):
   cacheReadInputTokens: span.cacheReadInputTokens,
   totalCost: span.totalCost,
   pending: span.pending,
-  pathInfo: pathInfoMap.get(span.spanId) ?? null,
   inputSnippet: span.inputSnippet,
   outputSnippet: span.outputSnippet,
   attributesSnippet: span.attributesSnippet,
@@ -354,11 +353,10 @@ export const buildTranscriptListEntries = (
     visibleSpanIds.size === 0 ? allSpans : allSpans.filter((s) => visibleSpanIds.has(s.spanId));
 
   const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-  const pathInfoMap = computePathInfoMap(allSpans);
 
   const groupBoundarySet = computeSubagentBoundaries(allSpans);
   if (groupBoundarySet.size === 0) {
-    return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span, pathInfoMap) }));
+    return listSpans.map((span): TranscriptListEntry => ({ type: "span", span: toLightweight(span) }));
   }
 
   const parentMap = new Map<string, string | undefined>();
@@ -435,7 +433,7 @@ export const buildTranscriptListEntries = (
     if (!firstLlm) continue;
 
     const boundarySpan = spanMap.get(boundary);
-    const lightSpans = groupSpans.map((s) => toLightweight(s, pathInfoMap));
+    const lightSpans = groupSpans.map((s) => toLightweight(s));
 
     let inputTokens = 0;
     let outputTokens = 0;
@@ -473,7 +471,7 @@ export const buildTranscriptListEntries = (
     const boundary = findGroupBoundary(span.spanId);
 
     if (!boundary) {
-      entries.push({ type: "span", span: toLightweight(span, pathInfoMap) });
+      entries.push({ type: "span", span: toLightweight(span) });
       continue;
     }
 
@@ -484,7 +482,7 @@ export const buildTranscriptListEntries = (
     if (!meta) {
       const groupSpans = groupSpansMap.get(boundary)!;
       for (const s of groupSpans) {
-        entries.push({ type: "span", span: toLightweight(s, pathInfoMap) });
+        entries.push({ type: "span", span: toLightweight(s) });
       }
       continue;
     }

@@ -4,14 +4,12 @@ import {
   type TranscriptListEntry,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { buildTranscriptListEntries, computePathInfoMap } from "@/components/traces/trace-view/store/utils";
+import { buildTranscriptListEntries } from "@/components/traces/trace-view/store/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
-/** Convert a full TraceViewSpan to the lightweight TraceViewListSpan shape
- *  used by ListItem/reader components. `pathInfo` is derived from the full
- *  span set via `computePathInfoMap` when available. */
-export function spanToListSpan(span: TraceViewSpan, pathInfo?: TraceViewListSpan["pathInfo"]): TraceViewListSpan {
+/** Convert a full TraceViewSpan to the lightweight TraceViewListSpan shape. */
+export function spanToListSpan(span: TraceViewSpan): TraceViewListSpan {
   return {
     spanId: span.spanId,
     parentSpanId: span.parentSpanId,
@@ -26,7 +24,6 @@ export function spanToListSpan(span: TraceViewSpan, pathInfo?: TraceViewListSpan
     cacheReadInputTokens: span.cacheReadInputTokens,
     totalCost: span.totalCost,
     pending: span.pending,
-    pathInfo: pathInfo ?? null,
     inputSnippet: span.inputSnippet,
     outputSnippet: span.outputSnippet,
     attributesSnippet: span.attributesSnippet,
@@ -156,13 +153,12 @@ function buildSearchFlatRows(
 
     rows.push({ type: "trace-header", trace, expanded: true });
 
-    const pathInfoMap = computePathInfoMap(result.spans);
     for (const span of result.spans) {
       if (span.spanType === "DEFAULT") continue;
       rows.push({
         type: "span",
         traceId: trace.id,
-        span: spanToListSpan(span, pathInfoMap.get(span.spanId) ?? null),
+        span: spanToListSpan(span),
       });
     }
   }

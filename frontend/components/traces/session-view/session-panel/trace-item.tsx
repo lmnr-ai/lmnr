@@ -8,13 +8,12 @@ import { formatShortRelativeTime } from "@/components/client-timestamp-formatter
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { InputItem, SpanItem } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";
-import { spanToListSpan } from "../utils";
-import { SessionInputItem, SessionSpanItem } from "./session-transcript-items";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -53,7 +52,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
 
   const lastSpan = useMemo(() => {
     if (!traceIO?.outputSpan) return null;
-    return spanToListSpan(traceIO.outputSpan as unknown as TraceViewSpan, null);
+    return traceIO.outputSpan as unknown as TraceViewSpan;
   }, [traceIO?.outputSpan]);
 
   // Subtract 4: two end rows (input pill + output LLM) plus the ~2 spans
@@ -155,13 +154,13 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             ) : (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <SessionInputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
+                  <InputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
                 </div>
                 {lastSpan && middleSpanCount > 0 && (
                   <MiddleSpansDivider count={middleSpanCount} isLoading={isPendingExpand} onClick={handleToggle} />
                 )}
                 {lastSpan ? (
-                  <SessionSpanItem
+                  <SpanItem
                     span={lastSpan}
                     output={traceIO?.outputPreview}
                     onSpanSelect={(s) => handleSpanSelect(s.spanId)}

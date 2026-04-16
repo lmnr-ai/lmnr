@@ -34,6 +34,8 @@ export interface UseSessionSpanPreviewsResult {
   previews: Record<string, any>;
   /** Flat map spanId → user input. */
   userInputs: Record<string, string | null>;
+  /** Flat map spanId → agent name. */
+  agentNames: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -63,6 +65,7 @@ export function useSessionSpanPreviews({
 
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
   const inputCache = useRef(new SimpleLRU<string, string | null>(maxEntries));
+  const agentNameCache = useRef(new SimpleLRU<string, string | null>(maxEntries));
   const fetching = useRef(new Set<string>());
   // Pending IDs grouped by trace, with each entry separated into regular vs.
   // input so the fetcher routes them correctly.
@@ -72,6 +75,7 @@ export function useSessionSpanPreviews({
 
   const [previews, setPreviews] = useState<Record<string, any>>({});
   const [userInputs, setUserInputs] = useState<Record<string, string | null>>({});
+  const [agentNames, setAgentNames] = useState<Record<string, string | null>>({});
 
   // Stable lookup for startTime/endTime per traceId.
   const tracesById = useRef<Map<string, SessionPreviewTrace>>(new Map());
@@ -114,7 +118,11 @@ export function useSessionSpanPreviews({
         const allIds = Array.from(new Set([...regular, ...input]));
 
         try {
-          const { previews: newPreviews, userInputs: newUserInputs } = await fetchSpanPreviewsForTrace({
+          const {
+            previews: newPreviews,
+            userInputs: newUserInputs,
+            agentNames: newAgentNames,
+          } = await fetchSpanPreviewsForTrace({
             projectId,
             traceId,
             spanIds: allIds,
@@ -147,6 +155,12 @@ export function useSessionSpanPreviews({
               for (const id of input) next[id] = inputCache.current.get(id) ?? null;
               return next;
             });
+          }
+          if (Object.keys(newAgentNames).length > 0) {
+            for (const [id, name] of Object.entries(newAgentNames)) {
+              agentNameCache.current.set(id, name);
+            }
+            setAgentNames((prev) => ({ ...prev, ...newAgentNames }));
           }
         } catch {
           errored = true;
@@ -220,11 +234,13 @@ export function useSessionSpanPreviews({
   const clearCache = useCallback(() => {
     cache.current.clear();
     inputCache.current.clear();
+    agentNameCache.current.clear();
     fetching.current.clear();
     pendingByTrace.current.clear();
     setPreviews({});
     setUserInputs({});
+    setAgentNames({});
   }, []);
 
-  return { previews, userInputs, clearCache };
+  return { previews, userInputs, agentNames, clearCache };
 }

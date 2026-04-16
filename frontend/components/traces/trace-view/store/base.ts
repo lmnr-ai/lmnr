@@ -70,10 +70,6 @@ export type TraceViewListSpan = {
   cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
-  pathInfo: {
-    display: Array<{ spanId: string; name: string; count?: number }>;
-    full: Array<{ spanId: string; name: string }>;
-  } | null;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
