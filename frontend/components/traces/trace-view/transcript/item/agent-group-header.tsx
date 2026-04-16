@@ -24,6 +24,11 @@ export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, ag
     toggleTranscriptGroup(group.groupId);
   }, [toggleTranscriptGroup, group.groupId]);
 
+  // When a group has only one LLM span, store/utils sets `lastLlmSpanId` to
+  // null to avoid duplicating the same id. In that case, the collapsed header
+  // still needs an output preview — fall back to the first (= only) LLM span.
+  const outputSpanId = group.lastLlmSpanId ?? group.firstLlmSpanId;
+
   const { preview, outputPreview, agentName } = useMemo(() => {
     const name = group.firstLlmSpanId ? agentNames[group.firstLlmSpanId] : undefined;
 
@@ -33,12 +38,12 @@ export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, ag
     }
 
     let output: string | null | undefined;
-    if (collapsed && group.lastLlmSpanId) {
-      output = previews[group.lastLlmSpanId];
+    if (collapsed && outputSpanId) {
+      output = previews[outputSpanId];
     }
 
     return { preview: inputPreview, outputPreview: output, agentName: name };
-  }, [collapsed, group, previews, inputPreviews, agentNames]);
+  }, [collapsed, group.firstLlmSpanId, outputSpanId, previews, inputPreviews, agentNames]);
 
   const isLoadingPreview = preview === undefined;
   const previewText = typeof preview === "string" && preview !== "" ? preview : null;
@@ -91,12 +96,12 @@ export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, ag
           <CollapsedPreviewBlock
             text={previewText}
             isLoading={isLoadingPreview}
-            label={group.lastLlmSpanId ? "Input" : undefined}
+            label={outputSpanId ? "Input" : undefined}
             variant="collapsed"
           />
         )}
 
-        {collapsed && group.lastLlmSpanId && (
+        {collapsed && outputSpanId && (
           <CollapsedPreviewBlock text={outputText} isLoading={isLoadingOutput} label="Output" variant="collapsed" />
         )}
       </div>
