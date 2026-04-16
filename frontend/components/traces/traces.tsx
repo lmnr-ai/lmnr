@@ -102,7 +102,6 @@ function TracesContent() {
       {sessionId ? (
         <SessionViewSidePanel
           sessionId={sessionId}
-          spanId={spanId || undefined}
           onClose={() => {
             const params = new URLSearchParams(searchParams);
             params.delete("sessionId");

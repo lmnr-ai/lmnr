@@ -99,7 +99,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
               <ChevronsRight className="w-5 h-5" />
             </Button>
             <span className="flex items-center h-7">
-              <span className="text-base font-medium pl-2 flex-shrink-0">Session</span>
+              <span className="text-base font-medium flex-shrink-0">Session</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-6 px-1 hover:bg-secondary" disabled={!session?.sessionId}>

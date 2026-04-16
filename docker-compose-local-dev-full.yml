@@ -19,8 +19,7 @@ services:
       retries: 3
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
-    pull_policy: always
+    image: clickhouse/clickhouse-server:25.12
     container_name: clickhouse
     ports:
       - "8123:8123"

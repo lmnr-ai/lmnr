@@ -85,7 +85,7 @@ pub async fn search_spans(
             1 => query_parts.push(format!("trace_id:{}", ids[0])),
             _ => {
                 let id_list = ids.join(" ");
-                query_parts.push(format!("trace_id IN [{}]", id_list));
+                query_parts.push(format!("trace_id:IN [{}]", id_list));
             }
         }
     }

@@ -17,6 +17,10 @@ import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segme
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
+/** Match `trace-item.tsx`'s `isExpandable = spanCount > 4`. Traces at or below
+ *  this threshold render as a plain bar with no expand behavior. */
+const TRIVIAL_SPAN_THRESHOLD = 4;
+
 function SessionTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -96,24 +100,31 @@ function SessionTimeline() {
     for (const id of toFlush) pendingExpandIdsRef.current.delete(id);
     queueMicrotask(() => {
       for (const id of toFlush) {
-        // FLAG: if the list's trace-item pending flush also fired for the
-        // same trace, it will have already toggled — guarding here avoids
-        // a double-toggle (expand → collapse). The symmetric guard in
-        // trace-item.tsx doesn't exist today; if the user triggers expand
-        // from both panes simultaneously, the list could still mis-toggle.
-        if (!expandedTraceIds.has(id)) toggleTraceExpanded(id);
+        if (expandedTraceIds.has(id)) continue;
+        // Trivial trace — nothing new to show on expand, don't toggle.
+        // Matches trace-item.tsx's `isExpandable = spanCount > 4`.
+        const spans = traceSpans[id];
+        if (spans && spans.length <= TRIVIAL_SPAN_THRESHOLD) continue;
+        toggleTraceExpanded(id);
       }
     });
   }, [traceSpans, traceSpansError, expandedTraceIds, toggleTraceExpanded]);
 
   const handleTraceBarClick = useCallback(
     (traceId: string) => {
-      // Collapse or immediate expand if spans already loaded.
-      if (expandedTraceIds.has(traceId) || traceSpans[traceId]) {
+      // Collapse is always allowed.
+      if (expandedTraceIds.has(traceId)) {
         toggleTraceExpanded(traceId);
         return;
       }
-      // Kick off loading; the effect above flushes the expansion when spans arrive.
+      // Spans already loaded — expand immediately, unless trivial.
+      const loadedSpans = traceSpans[traceId];
+      if (loadedSpans) {
+        if (loadedSpans.length > TRIVIAL_SPAN_THRESHOLD) toggleTraceExpanded(traceId);
+        return;
+      }
+      // Not loaded — kick off fetch. Effect above flushes the expansion
+      // when spans arrive (and skips trivial ones).
       const trace = traces.find((t) => t.id === traceId);
       if (!trace) return;
       pendingExpandIdsRef.current.add(traceId);

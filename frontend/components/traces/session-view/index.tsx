@@ -9,7 +9,6 @@ import SessionViewStoreProvider, { type SessionSummary } from "./store";
 
 interface SessionViewSidePanelProps {
   sessionId: string;
-  spanId?: string;
   onClose: () => void;
   initialSession?: SessionSummary;
   className?: string;
@@ -27,7 +26,6 @@ interface SessionViewSidePanelProps {
  */
 export function SessionViewSidePanel({
   sessionId,
-  spanId,
   onClose,
   initialSession,
   className,
@@ -46,7 +44,7 @@ export function SessionViewSidePanel({
       <SessionViewStoreProvider key={sessionId} initialSession={initialSession ?? { sessionId }}>
         <div className="w-full h-full flex flex-col">
           {children}
-          <SessionViewContent sessionId={sessionId} spanId={spanId} onClose={onClose} sidePanelRef={sidePanelRef} />
+          <SessionViewContent sessionId={sessionId} onClose={onClose} sidePanelRef={sidePanelRef} />
         </div>
       </SessionViewStoreProvider>
     </div>

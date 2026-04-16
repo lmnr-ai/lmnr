@@ -20,26 +20,12 @@ import { spanToListSpan } from "../utils";
 interface TraceItemProps {
   trace: TraceRow;
   expanded: boolean;
-  /** 1-based index within the session, for "2/4" display. */
   traceIndex: number;
   totalTraces: number;
   onToggle: () => void;
-  /** Main-agent input/output for this trace from the `/traces/io` endpoint.
-   *  Undefined while batched fetch is pending; null if the backend returned
-   *  no result for this trace. */
   traceIO?: TraceIOEntry | null;
 }
 
-/**
- * Trace row in the session panel.
- *
- * Visuals (see figma 3711:5386 collapsed, 3711:5575 expanded):
- * - Collapsed: padded outer (p-1), rounded-lg bordered card holding header +
- *   first-span preview + "N spans" divider + last-span preview.
- * - Expanded: zero outer padding, flat `bg-muted` header strip with a
- *   chevron-down. Spans are rendered by the flat-list virtualizer below.
- * - The outer padding animates on transition (spec-driven).
- */
 export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle, traceIO }: TraceItemProps) {
   const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewStore(
     (s) => ({
@@ -52,13 +38,6 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     shallow
   );
 
-  // Two-phase expand: when the user clicks to expand, we start loading spans
-  // but keep the collapsed card visible (with a "Loading..." divider) until
-  // spans arrive. This prevents the layout shift that would occur if we
-  // immediately switched to the expanded header + skeleton rows.
-  //
-  // `pendingExpandRef` tracks intent without triggering extra renders.
-  // `isPendingExpand` state drives the UI (spinner, "Loading..." text).
   const pendingExpandRef = useRef(false);
   const [isPendingExpand, setIsPendingExpand] = useState(false);
 
@@ -66,8 +45,6 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     if (!pendingExpandRef.current) return;
     if (spans || spansError) {
       pendingExpandRef.current = false;
-      // Defer the state updates to avoid synchronous setState within the
-      // effect body, which can trigger cascading renders.
       queueMicrotask(() => {
         setIsPendingExpand(false);
         onToggle();
@@ -75,45 +52,38 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     }
   }, [spans, spansError, onToggle]);
 
-  const handleToggle = useCallback(() => {
-    if (expanded) {
-      onToggle();
-      return;
-    }
-    // Spans already loaded — expand immediately
-    if (spans) {
-      onToggle();
-      return;
-    }
-    // Start loading; expand deferred until spans arrive
-    pendingExpandRef.current = true;
-    setIsPendingExpand(true);
-    ensureTraceSpans(trace);
-  }, [expanded, spans, onToggle, ensureTraceSpans, trace]);
-
-  // Input/output derivation now comes from the `/traces/io` endpoint. The
-  // sessions-table logic (main agent path → last LLM span = output) is reused
-  // unchanged server-side; here we just consume the `outputSpan` payload.
-  //
-  // Shape note: `Span` (endpoint) is a superset of what `TraceViewListSpan`
-  // needs, minus `inputSnippet` / `outputSnippet` / `attributesSnippet`. That's
-  // fine — ListItem uses the `output` prop for preview text (which we fill
-  // from `traceIO.outputPreview`), so the snippet fields would be unused here
-  // anyway. `pathInfo` is null: without the full span list at collapse time,
-  // we skip the breadcrumb — acceptable for the figma layout.
   const lastSpan = useMemo(() => {
     if (!traceIO?.outputSpan) return null;
     return spanToListSpan(traceIO.outputSpan as unknown as TraceViewSpan, null);
   }, [traceIO?.outputSpan]);
 
-  // Middle divider count: total spans − 2 (one input pill, one output row).
-  // `spanCount` comes from `/traces/span-count` via useBatchedTraceIO
-  // (`isIncludeSpanCounts: true`). Undefined until the batch resolves;
-  // divider hides (count=0) in that window.
+  // Subtract 4: two end rows (input pill + output LLM) plus the ~2 spans
+  // they each represent internally (root/wrapper spans that don't carry
+  // their own user-visible content).
   const middleSpanCount = useMemo(() => {
     if (traceIO?.spanCount == null) return 0;
-    return Math.max(0, traceIO.spanCount - 2);
+    return Math.max(0, traceIO.spanCount - 4);
   }, [traceIO?.spanCount]);
+
+  // Trivial trace: nothing left in the middle → collapsed card already shows
+  // everything. Hide the expand affordance and ignore clicks. When
+  // `spanCount` is still loading we optimistically assume expandable.
+  const isExpandable = traceIO?.spanCount == null || traceIO.spanCount > 4;
+
+  const handleToggle = useCallback(() => {
+    if (!isExpandable) return;
+    if (expanded) {
+      onToggle();
+      return;
+    }
+    if (spans) {
+      onToggle();
+      return;
+    }
+    pendingExpandRef.current = true;
+    setIsPendingExpand(true);
+    ensureTraceSpans(trace);
+  }, [isExpandable, expanded, spans, onToggle, ensureTraceSpans, trace]);
 
   const relativeTime = useMemo(() => {
     try {
@@ -138,21 +108,22 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
           expanded ? "bg-muted border-t" : "bg-muted/75 border border-[rgba(232,232,232,0.1)] rounded-lg"
         )}
       >
-        {/* Header row (always visible, clickable) */}
         <button
           type="button"
           onClick={handleToggle}
+          disabled={!isExpandable}
           className={cn(
-            "w-full flex items-center justify-between text-left cursor-pointer transition-colors",
-            // Expanded header (flat): bg-muted + slightly taller top padding
+            "w-full flex items-center justify-between text-left transition-colors",
+            isExpandable ? "cursor-pointer" : "cursor-default",
             expanded
               ? "pl-1.5 pr-3 pt-[9px] pb-2 hover:bg-muted/80"
-              : // Collapsed header (inside card): subtle tint + border-b
-                "pl-1.5 pr-3 pt-2 pb-1 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"
+              : cn(
+                  "pl-1.5 pr-3 pt-2 pb-1 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)]",
+                  isExpandable && "hover:bg-[rgba(232,232,232,0.04)]"
+                )
           )}
         >
           <div className="flex items-center gap-2 min-w-0">
-            {/* Trace index pill */}
             <span className="inline-flex items-center justify-center rounded-full border border-[rgba(232,232,232,0.1)] bg-[rgba(232,232,232,0.05)] px-2 py-0.5 text-[10px] font-medium leading-[17px] text-secondary-foreground whitespace-nowrap">
               {traceIndex}/{totalTraces}
             </span>
@@ -177,7 +148,6 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
           </div>
         </button>
 
-        {/* Collapsed-state body: synthetic user input pill + N-spans divider + output span */}
         {!expanded && (
           <div className="flex flex-col">
             {spansError ? (
