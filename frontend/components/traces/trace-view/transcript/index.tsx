@@ -83,8 +83,10 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared);
-  const hasUserInput = isUserInputLoading || !!userInput;
+  const hasLlmSpan = useMemo(() => spans.some((s) => s.spanType === "LLM" || s.spanType === "CACHED"), [spans]);
+
+  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, hasLlmSpan);
+  const hasUserInput = hasLlmSpan || isUserInputLoading || !!userInput;
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
@@ -121,23 +123,15 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return types;
   }, [transcriptEntries]);
 
-  const { inputSpanIds, promptHashes } = useMemo(() => {
+  const inputSpanIds = useMemo(() => {
     const ids: string[] = [];
-    const hashes: Record<string, string> = {};
-    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
-
     for (const entry of transcriptEntries) {
       if (entry.type === "group" && entry.firstLlmSpanId) {
         ids.push(entry.firstLlmSpanId);
-        const span = spanMap.get(entry.firstLlmSpanId);
-        const hash = span?.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
-        if (hash) {
-          hashes[entry.firstLlmSpanId] = hash;
-        }
       }
     }
-    return { inputSpanIds: ids, promptHashes: hashes };
-  }, [transcriptEntries, spans]);
+    return ids;
+  }, [transcriptEntries]);
 
   const virtualizer = useVirtualizer({
     count: flatRows.length,
@@ -158,7 +152,11 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [items, flatRows, transcriptExpandedGroups]
   );
 
-  const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
+  const {
+    previews,
+    userInputs: inputPreviews,
+    agentNames,
+  } = useBatchedSpanPreviews(
     projectId,
     allVisibleSpanIds,
     {
@@ -168,8 +166,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     },
     { isShared },
     spanTypes,
-    inputSpanIds,
-    promptHashes
+    inputSpanIds
   );
 
   const handleSpanSelect = useCallback(

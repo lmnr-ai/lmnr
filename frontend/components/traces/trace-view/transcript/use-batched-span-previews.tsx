@@ -9,6 +9,7 @@ import { fetchSpanPreviewsForTrace } from "./fetch-span-previews";
 export interface BatchedPreviewsHook {
   previews: Record<string, any>;
   userInputs: Record<string, string | null>;
+  agentNames: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -36,6 +37,7 @@ export function useBatchedSpanPreviews(
   const lastIdsRef = useRef<string>("");
   const [previews, setPreviews] = useState<Record<string, any>>({});
   const [userInputs, setUserInputs] = useState<Record<string, string | null>>({});
+  const [agentNames, setAgentNames] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
   const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
 
@@ -59,7 +61,11 @@ export function useBatchedSpanPreviews(
       const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
 
       try {
-        const { previews: newPreviews, userInputs: newUserInputs } = await fetchSpanPreviewsForTrace({
+        const {
+          previews: newPreviews,
+          userInputs: newUserInputs,
+          agentNames: newAgentNames,
+        } = await fetchSpanPreviewsForTrace({
           projectId,
           traceId: trace.id,
           spanIds,
@@ -96,6 +102,10 @@ export function useBatchedSpanPreviews(
             });
             return next;
           });
+        }
+
+        if (Object.keys(newAgentNames).length > 0) {
+          setAgentNames((prev) => ({ ...prev, ...newAgentNames }));
         }
       } catch (error) {
         toast({
@@ -168,7 +178,8 @@ export function useBatchedSpanPreviews(
     fetching.current.clear();
     setPreviews({});
     setUserInputs({});
+    setAgentNames({});
   }, []);
 
-  return { previews, userInputs, clearCache };
+  return { previews, userInputs, agentNames, clearCache };
 }
