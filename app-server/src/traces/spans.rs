@@ -3719,6 +3719,154 @@ mod tests {
     }
 
     #[test]
+    fn test_cache_write_tokens_from_input_token_details() {
+        // inputTokenDetails.cacheWriteTokens should map to gen_ai.usage.cache_creation_input_tokens
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            (
+                "stream.usage.inputTokenDetails.cacheWriteTokens".to_string(),
+                json!(30),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(30))
+        );
+        // cache read should not be set
+        assert!(
+            !attrs
+                .raw_attributes
+                .contains_key(GEN_AI_CACHE_READ_INPUT_TOKENS)
+        );
+    }
+
+    #[test]
+    fn test_cached_input_tokens_maps_to_cache_read() {
+        // cachedInputTokens should map to gen_ai.usage.cache_read_input_tokens
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(40)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+    }
+
+    #[test]
+    fn test_cache_read_tokens_from_input_token_details() {
+        // inputTokenDetails.cacheReadTokens should map to gen_ai.usage.cache_read_input_tokens
+        // when cachedInputTokens is absent
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            (
+                "stream.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(25),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(25))
+        );
+    }
+
+    #[test]
+    fn test_cached_input_tokens_has_precedence_over_cache_read_token_details() {
+        // When both cachedInputTokens and inputTokenDetails.cacheReadTokens are present,
+        // cachedInputTokens should take precedence because it is normalized first.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(40)),
+            (
+                "stream.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(25),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        // cachedInputTokens (40) wins over inputTokenDetails.cacheReadTokens (25)
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+    }
+
+    #[test]
+    fn test_all_cache_token_attributes_together() {
+        // All three cache token attributes present: cacheWriteTokens, cachedInputTokens,
+        // and cacheReadTokens. Verify they all resolve correctly with proper precedence.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("claude-3-opus")),
+            (
+                "aisdk.model.provider".to_string(),
+                json!("anthropic.messages"),
+            ),
+            ("generateText.usage.inputTokens".to_string(), json!(200)),
+            ("generateText.usage.outputTokens".to_string(), json!(80)),
+            (
+                "generateText.usage.cachedInputTokens".to_string(),
+                json!(60),
+            ),
+            (
+                "generateText.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(45),
+            ),
+            (
+                "generateText.usage.inputTokenDetails.cacheWriteTokens".to_string(),
+                json!(30),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        // cacheWriteTokens -> gen_ai.usage.cache_creation_input_tokens
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(30))
+        );
+        // cachedInputTokens (60) takes precedence over inputTokenDetails.cacheReadTokens (45)
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(60))
+        );
+
+        // Verify input_tokens() computation uses the normalized values
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_write_tokens, 30);
+        assert_eq!(input_tokens.cache_read_tokens, 60);
+        // regular = total - cache_write - cache_read = 200 - 30 - 60 = 110
+        assert_eq!(input_tokens.regular_input_tokens, 110);
+        assert_eq!(input_tokens.total(), 200);
+    }
+
+    #[test]
     fn test_normalize_aisdk_only_model_no_prefix() {
         // Span has aisdk.model.* but no operation-prefixed attributes.
         // Model/provider should still be normalized.
