@@ -35,22 +35,22 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
   { src: langchain, alt: "LangChain", name: "langchain", integration: "langchain" },
   { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
-  { src: gemini, alt: "Gemini", name: "gemini", docsUrl: "https://docs.laminar.sh/tracing/integrations/gemini" },
-  { src: openAi, alt: "OpenAI", name: "open-ai", docsUrl: "https://docs.laminar.sh/tracing/integrations/openai" },
-  { src: groq, alt: "Groq", name: "groq", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
-  { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
-  { src: bedrock, alt: "Bedrock", name: "bedrock", docsUrl: "https://docs.laminar.sh/tracing/integrations/overview" },
+  { src: gemini, alt: "Gemini", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
+  { src: openAi, alt: "OpenAI", name: "open-ai", docsUrl: "https://laminar.sh/docs/tracing/integrations/openai" },
+  { src: groq, alt: "Groq", name: "groq", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
+  { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
+  { src: bedrock, alt: "Bedrock", name: "bedrock", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
   {
     src: playwright,
     alt: "Playwright",
     name: "playwright",
-    docsUrl: "https://docs.laminar.sh/tracing/integrations/playwright",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/playwright",
   },
   {
     src: openTelemetry,
     alt: "Open Telemetry",
     name: "open-telemetry",
-    docsUrl: "https://docs.laminar.sh/tracing/otel",
+    docsUrl: "https://laminar.sh/docs/tracing/otel",
   },
 ];
 
@@ -125,7 +125,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
           ))}
       </div>
       <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />
-      <DocsButton href="https://docs.laminar.sh/tracing/integrations/overview" />
+      <DocsButton href="https://laminar.sh/docs/tracing/integrations/overview" />
     </div>
   );
 };
