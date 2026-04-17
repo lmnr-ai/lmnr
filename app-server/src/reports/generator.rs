@@ -492,6 +492,7 @@ fn build_noteworthy_events(
                 .unwrap_or_else(|| "Unknown time".to_string());
 
             result.push(NoteworthyEvent {
+                signal_event_id: event.id.to_string(),
                 signal_name,
                 summary: event.summary.clone(),
                 timestamp: timestamp_str,

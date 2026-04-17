@@ -13,6 +13,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
 
 interface NoteworthyEvent {
+  signal_event_id: string;
   signal_name: string;
   summary: string;
   timestamp: string;
@@ -213,7 +214,7 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotifi
       <div className="flex flex-col gap-1.5 mt-1">
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Noteworthy events</span>
         {formatted.noteworthyEvents.slice(0, 3).map((event) => (
-          <div key={event.trace_id} className="flex flex-col gap-0.5">
+          <div key={event.signal_event_id} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
               <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
