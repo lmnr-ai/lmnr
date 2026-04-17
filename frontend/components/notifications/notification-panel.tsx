@@ -130,8 +130,8 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
 
     return {
       kind: "alert",
-      title: `${event.event_name}: ${severityLabel} event`,
-      summary: `Alert: ${event.alert_name}`,
+      title: `${event.event_name}`,
+      summary: `New ${severityLabel} event`,
       extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
       similarEventsLink,

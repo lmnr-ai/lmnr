@@ -19,7 +19,8 @@ impl AlertMetadata {
     }
 
     pub fn skip_similar(&self) -> bool {
-        self.skip_similar.unwrap_or(true)
+        // False by default to not break historical alerts
+        self.skip_similar.unwrap_or(false)
     }
 }
 

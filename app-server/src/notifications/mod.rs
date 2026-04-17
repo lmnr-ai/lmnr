@@ -82,6 +82,7 @@ impl std::fmt::Display for NotificationDefinitionType {
 pub enum NotificationKind {
     EventIdentification {
         project_id: Uuid,
+        #[serde(default)]
         signal_id: Uuid,
         trace_id: Uuid,
         #[serde(default)]
@@ -89,6 +90,7 @@ pub enum NotificationKind {
         event_name: String,
         severity: u8,
         extracted_information: Option<serde_json::Value>,
+        #[serde(default)]
         alert_name: String,
     },
     SignalsReport {
