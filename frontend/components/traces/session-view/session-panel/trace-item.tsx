@@ -8,17 +8,21 @@ import { shallow } from "zustand/shallow";
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { InputItem, SpanItem } from "@/components/traces/trace-view/transcript/item";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";
+import { spanToListSpan } from "../utils";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -29,16 +33,18 @@ interface TraceItemProps {
   traceIO?: TraceIOEntry | null;
 }
 
-export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle }: TraceItemProps) {
+export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle, traceIO }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
   const { toast } = useToast();
 
-  const { spans, spansError, ensureTraceSpans } = useSessionViewStore(
+  const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
+      selectedSpan: s.selectedSpan,
       ensureTraceSpans: s.ensureTraceSpans,
+      setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
   );
@@ -56,6 +62,16 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
       });
     }
   }, [spans, spansError, onToggle]);
+
+  const lastFullSpan = useMemo(() => {
+    if (!traceIO?.outputSpan) return null;
+    return traceIO.outputSpan as unknown as TraceViewSpan;
+  }, [traceIO?.outputSpan]);
+
+  const lastSpan = useMemo(() => {
+    if (!lastFullSpan) return null;
+    return spanToListSpan(lastFullSpan);
+  }, [lastFullSpan]);
 
   const handleToggle = useCallback(() => {
     if (expanded) {
@@ -87,6 +103,8 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
       return "";
     }
   }, [trace.endTime]);
+
+  const handleSpanSelect = (spanId: string) => setSelectedSpan({ traceId: trace.id, spanId });
 
   return (
     <div
@@ -159,6 +177,36 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             {expanded && <ChevronDown size={16} className="text-secondary-foreground" />}
           </div>
         </button>
+
+        {!expanded && (
+          <div className="flex flex-col">
+            {spansError ? (
+              <div className="px-3 py-2 text-xs text-destructive">{spansError}</div>
+            ) : (
+              <>
+                <div className="border-b border-[rgba(232,232,232,0.1)]">
+                  <InputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
+                </div>
+                {lastSpan ? (
+                  <SpanItem
+                    span={lastSpan}
+                    fullSpan={lastFullSpan ?? undefined}
+                    output={traceIO?.outputPreview}
+                    onSpanSelect={(s) => handleSpanSelect(s.spanId)}
+                    isSelected={
+                      !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId
+                    }
+                  />
+                ) : !traceIO ? (
+                  <div className="flex flex-col gap-2 px-3 py-2">
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-3/4" />
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
