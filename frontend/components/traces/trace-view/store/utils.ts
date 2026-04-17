@@ -269,17 +269,39 @@ const toLightweight = (span: TraceViewSpan, pathInfoMap: Map<string, PathInfo>):
 
 const NULL_SPAN_ID = "00000000-0000-0000-0000-000000000000";
 
-type LlmGroup = { parentSpanId: string; promptHash: string; idsPath: string[] };
+type LlmSpanInfo = {
+  spanId: string;
+  parentSpanId: string;
+  spanPath: string;
+  spanPathLength: number;
+  promptHash: string;
+  idsPath: string[];
+  inputTokens: number;
+  startTime: string;
+};
+
+const MAIN_AGENT_SEARCH_WINDOW = 5;
 
 /**
- * Detect sub-agent boundary span IDs from in-memory spans using frequency counting.
+ * Detect sub-agent boundary span IDs from in-memory spans.
  *
- * Groups LLM/CACHED spans by (parentSpanId, promptHash), keeps the earliest
- * idsPath per group, then finds the first ancestor ID exclusive to each
- * sub-agent's hash group. See CLAUDE.md for the full algorithm explanation.
+ * Collects individual LLM/CACHED spans (no grouping). Picks the main agent
+ * as the shallowest (shortest span path) among the earliest few LLM calls,
+ * breaking ties by highest input tokens. Splits spans into main vs non-main
+ * via the composite (spanPath, promptHash) key, then walks each non-main
+ * candidate's idsPath to find the first ancestor not in the main agent's
+ * span IDs — that's the boundary. Dedup via Set collapses sibling/loop
+ * iterations sharing a boundary while preserving separate invocations of
+ * the same agent type under different parents.
+ *
+ * Runs on every span arrival (via the transcript's useMemo on `spans`).
+ * The search window is the first MAIN_AGENT_SEARCH_WINDOW LLM spans by
+ * start time, so once that many have arrived the main agent pick is
+ * stable — later arrivals go to indices beyond the window and don't
+ * affect identification.
  */
 export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> => {
-  const llmGroups = new Map<string, LlmGroup & { minStart: string }>();
+  const llmSpans: LlmSpanInfo[] = [];
 
   for (const span of spans) {
     if (span.spanType !== "LLM" && span.spanType !== "CACHED") continue;
@@ -289,49 +311,47 @@ export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> =
 
     if (!promptHash || !Array.isArray(idsPath) || idsPath.length === 0) continue;
 
-    const filteredPath = idsPath.filter((id) => id !== NULL_SPAN_ID);
-    const key = `${span.parentSpanId ?? ""}\0${promptHash}`;
+    const spanPathAttr = span.attributes?.["lmnr.span.path"];
+    const spanPathArr = Array.isArray(spanPathAttr) ? spanPathAttr : [];
 
-    const existing = llmGroups.get(key);
-    if (!existing || span.startTime < existing.minStart) {
-      llmGroups.set(key, {
-        parentSpanId: span.parentSpanId ?? "",
-        promptHash,
-        idsPath: filteredPath,
-        minStart: span.startTime,
-      });
-    }
+    llmSpans.push({
+      spanId: span.spanId,
+      parentSpanId: span.parentSpanId ?? "",
+      spanPath: spanPathArr.join("."),
+      spanPathLength: spanPathArr.length,
+      promptHash,
+      idsPath: idsPath.filter((id) => id !== NULL_SPAN_ID),
+      inputTokens: span.inputTokens ?? 0,
+      startTime: span.startTime,
+    });
   }
 
-  const groups = [...llmGroups.values()].sort((a, b) => a.minStart.localeCompare(b.minStart));
-  if (groups.length <= 1) return new Set();
+  if (llmSpans.length <= 1) return new Set();
 
-  const mainHash = groups[0].promptHash;
-  const mainRows = groups.filter((r) => r.promptHash === mainHash);
-  const nonMainRows = groups.filter((r) => r.promptHash !== mainHash);
-  if (nonMainRows.length === 0) return new Set();
+  llmSpans.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  const mainParentIds = new Set(mainRows.map((r) => r.parentSpanId));
-  const mainSpanIds = new Set(mainRows.flatMap((r) => r.idsPath));
+  const searchWindow = llmSpans.slice(0, MAIN_AGENT_SEARCH_WINDOW);
+  const mainSpan = searchWindow.reduce((best, s) => {
+    if (s.spanPathLength < best.spanPathLength) return s;
+    if (s.spanPathLength === best.spanPathLength && s.inputTokens > best.inputTokens) return s;
+    return best;
+  });
 
-  const candidates = nonMainRows.filter((r) => !mainParentIds.has(r.parentSpanId));
-  if (candidates.length === 0) return new Set();
+  const mainCompositeKey = `${mainSpan.spanPath}\0${mainSpan.promptHash}`;
+  const compositeKeyOf = (s: LlmSpanInfo) => `${s.spanPath}\0${s.promptHash}`;
 
-  const hashGroupsPerSpan = new Map<string, Set<string>>();
-  for (const c of candidates) {
-    for (const id of c.idsPath) {
-      if (mainSpanIds.has(id)) continue;
-      if (!hashGroupsPerSpan.has(id)) hashGroupsPerSpan.set(id, new Set());
-      hashGroupsPerSpan.get(id)!.add(c.promptHash);
-    }
-  }
+  const mainSpans = llmSpans.filter((s) => compositeKeyOf(s) === mainCompositeKey);
+  const nonMainSpans = llmSpans.filter((s) => compositeKeyOf(s) !== mainCompositeKey);
+  if (nonMainSpans.length === 0) return new Set();
+
+  const mainSpanIds = new Set(mainSpans.flatMap((s) => s.idsPath));
+
+  const candidates = nonMainSpans;
 
   const boundaryIds = new Set<string>();
   for (const c of candidates) {
     for (const id of c.idsPath) {
-      if (mainSpanIds.has(id)) continue;
-      const hGroups = hashGroupsPerSpan.get(id);
-      if (hGroups && hGroups.size === 1) {
+      if (!mainSpanIds.has(id)) {
         boundaryIds.add(id);
         break;
       }

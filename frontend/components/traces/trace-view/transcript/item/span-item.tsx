@@ -119,9 +119,9 @@ export default function SpanItem({ span, output, onSpanSelect, inGroup = false }
   return (
     <div
       className={cn(
-        "flex group/message cursor-pointer transition-all border-l-4",
+        "flex group/message cursor-pointer transition-all border-l-2",
         inGroup ? "hover:bg-muted/80 bg-muted/60" : "hover:bg-secondary",
-        isSelected ? "bg-primary/5 border-l-primary" : "border-l-transparent",
+        isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent",
         { "opacity-60": isCached }
       )}
       onClick={() => {
@@ -136,7 +136,7 @@ export default function SpanItem({ span, output, onSpanSelect, inGroup = false }
         </div>
       )}
 
-      <div className="flex flex-col flex-1 min-w-0 py-2 gap-1 pl-1 pr-2">
+      <div className="flex flex-col flex-1 min-w-0 py-2 gap-1 pl-1.5 pr-2">
         <div className="flex gap-2 items-center min-w-0">
           <SpanTypeIcon
             spanType={span.spanType}

@@ -79,13 +79,16 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
-  const hasLlmSpan = useMemo(() => spans.some((s) => s.spanType === "LLM" || s.spanType === "CACHED"), [spans]);
+  const llmSpanCount = useMemo(
+    () => spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED").length,
+    [spans]
+  );
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, hasLlmSpan);
+  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
   // Render the user-input row whenever we know an LLM span exists (even while
   // its content is still being fetched). This makes the input appear as soon
   // as the first LLM span arrives over realtime.
-  const hasUserInput = hasLlmSpan || isUserInputLoading || !!userInput;
+  const hasUserInput = llmSpanCount > 0 || isUserInputLoading || !!userInput;
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];

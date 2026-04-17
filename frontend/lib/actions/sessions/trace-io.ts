@@ -12,17 +12,25 @@ const bodySchema = z.object({
 });
 
 const TOP_PATH_QUERY = `
-    SELECT path
+    SELECT
+      path,
+      prompt_hash AS promptHash
     FROM (
-     SELECT path, total_tokens, start_time
-     FROM spans
-     WHERE trace_id = {traceId: UUID}
-       AND span_type = 'LLM'
-     ORDER BY start_time ASC
-         LIMIT 20
-     )
-    GROUP BY path
-    ORDER BY min(start_time) ASC, sum(total_tokens) DESC
+      SELECT
+        path,
+        input_tokens,
+        start_time,
+        simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') AS prompt_hash
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+        AND span_type = 'LLM'
+      ORDER BY start_time ASC
+      LIMIT 5
+    )
+    GROUP BY path, prompt_hash
+    ORDER BY
+      length(splitByChar('.', path)) ASC,
+      max(input_tokens) DESC
     LIMIT 1
 `;
 
@@ -39,6 +47,7 @@ const INPUT_QUERY = `
     WHERE trace_id = {traceId: UUID}
       AND span_type = 'LLM'
       AND path = {path: String}
+      AND simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') = {promptHash: String}
     ORDER BY start_time ASC
     LIMIT 1
   )
@@ -50,6 +59,7 @@ const OUTPUT_QUERY = `
   WHERE trace_id = {traceId: UUID}
     AND span_type = 'LLM'
     AND path = {path: String}
+    AND simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') = {promptHash: String}
   ORDER BY start_time DESC
   LIMIT 1
 `;
@@ -217,7 +227,7 @@ async function hydrateMissingPromptHashes(traces: TraceWithParsedInput[], projec
 }
 
 async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
-  const pathRows = await executeQuery<{ path: string }>({
+  const pathRows = await executeQuery<{ path: string; promptHash: string }>({
     query: TOP_PATH_QUERY,
     parameters: { traceId },
     projectId,
@@ -227,24 +237,29 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
     return { traceId, output: null, parsed: null, promptHash: null };
   }
 
-  const topPath = pathRows[0].path;
+  const { path: topPath, promptHash: topPromptHash } = pathRows[0];
 
   const inputRows = await executeQuery<InputQueryRow>({
     query: INPUT_QUERY,
-    parameters: { traceId, path: topPath },
+    parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
     projectId,
   });
 
   if (inputRows.length === 0) {
-    return { traceId, output: null, parsed: null, promptHash: null };
+    return { traceId, output: null, parsed: null, promptHash: topPromptHash || null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
-  return { traceId, output: null, parsed, promptHash: inputRows[0].prompt_hash || null };
+  return {
+    traceId,
+    output: null,
+    parsed,
+    promptHash: inputRows[0].prompt_hash || topPromptHash || null,
+  };
 }
 
 async function fetchTraceData(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
-  const pathRows = await executeQuery<{ path: string }>({
+  const pathRows = await executeQuery<{ path: string; promptHash: string }>({
     query: TOP_PATH_QUERY,
     parameters: { traceId },
     projectId,
@@ -254,17 +269,17 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
     return { traceId, output: null, parsed: null, promptHash: null };
   }
 
-  const topPath = pathRows[0].path;
+  const { path: topPath, promptHash: topPromptHash } = pathRows[0];
 
   const [inputRows, outputRows] = await Promise.all([
     executeQuery<InputQueryRow>({
       query: INPUT_QUERY,
-      parameters: { traceId, path: topPath },
+      parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
       projectId,
     }),
     executeQuery<{ spanId: string; data: string; name: string }>({
       query: OUTPUT_QUERY,
-      parameters: { traceId, path: topPath },
+      parameters: { traceId, path: topPath, promptHash: topPromptHash ?? "" },
       projectId,
     }),
   ]);
@@ -272,11 +287,16 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   const outputText = await resolveOutput(outputRows, projectId);
 
   if (inputRows.length === 0) {
-    return { traceId, output: outputText, parsed: null, promptHash: null };
+    return { traceId, output: outputText, parsed: null, promptHash: topPromptHash || null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
-  return { traceId, output: outputText, parsed, promptHash: inputRows[0].prompt_hash || null };
+  return {
+    traceId,
+    output: outputText,
+    parsed,
+    promptHash: inputRows[0].prompt_hash || topPromptHash || null,
+  };
 }
 
 async function resolveOutput(
