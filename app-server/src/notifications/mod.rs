@@ -84,11 +84,12 @@ pub enum NotificationKind {
         project_id: Uuid,
         signal_id: Uuid,
         trace_id: Uuid,
+        #[serde(default)]
+        event_id: Option<Uuid>,
         event_name: String,
         severity: u8,
         extracted_information: Option<serde_json::Value>,
         alert_name: String,
-        cluster_id: Option<Uuid>,
     },
     SignalsReport {
         workspace_name: String,

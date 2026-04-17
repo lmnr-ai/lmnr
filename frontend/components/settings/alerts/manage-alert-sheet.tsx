@@ -178,7 +178,7 @@ export default function ManageAlertSheet({
     [signalsData, signalName]
   );
 
-  const additionalParams = useMemo(() => ({ minSeverity: String(severity) }), [severity]);
+  const additionalParams = useMemo(() => ({ severity: String(severity) }), [severity]);
 
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: selectedSignal ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats` : "",

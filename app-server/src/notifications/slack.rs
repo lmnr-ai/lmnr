@@ -70,22 +70,22 @@ pub fn format_message_blocks_batch(
         NotificationKind::EventIdentification {
             project_id,
             trace_id,
+            event_id,
             event_name,
             extracted_information,
             alert_name,
             severity,
             signal_id,
-            cluster_id,
             ..
         } => format_event_identification_blocks(
             &project_id.to_string(),
             &signal_id.to_string(),
             &trace_id.to_string(),
+            event_id.as_ref(),
             event_name,
             extracted_information.clone(),
             alert_name,
             severity,
-            cluster_id.as_ref(),
         ),
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
@@ -112,11 +112,11 @@ fn format_event_identification_blocks(
     project_id: &str,
     signal_id: &str,
     trace_id: &str,
+    event_id: Option<&Uuid>,
     signal_name: &str,
     extracted_information: Option<serde_json::Value>,
     alert_name: &str,
     severity: &u8,
-    cluster_id: Option<&Uuid>,
 ) -> serde_json::Value {
     let trace_link = format!(
         "https://laminar.sh/project/{}/traces/{}?chat=true",
@@ -155,7 +155,7 @@ fn format_event_identification_blocks(
         "type": "section",
         "text": {
             "type": "mrkdwn",
-            "text": format!("*New event for signal*: `{}`", signal_name)
+            "text": format!("`{}`: New Event", signal_name)
         }
     })];
 
@@ -206,12 +206,12 @@ fn format_event_identification_blocks(
             "text": format!("Alert: <https://laminar.sh/project/{}/settings?tab=alerts|{}>", project_id, alert_name)
         }),
     ];
-    if let Some(cid) = cluster_id {
+    if let Some(eid) = event_id {
         context_elements.push(json!({
             "type": "mrkdwn",
             "text": format!(
-                "Similar Events: <https://laminar.sh/project/{}/signals/{}?groupId={}|View>",
-                project_id, signal_id, cid
+                "Similar Events: <https://laminar.sh/project/{}/signals/{}?eventCluster={}|View>",
+                project_id, signal_id, eid,
             )
         }));
     }

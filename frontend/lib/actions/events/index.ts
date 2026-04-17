@@ -5,7 +5,7 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
-import { getEventsByGroupPaginated } from "./group";
+import { getEventsByEmergingClusterPaginated } from "./emerging-cluster";
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
@@ -14,7 +14,7 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   signalId: z.guid(),
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
-  groupId: z.guid().optional(),
+  emergingClusterId: z.guid().optional(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
@@ -29,14 +29,14 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     filter,
     clusterId: clusterIds,
     unclustered,
-    groupId,
+    emergingClusterId,
   } = input;
 
-  if (groupId) {
-    return getEventsByGroupPaginated({
+  if (emergingClusterId) {
+    return getEventsByEmergingClusterPaginated({
       projectId,
       signalId,
-      groupId,
+      emergingClusterId,
       pageSize,
       pageNumber,
       pastHours,

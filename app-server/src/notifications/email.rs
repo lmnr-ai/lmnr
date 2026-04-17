@@ -39,10 +39,13 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
     match first {
         NotificationKind::EventIdentification {
             project_id,
+            signal_id,
             trace_id,
             event_name,
+            severity,
             extracted_information,
-            ..
+            alert_name,
+            event_id,
         } => {
             let trace_link = format!(
                 "https://lmnr.ai/project/{}/traces/{}?chat=true",
@@ -51,10 +54,20 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             let attributes = extracted_information
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
+            let severity_label = severity_label(*severity);
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
-                subject: format!("New event type: {}", event_name),
-                html: render_alert_email(event_name, &attributes, &trace_link, project_id),
+                subject: format!("{}: {} event", event_name, severity_label),
+                html: render_alert_email(
+                    event_name,
+                    &attributes,
+                    &trace_link,
+                    project_id,
+                    signal_id,
+                    *severity,
+                    alert_name,
+                    event_id.as_ref(),
+                ),
             }
         }
         NotificationKind::SignalsReport { .. } => {
@@ -90,13 +103,66 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
 
 // ── Alert email ──
 
+/// Human-readable severity label for an alert notification severity level.
+fn severity_label(severity: u8) -> &'static str {
+    match severity {
+        0 => "Info",
+        1 => "Warning",
+        2 => "Critical",
+        _ => "Unknown",
+    }
+}
+
+/// Hex color matching the severity dot used in the Slack message.
+fn severity_color(severity: u8) -> &'static str {
+    match severity {
+        0 => "#10b981", // green
+        1 => "#f59e0b", // orange
+        2 => "#ef4444", // red
+        _ => "#9ca3af",
+    }
+}
+
 /// Render an HTML email for an alert notification.
 fn render_alert_email(
     event_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
     project_id: &Uuid,
+    signal_id: &Uuid,
+    severity: u8,
+    alert_name: &str,
+    event_id: Option<&Uuid>,
 ) -> String {
+    let severity_label = severity_label(severity);
+    let severity_color = severity_color(severity);
+    let alert_link = format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id);
+    let similar_events_part = match event_id {
+        Some(eid) => {
+            let similar_link = format!(
+                "https://lmnr.ai/project/{}/signals/{}?eventCluster={}",
+                project_id, signal_id, eid
+            );
+            format!(
+                r#"<span style="vertical-align:middle;">&nbsp;·&nbsp;Similar events: <a href="{link}" style="color:{primary};text-decoration:none;">View</a></span>"#,
+                link = similar_link,
+                primary = PRIMARY,
+            )
+        }
+        None => String::new(),
+    };
+    let context_html = format!(
+        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
+  <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:{severity_color};margin-right:5px;vertical-align:middle;"></span><span style="vertical-align:middle;">{severity_label}</span><span style="vertical-align:middle;">&nbsp;·&nbsp;Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>{similar_events_part}
+</div>"##,
+        severity_color = severity_color,
+        severity_label = severity_label,
+        alert_link = alert_link,
+        alert_name = html_escape(alert_name),
+        similar_events_part = similar_events_part,
+        primary = PRIMARY,
+    );
+
     let attributes_html = if let Some(obj) = attributes.as_object() {
         if obj.is_empty() {
             String::new()
@@ -123,7 +189,7 @@ fn render_alert_email(
                 .collect();
             format!(
                 r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Details</h3>
+  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
   <table width="100%" cellpadding="0" cellspacing="0" border="0">
     {}
   </table>
@@ -141,15 +207,15 @@ fn render_alert_email(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>New event type: {event_name}</title>
+<title>{event_name}: {severity_label} event</title>
 </head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
 
   <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
     <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">New Event Type Detected</h1>
-    <p style="margin:0;font-size:16px;color:#D0754E;">{event_name}</p>
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New event for signal</p>
+    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{event_name}</h1>
   </div>
 
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
@@ -157,21 +223,24 @@ fn render_alert_email(
     <div style="text-align:center;padding-top:8px;">
       <a href="{trace_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Trace</a>
     </div>
+    {context_html}
   </div>
 
   <div style="text-align:center;padding:16px 0;">
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/project/{project_id}/settings" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/project/{project_id}/settings?tab=alerts" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
   </div>
 
 </div>
 </body>
 </html>"##,
         event_name = html_escape(event_name),
+        severity_label = severity_label,
         attributes_html = attributes_html,
         trace_link = trace_link,
         project_id = project_id,
+        context_html = context_html,
     )
 }
 

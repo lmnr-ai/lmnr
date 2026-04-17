@@ -267,9 +267,10 @@ async fn process_new_cluster_notifications(
     let new_l0_cluster_events: Vec<&ClusterEventResult> = response
         .events
         .iter()
-        .filter(|e| e.is_new_cluster)
-        .filter(|e| e.cluster_level == 0u32)
+        // .filter(|e| e.is_new_cluster)
+        // .filter(|e| e.cluster_level == 0u32)
         .collect();
+    println!("new_l0_cluster_events: {:?}", new_l0_cluster_events.len());
 
     if new_l0_cluster_events.is_empty() {
         return;
@@ -298,14 +299,8 @@ async fn process_new_cluster_notifications(
         }
     };
 
-    let cluster_id_by_event: std::collections::HashMap<Uuid, Uuid> = new_l0_cluster_events
-        .iter()
-        .map(|e| (e.signal_event_id, e.cluster_id))
-        .collect();
-
     for ch_event in &ch_events {
         let attributes = ch_event.payload_value().unwrap_or_default();
-        let cluster_id = cluster_id_by_event.get(&ch_event.id).copied();
 
         for alert in &alerts {
             if ch_event.severity != alert.metadata.severity() {
@@ -326,11 +321,11 @@ async fn process_new_cluster_notifications(
                     project_id,
                     signal_id,
                     trace_id: ch_event.trace_id,
+                    event_id: Some(ch_event.id),
                     event_name: ch_event.name.clone(),
                     severity: ch_event.severity,
                     extracted_information: Some(attributes.clone()),
                     alert_name: alert.name.clone(),
-                    cluster_id,
                 }],
             };
 

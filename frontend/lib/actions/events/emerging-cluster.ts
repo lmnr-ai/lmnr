@@ -9,17 +9,17 @@ import { type EventRow } from "@/lib/events/types";
 
 import { eventsColumnFilterConfig } from "./utils";
 
-export const GetEventsByGroupPaginatedSchema = PaginationFiltersSchema.extend({
+export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.guid(),
   signalId: z.guid(),
-  groupId: z.guid(),
+  emergingClusterId: z.guid(),
 });
 
-interface BuildGroupEventsQueryOptions {
+interface BuildEmergingClusterEventsQueryOptions {
   projectId: string;
   signalId: string;
-  groupId: string;
+  emergingClusterId: string;
   filters: Filter[];
   limit: number;
   offset: number;
@@ -28,15 +28,15 @@ interface BuildGroupEventsQueryOptions {
   pastHours?: string;
 }
 
-const GROUP_EVENTS_BASE = `
+const EMERGING_CLUSTER_EVENTS_BASE = `
   FROM signal_events AS se
   INNER JOIN events_to_clusters AS etc FINAL
     ON se.project_id = etc.project_id
     AND se.id = etc.event_id
 `;
 
-const buildGroupEventsWhere = (options: BuildGroupEventsQueryOptions): QueryResult => {
-  const { projectId, signalId, groupId, filters, startTime, endTime, pastHours } = options;
+const buildEmergingClusterEventsWhere = (options: BuildEmergingClusterEventsQueryOptions): QueryResult => {
+  const { projectId, signalId, emergingClusterId, filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{ condition: string; params: QueryParams }> = [
     {
@@ -52,8 +52,8 @@ const buildGroupEventsWhere = (options: BuildGroupEventsQueryOptions): QueryResu
       params: { signalId },
     },
     {
-      condition: "etc.cluster_id = {groupId:UUID}",
-      params: { groupId },
+      condition: "etc.cluster_id = {emergingClusterId:UUID}",
+      params: { emergingClusterId },
     },
   ];
 
@@ -70,9 +70,9 @@ const buildGroupEventsWhere = (options: BuildGroupEventsQueryOptions): QueryResu
   });
 };
 
-const buildGroupEventsSelect = (options: BuildGroupEventsQueryOptions): QueryResult => {
+const buildEmergingClusterEventsSelect = (options: BuildEmergingClusterEventsQueryOptions): QueryResult => {
   const { limit, offset } = options;
-  const { query: whereClause, parameters } = buildGroupEventsWhere(options);
+  const { query: whereClause, parameters } = buildEmergingClusterEventsWhere(options);
 
   const query = `
     SELECT
@@ -82,7 +82,7 @@ const buildGroupEventsSelect = (options: BuildGroupEventsQueryOptions): QueryRes
       formatDateTime(se.timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp,
       se.payload as payload,
       se.severity as severity
-    ${GROUP_EVENTS_BASE}
+    ${EMERGING_CLUSTER_EVENTS_BASE}
     ${whereClause}
     ORDER BY se.timestamp DESC
     LIMIT {limit:UInt32} OFFSET {offset:UInt32}
@@ -94,31 +94,31 @@ const buildGroupEventsSelect = (options: BuildGroupEventsQueryOptions): QueryRes
   };
 };
 
-const buildGroupEventsCount = (options: BuildGroupEventsQueryOptions): QueryResult => {
-  const { query: whereClause, parameters } = buildGroupEventsWhere(options);
+const buildEmergingClusterEventsCount = (options: BuildEmergingClusterEventsQueryOptions): QueryResult => {
+  const { query: whereClause, parameters } = buildEmergingClusterEventsWhere(options);
 
   const query = `
     SELECT count() as count
-    ${GROUP_EVENTS_BASE}
+    ${EMERGING_CLUSTER_EVENTS_BASE}
     ${whereClause}
   `;
 
   return { query, parameters };
 };
 
-export async function getEventsByGroupPaginated(
-  input: z.infer<typeof GetEventsByGroupPaginatedSchema>
+export async function getEventsByEmergingClusterPaginated(
+  input: z.infer<typeof GetEventsByEmergingClusterPaginatedSchema>
 ): Promise<{ items: EventRow[]; count: number }> {
-  const { projectId, signalId, groupId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const { projectId, signalId, emergingClusterId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const queryOptions: BuildGroupEventsQueryOptions = {
+  const queryOptions: BuildEmergingClusterEventsQueryOptions = {
     projectId,
     signalId,
-    groupId,
+    emergingClusterId,
     filters,
     limit,
     offset,
@@ -127,8 +127,8 @@ export async function getEventsByGroupPaginated(
     pastHours,
   };
 
-  const mainQuery = buildGroupEventsSelect(queryOptions);
-  const countQuery = buildGroupEventsCount(queryOptions);
+  const mainQuery = buildEmergingClusterEventsSelect(queryOptions);
+  const countQuery = buildEmergingClusterEventsCount(queryOptions);
 
   const [mainResult, countResult] = await Promise.all([
     clickhouseClient.query({
@@ -152,28 +152,30 @@ export async function getEventsByGroupPaginated(
   };
 }
 
-export const GetGroupNameSchema = z.object({
+export const GetEmergingClusterNameSchema = z.object({
   projectId: z.guid(),
   signalId: z.guid(),
-  groupId: z.guid(),
+  emergingClusterId: z.guid(),
 });
 
-export async function getGroupName(input: z.infer<typeof GetGroupNameSchema>): Promise<{ name: string } | null> {
-  const { projectId, signalId, groupId } = GetGroupNameSchema.parse(input);
+export async function getEmergingClusterName(
+  input: z.infer<typeof GetEmergingClusterNameSchema>
+): Promise<{ name: string } | null> {
+  const { projectId, signalId, emergingClusterId } = GetEmergingClusterNameSchema.parse(input);
 
   const query = `
     SELECT name
     FROM signal_event_clusters FINAL
     WHERE project_id = {projectId:UUID}
       AND signal_id = {signalId:UUID}
-      AND id = {groupId:UUID}
+      AND id = {emergingClusterId:UUID}
     LIMIT 1
   `;
 
   const result = await clickhouseClient.query({
     query,
     format: "JSONEachRow",
-    query_params: { projectId, signalId, groupId },
+    query_params: { projectId, signalId, emergingClusterId },
   });
 
   const rows = (await result.json()) as Array<{ name: string }>;

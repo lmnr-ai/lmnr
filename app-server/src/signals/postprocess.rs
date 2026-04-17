@@ -53,11 +53,11 @@ pub async fn process_event_notifications_and_clustering(
                     project_id,
                     signal_id: signal_event.signal_id,
                     trace_id,
+                    event_id: Some(signal_event.id),
                     event_name: event_name.clone(),
                     severity: signal_event.severity,
                     extracted_information: Some(attributes.clone()),
                     alert_name: alert.name,
-                    cluster_id: None,
                 }],
             };
 

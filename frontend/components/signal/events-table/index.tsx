@@ -7,9 +7,9 @@ import { shallow } from "zustand/shallow";
 
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
-import GroupBreadcrumbs from "@/components/signal/group-breadcrumbs";
+import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
-import { useGroupId } from "@/components/signal/hooks/use-group-id";
+import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
@@ -60,7 +60,7 @@ function PureEventsTable() {
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();
-  const [groupId] = useGroupId();
+  const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
   const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
@@ -100,8 +100,8 @@ function PureEventsTable() {
 
         filter.forEach((f) => urlParams.append("filter", f));
 
-        if (groupId) {
-          urlParams.set("groupId", groupId);
+        if (emergingClusterId) {
+          urlParams.set("emergingClusterId", emergingClusterId);
         } else if (isUnclusteredFilter) {
           urlParams.set("unclustered", "true");
         } else {
@@ -137,7 +137,7 @@ function PureEventsTable() {
       filter,
       selectedClusterIds,
       isUnclusteredFilter,
-      groupId,
+      emergingClusterId,
       signal.id,
       params.projectId,
       toast,
@@ -185,7 +185,7 @@ function PureEventsTable() {
       filter,
       selectedClusterIds,
       isUnclusteredFilter,
-      groupId,
+      emergingClusterId,
     ],
   });
 
@@ -242,9 +242,9 @@ function PureEventsTable() {
           />
           <DateRangeFilter />
         </div>
-        {groupId ? <GroupBreadcrumbs /> : <ClusterBreadcrumbs />}
+        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
         <DataTableFilterList />
-        {!groupId && <ClustersSection />}
+        {!emergingClusterId && <ClustersSection />}
       </InfiniteDataTable>
     </div>
   );
