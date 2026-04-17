@@ -256,21 +256,16 @@ async fn process_new_cluster_notifications(
     }
 
     // First, notify about new L0 clusters for event alerts with skip_similar enabled.
-    let new_l0_cluster_events: Vec<&ClusterEventResult> = response
+    let event_ids: Vec<Uuid> = response
         .events
         .iter()
-        .filter(|e| e.is_new_cluster)
-        .filter(|e| e.cluster_level == 0u32)
-        .collect();
-
-    if new_l0_cluster_events.is_empty() {
-        return;
-    }
-
-    let event_ids: Vec<Uuid> = new_l0_cluster_events
-        .iter()
+        .filter(|e| e.is_new_cluster && e.cluster_level == 0)
         .map(|e| e.signal_event_id)
         .collect();
+
+    if event_ids.is_empty() {
+        return;
+    }
 
     let ch_events = match signal_events::get_signal_events_by_ids(
         clickhouse,
