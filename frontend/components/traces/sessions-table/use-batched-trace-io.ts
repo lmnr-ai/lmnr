@@ -13,18 +13,11 @@ export type TraceIOEntry = {
   /** Full span payload for the last LLM span on the main agent path, for
    *  selectable rendering (e.g. as a `ListItem`). */
   outputSpan: Span | null;
-  /** Total span count for the trace. Only populated when the hook is called
-   *  with `isIncludeSpanCounts: true`; `undefined` otherwise. */
-  spanCount?: number;
 };
 
 interface UseBatchedTraceIOOptions {
   debounceMs?: number;
   maxEntries?: number;
-  /** If true, also hits `/traces/span-count` for the same batch and merges
-   *  `spanCount` into each entry. Fetches run in parallel; span-count failure
-   *  is non-fatal (entries still land with IO data minus `spanCount`). */
-  isIncludeSpanCounts?: boolean;
 }
 
 export function useBatchedTraceIO(
@@ -32,11 +25,7 @@ export function useBatchedTraceIO(
   visibleTraceIds: string[],
   options: UseBatchedTraceIOOptions = {}
 ) {
-  const { debounceMs = 200, maxEntries = 200, isIncludeSpanCounts = false } = options;
-  // FLAG: `isIncludeSpanCounts` is read only when a batch is actually dispatched.
-  // Toggling this mid-lifecycle will NOT retroactively populate `spanCount` for
-  // traces already cached (no cache invalidation on option change). Keep it
-  // stable per component lifetime, or remount to rehydrate.
+  const { debounceMs = 200, maxEntries = 200 } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, TraceIOEntry | null>(maxEntries));
   const fetching = useRef(new Set<string>());
@@ -49,43 +38,25 @@ export function useBatchedTraceIO(
     async (traceIds: string[]) => {
       if (traceIds.length === 0 || !projectId) return;
 
-      const postJson = (path: string) =>
-        fetch(`/api/projects/${projectId}${path}`, {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/traces/io`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ traceIds }),
         });
 
-      // Fire both requests in parallel. `allSettled` so a span-count failure
-      // doesn't block IO data from landing (IO is the primary payload).
-      const [ioSettled, countSettled] = await Promise.allSettled([
-        postJson("/traces/io"),
-        isIncludeSpanCounts ? postJson("/traces/span-count") : Promise.resolve(null),
-      ]);
-
-      try {
-        if (ioSettled.status !== "fulfilled" || !ioSettled.value.ok) {
-          const errMsg =
-            ioSettled.status === "fulfilled"
-              ? await ioSettled.value
-                  .json()
-                  .then((d: { error?: string }) => d?.error)
-                  .catch(() => null)
-              : null;
+        if (!res.ok) {
+          const errMsg = await res
+            .json()
+            .then((d: { error?: string }) => d?.error)
+            .catch(() => null);
           throw new Error(errMsg ?? "Failed to fetch trace previews");
         }
 
-        const ioData = (await ioSettled.value.json()) as Record<string, TraceIOEntry>;
-
-        let countData: Record<string, number> = {};
-        if (countSettled.status === "fulfilled" && countSettled.value && countSettled.value.ok) {
-          countData = await countSettled.value.json().catch(() => ({}));
-        }
+        const ioData = (await res.json()) as Record<string, TraceIOEntry>;
 
         for (const id of traceIds) {
-          const entry = ioData[id] ?? null;
-          const merged = entry && isIncludeSpanCounts ? { ...entry, spanCount: countData[id] ?? 0 } : entry;
-          cache.current.set(id, merged);
+          cache.current.set(id, ioData[id] ?? null);
           fetching.current.delete(id);
         }
 
@@ -107,7 +78,7 @@ export function useBatchedTraceIO(
         }
       }
     },
-    [projectId, toast, isIncludeSpanCounts]
+    [projectId, toast]
   );
 
   const scheduleFetch = useCallback(async () => {

@@ -79,12 +79,6 @@ export default function SessionList() {
     return map;
   }, [traces]);
 
-  // --- Sticky setup: canonical TanStack pattern (docs example verbatim). ---
-  // Sticky-eligible = expanded trace-headers only. We deliberately do NOT
-  // release a sticky at trace boundaries — it stays pinned until the next
-  // expanded trace-header replaces it. This is the natural CSS + TanStack
-  // default behavior; re-adding the "release at boundary" constraint means
-  // more machinery than it's worth right now.
   const stickyIndexes = useMemo(
     () =>
       flatRows.reduce<number[]>((acc, row, idx) => {
@@ -300,10 +294,6 @@ export default function SessionList() {
 
           const activeSticky = isActiveSticky(virtualRow.index);
 
-          // Canonical TanStack sticky: active sticky uses
-          // `position: sticky; top: 0`; every other row uses plain
-          // absolute positioning at its natural Y. Nothing manages
-          // scroll — CSS + TanStack defaults do the work.
           const positionStyle: React.CSSProperties = activeSticky
             ? { position: "sticky", top: 0 }
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
