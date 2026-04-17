@@ -239,7 +239,6 @@ async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Ma
       events
     FROM spans
     WHERE span_id IN ({spanIds: Array(UUID)})
-      AND project_id = {projectId: String}
   `;
 
   const rows = await executeQuery<
@@ -249,7 +248,7 @@ async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Ma
     }
   >({
     query,
-    parameters: { spanIds, projectId },
+    parameters: { spanIds },
     projectId,
   });
 
