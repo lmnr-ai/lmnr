@@ -826,7 +826,10 @@ pub async fn handle_create_event(
             )
             .await
             .map_err(|e| {
-                log::warn!("[SIGNAL JOB] Retrying clustering: {:?}", e);
+                log::warn!(
+                    "[SIGNAL JOB] Retrying processing event notifications and clustering: {:?}",
+                    e
+                );
                 backoff::Error::transient(e)
             })
         }

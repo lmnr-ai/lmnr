@@ -9,7 +9,9 @@ const DEFAULT_SEVERITY: u8 = 2;
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AlertMetadata {
+    #[serde(default)]
     pub severity: Option<u8>,
+    #[serde(default)]
     pub skip_similar: Option<bool>,
 }
 
