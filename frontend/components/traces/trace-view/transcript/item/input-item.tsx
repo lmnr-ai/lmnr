@@ -15,7 +15,7 @@ export function InputItem({ text, isLoading, inGroup }: InputItemProps) {
 
   return (
     <div
-      className={cn("flex flex-col flex-1 min-w-0 px-3 py-2 border-l-4 border-l-transparent gap-1", {
+      className={cn("flex flex-col flex-1 min-w-0 py-2 px-1 border-l-4 border-l-transparent gap-1", {
         "bg-muted/60": inGroup,
       })}
     >

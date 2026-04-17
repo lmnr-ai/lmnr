@@ -1,12 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
-
-import { db } from "@/lib/db/drizzle";
-import { spanRenderingKeys } from "@/lib/db/migrations/schema";
+import { cache, SPAN_RENDERING_KEY_CACHE_KEY } from "@/lib/cache";
 
 import { generatePreviewKeys } from "./prompts";
 import { matchProviderKey } from "./provider-keys";
-
-export type SpanPreviewResult = Record<string, string | null>;
 import {
   classifyPayload,
   detectOutputStructure,
@@ -15,6 +10,10 @@ import {
   type ProviderHint,
   validateMustacheKey,
 } from "./utils";
+
+const RENDERING_KEY_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+export type SpanPreviewResult = Record<string, string | null>;
 
 const GENERATION_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL"]);
 
@@ -86,25 +85,27 @@ async function applyCachedKeys(
   projectId: string,
   parsedSpans: ParsedSpan[]
 ): Promise<{ resolved: SpanPreviewResult; uncached: ParsedSpan[] }> {
-  const fingerprints = parsedSpans.map((s) => s.fingerprint);
+  const uniqueFingerprints = [...new Set(parsedSpans.map((s) => s.fingerprint))];
 
-  let cachedKeys: Array<{ schemaFingerprint: string; mustacheKey: string }>;
-  try {
-    cachedKeys = await db
-      .select()
-      .from(spanRenderingKeys)
-      .where(
-        and(eq(spanRenderingKeys.projectId, projectId), inArray(spanRenderingKeys.schemaFingerprint, fingerprints))
-      );
-  } catch (error) {
-    console.error("Failed to look up cached rendering keys:", error);
-    return { resolved: {}, uncached: parsedSpans };
+  const cachedEntries = await Promise.all(
+    uniqueFingerprints.map(async (fingerprint) => {
+      try {
+        const key = await cache.get<string>(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint));
+        return [fingerprint, key] as const;
+      } catch {
+        return [fingerprint, null] as const;
+      }
+    })
+  );
+
+  const fingerprintToKey = new Map<string, string>();
+  for (const [fingerprint, key] of cachedEntries) {
+    if (key) fingerprintToKey.set(fingerprint, key);
   }
-
-  const fingerprintToKey = new Map(cachedKeys.map((row) => [row.schemaFingerprint, row.mustacheKey]));
 
   const resolved: SpanPreviewResult = {};
   const uncached: ParsedSpan[] = [];
+  const hitFingerprints = new Set<string>();
 
   for (const span of parsedSpans) {
     const cachedKey = fingerprintToKey.get(span.fingerprint);
@@ -116,10 +117,18 @@ async function applyCachedKeys(
     const rendered = validateMustacheKey(cachedKey, span.parsedData);
     if (rendered) {
       resolved[span.spanId] = rendered;
+      hitFingerprints.add(span.fingerprint);
     } else {
       uncached.push(span);
     }
   }
+
+  // Refresh TTL on successful hits so active schemas don't expire.
+  await Promise.all(
+    [...hitFingerprints].map((fingerprint) =>
+      cache.expire(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), RENDERING_KEY_TTL_SECONDS).catch(() => false)
+    )
+  );
 
   return { resolved, uncached };
 }
@@ -234,20 +243,17 @@ async function saveRenderingKeys(
 ): Promise<void> {
   if (keysToSave.length === 0) return;
 
-  try {
-    await db
-      .insert(spanRenderingKeys)
-      .values(
-        keysToSave.map(({ fingerprint, key }) => ({
-          projectId,
-          schemaFingerprint: fingerprint,
-          mustacheKey: key,
-        }))
-      )
-      .onConflictDoNothing();
-  } catch (error) {
-    console.error("Failed to save rendering keys:", error);
-  }
+  await Promise.all(
+    keysToSave.map(({ fingerprint, key }) =>
+      cache
+        .set(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), key, {
+          expireAfterSeconds: RENDERING_KEY_TTL_SECONDS,
+        })
+        .catch((error) => {
+          console.error("Failed to save rendering key:", error);
+        })
+    )
+  );
 }
 
 export interface ResolveOptions {
@@ -256,7 +262,7 @@ export interface ResolveOptions {
 
 /**
  * Run the full preview resolution pipeline on pre-fetched span data:
- * classify → cached DB keys → provider matching → LLM generation → save keys.
+ * classify → cached Redis keys → provider matching → LLM generation → save keys.
  */
 export async function resolvePreviews(
   rawSpans: Array<{ spanId: string; data: string; name: string }>,

@@ -136,7 +136,7 @@ export default function SpanItem({ span, output, onSpanSelect, inGroup = false }
         </div>
       )}
 
-      <div className="flex flex-col flex-1 min-w-0 px-3 py-2 gap-1">
+      <div className={cn("flex flex-col flex-1 min-w-0 py-2 gap-1 px-1")}>
         <div className="flex gap-2 items-center min-w-0">
           <SpanTypeIcon
             spanType={span.spanType}
