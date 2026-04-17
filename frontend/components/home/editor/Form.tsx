@@ -102,12 +102,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return null;
     }
 
-    // Table charts don't have x/y/breakdown axes — config carries only the type.
     if (chartType === ChartType.Table) {
+      const tableConfig = chart.settings.config.type === ChartType.Table ? chart.settings.config : null;
       return {
         type: chartType,
         displayMode: "none" as const,
-        hiddenColumns: chart.settings.config.type === ChartType.Table ? chart.settings.config.hiddenColumns : [],
+        hiddenColumns: tableConfig?.hiddenColumns ?? [],
+        tableColumnConfig: tableConfig?.tableColumnConfig,
       };
     }
 
@@ -216,9 +217,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       // Update store with new query and config
       setQuery(sqlData.sql);
       if (chartConfig) {
+        const liveConfig = chart.settings.config;
         const updatedConfig = {
           ...chartConfig,
           displayMode,
+          ...(isTable && liveConfig.type === ChartType.Table
+            ? { tableColumnConfig: liveConfig.tableColumnConfig }
+            : {}),
         };
         if (isTable && "hiddenColumns" in updatedConfig) {
           const userColumns = new Set(metrics.map((m) => m.column));
