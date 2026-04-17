@@ -205,6 +205,7 @@ function CondensedTimeline() {
             <SelectionOverlay
               spans={condensedSpans}
               containerRef={timelineContentRef}
+              scrollContainerRef={scrollRef}
               onSelectionComplete={handleSelectionComplete}
             />
           </div>
