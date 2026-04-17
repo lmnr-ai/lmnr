@@ -6,6 +6,7 @@ use uuid::Uuid;
 /// A noteworthy signal event highlighted by the AI summary, shown with full details.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NoteworthyEvent {
+    #[serde(default)]
     pub signal_event_id: String,
     pub signal_name: String,
     pub summary: String,
