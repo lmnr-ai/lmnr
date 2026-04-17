@@ -86,7 +86,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
       {/* Header */}
       <div className="flex flex-col gap-1.5 px-2 py-1.5 shrink-0">
-        <div className="flex h-7 items-center justify-start gap-1">
+        <div className="flex h-7 items-center justify-start gap-2">
           <Button variant="ghost" className="h-7 px-0.5" onClick={onClose} aria-label="Close session view">
             <ChevronsRight className="w-5 h-5" />
           </Button>

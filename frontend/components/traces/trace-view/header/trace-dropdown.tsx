@@ -37,18 +37,23 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const sessionId = trace?.sessionId;
   const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
 
+  const handleCopySessionId = useCallback(async () => {
+    if (sessionId) {
+      await navigator.clipboard.writeText(sessionId);
+      toast({ title: "Copied session ID", duration: 1000 });
+    }
+  }, [sessionId, toast]);
+
+  // TODO: add userId to TraceViewTrace to enable "Copy user ID"
+
   const handleOpenSession = useCallback(() => {
-    if (!hasSession || !trace) return;
-    const filter = JSON.stringify({ column: "session_id", value: sessionId, operator: "eq" });
-    const startDate = new Date(new Date(trace.startTime).getTime() - 3600_000).toISOString();
-    const endDate = new Date(new Date(trace.endTime).getTime() + 3600_000).toISOString();
-    const params = new URLSearchParams();
-    params.set("view", "sessions");
-    params.set("filter", filter);
-    params.set("startDate", startDate);
-    params.set("endDate", endDate);
-    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
-  }, [hasSession, trace, sessionId, projectId]);
+    if (!hasSession) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("sessionId", sessionId);
+    params.delete("traceId");
+    params.delete("spanId");
+    window.location.href = `/project/${projectId}/traces?${params.toString()}`;
+  }, [hasSession, sessionId, projectId]);
 
   return (
     <DropdownMenu>
@@ -62,6 +67,13 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
           <Copy size={14} />
           Copy trace ID
         </DropdownMenuItem>
+        {hasSession && (
+          <DropdownMenuItem onClick={handleCopySessionId}>
+            <Copy size={14} />
+            Copy session ID
+          </DropdownMenuItem>
+        )}
+        {/* TODO: add userId to TraceViewTrace to enable "Copy user ID" */}
         <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
           {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
           Open in SQL editor

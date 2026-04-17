@@ -282,7 +282,7 @@ export default function SessionList() {
   // sessions-table trace cards. Sessions can have many traces, so we pass
   // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds, { isIncludeSpanCounts: true });
+  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
   return (
     <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">

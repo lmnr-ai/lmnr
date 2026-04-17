@@ -15,10 +15,6 @@ import SessionTimelineSegment, { type HoverInfo } from "./session-timeline-segme
 import { ROW_HEIGHT } from "./session-timeline-trace-bar";
 import { computeSessionTimelineSegments, GAP_WIDTH_PX } from "./utils";
 
-/** Match `trace-item.tsx`'s `isExpandable = spanCount > 4`. Traces at or below
- *  this threshold render as a plain bar with no expand behavior. */
-const TRIVIAL_SPAN_THRESHOLD = 4;
-
 function SessionTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -101,10 +97,6 @@ function SessionTimeline() {
     queueMicrotask(() => {
       for (const id of toFlush) {
         if (expandedTraceIds.has(id)) continue;
-        // Trivial trace — nothing new to show on expand, don't toggle.
-        // Matches trace-item.tsx's `isExpandable = spanCount > 4`.
-        const spans = traceSpans[id];
-        if (spans && spans.length <= TRIVIAL_SPAN_THRESHOLD) continue;
         toggleTraceExpanded(id);
       }
     });
@@ -117,10 +109,9 @@ function SessionTimeline() {
         toggleTraceExpanded(traceId);
         return;
       }
-      // Spans already loaded — expand immediately, unless trivial.
       const loadedSpans = traceSpans[traceId];
       if (loadedSpans) {
-        if (loadedSpans.length > TRIVIAL_SPAN_THRESHOLD) toggleTraceExpanded(traceId);
+        toggleTraceExpanded(traceId);
         return;
       }
       // Not loaded — kick off fetch. Effect above flushes the expansion
