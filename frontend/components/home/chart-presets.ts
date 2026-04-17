@@ -250,7 +250,7 @@ LIMIT 10`,
     table: "signals",
     query: `SELECT
     name,
-    summary,
+    severity,
     timestamp,
     signal_id,
     trace_id
