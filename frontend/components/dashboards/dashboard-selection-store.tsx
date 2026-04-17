@@ -5,13 +5,14 @@ import { createStore, useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 interface DashboardSelectionState {
+  chartId: string | null;
   startLabel: string | null;
   endLabel: string | null;
   isDragging: boolean;
 }
 
 interface DashboardSelectionActions {
-  startDrag: (label: string) => void;
+  startDrag: (chartId: string, label: string) => void;
   updateDrag: (label: string) => void;
   endDrag: () => void;
   clearSelection: () => void;
@@ -21,17 +22,18 @@ export type DashboardSelectionStore = DashboardSelectionState & DashboardSelecti
 
 const createDashboardSelectionStore = () =>
   createStore<DashboardSelectionStore>((set) => ({
+    chartId: null,
     startLabel: null,
     endLabel: null,
     isDragging: false,
-    startDrag: (label) => set({ startLabel: label, endLabel: null, isDragging: true }),
+    startDrag: (chartId, label) => set({ chartId, startLabel: label, endLabel: null, isDragging: true }),
     updateDrag: (label) =>
       set((state) => {
         if (!state.isDragging) return state;
         return { endLabel: label };
       }),
     endDrag: () => set({ isDragging: false }),
-    clearSelection: () => set({ startLabel: null, endLabel: null, isDragging: false }),
+    clearSelection: () => set({ chartId: null, startLabel: null, endLabel: null, isDragging: false }),
   }));
 
 type DashboardSelectionStoreApi = ReturnType<typeof createDashboardSelectionStore>;

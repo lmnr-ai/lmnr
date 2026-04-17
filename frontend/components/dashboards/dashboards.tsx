@@ -7,7 +7,6 @@ import AddChartDropdown from "@/components/dashboards/add-chart-dropdown";
 import { DashboardSelectionProvider } from "@/components/dashboards/dashboard-selection-store";
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import GridLayout from "@/components/dashboards/grid-layout";
-import SelectionToolbar from "@/components/dashboards/selection-toolbar";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 
 import DateRangeFilter from "../ui/date-range-filter";
@@ -58,7 +57,6 @@ function DashboardContent() {
         </ScrollArea>
       </div>
       {traceId && <TraceViewSidePanel traceId={traceId} spanId={spanId ?? undefined} onClose={closeTrace} />}
-      <SelectionToolbar />
     </>
   );
 }

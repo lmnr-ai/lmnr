@@ -9,6 +9,7 @@ import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
+import SelectionToolbar from "@/components/dashboards/selection-toolbar";
 import { type DashboardChart } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +28,16 @@ const Chart = ({ chart }: ChartProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
-  const { startLabel, endLabel, isDragging, startDrag, updateDrag, endDrag } = useDashboardSelectionStore((s) => ({
+  const {
+    chartId: selectionChartId,
+    startLabel,
+    endLabel,
+    isDragging,
+    startDrag,
+    updateDrag,
+    endDrag,
+  } = useDashboardSelectionStore((s) => ({
+    chartId: s.chartId,
     startLabel: s.startLabel,
     endLabel: s.endLabel,
     isDragging: s.isDragging,
@@ -106,10 +116,10 @@ const Chart = ({ chart }: ChartProps) => {
   const onMouseDown: CategoricalChartFunc = useCallback(
     (e) => {
       if (e?.activeLabel) {
-        startDrag(e.activeLabel);
+        startDrag(id, e.activeLabel);
       }
     },
-    [startDrag]
+    [id, startDrag]
   );
 
   const onMouseMove: CategoricalChartFunc = useCallback(
@@ -127,6 +137,7 @@ const Chart = ({ chart }: ChartProps) => {
     }
   }, [isDragging, endDrag]);
 
+  const isOwner = selectionChartId === id;
   const drag: ChartDragHandlers | undefined = useMemo(
     () =>
       supportsSelection
@@ -162,26 +173,29 @@ const Chart = ({ chart }: ChartProps) => {
   );
 
   return (
-    <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-border relative">
-      <ChartHeader name={name} id={id} projectId={projectId as string} />
-      {error ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-center">
-          <p className="text text-muted-foreground">Error loading chart data</p>
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
-      ) : isLoading ? (
-        <Skeleton className="h-full w-full" />
-      ) : (
-        <ChartRendererCore
-          config={settings.config}
-          data={data}
-          columns={columns}
-          onBarClick={handleBarClick}
-          syncId="dashboard"
-          drag={drag}
-        />
-      )}
-      <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
+    <div className="relative h-full">
+      <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-border relative">
+        <ChartHeader name={name} id={id} projectId={projectId as string} />
+        {error ? (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <p className="text text-muted-foreground">Error loading chart data</p>
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        ) : isLoading ? (
+          <Skeleton className="h-full w-full" />
+        ) : (
+          <ChartRendererCore
+            config={settings.config}
+            data={data}
+            columns={columns}
+            onBarClick={handleBarClick}
+            syncId="dashboard"
+            drag={drag}
+          />
+        )}
+        <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
+      </div>
+      {isOwner && <SelectionToolbar />}
     </div>
   );
 };

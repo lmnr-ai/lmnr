@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -10,6 +9,7 @@ import { parseUtcTimestamp } from "@/components/chart-builder/charts/utils";
 import { normalizeTimeRange } from "@/components/charts/time-series-chart/utils";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 
 const formatRange = (startTs: string, endTs: string) => {
   const start = parseUtcTimestamp(startTs);
@@ -76,50 +76,54 @@ export default function SelectionToolbar() {
   const isVisible = !!startLabel && !!endLabel && !isDragging && !!normalized;
 
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <motion.div
-            initial={{ opacity: 0.8, y: 20, clipPath: "inset(0 20% 0 20%)" }}
-            animate={{ opacity: 1, y: 0, clipPath: "inset(0 0% 0 0%)" }}
-            exit={{ opacity: 0.8, y: 20, clipPath: "inset(0 20% 0 20%)" }}
-            transition={{ duration: 0.1, ease: "easeOut" }}
-          >
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted pl-4 pr-3 py-2 shadow-lg whitespace-nowrap">
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-primary-foreground">{formatRange(normalized!.start, normalized!.end)}</span>
-                <span className="text-secondary-foreground">
-                  ({formatDuration(normalized!.startTime, normalized!.endTime)})
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  className="bg-transparent border-primary-foreground/20"
-                  variant="outline"
-                  size="sm"
-                  onClick={applyTimeRange}
-                >
-                  Apply time range
-                </Button>
-                <Button
-                  className="bg-transparent border-primary-foreground/20"
-                  variant="outline"
-                  size="sm"
-                  onClick={openInTraces}
-                >
-                  Open in traces
-                </Button>
-                <button
-                  onClick={clearSelection}
-                  className="text-muted-foreground hover:text-primary-foreground transition-colors"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
+    <Popover open={isVisible}>
+      <PopoverAnchor asChild>
+        <div className="absolute inset-x-0 bottom-0 h-0" />
+      </PopoverAnchor>
+      <PopoverContent
+        side="bottom"
+        align="center"
+        sideOffset={8}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onPointerDownOutside={clearSelection}
+        onEscapeKeyDown={clearSelection}
+        className="w-auto p-0 border-border bg-muted shadow-lg"
+      >
+        <div className="flex items-center justify-between gap-4 pl-4 pr-3 py-2 whitespace-nowrap">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-primary-foreground">
+              {normalized && formatRange(normalized.start, normalized.end)}
+            </span>
+            <span className="text-secondary-foreground">
+              {normalized && `(${formatDuration(normalized.startTime, normalized.endTime)})`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              className="bg-transparent border-primary-foreground/20"
+              variant="outline"
+              size="sm"
+              onClick={applyTimeRange}
+            >
+              Zoom to selection
+            </Button>
+            <Button
+              className="bg-transparent border-primary-foreground/20"
+              variant="outline"
+              size="sm"
+              onClick={openInTraces}
+            >
+              Open in traces
+            </Button>
+            <button
+              onClick={clearSelection}
+              className="text-muted-foreground hover:text-primary-foreground transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
-      )}
-    </AnimatePresence>
+      </PopoverContent>
+    </Popover>
   );
 }
