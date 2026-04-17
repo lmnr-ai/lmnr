@@ -19,7 +19,7 @@ import {
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 
 interface ListProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
@@ -27,6 +27,8 @@ interface ListProps {
 }
 
 type FlatRow = { type: "user-input" } | TranscriptListEntry;
+
+const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
 function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   switch (row.type) {
@@ -286,14 +288,19 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           {items.map((virtualRow) => {
             const row = flatRows[virtualRow.index];
             if (!row) return null;
-            const isTopLevel = row.type === "group" || row.type === "span" || row.type === "user-input";
-            const isFirst = virtualRow.index === 0;
+            const nextRow = flatRows[virtualRow.index + 1];
+            const isGroupChild = row.type === "group-span" || row.type === "group-input";
+            const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
+            const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
             return (
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
-                className={cn(isTopLevel && !isFirst && "pt-2")}
+                className={cn({
+                  "pt-1": row.type === "group",
+                  "pb-1": isCollapsedGroup || isLastGroupChild,
+                })}
               >
                 {renderRow(row)}
               </div>
