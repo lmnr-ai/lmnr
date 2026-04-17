@@ -176,7 +176,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
             <ChevronDown
               size={16}
-              className={cn("text-secondary-foreground transition-transform", expanded && "rotate-180")}
+              className={cn("text-secondary-foreground transition-transform", !expanded && "-rotate-90")}
             />
           </div>
         </button>
