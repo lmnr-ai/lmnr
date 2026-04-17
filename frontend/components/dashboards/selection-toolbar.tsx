@@ -58,8 +58,8 @@ export default function SelectionToolbar() {
     if (!normalized) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("pastHours");
-    params.set("startDate", normalized.start);
-    params.set("endDate", normalized.end);
+    params.set("startDate", parseUtcTimestamp(normalized.start).toISOString());
+    params.set("endDate", parseUtcTimestamp(normalized.end).toISOString());
     router.push(`${pathname}?${params.toString()}`);
     clearSelection();
   }, [normalized, searchParams, pathname, router, clearSelection]);
@@ -67,8 +67,8 @@ export default function SelectionToolbar() {
   const openInTraces = useCallback(() => {
     if (!normalized || !projectId) return;
     const params = new URLSearchParams();
-    params.set("startDate", normalized.start);
-    params.set("endDate", normalized.end);
+    params.set("startDate", parseUtcTimestamp(normalized.start).toISOString());
+    params.set("endDate", parseUtcTimestamp(normalized.end).toISOString());
     window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
     clearSelection();
   }, [normalized, projectId, clearSelection]);

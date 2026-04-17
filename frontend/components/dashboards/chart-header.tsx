@@ -137,10 +137,10 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0 -mr-1"
+              className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <Ellipsis className="h-3 w-3" />
+              <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">

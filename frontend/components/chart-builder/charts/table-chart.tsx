@@ -135,6 +135,7 @@ const TableChart = ({
           className="h-full"
           scrollContentClassName="border rounded-md"
           hideSelectionPanel
+          disableHideColumn
           estimatedRowHeight={35}
         />
       </DataTableStateProvider>

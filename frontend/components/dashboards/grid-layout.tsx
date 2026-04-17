@@ -124,7 +124,7 @@ const GridLayout = () => {
   return (
     <ResponsiveGridLayout
       className="layout"
-      useCSSTransforms
+      useCSSTransforms={false}
       onLayoutChange={debouncedAutoSave}
       layouts={{ lg: layout, md: layout }}
       breakpoints={{ lg: 1200, md: 996 }}

@@ -1,10 +1,11 @@
+import { debounce } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
-import { ChartType } from "@/components/chart-builder/types";
+import { ChartType,type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
@@ -199,6 +200,23 @@ const Chart = ({ chart }: ChartProps) => {
     [supportsSelection, onMouseDown, onMouseMove, onMouseUp, startLabel, endLabel]
   );
 
+  const persistColumnConfig = useMemo(
+    () =>
+      debounce((config: TableColumnConfig) => {
+        const updatedSettings = {
+          ...settings,
+          config: { ...settings.config, tableColumnConfig: config },
+        };
+        fetch(`/api/projects/${projectId}/dashboard-charts`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            updates: [{ id, settings: updatedSettings }],
+          }),
+        });
+      }, 500),
+    [id, projectId, settings]
+  );
+
   const handleBarClick = useCallback(
     (rowData: Record<string, any>) => {
       const signalId = rowData.signal_id;
@@ -236,6 +254,7 @@ const Chart = ({ chart }: ChartProps) => {
             onBarClick={handleBarClick}
             syncId="dashboard"
             drag={drag}
+            onColumnConfigChange={isTable ? persistColumnConfig : undefined}
             hasMore={tableHasMore}
             isFetching={tableIsFetching}
             fetchNextPage={fetchNextTablePage}

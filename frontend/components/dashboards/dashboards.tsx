@@ -51,7 +51,7 @@ function DashboardContent() {
       </Header>
       <div className="flex-1 overflow-hidden">
         <ScrollArea ref={scrollRef} className="h-full">
-          <div className="h-full px-4 pb-4">
+          <div className="h-full px-4 pb-[150px]">
             <GridLayout />
           </div>
         </ScrollArea>
