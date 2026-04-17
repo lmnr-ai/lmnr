@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod/v4";
 
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { executeQuery } from "@/lib/actions/sql";
 
 export const ResolveClusterForEventSchema = z.object({
   projectId: z.guid(),
@@ -30,23 +30,19 @@ export async function resolveClusterForEvent(
   const { projectId, signalId, eventId } = ResolveClusterForEventSchema.parse(input);
 
   const query = `
-    SELECT c.id AS id, c.level AS level
-    FROM events_to_clusters AS e FINAL
-    INNER JOIN signal_event_clusters AS c FINAL
-      ON e.project_id = c.project_id AND e.cluster_id = c.id
-    WHERE e.project_id = {projectId:UUID}
-      AND e.event_id = {eventId:UUID}
-      AND c.signal_id = {signalId:UUID}
-    ORDER BY c.level ASC
+    SELECT cluster_id AS id, level
+    FROM event_clusters_all
+    WHERE event_id = {eventId:UUID}
+      AND signal_id = {signalId:UUID}
+    ORDER BY level ASC
   `;
 
-  const result = await clickhouseClient.query({
+  const rows = await executeQuery<{ id: string; level: number }>({
     query,
-    format: "JSONEachRow",
-    query_params: { projectId, signalId, eventId },
+    parameters: { signalId, eventId },
+    projectId,
   });
 
-  const rows = (await result.json()) as Array<{ id: string; level: number }>;
   if (rows.length === 0) return { kind: "none" };
 
   const normalCluster = rows.find((r) => Number(r.level) > 0);
