@@ -114,7 +114,7 @@ export default function ManageAlertSheet({
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
         severity: alert.metadata.severity ?? SEVERITY_LEVEL.CRITICAL,
-        skipSimilar: alert.metadata.skipSimilar ?? true,
+        skipSimilar: alert.metadata.skipSimilar ?? false,
       });
     },
     [alert, reset, userEmail]
