@@ -79,9 +79,8 @@ export function useBatchedTraceIO(
 
         let countData: Record<string, number> = {};
         if (countSettled.status === "fulfilled" && countSettled.value && countSettled.value.ok) {
-          countData = (await countSettled.value.json()) as Record<string, number>;
+          countData = await countSettled.value.json().catch(() => ({}));
         }
-        // Silent on span-count failure — it's non-critical.
 
         for (const id of traceIds) {
           const entry = ioData[id] ?? null;
