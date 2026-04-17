@@ -5,7 +5,7 @@ import { type CategoricalChartFunc } from "recharts/types/chart/generateCategori
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
-import { ChartType,type TableColumnConfig } from "@/components/chart-builder/types";
+import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
 import { useDashboardSelectionStore } from "@/components/dashboards/dashboard-selection-store";
@@ -15,6 +15,7 @@ import { type DashboardChart } from "@/components/dashboards/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { useToast } from "@/lib/hooks/use-toast";
 import { convertToTimeParameters } from "@/lib/time";
 
 const TABLE_PAGE_SIZE = 50;
@@ -34,6 +35,7 @@ const Chart = ({ chart }: ChartProps) => {
   const [tableIsFetching, setTableIsFetching] = useState(false);
   const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
+  const { toast } = useToast();
   const isTable = settings.config.type === ChartType.Table;
   const {
     chartId: selectionChartId,
@@ -202,19 +204,27 @@ const Chart = ({ chart }: ChartProps) => {
 
   const persistColumnConfig = useMemo(
     () =>
-      debounce((config: TableColumnConfig) => {
+      debounce(async (config: TableColumnConfig) => {
         const updatedSettings = {
           ...settings,
           config: { ...settings.config, tableColumnConfig: config },
         };
-        fetch(`/api/projects/${projectId}/dashboard-charts`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            updates: [{ id, settings: updatedSettings }],
-          }),
-        });
+        try {
+          const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              updates: [{ id, settings: updatedSettings }],
+            }),
+          });
+          if (!res.ok) {
+            toast({ variant: "destructive", title: "Failed to save column layout" });
+          }
+        } catch {
+          toast({ variant: "destructive", title: "Failed to save column layout" });
+        }
       }, 500),
-    [id, projectId, settings]
+    [id, projectId, settings, toast]
   );
 
   const handleBarClick = useCallback(
