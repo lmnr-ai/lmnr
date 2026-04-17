@@ -238,8 +238,8 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
               }));
               return;
             }
-            const body = (await res.json()) as { spans: TraceViewSpan[] };
-            const enriched = enrichSpansWithPending(body.spans);
+            const spans = (await res.json()) as TraceViewSpan[];
+            const enriched = enrichSpansWithPending(spans);
             set((s) => ({
               traceSpans: { ...s.traceSpans, [trace.id]: enriched },
             }));
