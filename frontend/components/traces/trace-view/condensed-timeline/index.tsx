@@ -245,7 +245,7 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <Controls />
+      <Controls scrollRef={scrollRef} />
     </div>
   );
 }

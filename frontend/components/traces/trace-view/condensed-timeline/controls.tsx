@@ -1,3 +1,4 @@
+import { type RefObject, useCallback } from "react";
 import { DollarSign, Minus, Plus } from "lucide-react";
 
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
@@ -6,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export default function Controls() {
+interface ControlsProps {
+  scrollRef: RefObject<HTMLDivElement | null>;
+}
+
+export default function Controls({ scrollRef }: ControlsProps) {
   const { condensedTimelineZoom, setCondensedTimelineZoom, isCostHeatmapVisible, setIsCostHeatmapVisible } =
     useTraceViewBaseStore((state) => ({
       condensedTimelineZoom: state.condensedTimelineZoom,
@@ -14,6 +19,31 @@ export default function Controls() {
       isCostHeatmapVisible: state.isCostHeatmapVisible,
       setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
     }));
+
+  const handleZoom = useCallback(
+    (direction: "in" | "out") => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      const newZoom =
+        direction === "in" ? condensedTimelineZoom + ZOOM_INCREMENT : condensedTimelineZoom - ZOOM_INCREMENT;
+      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
+
+      // Keep the center of the visible area stable after zoom
+      const containerWidth = container.clientWidth;
+      const centerX = container.scrollLeft + containerWidth / 2;
+      const fraction = centerX / container.scrollWidth;
+
+      setCondensedTimelineZoom(newZoom);
+
+      requestAnimationFrame(() => {
+        const newScrollWidth = container.scrollWidth;
+        const newScrollLeft = fraction * newScrollWidth - containerWidth / 2;
+        container.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
+      });
+    },
+    [scrollRef, condensedTimelineZoom, setCondensedTimelineZoom]
+  );
 
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
@@ -40,7 +70,7 @@ export default function Controls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom + ZOOM_INCREMENT)}
+          onClick={() => handleZoom("in")}
         >
           <Plus className="size-3" />
         </Button>
@@ -49,7 +79,7 @@ export default function Controls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom - ZOOM_INCREMENT)}
+          onClick={() => handleZoom("out")}
         >
           <Minus className="size-3" />
         </Button>
