@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
+const TABLE_PAGE_SIZE = 50;
+
 interface ChartProps {
   chart: DashboardChart;
 }
@@ -27,7 +29,11 @@ const Chart = ({ chart }: ChartProps) => {
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tableHasMore, setTableHasMore] = useState(false);
+  const [tableIsFetching, setTableIsFetching] = useState(false);
+  const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
+  const isTable = settings.config.type === ChartType.Table;
   const {
     chartId: selectionChartId,
     startLabel,
@@ -74,6 +80,26 @@ const Chart = ({ chart }: ChartProps) => {
     };
   }, [pastHours, startDate, endDate, groupByInterval]);
 
+  const fetchTablePage = useCallback(
+    async (page: number, parameters: Record<string, string | number>) => {
+      const paginatedQuery = `${query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${page * TABLE_PAGE_SIZE}`;
+      const response = await fetch(`/api/projects/${projectId}/sql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: paginatedQuery, projectId, parameters }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to execute SQL query");
+      }
+
+      const rows: Record<string, any>[] = await response.json();
+      const hasMore = rows.length > TABLE_PAGE_SIZE;
+      return { rows: hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows, hasMore };
+    },
+    [projectId, query]
+  );
+
   const fetchData = useCallback(async () => {
     try {
       const { groupByInterval, ...rest } = timeParameters;
@@ -81,31 +107,50 @@ const Chart = ({ chart }: ChartProps) => {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/projects/${projectId}/sql`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          projectId,
-          parameters,
-        }),
-      });
+      if (isTable) {
+        tablePageRef.current = 0;
+        const { rows, hasMore } = await fetchTablePage(0, parameters);
+        setData(rows);
+        setTableHasMore(hasMore);
+      } else {
+        const response = await fetch(`/api/projects/${projectId}/sql`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, projectId, parameters }),
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to execute SQL query");
+        if (!response.ok) {
+          throw new Error("Failed to execute SQL query");
+        }
+
+        setData(await response.json());
       }
-
-      const result = await response.json();
-      setData(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "An error occurred");
       setData([]);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, query, timeParameters]);
+  }, [projectId, query, timeParameters, isTable, fetchTablePage]);
+
+  const fetchNextTablePage = useCallback(async () => {
+    if (tableIsFetching || !tableHasMore) return;
+
+    setTableIsFetching(true);
+    try {
+      const { groupByInterval, ...rest } = timeParameters;
+      const parameters = convertToTimeParameters(rest, groupByInterval);
+      const nextPage = tablePageRef.current + 1;
+      const { rows, hasMore } = await fetchTablePage(nextPage, parameters);
+      tablePageRef.current = nextPage;
+      setData((prev) => [...prev, ...rows]);
+      setTableHasMore(hasMore);
+    } catch {
+      // Silently fail — the user can scroll again to retry
+    } finally {
+      setTableIsFetching(false);
+    }
+  }, [tableIsFetching, tableHasMore, timeParameters, fetchTablePage]);
 
   useEffect(() => {
     fetchData();
@@ -191,6 +236,9 @@ const Chart = ({ chart }: ChartProps) => {
             onBarClick={handleBarClick}
             syncId="dashboard"
             drag={drag}
+            hasMore={tableHasMore}
+            isFetching={tableIsFetching}
+            fetchNextPage={fetchNextTablePage}
           />
         )}
         <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />

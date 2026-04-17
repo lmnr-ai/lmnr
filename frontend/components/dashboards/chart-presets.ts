@@ -103,8 +103,7 @@ FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY total_cost DESC
-LIMIT 10`,
+ORDER BY total_cost DESC`,
     config: { type: "table", hiddenColumns: ["id"] },
   },
   {
@@ -119,8 +118,7 @@ FROM traces
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY duration DESC
-LIMIT 10`,
+ORDER BY duration DESC`,
     config: { type: "table", hiddenColumns: ["id"] },
   },
   {
@@ -208,8 +206,7 @@ FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY total_cost DESC
-LIMIT 10`,
+ORDER BY total_cost DESC`,
     config: { type: "table", hiddenColumns: ["trace_id", "span_id"] },
   },
   {
@@ -226,8 +223,7 @@ FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-ORDER BY duration DESC
-LIMIT 10`,
+ORDER BY duration DESC`,
     config: { type: "table", hiddenColumns: ["trace_id", "span_id"] },
   },
   {
@@ -258,8 +254,7 @@ FROM signal_events
 WHERE
     timestamp >= {start_time:DateTime64}
     AND timestamp <= {end_time:DateTime64}
-ORDER BY timestamp DESC
-LIMIT 50`,
+ORDER BY timestamp DESC`,
     config: { type: "table", hiddenColumns: ["signal_id", "trace_id"] },
   },
 ];

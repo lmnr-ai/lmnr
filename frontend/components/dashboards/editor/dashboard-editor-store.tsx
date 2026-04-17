@@ -7,6 +7,7 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore, useStore } from "zustand";
 
 import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
+import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
 import { type DashboardChart } from "@/components/dashboards/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
@@ -18,6 +19,9 @@ type DashboardEditorState = {
   columns: ColumnDef<any>[];
   parameters: SQLParameter[];
   tab: TabType;
+  tableHasMore: boolean;
+  tableIsFetching: boolean;
+  tablePage: number;
 };
 
 type DashboardEditorActions = {
@@ -34,6 +38,7 @@ type DashboardEditorActions = {
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
   executeQuery: (projectId: string) => Promise<void>;
+  fetchNextTablePage: (projectId: string) => Promise<void>;
 };
 
 enum TabType {
@@ -88,6 +93,9 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     error: null,
     data: [],
     parameters: initialParameters,
+    tableHasMore: false,
+    tableIsFetching: false,
+    tablePage: 0,
   };
 
   return createStore<DashboardEditorStore>()((set, get) => ({
@@ -190,12 +198,15 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       setLoading(true);
       setError(null);
 
+      const isTable = chart.settings.config.type === ChartType.Table;
+
       try {
         const parameters = getFormattedParameters();
+        const query = isTable ? `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET 0` : chart.query;
         const response = await fetch(`/api/projects/${projectId}/sql`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: chart.query, parameters }),
+          body: JSON.stringify({ query, parameters }),
         });
 
         const data = await response.json();
@@ -204,7 +215,17 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           throw new Error(data?.error || `Query failed with status ${response.status}`);
         }
 
-        setData(Array.isArray(data) ? data : []);
+        const rows: Record<string, any>[] = Array.isArray(data) ? data : [];
+
+        if (isTable) {
+          const hasMore = rows.length > TABLE_PAGE_SIZE;
+          const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
+          setData(pageRows);
+          set({ tableHasMore: hasMore, tablePage: 0, tableIsFetching: false });
+        } else {
+          setData(rows);
+        }
+
         if (!isEmpty(data)) {
           setColumns(
             Object.keys(data?.[0]).map((column) => ({
@@ -233,6 +254,44 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       } finally {
         set({ tab: TabType.Chart });
         setLoading(false);
+      }
+    },
+
+    fetchNextTablePage: async (projectId: string) => {
+      const { chart, tableIsFetching, tableHasMore, tablePage, data, getFormattedParameters } = get();
+
+      if (tableIsFetching || !tableHasMore || !chart.query?.trim()) return;
+
+      set({ tableIsFetching: true });
+      const nextPage = tablePage + 1;
+
+      try {
+        const parameters = getFormattedParameters();
+        const query = `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${nextPage * TABLE_PAGE_SIZE}`;
+        const response = await fetch(`/api/projects/${projectId}/sql`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, parameters }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result?.error || `Query failed with status ${response.status}`);
+        }
+
+        const rows: Record<string, any>[] = Array.isArray(result) ? result : [];
+        const hasMore = rows.length > TABLE_PAGE_SIZE;
+        const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
+
+        set({
+          data: [...data, ...pageRows],
+          tablePage: nextPage,
+          tableHasMore: hasMore,
+          tableIsFetching: false,
+        });
+      } catch {
+        set({ tableIsFetching: false });
       }
     },
   }));

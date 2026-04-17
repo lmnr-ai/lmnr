@@ -88,8 +88,7 @@ export const createMetricFromOption = (functionValue: string, column: string): M
   return { ...metric, column } as Metric;
 };
 
-export const TABLE_DEFAULT_LIMIT = 10;
-export const TABLE_MAX_LIMIT = 100;
+export const TABLE_PAGE_SIZE = 50;
 
 export const FILTER_OPERATOR_OPTIONS = [
   { value: Operator.Eq, label: OperatorLabelMap[Operator.Eq] },

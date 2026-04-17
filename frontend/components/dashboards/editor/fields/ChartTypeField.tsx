@@ -3,7 +3,6 @@ import { type ReactNode } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { TABLE_DEFAULT_LIMIT } from "@/components/dashboards/editor/constants";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,10 +58,7 @@ const ChartTypeField = () => {
       setValue("metrics", [{ fn: "raw", column: "", alias: "", args: [] }], { shouldValidate: true });
       setValue("dimensions", [], { shouldValidate: true });
       setValue("orderBy", [], { shouldValidate: true });
-      const currentLimit = getValues("limit");
-      if (!currentLimit || currentLimit > 100) {
-        setValue("limit", TABLE_DEFAULT_LIMIT, { shouldValidate: true });
-      }
+      setValue("limit", undefined, { shouldValidate: true });
     } else if (newType !== ChartType.Table && previousType === ChartType.Table) {
       setValue("metrics", [{ fn: "count", column: "*", alias: "count", args: [] }], { shouldValidate: true });
       setValue("orderBy", [], { shouldValidate: true });

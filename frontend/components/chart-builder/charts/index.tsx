@@ -26,6 +26,9 @@ interface ChartRendererCoreProps {
   syncId?: string;
   drag?: ChartDragHandlers;
   onColumnConfigChange?: (config: TableColumnConfig) => void;
+  hasMore?: boolean;
+  isFetching?: boolean;
+  fetchNextPage?: () => void;
 }
 
 export const ChartRendererCore = ({
@@ -36,6 +39,9 @@ export const ChartRendererCore = ({
   syncId,
   drag,
   onColumnConfigChange,
+  hasMore,
+  isFetching,
+  fetchNextPage,
 }: ChartRendererCoreProps) => {
   const isTable = config.type === ChartType.Table;
 
@@ -74,6 +80,9 @@ export const ChartRendererCore = ({
         onRowClick={onBarClick}
         tableColumnConfig={tableColumnConfig}
         onColumnConfigChange={onColumnConfigChange}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        fetchNextPage={fetchNextPage}
       />
     );
   }

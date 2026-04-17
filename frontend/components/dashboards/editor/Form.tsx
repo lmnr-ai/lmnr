@@ -14,7 +14,6 @@ import {
   type TableColumnConfig,
 } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { TABLE_DEFAULT_LIMIT, TABLE_MAX_LIMIT } from "@/components/dashboards/editor/constants";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
@@ -61,6 +60,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError,
     parameters,
     setParameterValue,
+    tableHasMore,
+    tableIsFetching,
+    fetchNextTablePage,
   } = useDashboardEditorStoreContext((state) => ({
     chart: state.chart,
     setQuery: state.setQuery,
@@ -73,6 +75,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError: state.setError,
     parameters: state.parameters,
     setParameterValue: state.setParameterValue,
+    tableHasMore: state.tableHasMore,
+    tableIsFetching: state.tableIsFetching,
+    fetchNextTablePage: state.fetchNextTablePage,
   }));
 
   const formValues = useWatch({ control });
@@ -91,6 +96,12 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     },
     [chart.settings.config, setChartConfig]
   );
+
+  const handleFetchNextPage = useCallback(() => {
+    if (projectId) {
+      fetchNextTablePage(projectId as string);
+    }
+  }, [projectId, fetchNextTablePage]);
 
   const chartType = chart.settings.config.type;
   const displayMode = resolveDisplayMode(chart.settings.config);
@@ -183,10 +194,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         }
       }
 
-      // Table charts cap result size client-side so a missing/oversized limit can't
-      // return an unbounded result set into the renderer.
-      const effectiveLimit =
-        chartType === ChartType.Table ? Math.min(Math.max(1, limit ?? TABLE_DEFAULT_LIMIT), TABLE_MAX_LIMIT) : limit;
+      // Table charts use client-side pagination (LIMIT/OFFSET at fetch time),
+      // so the stored query should have no LIMIT clause.
+      const effectiveLimit = chartType === ChartType.Table ? undefined : limit;
 
       const queryStructure: QueryStructure = {
         table,
@@ -358,6 +368,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
                 data={data}
                 columns={columns}
                 onColumnConfigChange={handleColumnConfigChange}
+                hasMore={tableHasMore}
+                isFetching={tableIsFetching}
+                fetchNextPage={handleFetchNextPage}
               />
             </div>
           ) : (

@@ -129,7 +129,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       <FiltersField />
       {chartType !== ChartType.Table && <DimensionsField />}
       {(chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) && <OrderByField />}
-      <LimitField />
+      {chartType !== ChartType.Table && <LimitField />}
 
       {chartType !== ChartType.Table && (
         <div className="grid gap-1">
