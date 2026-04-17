@@ -58,7 +58,7 @@ export default function SwitchTierDialog({
           const err = await res.json();
           throw new Error(err.error ?? "Failed to switch tier");
         }
-        track("billing", action === "upgrade" ? "upgrade_clicked" : "downgrade_clicked", { to_tier: targetTier });
+        track("billing", action === "upgrade" ? "upgrade_confirmed" : "downgrade_confirmed", { to_tier: targetTier });
         setOpen(false);
         router.refresh();
       } catch (e: any) {
