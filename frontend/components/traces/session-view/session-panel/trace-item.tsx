@@ -174,7 +174,10 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
               {relativeTime}
             </span>
             {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
-            {expanded && <ChevronDown size={16} className="text-secondary-foreground" />}
+            <ChevronDown
+              size={16}
+              className={cn("text-secondary-foreground transition-transform", expanded && "rotate-180")}
+            />
           </div>
         </button>
 
