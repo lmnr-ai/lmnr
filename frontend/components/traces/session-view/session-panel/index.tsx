@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -148,16 +149,21 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <div className="flex flex-col flex-1 min-h-0">
+        <ResizablePanelGroup id="session-view-panels" orientation="vertical" className="flex-1 min-h-0">
           {sessionTimelineEnabled && (
-            <div className="border-t shrink-0" style={{ height: 200 }}>
-              <SessionTimeline />
-            </div>
+            <>
+              <ResizablePanel defaultSize={120} minSize={80}>
+                <div className="border-t h-full">
+                  <SessionTimeline />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+            </>
           )}
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden">
             <SessionList />
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
     </div>
   );
