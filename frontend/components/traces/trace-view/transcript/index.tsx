@@ -90,6 +90,9 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const hasLlmSpan = useMemo(() => spans.some((s) => s.spanType === "LLM" || s.spanType === "CACHED"), [spans]);
 
   const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, hasLlmSpan);
+  // Render the user-input row whenever we know an LLM span exists (even while
+  // its content is still being fetched). This makes the input appear as soon
+  // as the first LLM span arrives over realtime.
   const hasUserInput = hasLlmSpan || isUserInputLoading || !!userInput;
 
   const flatRows = useMemo(() => {
@@ -97,15 +100,11 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     if (hasUserInput) {
       rows.push({ type: "user-input" });
     }
-    const collapsedGroupIds = new Set<string>();
     for (const entry of transcriptEntries) {
       if (entry.type === "group") {
         rows.push(entry);
-        if (!transcriptExpandedGroups.has(entry.groupId)) {
-          collapsedGroupIds.add(entry.groupId);
-        }
       } else if (entry.type === "group-span" || entry.type === "group-input") {
-        if (!collapsedGroupIds.has(entry.groupId)) {
+        if (transcriptExpandedGroups.has(entry.groupId)) {
           rows.push(entry);
         }
       } else {
@@ -117,25 +116,41 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
+    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+    const setType = (id: string | null | undefined) => {
+      if (!id) return;
+      const s = spanMap.get(id);
+      if (s) types[id] = s.spanType;
+    };
     for (const entry of transcriptEntries) {
       if (entry.type === "span" || entry.type === "group-span") {
         types[entry.span.spanId] = entry.span.spanType;
       } else if (entry.type === "group") {
         types[entry.firstSpan.spanId] = entry.firstSpan.spanType;
+        setType(entry.firstLlmSpanId);
+        setType(entry.lastLlmSpanId);
       }
     }
     return types;
-  }, [transcriptEntries]);
+  }, [transcriptEntries, spans]);
 
-  const inputSpanIds = useMemo(() => {
+  const { inputSpanIds, promptHashes } = useMemo(() => {
     const ids: string[] = [];
+    const hashes: Record<string, string> = {};
+    const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+
     for (const entry of transcriptEntries) {
       if (entry.type === "group" && entry.firstLlmSpanId) {
         ids.push(entry.firstLlmSpanId);
+        const span = spanMap.get(entry.firstLlmSpanId);
+        const hash = span?.attributes?.["lmnr.span.prompt_hash"] as string | undefined;
+        if (hash) {
+          hashes[entry.firstLlmSpanId] = hash;
+        }
       }
     }
-    return ids;
-  }, [transcriptEntries]);
+    return { inputSpanIds: ids, promptHashes: hashes };
+  }, [transcriptEntries, spans]);
 
   const virtualizer = useVirtualizer({
     count: flatRows.length,
@@ -156,11 +171,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [items, flatRows, transcriptExpandedGroups]
   );
 
-  const {
-    previews,
-    userInputs: inputPreviews,
-    agentNames,
-  } = useBatchedSpanPreviews(
+  const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,
     allVisibleSpanIds,
     {
@@ -170,7 +181,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     },
     { isShared },
     spanTypes,
-    inputSpanIds
+    inputSpanIds,
+    promptHashes
   );
 
   const handleSpanSelect = useCallback(

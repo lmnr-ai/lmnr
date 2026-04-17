@@ -9,6 +9,24 @@ export const ALERT_TARGET_TYPE = {
   EMAIL: "EMAIL",
 } as const;
 
+export const SEVERITY_LEVEL = {
+  INFO: 0,
+  WARNING: 1,
+  CRITICAL: 2,
+} as const;
+
+export type SeverityLevel = (typeof SEVERITY_LEVEL)[keyof typeof SEVERITY_LEVEL];
+
+export const SEVERITY_LABELS: Record<SeverityLevel, string> = {
+  [SEVERITY_LEVEL.INFO]: "Info",
+  [SEVERITY_LEVEL.WARNING]: "Warning",
+  [SEVERITY_LEVEL.CRITICAL]: "Critical",
+};
+
+export interface SignalEventAlertMetadata {
+  severity?: SeverityLevel;
+}
+
 export interface AlertTarget {
   id: string;
   type: string;
@@ -27,4 +45,5 @@ export interface AlertWithDetails {
   projectName: string;
   createdAt: string;
   targets: AlertTarget[];
+  metadata: SignalEventAlertMetadata;
 }

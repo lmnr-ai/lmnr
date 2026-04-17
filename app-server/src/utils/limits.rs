@@ -9,7 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{
             PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+            WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
@@ -46,9 +46,9 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if project_info.tier_name.is_free() {
-        return Some(project_info.signal_runs_limit);
+        return Some(project_info.signal_steps_limit);
     }
-    project_info.custom_signal_runs_limit
+    project_info.custom_signal_steps_limit
 }
 
 /// Compute the start of the current billing period from workspace reset_time.
@@ -71,7 +71,16 @@ pub async fn get_workspace_bytes_limit_exceeded(
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await? {
+            Some(info) => info,
+            None => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes limit check",
+                    project_id,
+                );
+                return Ok(false);
+            }
+        };
 
     let effective_limit = match get_effective_bytes_limit(&project_info) {
         Some(limit) => limit,
@@ -125,8 +134,22 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<bool> {
-    let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await?
+    {
+        Some(info) => info,
+        None => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs limit check",
+                project_id,
+            );
+            return Ok(false);
+        }
+    };
 
     let effective_limit = match get_effective_signal_runs_limit(&project_info) {
         Some(limit) => limit,
@@ -134,7 +157,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let signal_runs = match cache.get::<i64>(&cache_key).await {
         Ok(Some(runs)) => runs,
@@ -189,7 +212,14 @@ pub async fn update_workspace_bytes_ingested(
 ) -> Result<()> {
     let project_info =
         match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
+            Ok(Some(info)) => info,
+            Ok(None) => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes usage update",
+                    project_id,
+                );
+                return Ok(());
+            }
             Err(e) => {
                 log::error!(
                     "Failed to get workspace info for project [{}]: {:?}",
@@ -270,7 +300,7 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-pub async fn update_workspace_signal_runs_used(
+pub async fn update_workspace_signal_steps_processed(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -278,26 +308,38 @@ pub async fn update_workspace_signal_runs_used(
     project_id: Uuid,
     runs: usize,
 ) -> Result<()> {
-    let project_info =
-        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
-            Err(e) => {
-                log::error!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                return Err(anyhow::anyhow!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                ));
-            }
-        };
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await
+    {
+        Ok(Some(info)) => info,
+        Ok(None) => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs usage update",
+                project_id,
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            );
+            return Err(anyhow::anyhow!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            ));
+        }
+    };
 
     let workspace_id = project_info.workspace_id;
 
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
@@ -349,7 +391,7 @@ pub async fn update_workspace_signal_runs_used(
         queue,
         workspace_id,
         project_info.reset_time,
-        UsageItem::SignalRuns,
+        UsageItem::SignalStepsProcessed,
         current_value,
     )
     .await;
@@ -434,6 +476,7 @@ async fn send_soft_limit_notification(
     let usage_item_str = match usage_item {
         UsageItem::Bytes => "bytes",
         UsageItem::SignalRuns => "signal_runs",
+        UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
 
     let notification_message = NotificationMessage {
@@ -500,6 +543,10 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
         UsageItem::SignalRuns => {
             let formatted = format_number_with_commas(limit_value);
             ("Signal runs".to_string(), formatted)
+        }
+        UsageItem::SignalStepsProcessed => {
+            let formatted = format_number_with_commas(limit_value);
+            ("Signal steps processed".to_string(), formatted)
         }
     }
 }
@@ -568,19 +615,24 @@ async fn get_workspace_info_for_project_id(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,
-) -> Result<ProjectWithWorkspaceBillingInfo> {
+) -> Result<Option<ProjectWithWorkspaceBillingInfo>> {
     let cache_key = format!("{PROJECT_CACHE_KEY}:{project_id}");
     let cache_res = cache
         .get::<ProjectWithWorkspaceBillingInfo>(&cache_key)
         .await;
     match cache_res {
-        Ok(Some(info)) => Ok(info),
+        Ok(Some(info)) => Ok(Some(info)),
         Ok(None) | Err(_) => {
             let info =
                 db::projects::get_project_and_workspace_billing_info(&db.pool, &project_id).await?;
-            cache
-                .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
-                .await?;
+            if let Some(ref info) = info {
+                if let Err(e) = cache
+                    .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
+                    .await
+                {
+                    log::error!("Failed to insert project info into cache: {:?}", e);
+                }
+            }
             Ok(info)
         }
     }

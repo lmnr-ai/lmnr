@@ -18,7 +18,7 @@ interface LandingHeaderProps {
 }
 
 const NAV_LINKS = [
-  { href: "https://docs.laminar.sh", label: "Docs", external: true },
+  { href: "https://laminar.sh/docs", label: "Docs", external: true },
   { href: "/blog", label: "Blog", external: false },
   { href: "/pricing", label: "Pricing", external: false },
   { href: "https://discord.gg/nNFUUDAKub", label: "Discord", external: true },
@@ -55,7 +55,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
           <nav className="hidden md:flex md:gap-[32px] items-center font-sans md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs">
             <Link
-              href="https://docs.laminar.sh"
+              href="https://laminar.sh/docs"
               target="_blank"
               className="no-underline text-landing-text-300 hover:text-landing-text-200"
             >

@@ -50,3 +50,7 @@ pub const OPENAI_RESPONSE_SERVICE_TIER: &str = "openai.response.service_tier";
 pub const OPENAI_REQUEST_SERVICE_TIER: &str = "openai.request.service_tier";
 pub const ANTHROPIC_RESPONSE_SERVICE_TIER: &str = "anthropic.response.service_tier";
 pub const ANTHROPIC_REQUEST_SERVICE_TIER: &str = "anthropic.request.service_tier";
+
+// Newer Vercel AI SDK / Mastra attributes
+pub const AISDK_MODEL_ID: &str = "aisdk.model.id";
+pub const AISDK_MODEL_PROVIDER: &str = "aisdk.model.provider";

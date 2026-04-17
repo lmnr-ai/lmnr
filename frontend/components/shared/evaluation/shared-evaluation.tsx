@@ -175,7 +175,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
         <div className="flex-1" />
         <div className="h-full items-end flex">
           <Link
-            href="https://docs.laminar.sh/evaluations/introduction"
+            href="https://laminar.sh/docs/evaluations/introduction"
             target="_blank"
             className="text-xs text-secondary-foreground hover:underline"
           >

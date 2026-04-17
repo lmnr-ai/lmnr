@@ -103,7 +103,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
                     Runs on every LLM / agent trace to detect application errors, unhandled exceptions, and failures –
                     so issues are tracked and surfaced automatically.{" "}
                     <a
-                      href="https://docs.laminar.sh/signals"
+                      href="https://laminar.sh/docs/signals"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-0.5 text-primary hover:underline"

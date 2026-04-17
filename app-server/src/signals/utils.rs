@@ -36,8 +36,8 @@ static SIGNATURE_FIELD_ESCAPED_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// (for non-JSON contexts like search) separately.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
-    let without_sigs = SIGNATURE_FIELD_RE
-        .replace_all(&without_images, r#"$1:"[signature omitted]""#);
+    let without_sigs =
+        SIGNATURE_FIELD_RE.replace_all(&without_images, r#"$1:"[signature omitted]""#);
     SIGNATURE_FIELD_ESCAPED_RE
         .replace_all(&without_sigs, r##"$1:\"[signature omitted]\""##)
         .into_owned()
@@ -136,8 +136,18 @@ pub struct InternalSpan {
     pub tools: Option<Value>,
 }
 
-static XML_TAG_NAME_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+static XML_TAG_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+
+static SPAN_XML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#).unwrap()
+});
+
+static SPAN_REF_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b")
+        .unwrap()
+});
+
+static HEX_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9a-fA-F]{6}").unwrap());
 
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
@@ -240,13 +250,19 @@ pub fn replace_span_tags_with_links(
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<Value> {
-    let json_str = serde_json::to_string(&attributes)?;
+    replace_span_tags_recursive(attributes, span_ids_map, project_id, trace_id)
+}
 
-    // 1. Replace proper <span id='...' name='...' /> XML tags
-    let xml_pattern =
-        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
-
-    let after_xml = xml_pattern.replace_all(&json_str, |caps: &regex::Captures| {
+fn replace_span_tags_in_str(
+    s: &str,
+    span_ids_map: &HashMap<String, Uuid>,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> String {
+    // 1. Replace proper <span id='...' name='...' /> XML tags.
+    //    The LLM prompt in prompts.rs explicitly instructs this attribute order (id before name),
+    //    so we rely on it here rather than making the pattern order-agnostic.
+    let after_xml = SPAN_XML_TAG_RE.replace_all(s, |caps: &regex::Captures| {
         let short_id = &caps[1];
         let span_name = &caps[2];
         let real_span_id = span_ids_map
@@ -260,14 +276,9 @@ pub fn replace_span_tags_with_links(
     });
 
     // 2. Replace informal "span(s) id1, id2, ..." references (single or comma/and-separated)
-    let hex_id_re = Regex::new(r"[0-9a-fA-F]{6}")?;
-    let span_ref_pattern = Regex::new(
-        r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b",
-    )?;
-
-    let after_informal = span_ref_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
+    let after_informal = SPAN_REF_RE.replace_all(&after_xml, |caps: &regex::Captures| {
         let ids_str = &caps[1];
-        let parts: Vec<String> = hex_id_re
+        let parts: Vec<String> = HEX_ID_RE
             .find_iter(ids_str)
             .map(|m| {
                 let short_id = m.as_str().to_lowercase();
@@ -283,8 +294,41 @@ pub fn replace_span_tags_with_links(
         parts.join(", ")
     });
 
-    let result: Value = serde_json::from_str(&after_informal)?;
-    Ok(result)
+    after_informal.into_owned()
+}
+
+fn replace_span_tags_recursive(
+    value: Value,
+    span_ids_map: &HashMap<String, Uuid>,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<Value> {
+    match value {
+        Value::String(s) => Ok(Value::String(replace_span_tags_in_str(
+            &s,
+            span_ids_map,
+            project_id,
+            trace_id,
+        ))),
+        Value::Object(map) => {
+            let new_map: serde_json::Map<String, Value> = map
+                .into_iter()
+                .map(|(k, v)| {
+                    let new_v = replace_span_tags_recursive(v, span_ids_map, project_id, trace_id)?;
+                    Ok((k, new_v))
+                })
+                .collect::<Result<_>>()?;
+            Ok(Value::Object(new_map))
+        }
+        Value::Array(arr) => {
+            let new_arr: Vec<Value> = arr
+                .into_iter()
+                .map(|v| replace_span_tags_recursive(v, span_ids_map, project_id, trace_id))
+                .collect::<Result<_>>()?;
+            Ok(Value::Array(new_arr))
+        }
+        other => Ok(other),
+    }
 }
 
 /// Emits an internal tracing span for observability.
@@ -591,10 +635,7 @@ mod tests {
     // ===================================================================
 
     fn make_span_ids_map(pairs: &[(&str, Uuid)]) -> HashMap<String, Uuid> {
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), *v))
-            .collect()
+        pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
     }
 
     #[test]
@@ -637,9 +678,21 @@ mod tests {
         let input = Value::String("see spans f188ea, 1a2b3c, 4d5e6f for info".to_string());
         let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
         let s = result.as_str().unwrap();
-        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
-        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
-        assert!(s.contains(&format!("spanId={}", u3)), "third ID missing: {}", s);
+        assert!(
+            s.contains(&format!("spanId={}", u1)),
+            "first ID missing: {}",
+            s
+        );
+        assert!(
+            s.contains(&format!("spanId={}", u2)),
+            "second ID missing: {}",
+            s
+        );
+        assert!(
+            s.contains(&format!("spanId={}", u3)),
+            "third ID missing: {}",
+            s
+        );
     }
 
     #[test]
@@ -652,8 +705,16 @@ mod tests {
         let input = Value::String("spans aabb11 and cc22dd are relevant".to_string());
         let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
         let s = result.as_str().unwrap();
-        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
-        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
+        assert!(
+            s.contains(&format!("spanId={}", u1)),
+            "first ID missing: {}",
+            s
+        );
+        assert!(
+            s.contains(&format!("spanId={}", u2)),
+            "second ID missing: {}",
+            s
+        );
     }
 
     #[test]
@@ -664,8 +725,7 @@ mod tests {
         let map = make_span_ids_map(&[("aa11bb", u1), ("cc22dd", u2), ("ee33ff", u3)]);
         let pid = Uuid::new_v4();
         let tid = Uuid::new_v4();
-        let input =
-            Value::String("see spans aa11bb, cc22dd, and ee33ff for context".to_string());
+        let input = Value::String("see spans aa11bb, cc22dd, and ee33ff for context".to_string());
         let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
         let s = result.as_str().unwrap();
         assert!(s.contains(&format!("spanId={}", u1)), "first: {}", s);
@@ -682,9 +742,17 @@ mod tests {
         let input = Value::String("spans f188ea, 999999 have issues".to_string());
         let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
         let s = result.as_str().unwrap();
-        assert!(s.contains(&format!("spanId={}", u1)), "known ID should be linked: {}", s);
+        assert!(
+            s.contains(&format!("spanId={}", u1)),
+            "known ID should be linked: {}",
+            s
+        );
         assert!(s.contains("span 999999"), "unknown ID kept as text: {}", s);
-        assert!(!s.contains(&format!("999999&chat")), "unknown ID should not be linked: {}", s);
+        assert!(
+            !s.contains(&format!("999999&chat")),
+            "unknown ID should not be linked: {}",
+            s
+        );
     }
 
     #[test]
@@ -696,8 +764,36 @@ mod tests {
         let input = Value::String("<span id='abcdef' name='openai.chat' />".to_string());
         let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
         let s = result.as_str().unwrap();
-        assert!(s.contains("[openai.chat]"), "XML tag should produce named link: {}", s);
+        assert!(
+            s.contains("[openai.chat]"),
+            "XML tag should produce named link: {}",
+            s
+        );
         assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_span_link_xml_tag_with_quotes_in_name() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("341c9d", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = serde_json::json!({
+            "category": "logic_error",
+            "description": "The sub-agent <span id='341c9d' name='llm: \"claude-sonnet-4-6\"' /> failed to respond."
+        });
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let desc = result.get("description").unwrap().as_str().unwrap();
+        assert!(
+            desc.contains(&format!("spanId={}", uuid)),
+            "span link should be present: {}",
+            desc
+        );
+        assert!(
+            !desc.contains("<span"),
+            "span tag should be replaced: {}",
+            desc
+        );
     }
 
     #[test]
@@ -749,7 +845,8 @@ Do not fabricate data.
     #[test]
     fn test_structural_skeleton_hash_no_tags() {
         let plain_v1 = "You are a helpful customer support agent. Answer questions politely. Use the knowledge base.";
-        let plain_v2 = "You are a helpful customer support agent. Answer questions politely. Be concise.";
+        let plain_v2 =
+            "You are a helpful customer support agent. Answer questions politely. Be concise.";
 
         assert_eq!(
             structural_skeleton_hash(plain_v1),
@@ -830,7 +927,8 @@ Do not fabricate data.
     #[test]
     fn test_structural_skeleton_hash_duplicate_tags() {
         let single = "You are an AI agent for testing.\n<rules>rule 1</rules>";
-        let duped = "You are an AI agent for testing.\n<rules>rule 1</rules>\n<rules>rule 2</rules>";
+        let duped =
+            "You are an AI agent for testing.\n<rules>rule 1</rules>\n<rules>rule 2</rules>";
 
         assert_eq!(
             structural_skeleton_hash(single),
