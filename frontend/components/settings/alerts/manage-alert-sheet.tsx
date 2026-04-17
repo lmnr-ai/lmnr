@@ -95,7 +95,6 @@ export default function ManageAlertSheet({
 
   const signalName = watch("signalName");
   const channelId = watch("channelId");
-  const emailEnabled = watch("emailEnabled");
   const severity = watch("severity");
 
   const resetFormFromSignals = useCallback(
@@ -279,15 +278,6 @@ export default function ManageAlertSheet({
           type: ALERT_TARGET_TYPE.EMAIL,
           email: userEmail,
         });
-      }
-
-      if (!isEditMode && targets.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "At least one notification target (Slack channel or email) is required.",
-        });
-        return;
       }
 
       try {
@@ -587,7 +577,7 @@ export default function ManageAlertSheet({
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || (!isEditMode && !emailEnabled && !channelId)}>
+          <Button type="submit" disabled={isSubmitting}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

@@ -24,7 +24,7 @@ const CreateAlertSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.guid(),
-  targets: z.array(TargetSchema).min(1),
+  targets: z.array(TargetSchema),
   metadata: MetadataSchema.optional(),
 });
 
@@ -122,17 +122,19 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
       .values({ projectId, name, type, sourceId, metadata: metadata ?? {} })
       .returning({ id: alerts.id });
 
-    await tx.insert(alertTargets).values(
-      targets.map((t) => ({
-        alertId: alert.id,
-        projectId,
-        type: t.type,
-        integrationId: t.integrationId ?? null,
-        channelId: t.channelId ?? null,
-        channelName: t.channelName ?? null,
-        email: t.email ?? null,
-      }))
-    );
+    if (targets.length > 0) {
+      await tx.insert(alertTargets).values(
+        targets.map((t) => ({
+          alertId: alert.id,
+          projectId,
+          type: t.type,
+          integrationId: t.integrationId ?? null,
+          channelId: t.channelId ?? null,
+          channelName: t.channelName ?? null,
+          email: t.email ?? null,
+        }))
+      );
+    }
 
     return alert;
   });

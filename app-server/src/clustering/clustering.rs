@@ -238,14 +238,6 @@ async fn process_new_cluster_notifications(
     signal_id: Uuid,
     response: &ClusterResponse,
 ) {
-    // TODO: remove this
-    for event in &response.events {
-        println!(
-            "==> id: {:?}: new cluster: {:?} - level: {:?} - name: {:?}",
-            event.signal_event_id, event.is_new_cluster, event.cluster_level, event.cluster_name,
-        );
-    }
-
     let alerts =
         match db::alert_targets::get_alerts_for_signal(&db.pool, project_id, signal_id).await {
             Ok(alerts) => alerts,
@@ -267,10 +259,9 @@ async fn process_new_cluster_notifications(
     let new_l0_cluster_events: Vec<&ClusterEventResult> = response
         .events
         .iter()
-        // .filter(|e| e.is_new_cluster)
-        // .filter(|e| e.cluster_level == 0u32)
+        .filter(|e| e.is_new_cluster)
+        .filter(|e| e.cluster_level == 0u32)
         .collect();
-    println!("new_l0_cluster_events: {:?}", new_l0_cluster_events.len());
 
     if new_l0_cluster_events.is_empty() {
         return;
