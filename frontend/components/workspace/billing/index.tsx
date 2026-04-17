@@ -26,7 +26,7 @@ import {
   TIER_CONFIG,
   type UpcomingInvoiceInfo,
 } from "@/lib/actions/checkout/types";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
 

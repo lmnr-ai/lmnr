@@ -13,10 +13,10 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
-import { AnalyticsIdentifier } from "@/lib/analytics";
-import PostHogClient from "@/lib/analytics/server";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { AnalyticsIdentifier } from "@/lib/posthog";
+import PostHogClient from "@/lib/posthog/server";
 
 const projectSidebarCookieName = "project-sidebar-state";
 

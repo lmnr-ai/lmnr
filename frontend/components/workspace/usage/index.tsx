@@ -11,8 +11,8 @@ import { ChartContainer } from "@/components/ui/chart";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { track } from "@/lib/analytics";
 import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 import LimitsSettings from "./limits";

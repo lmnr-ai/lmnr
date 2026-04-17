@@ -18,9 +18,9 @@ import TransferOwnershipDialog from "@/components/workspace/transfer-ownership-d
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
-import { track } from "@/lib/analytics";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
   type WorkspaceInvitation,

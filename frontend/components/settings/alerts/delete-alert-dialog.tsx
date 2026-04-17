@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
-import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 interface DeleteAlertDialogProps {
   projectId: string;

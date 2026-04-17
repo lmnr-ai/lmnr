@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 import { useSignalsBannerStore } from "./store";
 

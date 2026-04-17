@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { type PaidTier } from "@/lib/actions/checkout/types";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 interface SwitchTierDialogProps {
   children: ReactNode;

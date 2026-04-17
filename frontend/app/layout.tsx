@@ -7,9 +7,9 @@ import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
-import { AnalyticsProvider } from "@/lib/analytics";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
+import { AnalyticsProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {

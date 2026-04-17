@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { track } from "@/lib/analytics";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
 import { AutomaticTab } from "./automatic-tab";

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 import { formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
 
 export default function SignalCard({

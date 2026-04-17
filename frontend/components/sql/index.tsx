@@ -7,7 +7,7 @@ import useSWR from "swr";
 import SQLEditorPanel from "@/components/sql/editor-panel";
 import Sidebar from "@/components/sql/sidebar";
 import { type SQLTemplate } from "@/components/sql/sql-editor-store";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 const SQLTemplates = () => {

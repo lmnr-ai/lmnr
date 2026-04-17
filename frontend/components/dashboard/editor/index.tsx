@@ -7,7 +7,7 @@ import ChartBuilder from "@/components/dashboard/editor/Builder";
 import { DashboardEditorStoreProvider } from "@/components/dashboard/editor/dashboard-editor-store";
 import { type DashboardChart } from "@/components/dashboard/types";
 import Header from "@/components/ui/header";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 const DashboardEditor = ({ chart }: { chart?: DashboardChart }) => {
   const { id } = useParams();

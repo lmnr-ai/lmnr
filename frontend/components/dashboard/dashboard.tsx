@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import GridLayout from "@/components/dashboard/grid-layout";
 import { Button } from "@/components/ui/button";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";

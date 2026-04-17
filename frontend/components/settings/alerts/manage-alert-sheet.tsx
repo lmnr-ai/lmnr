@@ -22,8 +22,8 @@ import { Switch } from "@/components/ui/switch";
 import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
 interface ManageAlertSheetProps {

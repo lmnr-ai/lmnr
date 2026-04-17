@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ADDON_CONFIG } from "@/lib/actions/checkout/types";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceAddonsProps {

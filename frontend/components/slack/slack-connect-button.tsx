@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 

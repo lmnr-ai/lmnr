@@ -8,7 +8,7 @@ import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, getDurationString } from "@/lib/utils";
 

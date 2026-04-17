@@ -14,9 +14,9 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { track } from "@/lib/analytics";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";

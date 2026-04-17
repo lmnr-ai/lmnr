@@ -126,10 +126,10 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 ## Analytics / PostHog
 
-- Client-side analytics is centralized in `frontend/lib/analytics/`. Feature code should import `track` from `@/lib/analytics` — never import `posthog-js` directly.
-- Server-side PostHog client lives at `@/lib/analytics/server` (separate import path to avoid bundling `posthog-node` into client bundles).
-- The `AnalyticsProvider` (in `lib/analytics/provider.tsx`) handles both PostHog init and user identification. It wraps `PostHogProvider` from `posthog-js/react` so `usePostHog()` still works as an escape hatch.
-- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type (`'sessions' | 'debugger_sessions' | 'signals' | 'traces' | 'alerts'`) is defined in `lib/analytics/client.ts`. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
+- Client-side analytics is centralized in `frontend/lib/posthog/`. Feature code should import `track` from `@/lib/posthog` — never import `posthog-js` directly.
+- Server-side PostHog client lives at `@/lib/posthog/server` (separate import path to avoid bundling `posthog-node` into client bundles).
+- The `AnalyticsProvider` (in `lib/posthog/provider.tsx`) handles both PostHog init and user identification. It wraps `PostHogProvider` from `posthog-js/react` so `usePostHog()` still works as an escape hatch.
+- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type (`'sessions' | 'debugger_sessions' | 'signals' | 'traces' | 'alerts'`) is defined in `lib/posthog/client.ts`. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
 - All tracking is no-op when PostHog is disabled (`POSTHOG_TELEMETRY !== "true"`). No conditional checks needed in feature code.
 
 ## Key Technical Details

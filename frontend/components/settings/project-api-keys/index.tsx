@@ -3,9 +3,9 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { track } from "@/lib/analytics";
 import { type GenerateProjectApiKeyResponse, type ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";

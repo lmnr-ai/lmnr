@@ -3,7 +3,7 @@
 import { PostHogProvider as PHProvider } from "posthog-js/react";
 import { type PropsWithChildren, useEffect, useLayoutEffect } from "react";
 
-import { identify, init, posthog } from "@/lib/analytics/client";
+import { identify, init, posthog } from "@/lib/posthog/client";
 
 interface AnalyticsProviderProps {
   telemetryEnabled: boolean;

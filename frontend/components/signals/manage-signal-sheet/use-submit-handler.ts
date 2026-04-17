@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
-import { track } from "@/lib/analytics";
 import { type useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
 

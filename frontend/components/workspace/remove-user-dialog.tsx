@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { track } from "@/lib/analytics";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface RemoveUserDialogProps {

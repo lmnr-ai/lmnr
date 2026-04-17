@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
-import { track } from "@/lib/analytics";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { track } from "@/lib/posthog";
 
 import Header from "../ui/header";
 import {

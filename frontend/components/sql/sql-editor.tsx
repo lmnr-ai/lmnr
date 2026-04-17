@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
-import { track } from "@/lib/analytics";
 import { toast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 export interface SQLEditorProps {
   value: string;

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
-import { track } from "@/lib/analytics";
+import { track } from "@/lib/posthog";
 
 interface WorkspaceIntegrationsProps {
   workspaceId: string;
