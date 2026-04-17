@@ -59,7 +59,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">SQL expression</Label>
           <a
-            href="https://docs.laminar.sh/platform/sql-editor#table-schemas"
+            href="https://laminar.sh/docs/platform/sql-editor#table-schemas"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-muted-foreground underline"
