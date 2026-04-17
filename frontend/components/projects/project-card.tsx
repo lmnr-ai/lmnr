@@ -25,7 +25,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
   };
 
   return (
-    <Link href={`/project/${project.id}/home`} key={project.id} onClick={handleClick}>
+    <Link href={`/project/${project.id}/dashboards`} key={project.id} onClick={handleClick}>
       <div className="h-44 rounded-md bg-secondary hover:bg-muted border transition-all duration-100">
         <div className="p-4 flex flex-col justify-between h-full">
           <div className="flex items-center justify-between">

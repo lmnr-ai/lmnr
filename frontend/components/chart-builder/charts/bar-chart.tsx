@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart as RechartsBarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 
+import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import { type DisplayMode } from "@/components/chart-builder/types";
 import RoundedBar from "@/components/charts/time-series-chart/bar";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -17,9 +18,10 @@ interface BarChartProps {
   displayMode?: DisplayMode;
   metricColumn?: string;
   syncId?: string;
+  drag?: ChartDragHandlers;
 }
 
-const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn, syncId }: BarChartProps) => {
+const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn, syncId, drag }: BarChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
@@ -55,7 +57,15 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-        <RechartsBarChart data={data} margin={chartMargins} syncId={syncId}>
+        <RechartsBarChart
+          data={data}
+          margin={chartMargins}
+          syncId={syncId}
+          onMouseDown={drag?.onMouseDown}
+          onMouseMove={drag?.onMouseMove}
+          onMouseUp={drag?.onMouseUp}
+          style={drag ? { userSelect: "none", cursor: "crosshair" } : undefined}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             type="category"
@@ -83,6 +93,16 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
 
             return <Bar key={key} dataKey={key} fill={config.color} stackId="stack" shape={BarShapeWithConfig} />;
           })}
+          {drag?.refArea.left && drag.refArea.right && (
+            <ReferenceArea
+              x1={drag.refArea.left}
+              x2={drag.refArea.right}
+              stroke="hsl(var(--primary))"
+              strokeOpacity={0.5}
+              fill="hsl(var(--primary))"
+              fillOpacity={0.3}
+            />
+          )}
         </RechartsBarChart>
       </ChartContainer>
     </div>

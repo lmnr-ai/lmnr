@@ -1,11 +1,19 @@
 import React, { useMemo } from "react";
-import { CartesianGrid, Line, LineChart as RechartsLineChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart as RechartsLineChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { formatMetricValue } from "./format-value";
 import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+
+export interface ChartDragHandlers {
+  onMouseDown: CategoricalChartFunc;
+  onMouseMove: CategoricalChartFunc;
+  onMouseUp: () => void;
+  refArea: { left?: string; right?: string };
+}
 
 interface LineChartProps {
   data: Record<string, any>[];
@@ -17,6 +25,7 @@ interface LineChartProps {
   displayMode?: DisplayMode;
   metricColumn?: string;
   syncId?: string;
+  drag?: ChartDragHandlers;
 }
 
 const LineChart = ({
@@ -29,6 +38,7 @@ const LineChart = ({
   displayMode = "none",
   metricColumn,
   syncId,
+  drag,
 }: LineChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
@@ -51,7 +61,15 @@ const LineChart = ({
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">
-        <RechartsLineChart data={data} margin={chartMargins} syncId={syncId}>
+        <RechartsLineChart
+          data={data}
+          margin={chartMargins}
+          syncId={syncId}
+          onMouseDown={drag?.onMouseDown}
+          onMouseMove={drag?.onMouseMove}
+          onMouseUp={drag?.onMouseUp}
+          style={drag ? { userSelect: "none", cursor: "crosshair" } : undefined}
+        >
           <CartesianGrid vertical={false} />
           <XAxis
             type="category"
@@ -80,6 +98,16 @@ const LineChart = ({
             if (!config) return null;
             return <Line key={key} dataKey={key} dot={false} stroke={config.color} fill={config.color} />;
           })}
+          {drag?.refArea.left && drag.refArea.right && (
+            <ReferenceArea
+              x1={drag.refArea.left}
+              x2={drag.refArea.right}
+              stroke="hsl(var(--primary))"
+              strokeOpacity={0.5}
+              fill="hsl(var(--primary))"
+              fillOpacity={0.3}
+            />
+          )}
         </RechartsLineChart>
       </ChartContainer>
     </div>

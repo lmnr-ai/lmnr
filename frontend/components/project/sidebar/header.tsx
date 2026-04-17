@@ -121,7 +121,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                   <Link
                     key={project.id}
                     passHref
-                    href={`/project/${project.id}/home`}
+                    href={`/project/${project.id}/dashboards`}
                     onClick={() => setLastProjectIdCookie(project.id)}
                   >
                     <DropdownMenuItem

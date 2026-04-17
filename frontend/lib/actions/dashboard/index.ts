@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { type HomeChart } from "@/components/home/types";
+import { type DashboardChart } from "@/components/dashboards/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
 
@@ -83,7 +83,7 @@ export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
 
   const charts = await db.select().from(dashboardCharts).where(eq(dashboardCharts.projectId, projectId));
 
-  return charts as HomeChart[];
+  return charts as DashboardChart[];
 };
 
 export const getChart = async (input: z.infer<typeof DeleteChartSchema>) => {
@@ -93,7 +93,7 @@ export const getChart = async (input: z.infer<typeof DeleteChartSchema>) => {
     where: and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)),
   });
 
-  return chart as HomeChart | undefined;
+  return chart as DashboardChart | undefined;
 };
 
 export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayoutSchema>) => {
@@ -115,7 +115,7 @@ export const updateChartsLayout = async (input: z.infer<typeof UpdateChartsLayou
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, sql`update_data.id`)));
 };
 
-export const deleteHomeChart = async (input: z.infer<typeof DeleteChartSchema>) => {
+export const deleteDashboardChart = async (input: z.infer<typeof DeleteChartSchema>) => {
   const { id, projectId } = DeleteChartSchema.parse(input);
 
   await db.delete(dashboardCharts).where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
@@ -151,7 +151,7 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
   const existingCharts = (await db.query.dashboardCharts.findMany({
     where: eq(dashboardCharts.projectId, projectId),
     columns: { settings: true },
-  })) as Pick<HomeChart, "settings">[];
+  })) as Pick<DashboardChart, "settings">[];
 
   const chartW = 4;
   const slots = [0, 4, 8];
@@ -182,5 +182,5 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
     })
     .returning();
 
-  return created as HomeChart;
+  return created as DashboardChart;
 };

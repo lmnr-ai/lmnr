@@ -205,7 +205,7 @@ const ChartBuilderCore = () => {
               className="self-end"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Export to Home
+              Export to Dashboards
             </Button>
           </ExportChartDialog>
         </div>

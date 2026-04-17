@@ -3,7 +3,7 @@ import React, { useMemo } from "react";
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
-import LineChart from "@/components/chart-builder/charts/line-chart";
+import LineChart, { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
   generateChartConfig,
@@ -24,6 +24,7 @@ interface ChartRendererCoreProps {
   columns: ColumnInfo[];
   onBarClick?: (rowData: Record<string, any>) => void;
   syncId?: string;
+  drag?: ChartDragHandlers;
   onColumnConfigChange?: (config: TableColumnConfig) => void;
 }
 
@@ -33,6 +34,7 @@ export const ChartRendererCore = ({
   columns,
   onBarClick,
   syncId,
+  drag,
   onColumnConfigChange,
 }: ChartRendererCoreProps) => {
   const isTable = config.type === ChartType.Table;
@@ -101,6 +103,7 @@ export const ChartRendererCore = ({
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
     syncId,
+    drag,
   };
 
   if (keys.size === 0) {
@@ -117,7 +120,7 @@ export const ChartRendererCore = ({
     case ChartType.BarChart:
       return <BarChart {...props} />;
     case ChartType.HorizontalBarChart: {
-      const { syncId: _, ...horizontalBarProps } = props;
+      const { syncId: _, drag: __, ...horizontalBarProps } = props;
       return <HorizontalBarChart {...horizontalBarProps} onBarClick={onBarClick} />;
     }
     default:

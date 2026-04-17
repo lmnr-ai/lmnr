@@ -36,7 +36,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
     setIsLoading(true);
     try {
-      await fetch(`/api/projects/${projectId}/home-charts`, {
+      await fetch(`/api/projects/${projectId}/dashboard-charts`, {
         method: "POST",
         body: JSON.stringify({
           query,
@@ -50,9 +50,9 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         title: "Success",
         description: (
           <span>
-            Successfully exported chart to Home.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/home`}>
-              Go to Home.
+            Successfully exported chart to Dashboards.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/dashboards`}>
+              Go to Dashboards.
             </Link>
           </span>
         ),
@@ -71,7 +71,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-left">Export Chart to Home</DialogTitle>
+          <DialogTitle className="text-left">Export Chart to Dashboards</DialogTitle>
         </DialogHeader>
         <Separator />
         <Input

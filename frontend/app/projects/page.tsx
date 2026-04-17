@@ -58,7 +58,7 @@ export default async function ProjectsPage() {
     if (project) {
       const hasAccess = workspaceLists.some((w) => w.workspaceId === project.workspaceId);
       if (hasAccess) {
-        return redirect(`/project/${project.id}/home`);
+        return redirect(`/project/${project.id}/dashboards`);
       }
     }
   }
