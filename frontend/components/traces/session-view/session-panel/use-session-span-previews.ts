@@ -120,7 +120,7 @@ export function useSessionSpanPreviews({
         try {
           const {
             previews: newPreviews,
-            userInputs: newUserInputs,
+            inputPreviews: newInputPreviews,
             agentNames: newAgentNames,
           } = await fetchSpanPreviewsForTrace({
             projectId,
@@ -139,7 +139,7 @@ export function useSessionSpanPreviews({
             fetching.current.delete(id);
           }
           for (const id of input) {
-            inputCache.current.set(id, newUserInputs[id] ?? null);
+            inputCache.current.set(id, newInputPreviews[id] ?? null);
           }
 
           if (allBatchIds.size > 0) {

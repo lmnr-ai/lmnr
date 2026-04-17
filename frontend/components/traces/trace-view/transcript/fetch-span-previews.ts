@@ -20,7 +20,7 @@ export interface FetchSpanPreviewsParams {
 
 export interface FetchSpanPreviewsResult {
   previews: Record<string, any>;
-  userInputs: Record<string, string | null>;
+  inputPreviews: Record<string, string | null>;
   agentNames: Record<string, string | null>;
 }
 
@@ -43,7 +43,7 @@ export async function fetchSpanPreviewsForTrace({
   signal,
 }: FetchSpanPreviewsParams): Promise<FetchSpanPreviewsResult> {
   if (spanIds.length === 0 || !traceId) {
-    return { previews: {}, userInputs: {}, agentNames: {} };
+    return { previews: {}, inputPreviews: {}, agentNames: {} };
   }
 
   const inputIdSet = new Set(inputSpanIds ?? []);
@@ -91,7 +91,7 @@ export async function fetchSpanPreviewsForTrace({
   const data = (await response.json()) as FetchSpanPreviewsResult;
   return {
     previews: data.previews ?? {},
-    userInputs: data.userInputs ?? {},
+    inputPreviews: data.inputPreviews ?? {},
     agentNames: data.agentNames ?? {},
   };
 }
