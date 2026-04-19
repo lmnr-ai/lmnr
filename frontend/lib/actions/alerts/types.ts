@@ -34,10 +34,7 @@ export interface SignalEventAlertMetadata {
   skipSimilar?: boolean;
 }
 
-// NEW_CLUSTER alerts have no metadata fields today.
-export type NewClusterAlertMetadata = Record<string, never>;
-
-export type AlertMetadata = SignalEventAlertMetadata | NewClusterAlertMetadata;
+export type AlertMetadata = Record<string, any>;
 
 export interface AlertTarget {
   id: string;
