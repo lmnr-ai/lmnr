@@ -244,7 +244,7 @@ function PureEventsTable() {
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
         <DataTableFilterList />
-        {!emergingClusterId && <ClustersSection />}
+        <ClustersSection />
       </InfiniteDataTable>
     </div>
   );
