@@ -227,6 +227,14 @@ const createTraceViewStore = (options?: {
       },
       {
         name: options?.storeKey ?? "trace-view-state",
+        version: 1,
+        migrate: (persistedState, version) => {
+          // v0 -> v1: transcript is the new default tab; move legacy users off "tree" once.
+          if (version < 1 && persistedState && typeof persistedState === "object") {
+            (persistedState as Record<string, unknown>).tab = "transcript";
+          }
+          return persistedState as TraceViewStore;
+        },
         partialize: (state) => {
           const persistentTabs = ["tree", "transcript"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;

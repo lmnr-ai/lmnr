@@ -5,7 +5,7 @@ export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", 
 export interface InputSpanRow {
   spanId: string;
   firstMessage: string;
-  secondMessage: string;
+  lastMessage: string;
   promptHash: string;
 }
 
@@ -60,7 +60,7 @@ export async function fetchSpanData(
             SELECT
               span_id as spanId,
               arr[1] as firstMessage,
-              if(length(arr) > 1, arr[2], '') as secondMessage,
+              if(length(arr) > 1, arr[length(arr)], '') as lastMessage,
               simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') as promptHash
             FROM (
               SELECT span_id, JSONExtractArrayRaw(input) as arr, attributes
