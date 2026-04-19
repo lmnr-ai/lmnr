@@ -13,7 +13,7 @@ use crate::db;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
-use crate::notifications::{self, NotificationDefinitionType, NotificationKind};
+use crate::notifications::{self, AlertType, NotificationDefinitionType, NotificationKind};
 
 /// Process notifications and clustering for an identified signal event
 pub async fn process_event_notifications_and_clustering(
@@ -27,9 +27,13 @@ pub async fn process_event_notifications_and_clustering(
     let attributes = signal_event.payload_value().unwrap_or_default();
 
     {
-        let alerts =
-            db::alert_targets::get_alerts_for_signal(&db.pool, project_id, signal_event.signal_id)
-                .await?;
+        let alerts = db::alert_targets::get_alerts_for_signal(
+            &db.pool,
+            project_id,
+            signal_event.signal_id,
+            Some(AlertType::SignalEvent),
+        )
+        .await?;
 
         for alert in alerts {
             let min_severity = alert.metadata.severity();

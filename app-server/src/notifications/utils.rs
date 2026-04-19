@@ -3,6 +3,26 @@ use uuid::Uuid;
 use super::NotificationKind;
 use crate::reports::email_template::{ProjectReportData, ReportData};
 
+/// Public-facing base URL used to construct user-clickable links in notifications.
+/// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments
+/// can route users to their own instance. Falls back to the given default when
+/// the env var is not set — `https://laminar.sh` is preferred for Slack (short
+/// URL) and `https://lmnr.ai` for email.
+fn frontend_url_with_default(default: &str) -> String {
+    let raw = std::env::var("NEXT_PUBLIC_URL").unwrap_or_else(|_| default.to_string());
+    raw.trim_end_matches('/').to_string()
+}
+
+/// Public-facing base URL for Slack message links. Defaults to `https://laminar.sh`.
+pub(super) fn frontend_url_slack() -> String {
+    frontend_url_with_default("https://laminar.sh")
+}
+
+/// Public-facing base URL for email links. Defaults to `https://lmnr.ai`.
+pub(super) fn frontend_url_email() -> String {
+    frontend_url_with_default("https://lmnr.ai")
+}
+
 /// Reconstruct a `ReportData` (with title) from a batch of `SignalsReport` notifications.
 /// Returns `None` if no `SignalsReport` entries are found.
 pub(super) fn build_report_data_from_batch(

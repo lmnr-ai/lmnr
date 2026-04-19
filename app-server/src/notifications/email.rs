@@ -8,7 +8,7 @@
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::build_report_data_from_batch;
+use super::utils::{build_report_data_from_batch, frontend_url_email};
 use crate::reports::email_template::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
@@ -48,8 +48,10 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             event_id,
         } => {
             let trace_link = format!(
-                "https://lmnr.ai/project/{}/traces/{}?chat=true",
-                project_id, trace_id
+                "{}/project/{}/traces/{}?chat=true",
+                frontend_url_email(),
+                project_id,
+                trace_id
             );
             let attributes = extracted_information
                 .clone()
@@ -70,6 +72,29 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 ),
             }
         }
+        NotificationKind::NewCluster {
+            project_id,
+            signal_id,
+            signal_name,
+            cluster_id,
+            cluster_name,
+            num_signal_events,
+            num_child_clusters,
+            alert_name,
+        } => EmailContent {
+            from: ALERT_FROM_EMAIL.to_string(),
+            subject: format!("{}: New cluster", signal_name),
+            html: render_new_cluster_email(
+                project_id,
+                signal_id,
+                signal_name,
+                cluster_id,
+                cluster_name,
+                *num_signal_events,
+                *num_child_clusters,
+                alert_name,
+            ),
+        },
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -136,12 +161,13 @@ fn render_alert_email(
 ) -> String {
     let severity_label = severity_label(severity);
     let severity_color = severity_color(severity);
-    let alert_link = format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id);
+    let base = frontend_url_email();
+    let alert_link = format!("{}/project/{}/settings?tab=alerts", base, project_id);
     let similar_events_part = match event_id {
         Some(eid) => {
             let similar_link = format!(
-                "https://lmnr.ai/project/{}/signals/{}?eventCluster={}",
-                project_id, signal_id, eid
+                "{}/project/{}/signals/{}?eventCluster={}",
+                base, project_id, signal_id, eid
             );
             format!(
                 r#"<span style="vertical-align:middle;">&nbsp;·&nbsp;Similar events: <a href="{link}" style="color:{primary};text-decoration:none;">View</a></span>"#,
@@ -229,7 +255,7 @@ fn render_alert_email(
   <div style="text-align:center;padding:16px 0;">
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/project/{project_id}/settings?tab=alerts" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{base}/project/{project_id}/settings?tab=alerts" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
   </div>
 
 </div>
@@ -241,6 +267,101 @@ fn render_alert_email(
         trace_link = trace_link,
         project_id = project_id,
         context_html = context_html,
+        base = base,
+    )
+}
+
+// Render an HTML email for a new-cluster notification.
+#[allow(clippy::too_many_arguments)]
+fn render_new_cluster_email(
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    signal_name: &str,
+    cluster_id: &Uuid,
+    cluster_name: &str,
+    num_signal_events: u32,
+    num_child_clusters: usize,
+    alert_name: &str,
+) -> String {
+    let base = frontend_url_email();
+    let cluster_link = format!(
+        "{}/project/{}/signals/{}?eventCluster={}",
+        base, project_id, signal_id, cluster_id
+    );
+    let alert_link = format!("{}/project/{}/settings?tab=alerts", base, project_id);
+
+    let details_html = format!(
+        r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
+  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Cluster</td>
+      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{cluster_name}</td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Events</td>
+      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{num_signal_events}</td>
+    </tr>
+    <tr>
+      <td style="padding:6px 0;font-size:13px;color:#6b7280;vertical-align:top;">Child clusters</td>
+      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;">{num_child_clusters}</td>
+    </tr>
+  </table>
+</div>"#,
+        cluster_name = html_escape(cluster_name),
+        num_signal_events = num_signal_events,
+        num_child_clusters = num_child_clusters,
+    );
+
+    let context_html = format!(
+        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
+  <span style="vertical-align:middle;">Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>
+</div>"##,
+        alert_link = alert_link,
+        alert_name = html_escape(alert_name),
+        primary = PRIMARY,
+    );
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{signal_name}: New cluster</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+
+  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
+    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
+    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New cluster</p>
+    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{signal_name}</h1>
+  </div>
+
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
+    {details_html}
+    <div style="text-align:center;padding-top:8px;">
+      <a href="{cluster_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Cluster</a>
+    </div>
+    {context_html}
+  </div>
+
+  <div style="text-align:center;padding:16px 0;">
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{base}/project/{project_id}/settings?tab=alerts" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
+  </div>
+
+</div>
+</body>
+</html>"##,
+        signal_name = html_escape(signal_name),
+        details_html = details_html,
+        cluster_link = cluster_link,
+        context_html = context_html,
+        project_id = project_id,
+        base = base,
     )
 }
 
@@ -285,7 +406,7 @@ fn render_usage_warning_email(
       This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
     </p>
     <div style="text-align:center;padding-top:8px;">
-      <a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
+      <a href="{base}/workspace/{workspace_id}?tab=usage" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
     </div>
   </div>
 
@@ -293,7 +414,7 @@ fn render_usage_warning_email(
   <div style="text-align:center;padding:16px 0;">
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="color:#D0754E;text-decoration:none;">Manage warning thresholds</a></p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{base}/workspace/{workspace_id}?tab=usage" style="color:#D0754E;text-decoration:none;">Manage warning thresholds</a></p>
   </div>
 
 </div>
@@ -304,6 +425,7 @@ fn render_usage_warning_email(
         usage_label = html_escape(usage_label),
         formatted_limit = html_escape(formatted_limit),
         meter_description = meter_description,
+        base = frontend_url_email(),
     )
 }
 
@@ -376,7 +498,7 @@ fn render_report_email(data: &ReportData) -> String {
                     r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
     <td style="font-size:12px;color:#6b7280;" align="left">{signal_name} &middot; {timestamp}</td>
-    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}?chat=true" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+    <td style="font-size:12px;" align="right"><a href="{base}/project/{project_id}/traces/{trace_id}?chat=true" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
   </tr></table>{summary}
 </div>"##,
                     signal_name = html_escape(&event.signal_name),
@@ -385,6 +507,7 @@ fn render_report_email(data: &ReportData) -> String {
                     trace_id = html_escape(&event.trace_id),
                     summary = summary_part,
                     primary = PRIMARY,
+                    base = frontend_url_email(),
                 ));
             }
 
@@ -453,7 +576,7 @@ fn render_report_email(data: &ReportData) -> String {
   <div style="text-align:center;padding:16px 0;">
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This report was generated automatically by <a href="https://www.lmnr.ai" style="color:{primary};text-decoration:none;">Laminar</a>.</p>
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to reports for the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/workspace/{workspace_id}?tab=reports" style="color:{primary};text-decoration:none;">Unsubscribe</a></p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{base}/workspace/{workspace_id}?tab=reports" style="color:{primary};text-decoration:none;">Unsubscribe</a></p>
   </div>
 
 </div>
@@ -468,6 +591,7 @@ fn render_report_email(data: &ReportData) -> String {
         projects_html = projects_html,
         primary = PRIMARY,
         logo_cid = LAMINAR_LOGO_CID,
+        base = frontend_url_email(),
     )
 }
 

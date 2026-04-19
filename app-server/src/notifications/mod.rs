@@ -75,6 +75,40 @@ impl std::fmt::Display for NotificationDefinitionType {
     }
 }
 
+/// Concrete alert types stored in `alerts.type`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AlertType {
+    SignalEvent,
+    NewCluster,
+}
+
+impl AlertType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SignalEvent => "SIGNAL_EVENT",
+            Self::NewCluster => "NEW_CLUSTER",
+        }
+    }
+}
+
+impl std::str::FromStr for AlertType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SIGNAL_EVENT" => Ok(Self::SignalEvent),
+            "NEW_CLUSTER" => Ok(Self::NewCluster),
+            other => Err(format!("unknown alert type: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for AlertType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 // ── Notification kind: the core event data ──
 
 /// Core notification data produced by various subsystems.
@@ -91,6 +125,16 @@ pub enum NotificationKind {
         severity: u8,
         extracted_information: Option<serde_json::Value>,
         #[serde(default)]
+        alert_name: String,
+    },
+    NewCluster {
+        project_id: Uuid,
+        signal_id: Uuid,
+        signal_name: String,
+        cluster_id: Uuid,
+        cluster_name: String,
+        num_signal_events: u32,
+        num_child_clusters: usize,
         alert_name: String,
     },
     SignalsReport {
@@ -233,6 +277,7 @@ impl MessageHandler for NotificationHandler {
 
             let project_id = match kind {
                 NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                NotificationKind::NewCluster { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
                 NotificationKind::UsageWarning { .. } => Uuid::nil(),
             };

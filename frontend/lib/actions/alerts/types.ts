@@ -1,8 +1,14 @@
 export const ALERT_TYPE = {
   SIGNAL_EVENT: "SIGNAL_EVENT",
+  NEW_CLUSTER: "NEW_CLUSTER",
 } as const;
 
 export type AlertType = (typeof ALERT_TYPE)[keyof typeof ALERT_TYPE];
+
+export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
+  [ALERT_TYPE.SIGNAL_EVENT]: "New event",
+  [ALERT_TYPE.NEW_CLUSTER]: "New cluster",
+};
 
 export const ALERT_TARGET_TYPE = {
   SLACK: "SLACK",
@@ -28,6 +34,11 @@ export interface SignalEventAlertMetadata {
   skipSimilar?: boolean;
 }
 
+// NEW_CLUSTER alerts have no metadata fields today.
+export type NewClusterAlertMetadata = Record<string, never>;
+
+export type AlertMetadata = SignalEventAlertMetadata | NewClusterAlertMetadata;
+
 export interface AlertTarget {
   id: string;
   type: string;
@@ -47,5 +58,5 @@ export interface AlertWithDetails {
   projectName: string;
   createdAt: string;
   targets: AlertTarget[];
-  metadata: SignalEventAlertMetadata;
+  metadata: AlertMetadata;
 }

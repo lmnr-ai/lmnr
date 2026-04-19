@@ -2,6 +2,8 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::notifications::AlertType;
+
 /// Severity levels: 0 = info, 1 = warning, 2 = critical.
 /// Defaults to critical when absent (historical alerts).
 const DEFAULT_SEVERITY: u8 = 2;
@@ -35,14 +37,15 @@ pub struct AlertInfo {
     pub metadata: AlertMetadata,
 }
 
-/// Look up all alerts for a given project and signal ID.
+/// Look up all alerts for a given project and signal ID, optionally filtered by alert type.
 /// Used by the clustering handler to discover which alerts match a signal.
 pub async fn get_alerts_for_signal(
     pool: &PgPool,
     project_id: Uuid,
     signal_id: Uuid,
+    alert_type: Option<AlertType>,
 ) -> anyhow::Result<Vec<AlertInfo>> {
-    let records = sqlx::query_as::<_, AlertInfo>(
+    let mut sql = String::from(
         r#"
         SELECT a.id, a.name, p.workspace_id, a.metadata
         FROM alerts a
@@ -50,11 +53,21 @@ pub async fn get_alerts_for_signal(
         WHERE a.project_id = $1
           AND a.source_id = $2
         "#,
-    )
-    .bind(project_id)
-    .bind(signal_id)
-    .fetch_all(pool)
-    .await?;
+    );
+
+    if alert_type.is_some() {
+        sql.push_str(" AND a.type = $3");
+    }
+
+    let mut query = sqlx::query_as::<_, AlertInfo>(&sql)
+        .bind(project_id)
+        .bind(signal_id);
+
+    if let Some(t) = alert_type {
+        query = query.bind(t.as_str());
+    }
+
+    let records = query.fetch_all(pool).await?;
 
     Ok(records)
 }

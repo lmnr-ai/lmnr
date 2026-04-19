@@ -215,3 +215,86 @@ export async function getClusterEventCounts(
 
   return { items: clusterRows, unclusteredCounts };
 }
+
+// --- New L1+ cluster counts (time-series, by created_at) ---
+
+export const GetNewClusterStatsSchema = z.object({
+  ...TimeRangeSchema.shape,
+  projectId: z.guid(),
+  signalId: z.guid(),
+  intervalValue: z.coerce.number().default(1),
+  intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+});
+
+export async function getNewClusterStats(
+  input: z.infer<typeof GetNewClusterStatsSchema>
+): Promise<{ items: TimeSeriesDataPoint[] }> {
+  const {
+    projectId,
+    signalId,
+    pastHours,
+    startDate: startTime,
+    endDate: endTime,
+    intervalValue,
+    intervalUnit,
+  } = GetNewClusterStatsSchema.parse(input);
+
+  const timeConditions: string[] = [];
+  const queryParams: Record<string, unknown> = {
+    signalId,
+    intervalValue,
+    intervalUnit,
+  };
+
+  let fillFrom: string | null = null;
+  let fillTo: string | null = null;
+
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    timeConditions.push("created_at >= now() - INTERVAL {pastHours: UInt32} HOUR");
+    queryParams.pastHours = parseInt(pastHours);
+    fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+  } else {
+    if (startTime) {
+      timeConditions.push("created_at >= {startTime: String}");
+      queryParams.startTime = startTime.replace("Z", "");
+      fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+    if (endTime) {
+      timeConditions.push("created_at <= {endTime: String}");
+      queryParams.endTime = endTime.replace("Z", "");
+      fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+  }
+
+  const timeClause = timeConditions.length > 0 ? "AND " + timeConditions.join(" AND ") : "";
+
+  const withFillClause =
+    fillFrom && fillTo
+      ? `WITH FILL
+    FROM ${fillFrom}
+    TO ${fillTo}
+    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
+      : "";
+
+  const query = `
+    SELECT
+      toStartOfInterval(created_at, toInterval({intervalValue:UInt32}, {intervalUnit:String})) AS timestamp,
+      count() AS count
+    FROM clusters
+    WHERE signal_id = {signalId: UUID}
+      AND level >= 1
+      ${timeClause}
+    GROUP BY timestamp
+    ORDER BY timestamp ASC
+    ${withFillClause}
+  `;
+
+  const items = await executeQuery<TimeSeriesDataPoint>({
+    query,
+    parameters: queryParams,
+    projectId,
+  });
+
+  return { items };
+}
