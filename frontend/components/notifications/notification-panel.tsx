@@ -34,10 +34,13 @@ interface SignalsReport {
 
 interface EventIdentification {
   project_id: string;
+  signal_id: string;
   trace_id: string;
+  event_id: string | null;
   event_name: string;
   severity: number;
   extracted_information: Record<string, unknown> | null;
+  alert_name: string;
 }
 
 interface BaseNotification {
@@ -49,6 +52,7 @@ interface AlertNotification extends BaseNotification {
   kind: "alert";
   extractedFields: [string, string][];
   traceLink: string;
+  similarEventsLink: string | null;
   severity: number;
 }
 
@@ -113,18 +117,24 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     if (event.severity == null) return null;
 
     const severity = event.severity;
-    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
 
     const extractedFields: [string, string][] = event.extracted_information
       ? Object.entries(event.extracted_information).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])
       : [];
 
+    const similarEventsLink = event.event_id
+      ? `/project/${event.project_id}/signals/${event.signal_id}?eventCluster=${event.event_id}`
+      : null;
+
+    const severityLabel = SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Unknown";
+
     return {
       kind: "alert",
-      title: event.event_name,
-      summary: `New ${severityLabel} event detected`,
+      title: `${event.event_name}`,
+      summary: `New ${severityLabel} event`,
       extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
+      similarEventsLink,
       severity,
     };
   } catch {
@@ -212,8 +222,8 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotifi
     {formatted.noteworthyEvents.length > 0 && (
       <div className="flex flex-col gap-1.5 mt-1">
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Noteworthy events</span>
-        {formatted.noteworthyEvents.slice(0, 3).map((event) => (
-          <div key={event.trace_id} className="flex flex-col gap-0.5">
+        {formatted.noteworthyEvents.slice(0, 3).map((event, index) => (
+          <div key={`${event.trace_id}-${index}`} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
               <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
@@ -302,13 +312,24 @@ const NotificationItem = ({
               ))}
             </div>
           )}
-          <Link
-            href={formatted.traceLink}
-            className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
-            onClick={(e) => e.stopPropagation()}
-          >
-            View trace
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href={formatted.traceLink}
+              className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View trace
+            </Link>
+            {formatted.similarEventsLink && (
+              <Link
+                href={formatted.similarEventsLink}
+                className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View similar events
+              </Link>
+            )}
+          </div>
         </>
       )}
       {formatted.kind === "report" && <NotificationDetails formatted={formatted} projectId={projectId} />}

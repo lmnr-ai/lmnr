@@ -64,7 +64,7 @@ export function AgentGroupHeader({
       )}
       onClick={handleToggle}
     >
-      <div className={cn("flex flex-col flex-1 min-w-0 px-3 py-2", collapsed && "gap-1")}>
+      <div className={cn("flex flex-col flex-1 min-w-0 px-2 py-2", collapsed && "gap-1")}>
         <div className="flex gap-2 items-center min-w-0">
           <div
             className="flex items-center justify-center z-10 rounded shrink-0"

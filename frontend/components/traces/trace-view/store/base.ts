@@ -263,7 +263,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     browserSession: options?.initialTrace?.hasBrowserSession || false,
     sessionTime: undefined,
     sessionStartTime: undefined,
-    tab: "tree",
+    tab: "transcript",
     langGraph: false,
     spanPath: null,
     hasBrowserSession: options?.initialTrace?.hasBrowserSession || false,
