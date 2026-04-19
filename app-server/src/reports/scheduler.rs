@@ -96,12 +96,13 @@ async fn check_and_enqueue(
         now
     );
 
-    let _ = cache
-        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
-        .await;
-
     let hours_to_check = hour_boundaries_between(last_check, now);
     if hours_to_check.is_empty() {
+        // No hour boundaries to process; advance checkpoint so the same
+        // sub-hour window is not re-scanned on the next tick.
+        cache
+            .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+            .await?;
         return Ok(());
     }
     log::info!(
@@ -113,6 +114,7 @@ async fn check_and_enqueue(
     for (weekday, hour, triggered_at) in hours_to_check {
         let reports = get_reports_for_weekday_and_hour(pool, weekday, hour).await?;
 
+        let mut all_enqueued = true;
         for report in reports {
             let message = ReportTriggerMessage {
                 id: report.id,
@@ -129,8 +131,23 @@ async fn check_and_enqueue(
                     report.id,
                     e
                 );
+                all_enqueued = false;
             }
         }
+
+        if !all_enqueued {
+            // Stop advancing the checkpoint so this hour bucket (and any
+            // remaining ones) will be retried on the next tick.
+            return Err(anyhow::anyhow!(
+                "One or more reports failed to enqueue for hour {triggered_at}; checkpoint held for retry"
+            ));
+        }
+
+        // Advance checkpoint only after all reports in this hour bucket
+        // have been successfully enqueued.
+        cache
+            .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, triggered_at)
+            .await?;
     }
 
     Ok(())
