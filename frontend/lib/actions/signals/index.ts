@@ -10,6 +10,7 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export type SignalRow = {
   id: string;
@@ -235,7 +236,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       })
       .returning();
 
-    await tx.insert(alerts).values([
+    const alertsToInsert: (typeof alerts.$inferInsert)[] = [
       {
         projectId,
         name: `${name} alert`,
@@ -243,14 +244,19 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
         sourceId: signal.id,
         metadata: { severity: SEVERITY_LEVEL.CRITICAL, skipSimilar: true },
       },
-      {
+    ];
+
+    if (isFeatureEnabled(Feature.CLUSTERING)) {
+      alertsToInsert.push({
         projectId,
         name: `${name} cluster alert`,
         type: "NEW_CLUSTER",
         sourceId: signal.id,
         metadata: {},
-      },
-    ]);
+      });
+    }
+
+    await tx.insert(alerts).values(alertsToInsert);
 
     return signal;
   });
