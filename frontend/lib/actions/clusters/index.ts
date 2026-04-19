@@ -123,43 +123,45 @@ export const GetClusterEventCountsSchema = z.object({
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
 
-export async function getClusterEventCounts(
-  input: z.infer<typeof GetClusterEventCountsSchema>
-): Promise<{ items: ClusterStatsDataPoint[]; unclusteredCounts: TimeSeriesDataPoint[] }> {
-  const {
-    projectId,
-    signalId,
-    pastHours,
-    startDate: startTime,
-    endDate: endTime,
-    intervalValue,
-    intervalUnit,
-  } = GetClusterEventCountsSchema.parse(input);
+interface TimeRangeClauseInput {
+  timeColumn: string;
+  pastHours: string | null | undefined;
+  startTime: string | null | undefined;
+  endTime: string | null | undefined;
+}
 
+interface TimeRangeClauses {
+  timeClause: string;
+  withFillClause: string;
+  params: Record<string, unknown>;
+}
+
+const buildTimeRangeClauses = ({
+  timeColumn,
+  pastHours,
+  startTime,
+  endTime,
+}: TimeRangeClauseInput): TimeRangeClauses => {
   const timeConditions: string[] = [];
-  const queryParams: Record<string, unknown> = {
-    signalId,
-    intervalValue,
-    intervalUnit,
-  };
+  const params: Record<string, unknown> = {};
 
   let fillFrom: string | null = null;
   let fillTo: string | null = null;
 
   if (pastHours && !isNaN(parseFloat(pastHours))) {
-    timeConditions.push("timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR");
-    queryParams.pastHours = parseInt(pastHours);
+    timeConditions.push(`${timeColumn} >= now() - INTERVAL {pastHours: UInt32} HOUR`);
+    params.pastHours = parseInt(pastHours);
     fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
   } else {
     if (startTime) {
-      timeConditions.push("timestamp >= {startTime: String}");
-      queryParams.startTime = startTime.replace("Z", "");
+      timeConditions.push(`${timeColumn} >= {startTime: String}`);
+      params.startTime = startTime.replace("Z", "");
       fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
     if (endTime) {
-      timeConditions.push("timestamp <= {endTime: String}");
-      queryParams.endTime = endTime.replace("Z", "");
+      timeConditions.push(`${timeColumn} <= {endTime: String}`);
+      params.endTime = endTime.replace("Z", "");
       fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
   }
@@ -173,6 +175,40 @@ export async function getClusterEventCounts(
     TO ${fillTo}
     STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
       : "";
+
+  return { timeClause, withFillClause, params };
+};
+
+export async function getClusterEventCounts(
+  input: z.infer<typeof GetClusterEventCountsSchema>
+): Promise<{ items: ClusterStatsDataPoint[]; unclusteredCounts: TimeSeriesDataPoint[] }> {
+  const {
+    projectId,
+    signalId,
+    pastHours,
+    startDate: startTime,
+    endDate: endTime,
+    intervalValue,
+    intervalUnit,
+  } = GetClusterEventCountsSchema.parse(input);
+
+  const {
+    timeClause,
+    withFillClause,
+    params: timeParams,
+  } = buildTimeRangeClauses({
+    timeColumn: "timestamp",
+    pastHours,
+    startTime,
+    endTime,
+  });
+
+  const queryParams: Record<string, unknown> = {
+    signalId,
+    intervalValue,
+    intervalUnit,
+    ...timeParams,
+  };
 
   const clusterQuery = `
     SELECT
@@ -239,43 +275,23 @@ export async function getNewClusterStats(
     intervalUnit,
   } = GetNewClusterStatsSchema.parse(input);
 
-  const timeConditions: string[] = [];
+  const {
+    timeClause,
+    withFillClause,
+    params: timeParams,
+  } = buildTimeRangeClauses({
+    timeColumn: "created_at",
+    pastHours,
+    startTime,
+    endTime,
+  });
+
   const queryParams: Record<string, unknown> = {
     signalId,
     intervalValue,
     intervalUnit,
+    ...timeParams,
   };
-
-  let fillFrom: string | null = null;
-  let fillTo: string | null = null;
-
-  if (pastHours && !isNaN(parseFloat(pastHours))) {
-    timeConditions.push("created_at >= now() - INTERVAL {pastHours: UInt32} HOUR");
-    queryParams.pastHours = parseInt(pastHours);
-    fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
-    fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
-  } else {
-    if (startTime) {
-      timeConditions.push("created_at >= {startTime: String}");
-      queryParams.startTime = startTime.replace("Z", "");
-      fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
-    }
-    if (endTime) {
-      timeConditions.push("created_at <= {endTime: String}");
-      queryParams.endTime = endTime.replace("Z", "");
-      fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
-    }
-  }
-
-  const timeClause = timeConditions.length > 0 ? "AND " + timeConditions.join(" AND ") : "";
-
-  const withFillClause =
-    fillFrom && fillTo
-      ? `WITH FILL
-    FROM ${fillFrom}
-    TO ${fillTo}
-    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
-      : "";
 
   const query = `
     SELECT
