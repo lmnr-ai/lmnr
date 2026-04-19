@@ -9,15 +9,7 @@ import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import {
-  alerts,
-  alertTargets,
-  membersOfWorkspaces,
-  projects,
-  signals,
-  signalTriggers,
-  users,
-} from "@/lib/db/migrations/schema";
+import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type SignalRow = {
   id: string;
@@ -243,46 +235,13 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       })
       .returning();
 
-    // Auto-create a CRITICAL severity alert for the new signal
-    const [alert] = await tx
-      .insert(alerts)
-      .values({
-        projectId,
-        name: `${name} alert`,
-        type: "SIGNAL_EVENT",
-        sourceId: signal.id,
-        metadata: { severity: SEVERITY_LEVEL.CRITICAL },
-      })
-      .returning({ id: alerts.id });
-
-    // Subscribe all workspace members' emails to the alert.
-    // The project must exist since the signal insert above has a FK to projects.
-    const [project] = await tx
-      .select({ workspaceId: projects.workspaceId })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .limit(1);
-
-    if (!project) {
-      throw new Error(`Project ${projectId} not found — cannot create alert targets`);
-    }
-
-    const workspaceUsers = await tx
-      .select({ email: users.email })
-      .from(users)
-      .innerJoin(membersOfWorkspaces, eq(users.id, membersOfWorkspaces.userId))
-      .where(eq(membersOfWorkspaces.workspaceId, project.workspaceId));
-
-    if (workspaceUsers.length > 0) {
-      await tx.insert(alertTargets).values(
-        workspaceUsers.map((u) => ({
-          alertId: alert.id,
-          projectId,
-          type: "EMAIL",
-          email: u.email,
-        }))
-      );
-    }
+    await tx.insert(alerts).values({
+      projectId,
+      name: `${name} alert`,
+      type: "SIGNAL_EVENT",
+      sourceId: signal.id,
+      metadata: { severity: SEVERITY_LEVEL.CRITICAL, skipSimilar: true },
+    });
 
     return signal;
   });
