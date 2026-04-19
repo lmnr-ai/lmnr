@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface UseTraceUserInputResult {
@@ -16,9 +17,8 @@ export function useTraceUserInput(
   const { toast } = useToast();
   const [userInput, setUserInput] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  // Track the span count we resolved against so we can refetch as more LLM
-  // spans arrive (the server picks the main agent from the first 5, so we
-  // want to refetch until we reach that threshold).
+  // Track the span count we resolved against so we can refetch until the
+  // server has at least MAIN_AGENT_SEARCH_WINDOW LLM spans to pick from.
   const resolvedRef = useRef<{ traceId: string; input: string | null; llmSpanCount: number } | null>(null);
 
   useEffect(() => {
@@ -35,13 +35,10 @@ export function useTraceUserInput(
       return;
     }
 
-    // Once we've resolved a non-null input with 5+ LLM spans visible, the
-    // server has enough candidates to reliably pick the main agent, so stop
-    // refetching on subsequent span arrivals.
     if (
       resolvedRef.current?.traceId === traceId &&
       resolvedRef.current.input !== null &&
-      resolvedRef.current.llmSpanCount >= 5
+      resolvedRef.current.llmSpanCount >= MAIN_AGENT_SEARCH_WINDOW
     ) {
       return;
     }

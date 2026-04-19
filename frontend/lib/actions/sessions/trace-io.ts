@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
 import { fetcherJSON } from "@/lib/utils.ts";
@@ -25,7 +26,7 @@ const TOP_PATH_QUERY = `
       WHERE trace_id = {traceId: UUID}
         AND span_type = 'LLM'
       ORDER BY start_time ASC
-      LIMIT 5
+      LIMIT ${MAIN_AGENT_SEARCH_WINDOW}
     )
     GROUP BY path, prompt_hash
     ORDER BY

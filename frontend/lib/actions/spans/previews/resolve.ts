@@ -1,3 +1,4 @@
+import { isAiProviderConfigured } from "@/lib/ai/model";
 import { cache, SPAN_RENDERING_KEY_CACHE_KEY } from "@/lib/cache";
 
 import { generatePreviewKeys } from "./prompts";
@@ -8,6 +9,7 @@ import {
   generateFingerprint,
   isToolOnlyLlmOutput,
   type ProviderHint,
+  tryHeuristicPreview,
   validateMustacheKey,
 } from "./utils";
 
@@ -27,6 +29,11 @@ interface ParsedSpan {
 
 const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 2000);
 
+/**
+ * Classify raw span payloads. Non-generation spans are resolved directly to a
+ * truncated string; generation spans with object payloads are returned for
+ * further processing by the resolution pipeline.
+ */
 function classifyRawSpans(
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
   spanTypes: Record<string, string>
@@ -81,6 +88,34 @@ function fillMissing(previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
   return result;
 }
 
+/**
+ * Match known provider structures (OpenAI, Anthropic, Gemini, LangChain).
+ */
+function applyProviderMatching(spans: ParsedSpan[]): { resolved: SpanPreviewResult; unmatched: ParsedSpan[] } {
+  const resolved: SpanPreviewResult = {};
+  const unmatched: ParsedSpan[] = [];
+
+  for (const span of spans) {
+    const match = matchProviderKey(span.parsedData, span.provider);
+    if (!match) {
+      unmatched.push(span);
+      continue;
+    }
+
+    const rendered = match.rendered ?? validateMustacheKey(match.key, match.data ?? span.parsedData);
+    if (rendered) {
+      resolved[span.spanId] = rendered;
+    } else {
+      unmatched.push(span);
+    }
+  }
+
+  return { resolved, unmatched };
+}
+
+/**
+ * Look up cached LLM-generated Mustache keys by structural fingerprint.
+ */
 async function applyCachedKeys(
   projectId: string,
   parsedSpans: ParsedSpan[]
@@ -133,51 +168,26 @@ async function applyCachedKeys(
   return { resolved, uncached };
 }
 
-function applyProviderMatching(
-  uncachedSpans: ParsedSpan[],
-  spanTypes: Record<string, string>
-): { resolved: SpanPreviewResult; needsLlm: ParsedSpan[] } {
-  const resolved: SpanPreviewResult = {};
-  const needsLlm: ParsedSpan[] = [];
-
-  for (const span of uncachedSpans) {
-    const spanType = spanTypes[span.spanId] ?? "";
-    if (!GENERATION_SPAN_TYPES.has(spanType)) {
-      needsLlm.push(span);
-      continue;
-    }
-
-    const match = matchProviderKey(span.parsedData, span.provider);
-    if (!match) {
-      needsLlm.push(span);
-      continue;
-    }
-
-    const rendered = match.rendered ?? validateMustacheKey(match.key, match.data ?? span.parsedData);
-    if (rendered) {
-      resolved[span.spanId] = rendered;
-    } else {
-      needsLlm.push(span);
-    }
-  }
-
-  return { resolved, needsLlm };
-}
-
-async function generateAndApplyKeys(
-  needsLlm: ParsedSpan[]
-): Promise<{ resolved: SpanPreviewResult; keysToSave: Array<{ fingerprint: string; key: string }> }> {
+/**
+ * Ask the LLM to generate Mustache keys for remaining structures.
+ * Keys that render successfully are persisted back to the cache.
+ */
+async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
+  resolved: SpanPreviewResult;
+  unresolved: ParsedSpan[];
+  keysToSave: Array<{ fingerprint: string; key: string }>;
+}> {
   const resolved: SpanPreviewResult = {};
   const keysToSave: Array<{ fingerprint: string; key: string }> = [];
 
-  if (needsLlm.length === 0) return { resolved, keysToSave };
+  if (spans.length === 0) return { resolved, unresolved: [], keysToSave };
 
   const seen = new Set<string>();
   const dedupedFingerprints: string[] = [];
   const structures: Array<{ data: unknown }> = [];
   const fingerprintToSpans = new Map<string, ParsedSpan[]>();
 
-  for (const span of needsLlm) {
+  for (const span of spans) {
     const group = fingerprintToSpans.get(span.fingerprint);
     if (group) {
       group.push(span);
@@ -199,27 +209,27 @@ async function generateAndApplyKeys(
     console.error("Preview key generation failed:", error);
   }
 
+  const unresolved: ParsedSpan[] = [];
+
   for (let i = 0; i < dedupedFingerprints.length; i++) {
     const fingerprint = dedupedFingerprints[i];
     const key = generatedKeys[i] ?? null;
-    const spans = fingerprintToSpans.get(fingerprint) ?? [];
+    const groupSpans = fingerprintToSpans.get(fingerprint) ?? [];
 
     if (!key) {
-      for (const span of spans) {
-        resolved[span.spanId] = toJsonPreview(span.parsedData);
-      }
+      unresolved.push(...groupSpans);
       continue;
     }
 
     let keyProducedValidRender = false;
 
-    for (const span of spans) {
+    for (const span of groupSpans) {
       const rendered = validateMustacheKey(key, span.parsedData);
       if (rendered) {
         resolved[span.spanId] = rendered;
         keyProducedValidRender = true;
       } else {
-        resolved[span.spanId] = toJsonPreview(span.parsedData);
+        unresolved.push(span);
       }
     }
 
@@ -228,13 +238,20 @@ async function generateAndApplyKeys(
     }
   }
 
-  for (const span of needsLlm) {
-    if (!(span.spanId in resolved)) {
-      resolved[span.spanId] = toJsonPreview(span.parsedData);
-    }
-  }
+  return { resolved, unresolved, keysToSave };
+}
 
-  return { resolved, keysToSave };
+/**
+ * Last-resort fallback used when the LLM path is unavailable or produced no
+ * valid key for a span. Picks the first primitive leaf (object key order,
+ * array index 0) and falls back to a truncated JSON preview.
+ */
+function applyHeuristicFallback(spans: ParsedSpan[]): SpanPreviewResult {
+  const resolved: SpanPreviewResult = {};
+  for (const span of spans) {
+    resolved[span.spanId] = tryHeuristicPreview(span.parsedData) ?? toJsonPreview(span.parsedData);
+  }
+  return resolved;
 }
 
 async function saveRenderingKeys(
@@ -262,7 +279,12 @@ export interface ResolveOptions {
 
 /**
  * Run the full preview resolution pipeline on pre-fetched span data:
- * classify → cached Redis keys → provider matching → LLM generation → save keys.
+ *   1. classify raw payloads
+ *   2. look up cached LLM-generated Mustache keys by fingerprint
+ *   3. match known provider structures (OpenAI / Anthropic / Gemini / LangChain)
+ *   4. generate new keys via LLM (when a provider is configured) and persist them
+ *   5. fall back to first-primitive-leaf heuristic for anything still unresolved
+ *      (this is the only path for tool spans when no LLM provider is configured)
  */
 export async function resolvePreviews(
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
@@ -272,32 +294,32 @@ export async function resolvePreviews(
   options: ResolveOptions = {}
 ): Promise<SpanPreviewResult> {
   const { skipGeneration = false } = options;
-  const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
+  const { resolved: classified, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
 
   if (needsProcessing.length === 0) {
-    return fillMissing(classifiedPreviews, spanIds);
+    return fillMissing(classified, spanIds);
   }
 
-  const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing);
-  const cachedResult = { ...classifiedPreviews, ...cachedPreviews };
-
+  const { resolved: cacheResolved, uncached } = await applyCachedKeys(projectId, needsProcessing);
+  let accumulated: SpanPreviewResult = { ...classified, ...cacheResolved };
   if (uncached.length === 0) {
-    return fillMissing(cachedResult, spanIds);
+    return fillMissing(accumulated, spanIds);
   }
 
-  const { resolved: providerPreviews, needsLlm } = applyProviderMatching(uncached, spanTypes);
-  const providerResult = { ...cachedResult, ...providerPreviews };
-
-  if (skipGeneration || needsLlm.length === 0) {
-    for (const span of needsLlm) {
-      providerResult[span.spanId] = toJsonPreview(span.parsedData);
-    }
-    return fillMissing(providerResult, spanIds);
+  const { resolved: providerResolved, unmatched } = applyProviderMatching(uncached);
+  accumulated = { ...accumulated, ...providerResolved };
+  if (unmatched.length === 0) {
+    return fillMissing(accumulated, spanIds);
   }
 
-  const { resolved: llmPreviews, keysToSave } = await generateAndApplyKeys(needsLlm);
+  const llmAvailable = !skipGeneration && isAiProviderConfigured();
 
+  if (!llmAvailable) {
+    return fillMissing({ ...accumulated, ...applyHeuristicFallback(unmatched) }, spanIds);
+  }
+
+  const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(unmatched);
   await saveRenderingKeys(projectId, keysToSave);
 
-  return fillMissing({ ...providerResult, ...llmPreviews }, spanIds);
+  return fillMissing({ ...accumulated, ...llmResolved, ...applyHeuristicFallback(unresolved) }, spanIds);
 }

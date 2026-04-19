@@ -280,7 +280,8 @@ type LlmSpanInfo = {
   startTime: string;
 };
 
-const MAIN_AGENT_SEARCH_WINDOW = 5;
+// Shared with TOP_PATH_QUERY in lib/actions/sessions/trace-io.ts and useTraceUserInput.
+export const MAIN_AGENT_SEARCH_WINDOW = 5;
 
 /**
  * Detect sub-agent boundary span IDs from in-memory spans.
