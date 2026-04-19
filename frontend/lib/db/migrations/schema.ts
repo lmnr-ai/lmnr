@@ -994,24 +994,6 @@ export const notificationReads = pgTable(
   ]
 );
 
-export const spanRenderingKeys = pgTable(
-  "span_rendering_keys",
-  {
-    projectId: uuid("project_id").notNull(),
-    schemaFingerprint: text("schema_fingerprint").notNull(),
-    mustacheKey: text("mustache_key").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "span_rendering_keys_project_id_fkey",
-    }).onDelete("cascade"),
-    primaryKey({ columns: [table.projectId, table.schemaFingerprint], name: "span_rendering_keys_pkey" }),
-  ]
-);
-
 export const tagClasses = pgTable(
   "tag_classes",
   {
