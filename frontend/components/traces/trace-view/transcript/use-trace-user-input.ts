@@ -37,8 +37,7 @@ export function useTraceUserInput(
 
     if (
       resolvedRef.current?.traceId === traceId &&
-      resolvedRef.current.input !== null &&
-      resolvedRef.current.llmSpanCount >= MAIN_AGENT_SEARCH_WINDOW
+      (resolvedRef.current.input !== null || resolvedRef.current.llmSpanCount >= MAIN_AGENT_SEARCH_WINDOW)
     ) {
       return;
     }
