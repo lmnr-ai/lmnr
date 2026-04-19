@@ -165,7 +165,7 @@ async fn process_clustering_logic(
         );
     }
 
-    let mut response = match result {
+    let response = match result {
         Ok(response) => {
             if response.success {
                 log::info!(
@@ -192,19 +192,6 @@ async fn process_clustering_logic(
             );
             return Err(e.into());
         }
-    };
-
-    // TMP
-    response = ClusterResponse {
-        success: true,
-        events: vec![],
-        new_clusters: vec![NewClusterResult {
-            cluster_id: Uuid::new_v4(),
-            cluster_name: "Destructive Tool Misuse".to_string(),
-            level: 2,
-            child_cluster_ids: vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()],
-            num_signal_events: 24,
-        }],
     };
 
     // Process new cluster notifications
