@@ -40,7 +40,8 @@ class JsonToSqlConverter:
         if isinstance(value, bool):
             return str(value).upper()
 
-        return f"'{value}'"
+        escaped = str(value).replace("'", "''")
+        return f"'{escaped}'"
 
     def _get_interval_expr(self, time_range: dict[str, Any]) -> str:
         if 'interval_value' in time_range and 'interval_unit' in time_range:
@@ -78,10 +79,18 @@ class JsonToSqlConverter:
                 parts.append(order_clause)
 
             limit = query_dict.get('limit')
-            if limit:
-                parts.append(f'LIMIT {limit}')
+            if limit is not None:
+                try:
+                    limit_int = int(limit)
+                except (ValueError, TypeError):
+                    raise QueryBuilderError("LIMIT must be a positive integer")
+                if limit_int <= 0:
+                    raise QueryBuilderError("LIMIT must be a positive integer")
+                parts.append(f'LIMIT {limit_int}')
 
             return '\n'.join(parts)
+        except QueryBuilderError:
+            raise
         except Exception as e:
             raise QueryBuilderError(f"Failed to convert to SQL: {e}")
 
@@ -119,6 +128,7 @@ class JsonToSqlConverter:
         conditions = []
         time_range = query_dict['time_range']
         col = time_range['column']
+        safe_col = self._safe_column_expr(col)
         time_from = time_range['from']
         time_to = time_range['to']
         filters = query_dict.get('filters', [])
@@ -134,9 +144,9 @@ class JsonToSqlConverter:
         has_lte = any(f.get('field') == col and f.get('op', '').lower() == 'lte' and matches_filter_value(f, time_to) for f in filters)
 
         if not has_gte:
-            conditions.append(f"{col} >= {time_from}")
+            conditions.append(f"{safe_col} >= {time_from}")
         if not has_lte:
-            conditions.append(f"{col} <= {time_to}")
+            conditions.append(f"{safe_col} <= {time_to}")
 
         return conditions
 
@@ -178,9 +188,9 @@ class JsonToSqlConverter:
         return order_clause
 
     def _time_bucket_sql(self, time_range: dict[str, Any]) -> str:
-        col = time_range['column']
+        safe_col = self._safe_column_expr(time_range['column'])
         interval_expr = self._get_interval_expr(time_range)
-        return f"toStartOfInterval({col}, {interval_expr}) AS time"
+        return f"toStartOfInterval({safe_col}, {interval_expr}) AS time"
 
     @staticmethod
     def _escape_alias(alias: str) -> str:
@@ -287,12 +297,13 @@ class JsonToSqlConverter:
             )
 
         op_lower = op.lower()
+        safe_field = self._safe_column_expr(field)
 
         if op_lower in self.COMPARISON_OPS:
-            return f"{field} {self.COMPARISON_OPS[op_lower]} {self._format_value(value)}"
+            return f"{safe_field} {self.COMPARISON_OPS[op_lower]} {self._format_value(value)}"
 
         if op_lower == 'includes':
-            return f"has({field}, {self._format_value(value)})"
+            return f"has({safe_field}, {self._format_value(value)})"
 
         raise QueryBuilderError(f"Unsupported operator: {op}")
 
