@@ -97,14 +97,8 @@ function applyProviderMatching(spans: ParsedSpan[]): { resolved: SpanPreviewResu
 
   for (const span of spans) {
     const match = matchProviderKey(span.parsedData, span.provider);
-    if (!match) {
-      unmatched.push(span);
-      continue;
-    }
-
-    const rendered = match.rendered ?? validateMustacheKey(match.key, match.data ?? span.parsedData);
-    if (rendered) {
-      resolved[span.spanId] = rendered;
+    if (match) {
+      resolved[span.spanId] = match.rendered;
     } else {
       unmatched.push(span);
     }
