@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import React, { type PropsWithChildren, useState } from "react";
 
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
+import { ChartType } from "@/components/chart-builder/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,12 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    if (!chartConfig.type || !chartConfig.x || !chartConfig.y) {
+    if (!chartConfig.type || !chartConfig.y) {
+      return;
+    }
+
+    // Non-Metric charts require an x-axis column
+    if (chartConfig.type !== ChartType.Metric && !chartConfig.x) {
       return;
     }
 

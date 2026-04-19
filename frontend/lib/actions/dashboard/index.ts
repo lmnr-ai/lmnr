@@ -14,7 +14,7 @@ const GetChartsSchema = z.object({
 const ChartSettingsSchema = z.object({
   config: z.object({
     type: z.enum(ChartType),
-    x: z.string(),
+    x: z.string().optional(),
     y: z.string(),
     breakdown: z.string().optional(),
     total: z.boolean().optional(),

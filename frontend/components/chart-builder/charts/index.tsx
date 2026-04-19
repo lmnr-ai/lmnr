@@ -4,6 +4,7 @@ import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-bu
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
+import MetricChart from "@/components/chart-builder/charts/metric-chart";
 import {
   generateChartConfig,
   transformDataForBreakdown,
@@ -19,13 +20,19 @@ interface ChartRendererCoreProps {
 }
 
 export const ChartRendererCore = ({ config, data, columns }: ChartRendererCoreProps) => {
+  const isMetric = config.type === ChartType.Metric;
+
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || !config.x || !config.y) {
+    if (!config.type || !config.y || (!isMetric && !config.x)) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
+    }
+
+    if (isMetric) {
+      return { chartData: data, keys: new Set([config.y]), chartConfig: {} };
     }
 
     const xColumn = columns.find((col) => col.name === config.x);
@@ -37,28 +44,39 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     }
 
     if (breakdownColumn) {
-      return transformDataForBreakdown(data, config.x, config.y, config.breakdown!);
+      return transformDataForBreakdown(data, config.x!, config.y, config.breakdown!);
     }
 
-    return transformDataForSimpleChart(data, config.x, [config.y]);
-  }, [config, data, columns]);
+    return transformDataForSimpleChart(data, config.x!, [config.y]);
+  }, [config, data, columns, isMetric]);
 
-  if (!config.type || !config.x || !config.y) {
+  if (!config.type || !config.y || (!isMetric && !config.x)) {
     return (
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
         <div className="text-center">
           <p className="text">Invalid chart configuration</p>
           {!config.type && <p className="text-sm mt-1">• Chart type is required</p>}
-          {!config.x && <p className="text-sm mt-1">• X-axis column is required</p>}
+          {!isMetric && !config.x && <p className="text-sm mt-1">• X-axis column is required</p>}
           {!config.y && <p className="text-sm mt-1">• Y-axis column is required</p>}
         </div>
       </div>
     );
   }
 
+  if (isMetric) {
+    if (data.length === 0) {
+      return (
+        <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
+          <span className="text-muted-foreground">No data during this period</span>
+        </div>
+      );
+    }
+    return <MetricChart data={data} y={config.y} />;
+  }
+
   const props = {
     data: chartData,
-    x: config.x,
+    x: config.x!,
     y: config.y,
     breakdown: config.breakdown,
     total: config.total,
