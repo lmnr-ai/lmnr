@@ -20,6 +20,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.12
+    pull_policy: always
     container_name: clickhouse
     ports:
       - "8123:8123"
