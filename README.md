@@ -8,18 +8,18 @@
 
 [Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
 
-- [x] Tracing. [Docs](https://docs.laminar.sh/tracing/introduction)
+- [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
-- [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
+- [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://docs.laminar.sh/signals)
+- [x] AI monitoring. [Docs](https://laminar.sh/docs/signals)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
+- [x] SQL access to all data. [Docs](https://laminar.sh/docs/platform/sql-editor)
     - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
-- [x] Dashboards. [Docs](https://docs.laminar.sh/custom-dashboards/overview)
+- [x] Dashboards. [Docs](https://laminar.sh/docs/custom-dashboards/overview)
     - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
-- [x] Data annotation & Datasets. [Docs](https://docs.laminar.sh/datasets/introduction)
+- [x] Data annotation & Datasets. [Docs](https://laminar.sh/docs/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
@@ -31,7 +31,7 @@
 
 ## Documentation
 
-Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
+Check out full documentation here [laminar.sh/docs](https://laminar.sh/docs).
 
 ## Getting started
 
@@ -49,13 +49,13 @@ docker compose up -d
 This will spin up a lightweight but full-featured version of the stack. This is good for a quickstart 
 or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
 
-You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
+You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://laminar.sh/docs/hosting-options#self-hosted-docker-compose).
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
 ### Enabling the Signals feature
 
-To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
 
 ```sh
 # In .env at the repo root
@@ -109,7 +109,7 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.laminar.sh/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/installation)
 
 
 To start tracing LLM calls just add

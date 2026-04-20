@@ -64,7 +64,7 @@ export default function SamplingSection() {
             {sampleRate}% of all traces will be processed. When user_id is set, traces are sampled evenly across users
             so each gets equal coverage.{" "}
             <a
-              href="https://docs.laminar.sh/tracing/structure/user-id"
+              href="https://laminar.sh/docs/tracing/structure/user-id"
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:text-foreground"

@@ -26,21 +26,38 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    if signal_event.severity >= 1 {
+    {
         let alerts =
-            db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
+            db::alert_targets::get_alerts_for_signal(&db.pool, project_id, signal_event.signal_id)
+                .await?;
 
         for alert in alerts {
+            let min_severity = alert.metadata.severity();
+
+            // Match severity
+            if signal_event.severity != min_severity {
+                continue;
+            }
+
+            // Ignore alerts with skip_similar enabled, the notification will be triggered when a new L0 cluster is detected.
+            if alert.metadata.skip_similar() {
+                continue;
+            }
+
             let notification_message = notifications::NotificationMessage {
                 definition_type: NotificationDefinitionType::Alert,
-                definition_id: alert.alert_id,
+                definition_id: alert.id,
                 workspace_id: alert.workspace_id,
                 project_id: Some(project_id),
                 notifications: vec![NotificationKind::EventIdentification {
                     project_id,
+                    signal_id: signal_event.signal_id,
                     trace_id,
+                    event_id: Some(signal_event.id),
                     event_name: event_name.clone(),
+                    severity: signal_event.severity,
                     extracted_information: Some(attributes.clone()),
+                    alert_name: alert.name,
                 }],
             };
 

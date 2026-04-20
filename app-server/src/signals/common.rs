@@ -95,7 +95,9 @@ pub async fn process_run(
             HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
         })?;
 
-    let (contents, system_instruction, new_messages, steps_processed) = if existing_messages.is_empty() {
+    let (contents, system_instruction, new_messages, steps_processed) = if existing_messages
+        .is_empty()
+    {
         let ch_spans = get_trace_ch_spans(clickhouse.clone(), project_id, trace_id)
             .await
             .map_err(|e| {
@@ -141,7 +143,8 @@ pub async fn process_run(
                 None => {
                     log::info!(
                         "Filter cache miss for trace {} (fingerprint={}), generating rules",
-                        trace_id, fp,
+                        trace_id,
+                        fp,
                     );
                     let unfiltered_structure =
                         build_trace_structure_string(&ch_spans, trace_id, &summarization.summaries);
@@ -258,6 +261,8 @@ pub async fn process_run(
             }
         }
 
+        // we don't account any subsequently fetched spans into steps processed,
+        // intentionally absorbing this cost
         (contents, system_instruction, vec![], 0)
     };
 

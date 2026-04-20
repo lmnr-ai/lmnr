@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
@@ -222,16 +223,28 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
   const { projectId, name, prompt, structuredOutput, sampleRate } = CreateSignalSchema.parse(input);
 
-  const [result] = await db
-    .insert(signals)
-    .values({
+  const result = await db.transaction(async (tx) => {
+    const [signal] = await tx
+      .insert(signals)
+      .values({
+        projectId,
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        sampleRate: sampleRate ?? null,
+      })
+      .returning();
+
+    await tx.insert(alerts).values({
       projectId,
-      name,
-      prompt,
-      structuredOutputSchema: structuredOutput,
-      sampleRate: sampleRate ?? null,
-    })
-    .returning();
+      name: `${name} alert`,
+      type: "SIGNAL_EVENT",
+      sourceId: signal.id,
+      metadata: { severity: SEVERITY_LEVEL.CRITICAL, skipSimilar: true },
+    });
+
+    return signal;
+  });
 
   return result;
 }

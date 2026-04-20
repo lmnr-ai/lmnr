@@ -283,8 +283,9 @@ export const getSpanDisplayName = (span: TraceViewSpan | TraceViewListSpan) => {
 export const getLLMMetrics = (span: TraceViewSpan) => {
   if (span.aggregatedMetrics?.hasLLMDescendants) {
     return {
+      inputTokens: span.aggregatedMetrics.inputTokens,
+      outputTokens: span.aggregatedMetrics.outputTokens,
       cost: span.aggregatedMetrics.totalCost,
-      tokens: span.aggregatedMetrics.totalTokens,
       cacheReadInputTokens: span.aggregatedMetrics.cacheReadInputTokens,
       reasoningTokens: span.aggregatedMetrics.reasoningTokens,
     };
@@ -292,16 +293,18 @@ export const getLLMMetrics = (span: TraceViewSpan) => {
 
   if (span.spanType !== "LLM") return null;
 
+  const inputTokensValue = span.inputTokens ?? 0;
+  const outputTokensValue = span.outputTokens ?? 0;
   const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-  const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
   const cacheTokensValue = span.cacheReadInputTokens ?? 0;
   const reasoningTokensValue = span.reasoningTokens ?? 0;
 
-  if (costValue === 0 && tokensValue === 0) return null;
+  if (costValue === 0 && inputTokensValue === 0 && outputTokensValue === 0) return null;
 
   return {
+    inputTokens: inputTokensValue,
+    outputTokens: outputTokensValue,
     cost: costValue,
-    tokens: tokensValue,
     cacheReadInputTokens: cacheTokensValue,
     reasoningTokens: reasoningTokensValue,
   };

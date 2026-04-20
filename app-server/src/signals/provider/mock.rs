@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 use super::models::ProviderRequest;
 use crate::signals::provider::{
-    LanguageModelClient, ProviderBatchOperation, ProviderBatchOutput, ProviderCandidate,
-    ProviderContent, ProviderError, ProviderFinishReason, ProviderFunctionCall,
+    LanguageModelClient, ProviderBatchOperation, ProviderBatchOutput, ProviderBatchState,
+    ProviderCandidate, ProviderContent, ProviderError, ProviderFinishReason, ProviderFunctionCall,
     ProviderInlineResponse, ProviderPart, ProviderRequestItem, ProviderResponse, ProviderResult,
 };
 
@@ -257,6 +257,7 @@ impl LanguageModelClient for MockProviderClient {
             done: false,
             response: None,
             error: None,
+            state: Some(ProviderBatchState::Pending),
         })
     }
 
@@ -284,6 +285,7 @@ impl LanguageModelClient for MockProviderClient {
                 done: false,
                 response: None,
                 error: None,
+                state: Some(ProviderBatchState::Running),
             });
         }
 
@@ -297,6 +299,23 @@ impl LanguageModelClient for MockProviderClient {
             })
             .collect::<Vec<_>>();
 
+        let is_expired = std::env::var("MOCK_LLM_CLIENT_BATCH_EXPIRED")
+            .is_ok_and(|v| v.trim().to_lowercase() == "true");
+
+        if is_expired {
+            log::debug!(
+                "[Mock LLM client] get_batch called. batch_name={}. Returning expired",
+                batch_name
+            );
+            return Ok(ProviderBatchOperation {
+                name: batch_name.to_string(),
+                done: true,
+                response: None,
+                error: None,
+                state: Some(ProviderBatchState::Expired),
+            });
+        }
+
         log::debug!(
             "[Mock LLM client] get_batch called. batch_name={}. Returning done with {} responses",
             batch_name,
@@ -308,6 +327,7 @@ impl LanguageModelClient for MockProviderClient {
             done: true,
             response: Some(ProviderBatchOutput { responses }),
             error: None,
+            state: Some(ProviderBatchState::Succeeded),
         })
     }
 }

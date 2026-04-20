@@ -19,7 +19,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
+import {
+  ALERT_TARGET_TYPE,
+  type AlertWithDetails,
+  SEVERITY_LABELS,
+  SEVERITY_LEVEL,
+  type SeverityLevel,
+} from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -42,6 +48,8 @@ interface AlertFormValues {
   signalName: string;
   channelId: string;
   emailEnabled: boolean;
+  severity: SeverityLevel;
+  skipSimilar: boolean;
 }
 
 const CHART_FIELDS = ["count"] as const;
@@ -51,6 +59,8 @@ const DEFAULT_VALUES: AlertFormValues = {
   signalName: "",
   channelId: "",
   emailEnabled: false,
+  severity: SEVERITY_LEVEL.CRITICAL,
+  skipSimilar: true,
 };
 
 export default function ManageAlertSheet({
@@ -86,7 +96,7 @@ export default function ManageAlertSheet({
 
   const signalName = watch("signalName");
   const channelId = watch("channelId");
-  const emailEnabled = watch("emailEnabled");
+  const severity = watch("severity");
 
   const resetFormFromSignals = useCallback(
     (data: { items: SignalRow[] }) => {
@@ -104,6 +114,8 @@ export default function ManageAlertSheet({
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
+        severity: alert.metadata.severity ?? SEVERITY_LEVEL.CRITICAL,
+        skipSimilar: alert.metadata.skipSimilar ?? false,
       });
     },
     [alert, reset, userEmail]
@@ -166,12 +178,15 @@ export default function ManageAlertSheet({
     [signalsData, signalName]
   );
 
+  const additionalParams = useMemo(() => ({ severity: String(severity) }), [severity]);
+
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: selectedSignal ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats` : "",
     chartContainerWidth,
     pastHours: dateRange.pastHours ?? null,
     startDate: dateRange.startDate ?? null,
     endDate: dateRange.endDate ?? null,
+    additionalParams,
   });
 
   const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: TimeSeriesDataPoint[] }>(
@@ -266,15 +281,6 @@ export default function ManageAlertSheet({
         });
       }
 
-      if (!isEditMode && targets.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "At least one notification target (Slack channel or email) is required.",
-        });
-        return;
-      }
-
       try {
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
@@ -287,6 +293,7 @@ export default function ManageAlertSheet({
             type: "SIGNAL_EVENT",
             sourceId: selectedSignal.id,
             targets,
+            metadata: { severity: data.severity, skipSimilar: data.skipSimilar },
           }),
         });
 
@@ -366,7 +373,7 @@ export default function ManageAlertSheet({
   const isSignalsSectionLoading = isLoadingSignals || isValidatingSignals;
 
   const sheetContent = (
-    <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0 focus:outline-none">
+    <SheetContent side="right" className="sm:max-w-none! w-[45vw] flex flex-col gap-0 focus:outline-none">
       <SheetHeader className="py-4 px-4 border-b">
         <SheetTitle>{isEditMode ? "Edit alert" : "New alert"}</SheetTitle>
       </SheetHeader>
@@ -427,6 +434,56 @@ export default function ManageAlertSheet({
                 </div>
               )}
             />
+
+            {selectedSignal && (
+              <Controller
+                name="severity"
+                control={control}
+                render={({ field }) => (
+                  <div className="grid gap-2">
+                    <Label>Severity</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only trigger notifications for events with this severity level.
+                    </p>
+                    <Select
+                      value={String(field.value)}
+                      onValueChange={(v) => field.onChange(Number(v) as SeverityLevel)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {([SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const).map(
+                          (level) => (
+                            <SelectItem key={level} value={String(level)}>
+                              {SEVERITY_LABELS[level]}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            )}
+
+            {selectedSignal && (
+              <Controller
+                name="skipSimilar"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Skip notifications for similar events</p>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, only the first event in a group of similar events will trigger a notification.
+                      </p>
+                    </div>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </div>
+                )}
+              />
+            )}
 
             {selectedSignal && (
               <div className="flex flex-col gap-3 border rounded-md p-3 bg-muted/30">
@@ -525,7 +582,7 @@ export default function ManageAlertSheet({
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || (!isEditMode && !emailEnabled && !channelId)}>
+          <Button type="submit" disabled={isSubmitting}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

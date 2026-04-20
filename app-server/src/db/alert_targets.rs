@@ -1,32 +1,58 @@
+use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct AlertInfo {
-    pub alert_id: Uuid,
-    pub workspace_id: Uuid,
+/// Severity levels: 0 = info, 1 = warning, 2 = critical.
+/// Defaults to critical when absent (historical alerts).
+const DEFAULT_SEVERITY: u8 = 2;
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertMetadata {
+    #[serde(default)]
+    pub severity: Option<u8>,
+    #[serde(default)]
+    pub skip_similar: Option<bool>,
 }
 
-/// Look up all alerts for a given project and signal event name.
-/// Used by the signal postprocessor to discover which alerts match a fired event.
-/// Multiple alerts can reference the same signal, so all must be returned.
-pub async fn get_alerts_for_event(
+impl AlertMetadata {
+    pub fn severity(&self) -> u8 {
+        self.severity.unwrap_or(DEFAULT_SEVERITY)
+    }
+
+    pub fn skip_similar(&self) -> bool {
+        // False by default to not break historical alerts
+        self.skip_similar.unwrap_or(false)
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AlertInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
+    #[sqlx(json)]
+    pub metadata: AlertMetadata,
+}
+
+/// Look up all alerts for a given project and signal ID.
+/// Used by the clustering handler to discover which alerts match a signal.
+pub async fn get_alerts_for_signal(
     pool: &PgPool,
     project_id: Uuid,
-    event_name: &str,
+    signal_id: Uuid,
 ) -> anyhow::Result<Vec<AlertInfo>> {
     let records = sqlx::query_as::<_, AlertInfo>(
         r#"
-        SELECT a.id AS alert_id, p.workspace_id
+        SELECT a.id, a.name, p.workspace_id, a.metadata
         FROM alerts a
-        INNER JOIN signals s ON s.id = a.source_id
         INNER JOIN projects p ON p.id = a.project_id
         WHERE a.project_id = $1
-          AND s.name = $2
+          AND a.source_id = $2
         "#,
     )
     .bind(project_id)
-    .bind(event_name)
+    .bind(signal_id)
     .fetch_all(pool)
     .await?;
 

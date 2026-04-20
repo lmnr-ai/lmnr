@@ -1,4 +1,4 @@
-import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash";
+import { isBoolean, isEmpty, isNil, isNumber, isPlainObject, isString, keys, last, mapValues } from "lodash";
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
@@ -48,6 +48,71 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
 
 export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "unknown";
 
+/**
+ * Returns true when the parsed LLM output contains only tool calls
+ * and no meaningful text/thinking content worth showing as a preview.
+ */
+const hasNoMeaningfulContent = (content: unknown): boolean =>
+  content === null || content === undefined || content === "" || (isString(content) && content.trim().length === 0);
+
+export const isToolOnlyLlmOutput = (data: unknown): boolean => {
+  const unwrapped =
+    Array.isArray(data) && data.length === 1 && isPlainObject(data[0]) ? (data[0] as Record<string, unknown>) : null;
+  const obj = isPlainObject(data) ? (data as Record<string, unknown>) : null;
+
+  // OpenAI: choices[0].message has tool_calls but content is null/empty
+  if (obj && Array.isArray(obj.choices)) {
+    const msg = (obj.choices as unknown[])[0];
+    if (isPlainObject(msg)) {
+      const message = (msg as Record<string, unknown>).message;
+      if (isPlainObject(message)) {
+        const m = message as Record<string, unknown>;
+        if (Array.isArray(m.tool_calls) && m.tool_calls.length > 0 && hasNoMeaningfulContent(m.content)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Anthropic: content array has only tool_use blocks
+  const contentHolder = obj ?? unwrapped;
+  if (contentHolder && Array.isArray(contentHolder.content)) {
+    const blocks = contentHolder.content as unknown[];
+    if (
+      blocks.length > 0 &&
+      blocks.every((b) => isPlainObject(b) && (b as Record<string, unknown>).type === "tool_use")
+    ) {
+      return true;
+    }
+  }
+
+  // Gemini: candidates[0].content.parts has only functionCall parts
+  if (obj && Array.isArray(obj.candidates)) {
+    const candidate = (obj.candidates as unknown[])[0];
+    if (isPlainObject(candidate)) {
+      const content = (candidate as Record<string, unknown>).content;
+      if (isPlainObject(content)) {
+        const parts = (content as Record<string, unknown>).parts;
+        if (
+          Array.isArray(parts) &&
+          parts.length > 0 &&
+          parts.every((p) => isPlainObject(p) && "functionCall" in (p as Record<string, unknown>))
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // Generic: any message (object or array-wrapped) with tool_calls but no content
+  const msg = obj ?? unwrapped;
+  if (msg && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0 && hasNoMeaningfulContent(msg.content)) {
+    return true;
+  }
+
+  return false;
+};
+
 export const detectOutputStructure = (data: unknown): ProviderHint => {
   if (OpenAIOutputSchema.safeParse(data).success) return "openai";
   if (GeminiOutputSchema.safeParse(data).success) return "gemini";
@@ -61,38 +126,13 @@ export const detectOutputStructure = (data: unknown): ProviderHint => {
   return "unknown";
 };
 
-const describeShape = (value: unknown): string => {
-  if (isNil(value)) return "null";
-  if (isString(value)) return "string";
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-
-  if (Array.isArray(value)) {
-    if (isEmpty(value)) return "[]";
-    const uniqueShapes = [...new Set(value.map(describeShape))].sort();
-    return uniqueShapes.length === 1 ? `[]${uniqueShapes[0]}` : `[](${uniqueShapes.join("|")})`;
-  }
-
-  if (isPlainObject(value)) {
-    const obj = value as Record<string, unknown>;
-    const entries = Object.keys(obj)
-      .sort()
-      .map((key) => `${key}:${describeShape(obj[key])}`);
-    return `{${entries.join(",")}}`;
-  }
-
-  return "unknown";
-};
-
-/**
- * Generate a deterministic schema fingerprint from a JSON structure.
- */
-export const generateFingerprint = (spanName: string, data: unknown): string => `${spanName}:${describeShape(data)}`;
-
 const METADATA_KEYS = new Set([
   "id",
+  "ids",
   "status",
   "type",
+  "types",
+  "kind",
   "mode",
   "version",
   "role",
@@ -109,6 +149,86 @@ const METADATA_KEYS = new Set([
   "system_fingerprint",
 ]);
 
+const IDENTIFIER_KEYS = new Set(["name", "action", "function", "method", "command", "tool"]);
+
+/**
+ * Keys that indicate an object is a structured response, not a flat dictionary/map.
+ * Union of metadata, identifier, and common payload field names.
+ */
+const STRUCTURED_FIELD_NAMES = new Set([
+  ...METADATA_KEYS,
+  ...IDENTIFIER_KEYS,
+  "content",
+  "text",
+  "thinking",
+  "result",
+  "output",
+  "message",
+  "answer",
+  "query",
+  "description",
+  "summary",
+  "url",
+  "path",
+  "args",
+  "arguments",
+  "input",
+  "params",
+  "body",
+  "data",
+  "response",
+  "error",
+  "code",
+]);
+
+/**
+ * Returns true when an object looks like a flat key→value map (e.g. locale
+ * codes to translations) rather than a structured response with known fields.
+ * Requires 3+ entries, all values of the same primitive type, and no keys
+ * that match well-known structured field names.
+ */
+const isDictionaryLike = (obj: Record<string, unknown>): boolean => {
+  const keys = Object.keys(obj);
+  if (keys.length < 3) return false;
+  if (keys.some((k) => STRUCTURED_FIELD_NAMES.has(k))) return false;
+  const firstType = typeof obj[keys[0]];
+  if (firstType !== "string" && firstType !== "number" && firstType !== "boolean") return false;
+  return keys.every((k) => typeof obj[k] === firstType);
+};
+
+const describeShape = (value: unknown): string => {
+  if (isNil(value)) return "null";
+  if (isString(value)) return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+
+  if (Array.isArray(value)) {
+    if (isEmpty(value)) return "[]";
+    const uniqueShapes = [...new Set(value.map(describeShape))].sort();
+    return uniqueShapes.length === 1 ? `[]${uniqueShapes[0]}` : `[](${uniqueShapes.join("|")})`;
+  }
+
+  if (isPlainObject(value)) {
+    const obj = value as Record<string, unknown>;
+    if (isDictionaryLike(obj)) {
+      return `{*:${describeShape(obj[Object.keys(obj)[0]])}}`;
+    }
+    const entries = Object.keys(obj)
+      .sort()
+      .map((key) => `${key}:${describeShape(obj[key])}`);
+    return `{${entries.join(",")}}`;
+  }
+
+  return "unknown";
+};
+
+/**
+ * Generate a deterministic schema fingerprint from a JSON structure.
+ */
+export const generateFingerprint = (spanName: string, data: unknown): string => `${spanName}:${describeShape(data)}`;
+
+const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
+
 export const flattenPaths = (data: unknown): string[] => {
   const paths: string[] = [];
 
@@ -117,8 +237,11 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isString(value) || typeof value === "number" || typeof value === "boolean") {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
-      const meta = METADATA_KEYS.has(lastKey) ? " [meta]" : "";
-      paths.push(`${prefix}: ${typeof value}${meta}`);
+      let tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
+      if (!tag && isString(value) && OPAQUE_VALUE_PATTERN.test(value)) {
+        tag = " [meta]";
+      }
+      paths.push(`${prefix}: ${typeof value}${tag}`);
       return;
     }
 
@@ -129,6 +252,10 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isPlainObject(value)) {
       const obj = value as Record<string, unknown>;
+      if (isDictionaryLike(obj)) {
+        paths.push(`${prefix}{*}: ${typeof obj[Object.keys(obj)[0]]}`);
+        return;
+      }
       for (const key of Object.keys(obj)) {
         walk(obj[key], prefix ? `${prefix}.${key}` : key);
       }
@@ -138,20 +265,6 @@ export const flattenPaths = (data: unknown): string[] => {
   walk(data, "");
   return paths;
 };
-
-const HTML_ENTITY_MAP: Record<string, string> = {
-  "&quot;": '"',
-  "&#x27;": "'",
-  "&#x2F;": "/",
-  "&#x60;": "`",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&amp;": "&",
-};
-
-const ENTITY_REGEX = new RegExp(Object.keys(HTML_ENTITY_MAP).join("|"), "g");
-
-const unescapeHtml = (str: string): string => str.replace(ENTITY_REGEX, (match) => HTML_ENTITY_MAP[match]);
 
 /**
  * Add a non-enumerable toString to objects/arrays so Mustache renders them
@@ -186,10 +299,45 @@ const prepareRenderTarget = (data: unknown): unknown => {
 
 export const validateMustacheKey = (key: string, data: unknown): string | null => {
   try {
-    const rendered = unescapeHtml(Mustache.render(key, prepareRenderTarget(data)));
+    const rendered = Mustache.render(key, prepareRenderTarget(data), undefined, { escape: (v) => v });
     if (!rendered || rendered.trim() === "" || rendered.includes("[object Object]")) return null;
     return rendered;
   } catch {
     return null;
   }
 };
+
+function formatPrimitiveLeaf(value: string | number | boolean): string | null {
+  if (isNumber(value) || isBoolean(value)) return String(value);
+  const t = value.trim();
+  return t.length > 0 ? t : null;
+}
+
+function findFirstPrimitiveLeaf(value: unknown): string | null {
+  if (isNil(value)) return null;
+  if (isString(value) || isNumber(value) || isBoolean(value)) return formatPrimitiveLeaf(value);
+
+  if (Array.isArray(value)) {
+    if (isEmpty(value)) return null;
+    return findFirstPrimitiveLeaf(value[0]);
+  }
+
+  if (isPlainObject(value)) {
+    const obj = value as Record<string, unknown>;
+    for (const k of keys(obj)) {
+      const found = findFirstPrimitiveLeaf(obj[k]);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Last-resort fallback that picks the first primitive leaf (object key order,
+ * array index 0). Used by the resolver only when no AI provider is configured
+ * or when LLM key generation fails — most hits in practice are tool spans,
+ * since LLM outputs match a provider pattern upstream. Not cached.
+ */
+export const tryHeuristicPreview = (data: unknown): string | null => findFirstPrimitiveLeaf(deepParseJson(data));

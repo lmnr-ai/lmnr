@@ -9,7 +9,7 @@ interface Props {
   href?: string;
 }
 
-const DocsButton = ({ className, label = "Docs", href = "https://docs.laminar.sh" }: Props) => (
+const DocsButton = ({ className, label = "Docs", href = "https://laminar.sh/docs" }: Props) => (
   <Link
     href={href}
     target="_blank"

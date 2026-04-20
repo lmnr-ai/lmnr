@@ -57,6 +57,7 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "name", type: "string", description: "Name of the signal event" },
     { name: "payload", type: "string", description: "Payload of the signal event as stringified JSON" },
     { name: "timestamp", type: "number", description: "When the signal event occurred" },
+    { name: "severity", type: "number", description: "Severity of the signal event" },
     { name: "summary", type: "string", description: "Summary of the signal event" },
   ],
 };

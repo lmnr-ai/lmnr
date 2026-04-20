@@ -91,7 +91,7 @@ const EmptyRow = (
             Click + Queue above to create one.
           </p>
           <a
-            href="https://docs.laminar.sh/queues/quickstart"
+            href="https://laminar.sh/docs/queues/quickstart"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

@@ -80,5 +80,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     };
   });
 
-  return aggregateSpanMetrics(transformedSpans);
+  const result = aggregateSpanMetrics(transformedSpans);
+
+  return result;
 };

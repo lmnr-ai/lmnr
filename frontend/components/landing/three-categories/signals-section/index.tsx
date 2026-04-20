@@ -36,7 +36,7 @@ const SignalsSection = ({ className }: Props) => {
           </p>
         </div>
         <SignalsImage scrollProgress={scrollYProgress} />
-        <DocsButton href="https://docs.laminar.sh/signals#signals" />
+        <DocsButton href="https://laminar.sh/docs/signals#signals" />
       </div>
     </div>
   );

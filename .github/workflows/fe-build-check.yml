@@ -20,9 +20,9 @@ jobs:
 
       # Step 2: Install pnpm
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
-          version: 9
+          version: 10
 
       # Step 3: Set up Node.js
       - name: Set up Node.js

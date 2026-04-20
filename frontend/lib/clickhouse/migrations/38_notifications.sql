@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS notification_logs;
+
 CREATE TABLE IF NOT EXISTS notifications
 (
     notification_id    UUID,

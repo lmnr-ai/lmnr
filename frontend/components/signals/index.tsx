@@ -261,7 +261,7 @@ function SignalsContent() {
                   Click + Signal above to get started.
                 </p>
                 <a
-                  href="https://docs.laminar.sh/signals"
+                  href="https://laminar.sh/docs/signals"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

@@ -13,7 +13,7 @@ import LimitRow from "./limit-row";
 interface LimitsSettingsProps {
   workspaceId: string;
   tierIncludedDataGB: number;
-  tierIncludedSignalRuns: number;
+  tierIncludedSignalSteps: number;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
@@ -21,7 +21,7 @@ const GB_IN_BYTES = 1024 * 1024 * 1024;
 export default function LimitsSettings({
   workspaceId,
   tierIncludedDataGB,
-  tierIncludedSignalRuns,
+  tierIncludedSignalSteps,
 }: LimitsSettingsProps) {
   const router = useRouter();
   const { data: limits = [], mutate } = useSWR<WorkspaceUsageLimit[]>(
@@ -35,7 +35,7 @@ export default function LimitsSettings({
   }, [mutate, router]);
 
   const bytesLimit = limits.find((l) => l.limitType === "bytes");
-  const signalRunsLimit = limits.find((l) => l.limitType === "signal_runs");
+  const signalStepsLimit = limits.find((l) => l.limitType === "signal_steps_processed");
 
   return (
     <SettingsSection>
@@ -58,11 +58,11 @@ export default function LimitsSettings({
         />
         <LimitRow
           workspaceId={workspaceId}
-          limitType="signal_runs"
-          label="Signal runs"
-          currentValue={signalRunsLimit?.limitValue ?? null}
-          unit="runs"
-          includedLabel={`${new Intl.NumberFormat("en-US").format(tierIncludedSignalRuns)} runs`}
+          limitType="signal_steps_processed"
+          label="Signal steps processed"
+          currentValue={signalStepsLimit?.limitValue ?? null}
+          unit="steps"
+          includedLabel={`${new Intl.NumberFormat("en-US").format(tierIncludedSignalSteps)} steps`}
           toDisplayValue={(raw) => raw}
           toRawValue={(display) => Math.round(display)}
           onUpdate={handleUpdate}

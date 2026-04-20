@@ -27,11 +27,11 @@ interface WorkspaceUsageProps {
 interface TierHint {
   data: string;
   dataGB: number;
-  signalRuns: string;
-  signalRunsNum: number;
+  signalSteps: string;
+  signalStepsNum: number;
   isOverageAllowed: boolean;
   overageDataPrice: number;
-  overageSignalPrice: number;
+  overageSignalStepPrice: number;
   teamMembers: string;
 }
 
@@ -39,46 +39,46 @@ const TIER_USAGE_HINTS: Record<string, TierHint> = {
   free: {
     data: "1 GB",
     dataGB: 1,
-    signalRuns: "100",
-    signalRunsNum: 100,
+    signalSteps: "1,000",
+    signalStepsNum: 1000,
     isOverageAllowed: false,
     overageDataPrice: 0,
-    overageSignalPrice: 0,
+    overageSignalStepPrice: 0,
     teamMembers: "1",
   },
   hobby: {
     data: "3 GB",
     dataGB: 3,
-    signalRuns: "1,000",
-    signalRunsNum: 1000,
+    signalSteps: "5,000",
+    signalStepsNum: 5000,
     isOverageAllowed: true,
     overageDataPrice: 2,
-    overageSignalPrice: 0.02,
+    overageSignalStepPrice: 0.0075,
     teamMembers: "Unlimited",
   },
   pro: {
     data: "10 GB",
     dataGB: 10,
-    signalRuns: "10,000",
-    signalRunsNum: 10000,
+    signalSteps: "50,000",
+    signalStepsNum: 50000,
     isOverageAllowed: true,
     overageDataPrice: 1.5,
-    overageSignalPrice: 0.015,
+    overageSignalStepPrice: 0.005,
     teamMembers: "Unlimited",
   },
 };
 
-const DEFAULT_USAGE_DESCRIPTION = "Your workspace data and signal run usage.";
+const DEFAULT_USAGE_DESCRIPTION = "Your workspace data and signal usage.";
 
 const getUsageDescription = (tierName?: string): string => {
   if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
   const tierHintInfo = TIER_USAGE_HINTS[tierName.toLowerCase().trim()];
   if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
-  const tierHint = `${capitalize(tierName)} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalRuns} signal runs per month.`;
+  const tierHint = `${capitalize(tierName)} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalSteps} signal steps processed per month.`;
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo.isOverageAllowed
-      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${tierHintInfo.overageSignalPrice} per signal run.`
+      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${tierHintInfo.overageSignalStepPrice} per processed signal step.`
       : "you won't be able to send any more data during current billing cycle.");
   return `${tierHint} ${tierHintOverages}`;
 };
@@ -93,11 +93,11 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
   const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
-  const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
-  const signalRunsLimit = workspaceStats?.signalRunsLimit ?? 0;
+  const signalStepsUsed = workspaceStats?.signalStepsUsedThisMonth ?? 0;
+  const signalStepsLimit = workspaceStats?.signalStepsLimit ?? 0;
 
   const isUnlimited = !isFinite(gbLimit);
-  const hasLimits = gbLimit > 0 && signalRunsLimit > 0;
+  const hasLimits = gbLimit > 0 && signalStepsLimit > 0;
 
   const formatter = new Intl.NumberFormat("en-US", {
     style: "percent",
@@ -159,23 +159,23 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
           <div className="border rounded-md p-6 bg-secondary flex-1 max-w-xs">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">Signal runs</span>
+                <span className="text-sm font-medium">Signal steps</span>
                 <span className="text-sm text-secondary-foreground">
-                  {formatNumber(signalRunsUsed)}
-                  {!isUnlimited && hasLimits && ` / ${formatNumber(signalRunsLimit)}`}
+                  {formatNumber(signalStepsUsed)}
+                  {!isUnlimited && hasLimits && ` / ${formatNumber(signalStepsLimit)}`}
                 </span>
                 {!isUnlimited && hasLimits && (
                   <span className="text-xs text-muted-foreground">
-                    {formatter.format(safePercent(signalRunsUsed, signalRunsLimit))} of limit used
+                    {formatter.format(safePercent(signalStepsUsed, signalStepsLimit))} of limit used
                   </span>
                 )}
               </div>
               {!isUnlimited && hasLimits && (
                 <UsageProgressDisc
-                  data={[{ fill: "hsl(var(--chart-2))", usage: signalRunsUsed }]}
+                  data={[{ fill: "hsl(var(--chart-2))", usage: signalStepsUsed }]}
                   dataKey="usage"
-                  value={signalRunsUsed}
-                  maxValue={signalRunsLimit}
+                  value={signalStepsUsed}
+                  maxValue={signalStepsLimit}
                 />
               )}
             </div>
@@ -203,7 +203,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         <LimitsSettings
           workspaceId={workspace.id}
           tierIncludedDataGB={tierHint.dataGB}
-          tierIncludedSignalRuns={tierHint.signalRunsNum}
+          tierIncludedSignalSteps={tierHint.signalStepsNum}
         />
       )}
     </>

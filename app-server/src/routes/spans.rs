@@ -151,6 +151,7 @@ pub async fn search_spans(
     Ok(HttpResponse::Ok().json(results))
 }
 
+
 #[derive(Deserialize)]
 pub struct SkeletonHashRequest {
     pub texts: Vec<String>,

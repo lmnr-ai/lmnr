@@ -79,7 +79,7 @@ const SecondHalf = ({ className }: Props) => {
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Deploy anywhere with Helm charts</p>
               </div>
             </div>
-            <DocsButton href="https://docs.laminar.sh/hosting-options" />
+            <DocsButton href="https://laminar.sh/docs/hosting-options" />
           </div>
 
           {/* Production-grade section */}
@@ -97,16 +97,10 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Written in <span className="font-medium text-primary-foreground">Rust</span> for blazing fast performance</p>
-              </div>
-              <div
-                className={cn(
-                  "border-t border-landing-surface-400 flex items-center justify-center px-0 w-full",
-                  "py-4",
-                  "md:py-[18px]"
-                )}
-              >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}><span className="font-medium text-primary-foreground">Terabytes</span> of data with ease</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  Written in <span className="font-medium text-primary-foreground">Rust</span> for blazing fast
+                  performance
+                </p>
               </div>
               <div
                 className={cn(
@@ -116,7 +110,19 @@ const SecondHalf = ({ className }: Props) => {
                 )}
               >
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  <span className="font-medium text-primary-foreground">HIPAA</span> compliant, <span className="font-medium text-primary-foreground">SOC2 Type 2</span> (in observation)
+                  <span className="font-medium text-primary-foreground">Terabytes</span> of data with ease
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "border-t border-landing-surface-400 flex items-center justify-center px-0 w-full",
+                  "py-4",
+                  "md:py-[18px]"
+                )}
+              >
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  <span className="font-medium text-primary-foreground">HIPAA</span> compliant,{" "}
+                  <span className="font-medium text-primary-foreground">SOC2 Type 2</span> (in observation)
                 </p>
               </div>
             </div>

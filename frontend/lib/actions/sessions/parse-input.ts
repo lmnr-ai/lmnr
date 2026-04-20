@@ -15,6 +15,8 @@ export interface ParsedInput {
 /**
  * Build a synthetic messages array from the first and last elements
  * extracted by ClickHouse, then parse into typed system + user parts.
+ * The first element is typically the system message (arr[1]) and the
+ * last element is the most recent user message (arr[length(arr)]).
  */
 export function parseExtractedMessages(firstMessage: string, lastMessage: string): ParsedInput | null {
   const parts: string[] = [];
@@ -23,18 +25,14 @@ export function parseExtractedMessages(firstMessage: string, lastMessage: string
   if (parts.length === 0) return null;
 
   const syntheticJson = `[${parts.join(",")}]`;
-  return parseMessagesArray(syntheticJson);
-}
-
-/**
- * Try OpenAI, Anthropic, and Gemini schemas in order.
- */
-function parseMessagesArray(json: string): ParsedInput | null {
-  const parsed = tryParseJson(json);
+  const parsed = tryParseJson(syntheticJson);
   if (!parsed) return null;
 
   const arr = Array.isArray(parsed) ? parsed : [parsed];
+  return tryParseMessages(arr);
+}
 
+function tryParseMessages(arr: unknown[]): ParsedInput | null {
   const openai = OpenAIMessagesSchema.safeParse(arr);
   if (openai.success) return extractFromOpenAI(openai.data);
 
@@ -61,16 +59,13 @@ function extractFromOpenAI(messages: z.infer<typeof OpenAIMessagesSchema>): Pars
     }
   }
 
-  return { systemText, userParts: extractLastUserMessageOpenAI(messages) };
+  return { systemText, userParts: extractFirstUserMessageOpenAI(messages) };
 }
 
-function extractLastUserMessageOpenAI(messages: z.infer<typeof OpenAIMessagesSchema>): TextPart[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
+function extractFirstUserMessageOpenAI(messages: z.infer<typeof OpenAIMessagesSchema>): TextPart[] {
+  for (const msg of messages) {
     if (msg.role !== "user") continue;
-
     if (typeof msg.content === "string") return [{ text: msg.content }];
-
     return msg.content
       .filter((p): p is z.infer<typeof OpenAITextPartSchema> => p.type === "text")
       .map((p) => ({ text: p.text }));
@@ -92,16 +87,13 @@ function extractFromAnthropic(messages: z.infer<typeof AnthropicMessagesSchema>)
     }
   }
 
-  return { systemText, userParts: extractLastUserMessageAnthropic(messages) };
+  return { systemText, userParts: extractFirstUserMessageAnthropic(messages) };
 }
 
-function extractLastUserMessageAnthropic(messages: z.infer<typeof AnthropicMessagesSchema>): TextPart[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
+function extractFirstUserMessageAnthropic(messages: z.infer<typeof AnthropicMessagesSchema>): TextPart[] {
+  for (const msg of messages) {
     if (msg.role !== "user") continue;
-
     if (typeof msg.content === "string") return [{ text: msg.content }];
-
     return (msg.content as z.infer<typeof AnthropicContentBlockSchema>[])
       .filter((b): b is { type: "text"; text: string } => b.type === "text")
       .map((b) => ({ text: b.text }));
@@ -119,17 +111,16 @@ function extractFromGemini(contents: z.infer<typeof GeminiContentsSchema>): Pars
     if (textParts.length > 0) systemText = textParts.join("\n");
   }
 
-  return { systemText, userParts: extractLastUserMessageGemini(contents) };
+  return { systemText, userParts: extractFirstUserMessageGemini(contents) };
 }
 
-function extractLastUserMessageGemini(contents: z.infer<typeof GeminiContentsSchema>): TextPart[] {
-  for (let i = contents.length - 1; i >= 0; i--) {
-    const content = contents[i];
-    if (content.role !== "user" && (content.role || i === 0)) continue;
-
-    return content.parts
-      .filter((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)
-      .map((p) => ({ text: p.text }));
+function extractFirstUserMessageGemini(contents: z.infer<typeof GeminiContentsSchema>): TextPart[] {
+  for (const content of contents) {
+    if (content.role === "user") {
+      return content.parts
+        .filter((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)
+        .map((p) => ({ text: p.text }));
+    }
   }
   return [];
 }
