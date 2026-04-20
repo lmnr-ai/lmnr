@@ -74,7 +74,13 @@ export default function TracesPagePlaceholder() {
             )}
           </div>
 
-          <Tabs defaultValue="manual" className="gap-7">
+          <Tabs
+            defaultValue="manual"
+            className="gap-7"
+            onValueChange={(value) => {
+              track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });
+            }}
+          >
             <TabsList className="border-none">
               <TabsTrigger value="automatic" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
@@ -86,7 +92,7 @@ export default function TracesPagePlaceholder() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="automatic">
-              <AutomaticTab />
+              <AutomaticTab isFromOnboarding={isFromOnboarding} />
             </TabsContent>
             <TabsContent value="manual">
               <ManualTab />

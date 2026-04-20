@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import {
@@ -19,6 +19,7 @@ import {
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
 
 interface ListProps {
@@ -83,6 +84,22 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     () => spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED").length,
     [spans]
   );
+
+  const trackedTraceIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const traceId = trace?.id;
+    if (!traceId || spans.length === 0) return;
+    if (trackedTraceIdRef.current === traceId) return;
+    trackedTraceIdRef.current = traceId;
+    const subagentGroupCount = transcriptEntries.filter((e) => e.type === "group").length;
+    track("traces", "transcript_viewed", {
+      subagent_group_count: subagentGroupCount,
+      has_subagent_groups: subagentGroupCount > 0,
+      is_shared: isShared,
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trace?.id, spans.length]);
 
   const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
   // Render the user-input row whenever we know an LLM span exists (even while

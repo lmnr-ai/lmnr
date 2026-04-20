@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
 
 type ViewTab = "tree" | "transcript";
@@ -47,6 +48,13 @@ export default function ViewDropdown() {
   const isTreeView = tab === "tree";
   const contentVisible = showTreeContent ?? true;
 
+  const handleSelect = (next: ViewTab) => {
+    if (next !== tab) {
+      track("traces", "view_switched", { from: tab, to: next });
+    }
+    setTab(next);
+  };
+
   return (
     <div className="flex items-center min-w-0">
       <DropdownMenu>
@@ -74,7 +82,7 @@ export default function ViewDropdown() {
             return (
               <DropdownMenuItem
                 key={option}
-                onClick={() => setTab(option)}
+                onClick={() => handleSelect(option)}
                 className={cn(tab === option && "bg-accent")}
               >
                 <OptionIcon size={14} />
