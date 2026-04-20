@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
+import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
@@ -18,6 +19,7 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
@@ -62,6 +64,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     trace,
     condensedTimelineVisibleSpanIds,
     transcriptExpandedGroups,
+    setTab,
   } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -70,6 +73,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       trace: state.trace,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
       transcriptExpandedGroups: state.transcriptExpandedGroups,
+      setTab: state.setTab,
     }),
     shallow
   );
@@ -267,13 +271,26 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   }
 
   if (!hasEntries) {
+    const spansEmpty = isEmpty(spans);
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center max-w-lg mx-auto">
         <span className="text-base text-secondary-foreground">
-          {isEmpty(spans)
+          {spansEmpty
             ? "No spans found."
             : "No matching spans found. Transcript mode omits default span types. Switch to tree view to see all spans."}
         </span>
+        {!spansEmpty && (
+          <Button
+            variant="outlinePrimary"
+            onClick={() => {
+              track("traces", "view_switched", { from: "transcript", to: "tree" });
+              setTab("tree");
+            }}
+          >
+            <ListTree size={14} className="mr-1" />
+            Switch to tree
+          </Button>
+        )}
       </div>
     );
   }
