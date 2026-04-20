@@ -110,7 +110,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     <div
       className={cn(
         "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4%",
-        expanded ? "px-0 pt-1" : "py-1 px-2"
+        expanded ? "px-0" : "py-1 px-2"
       )}
     >
       <div
@@ -184,28 +184,33 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
         {!expanded && (
           <div className="flex flex-col">
             {spansError ? (
-              <div className="px-3 py-2 text-xs text-destructive">{spansError}</div>
+              <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>
+            ) : !traceIO ? (
+              <>
+                <div className="border-b border-[rgba(232,232,232,0.1)]">
+                  <InputItem text={null} isLoading />
+                </div>
+                <div className="flex flex-col gap-2 px-3 py-2">
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-3/4" />
+                </div>
+              </>
+            ) : !lastSpan ? (
+              <div className="px-3 py-3 text-xs text-muted-foreground text-center">No LLM spans in this trace</div>
             ) : (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <InputItem text={traceIO?.inputPreview ?? null} isLoading={!traceIO} />
+                  <InputItem text={traceIO.inputPreview ?? null} isLoading={false} />
                 </div>
-                {lastSpan ? (
-                  <SpanItem
-                    span={lastSpan}
-                    fullSpan={lastFullSpan ?? undefined}
-                    output={traceIO?.outputPreview}
-                    onSpanSelect={(s) => handleSpanSelect(s.spanId)}
-                    isSelected={
-                      !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId
-                    }
-                  />
-                ) : !traceIO ? (
-                  <div className="flex flex-col gap-2 px-3 py-2">
-                    <Skeleton className="h-5 w-full" />
-                    <Skeleton className="h-5 w-3/4" />
-                  </div>
-                ) : null}
+                <SpanItem
+                  span={lastSpan}
+                  fullSpan={lastFullSpan ?? undefined}
+                  output={traceIO.outputPreview}
+                  onSpanSelect={(s) => handleSpanSelect(s.spanId)}
+                  isSelected={
+                    !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId
+                  }
+                />
               </>
             )}
           </div>
