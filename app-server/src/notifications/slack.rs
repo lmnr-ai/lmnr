@@ -258,7 +258,7 @@ fn format_new_cluster_blocks(
 ) -> serde_json::Value {
     let base = frontend_url_slack();
     let cluster_link = format!(
-        "{}/project/{}/signals/{}?eventCluster={}",
+        "{}/project/{}/signals/{}?clusterId={}",
         base, project_id, signal_id, cluster_id
     );
 

@@ -285,7 +285,7 @@ fn render_new_cluster_email(
 ) -> String {
     let base = frontend_url_email();
     let cluster_link = format!(
-        "{}/project/{}/signals/{}?eventCluster={}",
+        "{}/project/{}/signals/{}?clusterId={}",
         base, project_id, signal_id, cluster_id
     );
     let alert_link = format!("{}/project/{}/settings?tab=alerts", base, project_id);

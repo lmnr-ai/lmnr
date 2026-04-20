@@ -551,9 +551,8 @@ export default function ManageAlertSheet({
                         <div className="pr-3">
                           <p className="text-sm font-medium">Skip notifications for similar events</p>
                           <p className="text-xs text-muted-foreground">
-                            When enabled, only the first event in a group of semantically similar events (clustered by
-                            meaning, not by exact match) will trigger a notification. Subsequent events in the same
-                            cluster are silenced.
+                            When enabled, only the first event in a group of semantically similar events will trigger a
+                            notification. Subsequent events in the same group are ignored.
                           </p>
                         </div>
                         <Switch checked={field.value} onCheckedChange={field.onChange} />

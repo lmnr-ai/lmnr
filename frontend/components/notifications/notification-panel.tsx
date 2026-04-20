@@ -177,7 +177,7 @@ const formatNewClusterPayload = (cluster: NewCluster): NewClusterNotification =>
     kind: "cluster",
     title: cluster.signal_name,
     summary: "New cluster",
-    clusterLink: `/project/${cluster.project_id}/signals/${cluster.signal_id}?eventCluster=${cluster.cluster_id}`,
+    clusterLink: `/project/${cluster.project_id}/signals/${cluster.signal_id}?clusterId=${cluster.cluster_id}`,
     details,
   };
 };
