@@ -48,10 +48,9 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
         formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime
       FROM traces
       WHERE session_id = {sessionId: String}
-        AND project_id = {projectId: UUID}
       ORDER BY start_time ASC
     `,
-    parameters: { sessionId, projectId },
+    parameters: { sessionId },
     projectId,
   });
 

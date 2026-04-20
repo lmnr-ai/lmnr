@@ -1,5 +1,5 @@
 import { ChevronDown, Copy, Database, Layers, Loader } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -20,7 +20,6 @@ interface TraceDropdownProps {
 export default function TraceDropdown({ traceId }: TraceDropdownProps) {
   const params = useParams();
   const projectId = params?.projectId as string;
-  const router = useRouter();
   const trace = useTraceViewStore((state) => state.trace);
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
@@ -53,8 +52,8 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
     searchParams.set("sessionId", sessionId);
     searchParams.delete("traceId");
     searchParams.delete("spanId");
-    router.push(`/project/${projectId}/traces?${searchParams.toString()}`);
-  }, [hasSession, sessionId, projectId, router]);
+    window.location.href = `/project/${projectId}/traces?${searchParams.toString()}`;
+  }, [hasSession, sessionId, projectId]);
 
   return (
     <DropdownMenu>
