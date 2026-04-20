@@ -2,8 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { type DashboardChart } from "@/components/dashboard/types";
-import { repositionCharts } from "@/lib/actions/dashboard/utils";
+import { type DashboardChart } from "@/components/dashboards/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
 
@@ -14,10 +13,19 @@ const GetChartsSchema = z.object({
 const ChartSettingsSchema = z.object({
   config: z.object({
     type: z.enum(ChartType),
-    x: z.string(),
-    y: z.string(),
+    x: z.string().optional(),
+    y: z.string().optional(),
     breakdown: z.string().optional(),
     total: z.boolean().optional(),
+    displayMode: z.enum(["total", "average", "none"]).optional(),
+    hiddenColumns: z.array(z.string()).optional(),
+    tableColumnConfig: z
+      .object({
+        columnOrder: z.array(z.string()).optional(),
+        columnSizing: z.record(z.string(), z.number()).optional(),
+        columnVisibility: z.record(z.string(), z.boolean()).optional(),
+      })
+      .optional(),
   }),
   layout: z.object({
     x: z.number(),
@@ -140,31 +148,39 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
   const { name, config, projectId, query } = CreateChartSchema.parse(input);
 
-  const newChart = {
-    name,
-    query,
-    projectId,
-    settings: {
-      config,
-      layout: { x: 0, y: 0, w: 4, h: 6 },
-    },
-  };
-
-  const chartSettings = (await db.query.dashboardCharts.findMany({
+  const existingCharts = (await db.query.dashboardCharts.findMany({
     where: eq(dashboardCharts.projectId, projectId),
-    columns: {
-      id: true,
-      settings: true,
-    },
-  })) as z.infer<typeof ChartUpdatesSchema>;
+    columns: { settings: true },
+  })) as Pick<DashboardChart, "settings">[];
 
-  const reorderedCharts = repositionCharts(chartSettings);
-
-  const [created] = await db.transaction(async (tx) => {
-    const result = await tx.insert(dashboardCharts).values(newChart).returning();
-    await updateChartsLayout({ projectId, updates: reorderedCharts });
-    return result;
+  const chartW = 4;
+  const slots = [0, 4, 8];
+  const slotHeights = slots.map((slotX) => {
+    const bottom = existingCharts.reduce((max, chart) => {
+      const { x, y, w, h } = chart.settings.layout;
+      // Check if this chart overlaps the slot's columns
+      if (x < slotX + chartW && x + w > slotX) {
+        return Math.max(max, y + h);
+      }
+      return max;
+    }, 0);
+    return { x: slotX, y: bottom };
   });
+
+  const bestSlot = slotHeights.reduce((best, slot) => (slot.y < best.y ? slot : best));
+
+  const [created] = await db
+    .insert(dashboardCharts)
+    .values({
+      name,
+      query,
+      projectId,
+      settings: {
+        config,
+        layout: { x: bestSlot.x, y: bestSlot.y, w: chartW, h: 6 },
+      },
+    })
+    .returning();
 
   return created as DashboardChart;
 };

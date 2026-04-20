@@ -3,28 +3,54 @@ import React, { useMemo } from "react";
 import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-builder-store";
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
-import LineChart from "@/components/chart-builder/charts/line-chart";
+import LineChart, { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
+import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
   generateChartConfig,
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
-import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import {
+  type ChartConfig,
+  ChartType,
+  resolveDisplayMode,
+  type TableColumnConfig,
+} from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 
 interface ChartRendererCoreProps {
   config: ChartConfig;
   data: Record<string, any>[];
   columns: ColumnInfo[];
+  onBarClick?: (rowData: Record<string, any>) => void;
+  syncId?: string;
+  drag?: ChartDragHandlers;
+  onColumnConfigChange?: (config: TableColumnConfig) => void;
+  hasMore?: boolean;
+  isFetching?: boolean;
+  fetchNextPage?: () => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns }: ChartRendererCoreProps) => {
+export const ChartRendererCore = ({
+  config,
+  data,
+  columns,
+  onBarClick,
+  syncId,
+  drag,
+  onColumnConfigChange,
+  hasMore,
+  isFetching,
+  fetchNextPage,
+}: ChartRendererCoreProps) => {
+  const isTable = config.type === ChartType.Table;
+
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || !config.x || !config.y) {
+    if (!config.type || isTable || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
@@ -41,7 +67,25 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     }
 
     return transformDataForSimpleChart(data, config.x, [config.y]);
-  }, [config, data, columns]);
+  }, [config, data, columns, isTable]);
+
+  if (isTable) {
+    const hiddenColumns = config.type === ChartType.Table ? config.hiddenColumns : undefined;
+    const tableColumnConfig = config.type === ChartType.Table ? config.tableColumnConfig : undefined;
+    return (
+      <TableChart
+        data={data}
+        columns={columns}
+        hiddenColumns={hiddenColumns}
+        onRowClick={onBarClick}
+        tableColumnConfig={tableColumnConfig}
+        onColumnConfigChange={onColumnConfigChange}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        fetchNextPage={fetchNextPage}
+      />
+    );
+  }
 
   if (!config.type || !config.x || !config.y) {
     return (
@@ -56,14 +100,19 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     );
   }
 
+  const displayMode = resolveDisplayMode(config);
+
   const props = {
     data: chartData,
     x: config.x,
     y: config.y,
     breakdown: config.breakdown,
-    total: config.total,
+    displayMode,
+    metricColumn: config.type === ChartType.HorizontalBarChart ? config.x : config.y,
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
+    syncId,
+    drag,
   };
 
   if (keys.size === 0) {
@@ -79,8 +128,10 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
       return <LineChart {...props} />;
     case ChartType.BarChart:
       return <BarChart {...props} />;
-    case ChartType.HorizontalBarChart:
-      return <HorizontalBarChart {...props} />;
+    case ChartType.HorizontalBarChart: {
+      const { syncId: _, drag: __, ...horizontalBarProps } = props;
+      return <HorizontalBarChart {...horizontalBarProps} onBarClick={onBarClick} />;
+    }
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">

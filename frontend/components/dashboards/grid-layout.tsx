@@ -3,12 +3,12 @@ import "./styles.css";
 
 import { compact, debounce, isEqual, pick } from "lodash";
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layout";
 import useSWR from "swr";
 
-import Chart from "@/components/dashboard/chart";
-import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import Chart from "@/components/dashboards/chart";
+import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -124,7 +124,7 @@ const GridLayout = () => {
   return (
     <ResponsiveGridLayout
       className="layout"
-      useCSSTransforms
+      useCSSTransforms={false}
       onLayoutChange={debouncedAutoSave}
       layouts={{ lg: layout, md: layout }}
       breakpoints={{ lg: 1200, md: 996 }}
@@ -141,4 +141,4 @@ const GridLayout = () => {
   );
 };
 
-export default GridLayout;
+export default memo(GridLayout);

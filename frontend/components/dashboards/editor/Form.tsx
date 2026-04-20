@@ -7,11 +7,16 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { ChartType } from "@/components/chart-builder/types";
+import {
+  type ChartConfig,
+  ChartType,
+  resolveDisplayMode,
+  type TableColumnConfig,
+} from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
-import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
+import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
+import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,6 +25,12 @@ import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts"
 
 const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
+
+const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
+  spans: ["trace_id", "span_id"],
+  traces: ["id"],
+  signal_events: ["signal_id", "trace_id"],
+};
 
 const getDefaultTimeRange = (table: string): TimeRange => {
   const timeColumn = getTimeColumn(table);
@@ -49,6 +60,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError,
     parameters,
     setParameterValue,
+    tableHasMore,
+    tableIsFetching,
+    fetchNextTablePage,
   } = useDashboardEditorStoreContext((state) => ({
     chart: state.chart,
     setQuery: state.setQuery,
@@ -61,20 +75,52 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError: state.setError,
     parameters: state.parameters,
     setParameterValue: state.setParameterValue,
+    tableHasMore: state.tableHasMore,
+    tableIsFetching: state.tableIsFetching,
+    fetchNextTablePage: state.fetchNextTablePage,
   }));
 
   const formValues = useWatch({ control });
 
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
+  const handleColumnConfigChange = useCallback(
+    (columnConfig: TableColumnConfig) => {
+      const currentConfig = chart.settings.config;
+      if (currentConfig.type === ChartType.Table) {
+        setChartConfig({
+          ...currentConfig,
+          tableColumnConfig: columnConfig,
+        });
+      }
+    },
+    [chart.settings.config, setChartConfig]
+  );
+
+  const handleFetchNextPage = useCallback(() => {
+    if (projectId) {
+      fetchNextTablePage(projectId as string);
+    }
+  }, [projectId, fetchNextTablePage]);
+
   const chartType = chart.settings.config.type;
-  const totalValue = chart.settings.config.total ?? false;
+  const displayMode = resolveDisplayMode(chart.settings.config);
 
   const chartConfig = useMemo(() => {
     const { metrics, dimensions } = formValues;
 
     if (!chartType || !metrics?.[0]) {
       return null;
+    }
+
+    if (chartType === ChartType.Table) {
+      const tableConfig = chart.settings.config.type === ChartType.Table ? chart.settings.config : null;
+      return {
+        type: chartType,
+        displayMode: "none" as const,
+        hiddenColumns: tableConfig?.hiddenColumns ?? [],
+        tableColumnConfig: tableConfig?.tableColumnConfig,
+      };
     }
 
     const isTimeSeries = needsTimeSeries(chartType);
@@ -88,17 +134,27 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       x: isHorizontalBar ? metricValue : dimensionValue,
       y: isHorizontalBar ? dimensionValue : metricValue,
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
-      total: false,
+      displayMode: "none" as const,
     };
+    // NOTE: deliberately omitting `columns` — it's derived from `data` which is
+    // set by executeQuery, so including it creates an infinite re-fetch cycle.
+    // The `columns[0]?.name` fallback below uses the value from the previous
+    // render's closure, which is acceptable for this UI.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType, formValues]);
 
-  const chartConfigForRendering = useMemo(() => {
+  const chartConfigForRendering = useMemo((): ChartConfig | null => {
     if (!chartConfig) return null;
-    return {
-      ...chartConfig,
-      total: totalValue,
-    };
-  }, [chartConfig, totalValue]);
+    if (chartConfig.type === ChartType.Table && chart.settings.config.type === ChartType.Table) {
+      return {
+        ...chartConfig,
+        displayMode,
+        hiddenColumns: chart.settings.config.hiddenColumns,
+        tableColumnConfig: chart.settings.config.tableColumnConfig,
+      };
+    }
+    return { ...chartConfig, displayMode };
+  }, [chartConfig, displayMode, chart.settings.config]);
 
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
@@ -112,9 +168,11 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
+      const isTable = chartType === ChartType.Table;
+      const needsIdInjection = isHorizontalBar || isTable;
       const allFilters = [...(filters || [])];
 
-      if (isHorizontalBar) {
+      if (isHorizontalBar || isTable) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
           { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
@@ -122,14 +180,32 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         );
       }
 
+      const injectedMetrics = [...metrics];
+      if (needsIdInjection) {
+        const allExisting = new Set([
+          ...metrics.map((m) => m.column),
+          ...metrics.map((m) => m.alias),
+          ...(dimensions || []),
+        ]);
+        for (const col of ID_COLUMNS_BY_TABLE[table] ?? []) {
+          if (!allExisting.has(col)) {
+            injectedMetrics.push({ fn: "raw", column: col, alias: col, args: [] });
+          }
+        }
+      }
+
+      // Table charts use client-side pagination (LIMIT/OFFSET at fetch time),
+      // so the stored query should have no LIMIT clause.
+      const effectiveLimit = chartType === ChartType.Table ? undefined : limit;
+
       const queryStructure: QueryStructure = {
         table,
-        metrics,
+        metrics: injectedMetrics,
         dimensions: dimensions || [],
         filters: allFilters,
         orderBy: [],
         ...(orderBy && orderBy.length > 0 && { orderBy }),
-        limit,
+        limit: effectiveLimit,
       };
 
       if (needsTimeSeries(chartType)) {
@@ -151,13 +227,20 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       // Update store with new query and config
       setQuery(sqlData.sql);
       if (chartConfig) {
-        setChartConfig({
-          type: chartConfig.type!,
-          x: chartConfig.x!,
-          y: chartConfig.y!,
-          breakdown: chartConfig.breakdown,
-          total: chart.settings.config.total ?? false,
-        });
+        const liveConfig = chart.settings.config;
+        const updatedConfig = {
+          ...chartConfig,
+          displayMode,
+          ...(isTable && liveConfig.type === ChartType.Table
+            ? { tableColumnConfig: liveConfig.tableColumnConfig }
+            : {}),
+        };
+        if (isTable && "hiddenColumns" in updatedConfig) {
+          const userColumns = new Set(metrics.map((m) => m.column));
+          const idCols = ID_COLUMNS_BY_TABLE[table] ?? [];
+          updatedConfig.hiddenColumns = idCols.filter((col) => !userColumns.has(col));
+        }
+        setChartConfig(updatedConfig as ChartConfig);
       }
 
       await executeQuery(projectId as string);
@@ -171,6 +254,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     formState.isValid,
     projectId,
     chartConfig,
+    displayMode,
     getValues,
     setQuery,
     setChartConfig,
@@ -255,7 +339,12 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </Select>
           </div>
         </div>
-        <div className="flex flex-col justify-center items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+        <div className="flex flex-col justify-start items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+          {chart.name && (
+            <div className="w-full mb-2">
+              <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex flex-col items-center space-y-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin" />
@@ -274,7 +363,15 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </div>
           ) : chartConfigForRendering ? (
             <div className="w-full h-full">
-              <ChartRendererCore config={chartConfigForRendering} data={data} columns={columns} />
+              <ChartRendererCore
+                config={chartConfigForRendering}
+                data={data}
+                columns={columns}
+                onColumnConfigChange={handleColumnConfigChange}
+                hasMore={tableHasMore}
+                isFetching={tableIsFetching}
+                fetchNextPage={handleFetchNextPage}
+              />
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-3 text-muted-foreground">

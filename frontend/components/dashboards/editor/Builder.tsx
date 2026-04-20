@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { Form } from "@/components/dashboard/editor/Form";
-import { getDefaultFormValues } from "@/components/dashboard/editor/types";
+import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import { Form } from "@/components/dashboards/editor/Form";
+import { getDefaultFormValues } from "@/components/dashboards/editor/types";
 import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 
 const convertSqlToJson = async (projectId: string, sql: string): Promise<QueryStructure> => {
@@ -54,7 +54,6 @@ const ChartBuilder = () => {
         const filteredFilters = (queryStructure.filters || []).filter(
           (filter) => filter.field !== "start_time" && filter.field !== "end_time"
         );
-
         reset({
           table: queryStructure.table,
           metrics: queryStructure.metrics,

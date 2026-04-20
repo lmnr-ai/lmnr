@@ -41,7 +41,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       if (newWorkspace.projectId) {
-        router.push(`/project/${newWorkspace.projectId}/traces`);
+        router.push(`/project/${newWorkspace.projectId}/dashboards`);
       } else {
         router.push(`/workspace/${newWorkspace.id}`);
       }
