@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 import SlackConnectButton from "./slack-connect-button";
@@ -71,6 +72,7 @@ export default function SlackConnectionCard({
         throw new Error(data.error ?? "Failed to remove integration");
       }
       await mutate(null);
+      track("integrations", "slack_disconnected");
       toast({
         title: "Slack integration removed",
         description: "You will no longer receive Slack notifications from this workspace.",

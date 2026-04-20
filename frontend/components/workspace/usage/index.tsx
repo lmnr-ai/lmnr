@@ -3,7 +3,7 @@
 import { capitalize } from "lodash";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -12,6 +12,7 @@ import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-p
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 import LimitsSettings from "./limits";
@@ -84,6 +85,10 @@ const getUsageDescription = (tierName?: string): string => {
 
 export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
+
+  useEffect(() => {
+    track("usage", "page_viewed");
+  }, []);
   const featureFlags = useFeatureFlags();
   const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;

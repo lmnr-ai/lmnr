@@ -24,6 +24,7 @@ import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { buildEventsColumns } from "./columns";
 
@@ -156,6 +157,7 @@ function PureEventsTable() {
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
       const traceId = row.original.traceId;
+      track("signals", "event_to_trace");
       setTraceId(traceId);
 
       const newParams = new URLSearchParams(searchParams.toString());

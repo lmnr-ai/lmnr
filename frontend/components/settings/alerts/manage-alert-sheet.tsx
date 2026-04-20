@@ -29,6 +29,7 @@ import {
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
 interface ManageAlertSheetProps {
@@ -308,6 +309,10 @@ export default function ManageAlertSheet({
           description: isEditMode
             ? `"${data.name.trim()}" has been updated.`
             : `"${data.name.trim()}" is now active and will send notifications.`,
+        });
+        track("alerts", isEditMode ? "updated" : "created", {
+          has_slack: !!data.channelId,
+          has_email: data.emailEnabled,
         });
         onSaved();
         onOpenChange(false);

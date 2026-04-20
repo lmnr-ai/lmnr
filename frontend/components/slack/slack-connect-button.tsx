@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { track } from "@/lib/posthog";
 
 const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 
@@ -36,7 +37,7 @@ export default function SlackConnectButton({
   if (!slackURL) return null;
 
   return (
-    <a href={slackURL}>
+    <a href={slackURL} onClick={() => track("integrations", "slack_connect_clicked")}>
       <Button variant="outlinePrimary">Connect to Slack</Button>
     </a>
   );

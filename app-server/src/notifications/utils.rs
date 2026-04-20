@@ -3,6 +3,18 @@ use uuid::Uuid;
 use super::NotificationKind;
 use crate::reports::email_template::{ProjectReportData, ReportData};
 
+/// Append UTM tracking parameters to a notification URL.
+///
+/// Used so PostHog auto-captures `$utm_source`, `$utm_medium`, `$utm_campaign`,
+/// and `$utm_content` on the resulting `$pageview`, enabling attribution funnels
+/// and breakdowns for clicks originating from outbound notifications.
+pub(super) fn with_utm(url: &str, source: &str, campaign: &str, content: &str) -> String {
+    let sep = if url.contains('?') { '&' } else { '?' };
+    format!(
+        "{url}{sep}utm_source={source}&utm_medium=notification&utm_campaign={campaign}&utm_content={content}"
+    )
+}
+
 /// Reconstruct a `ReportData` (with title) from a batch of `SignalsReport` notifications.
 /// Returns `None` if no `SignalsReport` entries are found.
 pub(super) fn build_report_data_from_batch(
