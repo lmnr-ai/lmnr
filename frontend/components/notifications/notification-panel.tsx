@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronUp, CircleAlert, FileText, Info, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, CircleAlert, FileText, Info, Layers, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
@@ -43,17 +43,34 @@ interface EventIdentification {
   alert_name: string;
 }
 
+interface NewCluster {
+  project_id: string;
+  signal_id: string;
+  signal_name: string;
+  cluster_id: string;
+  cluster_name: string;
+  num_signal_events: number;
+  num_child_clusters: number;
+  alert_name: string;
+}
+
 interface BaseNotification {
   title: string;
   summary: string;
 }
 
-interface AlertNotification extends BaseNotification {
+interface NewEventNotification extends BaseNotification {
   kind: "alert";
   extractedFields: [string, string][];
   traceLink: string;
   similarEventsLink: string | null;
   severity: number;
+}
+
+interface NewClusterNotification extends BaseNotification {
+  kind: "cluster";
+  clusterLink: string;
+  details: [string, string][];
 }
 
 interface ReportNotification extends BaseNotification {
@@ -62,7 +79,7 @@ interface ReportNotification extends BaseNotification {
   noteworthyEvents: NoteworthyEvent[];
 }
 
-type FormattedNotification = AlertNotification | ReportNotification;
+type FormattedNotification = NewEventNotification | NewClusterNotification | ReportNotification;
 
 const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 
@@ -109,7 +126,14 @@ const renderWithLinks = (text: string): ReactNode => {
 
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { EventIdentification: EventIdentification } = JSON.parse(notification.payload);
+    const payload: { EventIdentification?: EventIdentification; NewCluster?: NewCluster } = JSON.parse(
+      notification.payload
+    );
+
+    if (payload.NewCluster) {
+      return formatNewClusterPayload(payload.NewCluster);
+    }
+
     const event = payload.EventIdentification;
     if (!event) return null;
 
@@ -140,6 +164,22 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
   } catch {
     return null;
   }
+};
+
+const formatNewClusterPayload = (cluster: NewCluster): NewClusterNotification => {
+  const details: [string, string][] = [
+    ["Cluster", cluster.cluster_name],
+    ["Events", String(cluster.num_signal_events)],
+    ["Child clusters", String(cluster.num_child_clusters)],
+  ];
+
+  return {
+    kind: "cluster",
+    title: cluster.signal_name,
+    summary: "New cluster",
+    clusterLink: `/project/${cluster.project_id}/signals/${cluster.signal_id}?eventCluster=${cluster.cluster_id}`,
+    details,
+  };
 };
 
 const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
@@ -332,6 +372,36 @@ const NotificationItem = ({
           </div>
         </>
       )}
+      {formatted.kind === "cluster" && (
+        <>
+          {formatted.details.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              {formatted.details.map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-[11px] font-medium text-muted-foreground">{key}</span>
+                  <span
+                    className={cn(
+                      "text-xs leading-snug",
+                      isUnread ? "text-foreground/80" : "text-secondary-foreground"
+                    )}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Link
+              href={formatted.clusterLink}
+              className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View cluster
+            </Link>
+          </div>
+        </>
+      )}
       {formatted.kind === "report" && <NotificationDetails formatted={formatted} projectId={projectId} />}
     </>
   );
@@ -348,6 +418,8 @@ const NotificationItem = ({
         <div className="flex items-center gap-1.5">
           {formatted.kind === "alert" ? (
             <SeverityIcon severity={formatted.severity} />
+          ) : formatted.kind === "cluster" ? (
+            <Layers className="size-3.5 shrink-0 text-muted-foreground/60" />
           ) : (
             <FileText className="size-3.5 shrink-0 text-muted-foreground/60" />
           )}
@@ -482,12 +554,24 @@ const NotificationPanel = () => {
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
             <span className="text-sm font-medium">Notifications</span>
-            <button
-              onClick={close}
-              className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-            >
-              <X className="size-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {project && (
+                <Link
+                  href={`/project/${project.id}/settings?tab=alerts`}
+                  onClick={close}
+                  title="Alert settings"
+                  className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+                >
+                  <Settings className="size-4" />
+                </Link>
+              )}
+              <button
+                onClick={close}
+                className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {!hasNotifications ? (

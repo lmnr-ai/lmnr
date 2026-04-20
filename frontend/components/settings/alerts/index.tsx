@@ -8,11 +8,19 @@ import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
-import { type AlertWithDetails, SEVERITY_LABELS, type SeverityLevel } from "@/lib/actions/alerts/types";
+import {
+  ALERT_TYPE,
+  ALERT_TYPE_LABELS,
+  type AlertWithDetails,
+  SEVERITY_LABELS,
+  type SeverityLevel,
+  type SignalEventAlertMetadata,
+} from "@/lib/actions/alerts/types";
 import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
@@ -110,12 +118,14 @@ export default function AlertsSettings({
         isLoading={isLoadingAlerts}
         isEmpty={isNil(alertsList) || isEmpty(alertsList)}
         emptyMessage="No alerts configured. Create one to start receiving notifications."
-        headers={["Name", "Signal", "Severity", "Send to", "Created", ""]}
-        colSpan={6}
+        headers={["Name", "Trigger", "Signal", "Severity", "Send to", "Created", ""]}
+        colSpan={7}
       >
         {alertsList?.map((alert) => {
           // Only show the current user's own email target + all non-email targets
           const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          const signalEventMeta =
+            alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
           return (
             <SettingsTableRow key={alert.id}>
               <td className="px-4 text-sm font-medium max-w-48">
@@ -123,15 +133,22 @@ export default function AlertsSettings({
                   {alert.name}
                 </span>
               </td>
+              <td className="px-4">
+                <Badge variant="secondary" className="font-normal text-xs whitespace-nowrap">
+                  {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
+                </Badge>
+              </td>
               <td className="px-4 text-sm text-muted-foreground max-w-48">
                 <span title={alert.signalName ?? undefined} className="block truncate">
                   {alert.signalName ?? "—"}
                 </span>
               </td>
               <td className="px-4 text-xs text-muted-foreground">
-                {alert.metadata?.severity != null
-                  ? SEVERITY_LABELS[alert.metadata.severity as SeverityLevel]
-                  : "Critical"}
+                {alert.type === ALERT_TYPE.SIGNAL_EVENT
+                  ? signalEventMeta?.severity != null
+                    ? SEVERITY_LABELS[signalEventMeta.severity as SeverityLevel]
+                    : "Critical"
+                  : "—"}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
