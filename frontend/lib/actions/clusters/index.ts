@@ -128,6 +128,8 @@ interface TimeRangeClauseInput {
   pastHours: string | null | undefined;
   startTime: string | null | undefined;
   endTime: string | null | undefined;
+  intervalValue: number;
+  intervalUnit: "minute" | "hour" | "day";
 }
 
 interface TimeRangeClauses {
@@ -141,9 +143,14 @@ const buildTimeRangeClauses = ({
   pastHours,
   startTime,
   endTime,
+  intervalValue,
+  intervalUnit,
 }: TimeRangeClauseInput): TimeRangeClauses => {
   const timeConditions: string[] = [];
-  const params: Record<string, unknown> = {};
+  const params: Record<string, unknown> = {
+    intervalValue,
+    intervalUnit,
+  };
 
   let fillFrom: string | null = null;
   let fillTo: string | null = null;
@@ -201,12 +208,12 @@ export async function getClusterEventCounts(
     pastHours,
     startTime,
     endTime,
+    intervalValue,
+    intervalUnit,
   });
 
   const queryParams: Record<string, unknown> = {
     signalId,
-    intervalValue,
-    intervalUnit,
     ...timeParams,
   };
 
@@ -284,12 +291,12 @@ export async function getNewClusterStats(
     pastHours,
     startTime,
     endTime,
+    intervalValue,
+    intervalUnit,
   });
 
   const queryParams: Record<string, unknown> = {
     signalId,
-    intervalValue,
-    intervalUnit,
     ...timeParams,
   };
 
