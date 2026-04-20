@@ -236,17 +236,24 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       })
       .returning();
 
+    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
+
     const alertsToInsert: (typeof alerts.$inferInsert)[] = [
       {
         projectId,
         name: `${name} alert`,
         type: "SIGNAL_EVENT",
         sourceId: signal.id,
-        metadata: { severity: SEVERITY_LEVEL.CRITICAL, skipSimilar: true },
+        metadata: {
+          severity: SEVERITY_LEVEL.CRITICAL,
+          // skipSimilar depends on the clustering service; default to false when
+          // clustering is disabled so the backend doesn't silently drop notifications.
+          skipSimilar: clusteringEnabled,
+        },
       },
     ];
 
-    if (isFeatureEnabled(Feature.CLUSTERING)) {
+    if (clusteringEnabled) {
       alertsToInsert.push({
         projectId,
         name: `${name} cluster alert`,
