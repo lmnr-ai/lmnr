@@ -201,7 +201,7 @@ function SessionTimeline() {
                 />
               </div>
             ) : (
-              <SessionTimelineGap key={`gap-${i}`} durationMs={section.gap.durationMs} contentHeight={contentHeight} />
+              <SessionTimelineGap key={`gap-${i}`} durationMs={section.gap.durationMs} />
             )
           )}
         </div>
