@@ -40,6 +40,8 @@ const SelectionOverlay = ({ spans, containerRef, scrollContainerRef, onSelection
 
   const isPointInContainer = useCallback(
     (e: MouseEvent): boolean => {
+      // Use the scroll container's visible bounds for hit-testing, not the inner content ref.
+      // When zoomed in, the content ref extends beyond the visible area into the span panel.
       const el = scrollContainerRef.current ?? containerRef.current;
       if (!el) return false;
       const rect = el.getBoundingClientRect();

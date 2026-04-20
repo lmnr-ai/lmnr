@@ -41,7 +41,6 @@ import {
   projectApiKeys,
   slackIntegrations,
   notificationReads,
-  spanRenderingKeys,
   tagClasses,
   traces,
 } from "./schema";
@@ -83,7 +82,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   datasetParquets: many(datasetParquets),
   projectApiKeys: many(projectApiKeys),
   notificationReads: many(notificationReads),
-  spanRenderingKeys: many(spanRenderingKeys),
   tagClasses: many(tagClasses),
   traces: many(traces),
 }));
@@ -399,13 +397,6 @@ export const notificationReadsRelations = relations(notificationReads, ({ one })
   user: one(users, {
     fields: [notificationReads.userId],
     references: [users.id],
-  }),
-}));
-
-export const spanRenderingKeysRelations = relations(spanRenderingKeys, ({ one }) => ({
-  project: one(projects, {
-    fields: [spanRenderingKeys.projectId],
-    references: [projects.id],
   }),
 }));
 

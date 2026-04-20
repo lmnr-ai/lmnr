@@ -589,6 +589,13 @@
       "when": 1776176186569,
       "tag": "0083_futuristic_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1776626433476,
+      "tag": "0084_red_master_chief",
+      "breakpoints": true
     }
   ]
 }
