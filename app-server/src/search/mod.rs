@@ -64,7 +64,7 @@ pub async fn search_spans(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     query: &str,
-    trace_ids: Option<&[String]>,
+    trace_ids: Option<&[Uuid]>,
     limit: usize,
     offset: usize,
     start_time: Option<DateTime<Utc>>,
@@ -84,7 +84,7 @@ pub async fn search_spans(
             0 => {}
             1 => query_parts.push(format!("trace_id:{}", ids[0])),
             _ => {
-                let id_list = ids.join(" ");
+                let id_list = ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(" ");
                 query_parts.push(format!("trace_id:IN [{}]", id_list));
             }
         }

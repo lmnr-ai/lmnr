@@ -101,7 +101,7 @@ pub async fn create_span(
 #[serde(rename_all = "camelCase")]
 pub struct SearchSpansRequest {
     #[serde(default)]
-    pub trace_ids: Option<Vec<String>>,
+    pub trace_ids: Option<Vec<Uuid>>,
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
