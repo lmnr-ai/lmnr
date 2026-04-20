@@ -128,6 +128,7 @@ export type TraceViewTrace = {
   visibility: "public" | "private";
   hasBrowserSession: boolean;
   sessionId?: string;
+  userId?: string;
 };
 
 export type TraceSignal = {

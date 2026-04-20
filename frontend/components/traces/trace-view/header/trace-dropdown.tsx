@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Database, Layers, Loader } from "lucide-react";
+import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
@@ -46,15 +46,6 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
 
   // TODO: add userId to TraceViewTrace to enable "Copy user ID"
 
-  const handleOpenSession = useCallback(() => {
-    if (!hasSession) return;
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set("sessionId", sessionId);
-    searchParams.delete("traceId");
-    searchParams.delete("spanId");
-    window.location.href = `/project/${projectId}/traces?${searchParams.toString()}`;
-  }, [hasSession, sessionId, projectId]);
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -78,12 +69,6 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
           {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
           Open in SQL editor
         </DropdownMenuItem>
-        {hasSession && (
-          <DropdownMenuItem onClick={handleOpenSession}>
-            <Layers size={14} />
-            Open session
-          </DropdownMenuItem>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
