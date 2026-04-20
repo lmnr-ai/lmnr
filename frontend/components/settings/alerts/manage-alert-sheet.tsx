@@ -402,6 +402,7 @@ export default function ManageAlertSheet({
       isEditMode,
       alert,
       onOpenChange,
+      clusteringEnabled,
     ]
   );
 
