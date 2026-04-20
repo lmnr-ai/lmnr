@@ -195,3 +195,6 @@ export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `
 
 export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
   `autocomplete:${resource}:${projectId}:${field}`;
+
+export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
+  `span_rendering_key:${projectId}:${schemaFingerprint}`;

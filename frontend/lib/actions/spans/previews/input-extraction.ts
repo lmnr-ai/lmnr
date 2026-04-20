@@ -13,7 +13,7 @@ export async function extractUserInputsForSpans(
   const parsedSpans: Array<{ spanId: string; parsed: ParsedInput; rawInput: string; promptHash: string }> = [];
 
   for (const row of rows) {
-    const parsed = parseExtractedMessages(row.firstMessage, row.secondMessage);
+    const parsed = parseExtractedMessages(row.firstMessage, row.lastMessage);
     if (!parsed) {
       userInputs[row.spanId] = null;
       continue;

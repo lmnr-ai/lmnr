@@ -1,4 +1,4 @@
-import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash";
+import { isBoolean, isEmpty, isNil, isNumber, isPlainObject, isString, keys, last, mapValues } from "lodash";
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
@@ -306,3 +306,38 @@ export const validateMustacheKey = (key: string, data: unknown): string | null =
     return null;
   }
 };
+
+function formatPrimitiveLeaf(value: string | number | boolean): string | null {
+  if (isNumber(value) || isBoolean(value)) return String(value);
+  const t = value.trim();
+  return t.length > 0 ? t : null;
+}
+
+function findFirstPrimitiveLeaf(value: unknown): string | null {
+  if (isNil(value)) return null;
+  if (isString(value) || isNumber(value) || isBoolean(value)) return formatPrimitiveLeaf(value);
+
+  if (Array.isArray(value)) {
+    if (isEmpty(value)) return null;
+    return findFirstPrimitiveLeaf(value[0]);
+  }
+
+  if (isPlainObject(value)) {
+    const obj = value as Record<string, unknown>;
+    for (const k of keys(obj)) {
+      const found = findFirstPrimitiveLeaf(obj[k]);
+      if (found !== null) return found;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Last-resort fallback that picks the first primitive leaf (object key order,
+ * array index 0). Used by the resolver only when no AI provider is configured
+ * or when LLM key generation fails — most hits in practice are tool spans,
+ * since LLM outputs match a provider pattern upstream. Not cached.
+ */
+export const tryHeuristicPreview = (data: unknown): string | null => findFirstPrimitiveLeaf(deepParseJson(data));

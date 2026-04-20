@@ -2,6 +2,7 @@ import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,6 +94,30 @@ function CondensedTimeline() {
 
   // Cmd/Ctrl + scroll to zoom
   useWheelZoom(scrollRef, condensedTimelineZoom, setCondensedTimelineZoom);
+
+  const handleZoom = useCallback(
+    (direction: "in" | "out") => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      const newZoom =
+        direction === "in" ? condensedTimelineZoom + ZOOM_INCREMENT : condensedTimelineZoom - ZOOM_INCREMENT;
+      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
+
+      const containerWidth = container.clientWidth;
+      const centerX = container.scrollLeft + containerWidth / 2;
+      const fraction = centerX / container.scrollWidth;
+
+      setCondensedTimelineZoom(newZoom);
+
+      requestAnimationFrame(() => {
+        const newScrollWidth = container.scrollWidth;
+        const newScrollLeft = fraction * newScrollWidth - containerWidth / 2;
+        container.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
+      });
+    },
+    [condensedTimelineZoom, setCondensedTimelineZoom]
+  );
 
   const handleSelectionComplete = useCallback(
     (selectedIds: Set<string>) => {
@@ -205,6 +230,7 @@ function CondensedTimeline() {
             <SelectionOverlay
               spans={condensedSpans}
               containerRef={timelineContentRef}
+              scrollContainerRef={scrollRef}
               onSelectionComplete={handleSelectionComplete}
             />
           </div>
@@ -244,7 +270,7 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <Controls />
+      <Controls onZoomIn={() => handleZoom("in")} onZoomOut={() => handleZoom("out")} />
     </div>
   );
 }

@@ -12,7 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{build_report_data_from_batch, frontend_url_slack};
+use super::utils::{build_report_data_from_batch, inject_utm_into_links, with_utm};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -97,10 +97,10 @@ pub fn format_message_blocks_batch(
             num_child_clusters,
             alert_name,
         } => format_new_cluster_blocks(
-            &project_id.to_string(),
-            &signal_id.to_string(),
+            project_id,
+            signal_id,
             signal_name,
-            &cluster_id.to_string(),
+            cluster_id,
             cluster_name,
             *num_signal_events,
             *num_child_clusters,
@@ -137,10 +137,14 @@ fn format_event_identification_blocks(
     alert_name: &str,
     severity: &u8,
 ) -> serde_json::Value {
-    let base = frontend_url_slack();
-    let trace_link = format!(
-        "{}/project/{}/traces/{}?chat=true",
-        base, project_id, trace_id
+    let trace_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/traces/{}?chat=true",
+            project_id, trace_id
+        ),
+        "slack",
+        "signal_alert",
+        "view_trace",
     );
 
     let severity_label = match severity {
@@ -155,11 +159,21 @@ fn format_event_identification_blocks(
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => md_links_to_slack(s),
+                        serde_json::Value::String(s) => md_links_to_slack(&inject_utm_into_links(
+                            s,
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        )),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
                         serde_json::Value::Null => String::new(),
-                        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                        _ => inject_utm_into_links(
+                            &serde_json::to_string_pretty(value).unwrap_or_default(),
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        ),
                     };
                     format!("_{}_:\n{}", key, formatted_value)
                 })
@@ -212,6 +226,24 @@ fn format_event_identification_blocks(
             }
         ]
     }));
+    let signal_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/signals/{}",
+            project_id, signal_id
+        ),
+        "slack",
+        "signal_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/settings?tab=alerts",
+            project_id
+        ),
+        "slack",
+        "signal_alert",
+        "manage_alert",
+    );
     let mut context_elements = vec![
         json!({
             "type": "mrkdwn",
@@ -219,20 +251,26 @@ fn format_event_identification_blocks(
         }),
         json!({
             "type": "mrkdwn",
-            "text": format!("Signal: <{}/project/{}/signals/{}|{}>", base, project_id, signal_id, signal_name)
+            "text": format!("Signal: <{}|{}>", signal_link, signal_name)
         }),
         json!({
             "type": "mrkdwn",
-            "text": format!("Alert: <{}/project/{}/settings?tab=alerts|{}>", base, project_id, alert_name)
+            "text": format!("Alert: <{}|{}>", alert_link, alert_name)
         }),
     ];
     if let Some(eid) = event_id {
+        let similar_link = with_utm(
+            &format!(
+                "https://laminar.sh/project/{}/signals/{}?eventCluster={}",
+                project_id, signal_id, eid,
+            ),
+            "slack",
+            "signal_alert",
+            "similar_events",
+        );
         context_elements.push(json!({
             "type": "mrkdwn",
-            "text": format!(
-                "Similar Events: <{}/project/{}/signals/{}?eventCluster={}|View>",
-                base, project_id, signal_id, eid,
-            )
+            "text": format!("Similar Events: <{}|View>", similar_link)
         }));
     }
     blocks.push(json!({
@@ -247,39 +285,61 @@ fn format_event_identification_blocks(
 // Format Slack message blocks for a new-cluster notification.
 #[allow(clippy::too_many_arguments)]
 fn format_new_cluster_blocks(
-    project_id: &str,
-    signal_id: &str,
+    project_id: &Uuid,
+    signal_id: &Uuid,
     signal_name: &str,
-    cluster_id: &str,
+    cluster_id: &Uuid,
     cluster_name: &str,
     num_signal_events: u32,
     num_child_clusters: usize,
     alert_name: &str,
 ) -> serde_json::Value {
-    let base = frontend_url_slack();
-    let cluster_link = format!(
-        "{}/project/{}/signals/{}?clusterId={}",
-        base, project_id, signal_id, cluster_id
+    let cluster_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/signals/{}?clusterId={}",
+            project_id, signal_id, cluster_id
+        ),
+        "slack",
+        "new_cluster_alert",
+        "view_cluster",
+    );
+    let signal_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/signals/{}",
+            project_id, signal_id
+        ),
+        "slack",
+        "new_cluster_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/settings?tab=alerts",
+            project_id
+        ),
+        "slack",
+        "new_cluster_alert",
+        "manage_alert",
     );
 
-    let summary = format!(
-        "_Name:_ *{}*\n_Events:_ *{}*\n_Child clusters:_ *{}*",
-        cluster_name, num_signal_events, num_child_clusters,
+    let details_text = format!(
+        "*Cluster:* {}\n*Events:* {}\n*Child clusters:* {}",
+        cluster_name, num_signal_events, num_child_clusters
     );
 
-    let blocks = vec![
-        json!({
+    json!([
+        {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": format!("`{}`: New Cluster", signal_name)
             }
-        }),
-        json!({
+        },
+        {
             "type": "section",
-            "text": { "type": "mrkdwn", "text": summary }
-        }),
-        json!({
+            "text": { "type": "mrkdwn", "text": details_text }
+        },
+        {
             "type": "actions",
             "elements": [
                 {
@@ -293,29 +353,26 @@ fn format_new_cluster_blocks(
                     "action_id": "view_cluster"
                 }
             ]
-        }),
-        json!({
+        },
+        {
             "type": "context",
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": format!("Signal: <{}/project/{}/signals/{}|{}>", base, project_id, signal_id, signal_name)
+                    "text": format!("Signal: <{}|{}>", signal_link, signal_name)
                 },
                 {
                     "type": "mrkdwn",
-                    "text": format!("Alert: <{}/project/{}/settings?tab=alerts|{}>", base, project_id, alert_name)
+                    "text": format!("Alert: <{}|{}>", alert_link, alert_name)
                 }
             ]
-        }),
-        json!({"type": "divider"}),
-    ];
-
-    json!(blocks)
+        },
+        {"type": "divider"}
+    ])
 }
 
 /// Format Slack message blocks for a signals report notification.
 fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
-    let base = frontend_url_slack();
     let project_count = report.projects.len();
 
     let overview = format!(
@@ -357,14 +414,18 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
         if !project.noteworthy_events.is_empty() {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
+                let trace_link = with_utm(
+                    &format!(
+                        "https://laminar.sh/project/{}/traces/{}?chat=true",
+                        project.project_id, event.trace_id,
+                    ),
+                    "slack",
+                    "signals_report",
+                    "view_trace",
+                );
                 let entry = format!(
-                    "• `{}` – {} ({}) <{}/project/{}/traces/{}?chat=true|View trace>\n",
-                    event.signal_name,
-                    event.summary,
-                    event.timestamp,
-                    base,
-                    project.project_id,
-                    event.trace_id,
+                    "• `{}` – {} ({}) <{}|View trace>\n",
+                    event.signal_name, event.summary, event.timestamp, trace_link,
                 );
                 if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
                     break;

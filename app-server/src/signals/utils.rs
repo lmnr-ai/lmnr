@@ -270,7 +270,7 @@ fn replace_span_tags_in_str(
             .map(|uuid| uuid.to_string())
             .unwrap_or_else(|| short_id.to_string());
         format!(
-            "[{}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+            "[{}](https://lmnr.ai/project/{}/traces/{}?spanId={}&chat=true)",
             span_name, project_id, trace_id, real_span_id
         )
     });
@@ -284,7 +284,7 @@ fn replace_span_tags_in_str(
                 let short_id = m.as_str().to_lowercase();
                 match span_ids_map.get(&short_id) {
                     Some(uuid) => format!(
-                        "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+                        "[span {}](https://lmnr.ai/project/{}/traces/{}?spanId={}&chat=true)",
                         short_id, project_id, trace_id, uuid
                     ),
                     None => format!("span {}", short_id),

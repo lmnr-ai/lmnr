@@ -1,7 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
+import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import {
@@ -18,8 +19,10 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { cn } from "@/lib/utils";
+import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils.ts";
 
 interface ListProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
@@ -27,6 +30,8 @@ interface ListProps {
 }
 
 type FlatRow = { type: "user-input" } | TranscriptListEntry;
+
+const isGroupChildType = (type: FlatRow["type"]): boolean => type === "group-span" || type === "group-input";
 
 function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   switch (row.type) {
@@ -59,6 +64,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     trace,
     condensedTimelineVisibleSpanIds,
     transcriptExpandedGroups,
+    setTab,
   } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -67,6 +73,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       trace: state.trace,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
       transcriptExpandedGroups: state.transcriptExpandedGroups,
+      setTab: state.setTab,
     }),
     shallow
   );
@@ -77,13 +84,32 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [getTranscriptListData, spans, condensedTimelineVisibleSpanIds]
   );
 
-  const hasLlmSpan = useMemo(() => spans.some((s) => s.spanType === "LLM" || s.spanType === "CACHED"), [spans]);
+  const llmSpanCount = useMemo(
+    () => spans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED").length,
+    [spans]
+  );
 
-  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, hasLlmSpan);
+  const trackedTraceIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const traceId = trace?.id;
+    if (!traceId || spans.length === 0) return;
+    if (trackedTraceIdRef.current === traceId) return;
+    trackedTraceIdRef.current = traceId;
+    const subagentGroupCount = transcriptEntries.filter((e) => e.type === "group").length;
+    track("traces", "transcript_viewed", {
+      subagent_group_count: subagentGroupCount,
+      has_subagent_groups: subagentGroupCount > 0,
+      is_shared: isShared,
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trace?.id, spans.length]);
+
+  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared, llmSpanCount);
   // Render the user-input row whenever we know an LLM span exists (even while
   // its content is still being fetched). This makes the input appear as soon
   // as the first LLM span arrives over realtime.
-  const hasUserInput = hasLlmSpan || isUserInputLoading || !!userInput;
+  const hasUserInput = llmSpanCount > 0 || isUserInputLoading || !!userInput;
 
   const flatRows = useMemo(() => {
     const rows: FlatRow[] = [];
@@ -245,13 +271,26 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   }
 
   if (!hasEntries) {
+    const spansEmpty = isEmpty(spans);
     return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center max-w-lg mx-auto">
         <span className="text-base text-secondary-foreground">
-          {isEmpty(spans)
+          {spansEmpty
             ? "No spans found."
             : "No matching spans found. Transcript mode omits default span types. Switch to tree view to see all spans."}
         </span>
+        {!spansEmpty && (
+          <Button
+            variant="outlinePrimary"
+            onClick={() => {
+              track("traces", "view_switched", { from: "transcript", to: "tree" });
+              setTab("tree");
+            }}
+          >
+            <ListTree size={14} className="mr-1" />
+            Switch to tree
+          </Button>
+        )}
       </div>
     );
   }
@@ -286,14 +325,19 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           {items.map((virtualRow) => {
             const row = flatRows[virtualRow.index];
             if (!row) return null;
-            const isTopLevel = row.type === "group" || row.type === "span" || row.type === "user-input";
-            const isFirst = virtualRow.index === 0;
+            const nextRow = flatRows[virtualRow.index + 1];
+            const isGroupChild = row.type === "group-span" || row.type === "group-input";
+            const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
+            const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
             return (
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
-                className={cn(isTopLevel && !isFirst && "pt-2")}
+                className={cn({
+                  "pt-1": row.type === "group",
+                  "pb-1": isCollapsedGroup || isLastGroupChild,
+                })}
               >
                 {renderRow(row)}
               </div>

@@ -13,14 +13,15 @@ export interface ParsedInput {
 }
 
 /**
- * Build a synthetic messages array from the first and second elements
+ * Build a synthetic messages array from the first and last elements
  * extracted by ClickHouse, then parse into typed system + user parts.
- * The second element is expected to be the first user message (arr[2]).
+ * The first element is typically the system message (arr[1]) and the
+ * last element is the most recent user message (arr[length(arr)]).
  */
-export function parseExtractedMessages(firstMessage: string, secondMessage: string): ParsedInput | null {
+export function parseExtractedMessages(firstMessage: string, lastMessage: string): ParsedInput | null {
   const parts: string[] = [];
   if (firstMessage) parts.push(firstMessage);
-  if (secondMessage) parts.push(secondMessage);
+  if (lastMessage) parts.push(lastMessage);
   if (parts.length === 0) return null;
 
   const syntheticJson = `[${parts.join(",")}]`;
