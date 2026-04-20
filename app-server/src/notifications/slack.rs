@@ -12,7 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::build_report_data_from_batch;
+use super::utils::{build_report_data_from_batch, with_utm};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -118,9 +118,14 @@ fn format_event_identification_blocks(
     alert_name: &str,
     severity: &u8,
 ) -> serde_json::Value {
-    let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}?chat=true",
-        project_id, trace_id
+    let trace_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/traces/{}?chat=true",
+            project_id, trace_id
+        ),
+        "slack",
+        "signal_alert",
+        "view_trace",
     );
 
     let severity_label = match severity {
@@ -192,6 +197,18 @@ fn format_event_identification_blocks(
             }
         ]
     }));
+    let signal_link = with_utm(
+        &format!("https://laminar.sh/project/{}/signals/{}", project_id, signal_id),
+        "slack",
+        "signal_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!("https://laminar.sh/project/{}/settings?tab=alerts", project_id),
+        "slack",
+        "signal_alert",
+        "manage_alert",
+    );
     let mut context_elements = vec![
         json!({
             "type": "mrkdwn",
@@ -199,20 +216,26 @@ fn format_event_identification_blocks(
         }),
         json!({
             "type": "mrkdwn",
-            "text": format!("Signal: <https://laminar.sh/project/{}/signals/{}|{}>", project_id, signal_id, signal_name)
+            "text": format!("Signal: <{}|{}>", signal_link, signal_name)
         }),
         json!({
             "type": "mrkdwn",
-            "text": format!("Alert: <https://laminar.sh/project/{}/settings?tab=alerts|{}>", project_id, alert_name)
+            "text": format!("Alert: <{}|{}>", alert_link, alert_name)
         }),
     ];
     if let Some(eid) = event_id {
+        let similar_link = with_utm(
+            &format!(
+                "https://laminar.sh/project/{}/signals/{}?eventCluster={}",
+                project_id, signal_id, eid,
+            ),
+            "slack",
+            "signal_alert",
+            "similar_events",
+        );
         context_elements.push(json!({
             "type": "mrkdwn",
-            "text": format!(
-                "Similar Events: <https://laminar.sh/project/{}/signals/{}?eventCluster={}|View>",
-                project_id, signal_id, eid,
-            )
+            "text": format!("Similar Events: <{}|View>", similar_link)
         }));
     }
     blocks.push(json!({
@@ -267,13 +290,18 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
         if !project.noteworthy_events.is_empty() {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
+                let trace_link = with_utm(
+                    &format!(
+                        "https://laminar.sh/project/{}/traces/{}?chat=true",
+                        project.project_id, event.trace_id,
+                    ),
+                    "slack",
+                    "signals_report",
+                    "view_trace",
+                );
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}?chat=true|View trace>\n",
-                    event.signal_name,
-                    event.summary,
-                    event.timestamp,
-                    project.project_id,
-                    event.trace_id,
+                    "• `{}` – {} ({}) <{}|View trace>\n",
+                    event.signal_name, event.summary, event.timestamp, trace_link,
                 );
                 if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
                     break;

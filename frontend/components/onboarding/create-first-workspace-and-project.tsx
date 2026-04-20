@@ -45,7 +45,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
 
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
-      track("onboarding", "project_created");
+      track("onboarding", "first_project_created");
 
       if (newWorkspace.projectId) {
         router.push(`/project/${newWorkspace.projectId}/traces?onboarding=true`);
