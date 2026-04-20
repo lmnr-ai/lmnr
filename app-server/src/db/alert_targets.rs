@@ -45,7 +45,11 @@ impl AlertMetadata {
     pub fn matches_severity(&self, severity: u8) -> bool {
         match &self.severities {
             Some(s) if !s.is_empty() => s.contains(&severity),
-            _ => severity == DEFAULT_SEVERITY,
+            Some(_) => {
+                log::warn!("Alert has empty severities vec; treating as no-match");
+                false
+            }
+            None => severity == DEFAULT_SEVERITY,
         }
     }
 
