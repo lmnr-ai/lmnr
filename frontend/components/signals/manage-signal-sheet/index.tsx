@@ -11,7 +11,6 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
-import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -192,9 +191,6 @@ export default function ManageSignalSheet({
 
   const onOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (!nextOpen && !form.getValues("id")) {
-        track("signals", "creation_abandoned");
-      }
       setOpen(nextOpen);
       if (!nextOpen) {
         form.reset(getDefaultValues(String(projectId), defaultMode));

@@ -1,7 +1,7 @@
 "use client";
 
 import { PostHogProvider as PHProvider } from "posthog-js/react";
-import { type PropsWithChildren, useEffect, useLayoutEffect } from "react";
+import { type PropsWithChildren, useEffect } from "react";
 
 import { identify, init, posthog } from "@/lib/posthog/client";
 
@@ -11,10 +11,7 @@ interface PostHogProviderProps {
 }
 
 export function PostHogProvider({ children, telemetryEnabled, email }: PropsWithChildren<PostHogProviderProps>) {
-  // useLayoutEffect fires synchronously after DOM mutations but before any
-  // useEffect. This guarantees posthog.init() runs before child useEffect hooks
-  // that call track() / identify(), without being a side effect during render.
-  useLayoutEffect(() => {
+  useEffect(() => {
     init(telemetryEnabled);
   }, [telemetryEnabled]);
 

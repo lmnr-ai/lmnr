@@ -234,14 +234,7 @@ function SignalsContent() {
             hideAbsoluteDate
           />
           <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button
-              icon="plus"
-              className="w-fit"
-              onClick={() => {
-                track("signals", "creation_started", { entry_point: "signals_page" });
-                setIsDialogOpen(true);
-              }}
-            >
+            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
               Signal
             </Button>
           </ManageSignalSheet>
