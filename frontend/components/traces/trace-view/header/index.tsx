@@ -1,4 +1,4 @@
-import { ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
+import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
@@ -202,13 +202,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenSession}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
                     >
-                      <Layers size={14} className="mr-1" />
-                      Session
+                      <Layers size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{sessionId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Open session in a new tab</TooltipContent>
+                  <TooltipContent side="bottom">Open session in a new tab</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </span>
@@ -221,13 +222,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenUserTraces}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
                     >
-                      <User size={14} className="mr-1" />
-                      User
+                      <User size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{userId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>See user traces in a new tab</TooltipContent>
+                  <TooltipContent side="bottom">See user traces in a new tab</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </span>
