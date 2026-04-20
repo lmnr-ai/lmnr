@@ -13,9 +13,10 @@ import {
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 import { useSessionViewStore } from "../store";
-import { buildSessionFlatRows } from "../utils";
+import { buildSessionFlatRows, formatGap } from "../utils";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
@@ -135,6 +136,10 @@ export default function SessionList() {
         return `gh::${row.traceId}::${row.group.groupId}`;
       case "group-span":
         return `gs::${row.traceId}::${row.span.spanId}`;
+      case "trace-collapsed-end":
+        return `tcend::${row.traceId}`;
+      case "trace-expanded-end":
+        return `teend::${row.traceId}`;
     }
   }, []);
 
@@ -153,6 +158,10 @@ export default function SessionList() {
       case "trace-error":
       case "trace-empty":
         return 42;
+      case "trace-collapsed-end":
+        return 50;
+      case "trace-expanded-end":
+        return 80;
       case "trace-loading":
       case "user-input":
       case "span":
@@ -317,19 +326,37 @@ export default function SessionList() {
                   totalTraces={traces.length}
                   onToggle={() => toggleTraceExpanded(row.trace.id)}
                   traceIO={traceIO[row.trace.id]}
+                  className="px-2"
                 />
               ) : row.type === "trace-loading" ? (
-                <div className="flex flex-col gap-2 px-3 py-2">
+                <div className="flex flex-col gap-2 py-2 px-2">
                   <Skeleton className="h-5 w-full" />
                   <Skeleton className="h-5 w-3/4" />
                   <Skeleton className="h-5 w-2/3" />
                 </div>
               ) : row.type === "trace-error" ? (
-                <div className="px-3 py-4 text-sm text-destructive">{row.error}</div>
+                <div className="py-4 px-2 text-sm text-destructive">{row.error}</div>
               ) : row.type === "trace-empty" ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">No spans found for this trace.</div>
+                <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
+              ) : row.type === "trace-collapsed-end" || row.type === "trace-expanded-end" ? (
+                <div
+                  className={cn(
+                    "px-2 flex justify-center items-center",
+                    row.type === "trace-expanded-end" ? "h-[80px]" : "h-[50px]"
+                  )}
+                >
+                  <div className="w-full border-b" />
+                  {formatGap(row.gapMs) && (
+                    <span className="text-xs text-muted-foreground shrink-0 px-2">{formatGap(row.gapMs)}</span>
+                  )}
+                  <div className="w-full border-b" />
+                </div>
               ) : row.type === "user-input" ? (
-                <InputItem text={traceIO[row.traceId]?.inputPreview ?? null} isLoading={!traceIO[row.traceId]} />
+                <InputItem
+                  text={traceIO[row.traceId]?.inputPreview ?? null}
+                  isLoading={!traceIO[row.traceId]}
+                  className="px-4"
+                />
               ) : row.type === "group-header" ? (
                 <AgentGroupHeader
                   group={row.group}
@@ -337,10 +364,11 @@ export default function SessionList() {
                   previews={previews}
                   inputPreviews={userInputs}
                   agentNames={agentNames}
+                  className="my-1 mx-4"
                   onToggle={() => toggleTranscriptGroup(row.traceId, row.group.groupId)}
                 />
               ) : row.type === "group-span" ? (
-                <GroupChildWrapper isLast={row.isLast}>
+                <GroupChildWrapper isLast={row.isLast} className="mx-4">
                   <SpanItem
                     span={row.span}
                     fullSpan={allSpansById.get(row.span.spanId)}
@@ -354,6 +382,7 @@ export default function SessionList() {
                 </GroupChildWrapper>
               ) : (
                 <SpanItem
+                  className="px-3"
                   span={row.span}
                   fullSpan={allSpansById.get(row.span.spanId)}
                   output={previews[row.span.spanId]}

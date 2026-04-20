@@ -94,9 +94,18 @@ export interface SpanItemProps {
   onSpanSelect: (span: TraceViewListSpan) => void;
   isSelected: boolean;
   inGroup?: boolean;
+  className?: string;
 }
 
-export default function SpanItem({ span, fullSpan, output, onSpanSelect, isSelected, inGroup = false }: SpanItemProps) {
+export default function SpanItem({
+  span,
+  fullSpan,
+  output,
+  onSpanSelect,
+  isSelected,
+  inGroup = false,
+  className,
+}: SpanItemProps) {
   const {
     enabled: cachingEnabled,
     state: { isSpanCached },
@@ -118,7 +127,8 @@ export default function SpanItem({ span, fullSpan, output, onSpanSelect, isSelec
         "flex group/message cursor-pointer transition-all border-l-2",
         inGroup ? "hover:bg-muted/80 bg-muted/60" : "hover:bg-secondary",
         isSelected ? "bg-primary/15 border-l-primary hover:bg-primary/20" : "border-l-transparent",
-        { "opacity-60": isCached }
+        { "opacity-60": isCached },
+        className
       )}
       onClick={() => {
         if (!isPending) {

@@ -16,6 +16,7 @@ export interface AgentGroupHeaderProps {
   inputPreviews: PreviewMap;
   agentNames: Record<string, string | null | undefined>;
   onToggle: () => void;
+  className?: string;
 }
 
 export function AgentGroupHeader({
@@ -25,6 +26,7 @@ export function AgentGroupHeader({
   inputPreviews,
   agentNames,
   onToggle,
+  className,
 }: AgentGroupHeaderProps) {
   const handleToggle = useCallback(() => onToggle(), [onToggle]);
 
@@ -60,7 +62,8 @@ export function AgentGroupHeader({
     <div
       className={cn(
         "mx-2 border bg-muted/80 overflow-hidden cursor-pointer transition-colors hover:bg-muted",
-        collapsed ? "rounded-lg" : "rounded-t-lg"
+        collapsed ? "rounded-lg" : "rounded-t-lg",
+        className
       )}
       onClick={handleToggle}
     >
@@ -113,12 +116,18 @@ export function AgentGroupHeader({
   );
 }
 
-export function GroupChildWrapper({ isLast = false, children }: { isLast?: boolean; children: React.ReactNode }) {
+export function GroupChildWrapper({
+  isLast = false,
+  children,
+  className,
+}: {
+  isLast?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div
-      className={cn("mx-2 border-x transition-colors", {
-        "border-b rounded-b-lg overflow-hidden": isLast,
-      })}
+      className={cn("mx-2 border-x transition-colors", { "border-b rounded-b-lg overflow-hidden": isLast }, className)}
     >
       {children}
     </div>

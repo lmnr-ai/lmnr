@@ -27,7 +27,32 @@ export type SessionFlatRow =
   | { type: "user-input"; traceId: string }
   | { type: "span"; traceId: string; span: TraceViewListSpan }
   | { type: "group-header"; traceId: string; group: TranscriptListGroup; collapsed: boolean }
-  | { type: "group-span"; traceId: string; span: TraceViewListSpan; isLast: boolean };
+  | { type: "group-span"; traceId: string; span: TraceViewListSpan; isLast: boolean }
+  | { type: "trace-collapsed-end"; traceId: string; gapMs?: number }
+  | { type: "trace-expanded-end"; traceId: string; gapMs?: number };
+
+/** Format an inter-trace gap in ms as a short human-readable string.
+ *  Returns null for zero/negative/invalid gaps — callers should render
+ *  just a divider line in that case. */
+export function formatGap(ms: number | undefined): string | null {
+  if (ms === undefined || !Number.isFinite(ms) || ms <= 0) return null;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 1) return "<1s";
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    const s = seconds % 60;
+    return s === 0 ? `${minutes}m` : `${minutes}m ${s}s`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const m = minutes % 60;
+    return m === 0 ? `${hours}h` : `${hours}h ${m}m`;
+  }
+  const days = Math.floor(hours / 24);
+  const h = hours % 24;
+  return h === 0 ? `${days}d` : `${days}d ${h}h`;
+}
 
 interface BuildFlatRowsOpts {
   traces: TraceRow[];
@@ -63,15 +88,22 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
   // --- Normal mode ---
   const rows: SessionFlatRow[] = [];
 
-  for (const trace of traces) {
+  for (let i = 0; i < traces.length; i++) {
+    const trace = traces[i];
+    const nextTrace = traces[i + 1];
+    const gapMs = nextTrace ? new Date(nextTrace.startTime).getTime() - new Date(trace.endTime).getTime() : undefined;
     const expanded = expandedTraceIds.has(trace.id);
     rows.push({ type: "trace-header", trace, expanded });
 
-    if (!expanded) continue;
+    if (!expanded) {
+      rows.push({ type: "trace-collapsed-end", traceId: trace.id, gapMs });
+      continue;
+    }
 
     const error = traceSpansError[trace.id];
     if (error) {
       rows.push({ type: "trace-error", traceId: trace.id, error });
+      rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
       continue;
     }
 
@@ -79,11 +111,13 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     const spans = traceSpans[trace.id];
     if ((loading && !spans) || !spans) {
       rows.push({ type: "trace-loading", traceId: trace.id });
+      rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
       continue;
     }
 
     if (spans.length === 0) {
       rows.push({ type: "trace-empty", traceId: trace.id });
+      rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
       continue;
     }
 
@@ -116,6 +150,8 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
         }
       }
     }
+
+    rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
   }
 
   return rows;
@@ -141,6 +177,8 @@ function buildSearchFlatRows(
         span: spanToListSpan(span),
       });
     }
+
+    rows.push({ type: "trace-expanded-end", traceId: trace.id });
   }
 
   return rows;

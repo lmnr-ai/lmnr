@@ -31,9 +31,18 @@ interface TraceItemProps {
   totalTraces: number;
   onToggle: () => void;
   traceIO?: TraceIOEntry | null;
+  className?: string;
 }
 
-export default function TraceItem({ trace, expanded, traceIndex, totalTraces, onToggle, traceIO }: TraceItemProps) {
+export default function TraceItem({
+  trace,
+  expanded,
+  traceIndex,
+  totalTraces,
+  onToggle,
+  traceIO,
+  className,
+}: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
   const { toast } = useToast();
@@ -110,13 +119,13 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     <div
       className={cn(
         "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4%",
-        expanded ? "px-0" : "py-1 px-2"
+        className
       )}
     >
       <div
         className={cn(
-          "overflow-hidden w-full",
-          expanded ? "bg-muted border-t" : "bg-muted/75 border border-[rgba(232,232,232,0.1)] rounded-lg"
+          "overflow-hidden w-full border border-[rgba(232,232,232,0.1)] rounded-lg",
+          expanded ? "bg-muted" : "bg-muted/75"
         )}
       >
         <button
@@ -188,7 +197,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             ) : !traceIO ? (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <InputItem text={null} isLoading />
+                  <InputItem text={null} isLoading className="bg-transparent" />
                 </div>
                 <div className="flex flex-col gap-2 px-3 py-2">
                   <Skeleton className="h-5 w-full" />
@@ -200,7 +209,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
             ) : (
               <>
                 <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <InputItem text={traceIO.inputPreview ?? null} isLoading={false} />
+                  <InputItem text={traceIO.inputPreview ?? null} isLoading={false} className="bg-transparent" />
                 </div>
                 <SpanItem
                   span={lastSpan}
