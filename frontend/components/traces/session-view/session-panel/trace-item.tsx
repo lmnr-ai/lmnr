@@ -110,7 +110,7 @@ export default function TraceItem({ trace, expanded, traceIndex, totalTraces, on
     <div
       className={cn(
         "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4%",
-        expanded ? "p-0" : "p-1"
+        expanded ? "p-0" : "py-1 px-2"
       )}
     >
       <div
