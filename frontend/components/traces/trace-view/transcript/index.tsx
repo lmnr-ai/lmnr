@@ -235,7 +235,10 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
               previews={previews}
               inputPreviews={inputPreviews}
               agentNames={agentNames}
-              onToggle={() => toggleTranscriptGroup(row.groupId)}
+              onToggle={() => {
+                track("traces", "subagent_group_toggled", { expanded: isCollapsed });
+                toggleTranscriptGroup(row.groupId);
+              }}
             />
           );
         }

@@ -7,7 +7,6 @@ import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
-import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export interface AgentGroupHeaderProps {
@@ -29,10 +28,7 @@ export function AgentGroupHeader({
   onToggle,
   className,
 }: AgentGroupHeaderProps) {
-  const handleToggle = useCallback(() => {
-    track("traces", "subagent_group_toggled", { expanded: collapsed });
-    onToggle();
-  }, [onToggle, collapsed]);
+  const handleToggle = useCallback(() => onToggle(), [onToggle]);
 
   // When a group has only one LLM span, store/utils sets `lastLlmSpanId` to
   // null to avoid duplicating the same id. In that case, the collapsed header
