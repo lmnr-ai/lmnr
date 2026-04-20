@@ -550,7 +550,12 @@ const NotificationPanel = () => {
   return (
     <>
       <div className="absolute inset-0 z-40 bg-black/20" onClick={close} />
-      <div className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg">
+      <div
+        className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg"
+        onClickCapture={(e) => {
+          if ((e.target as HTMLElement).closest("a")) close();
+        }}
+      >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
             <span className="text-sm font-medium">Notifications</span>
