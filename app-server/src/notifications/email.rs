@@ -8,7 +8,9 @@
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{build_report_data_from_batch, with_utm};
+use super::utils::{
+    build_report_data_from_batch, inject_utm_into_links, md_links_to_html_escaped, with_utm,
+};
 use crate::reports::email_template::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
@@ -186,10 +188,24 @@ fn render_alert_email(
                 .iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => html_escape(s),
+                        serde_json::Value::String(s) => md_links_to_html_escaped(
+                            &inject_utm_into_links(
+                                s,
+                                "email",
+                                "signal_alert",
+                                "event_description",
+                            ),
+                            PRIMARY,
+                        ),
                         serde_json::Value::Null => String::new(),
-                        _ => html_escape(
-                            &serde_json::to_string_pretty(value).unwrap_or_default(),
+                        _ => md_links_to_html_escaped(
+                            &inject_utm_into_links(
+                                &serde_json::to_string_pretty(value).unwrap_or_default(),
+                                "email",
+                                "signal_alert",
+                                "event_description",
+                            ),
+                            PRIMARY,
                         ),
                     };
                     format!(

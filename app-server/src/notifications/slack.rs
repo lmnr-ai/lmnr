@@ -12,7 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{build_report_data_from_batch, with_utm};
+use super::utils::{build_report_data_from_batch, inject_utm_into_links, with_utm};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -140,11 +140,21 @@ fn format_event_identification_blocks(
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => md_links_to_slack(s),
+                        serde_json::Value::String(s) => md_links_to_slack(&inject_utm_into_links(
+                            s,
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        )),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
                         serde_json::Value::Null => String::new(),
-                        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                        _ => inject_utm_into_links(
+                            &serde_json::to_string_pretty(value).unwrap_or_default(),
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        ),
                     };
                     format!("_{}_:\n{}", key, formatted_value)
                 })
