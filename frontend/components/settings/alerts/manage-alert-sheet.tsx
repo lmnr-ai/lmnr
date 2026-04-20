@@ -1,5 +1,6 @@
 "use client";
 
+import { CaretSortIcon } from "@radix-ui/react-icons";
 import { Loader2, Mail, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -10,8 +11,16 @@ import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,11 +63,13 @@ interface AlertFormValues {
   signalName: string;
   channelId: string;
   emailEnabled: boolean;
-  severity: SeverityLevel;
+  severities: SeverityLevel[];
   skipSimilar: boolean;
 }
 
 const CHART_FIELDS = ["count"] as const;
+
+const SEVERITY_OPTIONS = [SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const;
 
 const DEFAULT_VALUES: AlertFormValues = {
   type: "",
@@ -66,7 +77,7 @@ const DEFAULT_VALUES: AlertFormValues = {
   signalName: "",
   channelId: "",
   emailEnabled: false,
-  severity: SEVERITY_LEVEL.CRITICAL,
+  severities: [SEVERITY_LEVEL.CRITICAL],
   skipSimilar: true,
 };
 
@@ -111,7 +122,7 @@ export default function ManageAlertSheet({
   const alertType = watch("type");
   const signalName = watch("signalName");
   const channelId = watch("channelId");
-  const severity = watch("severity");
+  const severities = watch("severities");
 
   const resetFormFromSignals = useCallback(
     (data: { items: SignalRow[] }) => {
@@ -132,7 +143,10 @@ export default function ManageAlertSheet({
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
-        severity: signalEventMeta?.severity ?? SEVERITY_LEVEL.CRITICAL,
+        severities:
+          signalEventMeta?.severities && signalEventMeta.severities.length > 0
+            ? signalEventMeta.severities
+            : [SEVERITY_LEVEL.CRITICAL],
         skipSimilar: signalEventMeta?.skipSimilar ?? false,
       });
     },
@@ -197,8 +211,11 @@ export default function ManageAlertSheet({
   );
 
   const additionalParams = useMemo(
-    () => (alertType === ALERT_TYPE.SIGNAL_EVENT ? { severity: String(severity) } : undefined),
-    [alertType, severity]
+    () =>
+      alertType === ALERT_TYPE.SIGNAL_EVENT && severities.length > 0
+        ? { severities: severities.map(String) }
+        : undefined,
+    [alertType, severities]
   );
 
   const statsBaseUrl = useMemo(() => {
@@ -323,7 +340,7 @@ export default function ManageAlertSheet({
         const metadata =
           data.type === ALERT_TYPE.SIGNAL_EVENT
             ? {
-                severity: data.severity,
+                severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
                 // skipSimilar relies on the clustering service; force it off when
                 // clustering is disabled so the backend doesn't receive a stale
                 // value from a hidden toggle or the default form state.
@@ -512,33 +529,75 @@ export default function ManageAlertSheet({
 
                 {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && (
                   <Controller
-                    name="severity"
+                    name="severities"
                     control={control}
-                    render={({ field }) => (
-                      <div className="grid gap-2">
-                        <Label>Severity</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Only trigger notifications for events with this severity level.
-                        </p>
-                        <Select
-                          value={String(field.value)}
-                          onValueChange={(v) => field.onChange(Number(v) as SeverityLevel)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {([SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const).map(
-                              (level) => (
-                                <SelectItem key={level} value={String(level)}>
-                                  {SEVERITY_LABELS[level]}
-                                </SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                    rules={{
+                      validate: (value) => (value && value.length > 0) || "Select at least one severity level",
+                    }}
+                    render={({ field, fieldState }) => {
+                      const selected = new Set(field.value);
+                      const sortedSelected = SEVERITY_OPTIONS.filter((l) => selected.has(l));
+                      const triggerLabel =
+                        sortedSelected.length === 0
+                          ? "Select severities"
+                          : sortedSelected.map((l) => SEVERITY_LABELS[l]).join(", ");
+                      const toggle = (level: SeverityLevel, checked: boolean) => {
+                        const next = new Set(field.value);
+                        if (checked) {
+                          next.add(level);
+                        } else {
+                          next.delete(level);
+                        }
+                        field.onChange(SEVERITY_OPTIONS.filter((l) => next.has(l)) as SeverityLevel[]);
+                      };
+                      return (
+                        <div className="grid gap-2">
+                          <Label>Severity</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Trigger notifications for events with any of the selected severity levels.
+                          </p>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "h-7 w-full justify-between px-2 text-xs font-normal",
+                                  fieldState.error && "border-destructive"
+                                )}
+                              >
+                                <span className="truncate">{triggerLabel}</span>
+                                <CaretSortIcon className="h-4 w-4 opacity-50" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                              <DropdownMenuGroup>
+                                {SEVERITY_OPTIONS.map((level) => {
+                                  const isChecked = selected.has(level);
+                                  return (
+                                    <DropdownMenuItem
+                                      key={level}
+                                      onSelect={(e) => e.preventDefault()}
+                                      onClick={() => toggle(level, !isChecked)}
+                                      className="gap-2"
+                                    >
+                                      <Checkbox
+                                        checked={isChecked}
+                                        onCheckedChange={(checked) => toggle(level, !!checked)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
+                                      />
+                                      <span>{SEVERITY_LABELS[level]}</span>
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                        </div>
+                      );
+                    }}
                   />
                 )}
 

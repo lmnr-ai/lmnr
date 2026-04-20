@@ -245,7 +245,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
         type: "SIGNAL_EVENT",
         sourceId: signal.id,
         metadata: {
-          severity: SEVERITY_LEVEL.CRITICAL,
+          severities: [SEVERITY_LEVEL.CRITICAL],
           // skipSimilar depends on the clustering service; default to false when
           // clustering is disabled so the backend doesn't silently drop notifications.
           skipSimilar: clusteringEnabled,

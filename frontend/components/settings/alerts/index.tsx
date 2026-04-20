@@ -134,7 +134,7 @@ export default function AlertsSettings({
                 </span>
               </td>
               <td className="px-4">
-                <Badge variant="secondary" className="font-normal text-xs whitespace-nowrap">
+                <Badge variant="outline" className="font-normal text-xs whitespace-nowrap bg-secondary/50">
                   {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
                 </Badge>
               </td>
@@ -145,8 +145,8 @@ export default function AlertsSettings({
               </td>
               <td className="px-4 text-xs text-muted-foreground">
                 {alert.type === ALERT_TYPE.SIGNAL_EVENT
-                  ? signalEventMeta?.severity != null
-                    ? SEVERITY_LABELS[signalEventMeta.severity as SeverityLevel]
+                  ? signalEventMeta?.severities && signalEventMeta.severities.length > 0
+                    ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
                     : "Critical"
                   : "—"}
               </td>

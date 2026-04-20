@@ -43,9 +43,7 @@ struct NewClusterResult {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ClusterResponse {
     success: bool,
-    #[serde(default)]
     events: Vec<ClusterEventResult>,
-    #[serde(default)]
     new_clusters: Vec<NewClusterResult>,
 }
 
@@ -326,7 +324,7 @@ async fn notify_new_l0_clusters(
         let attributes = ch_event.payload_value().unwrap_or_default();
 
         for alert in &signal_event_alerts {
-            if ch_event.severity != alert.metadata.severity() {
+            if !alert.metadata.matches_severity(ch_event.severity) {
                 continue;
             }
 

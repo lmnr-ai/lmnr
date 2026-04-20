@@ -36,10 +36,8 @@ pub async fn process_event_notifications_and_clustering(
         .await?;
 
         for alert in alerts {
-            let min_severity = alert.metadata.severity();
-
             // Match severity
-            if signal_event.severity != min_severity {
+            if !alert.metadata.matches_severity(signal_event.severity) {
                 continue;
             }
 

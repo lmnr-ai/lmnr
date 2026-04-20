@@ -1,6 +1,17 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronUp, CircleAlert, FileText, Info, Layers, Settings, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
+  FileText,
+  Info,
+  Layers,
+  Settings,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
@@ -272,10 +283,11 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotifi
             {projectId && (
               <Link
                 href={`/project/${projectId}/traces/${event.trace_id}?chat=true`}
-                className="text-[11px] text-muted-foreground underline hover:text-foreground mt-0.5 w-fit"
+                className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground mt-0.5 w-fit"
                 onClick={(e) => e.stopPropagation()}
               >
                 View trace
+                <ArrowUpRight className="size-3 text-primary" />
               </Link>
             )}
           </div>
@@ -352,21 +364,23 @@ const NotificationItem = ({
               ))}
             </div>
           )}
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-1">
             <Link
               href={formatted.traceLink}
-              className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+              className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
               onClick={(e) => e.stopPropagation()}
             >
               View trace
+              <ArrowUpRight className="size-3 text-primary" />
             </Link>
             {formatted.similarEventsLink && (
               <Link
                 href={formatted.similarEventsLink}
-                className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+                className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
                 onClick={(e) => e.stopPropagation()}
               >
                 View similar events
+                <ArrowUpRight className="size-3 text-primary" />
               </Link>
             )}
           </div>
@@ -389,10 +403,11 @@ const NotificationItem = ({
           <div className="flex gap-3">
             <Link
               href={formatted.clusterLink}
-              className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+              className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
               onClick={(e) => e.stopPropagation()}
             >
               View cluster
+              <ArrowUpRight className="size-3 text-primary" />
             </Link>
           </div>
         </>

@@ -15,16 +15,18 @@ const TargetSchema = z.object({
 });
 
 const SignalEventMetadataSchema = z.object({
-  severity: z.number().int().min(0).max(2),
+  severities: z.array(z.number().int().min(0).max(2)).nonempty(),
   skipSimilar: z.boolean().optional(),
 });
 
 const NewClusterMetadataSchema = z.object({}).strict();
 
-// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severity + optional skipSimilar.
+// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
 const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
   if (type === "SIGNAL_EVENT") {
-    return SignalEventMetadataSchema.parse(metadata ?? {});
+    const parsed = SignalEventMetadataSchema.parse(metadata ?? {});
+    const dedupedSeverities = Array.from(new Set(parsed.severities)).sort((a, b) => a - b);
+    return { ...parsed, severities: dedupedSeverities };
   }
   return NewClusterMetadataSchema.parse(metadata ?? {});
 };

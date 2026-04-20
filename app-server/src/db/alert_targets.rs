@@ -12,14 +12,17 @@ const DEFAULT_SEVERITY: u8 = 2;
 #[serde(rename_all = "camelCase")]
 pub struct AlertMetadata {
     #[serde(default)]
-    pub severity: Option<u8>,
+    pub severities: Option<Vec<u8>>,
     #[serde(default)]
     pub skip_similar: Option<bool>,
 }
 
 impl AlertMetadata {
-    pub fn severity(&self) -> u8 {
-        self.severity.unwrap_or(DEFAULT_SEVERITY)
+    pub fn matches_severity(&self, severity: u8) -> bool {
+        match &self.severities {
+            Some(s) if !s.is_empty() => s.contains(&severity),
+            _ => severity == DEFAULT_SEVERITY,
+        }
     }
 
     pub fn skip_similar(&self) -> bool {
