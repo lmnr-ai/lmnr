@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
 
 interface RemoveUserDialogProps {
@@ -43,6 +44,7 @@ const RemoveUserDialog = ({ open, onOpenChange, workspace, user }: RemoveUserDia
         } else {
           onOpenChange(false);
           router.refresh();
+          track("team", "user_removed");
           toast({ variant: "default", description: "User removed successfully." });
         }
       } catch (e) {

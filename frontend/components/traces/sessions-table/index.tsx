@@ -14,6 +14,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type SessionRow, type TraceRow } from "@/lib/traces/types";
 
 import { type SessionSortColumn, type SortDirection } from "./session-table-header";
@@ -161,6 +162,8 @@ function SessionsTableContent() {
     async (sessionId: string) => {
       const result = toggleSession(sessionId);
       if (result.action === "collapsed") return;
+
+      track("sessions", "detail_opened", { source: "table" });
 
       const controller = result.controller;
 

@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { type GenerateProjectApiKeyResponse, type ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
@@ -67,6 +68,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       setIsLoading(true);
       await generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
       setIsGenerated(true);
+      track("api_keys", "generated", { key_type: keyType });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to generate API key" });
     } finally {

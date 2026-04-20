@@ -14,7 +14,7 @@ export type AgentNamesResult = Record<string, string | null>;
 
 async function generateAgentName(systemPrompt: string): Promise<string | null> {
   try {
-    const { text } = await observe({ name: "generateAgentName" }, async () =>
+    const { text } = await observe({ name: "generate-agent-name" }, async () =>
       generateText({
         model: getLanguageModel("lite"),
         system:

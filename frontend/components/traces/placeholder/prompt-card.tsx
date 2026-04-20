@@ -6,8 +6,22 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 
-export function PromptCard({ title, subtitle, prompt }: { title: string; subtitle?: string; prompt: string }) {
+interface PromptCardProps {
+  title: string;
+  subtitle?: string;
+  prompt: string;
+  onCopy?: () => void;
+  onExpandedChange?: (expanded: boolean) => void;
+}
+
+export function PromptCard({ title, subtitle, prompt, onCopy, onExpandedChange }: PromptCardProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const handleToggleExpanded = () => {
+    const next = !expanded;
+    setExpanded(next);
+    onExpandedChange?.(next);
+  };
 
   return (
     <div className="flex flex-col">
@@ -18,15 +32,10 @@ export function PromptCard({ title, subtitle, prompt }: { title: string; subtitl
             {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
           </div>
           <div className="flex items-center shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setExpanded(!expanded)}
-              className="text-muted-foreground"
-            >
+            <Button variant="ghost" size="icon" onClick={handleToggleExpanded} className="text-muted-foreground">
               {expanded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
-            <CopyButton text={prompt} variant="ghost" size="icon" className="text-muted-foreground" />
+            <CopyButton text={prompt} variant="ghost" size="icon" className="text-muted-foreground" onCopy={onCopy} />
           </div>
         </div>
       </div>

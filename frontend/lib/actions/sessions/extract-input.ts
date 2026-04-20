@@ -84,7 +84,7 @@ export async function extractInputsForGroup(
     return;
   }
 
-  await observe({ name: "extract_trace_inputs" }, async () => {
+  await observe({ name: "trace-io:extract-trace-inputs", input: { projectId } }, async () => {
     const llmInput = buildDeduplicatedLLMInput(samples.map((s) => s.parsed!.userParts));
     const regex = await generateExtractionRegex(llmInput);
 
@@ -108,9 +108,8 @@ export async function extractInputsForGroup(
         results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         continue;
       }
-      const extracted = observe(
-        { name: "apply_trace_input_extraction_regex", input: { pattern: regex, text: joinedText } },
-        () => applyRegex(regex, joinedText)
+      const extracted = observe({ name: "apply-regex", input: { pattern: regex, text: joinedText } }, () =>
+        applyRegex(regex, joinedText)
       );
       if (extracted) {
         results[trace.traceId] = { inputPreview: extracted, outputPreview: trace.output, outputSpan: null };
