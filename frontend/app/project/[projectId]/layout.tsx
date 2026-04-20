@@ -3,8 +3,6 @@ import "@/app/globals.css";
 import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 
-import PostHogClient from "@/app/posthog";
-import PostHogIdentifier from "@/app/posthog-identifier";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectSidebar from "@/components/project/sidebar";
@@ -17,6 +15,8 @@ import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { PostHogIdentifier } from "@/lib/posthog";
+import PostHogClient from "@/lib/posthog/server";
 
 const projectSidebarCookieName = "project-sidebar-state";
 

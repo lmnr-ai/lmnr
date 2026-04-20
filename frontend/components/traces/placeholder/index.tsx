@@ -1,12 +1,13 @@
 "use client";
 
 import { ArrowUpRight, Sparkles, Terminal } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
 import { AutomaticTab } from "./automatic-tab";
@@ -15,16 +16,23 @@ import { ManualTab } from "./manual-tab";
 export default function TracesPagePlaceholder() {
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
+  const searchParams = useSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  const isFromOnboarding = searchParams.get("onboarding") === "true";
+
+  useEffect(() => {
+    track("onboarding", "traces_placeholder_viewed", { from_onboarding: isFromOnboarding });
+  }, [isFromOnboarding]);
 
   const eventHandlers = useMemo(
     () => ({
       trace_update: () => {
+        track("onboarding", "first_trace_received", { from_onboarding: isFromOnboarding });
         localStorage.setItem("traces-table:realtime", JSON.stringify(true));
         router.refresh();
       },
     }),
-    [router]
+    [router, isFromOnboarding]
   );
 
   const onConnectionUpdate = useCallback(
@@ -66,7 +74,13 @@ export default function TracesPagePlaceholder() {
             )}
           </div>
 
-          <Tabs defaultValue="manual" className="gap-7">
+          <Tabs
+            defaultValue="manual"
+            className="gap-7"
+            onValueChange={(value) => {
+              track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });
+            }}
+          >
             <TabsList className="border-none">
               <TabsTrigger value="automatic" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
@@ -78,7 +92,7 @@ export default function TracesPagePlaceholder() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="automatic">
-              <AutomaticTab />
+              <AutomaticTab isFromOnboarding={isFromOnboarding} />
             </TabsContent>
             <TabsContent value="manual">
               <ManualTab />
