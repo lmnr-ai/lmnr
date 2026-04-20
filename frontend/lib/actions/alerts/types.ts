@@ -31,20 +31,8 @@ export const SEVERITY_LABELS: Record<SeverityLevel, string> = {
 
 export interface SignalEventAlertMetadata {
   severities?: SeverityLevel[];
-  /** Legacy single-severity field stored on historical alerts. Always read via {@link getSeverities}. */
-  severity?: SeverityLevel;
   skipSimilar?: boolean;
 }
-
-export const getSeverities = (metadata: SignalEventAlertMetadata | null | undefined): SeverityLevel[] => {
-  if (metadata?.severities && metadata.severities.length > 0) {
-    return metadata.severities;
-  }
-  if (metadata?.severity !== undefined && metadata.severity !== null) {
-    return [metadata.severity];
-  }
-  return [];
-};
 
 export type AlertMetadata = Record<string, any>;
 

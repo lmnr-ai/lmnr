@@ -35,7 +35,6 @@ import {
   ALERT_TYPE_LABELS,
   type AlertType,
   type AlertWithDetails,
-  getSeverities,
   SEVERITY_LABELS,
   SEVERITY_LEVEL,
   type SeverityLevel,
@@ -139,14 +138,16 @@ export default function ManageAlertSheet({
       const signalEventMeta =
         alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
 
-      const resolvedSeverities = getSeverities(signalEventMeta);
       reset({
         type: alert.type,
         name: alert.name,
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
-        severities: resolvedSeverities.length > 0 ? resolvedSeverities : [SEVERITY_LEVEL.CRITICAL],
+        severities:
+          signalEventMeta?.severities && signalEventMeta.severities.length > 0
+            ? signalEventMeta.severities
+            : [SEVERITY_LEVEL.CRITICAL],
         skipSimilar: signalEventMeta?.skipSimilar ?? false,
       });
     },

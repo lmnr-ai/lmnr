@@ -17,7 +17,6 @@ import {
   ALERT_TYPE,
   ALERT_TYPE_LABELS,
   type AlertWithDetails,
-  getSeverities,
   SEVERITY_LABELS,
   type SeverityLevel,
   type SignalEventAlertMetadata,
@@ -146,12 +145,9 @@ export default function AlertsSettings({
               </td>
               <td className="px-4 text-xs text-muted-foreground">
                 {alert.type === ALERT_TYPE.SIGNAL_EVENT
-                  ? (() => {
-                      const severities = getSeverities(signalEventMeta);
-                      return severities.length > 0
-                        ? severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
-                        : "Critical";
-                    })()
+                  ? signalEventMeta?.severities && signalEventMeta.severities.length > 0
+                    ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
+                    : "Critical"
                   : "—"}
               </td>
               <td className="px-4">

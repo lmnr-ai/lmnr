@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -8,37 +8,13 @@ use crate::notifications::AlertType;
 /// Defaults to critical when absent (historical alerts).
 const DEFAULT_SEVERITY: u8 = 2;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct AlertMetadata {
+    #[serde(default)]
     pub severities: Option<Vec<u8>>,
+    #[serde(default)]
     pub skip_similar: Option<bool>,
-}
-
-// Manual deserialization to support both the legacy `severity: u8` field
-// and the new `severities: Vec<u8>` field.
-impl<'de> Deserialize<'de> for AlertMetadata {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Raw {
-            #[serde(default)]
-            severities: Option<Vec<u8>>,
-            #[serde(default)]
-            severity: Option<u8>,
-            #[serde(default)]
-            skip_similar: Option<bool>,
-        }
-
-        let raw = Raw::deserialize(deserializer)?;
-        let severities = raw.severities.or_else(|| raw.severity.map(|s| vec![s]));
-        Ok(AlertMetadata {
-            severities,
-            skip_similar: raw.skip_similar,
-        })
-    }
 }
 
 impl AlertMetadata {
