@@ -4,7 +4,12 @@ import { z } from "zod/v4";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { type Filter } from "@/lib/actions/common/filters";
 import { FiltersSchema } from "@/lib/actions/common/types";
-import { aggregateSpanMetrics, buildSpansQueryWithParams, transformSpanWithEvents } from "@/lib/actions/spans/utils";
+import {
+  aggregateSpanMetrics,
+  buildSpansQueryWithParams,
+  spansSelectColumns,
+  transformSpanWithEvents,
+} from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 
@@ -43,9 +48,10 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
         formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime
       FROM traces
       WHERE session_id = {sessionId: String}
+        AND project_id = {projectId: UUID}
       ORDER BY start_time ASC
     `,
-    parameters: { sessionId },
+    parameters: { sessionId, projectId },
     projectId,
   });
 
@@ -85,6 +91,7 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
     filters,
     startTime,
     endTime,
+    columns: [...spansSelectColumns, "attributes", "events"],
     customConditions: [
       {
         condition: `trace_id IN ({sessionTraceIds: Array(UUID)})`,
