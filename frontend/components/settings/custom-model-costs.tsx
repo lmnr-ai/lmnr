@@ -9,6 +9,7 @@ import useSWR from "swr";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type CustomModelCost } from "@/lib/actions/custom-model-costs";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -352,6 +353,7 @@ export default function CustomModelCosts() {
       if (res.ok) {
         mutate();
         toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+        track("model_costs", id ? "updated" : "created", { model, provider });
         return true;
       }
       const errMessage = await res

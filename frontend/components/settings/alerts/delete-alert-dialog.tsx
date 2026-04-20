@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 interface DeleteAlertDialogProps {
   projectId: string;
@@ -40,6 +41,7 @@ export default function DeleteAlertDialog({ projectId, alert, onClose, onDeleted
       }
 
       toast({ title: "Alert deleted", description: "You will no longer receive notifications for this alert." });
+      track("alerts", "deleted");
       onDeleted();
     } catch (e) {
       toast({

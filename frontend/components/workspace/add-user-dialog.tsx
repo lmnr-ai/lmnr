@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Workspace } from "@/lib/workspaces/types";
 
 interface AddUserDialogProps {
@@ -59,6 +60,7 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
 
       onOpenChange(false);
       toast({ description: "Invitation sent successfully." });
+      track("team", "invitation_sent");
       router.refresh();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Failed to invite user.");

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
 import { type useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
 
@@ -189,6 +190,11 @@ export default function useSubmitHandler({
           syncedTriggers = await syncTriggers(projectId, signalId, triggersToSync, isUpdate ? previousTriggerIds : []);
         }
 
+        if (isUpdate) {
+          track("signals", "edited");
+        } else {
+          track("signals", "created", { filter_count: syncedTriggers.reduce((sum, t) => sum + t.filters.length, 0) });
+        }
         if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);

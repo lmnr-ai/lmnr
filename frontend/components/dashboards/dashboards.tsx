@@ -8,6 +8,7 @@ import { DashboardSelectionProvider } from "@/components/dashboards/dashboard-se
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboards/dashboard-trace-context";
 import GridLayout from "@/components/dashboards/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
+import { track } from "@/lib/posthog";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -29,6 +30,10 @@ function DashboardContent() {
     if (viewport) {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
     }
+  }, []);
+
+  useEffect(() => {
+    track("dashboards", "page_viewed");
   }, []);
 
   useEffect(() => {
