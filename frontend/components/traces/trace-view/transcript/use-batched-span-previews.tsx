@@ -94,7 +94,11 @@ export function useBatchedSpanPreviews(
       : `/api/projects/${projectId}/traces/${trace.id}/spans/previews`;
 
     try {
-      const res = await fetch(url, { method: "POST", body: JSON.stringify(body) });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       if (!res.ok) {
         const errData = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(errData?.error ?? "Failed to fetch span previews");

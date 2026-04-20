@@ -539,9 +539,14 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
                   traceId={selectedSpan.traceId}
                   spanId={selectedSpan.spanId}
                   key={selectedSpan.spanId}
+                  onClose={() => setSelectedSpan(undefined)}
                 />
               ) : (
-                <SpanView spanId={selectedSpan.spanId} traceId={selectedSpan?.traceId} />
+                <SpanView
+                  spanId={selectedSpan.spanId}
+                  traceId={selectedSpan?.traceId}
+                  onClose={() => setSelectedSpan(undefined)}
+                />
               ))}
           </div>
         </SheetContent>

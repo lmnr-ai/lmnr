@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import SignalEventsPanel from "../signal-events-panel";
 
@@ -9,7 +10,13 @@ const DEFAULT_SIGNAL_CARD_HEIGHT = 300;
 const MIN_SIGNAL_CARD_HEIGHT = 80;
 const MAX_SIGNAL_CARD_HEIGHT = 500;
 
-export default function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: () => void }) {
+interface Props {
+  traceId: string;
+  onClose: () => void;
+  className?: string;
+}
+
+export default function ResizableSignalCard({ traceId, onClose, className }: Props) {
   const [height, setHeight] = useState(DEFAULT_SIGNAL_CARD_HEIGHT);
   const isDragging = useRef(false);
   const startY = useRef(0);
@@ -46,7 +53,10 @@ export default function ResizableSignalCard({ traceId, onClose }: { traceId: str
 
   return (
     <div
-      className="flex flex-col rounded-md border border-blue-400/30 bg-blue-400/12 overflow-hidden relative"
+      className={cn(
+        "flex flex-col rounded-md border border-blue-400/30 bg-blue-400/12 overflow-hidden relative",
+        className
+      )}
       style={{ height }}
     >
       <div className="flex-shrink-0 pr-2 pl-2.5 pt-1.5 flex items-center justify-between">

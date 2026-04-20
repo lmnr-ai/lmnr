@@ -2,27 +2,31 @@ import { Bot, ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TranscriptListGroup, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
 import { cn } from "@/lib/utils";
 
-interface AgentGroupHeaderProps {
+export interface AgentGroupHeaderProps {
   group: TranscriptListGroup;
   collapsed: boolean;
   previews: PreviewMap;
   inputPreviews: PreviewMap;
   agentNames: Record<string, string | null | undefined>;
+  onToggle: () => void;
 }
 
-export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, agentNames }: AgentGroupHeaderProps) {
-  const toggleTranscriptGroup = useTraceViewBaseStore((s) => s.toggleTranscriptGroup);
-
-  const handleToggle = useCallback(() => {
-    toggleTranscriptGroup(group.groupId);
-  }, [toggleTranscriptGroup, group.groupId]);
+export function AgentGroupHeader({
+  group,
+  collapsed,
+  previews,
+  inputPreviews,
+  agentNames,
+  onToggle,
+}: AgentGroupHeaderProps) {
+  const handleToggle = useCallback(() => onToggle(), [onToggle]);
 
   // When a group has only one LLM span, store/utils sets `lastLlmSpanId` to
   // null to avoid duplicating the same id. In that case, the collapsed header

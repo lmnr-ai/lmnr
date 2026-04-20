@@ -1,8 +1,10 @@
 import { z } from "zod/v4";
 
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
+import { tryParseJson } from "@/lib/actions/common/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
+import { type Span } from "@/lib/traces/types";
 import { fetcherJSON } from "@/lib/utils.ts";
 
 import { extractInputsForGroup, joinUserParts } from "./extract-input";
@@ -72,13 +74,15 @@ interface InputQueryRow {
 }
 
 interface TraceIOResult {
-  input: string | null;
-  output: string | null;
+  inputPreview: string | null;
+  outputPreview: string | null;
+  outputSpan: Span | null;
 }
 
 interface TraceWithParsedInput {
   traceId: string;
   output: string | null;
+  outputSpanId: string | null;
   parsed: ParsedInput | null;
   promptHash: string | null;
 }
@@ -118,8 +122,9 @@ export async function getMainAgentIOBatch({
 
   for (const trace of noHashTraces) {
     results[trace.traceId] = {
-      input: joinUserParts(trace.parsed?.userParts ?? []),
-      output: trace.output,
+      inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
+      outputPreview: trace.output,
+      outputSpan: null,
     };
   }
 
@@ -129,7 +134,17 @@ export async function getMainAgentIOBatch({
 
   for (const traceId of traceIds) {
     if (!(traceId in results)) {
-      results[traceId] = { input: null, output: null };
+      results[traceId] = { inputPreview: null, outputPreview: null, outputSpan: null };
+    }
+  }
+
+  const outputSpanIds = traceData.map((t) => t.outputSpanId).filter((id): id is string => id !== null);
+  if (outputSpanIds.length > 0) {
+    const spansById = await fetchSpansByIds(outputSpanIds, projectId);
+    for (const t of traceData) {
+      if (t.outputSpanId && results[t.traceId]) {
+        results[t.traceId].outputSpan = spansById.get(t.outputSpanId) ?? null;
+      }
     }
   }
 
@@ -158,10 +173,10 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   // fall back to the raw user text. This should be rare after hydration.
   if (!traceData.promptHash) return rawInput;
 
-  const results: Record<string, { input: string | null; output: string | null }> = {};
+  const results: Record<string, TraceIOResult> = {};
   await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results);
 
-  return results[traceId]?.input ?? rawInput;
+  return results[traceId]?.inputPreview ?? rawInput;
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +250,7 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   });
 
   if (pathRows.length === 0) {
-    return { traceId, output: null, parsed: null, promptHash: null };
+    return { traceId, output: null, outputSpanId: null, parsed: null, promptHash: null };
   }
 
   const { path: topPath, promptHash: topPromptHash } = pathRows[0];
@@ -247,13 +262,14 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   });
 
   if (inputRows.length === 0) {
-    return { traceId, output: null, parsed: null, promptHash: topPromptHash || null };
+    return { traceId, output: null, outputSpanId: null, parsed: null, promptHash: topPromptHash || null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
   return {
     traceId,
     output: null,
+    outputSpanId: null,
     parsed,
     promptHash: inputRows[0].prompt_hash || topPromptHash || null,
   };
@@ -267,7 +283,7 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   });
 
   if (pathRows.length === 0) {
-    return { traceId, output: null, parsed: null, promptHash: null };
+    return { traceId, output: null, outputSpanId: null, parsed: null, promptHash: null };
   }
 
   const { path: topPath, promptHash: topPromptHash } = pathRows[0];
@@ -286,18 +302,77 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   ]);
 
   const outputText = await resolveOutput(outputRows, projectId);
+  const outputSpanId = outputRows[0]?.spanId ?? null;
 
   if (inputRows.length === 0) {
-    return { traceId, output: outputText, parsed: null, promptHash: topPromptHash || null };
+    return { traceId, output: outputText, outputSpanId, parsed: null, promptHash: topPromptHash || null };
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
   return {
     traceId,
     output: outputText,
+    outputSpanId,
     parsed,
     promptHash: inputRows[0].prompt_hash || topPromptHash || null,
   };
+}
+
+async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Map<string, Span>> {
+  const query = `
+    SELECT
+      span_id as spanId,
+      parent_span_id as parentSpanId,
+      name,
+      span_type as spanType,
+      input_tokens as inputTokens,
+      output_tokens as outputTokens,
+      total_tokens as totalTokens,
+      input_cost as inputCost,
+      output_cost as outputCost,
+      total_cost as totalCost,
+      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+      trace_id as traceId,
+      status,
+      input,
+      output,
+      path,
+      attributes,
+      events
+    FROM spans
+    WHERE span_id IN ({spanIds: Array(UUID)})
+  `;
+
+  const rows = await executeQuery<
+    Omit<Span, "attributes" | "events" | "cacheReadInputTokens" | "reasoningTokens"> & {
+      attributes: string;
+      events: { timestamp: number; name: string; attributes: string }[];
+    }
+  >({
+    query,
+    parameters: { spanIds },
+    projectId,
+  });
+
+  const map = new Map<string, Span>();
+  for (const row of rows) {
+    const parsedAttributes = tryParseJson(row.attributes) || {};
+    map.set(row.spanId, {
+      ...row,
+      input: tryParseJson(row.input),
+      output: tryParseJson(row.output),
+      attributes: parsedAttributes,
+      cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
+      reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
+      events: (row.events || []).map((event) => ({
+        timestamp: event.timestamp,
+        name: event.name,
+        attributes: tryParseJson(event.attributes) || {},
+      })),
+    });
+  }
+  return map;
 }
 
 async function resolveOutput(

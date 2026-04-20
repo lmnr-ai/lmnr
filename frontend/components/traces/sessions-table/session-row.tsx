@@ -25,16 +25,19 @@ interface SessionRowProps {
   isExpanded: boolean;
   isLast?: boolean;
   onToggle: () => void;
+  /** Click on the body of the row (everything except the chevron). Opens the
+   *  session view side panel in the current route. */
+  onOpen?: () => void;
 }
 
-export default function SessionRow({ session, isExpanded, isLast, onToggle }: SessionRowProps) {
+export default function SessionRow({ session, isExpanded, isLast, onToggle, onOpen }: SessionRowProps) {
   return (
     <div
       className={cn(
         "bg-secondary border-b flex h-10.5 items-center w-full cursor-pointer hover:bg-muted",
         isLast && "border-b-0"
       )}
-      onClick={onToggle}
+      onClick={onOpen}
     >
       <button
         className={`flex items-center justify-center shrink-0 ${CHEVRON_COLUMN_WIDTH_CLASSNAME} h-full`}
