@@ -537,6 +537,7 @@ export default function ManageAlertSheet({
                   <Controller
                     name="severities"
                     control={control}
+                    shouldUnregister
                     rules={{
                       validate: (value) => (value && value.length > 0) || "Select at least one severity level",
                     }}
