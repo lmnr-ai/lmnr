@@ -168,7 +168,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
 
 const formatNewClusterPayload = (cluster: NewCluster): NewClusterNotification => {
   const details: [string, string][] = [
-    ["Cluster", cluster.cluster_name],
+    ["Name", cluster.cluster_name],
     ["Events", String(cluster.num_signal_events)],
     ["Child clusters", String(cluster.num_child_clusters)],
   ];
@@ -375,16 +375,11 @@ const NotificationItem = ({
       {formatted.kind === "cluster" && (
         <>
           {formatted.details.length > 0 && (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-0.5">
               {formatted.details.map(([key, value]) => (
-                <div key={key} className="flex flex-col">
-                  <span className="text-[11px] font-medium text-muted-foreground">{key}</span>
-                  <span
-                    className={cn(
-                      "text-xs leading-snug",
-                      isUnread ? "text-foreground/80" : "text-secondary-foreground"
-                    )}
-                  >
+                <div key={key} className="flex gap-1.5 text-xs leading-snug">
+                  <span className="text-muted-foreground shrink-0">{key}:</span>
+                  <span className={cn("break-words", isUnread ? "text-foreground/80" : "text-secondary-foreground")}>
                     {value}
                   </span>
                 </div>
