@@ -9,7 +9,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
-import { AnalyticsProvider } from "@/lib/posthog";
+import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        <AnalyticsProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
+        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
           <body className="flex flex-col h-full">
             <NuqsAdapter>
               <div className="flex">
@@ -87,7 +87,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
               </div>
             </NuqsAdapter>
           </body>
-        </AnalyticsProvider>
+        </PostHogProvider>
       </FeatureFlagsProvider>
     </html>
   );

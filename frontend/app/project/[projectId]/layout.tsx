@@ -15,7 +15,7 @@ import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { AnalyticsIdentifier } from "@/lib/posthog";
+import { PostHogIdentifier } from "@/lib/posthog";
 import PostHogClient from "@/lib/posthog/server";
 
 const projectSidebarCookieName = "project-sidebar-state";
@@ -52,7 +52,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   return (
     <UserContextProvider user={user}>
       <SessionSyncProvider>
-        <AnalyticsIdentifier email={user.email} />
+        <PostHogIdentifier email={user.email} />
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>

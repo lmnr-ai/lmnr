@@ -5,12 +5,12 @@ import { type PropsWithChildren, useEffect, useLayoutEffect } from "react";
 
 import { identify, init, posthog } from "@/lib/posthog/client";
 
-interface AnalyticsProviderProps {
+interface PostHogProviderProps {
   telemetryEnabled: boolean;
   email?: string;
 }
 
-export function AnalyticsProvider({ children, telemetryEnabled, email }: PropsWithChildren<AnalyticsProviderProps>) {
+export function PostHogProvider({ children, telemetryEnabled, email }: PropsWithChildren<PostHogProviderProps>) {
   // useLayoutEffect fires synchronously after DOM mutations but before any
   // useEffect. This guarantees posthog.init() runs before child useEffect hooks
   // that call track() / identify(), without being a side effect during render.
@@ -28,7 +28,7 @@ export function AnalyticsProvider({ children, telemetryEnabled, email }: PropsWi
 }
 
 /** Lightweight component that only identifies the user without adding another PHProvider layer. */
-export function AnalyticsIdentifier({ email }: { email?: string }) {
+export function PostHogIdentifier({ email }: { email?: string }) {
   useEffect(() => {
     if (email) {
       identify(email, { email });
