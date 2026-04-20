@@ -70,14 +70,22 @@ pub fn format_message_blocks_batch(
         NotificationKind::EventIdentification {
             project_id,
             trace_id,
+            event_id,
             event_name,
             extracted_information,
+            alert_name,
+            severity,
+            signal_id,
             ..
         } => format_event_identification_blocks(
             &project_id.to_string(),
+            &signal_id.to_string(),
             &trace_id.to_string(),
+            event_id.as_ref(),
             event_name,
             extracted_information.clone(),
+            alert_name,
+            severity,
         ),
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
@@ -102,14 +110,25 @@ fn md_links_to_slack(text: &str) -> String {
 // Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
+    signal_id: &str,
     trace_id: &str,
-    event_name: &str,
+    event_id: Option<&Uuid>,
+    signal_name: &str,
     extracted_information: Option<serde_json::Value>,
+    alert_name: &str,
+    severity: &u8,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://lmnr.ai/project/{}/traces/{}?chat=true",
+        "https://laminar.sh/project/{}/traces/{}?chat=true",
         project_id, trace_id
     );
+
+    let severity_label = match severity {
+        0 => ":large_green_circle: Info",
+        1 => ":large_orange_circle: Warning",
+        2 => ":red_circle: Critical",
+        _ => "Unknown",
+    };
 
     let info_entries: Vec<String> = if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
@@ -132,6 +151,14 @@ fn format_event_identification_blocks(
         vec![]
     };
 
+    let mut blocks = vec![json!({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": format!("`{}`: New Event", signal_name)
+        }
+    })];
+
     if !info_entries.is_empty() {
         const MAX_SECTION_TEXT_LEN: usize = 3000;
         let mut combined = String::new();
@@ -144,63 +171,57 @@ fn format_event_identification_blocks(
             }
             combined.push_str(entry);
         }
-        let mut blocks = vec![
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
-                }
-            }),
-            json!({
-                "type": "section",
-                "text": { "type": "mrkdwn", "text": combined }
-            }),
-        ];
         blocks.push(json!({
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": combined }
         }));
-        blocks.push(json!({"type": "divider"}));
-        return json!(blocks);
     }
 
-    json!([
-        {
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("✅ *Event Detected: {}*", event_name)
+    blocks.push(json!({
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "View Trace",
+                    "emoji": true
+                },
+                "url": trace_link,
+                "action_id": "view_trace"
             }
-        },
-        {
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
-        },
-        {"type": "divider"}
-    ])
+        ]
+    }));
+    let mut context_elements = vec![
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Severity: {}", severity_label)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Signal: <https://laminar.sh/project/{}/signals/{}|{}>", project_id, signal_id, signal_name)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Alert: <https://laminar.sh/project/{}/settings?tab=alerts|{}>", project_id, alert_name)
+        }),
+    ];
+    if let Some(eid) = event_id {
+        context_elements.push(json!({
+            "type": "mrkdwn",
+            "text": format!(
+                "Similar Events: <https://laminar.sh/project/{}/signals/{}?eventCluster={}|View>",
+                project_id, signal_id, eid,
+            )
+        }));
+    }
+    blocks.push(json!({
+        "type": "context",
+        "elements": context_elements
+    }));
+    blocks.push(json!({"type": "divider"}));
+
+    json!(blocks)
 }
 
 /// Format Slack message blocks for a signals report notification.
@@ -247,7 +268,7 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://lmnr.ai/project/{}/traces/{}?chat=true|View trace>\n",
+                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}?chat=true|View trace>\n",
                     event.signal_name,
                     event.summary,
                     event.timestamp,

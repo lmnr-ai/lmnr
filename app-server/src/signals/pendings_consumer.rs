@@ -13,7 +13,10 @@ use crate::{
     signals::SignalRun,
     signals::{
         SignalWorkerConfig,
-        provider::{LlmClient, models::ProviderBatchOutput},
+        provider::{
+            LlmClient,
+            models::{ProviderBatchOutput, ProviderBatchState},
+        },
         push_to_signals_queue,
         queue::{
             SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue,
@@ -120,34 +123,70 @@ async fn process(
         result.done
     );
 
-    if result.done {
-        if let Some(error) = result.error {
-            process_failed_batch(
-                &message,
-                true,
-                db,
-                clickhouse,
-                queue,
-                Some(format!("Batch failed: {}", error.message)),
-            )
-            .await?;
-        } else {
-            process_succeeded_batch(
-                &message,
-                result.response,
-                db,
-                queue,
-                clickhouse,
-                config,
-                cache,
-            )
-            .await?;
-        }
-    } else {
-        process_pending_batch(&message, queue, config.clone()).await?;
+    // Done = false, means the batch is still pending
+    if !result.done {
+        return process_pending_batch(&message, queue, config.clone()).await;
     }
 
-    Ok(())
+    // Error = Some, means the batch failed
+    if let Some(error) = result.error {
+        return process_failed_batch(
+            &message,
+            true,
+            db,
+            clickhouse,
+            queue,
+            Some(format!("Batch failed: {}", error.message)),
+        )
+        .await;
+    }
+
+    // Done = true, no error. Check for explicit non-success state (expired, failed, etc.)
+    // None state is allowed through (e.g. provider doesn't report metadata)
+    let is_non_success_state = matches!(
+        result.state,
+        Some(
+            ProviderBatchState::Failed
+                | ProviderBatchState::Cancelled
+                | ProviderBatchState::Expired
+        )
+    );
+    if is_non_success_state {
+        log::error!(
+            "[SIGNAL JOB] Batch {} done but state is {:?}, routing {} runs to realtime queue",
+            message.batch_id,
+            result.state,
+            message.messages.len()
+        );
+        route_to_realtime_queue(&message.messages, queue).await;
+        return Ok(());
+    }
+
+    // Unexpected empty response - route to realtime queue
+    let Some(response) = result.response else {
+        log::error!(
+            "[SIGNAL JOB] Batch {} succeeded but response is missing, routing {} runs to realtime queue",
+            message.batch_id,
+            message.messages.len()
+        );
+        route_to_realtime_queue(&message.messages, queue).await;
+        return Ok(());
+    };
+
+    // Successful batch with correct state and non-empty response
+    process_succeeded_batch(&message, response, db, queue, clickhouse, config, cache).await
+}
+
+async fn route_to_realtime_queue(messages: &[SignalMessage], queue: Arc<MessageQueue>) {
+    for message in messages {
+        if let Err(e) = push_to_realtime_queue(message.clone(), queue.clone()).await {
+            log::error!(
+                "[SIGNAL JOB] Failed to push run {} to realtime queue: {:?}",
+                message.run_id,
+                e
+            );
+        }
+    }
 }
 
 #[tracing::instrument(skip_all, fields(num_runs = failed_runs.len()))]
@@ -290,26 +329,21 @@ async fn process_pending_batch(
 #[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 pub async fn process_succeeded_batch(
     message: &SignalJobPendingBatchMessage,
-    batch_output: Option<ProviderBatchOutput>,
+    response: ProviderBatchOutput,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     config: Arc<SignalWorkerConfig>,
     cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
-    let response = batch_output.ok_or(HandlerError::permanent(anyhow::anyhow!(
-        "Batch succeeded but response is missing for batch_id: {}",
-        message.batch_id
-    )))?;
-
     let mut processed = process_provider_responses(
         &message.messages,
         &response.responses,
         Some(message.batch_id.clone()),
         clickhouse.clone(),
+        db.clone(),
         queue.clone(),
         config.clone(),
-        db.clone(),
     )
     .await?;
 

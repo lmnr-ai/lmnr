@@ -84,9 +84,9 @@ pub async fn process_provider_responses(
     responses: &[ProviderInlineResponse],
     batch_id: Option<String>,
     clickhouse: clickhouse::Client,
+    db: Arc<DB>,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
-    db: Arc<DB>,
 ) -> Result<ProcessedResponses, HandlerError> {
     let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
     for msg in messages.iter() {
@@ -828,7 +828,10 @@ pub async fn handle_create_event(
             )
             .await
             .map_err(|e| {
-                log::warn!("[SIGNAL JOB] Retrying notifications/clustering: {:?}", e);
+                log::warn!(
+                    "[SIGNAL JOB] Retrying processing event notifications and clustering: {:?}",
+                    e
+                );
                 backoff::Error::transient(e)
             })
         }

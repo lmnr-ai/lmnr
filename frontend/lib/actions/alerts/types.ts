@@ -25,6 +25,7 @@ export const SEVERITY_LABELS: Record<SeverityLevel, string> = {
 
 export interface SignalEventAlertMetadata {
   severity?: SeverityLevel;
+  skipSimilar?: boolean;
 }
 
 export interface AlertTarget {
@@ -41,6 +42,7 @@ export interface AlertWithDetails {
   name: string;
   type: AlertType;
   sourceId: string;
+  signalName: string | null;
   projectId: string;
   projectName: string;
   createdAt: string;

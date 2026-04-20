@@ -168,6 +168,39 @@ pub async fn get_signal_events_for_summary(
     Ok(rows)
 }
 
+/// Fetch signal events by their IDs, filtering by project_id and signal_id
+/// to utilize the ClickHouse ordering key efficiently.
+pub async fn get_signal_events_by_ids(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    event_ids: &[Uuid],
+) -> Result<Vec<CHSignalEvent>> {
+    if event_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<String> = event_ids.iter().map(|_| "?".to_string()).collect();
+    let query_str = format!(
+        "SELECT id, project_id, signal_id, trace_id, run_id, name, payload, timestamp, summary, severity
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id = ?
+           AND id IN ({})",
+        placeholders.join(",")
+    );
+
+    let mut query = clickhouse.query(&query_str).bind(project_id).bind(signal_id);
+
+    for event_id in event_ids {
+        query = query.bind(event_id);
+    }
+
+    let rows = query.fetch_all::<CHSignalEvent>().await?;
+
+    Ok(rows)
+}
+
 /// Insert signal events into ClickHouse
 pub async fn insert_signal_events(
     clickhouse: clickhouse::Client,
