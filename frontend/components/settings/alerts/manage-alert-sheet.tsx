@@ -321,7 +321,15 @@ export default function ManageAlertSheet({
         const method = isEditMode ? "PATCH" : "POST";
 
         const metadata =
-          data.type === ALERT_TYPE.SIGNAL_EVENT ? { severity: data.severity, skipSimilar: data.skipSimilar } : {};
+          data.type === ALERT_TYPE.SIGNAL_EVENT
+            ? {
+                severity: data.severity,
+                // skipSimilar relies on the clustering service; force it off when
+                // clustering is disabled so the backend doesn't receive a stale
+                // value from a hidden toggle or the default form state.
+                skipSimilar: clusteringEnabled ? data.skipSimilar : false,
+              }
+            : {};
 
         const res = await fetch(url, {
           method,
