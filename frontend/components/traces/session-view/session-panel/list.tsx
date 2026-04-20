@@ -177,6 +177,7 @@ export default function SessionList() {
     overscan: 20,
     rangeExtractor,
     getItemKey,
+    paddingStart: 8,
   });
 
   const items = virtualizer.getVirtualItems();
