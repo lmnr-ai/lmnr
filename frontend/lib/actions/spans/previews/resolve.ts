@@ -1,3 +1,5 @@
+import { observe } from "@lmnr-ai/lmnr";
+
 import { isAiProviderConfigured } from "@/lib/ai/model";
 import { cache, SPAN_RENDERING_KEY_CACHE_KEY } from "@/lib/cache";
 
@@ -171,68 +173,72 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
   unresolved: ParsedSpan[];
   keysToSave: Array<{ fingerprint: string; key: string }>;
 }> {
-  const resolved: SpanPreviewResult = {};
-  const keysToSave: Array<{ fingerprint: string; key: string }> = [];
+  return observe({ name: "transcript:generate-mustache-keys", input: { spans } }, async () => {
+    const resolved: SpanPreviewResult = {};
+    const keysToSave: Array<{ fingerprint: string; key: string }> = [];
 
-  if (spans.length === 0) return { resolved, unresolved: [], keysToSave };
+    if (spans.length === 0) return { resolved, unresolved: [], keysToSave };
 
-  const seen = new Set<string>();
-  const dedupedFingerprints: string[] = [];
-  const structures: Array<{ data: unknown }> = [];
-  const fingerprintToSpans = new Map<string, ParsedSpan[]>();
+    const seen = new Set<string>();
+    const dedupedFingerprints: string[] = [];
+    const structures: Array<{ data: unknown }> = [];
+    const fingerprintToSpans = new Map<string, ParsedSpan[]>();
 
-  for (const span of spans) {
-    const group = fingerprintToSpans.get(span.fingerprint);
-    if (group) {
-      group.push(span);
-    } else {
-      fingerprintToSpans.set(span.fingerprint, [span]);
-    }
-    if (!seen.has(span.fingerprint)) {
-      seen.add(span.fingerprint);
-      dedupedFingerprints.push(span.fingerprint);
-      structures.push({ data: span.parsedData });
-    }
-  }
-
-  let generatedKeys: Array<string | null> = [];
-  try {
-    const raw = await generatePreviewKeys(structures);
-    generatedKeys = raw.slice(0, dedupedFingerprints.length);
-  } catch (error) {
-    console.error("Preview key generation failed:", error);
-  }
-
-  const unresolved: ParsedSpan[] = [];
-
-  for (let i = 0; i < dedupedFingerprints.length; i++) {
-    const fingerprint = dedupedFingerprints[i];
-    const key = generatedKeys[i] ?? null;
-    const groupSpans = fingerprintToSpans.get(fingerprint) ?? [];
-
-    if (!key) {
-      unresolved.push(...groupSpans);
-      continue;
-    }
-
-    let keyProducedValidRender = false;
-
-    for (const span of groupSpans) {
-      const rendered = validateMustacheKey(key, span.parsedData);
-      if (rendered) {
-        resolved[span.spanId] = rendered;
-        keyProducedValidRender = true;
+    for (const span of spans) {
+      const group = fingerprintToSpans.get(span.fingerprint);
+      if (group) {
+        group.push(span);
       } else {
-        unresolved.push(span);
+        fingerprintToSpans.set(span.fingerprint, [span]);
+      }
+      if (!seen.has(span.fingerprint)) {
+        seen.add(span.fingerprint);
+        dedupedFingerprints.push(span.fingerprint);
+        structures.push({ data: span.parsedData });
       }
     }
 
-    if (keyProducedValidRender) {
-      keysToSave.push({ fingerprint, key });
+    let generatedKeys: Array<string | null> = [];
+    try {
+      const raw = await generatePreviewKeys(structures);
+      generatedKeys = raw.slice(0, dedupedFingerprints.length);
+    } catch (error) {
+      console.error("Preview key generation failed:", error);
     }
-  }
 
-  return { resolved, unresolved, keysToSave };
+    const unresolved: ParsedSpan[] = [];
+
+    for (let i = 0; i < dedupedFingerprints.length; i++) {
+      const fingerprint = dedupedFingerprints[i];
+      const key = generatedKeys[i] ?? null;
+      const groupSpans = fingerprintToSpans.get(fingerprint) ?? [];
+
+      if (!key) {
+        unresolved.push(...groupSpans);
+        continue;
+      }
+
+      let keyProducedValidRender = false;
+
+      for (const span of groupSpans) {
+        const rendered = observe({ name: "validate-mustache-key", input: { key, data: span.parsedData } }, () =>
+          validateMustacheKey(key, span.parsedData)
+        );
+        if (rendered) {
+          resolved[span.spanId] = rendered;
+          keyProducedValidRender = true;
+        } else {
+          unresolved.push(span);
+        }
+      }
+
+      if (keyProducedValidRender) {
+        keysToSave.push({ fingerprint, key });
+      }
+    }
+
+    return { resolved, unresolved, keysToSave };
+  });
 }
 
 /**
