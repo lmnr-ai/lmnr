@@ -19,8 +19,8 @@ Rules:
 
 Field classification:
 - [meta] fields (skip): id, ids, status, type, types, kind, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint, signature, tool_use_id. Also includes fields whose values are opaque references (serialized object pointers, memory addresses).
-- [id] fields (skip when siblings have scalar content): name, action, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other scalar content fields exist. Primitive array siblings do not count as content.
-- Content fields (prefer, in order of preference): description, summary, command, query, action, prompt, message, text, content, answer, title, path, url, code, output, result. When multiple exist, pick the earliest-listed one.
+- [id] fields (skip when siblings have scalar content): name, action, command, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other scalar content fields exist. Primitive array siblings do not count as content. When an [id] field is the only non-meta scalar (no content sibling, no descriptive nested leaf), surface it per decision order rule 3.
+- Content fields (prefer, in order of preference): description, summary, query, prompt, message, text, content, answer, title, path, url, code, output, result. When multiple exist, pick the earliest-listed one.
 
 Decision order:
 1. Scalar content field present → {{{field}}}

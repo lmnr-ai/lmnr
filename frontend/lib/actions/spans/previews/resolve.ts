@@ -7,13 +7,7 @@ import { tryHeuristicPreview } from "./heuristic";
 import { generatePreviewKeys } from "./prompts";
 import { matchProviderKey } from "./provider-keys";
 import { extractFirstToolIfToolOnly } from "./tool-detection";
-import {
-  classifyPayload,
-  detectOutputStructure,
-  generateFingerprint,
-  type ProviderHint,
-  validateMustacheKey,
-} from "./utils";
+import { classifyPayload, detectOutputStructure, generateFingerprint, validateMustacheKey } from "./utils";
 
 const RENDERING_KEY_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
@@ -26,10 +20,7 @@ interface ParsedSpan {
   name: string;
   parsedData: Record<string, unknown> | unknown[];
   fingerprint: string;
-  provider: ProviderHint;
 }
-
-const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 2000);
 
 /**
  * Classify raw span payloads. Non-generation spans are resolved directly to a
@@ -84,7 +75,6 @@ function classifyRawSpans(
           name: raw.name,
           parsedData: data,
           fingerprint: generateFingerprint(tool ? `${raw.name}:tool` : raw.name, data),
-          provider: tool ? "unknown" : hint,
         });
         break;
       }
@@ -97,7 +87,7 @@ function classifyRawSpans(
 function fillMissing(previews: SpanPreviewResult, spanIds: string[]): SpanPreviewResult {
   const result = { ...previews };
   for (const id of spanIds) {
-    if (!(id in result)) result[id] = "";
+    if (!(id in result)) result[id] = null;
   }
   return result;
 }
@@ -237,12 +227,13 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
 /**
  * Last-resort fallback used when the LLM path is unavailable or produced no
  * valid key for a span. Walks priority keys (description, summary, command…)
- * and falls back to a truncated JSON preview.
+ * and returns null when no human-readable content can be extracted, so the
+ * client renders no preview rather than a raw JSON dump.
  */
 function applyHeuristicFallback(spans: ParsedSpan[]): SpanPreviewResult {
   const resolved: SpanPreviewResult = {};
   for (const span of spans) {
-    resolved[span.spanId] = tryHeuristicPreview(span.parsedData) ?? toJsonPreview(span.parsedData);
+    resolved[span.spanId] = tryHeuristicPreview(span.parsedData);
   }
   return resolved;
 }
