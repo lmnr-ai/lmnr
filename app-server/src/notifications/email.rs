@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use super::NotificationKind;
 use super::utils::{
-    build_report_data_from_batch, inject_utm_into_links, md_links_to_html_escaped, with_utm,
+    build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
+    md_links_to_html_escaped, with_utm,
 };
 use crate::reports::email_template::ReportData;
 
@@ -51,8 +52,10 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
         } => {
             let trace_link = with_utm(
                 &format!(
-                    "https://lmnr.ai/project/{}/traces/{}?chat=true",
-                    project_id, trace_id
+                    "{}/project/{}/traces/{}?chat=true",
+                    frontend_url_email(),
+                    project_id,
+                    trace_id
                 ),
                 "email",
                 "signal_alert",
@@ -166,8 +169,9 @@ fn render_alert_email(
 ) -> String {
     let severity_label = severity_label(severity);
     let severity_color = severity_color(severity);
+    let base = frontend_url_email();
     let alert_link = with_utm(
-        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
         "signal_alert",
         "manage_alert",
@@ -176,8 +180,8 @@ fn render_alert_email(
         Some(eid) => {
             let similar_link = with_utm(
                 &format!(
-                    "https://lmnr.ai/project/{}/signals/{}?eventCluster={}",
-                    project_id, signal_id, eid
+                    "{}/project/{}/signals/{}?eventCluster={}",
+                    base, project_id, signal_id, eid
                 ),
                 "email",
                 "signal_alert",
@@ -256,7 +260,7 @@ fn render_alert_email(
     };
 
     let manage_prefs_link = with_utm(
-        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
         "signal_alert",
         "manage_preferences",
@@ -317,23 +321,24 @@ fn render_new_cluster_email(
     num_child_clusters: usize,
     alert_name: &str,
 ) -> String {
+    let base = frontend_url_email();
     let cluster_link = with_utm(
         &format!(
-            "https://lmnr.ai/project/{}/signals/{}?clusterId={}",
-            project_id, signal_id, cluster_id
+            "{}/project/{}/signals/{}?clusterId={}",
+            base, project_id, signal_id, cluster_id
         ),
         "email",
         "new_cluster_alert",
         "view_cluster",
     );
     let alert_link = with_utm(
-        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
         "new_cluster_alert",
         "manage_alert",
     );
     let manage_prefs_link = with_utm(
-        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "email",
         "new_cluster_alert",
         "manage_preferences",
@@ -427,14 +432,15 @@ fn render_usage_warning_email(
         _ => "usage",
     };
 
+    let base = frontend_url_email();
     let view_usage_link = with_utm(
-        &format!("https://lmnr.ai/workspace/{}?tab=usage", workspace_id),
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
         "email",
         "usage_warning",
         "view_usage",
     );
     let manage_thresholds_link = with_utm(
-        &format!("https://lmnr.ai/workspace/{}?tab=usage", workspace_id),
+        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
         "email",
         "usage_warning",
         "manage_thresholds",
@@ -493,6 +499,7 @@ fn render_usage_warning_email(
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
     let mut projects_html = String::new();
+    let base = frontend_url_email();
 
     for project in &data.projects {
         let mut summary_rows = String::new();
@@ -557,7 +564,8 @@ fn render_report_email(data: &ReportData) -> String {
 
                 let trace_link = with_utm(
                     &format!(
-                        "https://lmnr.ai/project/{}/traces/{}?chat=true",
+                        "{}/project/{}/traces/{}?chat=true",
+                        base,
                         project.project_id,
                         html_escape(&event.trace_id),
                     ),
@@ -610,10 +618,7 @@ fn render_report_email(data: &ReportData) -> String {
     }
 
     let unsubscribe_link = with_utm(
-        &format!(
-            "https://lmnr.ai/workspace/{}?tab=reports",
-            data.workspace_id
-        ),
+        &format!("{}/workspace/{}?tab=reports", base, data.workspace_id),
         "email",
         "signals_report",
         "unsubscribe",

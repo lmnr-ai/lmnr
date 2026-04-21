@@ -99,7 +99,7 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.CLUSTERING) {
-    return !!process.env.CLUSTERING_SERVICE_URL;
+    return !!process.env.CLUSTERING_ENABLED;
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -112,7 +112,7 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
-      !!process.env.SLACK_REDIRECT_URL
+      !!process.env.liK_REDIRECT_URL
     );
   }
 

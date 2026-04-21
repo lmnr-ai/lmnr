@@ -12,7 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{build_report_data_from_batch, inject_utm_into_links, with_utm};
+use super::utils::{build_report_data_from_batch, frontend_url_slack, inject_utm_into_links, with_utm};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -137,11 +137,9 @@ fn format_event_identification_blocks(
     alert_name: &str,
     severity: &u8,
 ) -> serde_json::Value {
+    let base = frontend_url_slack();
     let trace_link = with_utm(
-        &format!(
-            "https://laminar.sh/project/{}/traces/{}?chat=true",
-            project_id, trace_id
-        ),
+        &format!("{}/project/{}/traces/{}?chat=true", base, project_id, trace_id),
         "slack",
         "signal_alert",
         "view_trace",
@@ -227,19 +225,13 @@ fn format_event_identification_blocks(
         ]
     }));
     let signal_link = with_utm(
-        &format!(
-            "https://laminar.sh/project/{}/signals/{}",
-            project_id, signal_id
-        ),
+        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
         "slack",
         "signal_alert",
         "view_signal",
     );
     let alert_link = with_utm(
-        &format!(
-            "https://laminar.sh/project/{}/settings?tab=alerts",
-            project_id
-        ),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "slack",
         "signal_alert",
         "manage_alert",
@@ -261,8 +253,8 @@ fn format_event_identification_blocks(
     if let Some(eid) = event_id {
         let similar_link = with_utm(
             &format!(
-                "https://laminar.sh/project/{}/signals/{}?eventCluster={}",
-                project_id, signal_id, eid,
+                "{}/project/{}/signals/{}?eventCluster={}",
+                base, project_id, signal_id, eid,
             ),
             "slack",
             "signal_alert",
@@ -294,29 +286,24 @@ fn format_new_cluster_blocks(
     num_child_clusters: usize,
     alert_name: &str,
 ) -> serde_json::Value {
+    let base = frontend_url_slack();
     let cluster_link = with_utm(
         &format!(
-            "https://laminar.sh/project/{}/signals/{}?clusterId={}",
-            project_id, signal_id, cluster_id
+            "{}/project/{}/signals/{}?clusterId={}",
+            base, project_id, signal_id, cluster_id
         ),
         "slack",
         "new_cluster_alert",
         "view_cluster",
     );
     let signal_link = with_utm(
-        &format!(
-            "https://laminar.sh/project/{}/signals/{}",
-            project_id, signal_id
-        ),
+        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
         "slack",
         "new_cluster_alert",
         "view_signal",
     );
     let alert_link = with_utm(
-        &format!(
-            "https://laminar.sh/project/{}/settings?tab=alerts",
-            project_id
-        ),
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
         "slack",
         "new_cluster_alert",
         "manage_alert",
@@ -397,6 +384,7 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     ];
 
     const MAX_SECTION_TEXT_LEN: usize = 3000;
+    let base = frontend_url_slack();
 
     for project in &report.projects {
         let mut text = String::new();
@@ -416,8 +404,8 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
             for event in &project.noteworthy_events {
                 let trace_link = with_utm(
                     &format!(
-                        "https://laminar.sh/project/{}/traces/{}?chat=true",
-                        project.project_id, event.trace_id,
+                        "{}/project/{}/traces/{}?chat=true",
+                        base, project.project_id, event.trace_id,
                     ),
                     "slack",
                     "signals_report",

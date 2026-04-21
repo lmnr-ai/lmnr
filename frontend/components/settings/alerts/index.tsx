@@ -133,10 +133,12 @@ export default function AlertsSettings({
                   {alert.name}
                 </span>
               </td>
-              <td className="px-4">
-                <Badge variant="outline" className="font-normal text-xs whitespace-nowrap bg-secondary/50">
-                  {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
-                </Badge>
+              <td className="px-4 align-middle">
+                <div className="flex items-center">
+                  <Badge variant="outline" className="font-normal text-xs whitespace-nowrap bg-secondary/50">
+                    {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
+                  </Badge>
+                </div>
               </td>
               <td className="px-4 text-sm text-muted-foreground max-w-48">
                 <span title={alert.signalName ?? undefined} className="block truncate">
