@@ -1,13 +1,13 @@
-import { ArrowUpRight, ExternalLink, PanelRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";
 import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
-import { cn } from "@/lib/utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -137,10 +137,14 @@ const HorizontalBarChart = ({
                 fill={config.color}
                 shape={(props: any) => {
                   const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
-                  const isClickable = onBarClick && (
-                    payload?.trace_id || payload?.id || payload?.signal_id
+                  const isClickable = onBarClick && (payload?.trace_id || payload?.id || payload?.signal_id);
+                  return (
+                    <rect
+                      {...svgProps}
+                      className={cn({ "hover:opacity-60 transition-opacity cursor-pointer": isClickable })}
+                      rx={4}
+                    />
                   );
-                  return <rect {...svgProps} className={cn({"hover:opacity-60 transition-opacity cursor-pointer": isClickable})} rx={4} />;
                 }}
                 radius={4}
                 cursor={onBarClick ? "pointer" : undefined}

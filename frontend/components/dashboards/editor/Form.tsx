@@ -3,7 +3,7 @@
 import { debounce } from "lodash";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
@@ -81,6 +81,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   }));
 
   const formValues = useWatch({ control });
+
+  // Ref to the latest chart so generateAndExecuteQuery reads fresh tableColumnConfig
+  // without re-creating the callback on every column reorder/resize (which would
+  // re-trigger the debounced query execution).
+  const chartRef = useRef(chart);
+  useEffect(() => {
+    chartRef.current = chart;
+  }, [chart]);
 
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
@@ -227,7 +235,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       // Update store with new query and config
       setQuery(sqlData.sql);
       if (chartConfig) {
-        const liveConfig = chart.settings.config;
+        const liveConfig = chartRef.current.settings.config;
         const updatedConfig = {
           ...chartConfig,
           displayMode,
