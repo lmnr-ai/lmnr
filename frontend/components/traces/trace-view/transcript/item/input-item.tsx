@@ -8,16 +8,21 @@ interface InputItemProps {
   text: string | null;
   isLoading: boolean;
   inGroup?: boolean;
+  className?: string;
 }
 
-export function InputItem({ text, isLoading, inGroup }: InputItemProps) {
+export function InputItem({ text, isLoading, inGroup, className }: InputItemProps) {
   if (!isLoading && !text) return null;
 
   return (
     <div
-      className={cn("flex flex-col flex-1 min-w-0 py-2 pl-1 pr-2 border-l-4 border-l-transparent gap-1 bg-blue-400/5", {
-        "bg-muted/60": inGroup,
-      })}
+      className={cn(
+        "flex flex-col flex-1 min-w-0 py-2 pl-1 pr-2 border-l-4 border-l-transparent gap-1 bg-blue-400/5",
+        {
+          "bg-muted/60": inGroup,
+        },
+        className
+      )}
     >
       <div className="flex gap-2 items-center min-w-0">
         <div className="flex items-center justify-center z-10 rounded shrink-0 bg-blue-400/70 w-5 h-5 min-w-5 min-h-5">
