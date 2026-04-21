@@ -432,9 +432,6 @@ importers:
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
-      protobufjs:
-        specifier: 8.0.1
-        version: 8.0.1
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.0
