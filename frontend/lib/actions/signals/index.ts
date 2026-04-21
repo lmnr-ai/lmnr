@@ -10,6 +10,7 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export type SignalRow = {
   id: string;
@@ -235,13 +236,34 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       })
       .returning();
 
-    await tx.insert(alerts).values({
-      projectId,
-      name: `${name} alert`,
-      type: "SIGNAL_EVENT",
-      sourceId: signal.id,
-      metadata: { severity: SEVERITY_LEVEL.CRITICAL, skipSimilar: true },
-    });
+    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
+
+    const alertsToInsert: (typeof alerts.$inferInsert)[] = [
+      {
+        projectId,
+        name: `${name} alert`,
+        type: "SIGNAL_EVENT",
+        sourceId: signal.id,
+        metadata: {
+          severities: [SEVERITY_LEVEL.CRITICAL],
+          // skipSimilar depends on the clustering service; default to false when
+          // clustering is disabled so the backend doesn't silently drop notifications.
+          skipSimilar: clusteringEnabled,
+        },
+      },
+    ];
+
+    if (clusteringEnabled) {
+      alertsToInsert.push({
+        projectId,
+        name: `${name} cluster alert`,
+        type: "NEW_CLUSTER",
+        sourceId: signal.id,
+        metadata: {},
+      });
+    }
+
+    await tx.insert(alerts).values(alertsToInsert);
 
     return signal;
   });
@@ -269,7 +291,13 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const [result] = await db.transaction(async (tx) => {
     await tx
       .delete(alerts)
-      .where(and(eq(alerts.projectId, projectId), eq(alerts.sourceId, id), eq(alerts.type, "SIGNAL_EVENT")));
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          eq(alerts.sourceId, id),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
 
     return tx
       .delete(signals)
@@ -288,7 +316,13 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   const events = await db.transaction(async (tx) => {
     await tx
       .delete(alerts)
-      .where(and(eq(alerts.projectId, projectId), inArray(alerts.sourceId, ids), eq(alerts.type, "SIGNAL_EVENT")));
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          inArray(alerts.sourceId, ids),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
 
     return tx
       .delete(signals)
