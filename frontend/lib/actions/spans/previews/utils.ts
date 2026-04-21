@@ -172,6 +172,19 @@ export const generateFingerprint = (spanName: string, data: unknown): string => 
 
 const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
 
+const SAMPLE_VALUE_MAX_CHARS = 80;
+
+// Short, single-line sample of a scalar value for the LLM prompt. Collapses
+// whitespace so multi-line strings don't blow up the flattened path output.
+const formatSample = (value: string | number | boolean): string => {
+  const raw = typeof value === "string" ? value : String(value);
+  const collapsed = raw.replace(/\s+/g, " ").trim();
+  if (collapsed.length === 0) return '""';
+  const truncated =
+    collapsed.length > SAMPLE_VALUE_MAX_CHARS ? `${collapsed.slice(0, SAMPLE_VALUE_MAX_CHARS)}…` : collapsed;
+  return typeof value === "string" ? `"${truncated.replace(/"/g, '\\"')}"` : truncated;
+};
+
 export const flattenPaths = (data: unknown): string[] => {
   const paths: string[] = [];
 
@@ -182,7 +195,8 @@ export const flattenPaths = (data: unknown): string[] => {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
       let tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
       if (!tag && isString(value) && OPAQUE_VALUE_PATTERN.test(value)) tag = " [meta]";
-      paths.push(`${prefix}: ${typeof value}${tag}`);
+      const sample = tag === " [meta]" ? "" : ` = ${formatSample(value)}`;
+      paths.push(`${prefix}: ${typeof value}${tag}${sample}`);
       return;
     }
 
@@ -237,7 +251,9 @@ const prepareRenderTarget = (data: unknown): unknown => addStringifyToObjects(de
 export const validateMustacheKey = (key: string, data: unknown): string | null => {
   try {
     const rendered = Mustache.render(key, prepareRenderTarget(data), undefined, { escape: (v) => v });
-    if (!rendered || rendered.trim() === "" || rendered.includes("[object Object]")) return null;
+    if (!rendered) return null;
+    const trimmed = rendered.trim();
+    if (trimmed === "" || trimmed.toLowerCase() === "null" || rendered.includes("[object Object]")) return null;
     return rendered;
   } catch {
     return null;

@@ -19,6 +19,11 @@ type LangChainAssistant = z.infer<typeof LangChainAssistantMessageSchema>;
 
 const isBlank = (v: unknown): boolean => v === null || v === undefined || (isString(v) && v.trim() === "");
 
+export interface ExtractedTool {
+  name: string;
+  input: unknown;
+}
+
 // ---------------------------------------------------------------------------
 // OpenAI — the canonical schema types `function.arguments` as a string, but
 // span payloads reach us already deep-JSON-parsed. Use a lenient schema that
@@ -60,9 +65,16 @@ const openaiHasText = (m: LooseOpenAIMessage): boolean => {
   return false;
 };
 
-const openaiHasTool = (m: LooseOpenAIMessage): boolean => Array.isArray(m.tool_calls) && m.tool_calls.length > 0;
-
-const openaiFirstTool = (msgs: LooseOpenAIMessage[]): unknown => msgs.find(openaiHasTool)?.tool_calls?.[0] ?? null;
+const openaiAllTools = (msgs: LooseOpenAIMessage[]): ExtractedTool[] => {
+  const tools: ExtractedTool[] = [];
+  for (const m of msgs) {
+    if (!Array.isArray(m.tool_calls)) continue;
+    for (const tc of m.tool_calls) {
+      tools.push({ name: tc.function.name, input: tc.function.arguments });
+    }
+  }
+  return tools;
+};
 
 // ---------------------------------------------------------------------------
 // Anthropic — uses the canonical schema; tool_use.input is z.unknown() so
@@ -81,35 +93,36 @@ const anthropicHasText = (msgs: AnthropicMessage[]): boolean =>
     });
   });
 
-const anthropicHasTool = (msgs: AnthropicMessage[]): boolean =>
-  msgs.some((m) => Array.isArray(m.content) && m.content.some(anthropicIsTool));
-
-const anthropicFirstTool = (msgs: AnthropicMessage[]): unknown => {
+const anthropicAllTools = (msgs: AnthropicMessage[]): ExtractedTool[] => {
+  const tools: ExtractedTool[] = [];
   for (const m of msgs) {
     if (!Array.isArray(m.content)) continue;
-    const block = m.content.find(anthropicIsTool);
-    if (block) return block;
+    for (const b of m.content) {
+      if (anthropicIsTool(b) && (b.type === "tool_use" || b.type === "server_tool_use")) {
+        tools.push({ name: b.name, input: b.input });
+      }
+    }
   }
-  return null;
+  return tools;
 };
 
 // ---------------------------------------------------------------------------
 // Gemini
 // ---------------------------------------------------------------------------
 
-const geminiIsFnCall = (p: GeminiPart): boolean => "functionCall" in p;
-
 const geminiHasText = (contents: GeminiContent[]): boolean =>
   contents.some((c) => c.parts.some((p) => "text" in p && !isBlank(p.text)));
 
-const geminiHasTool = (contents: GeminiContent[]): boolean => contents.some((c) => c.parts.some(geminiIsFnCall));
-
-const geminiFirstTool = (contents: GeminiContent[]): unknown => {
+const geminiAllTools = (contents: GeminiContent[]): ExtractedTool[] => {
+  const tools: ExtractedTool[] = [];
   for (const c of contents) {
-    const part = c.parts.find(geminiIsFnCall);
-    if (part) return part;
+    for (const p of c.parts) {
+      if ("functionCall" in p && p.functionCall) {
+        tools.push({ name: p.functionCall.name, input: p.functionCall.args ?? {} });
+      }
+    }
   }
-  return null;
+  return tools;
 };
 
 // ---------------------------------------------------------------------------
@@ -135,47 +148,57 @@ const langchainHasText = (msgs: LangChainAssistant[]): boolean =>
     return false;
   });
 
-const langchainHasTool = (msgs: LangChainAssistant[]): boolean =>
-  msgs.some((m) => Array.isArray(m.tool_calls) && m.tool_calls.length > 0);
-
-const langchainFirstTool = (msgs: LangChainAssistant[]): unknown =>
-  msgs.find((m) => m.tool_calls?.length)?.tool_calls?.[0] ?? null;
+const langchainAllTools = (msgs: LangChainAssistant[]): ExtractedTool[] => {
+  const tools: ExtractedTool[] = [];
+  for (const m of msgs) {
+    if (!Array.isArray(m.tool_calls)) continue;
+    for (const tc of m.tool_calls) {
+      tools.push({ name: tc.name, input: tc.arguments });
+    }
+  }
+  return tools;
+};
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-const tryOpenAI = (data: unknown): unknown => {
+const tryOpenAI = (data: unknown): ExtractedTool[] | null => {
   const msgs = parseOpenAI(data);
-  if (!msgs || !msgs.some(openaiHasTool) || msgs.some(openaiHasText)) return null;
-  return openaiFirstTool(msgs);
+  if (!msgs || msgs.some(openaiHasText)) return null;
+  const tools = openaiAllTools(msgs);
+  return tools.length > 0 ? tools : null;
 };
 
-const tryAnthropic = (data: unknown): unknown => {
+const tryAnthropic = (data: unknown): ExtractedTool[] | null => {
   const msgs = parseAnthropicOutput(data);
-  if (!msgs || !anthropicHasTool(msgs) || anthropicHasText(msgs)) return null;
-  return anthropicFirstTool(msgs);
+  if (!msgs || anthropicHasText(msgs)) return null;
+  const tools = anthropicAllTools(msgs);
+  return tools.length > 0 ? tools : null;
 };
 
-const tryGemini = (data: unknown): unknown => {
+const tryGemini = (data: unknown): ExtractedTool[] | null => {
   const contents = parseGeminiOutput(data);
-  if (!contents || !geminiHasTool(contents) || geminiHasText(contents)) return null;
-  return geminiFirstTool(contents);
+  if (!contents || geminiHasText(contents)) return null;
+  const tools = geminiAllTools(contents);
+  return tools.length > 0 ? tools : null;
 };
 
-const tryLangChain = (data: unknown): unknown => {
+const tryLangChain = (data: unknown): ExtractedTool[] | null => {
   const msgs = parseLangChain(data);
-  if (!msgs || !langchainHasTool(msgs) || langchainHasText(msgs)) return null;
-  return langchainFirstTool(msgs);
+  if (!msgs || langchainHasText(msgs)) return null;
+  const tools = langchainAllTools(msgs);
+  return tools.length > 0 ? tools : null;
 };
 
 /**
- * If an LLM output has tool calls but no visible text/thinking, return the
- * first tool block so the caller can route it through the preview pipeline.
- * Returns null when no provider matches or the output has displayable text.
+ * If an LLM output has tool calls but no visible text/thinking, return all
+ * tool blocks as `{ name, input }` pairs so the caller can route them through
+ * the preview pipeline individually. Returns null when no provider matches or
+ * the output has displayable text.
  * Pass `hint` from `detectOutputStructure` to skip non-matching parsers.
  */
-export const extractFirstToolIfToolOnly = (data: unknown, hint?: ProviderHint): unknown => {
+export const extractToolsIfToolOnly = (data: unknown, hint?: ProviderHint): ExtractedTool[] | null => {
   switch (hint) {
     case "openai":
       return tryOpenAI(data);

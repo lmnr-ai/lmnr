@@ -97,3 +97,34 @@ export const tryHeuristicPreview = (data: unknown): string | null => {
   }
   return firstNonMetaLeaf(parsed);
 };
+
+// Strict allowlist of keys that carry the model's intent in natural language.
+// Must match the llm_tool_only prompt rules exactly.
+const DESCRIPTIVE_KEYS: readonly string[] = [
+  "description",
+  "summary",
+  "title",
+  "goal",
+  "intent",
+  "reasoning",
+  "thought",
+  "instructions",
+  "question",
+  "prompt",
+  "message",
+];
+
+/**
+ * Fallback for the LLM-output tool-only case. Strict allowlist only:
+ * returns the first non-empty value under one of DESCRIPTIVE_KEYS, or null.
+ * No fallback to other fields — matches the prompt's rules so cached and
+ * non-cached paths produce the same shape.
+ */
+export const tryDescriptiveHeuristicPreview = (data: unknown): string | null => {
+  const parsed = deepParseJson(data);
+  for (const key of DESCRIPTIVE_KEYS) {
+    const hit = findByKey(parsed, key);
+    if (hit !== null) return hit;
+  }
+  return null;
+};
