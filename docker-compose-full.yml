@@ -18,6 +18,10 @@ services:
       retries: 3
 
   clickhouse:
+    # Version 26.3 will break queries on the spans_v0 view, if they are
+    # not filtered by trace_id and/or ordered by start_time. This is a
+    # known bug, tracking https://github.com/ClickHouse/ClickHouse/pull/101218.
+    # We will pin to the earliest stable version once this is fixed
     image: clickhouse/clickhouse-server:latest
     pull_policy: always
     container_name: clickhouse
