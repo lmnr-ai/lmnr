@@ -137,7 +137,7 @@ const HorizontalBarChart = ({
                 fill={config.color}
                 shape={(props: any) => {
                   const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
-                  const isClickable = onBarClick && (payload?.trace_id || payload?.id || payload?.signal_id);
+                  const isClickable = onBarClick && (payload?.trace_id || payload?.id);
                   return (
                     <rect
                       {...svgProps}
@@ -158,9 +158,8 @@ const HorizontalBarChart = ({
                   dataKey={categoryColumn}
                   content={(props) => {
                     const row = data[props.index as number];
-                    const hasSignalId = row?.signal_id;
                     const hasTraceId = row?.trace_id || row?.id;
-                    const isClickable = onBarClick && (hasTraceId || hasSignalId);
+                    const isClickable = onBarClick && hasTraceId;
                     const showLabel = categoryColumn !== valueColumn;
                     const labelText = showLabel ? String(props.value) : "";
 

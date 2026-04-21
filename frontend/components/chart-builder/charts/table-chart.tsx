@@ -40,7 +40,7 @@ const formatCell = (value: unknown): string => {
   return String(value);
 };
 
-const isRowClickable = (row: Record<string, any>): boolean => !!(row?.trace_id || row?.id || row?.signal_id);
+const isRowClickable = (row: Record<string, any>): boolean => !!(row?.trace_id || row?.id);
 
 const TableChart = ({
   data,
