@@ -23,14 +23,14 @@ import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
 
-interface NoteworthyEvent {
+interface NoteworthyEventPayload {
   signal_name: string;
   summary: string;
   timestamp: string;
   trace_id: string;
 }
 
-interface SignalsReport {
+interface SignalsReportPayload {
   workspace_name: string;
   project_id: string;
   project_name: string;
@@ -40,10 +40,10 @@ interface SignalsReport {
   period_end: string;
   signal_event_counts: Record<string, number>;
   ai_summary: string;
-  noteworthy_events: NoteworthyEvent[];
+  noteworthy_events: NoteworthyEventPayload[];
 }
 
-interface EventIdentification {
+interface EventIdentificationPayload {
   project_id: string;
   signal_id: string;
   trace_id: string;
@@ -54,7 +54,7 @@ interface EventIdentification {
   alert_name: string;
 }
 
-interface NewCluster {
+interface NewClusterPayload {
   project_id: string;
   signal_id: string;
   signal_name: string;
@@ -87,7 +87,7 @@ interface NewClusterNotification extends BaseNotification {
 interface ReportNotification extends BaseNotification {
   kind: "report";
   aiSummary: string | null;
-  noteworthyEvents: NoteworthyEvent[];
+  noteworthyEvents: NoteworthyEventPayload[];
 }
 
 type FormattedNotification = NewEventNotification | NewClusterNotification | ReportNotification;
@@ -137,7 +137,7 @@ const renderWithLinks = (text: string): ReactNode => {
 
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { EventIdentification?: EventIdentification; NewCluster?: NewCluster } = JSON.parse(
+    const payload: { EventIdentification?: EventIdentificationPayload; NewCluster?: NewClusterPayload } = JSON.parse(
       notification.payload
     );
 
@@ -177,7 +177,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
   }
 };
 
-const formatNewClusterPayload = (cluster: NewCluster): NewClusterNotification => {
+const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotification => {
   const details: [string, string][] = [
     ["Name", cluster.cluster_name],
     ["Events", String(cluster.num_signal_events)],
@@ -195,7 +195,7 @@ const formatNewClusterPayload = (cluster: NewCluster): NewClusterNotification =>
 
 const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { SignalsReport: SignalsReport } = JSON.parse(notification.payload);
+    const payload: { SignalsReport: SignalsReportPayload } = JSON.parse(notification.payload);
     const report = payload.SignalsReport;
     if (!report) {
       return null;
