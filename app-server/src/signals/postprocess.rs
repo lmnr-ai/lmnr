@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::ch::signal_events::CHSignalEvent;
 use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
+use crate::db::alert_targets::DEFAULT_SEVERITY;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
@@ -37,8 +38,17 @@ pub async fn process_event_notifications_and_clustering(
 
         for alert in alerts {
             // Match severity
-            if !alert.metadata.matches_severity(signal_event.severity) {
-                continue;
+            match alert.metadata.severities.as_deref() {
+                Some([]) => {
+                    log::warn!(
+                        "Alert {} has empty severities array, skipping notification",
+                        alert.id
+                    );
+                    continue;
+                }
+                Some(sevs) if !sevs.contains(&signal_event.severity) => continue,
+                None if signal_event.severity != DEFAULT_SEVERITY => continue,
+                _ => {}
             }
 
             // Ignore alerts with skip_similar enabled, the notification will be triggered when a new L0 cluster is detected.

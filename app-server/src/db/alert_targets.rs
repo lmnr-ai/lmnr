@@ -6,7 +6,7 @@ use crate::notifications::AlertType;
 
 /// Severity levels: 0 = info, 1 = warning, 2 = critical.
 /// Defaults to critical when absent (historical alerts).
-const DEFAULT_SEVERITY: u8 = 2;
+pub const DEFAULT_SEVERITY: u8 = 2;
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -18,17 +18,6 @@ pub struct AlertMetadata {
 }
 
 impl AlertMetadata {
-    pub fn matches_severity(&self, severity: u8) -> bool {
-        match &self.severities {
-            Some(s) if !s.is_empty() => s.contains(&severity),
-            Some(_) => {
-                log::warn!("Alert has empty severities vec; treating as no-match");
-                false
-            }
-            None => severity == DEFAULT_SEVERITY,
-        }
-    }
-
     pub fn skip_similar(&self) -> bool {
         // False by default to not break historical alerts
         self.skip_similar.unwrap_or(false)
