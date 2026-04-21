@@ -7,6 +7,8 @@ import { flattenPaths } from "./utils.ts";
 
 const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mustache preview template. One template per structure.
 
+Most inputs are tool-use blocks (Anthropic: {type, id, name, input.*}, OpenAI: {id, type, function.name, function.arguments.*}, Gemini: {functionCall.name, functionCall.args.*}). Prefer the most human-readable scalar from the tool's arguments (input / arguments / args / params) over the tool name.
+
 Array access: use .0. for nested arrays. When root is an array (paths start with []), wrap with {{#.}}...{{/.}} and use inner paths.
 
 Rules:
@@ -16,13 +18,13 @@ Rules:
 - Dictionary paths: paths containing {*} (e.g. tasks{*}: string) represent objects with dynamic/arbitrary key names that vary across instances. They cannot be referenced in Mustache templates. Treat as [meta].
 
 Field classification:
-- [meta] fields (skip): id, ids, status, type, types, kind, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint. Also includes fields whose values are opaque references (serialized object pointers, memory addresses).
+- [meta] fields (skip): id, ids, status, type, types, kind, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint, signature, tool_use_id. Also includes fields whose values are opaque references (serialized object pointers, memory addresses).
 - [id] fields (skip when siblings have scalar content): name, action, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other scalar content fields exist. Primitive array siblings do not count as content.
-- Content fields (prefer): content, text, thinking, result, output, message, answer, query, description, summary, url, path. When multiple exist, pick the most descriptive one.
+- Content fields (prefer, in order of preference): description, summary, command, query, action, prompt, message, text, content, answer, title, path, url, code, output, result. When multiple exist, pick the earliest-listed one.
 
 Decision order:
 1. Scalar content field present → {{{field}}}
-2. [id] field present + scalar sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta], primitive arrays, or null → use the [id] field.
+2. [id] field present + scalar sibling fields under a nested key (input/arguments/args/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta], primitive arrays, or null → use the [id] field.
 3. [id] field is the only non-meta scalar field → {{{field}}}
 4. Multiple non-meta, non-id scalar fields → pick the single most descriptive one as {{{field}}}
 5. Deeply nested scalar leaf → {{{path.0.to.0.field}}}
@@ -31,6 +33,12 @@ Decision order:
 Examples:
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
 - "[].output[].content[].text: string" → {{#.}}{{{output.0.content.0.text}}}{{/.}}
+- Anthropic tool_use: "type: string [meta]" + "id: string [meta]" + "name: string [id]" + "input.command: string" + "input.description: string" → {{{input.description}}}
+- Anthropic tool_use: "type: string [meta]" + "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
+- Anthropic tool_use: "type: string [meta]" + "name: string [id]" + "input.path: string" + "input.old_str: string" → {{{input.path}}}
+- OpenAI tool_call: "id: string [meta]" + "type: string [meta]" + "function.name: string [id]" + "function.arguments.description: string" → {{{function.arguments.description}}}
+- OpenAI tool_call: "function.name: string [id]" + "function.arguments.query: string" → {{{function.arguments.query}}}
+- Gemini functionCall: "functionCall.name: string [id]" + "functionCall.args.query: string" → {{{functionCall.args.query}}}
 - "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
 - "action: string [id]" + "params.file_name: string" + "params.old_str: string" → {{{params.file_name}}}
 - "action: string [id]" + "params.keys: string" → {{{params.keys}}}
