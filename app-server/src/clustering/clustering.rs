@@ -43,9 +43,7 @@ struct NewClusterResult {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ClusterResponse {
     success: bool,
-    #[serde(default)]
     events: Vec<ClusterEventResult>,
-    #[serde(default)]
     new_clusters: Vec<NewClusterResult>,
 }
 
