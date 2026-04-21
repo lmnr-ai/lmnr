@@ -112,7 +112,7 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
-      !!process.env.liK_REDIRECT_URL
+      !!process.env.SLACK_REDIRECT_URL
     );
   }
 
