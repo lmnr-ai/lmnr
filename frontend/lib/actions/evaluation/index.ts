@@ -52,27 +52,27 @@ export const GetEvaluationDatapointsSchema = z.object({
   ...EvalFiltersSchema.shape,
   ...PaginationSchema.shape,
   ...SortSchema.shape,
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
-  targetId: z.string().optional(),
+  targetId: z.guid().optional(),
   columns: z.string().optional(),
   sortSql: z.string().optional(),
 });
 
 export const GetEvaluationStatisticsSchema = z.object({
   ...EvalFiltersSchema.shape,
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
   columns: z.string().optional(),
 });
 
 export const RenameEvaluationSchema = z.object({
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required"),
 });
 
@@ -247,9 +247,9 @@ export const getEvaluationStatistics = async (
 };
 
 export const GetEvaluationCellValueSchema = z.object({
-  evaluationId: z.string(),
-  projectId: z.string(),
-  datapointId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
+  datapointId: z.guid(),
   column: z.string(), // JSON-encoded { id, sql } where sql is the fullSql expression
 });
 

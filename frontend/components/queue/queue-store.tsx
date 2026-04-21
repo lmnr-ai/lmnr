@@ -2,6 +2,7 @@
 
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 
@@ -120,155 +121,161 @@ const getDefaultQueueItem = (queueId: string): QueueState["currentItem"] => ({
 });
 
 const createQueueStore = (queue: LabelingQueue) =>
-  createStore<QueueStore>()((set, get) => ({
-    queue,
-    currentItem: getDefaultQueueItem(queue.id),
-    isLoading: "first-load" as const,
-    isValid: true,
-    dataset: undefined,
+  createStore<QueueStore>()(
+    persist(
+      (set, get) => ({
+        queue,
+        currentItem: getDefaultQueueItem(queue.id),
+        isLoading: "first-load" as const,
+        isValid: true,
+        dataset: undefined,
 
-    globalTargetSelections: {},
-    annotationSchema: (queue.annotationSchema as Record<string, unknown>) || null,
-    fields: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null),
-    focusedFieldIndex:
-      parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null).length > 0 ? 0 : -1,
+        globalTargetSelections: {},
+        annotationSchema: (queue.annotationSchema as Record<string, unknown>) || null,
+        fields: parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null),
+        focusedFieldIndex:
+          parseAnnotationSchema((queue.annotationSchema as Record<string, unknown>) || null).length > 0 ? 0 : -1,
 
-    setQueue: (queue) => set({ queue }),
+        setQueue: (queue) => set({ queue }),
 
-    setCurrentItem: (currentItem) => {
-      const { globalTargetSelections } = get();
-      if (currentItem) {
-        // Merge global selections with existing target data, prioritizing item-specific data
-        currentItem = {
-          ...currentItem,
-          payload: {
-            ...currentItem.payload,
-            target: {
-              ...globalTargetSelections,
-              ...currentItem.payload.target,
-            },
-          },
-        };
-      }
-      set({ currentItem });
-    },
-
-    setCurrentItemTarget: (target) => {
-      set((state) => {
-        if (!state.currentItem) return state;
-        return {
-          ...state,
-          currentItem: {
-            ...state.currentItem,
-            payload: {
-              ...state.currentItem.payload,
-              target,
-            },
-          },
-        };
-      });
-    },
-
-    clearGlobalSelections: () => {
-      set({ globalTargetSelections: {} });
-    },
-
-    setIsLoading: (isLoading) => set({ isLoading }),
-    setIsValid: (isValid) => set({ isValid }),
-    setDataset: (dataset) => set({ dataset }),
-
-    setAnnotationSchema: (annotationSchema: Record<string, unknown> | null) => {
-      const fields = parseAnnotationSchema(annotationSchema);
-      set({
-        annotationSchema,
-        fields,
-        focusedFieldIndex: fields.length > 0 ? 0 : -1,
-      });
-    },
-
-    getTarget: () => {
-      const { currentItem } = get();
-      return currentItem?.payload.target || {};
-    },
-
-    updateTargetField: (key, value) => {
-      set((state) => {
-        if (!state.currentItem) return state;
-
-        const newGlobalSelections = {
-          ...state.globalTargetSelections,
-          [key]: value,
-        };
-
-        return {
-          ...state,
-          globalTargetSelections: newGlobalSelections,
-          currentItem: {
-            ...state.currentItem,
-            payload: {
-              ...state.currentItem.payload,
-              target: {
-                ...state.currentItem.payload.target,
-                [key]: value,
+        setCurrentItem: (currentItem) => {
+          const { globalTargetSelections } = get();
+          if (currentItem) {
+            currentItem = {
+              ...currentItem,
+              payload: {
+                ...currentItem.payload,
+                target: {
+                  ...globalTargetSelections,
+                  ...currentItem.payload.target,
+                },
               },
-            },
-          },
-        };
-      });
-    },
+            };
+          }
+          set({ currentItem });
+        },
 
-    setFocusedField: (index) => {
-      const { fields } = get();
-      if (index >= 0 && index < fields.length) {
-        set({ focusedFieldIndex: index });
+        setCurrentItemTarget: (target) => {
+          set((state) => {
+            if (!state.currentItem) return state;
+            return {
+              ...state,
+              currentItem: {
+                ...state.currentItem,
+                payload: {
+                  ...state.currentItem.payload,
+                  target,
+                },
+              },
+            };
+          });
+        },
+
+        clearGlobalSelections: () => {
+          set({ globalTargetSelections: {} });
+        },
+
+        setIsLoading: (isLoading) => set({ isLoading }),
+        setIsValid: (isValid) => set({ isValid }),
+        setDataset: (dataset) => set({ dataset }),
+
+        setAnnotationSchema: (annotationSchema: Record<string, unknown> | null) => {
+          const fields = parseAnnotationSchema(annotationSchema);
+          set({
+            annotationSchema,
+            fields,
+            focusedFieldIndex: fields.length > 0 ? 0 : -1,
+          });
+        },
+
+        getTarget: () => {
+          const { currentItem } = get();
+          return currentItem?.payload.target || {};
+        },
+
+        updateTargetField: (key, value) => {
+          set((state) => {
+            if (!state.currentItem) return state;
+
+            const newGlobalSelections = {
+              ...state.globalTargetSelections,
+              [key]: value,
+            };
+
+            return {
+              ...state,
+              globalTargetSelections: newGlobalSelections,
+              currentItem: {
+                ...state.currentItem,
+                payload: {
+                  ...state.currentItem.payload,
+                  target: {
+                    ...state.currentItem.payload.target,
+                    [key]: value,
+                  },
+                },
+              },
+            };
+          });
+        },
+
+        setFocusedField: (index) => {
+          const { fields } = get();
+          if (index >= 0 && index < fields.length) {
+            set({ focusedFieldIndex: index });
+          }
+        },
+
+        focusField: (direction: "next" | "prev" | "first") => {
+          const { fields, focusedFieldIndex } = get();
+          if (fields.length === 0) return;
+
+          let newIndex: number;
+          switch (direction) {
+            case "next":
+              newIndex = (focusedFieldIndex + 1) % fields.length;
+              break;
+            case "prev":
+              newIndex = (focusedFieldIndex - 1 + fields.length) % fields.length;
+              break;
+            case "first":
+              newIndex = 0;
+              break;
+          }
+          set({ focusedFieldIndex: newIndex });
+        },
+
+        selectOptionInFocusedField: (optionNumber: number) => {
+          const { fields, focusedFieldIndex, updateTargetField } = get();
+          const field = fields[focusedFieldIndex];
+          if (!field) return;
+
+          const options = field.options;
+          if (field.type === "number" && options && "min" in options) {
+            const { min = 1, max = 5 } = options;
+            if (optionNumber >= min && optionNumber <= max) {
+              updateTargetField(field.key, optionNumber);
+            }
+          } else if (field.type === "enum" && Array.isArray(field.options)) {
+            const optionIndex = optionNumber - 1;
+            if (optionIndex >= 0 && optionIndex < field.options.length) {
+              updateTargetField(field.key, field.options[optionIndex]);
+            }
+          } else if (field.type === "boolean") {
+            if (optionNumber === 1) {
+              updateTargetField(field.key, false);
+            } else if (optionNumber === 2) {
+              updateTargetField(field.key, true);
+            }
+          }
+        },
+      }),
+      {
+        name: `queue-store-${queue.id}`,
+        partialize: (state) => ({ dataset: state.dataset }),
       }
-    },
-
-    focusField: (direction: "next" | "prev" | "first") => {
-      const { fields, focusedFieldIndex } = get();
-      if (fields.length === 0) return;
-
-      let newIndex: number;
-      switch (direction) {
-        case "next":
-          newIndex = (focusedFieldIndex + 1) % fields.length;
-          break;
-        case "prev":
-          newIndex = (focusedFieldIndex - 1 + fields.length) % fields.length;
-          break;
-        case "first":
-          newIndex = 0;
-          break;
-      }
-      set({ focusedFieldIndex: newIndex });
-    },
-
-    selectOptionInFocusedField: (optionNumber: number) => {
-      const { fields, focusedFieldIndex, updateTargetField } = get();
-      const field = fields[focusedFieldIndex];
-      if (!field) return;
-
-      const options = field.options;
-      if (field.type === "number" && options && "min" in options) {
-        const { min = 1, max = 5 } = options;
-        const targetValue = min - 1 + optionNumber;
-        if (targetValue >= min && targetValue <= max) {
-          updateTargetField(field.key, targetValue);
-        }
-      } else if (field.type === "enum" && Array.isArray(field.options)) {
-        const optionIndex = optionNumber - 1;
-        if (optionIndex >= 0 && optionIndex < field.options.length) {
-          updateTargetField(field.key, field.options[optionIndex]);
-        }
-      } else if (field.type === "boolean") {
-        if (optionNumber === 1) {
-          updateTargetField(field.key, false);
-        } else if (optionNumber === 2) {
-          updateTargetField(field.key, true);
-        }
-      }
-    },
-  }));
+    )
+  );
 
 type QueueStoreApi = ReturnType<typeof createQueueStore>;
 

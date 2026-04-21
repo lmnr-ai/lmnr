@@ -1,14 +1,17 @@
+use backoff::ExponentialBackoffBuilder;
+use regex::Regex;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, LazyLock},
+    time::Duration,
 };
 use uuid::Uuid;
 
 use crate::{
     cache::Cache,
     ch::signal_events::{CHSignalEvent, insert_signal_events},
-    ch::signal_run_messages::{CHSignalRunMessage, delete_signal_run_messages},
+    ch::signal_run_messages::CHSignalRunMessage,
     ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::DB,
     db::spans::SpanType,
@@ -25,12 +28,12 @@ use crate::{
         },
         queue::SignalMessage,
         spans::{get_trace_span_ids_and_end_time, span_short_id},
-        tools::get_full_spans,
+        tools::{SpanSearchRequest, get_full_spans, search_in_spans},
         utils::{
             InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
         },
     },
-    utils::limits::update_workspace_signal_runs_used,
+    utils::limits::update_workspace_signal_steps_processed,
     worker::HandlerError,
 };
 
@@ -46,6 +49,7 @@ pub enum StepResult {
     CompletedWithEvent {
         attributes: serde_json::Value,
         summary: String,
+        severity: u8,
     },
     RequiresNextStep {
         reason: NextStepReason,
@@ -53,13 +57,14 @@ pub enum StepResult {
     Failed {
         error: String,
         finish_reason: Option<FinishReason>,
+        // Whether the error is due to processing the response, not the provider.
+        // Usually due to malformed function calls so is retryable.
         is_processing_error: bool,
     },
 }
 
 pub struct FailureMetadata {
-    pub finish_reason: Option<FinishReason>,
-    pub is_processing_error: bool,
+    pub retryable: bool,
 }
 
 pub struct ProcessedResponses {
@@ -79,9 +84,9 @@ pub async fn process_provider_responses(
     responses: &[ProviderInlineResponse],
     batch_id: Option<String>,
     clickhouse: clickhouse::Client,
+    db: Arc<DB>,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
-    db: Arc<DB>,
 ) -> Result<ProcessedResponses, HandlerError> {
     let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
     for msg in messages.iter() {
@@ -153,12 +158,14 @@ pub async fn process_provider_responses(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => {
                 match handle_create_event(
                     signal_message,
                     &run,
                     attributes,
                     summary,
+                    severity,
                     clickhouse.clone(),
                     db.clone(),
                     queue.clone(),
@@ -172,6 +179,7 @@ pub async fn process_provider_responses(
                     }
                     Err(e) => {
                         log::error!("[SIGNAL JOB] Failed to create event: {:?}", e);
+                        failure_metadata.insert(run.run_id, FailureMetadata { retryable: false });
                         failed_runs.push(run.failed(format!("Failed to create event: {}", e)));
                     }
                 }
@@ -187,8 +195,11 @@ pub async fn process_provider_responses(
                 failure_metadata.insert(
                     run.run_id,
                     FailureMetadata {
-                        finish_reason,
-                        is_processing_error,
+                        retryable: is_processing_error
+                            || finish_reason
+                                .as_ref()
+                                .map(|fr| fr.is_retryable())
+                                .unwrap_or(true),
                     },
                 );
                 failed_runs.push(run.failed(error));
@@ -206,7 +217,7 @@ pub async fn process_provider_responses(
     })
 }
 
-/// Insert results into ClickHouse, clean up messages, and update job stats.
+/// Insert results into ClickHouse and update job stats.
 /// Callers must insert `new_messages` into ClickHouse **before** routing pending/failed runs to
 /// any queue, to avoid a race where a consumer picks up a run before its conversation history
 /// (e.g. tool results or retry guidance) has been persisted.
@@ -216,30 +227,35 @@ pub async fn finalize_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     // Insert succeeded runs and update usage limits
     let succeeded_runs_ch: Vec<CHSignalRun> =
         succeeded_runs.iter().map(CHSignalRun::from).collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
     if is_feature_enabled(Feature::UsageLimit) {
-        let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
+        let mut run_steps_by_project_id: HashMap<Uuid, usize> = HashMap::new();
         for run in succeeded_runs {
-            // Realtime signals are billed as 2 signal runs
-            let cost = if run.mode.is_realtime() { 2 } else { 1 };
-            *runs_by_project_id.entry(run.project_id).or_insert(0) += cost;
+            let cost = run.steps_processed as usize;
+            *run_steps_by_project_id.entry(run.project_id).or_insert(0) += cost;
         }
-        let update_futures = runs_by_project_id.into_iter().map(|(project_id, runs)| {
-            let db = db.clone();
-            let clickhouse = clickhouse.clone();
-            let cache = cache.clone();
-            async move {
-                if let Err(e) =
-                    update_workspace_signal_runs_used(db, clickhouse, cache, project_id, runs).await
-                {
-                    log::error!("Failed to update workspace signal runs used: {}", e);
+        let update_futures = run_steps_by_project_id
+            .into_iter()
+            .map(|(project_id, steps)| {
+                let db = db.clone();
+                let clickhouse = clickhouse.clone();
+                let cache = cache.clone();
+                let queue = queue.clone();
+                async move {
+                    if let Err(e) = update_workspace_signal_steps_processed(
+                        db, clickhouse, cache, queue, project_id, steps,
+                    )
+                    .await
+                    {
+                        log::error!("Failed to update workspace signal runs used: {}", e);
+                    }
                 }
-            }
-        });
+            });
         futures_util::future::join_all(update_futures).await;
     }
 
@@ -253,24 +269,6 @@ pub async fn finalize_runs(
             "[SIGNAL JOB] Failed to insert permanently failed runs: {:?}",
             e
         );
-    }
-
-    // Delete messages for completed and permanently failed runs
-    let final_runs: Vec<&SignalRun> = succeeded_runs
-        .iter()
-        .chain(permanently_failed_runs.iter())
-        .collect();
-    if !final_runs.is_empty() {
-        let project_run_pairs: Vec<(Uuid, Uuid)> = final_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for final runs: {:?}",
-                e
-            );
-        }
     }
 
     // Update job stats for succeeded runs
@@ -403,6 +401,7 @@ async fn process_single_response(
             error: span_error,
             provider_batch_id,
             metadata: None,
+            tools: None,
         },
     )
     .await;
@@ -461,6 +460,7 @@ async fn process_single_response(
                 error: tool_error,
                 provider_batch_id: None,
                 metadata: None,
+                tools: None,
             },
         )
         .await;
@@ -482,10 +482,12 @@ async fn process_single_response(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => (
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 },
                 new_messages,
             ),
@@ -604,6 +606,40 @@ pub async fn handle_tool_call(
     clickhouse: clickhouse::Client,
 ) -> StepResult {
     match function_call.name.as_str() {
+        "search_in_spans" => {
+            let searches: Vec<SpanSearchRequest> = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("searches"))
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+
+            if searches.is_empty() {
+                return StepResult::Failed {
+                    error: "No searches provided".to_string(),
+                    finish_reason: None,
+                    is_processing_error: true,
+                };
+            }
+
+            match search_in_spans(
+                clickhouse,
+                signal_message.project_id,
+                run.trace_id,
+                searches,
+            )
+            .await
+            {
+                Ok(results) => StepResult::RequiresNextStep {
+                    reason: NextStepReason::ToolResult(serde_json::json!({ "results": results })),
+                },
+                Err(e) => StepResult::RequiresNextStep {
+                    reason: NextStepReason::ToolResult(
+                        serde_json::json!({ "error": e.to_string() }),
+                    ),
+                },
+            }
+        }
         "get_full_spans" | "get_full_span_info" => {
             let span_ids: Vec<String> = function_call
                 .args
@@ -612,7 +648,8 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .filter_map(|v| v.as_str())
+                        .flat_map(|s| parse_span_ids_from_str(s))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -662,11 +699,30 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .unwrap_or_default();
+            let severity = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("severity"))
+                .and_then(|v| v.as_str())
+                .map(|s| match s {
+                    "critical" => 2u8,
+                    "warning" => 1u8,
+                    "info" => 0u8,
+                    other => {
+                        log::warn!(
+                            "Unknown severity value '{}', defaulting to warning (1)",
+                            other
+                        );
+                        1u8
+                    }
+                })
+                .unwrap_or(0u8);
 
             if identified {
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 }
             } else {
                 StepResult::CompletedNoEvent
@@ -685,6 +741,7 @@ pub async fn handle_create_event(
     run: &SignalRun,
     attributes: serde_json::Value,
     summary: String,
+    severity: u8,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -726,16 +783,59 @@ pub async fn handle_create_event(
         attrs,
         timestamp,
         summary,
+        severity,
     );
-    insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
-    process_event_notifications_and_clustering(
-        db,
-        queue.clone(),
-        signal_message.project_id,
-        run.trace_id,
-        signal_event,
-    )
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let ch_ref = &clickhouse;
+    let event_ref = &signal_event;
+    // NOTE: all errors treated as transient because anyhow::Error doesn't expose
+    // ClickHouse error kinds; permanent errors (schema mismatch, etc.) will retry
+    // until the 10s timeout before propagating.
+    backoff::future::retry(backoff, || async move {
+        insert_signal_events(ch_ref.clone(), vec![event_ref.clone()])
+            .await
+            .map_err(|e| {
+                log::warn!("[SIGNAL JOB] Retrying insert_signal_events: {:?}", e);
+                backoff::Error::transient(e)
+            })
+    })
+    .await?;
+
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(2.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+    let db_ref = &db;
+    let queue_ref = &queue;
+    let project_id = signal_message.project_id;
+    let trace_id = run.trace_id;
+    let event_for_notif = signal_event.clone();
+    backoff::future::retry(backoff, || {
+        let event = event_for_notif.clone();
+        async move {
+            process_event_notifications_and_clustering(
+                db_ref.clone(),
+                queue_ref.clone(),
+                project_id,
+                trace_id,
+                event,
+            )
+            .await
+            .map_err(|e| {
+                log::warn!(
+                    "[SIGNAL JOB] Retrying processing event notifications and clustering: {:?}",
+                    e
+                );
+                backoff::Error::transient(e)
+            })
+        }
+    })
     .await?;
 
     emit_internal_span(
@@ -762,9 +862,25 @@ pub async fn handle_create_event(
             error: None,
             provider_batch_id: None,
             metadata: None,
+            tools: None,
         },
     )
     .await;
 
     Ok(event_id)
+}
+
+static SPAN_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b[0-9a-fA-F]{6}\b").unwrap());
+
+/// Extracts 6-char hex span short IDs from a string, regardless of formatting.
+///
+/// Uses regex to pull out hex tokens, so it handles any malformed LLM output:
+/// - `"672ca8\", \"355a29\", \"6dfb10\""`  (escaped quotes as separators)
+/// - `"204e1c' , '1ccaa0' , '953318'"`    (single quotes as separators)
+/// - `"672ca8"`                            (normal single ID)
+fn parse_span_ids_from_str(s: &str) -> Vec<String> {
+    SPAN_ID_RE
+        .find_iter(s)
+        .map(|m| m.as_str().to_string())
+        .collect()
 }

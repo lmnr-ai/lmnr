@@ -35,4 +35,5 @@ export const getDefaultValues = (projectId: string, defaultMode: number): Manage
   projectId,
   testTraceId: "",
   triggers: getDefaultTriggers(defaultMode),
+  sampleRate: null,
 });

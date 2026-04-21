@@ -11,11 +11,11 @@ const LAST_PROJECT_ID = "last-project-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
 export const DeleteProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
 });
 
 export const UpdateProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1, { error: "Project name is required" }),
 });
 
@@ -173,8 +173,8 @@ export interface ProjectDetails {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
-  signalRunsUsedThisMonth: number;
-  signalRunsLimit: number;
+  signalStepsUsedThisMonth: number;
+  signalStepsLimit: number;
   logRetentionDays: number;
   isFreeTier: boolean;
 }
@@ -214,7 +214,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
-      signalRunsLimit: subscriptionTiers.signalRuns,
+      signalStepsLimit: subscriptionTiers.signalStepsProcessed,
       logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
@@ -229,7 +229,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
-  const signalRunsLimit = Number(tier.signalRunsLimit);
+  const signalStepsLimit = Number(tier.signalStepsLimit);
 
   if (!isFreeTier) {
     return {
@@ -240,15 +240,15 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalRunsLimit,
-      signalRunsUsedThisMonth: 0,
+      signalStepsLimit,
+      signalStepsUsedThisMonth: 0,
       isFreeTier,
     };
   }
 
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
-  const signalRunsUsedThisMonth = usageResult.totalSignalRuns;
+  const signalStepsUsedThisMonth = usageResult.totalSignalSteps;
 
   return {
     id: project.id,
@@ -257,8 +257,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     logRetentionDays: tier.logRetentionDays,
     gbUsedThisMonth,
     gbLimit,
-    signalRunsUsedThisMonth,
-    signalRunsLimit,
+    signalStepsUsedThisMonth: signalStepsUsedThisMonth,
+    signalStepsLimit: signalStepsLimit,
     isFreeTier,
   };
 };

@@ -38,7 +38,7 @@ export const JsonFilterSchema = BaseFilterSchema.extend({
 export const ArrayFilterSchema = z.object({
   dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
-  value: z.array(z.string().min(1)),
+  value: z.array(z.string().min(1)).min(1),
   operator: z.enum(ARRAY_OPERATORS),
 });
 

@@ -8,13 +8,13 @@ import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrati
 
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
-const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.string() }), z.object({ teamId: z.string() })]);
+const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.guid() }), z.object({ teamId: z.string() })]);
 
 const SendTestNotificationSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   channelId: z.string(),
   eventName: z.string().optional(),
 });

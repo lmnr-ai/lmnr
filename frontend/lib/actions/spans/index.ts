@@ -24,21 +24,21 @@ import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const GetTraceSpansSchema = FiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const DeleteSpansSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   spanIds: z.array(z.string()).min(1),
 });
 
@@ -111,7 +111,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -281,7 +280,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId,
+        traceIds: [traceId],
         searchQuery: search,
         ...(timeRange && { timeRange }),
         searchType: searchIn as SpanSearchType[],
@@ -339,6 +338,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       if (hit) {
         span.inputSnippet = hit.input_snippet;
         span.outputSnippet = hit.output_snippet;
+        span.attributesSnippet = hit.attributes_snippet;
       }
     }
   }

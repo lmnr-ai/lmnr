@@ -15,7 +15,7 @@ import { sendInvitationEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const InviteUserSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   email: z.string(),
 });
 

@@ -9,35 +9,35 @@ import { downloadSpanImages } from "@/lib/spans/utils";
 import { type Span } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
-  traceId: z.string().optional(),
+  spanId: z.guid(),
+  projectId: z.guid(),
+  traceId: z.guid().optional(),
 });
 
 export const UpdateSpanOutputSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
-  traceId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   output: z.any(),
 });
 
 export const ExportSpanSchema = z.object({
-  spanId: z.string(),
-  datasetId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  datasetId: z.guid(),
+  projectId: z.guid(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const PushSpanSchema = z.object({
   metadata: z.object({
     source: z.enum(["span", "datapoint"]),
-    datasetId: z.string().optional(),
-    traceId: z.string().optional(),
-    id: z.string(),
+    datasetId: z.guid().optional(),
+    traceId: z.guid().optional(),
+    id: z.guid(),
   }),
-  spanId: z.string(),
-  projectId: z.string(),
-  queueId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
+  queueId: z.guid(),
 });
 
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
@@ -104,6 +104,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     output: tryParseJson(span.output),
     attributes: parsedAttributes,
     cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
+    reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
     events: (span.events || []).map((event) => ({
       timestamp: event.timestamp,
       name: event.name,

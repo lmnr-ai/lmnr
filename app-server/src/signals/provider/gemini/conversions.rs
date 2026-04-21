@@ -91,13 +91,29 @@ impl From<GenerateContentBatchOutput> for ProviderBatchOutput {
     }
 }
 
+impl From<JobState> for ProviderBatchState {
+    fn from(state: JobState) -> Self {
+        match state {
+            JobState::BATCH_STATE_UNSPECIFIED => ProviderBatchState::Unspecified,
+            JobState::BATCH_STATE_PENDING => ProviderBatchState::Pending,
+            JobState::BATCH_STATE_RUNNING => ProviderBatchState::Running,
+            JobState::BATCH_STATE_SUCCEEDED => ProviderBatchState::Succeeded,
+            JobState::BATCH_STATE_FAILED => ProviderBatchState::Failed,
+            JobState::BATCH_STATE_CANCELLED => ProviderBatchState::Cancelled,
+            JobState::BATCH_STATE_EXPIRED => ProviderBatchState::Expired,
+        }
+    }
+}
+
 impl From<Operation> for ProviderBatchOperation {
     fn from(op: Operation) -> Self {
+        let state = op.metadata.map(|m| m.state.into());
         ProviderBatchOperation {
             name: op.name,
             done: op.done,
             response: op.response.map(Into::into),
             error: op.error.map(Into::into),
+            state,
         }
     }
 }

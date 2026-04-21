@@ -1,5 +1,6 @@
 "use client";
 
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -71,9 +72,11 @@ export default function CopyTooltip({
             {children}
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          <p>{copied ? copiedText : text}</p>
-        </TooltipContent>
+        <TooltipPortal>
+          <TooltipContent>
+            <p>{copied ? copiedText : text}</p>
+          </TooltipContent>
+        </TooltipPortal>
       </Tooltip>
     </TooltipProvider>
   );

@@ -13,7 +13,7 @@ import {
   PROJECT_MEMBER_CACHE_KEY,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
   WORKSPACE_MEMBER_CACHE_KEY,
-  WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY,
+  WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY,
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -32,31 +32,31 @@ const LAST_WORKSPACE_ID = "last-workspace-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
 const DeleteWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const UpdateWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   name: z.string().min(1, { error: "Workspace name is required" }),
 });
 
 const GetWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const GetWorkspaceUsersSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const UpdateRoleSchema = z.object({
-  workspaceId: z.string(),
-  userId: z.string(),
+  workspaceId: z.guid(),
+  userId: z.guid(),
   role: z.enum(["member", "admin"]),
 });
 
 const RemoveUserSchema = z.object({
-  workspaceId: z.string(),
-  userId: z.string(),
+  workspaceId: z.guid(),
+  userId: z.guid(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
@@ -221,19 +221,19 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     console.error("Error reading bytes usage from cache:", error);
   }
 
-  // --- Signal runs: cache → ClickHouse fallback ---
-  let totalSignalRuns = null;
-  const signalRunsCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
+  // --- Signal steps: cache → ClickHouse fallback ---
+  let totalSignalSteps = null;
+  const signalStepsCacheKey = `${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
-    const cached = await cache.get<number>(signalRunsCacheKey);
-    totalSignalRuns = cached;
+    const cached = await cache.get<number>(signalStepsCacheKey);
+    totalSignalSteps = cached;
   } catch (error) {
     console.error("Error reading signal runs usage from cache:", error);
   }
 
   // If both came from cache, return early
-  if (totalBytesIngested !== null && totalSignalRuns !== null) {
-    return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
+  if (totalBytesIngested !== null && totalSignalSteps !== null) {
+    return { totalBytesIngested, totalSignalSteps, resetTime: latestResetTime };
   }
 
   // Need ClickHouse — fetch project IDs once
@@ -245,7 +245,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   if (projectRows.length === 0) {
     return {
       totalBytesIngested: totalBytesIngested ?? 0,
-      totalSignalRuns: totalSignalRuns ?? 0,
+      totalSignalSteps: totalSignalSteps ?? 0,
       resetTime: latestResetTime,
     };
   }
@@ -278,9 +278,9 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
   }
 
-  if (totalSignalRuns === null) {
-    const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
-    FROM signal_runs
+  if (totalSignalSteps === null) {
+    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as totalSignalSteps
+    FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
     AND signal_runs.status = 1`;
@@ -290,11 +290,11 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
       format: "JSONEachRow",
       query_params: { projectIds, latestResetTime: latestResetTimeStr },
     });
-    const signalRunsRows = await signalRunsResult.json<{ total_signal_runs: number }>();
-    totalSignalRuns = signalRunsRows.length > 0 ? Number(signalRunsRows[0].total_signal_runs) : 0;
+    const signalRunsRows = await signalRunsResult.json<{ totalSignalSteps: number }>();
+    totalSignalSteps = signalRunsRows.length > 0 ? Number(signalRunsRows[0].totalSignalSteps) : 0;
   }
 
-  return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
+  return { totalBytesIngested, totalSignalSteps: totalSignalSteps, resetTime: latestResetTime };
 };
 
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
@@ -326,9 +326,9 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
-  workspaceId: z.string(),
-  currentOwnerId: z.string(),
-  newOwnerId: z.string(),
+  workspaceId: z.guid(),
+  currentOwnerId: z.guid(),
+  newOwnerId: z.guid(),
 });
 
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {

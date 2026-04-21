@@ -20,9 +20,8 @@ import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import List from "@/components/traces/trace-view/list";
-import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import List from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
@@ -439,119 +438,119 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
   }
 
   return (
-    <ScrollContextProvider>
-      <div className="flex flex-col h-full w-full overflow-hidden">
-        {isSessionDeleted && <SessionTerminatedOverlay />}
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      {isSessionDeleted && <SessionTerminatedOverlay />}
 
-        <Header spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
+      <Header spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
-        {spansError ? (
-          <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-            <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
-            <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
-            <p className="text-xs text-muted-foreground">{spansError}</p>
-          </div>
-        ) : isSpansLoading ? (
-          <SpansLoading />
-        ) : (
-          <ResizablePanelGroup id="debugger-session-view-panels" orientation="vertical">
-            {condensedTimelineEnabled && (
-              <>
-                <ResizablePanel defaultSize={120} minSize={80}>
-                  <div className="border-t h-full">
-                    <CondensedTimeline />
-                  </div>
-                </ResizablePanel>
-                <ResizableHandle />
-              </>
-            )}
-            <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-              <div
-                className={cn(
-                  "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                  condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
-                )}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <ViewDropdown />
-                    {trace && (
-                      <TraceStatsShields
-                        className="min-w-0 overflow-hidden"
-                        trace={trace}
-                        spans={filteredSpansForStats}
-                      />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      disabled={!trace}
-                      className={cn("h-6 px-1.5 text-xs", {
-                        "border-primary text-primary": browserSession,
-                      })}
-                      variant="outline"
-                      onClick={() => setBrowserSession(!browserSession)}
-                    >
-                      <CirclePlay size={14} className="mr-1" />
-                      Media
-                    </Button>
-                  </div>
+      {spansError ? (
+        <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
+          <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+          <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+          <p className="text-xs text-muted-foreground">{spansError}</p>
+        </div>
+      ) : isSpansLoading ? (
+        <SpansLoading />
+      ) : (
+        <ResizablePanelGroup id="debugger-session-view-panels" orientation="vertical">
+          {condensedTimelineEnabled && (
+            <>
+              <ResizablePanel defaultSize={120} minSize={80}>
+                <div className="border-t h-full">
+                  <CondensedTimeline />
                 </div>
-              </div>
-              {tab === "reader" && (
-                <div className="flex flex-1 h-full overflow-hidden relative">
-                  <List onSpanSelect={handleSpanSelect} />
-                </div>
+              </ResizablePanel>
+              <ResizableHandle />
+            </>
+          )}
+          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+            <div
+              className={cn(
+                "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
               )}
-              {tab === "tree" && (
-                <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Tree onSpanSelect={handleSpanSelect} />
-                </div>
-              )}
-            </ResizablePanel>
-            {browserSession && (
-              <>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" withHandle />
-                <ResizablePanel>
-                  {!isLoading && trace?.id && (
-                    <SessionPlayer
-                      onClose={() => setBrowserSession(false)}
-                      hasBrowserSession={hasBrowserSession}
-                      traceId={trace?.id}
-                      llmSpanIds={llmSpanIds}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <ViewDropdown />
+                  {trace && (
+                    <TraceStatsShields
+                      className="min-w-0 overflow-hidden"
+                      trace={trace}
+                      spans={filteredSpansForStats}
                     />
                   )}
-                </ResizablePanel>
-              </>
-            )}
-            {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-          </ResizablePanelGroup>
-        )}
-
-        <Sheet open={!!selectedSpan} onOpenChange={(open) => !open && handleSpanSelect(undefined)}>
-          <SheetContent
-            side="right"
-            className="min-w-[50vw] w-[50vw] flex flex-col p-0 gap-0 focus-visible:outline-none"
-          >
-            <SheetHeader className="hidden">
-              <SheetTitle />
-              <SheetDescription />
-            </SheetHeader>
-            <div className="flex-1 overflow-hidden focus-visible:outline-none">
-              {selectedSpan &&
-                (selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView
-                    traceId={selectedSpan.traceId}
-                    spanId={selectedSpan.spanId}
-                    key={selectedSpan.spanId}
-                  />
-                ) : (
-                  <SpanView spanId={selectedSpan.spanId} traceId={selectedSpan?.traceId} />
-                ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    disabled={!trace}
+                    className={cn("h-6 px-1.5 text-xs", {
+                      "border-primary text-primary": browserSession,
+                    })}
+                    variant="outline"
+                    onClick={() => setBrowserSession(!browserSession)}
+                  >
+                    <CirclePlay size={14} className="mr-1" />
+                    Media
+                  </Button>
+                </div>
+              </div>
             </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </ScrollContextProvider>
+            {tab === "transcript" && (
+              <div className="flex flex-1 h-full overflow-hidden relative">
+                <List onSpanSelect={handleSpanSelect} />
+              </div>
+            )}
+            {tab === "tree" && (
+              <div className="flex flex-1 h-full overflow-hidden relative">
+                <Tree onSpanSelect={handleSpanSelect} />
+              </div>
+            )}
+          </ResizablePanel>
+          {browserSession && (
+            <>
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" withHandle />
+              <ResizablePanel>
+                {!isLoading && trace?.id && (
+                  <SessionPlayer
+                    onClose={() => setBrowserSession(false)}
+                    hasBrowserSession={hasBrowserSession}
+                    traceId={trace?.id}
+                    llmSpanIds={llmSpanIds}
+                  />
+                )}
+              </ResizablePanel>
+            </>
+          )}
+          {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+        </ResizablePanelGroup>
+      )}
+
+      <Sheet open={!!selectedSpan} onOpenChange={(open) => !open && handleSpanSelect(undefined)}>
+        <SheetContent side="right" className="min-w-[50vw] w-[50vw] flex flex-col p-0 gap-0 focus-visible:outline-none">
+          <SheetHeader className="hidden">
+            <SheetTitle />
+            <SheetDescription />
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden focus-visible:outline-none">
+            {selectedSpan &&
+              (selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                <HumanEvaluatorSpanView
+                  traceId={selectedSpan.traceId}
+                  spanId={selectedSpan.spanId}
+                  key={selectedSpan.spanId}
+                  onClose={() => setSelectedSpan(undefined)}
+                />
+              ) : (
+                <SpanView
+                  spanId={selectedSpan.spanId}
+                  traceId={selectedSpan?.traceId}
+                  onClose={() => setSelectedSpan(undefined)}
+                />
+              ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
   );
 }

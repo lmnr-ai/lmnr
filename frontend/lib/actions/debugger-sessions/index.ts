@@ -20,12 +20,12 @@ export type DebuggerSession = {
 };
 
 const GetDebuggerSessionSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 export const GetDebuggerSessionsSchema = PaginationSchema.extend({
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessionsSchema>) => {
@@ -56,8 +56,8 @@ export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessio
 }
 
 const GetLatestTraceBySessionIdSchema = z.object({
-  projectId: z.string(),
-  sessionId: z.string(),
+  projectId: z.guid(),
+  sessionId: z.guid(),
 });
 
 export async function getLatestTraceBySessionId(
@@ -80,7 +80,8 @@ export async function getLatestTraceBySessionId(
         metadata,
         status,
         trace_type as traceType,
-        has_browser_session as hasBrowserSession
+        has_browser_session as hasBrowserSession,
+        user_id as userId
       FROM traces
       WHERE simpleJSONExtractString(metadata, 'rollout.session_id') = {sessionId: String}
       ORDER BY start_time DESC
@@ -107,17 +108,17 @@ export async function getLatestTraceBySessionId(
 }
 
 const RunDebuggerSessionSchema = z.object({
-  projectId: z.string(),
-  sessionId: z.string(),
-  trace_id: z.string().optional(),
+  projectId: z.guid(),
+  sessionId: z.guid(),
+  trace_id: z.guid().optional(),
   path_to_count: z.record(z.string(), z.number()).optional(),
   args: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
   overrides: z.record(z.string(), z.any()).optional(),
 });
 
 const UpdateDebuggerSessionStatusSchema = z.object({
-  projectId: z.string(),
-  sessionId: z.string(),
+  projectId: z.guid(),
+  sessionId: z.guid(),
   status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
 });
 

@@ -56,8 +56,15 @@ const EvaluationDatapointsTableContent = ({
     setColumnOrder: s.setColumnOrder,
   }));
 
-  // Sync datatable columnOrder with eval store columnDefs
+  // Sync datatable columnOrder with eval store columnDefs.
+  // Guard: skip syncing until columnDefs have been rebuilt with score columns,
+  // otherwise the effect would purge user-ordered score columns from localStorage
+  // before rebuildColumns has had a chance to run.
+  const columnsReady = columns.length > 0 && (scores.length === 0 || columns.some((c) => c.id?.startsWith("score:")));
+
   useEffect(() => {
+    if (!columnsReady) return;
+
     const visibleIds = columns.filter((c) => !c.meta?.hidden).map((c) => c.id!);
     const currentSet = new Set(columnOrder);
     const defSet = new Set(visibleIds);
@@ -69,7 +76,7 @@ const EvaluationDatapointsTableContent = ({
       const filtered = columnOrder.filter((id) => defSet.has(id));
       setColumnOrder([...filtered, ...toAdd]);
     }
-  }, [columns, columnOrder, setColumnOrder]);
+  }, [columns, columnOrder, setColumnOrder, columnsReady]);
 
   // Compute and set score ranges from data
   useEffect(() => {

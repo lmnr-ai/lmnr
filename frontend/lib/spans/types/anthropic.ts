@@ -223,7 +223,7 @@ export const convertAnthropicToPlaygroundMessages = async (
               break;
 
             case "thinking":
-              content.push({ type: "text", text: `[Thinking]\n${block.thinking}` });
+              content.push({ type: "text", text: block.thinking as string });
               break;
 
             case "tool_use":

@@ -12,12 +12,12 @@ use crate::{
         common::{ProcessRunResult, handle_failed_runs, process_run},
         llm_model, llm_provider,
         provider::{
-            LanguageModelClient, ProviderClient,
+            LlmClient,
             models::{ProviderBatchOutput, ProviderInlineResponse},
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
-        utils::{InternalSpan, emit_internal_span, request_to_span_input},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -36,7 +36,7 @@ pub struct SignalJobRealtimeHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -46,7 +46,7 @@ impl SignalJobRealtimeHandler {
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -64,6 +64,7 @@ impl SignalJobRealtimeHandler {
 impl MessageHandler for SignalJobRealtimeHandler {
     type Message = SignalMessage;
 
+    #[tracing::instrument(skip_all, name = "realtime_handle")]
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         let project_id = message.project_id;
         let signal = &message.signal;
@@ -73,18 +74,14 @@ impl MessageHandler for SignalJobRealtimeHandler {
             project_id,
             trace_id,
             message.run_id,
-            message.step,
-            message.internal_trace_id,
-            message.internal_span_id,
-            message.job_id,
+            signal.id,
             &signal.prompt,
-            &signal.name,
             &signal.structured_output_schema,
-            &llm_model(),
-            &llm_provider(),
             self.clickhouse.clone(),
+            self.cache.clone(),
+            self.llm_client.clone(),
             self.queue.clone(),
-            self.config.internal_project_id,
+            &self.config,
         )
         .await
         {
@@ -92,9 +89,13 @@ impl MessageHandler for SignalJobRealtimeHandler {
                 request,
                 new_messages,
                 request_start_time,
+                steps_processed,
             }) => {
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
+                if steps_processed > 0 {
+                    updated_message.steps_processed = steps_processed;
+                }
 
                 if !new_messages.is_empty() {
                     insert_signal_run_messages(self.clickhouse.clone(), &new_messages)
@@ -136,6 +137,7 @@ impl SignalJobRealtimeHandler {
         message: &SignalMessage,
         config: &SignalWorkerConfig,
         input: serde_json::Value,
+        tools: Option<serde_json::Value>,
         error: Option<String>,
     ) -> InternalSpan {
         InternalSpan {
@@ -158,9 +160,11 @@ impl SignalJobRealtimeHandler {
             error,
             provider_batch_id: None,
             metadata: None,
+            tools,
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn process_realtime_request(
         &self,
         request: crate::signals::provider::models::ProviderRequest,
@@ -168,29 +172,32 @@ impl SignalJobRealtimeHandler {
         backoff: ExponentialBackoff,
     ) {
         let span_input = request_to_span_input(&request);
+        let span_tools = request_to_tools_attr(&request);
 
-        let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.clone();
 
         let generate_fn = || async {
-            llm_client
-                .generate_content(&model_str, &req_clone)
-                .await
-                .map_err(|e| {
-                    if e.is_retryable() {
-                        backoff::Error::transient(e)
-                    } else {
-                        backoff::Error::permanent(e)
-                    }
-                })
+            llm_client.generate_content(&req_clone).await.map_err(|e| {
+                if e.is_retryable() {
+                    backoff::Error::transient(e)
+                } else {
+                    backoff::Error::permanent(e)
+                }
+            })
         };
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, span_input.clone(), None),
+                    Self::build_submit_span(
+                        &message,
+                        &self.config,
+                        span_input.clone(),
+                        span_tools.clone(),
+                        None,
+                    ),
                 )
                 .await;
                 let inline_response = ProviderInlineResponse {
@@ -211,9 +218,9 @@ impl SignalJobRealtimeHandler {
                     &batch_output.responses,
                     None,
                     self.clickhouse.clone(),
+                    self.db.clone(),
                     self.queue.clone(),
                     self.config.clone(),
-                    self.db.clone(),
                 )
                 .await
                 {
@@ -250,6 +257,7 @@ impl SignalJobRealtimeHandler {
                         self.clickhouse.clone(),
                         self.db.clone(),
                         self.cache.clone(),
+                        self.queue.clone(),
                     )
                     .await
                     {
@@ -295,6 +303,7 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                 )
                 .await
                 {
@@ -309,6 +318,7 @@ impl SignalJobRealtimeHandler {
                         &message,
                         &self.config,
                         span_input,
+                        span_tools,
                         Some(format!("{}", e)),
                     ),
                 )
@@ -358,6 +368,7 @@ mod tests {
     use crate::mq::{
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
     };
+    use crate::signals::provider::ProviderClient;
     use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
     use crate::signals::provider::models::ProviderRequest;
     use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
@@ -370,6 +381,8 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            provider: None,
+            model_size: None,
         }
     }
 
@@ -399,6 +412,7 @@ mod tests {
                 name: "test_signal".to_string(),
                 prompt: "test prompt".to_string(),
                 structured_output_schema: serde_json::json!({}),
+                sample_rate: None,
             },
             run_id: Uuid::new_v4(),
             internal_trace_id: Uuid::new_v4(),
@@ -408,6 +422,7 @@ mod tests {
             retry_count,
             request_start_time: chrono::Utc::now(),
             mode: 1,
+            steps_processed: 0,
         }
     }
 
@@ -427,9 +442,12 @@ mod tests {
             internal_project_id: None,
             waiting_queue_ttl_ms: 300_000,
         });
-        let provider_client = Arc::new(ProviderClient::Mock(llm_client));
+        let client = Arc::new(LlmClient::from_provider(
+            "mock",
+            ProviderClient::Mock(llm_client),
+        ));
 
-        SignalJobRealtimeHandler::new(db, cache, queue, clickhouse, provider_client, config)
+        SignalJobRealtimeHandler::new(db, cache, queue, clickhouse, client, config)
     }
 
     /// When generate_content always returns a retryable 429 error, after backoff is exhausted

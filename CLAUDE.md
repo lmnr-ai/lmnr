@@ -113,6 +113,36 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 # Migrations are applied automatically on frontend startup
 ```
 
+- `pnpm schema-pull:lint` heavily reformats `schema.ts`, `relations.ts`, and `tsconfig.json`. After running it, revert unrelated formatting changes before committing.
+- `npx drizzle-kit generate` requires a TTY for interactive prompts. In non-interactive shells (CI, sandbox), write migration SQL files and `_journal.json` entries manually.
+- When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
+- **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
+
+## Signals and Alerts
+
+- Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
+- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
+- Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to CRITICAL (2) when metadata is absent (historical alerts default to the most restrictive level). The frontend edit form also defaults to CRITICAL for alerts without metadata.
+- Creating a signal auto-creates a CRITICAL-severity alert and subscribes all workspace member emails as alert targets.
+
+## Signal Triggers
+
+- Signal trigger filters are evaluated in `app-server/src/db/trace.rs` (`matches_filters` / `evaluate_single_filter`). Spans arrive in batches, so filter evaluation must check accumulated state from the DB (e.g. `trace.span_names`) — not just the current batch's raw spans. The `traces.span_names` JSONB column aggregates span names across all batches via `||` merge on upsert.
+- Trigger evaluation flow: `process_span_messages` → `upsert_trace_statistics_batch` (returns merged DB trace) → `check_and_push_signals` → `matches_filters`. All filters use AND logic.
+- Run targeted tests with `cargo test --bin app-server db::trace::tests -- --nocapture`.
+
+## Analytics / PostHog
+
+- Client-side analytics is centralized in `frontend/lib/posthog/`. Feature code should import `track` from `@/lib/posthog` — never import `posthog-js` directly.
+- Server-side PostHog client lives at `@/lib/posthog/server` (separate import path to avoid bundling `posthog-node` into client bundles).
+- The `AnalyticsProvider` (in `lib/posthog/provider.tsx`) handles both PostHog init and user identification. It wraps `PostHogProvider` from `posthog-js/react` so `usePostHog()` still works as an escape hatch.
+- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type is defined in `lib/posthog/client.ts` — add new categories there before using them. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
+- All tracking is no-op when PostHog is disabled (`POSTHOG_TELEMETRY !== "true"`). No conditional checks needed in feature code.
+- For page-view tracking on server-component pages, use the `PageViewTracker` client component at `components/common/page-view-tracker.tsx` — server components cannot call `track` directly (no hooks). For server-action buttons that need tracking, wrap them in a dedicated `"use client"` component that calls `track` before invoking the server action (see `components/invitations/invitation-actions.tsx`).
+- `PageViewTracker` deliberately uses an empty `useEffect` dependency array so it fires exactly once on mount. Callers pass inline `properties` object literals (`{ slug }`, `{ traceId }`), which would otherwise create a new reference on every render and re-fire the event.
+- Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook. `EmailSignInButton` takes an `action` prop (`sign_in_attempted` | `sign_up_attempted`) because the same component is rendered on both `/sign-in` and `/sign-up`.
+- Tracking calls must be guarded by success (`res.ok`). Firing `track(...)` after an unchecked `await res.text()` records events for failed requests and corrupts metrics.
+
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)
@@ -127,6 +157,12 @@ The frontend uses Husky with lint-staged. Before commits:
 - Prettier formats staged files
 - ESLint fixes issues
 - TypeScript type-check runs
+
+**Known issue**: `tsc --noEmit` may fail with pre-existing errors for SVG/PNG asset imports (missing module declarations in `assets/`). These are unrelated to your changes — verify your file has no errors with `npx tsc --noEmit 2>&1 | grep "your-file"` before using `--no-verify`.
+
+## Dashboard Time Grouping
+
+- Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 
 ## Frontend Best Practices
 
@@ -147,3 +183,37 @@ Use the nuqs library to handle url param state when possible. Avoid using a useE
 ### Use Zustand shallow to avoid unnecessary rerenders
 
 Pass shallow as the equality function to useStore when applicable. That way even with a new selector reference each render, Zustand compares the result shallowly and won't re-render if the contents are the same.
+
+### Error handling
+
+**Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
+
+```typescript
+try {
+  const res = await fetch(`/api/projects/${projectId}/resource`, { method: "POST", body: JSON.stringify(data) });
+  if (!res.ok) {
+    const errMessage = await res.json().then((d) => d?.error).catch(() => null);
+    toast({ variant: "destructive", title: errMessage ?? "Something went wrong" });
+    return;
+  }
+  // handle success
+} catch {
+  toast({ variant: "destructive", title: "Something went wrong" });
+}
+```
+
+**API route handlers** (`app/api/**/route.ts`): Wrap the handler body in `try/catch`. Distinguish `ZodError` (return 400 with `prettifyError()`) from other errors (return 500). Always return a JSON response with an `error` field.
+
+```typescript
+try {
+  const result = await someAction(input);
+  return Response.json(result);
+} catch (error) {
+  if (error instanceof ZodError) {
+    return Response.json({ error: prettifyError(error) }, { status: 400 });
+  }
+  return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
+}
+```
+
+**Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).

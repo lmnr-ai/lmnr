@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelSize {
+    Small,
+    Medium,
+    Large,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRequestItem {
@@ -18,6 +26,10 @@ pub struct ProviderRequest {
     pub tools: Option<Vec<ProviderTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_config: Option<ProviderGenerationConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_size: Option<ModelSize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -199,6 +211,17 @@ pub struct ProviderUsageMetadata {
     pub cache_creation_input_tokens: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderBatchState {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+    Expired,
+    Unspecified,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderBatchOperation {
@@ -209,4 +232,6 @@ pub struct ProviderBatchOperation {
     pub response: Option<ProviderBatchOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ProviderErrorInfo>,
+    #[serde(skip)]
+    pub state: Option<ProviderBatchState>,
 }

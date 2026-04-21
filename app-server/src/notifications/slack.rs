@@ -1,4 +1,7 @@
+use std::sync::LazyLock;
+
 use anyhow::Result;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -8,20 +11,11 @@ use sodiumoxide::{
 };
 use uuid::Uuid;
 
+use super::NotificationKind;
+use super::utils::{build_report_data_from_batch, inject_utm_into_links, with_utm};
+use crate::reports::email_template::ReportData;
+
 const SLACK_API_BASE: &str = "https://slack.com/api";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventIdentificationPayload {
-    pub event_name: String,
-    pub extracted_information: Option<serde_json::Value>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum SlackMessagePayload {
-    EventIdentification(EventIdentificationPayload),
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -59,118 +53,309 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+/// Format Slack message blocks for a batch of notifications.
+///
+/// All notifications in the batch are expected to be of the same kind.
+/// Reports are rendered by combining per-project data into a single message.
+/// Alerts and usage warnings use the first (and only) notification.
+pub fn format_message_blocks_batch(
+    notifications: &[NotificationKind],
+    workspace_id: Uuid,
+) -> serde_json::Value {
+    let Some(first) = notifications.first() else {
+        return json!([]);
+    };
+
+    match first {
+        NotificationKind::EventIdentification {
+            project_id,
+            trace_id,
+            event_id,
+            event_name,
+            extracted_information,
+            alert_name,
+            severity,
+            signal_id,
+            ..
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &signal_id.to_string(),
+            &trace_id.to_string(),
+            event_id.as_ref(),
+            event_name,
+            extracted_information.clone(),
+            alert_name,
+            severity,
+        ),
+        NotificationKind::SignalsReport { .. } => {
+            let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
+                .expect("SignalsReport batch must contain at least one report");
+            format_report_blocks(&title, &report_data)
+        }
+        NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            ..
+        } => format_usage_warning_blocks(workspace_name, usage_label, formatted_limit),
+    }
+}
+
+/// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
+fn md_links_to_slack(text: &str) -> String {
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+    RE.replace_all(text, "<$2|$1>").into_owned()
+}
+
+// Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
+    signal_id: &str,
     trace_id: &str,
-    event_name: &str,
+    event_id: Option<&Uuid>,
+    signal_name: &str,
     extracted_information: Option<serde_json::Value>,
+    alert_name: &str,
+    severity: &u8,
 ) -> serde_json::Value {
-    let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}",
-        project_id, trace_id
+    let trace_link = with_utm(
+        &format!(
+            "https://laminar.sh/project/{}/traces/{}?chat=true",
+            project_id, trace_id
+        ),
+        "slack",
+        "signal_alert",
+        "view_trace",
     );
 
-    let extracted_information_text = if let Some(info) = extracted_information {
+    let severity_label = match severity {
+        0 => ":large_green_circle: Info",
+        1 => ":large_orange_circle: Warning",
+        2 => ":red_circle: Critical",
+        _ => "Unknown",
+    };
+
+    let info_entries: Vec<String> = if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => s.clone(),
+                        serde_json::Value::String(s) => md_links_to_slack(&inject_utm_into_links(
+                            s,
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        )),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
-                        serde_json::Value::Null => "".to_string(),
-                        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                        serde_json::Value::Null => String::new(),
+                        _ => inject_utm_into_links(
+                            &serde_json::to_string_pretty(value).unwrap_or_default(),
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        ),
                     };
-                    format!("*{}*:\n{}", key, formatted_value)
+                    format!("_{}_:\n{}", key, formatted_value)
                 })
-                .collect::<Vec<_>>()
-                .join("\n\n")
+                .collect()
         } else {
-            serde_json::to_string_pretty(&info).unwrap_or_default()
+            vec![serde_json::to_string_pretty(&info).unwrap_or_default()]
         }
     } else {
-        String::new()
+        vec![]
     };
 
-    if !extracted_information_text.is_empty() {
-        return json!([
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
-                }
-            },
-            {
-                "type": "markdown",
-                "text": extracted_information_text
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "View Trace",
-                            "emoji": true
-                        },
-                        "url": trace_link,
-                        "action_id": "view_trace"
-                    }
-                ]
+    let mut blocks = vec![json!({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": format!("`{}`: New Event", signal_name)
+        }
+    })];
+
+    if !info_entries.is_empty() {
+        const MAX_SECTION_TEXT_LEN: usize = 3000;
+        let mut combined = String::new();
+        for entry in &info_entries {
+            if combined.len() + entry.len() + 2 > MAX_SECTION_TEXT_LEN {
+                break;
             }
-        ]);
+            if !combined.is_empty() {
+                combined.push_str("\n\n");
+            }
+            combined.push_str(entry);
+        }
+        blocks.push(json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": combined }
+        }));
     }
 
+    blocks.push(json!({
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "View Trace",
+                    "emoji": true
+                },
+                "url": trace_link,
+                "action_id": "view_trace"
+            }
+        ]
+    }));
+    let signal_link = with_utm(
+        &format!("https://laminar.sh/project/{}/signals/{}", project_id, signal_id),
+        "slack",
+        "signal_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!("https://laminar.sh/project/{}/settings?tab=alerts", project_id),
+        "slack",
+        "signal_alert",
+        "manage_alert",
+    );
+    let mut context_elements = vec![
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Severity: {}", severity_label)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Signal: <{}|{}>", signal_link, signal_name)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Alert: <{}|{}>", alert_link, alert_name)
+        }),
+    ];
+    if let Some(eid) = event_id {
+        let similar_link = with_utm(
+            &format!(
+                "https://laminar.sh/project/{}/signals/{}?eventCluster={}",
+                project_id, signal_id, eid,
+            ),
+            "slack",
+            "signal_alert",
+            "similar_events",
+        );
+        context_elements.push(json!({
+            "type": "mrkdwn",
+            "text": format!("Similar Events: <{}|View>", similar_link)
+        }));
+    }
+    blocks.push(json!({
+        "type": "context",
+        "elements": context_elements
+    }));
+    blocks.push(json!({"type": "divider"}));
+
+    json!(blocks)
+}
+
+/// Format Slack message blocks for a signals report notification.
+fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
+    let project_count = report.projects.len();
+
+    let overview = format!(
+        "{} – {}\n{} event{} across {} project{}",
+        report.period_start,
+        report.period_end,
+        report.total_events,
+        if report.total_events == 1 { "" } else { "s" },
+        project_count,
+        if project_count == 1 { "" } else { "s" },
+    );
+
+    let mut blocks = vec![
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", title) }
+        }),
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": overview }
+        }),
+    ];
+
+    const MAX_SECTION_TEXT_LEN: usize = 3000;
+
+    for project in &report.projects {
+        let mut text = String::new();
+
+        let project_total: u64 = project.signal_event_counts.values().sum();
+        text.push_str(&format!("\nTotal events: *{}*\n", project_total));
+        for (name, count) in &project.signal_event_counts {
+            text.push_str(&format!("• {}: *{}*\n", name, count));
+        }
+
+        if !project.ai_summary.is_empty() {
+            text.push_str(&format!("\n\nSummary: _{}_\n", project.ai_summary));
+        }
+
+        if !project.noteworthy_events.is_empty() {
+            text.push_str("\nNoteworthy Events:\n");
+            for event in &project.noteworthy_events {
+                let trace_link = with_utm(
+                    &format!(
+                        "https://laminar.sh/project/{}/traces/{}?chat=true",
+                        project.project_id, event.trace_id,
+                    ),
+                    "slack",
+                    "signals_report",
+                    "view_trace",
+                );
+                let entry = format!(
+                    "• `{}` – {} ({}) <{}|View trace>\n",
+                    event.signal_name, event.summary, event.timestamp, trace_link,
+                );
+                if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
+                    break;
+                }
+                text.push_str(&entry);
+            }
+        }
+
+        blocks.push(json!({"type": "divider"}));
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(":small_orange_diamond: *{}*", project.project_name)
+            }
+        }));
+        blocks.push(json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": text }
+        }));
+    }
+
+    json!(blocks)
+}
+
+/// Format Slack message blocks for a usage warning notification.
+fn format_usage_warning_blocks(
+    workspace_name: &str,
+    usage_label: &str,
+    formatted_limit: &str,
+) -> serde_json::Value {
     json!([
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": format!("✅ *Event Detected: {}*", event_name)
+                "text": format!(
+                    ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
+                    workspace_name, formatted_limit, usage_label
+                )
             }
         },
-        {
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
-        }
+        {"type": "divider"}
     ])
-}
-
-pub fn format_message_blocks(
-    payload: &SlackMessagePayload,
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
-) -> serde_json::Value {
-    match payload {
-        SlackMessagePayload::EventIdentification(event_payload) => {
-            format_event_identification_blocks(
-                project_id,
-                trace_id,
-                event_name,
-                event_payload.extracted_information.clone(),
-            )
-        }
-    }
-}
-
-pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
-    match payload {
-        SlackMessagePayload::EventIdentification(event_payload) => &event_payload.channel_id,
-    }
 }
 
 pub async fn send_message(

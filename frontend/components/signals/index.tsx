@@ -17,6 +17,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 const SIGNAL_QUICK_RANGES: DateRange[] = [
   { name: "1 hour", value: "1" },
@@ -40,6 +41,7 @@ function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
@@ -162,6 +164,7 @@ function SignalsContent() {
 
         updateData((currentData) => currentData.filter((s) => !selectedRowIds.includes(s.id)));
         setRowSelection({});
+        track("signals", "deleted");
 
         toast({
           title: "Signals deleted",
@@ -251,7 +254,7 @@ function SignalsContent() {
                   Click + Signal above to get started.
                 </p>
                 <a
-                  href="https://docs.laminar.sh/signals"
+                  href="https://laminar.sh/docs/signals"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

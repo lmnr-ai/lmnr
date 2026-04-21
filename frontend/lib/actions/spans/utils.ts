@@ -53,7 +53,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-const spansSelectColumns = [
+export const spansSelectColumns = [
   "span_id as spanId",
   "trace_id as traceId",
   "parent_span_id as parentSpanId",
@@ -250,11 +250,13 @@ export const transformSpanWithEvents = (
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
   const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
+  const reasoningTokens = parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0;
 
   return {
     ...span,
     attributes: parsedAttributes,
     cacheReadInputTokens,
+    reasoningTokens,
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
     events: (span.events || []).map((event) => ({
@@ -267,9 +269,11 @@ export const transformSpanWithEvents = (
 };
 
 interface AggregatedMetrics {
+  inputTokens: number;
+  outputTokens: number;
   totalCost: number;
-  totalTokens: number;
   cacheReadInputTokens: number;
+  reasoningTokens: number;
   hasLLMDescendants: boolean;
 }
 
@@ -298,13 +302,15 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     if (children.length === 0) {
       if (span.spanType === "LLM") {
         const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-        const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
         const cacheTokens = span.cacheReadInputTokens ?? 0;
+        const reasoningTkns = span.reasoningTokens ?? 0;
 
         const metrics = {
+          inputTokens: span.inputTokens ?? 0,
+          outputTokens: span.outputTokens ?? 0,
           totalCost: cost,
-          totalTokens: tokens,
           cacheReadInputTokens: cacheTokens,
+          reasoningTokens: reasoningTkns,
           hasLLMDescendants: true,
         };
         metricsCache.set(spanId, metrics);
@@ -314,26 +320,32 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       return null;
     }
 
+    let inputTokens = 0;
+    let outputTokens = 0;
     let totalCost = 0;
-    let totalTokens = 0;
     let cacheReadInputTokens = 0;
+    let reasoningTokens = 0;
     let hasLLMDescendants = false;
 
     for (const childId of children) {
       const childMetrics = calculateMetrics(childId);
       if (childMetrics) {
+        inputTokens += childMetrics.inputTokens;
+        outputTokens += childMetrics.outputTokens;
         totalCost += childMetrics.totalCost;
-        totalTokens += childMetrics.totalTokens;
         cacheReadInputTokens += childMetrics.cacheReadInputTokens;
+        reasoningTokens += childMetrics.reasoningTokens;
         hasLLMDescendants = true;
       }
     }
 
     if (hasLLMDescendants) {
       const metrics = {
+        inputTokens,
+        outputTokens,
         totalCost,
-        totalTokens,
         cacheReadInputTokens,
+        reasoningTokens,
         hasLLMDescendants: true,
       };
       metricsCache.set(spanId, metrics);

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 /// Calculate how many complete months have elapsed from start_date to end_date
 /// This mimics Python's dateutil.relativedelta behavior
-fn complete_months_elapsed(start_date: DateTime<Utc>, end_date: DateTime<Utc>) -> u32 {
+pub fn complete_months_elapsed(start_date: DateTime<Utc>, end_date: DateTime<Utc>) -> u32 {
     let mut months_elapsed = 0u32;
 
     // Always add months to the original start_date to avoid accumulating errors
@@ -88,11 +88,10 @@ pub async fn get_workspace_signal_runs_by_project_ids(
 
     let query = "
     SELECT
-      COUNT(*) as total_signal_runs
-    FROM signal_runs
+      SUM(steps_processed) as total_signal_runs
+    FROM signal_runs FINAL
     WHERE project_id IN { project_ids: Array(UUID) }
     AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
-    -- Only count completed signal runs
     AND signal_runs.status = 1
     ";
 

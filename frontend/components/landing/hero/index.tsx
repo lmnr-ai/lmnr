@@ -145,7 +145,7 @@ const Hero = ({ className, hasSession }: Props) => {
                   Get Started
                 </LandingButton>
               </Link>
-              <Link href="https://docs.laminar.sh" target="_blank" className="md:w-auto w-full">
+              <Link href="https://laminar.sh/docs" target="_blank" className="md:w-auto w-full">
                 <LandingButton size="lg" variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                   Read the Docs
                 </LandingButton>

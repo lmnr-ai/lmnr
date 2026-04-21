@@ -13,13 +13,15 @@ import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortColumn: z.enum(["start_time", "duration", "total_tokens", "total_cost", "trace_count"]).nullable().optional(),
+  sortDirection: z.enum(["ASC", "DESC"]).nullable().optional(),
 });
 
 export const DeleteSessionsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   sessionIds: z.array(z.string()).min(1),
 });
 
@@ -34,6 +36,8 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     search,
     searchIn,
     filter: inputFilters,
+    sortColumn,
+    sortDirection,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -62,6 +66,8 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     startTime,
     endTime,
     pastHours,
+    sortColumn: sortColumn ?? undefined,
+    sortDirection: sortDirection ?? undefined,
   });
 
   const items = await executeQuery<Omit<SessionRow, "subRows">>({
@@ -70,9 +76,9 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     projectId,
   });
 
-  return {
-    items: items.map((item) => ({ ...item, subRows: [] })),
-  };
+  const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
+
+  return { items: sessionItems };
 }
 
 const searchTraceIds = async ({

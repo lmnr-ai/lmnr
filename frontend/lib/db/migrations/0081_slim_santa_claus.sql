@@ -1,0 +1,1 @@
+ALTER TABLE "alerts" ADD COLUMN "metadata" jsonb DEFAULT '{}'::jsonb NOT NULL;

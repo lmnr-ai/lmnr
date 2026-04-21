@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
@@ -17,6 +17,7 @@ import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -108,6 +109,10 @@ function EvaluationsContent() {
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
+
+  useEffect(() => {
+    track("evaluations", "page_viewed");
+  }, []);
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
 

@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import SessionViewSidePanel from "./session-view";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
 import { TraceViewSidePanel } from "./trace-view";
@@ -30,6 +31,7 @@ function TracesContent() {
   const pathName = usePathname();
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
+  const sessionId = searchParams.get("sessionId");
 
   const { traceId, spanId, showChatInitial, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
     spanId: state.spanId,
@@ -45,6 +47,7 @@ function TracesContent() {
     params.delete("textSearch");
     params.delete("traceId");
     params.delete("spanId");
+    params.delete("sessionId");
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
@@ -93,19 +96,34 @@ function TracesContent() {
           <SessionsTable />
         </TabsContent>
       </Tabs>
-      {traceId && (
-        <TraceViewSidePanel
-          spanId={spanId || undefined}
+      {/* Session view takes precedence when sessionId is set — the two are
+          mutually exclusive by convention (opening a session clears traceId,
+          and vice-versa). Avoids two overlapping z-50 side panels. */}
+      {sessionId ? (
+        <SessionViewSidePanel
+          sessionId={sessionId}
           onClose={() => {
             const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
+            params.delete("sessionId");
             params.delete("spanId");
             router.push(`${pathName}?${params.toString()}`);
-            setTraceId(null);
           }}
-          traceId={traceId}
-          showChatInitial={showChatInitial}
         />
+      ) : (
+        traceId && (
+          <TraceViewSidePanel
+            spanId={spanId || undefined}
+            onClose={() => {
+              const params = new URLSearchParams(searchParams);
+              params.delete("traceId");
+              params.delete("spanId");
+              router.push(`${pathName}?${params.toString()}`);
+              setTraceId(null);
+            }}
+            traceId={traceId}
+            showChatInitial={showChatInitial}
+          />
+        )
       )}
     </TraceViewNavigationProvider>
   );

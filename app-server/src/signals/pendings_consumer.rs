@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{
-        signal_run_messages::{delete_signal_run_messages, insert_signal_run_messages},
+        signal_run_messages::insert_signal_run_messages,
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::DB,
@@ -13,9 +13,15 @@ use crate::{
     signals::SignalRun,
     signals::{
         SignalWorkerConfig,
-        provider::{LanguageModelClient, ProviderClient, models::ProviderBatchOutput},
+        provider::{
+            LlmClient,
+            models::{ProviderBatchOutput, ProviderBatchState},
+        },
         push_to_signals_queue,
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue, push_to_waiting_queue},
+        queue::{
+            SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue,
+            push_to_waiting_queue,
+        },
         response_processor::{FailureMetadata, finalize_runs, process_provider_responses},
     },
     worker::{HandlerError, MessageHandler},
@@ -28,7 +34,7 @@ pub struct SignalJobPendingBatchHandler {
     pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -38,7 +44,7 @@ impl SignalJobPendingBatchHandler {
         cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -70,12 +76,13 @@ impl MessageHandler for SignalJobPendingBatchHandler {
     }
 }
 
+#[tracing::instrument(skip_all, name = "process_batch_pending", fields(batch_id = %message.batch_id))]
 async fn process(
     message: SignalJobPendingBatchMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     config: Arc<SignalWorkerConfig>,
     cache: Arc<crate::cache::Cache>,
 ) -> Result<(), HandlerError> {
@@ -116,36 +123,73 @@ async fn process(
         result.done
     );
 
-    if result.done {
-        if let Some(error) = result.error {
-            process_failed_batch(
-                &message,
-                true,
-                db,
-                clickhouse,
-                queue,
-                Some(format!("Batch failed: {}", error.message)),
-            )
-            .await?;
-        } else {
-            process_succeeded_batch(
-                &message,
-                result.response,
-                db,
-                queue,
-                clickhouse,
-                config,
-                cache,
-            )
-            .await?;
-        }
-    } else {
-        process_pending_batch(&message, queue, config.clone()).await?;
+    // Done = false, means the batch is still pending
+    if !result.done {
+        return process_pending_batch(&message, queue, config.clone()).await;
     }
 
-    Ok(())
+    // Error = Some, means the batch failed
+    if let Some(error) = result.error {
+        return process_failed_batch(
+            &message,
+            true,
+            db,
+            clickhouse,
+            queue,
+            Some(format!("Batch failed: {}", error.message)),
+        )
+        .await;
+    }
+
+    // Done = true, no error. Check for explicit non-success state (expired, failed, etc.)
+    // None state is allowed through (e.g. provider doesn't report metadata)
+    let is_non_success_state = matches!(
+        result.state,
+        Some(
+            ProviderBatchState::Failed
+                | ProviderBatchState::Cancelled
+                | ProviderBatchState::Expired
+        )
+    );
+    if is_non_success_state {
+        log::error!(
+            "[SIGNAL JOB] Batch {} done but state is {:?}, routing {} runs to realtime queue",
+            message.batch_id,
+            result.state,
+            message.messages.len()
+        );
+        route_to_realtime_queue(&message.messages, queue).await;
+        return Ok(());
+    }
+
+    // Unexpected empty response - route to realtime queue
+    let Some(response) = result.response else {
+        log::error!(
+            "[SIGNAL JOB] Batch {} succeeded but response is missing, routing {} runs to realtime queue",
+            message.batch_id,
+            message.messages.len()
+        );
+        route_to_realtime_queue(&message.messages, queue).await;
+        return Ok(());
+    };
+
+    // Successful batch with correct state and non-empty response
+    process_succeeded_batch(&message, response, db, queue, clickhouse, config, cache).await
 }
 
+async fn route_to_realtime_queue(messages: &[SignalMessage], queue: Arc<MessageQueue>) {
+    for message in messages {
+        if let Err(e) = push_to_realtime_queue(message.clone(), queue.clone()).await {
+            log::error!(
+                "[SIGNAL JOB] Failed to push run {} to realtime queue: {:?}",
+                message.run_id,
+                e
+            );
+        }
+    }
+}
+
+#[tracing::instrument(skip_all, fields(num_runs = failed_runs.len()))]
 pub async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
@@ -163,18 +207,7 @@ pub async fn retry_or_fail_runs(
         let signal_message = run_to_message.get(&run.run_id);
         let metadata = failure_metadata.get(&run.run_id);
 
-        let retryable = if let Some(meta) = metadata {
-            if meta.is_processing_error {
-                true
-            } else {
-                meta.finish_reason
-                    .as_ref()
-                    .map(|fr| fr.is_retryable())
-                    .unwrap_or(true)
-            }
-        } else {
-            true
-        };
+        let retryable = metadata.map(|meta| meta.retryable).unwrap_or(true);
 
         if let Some(msg) = signal_message {
             if retryable && msg.retry_count < max_retry_count {
@@ -210,6 +243,7 @@ pub async fn retry_or_fail_runs(
     (permanently_failed_runs, retried_count)
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_failed_batch(
     message: &SignalJobPendingBatchMessage,
     retryable: bool,
@@ -262,18 +296,6 @@ async fn process_failed_batch(
             log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
         }
 
-        let project_run_pairs: Vec<(Uuid, Uuid)> = permanently_failed_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-                e
-            );
-        }
-
         let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
         for run in &permanently_failed_runs {
             if let Some(job_id) = run.job_id {
@@ -293,6 +315,7 @@ async fn process_failed_batch(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_pending_batch(
     message: &SignalJobPendingBatchMessage,
     queue: Arc<MessageQueue>,
@@ -303,28 +326,24 @@ async fn process_pending_batch(
         .map_err(|e| HandlerError::transient(e))
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 pub async fn process_succeeded_batch(
     message: &SignalJobPendingBatchMessage,
-    batch_output: Option<ProviderBatchOutput>,
+    response: ProviderBatchOutput,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     config: Arc<SignalWorkerConfig>,
     cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
-    let response = batch_output.ok_or(HandlerError::permanent(anyhow::anyhow!(
-        "Batch succeeded but response is missing for batch_id: {}",
-        message.batch_id
-    )))?;
-
     let mut processed = process_provider_responses(
         &message.messages,
         &response.responses,
         Some(message.batch_id.clone()),
         clickhouse.clone(),
+        db.clone(),
         queue.clone(),
         config.clone(),
-        db.clone(),
     )
     .await?;
 
@@ -366,6 +385,7 @@ pub async fn process_succeeded_batch(
         clickhouse.clone(),
         db.clone(),
         cache.clone(),
+        queue.clone(),
     )
     .await?;
 

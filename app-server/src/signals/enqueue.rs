@@ -39,6 +39,7 @@ async fn create_signal_run_and_message(
         ("run_id".to_string(), Value::String(run_id.to_string())),
         ("trace_id".to_string(), Value::String(trace_id.to_string())),
         ("signal_id".to_string(), Value::String(signal.id.to_string())),
+        ("project_id".to_string(), Value::String(project_id.to_string())),
     ]);
     if let Some(job_id) = job_id {
         input_map.insert("job_id".to_string(), Value::String(job_id.to_string()));
@@ -71,6 +72,7 @@ async fn create_signal_run_and_message(
             error: None,
             provider_batch_id: None,
             metadata: Some(input_map),
+            tools: None,
         },
     )
     .await;
@@ -90,6 +92,7 @@ async fn create_signal_run_and_message(
         event_id: None,
         error_message: None,
         mode: super::SignalMode::from_u8(mode),
+        steps_processed: 0,
     };
 
     let message = SignalMessage {
@@ -105,6 +108,7 @@ async fn create_signal_run_and_message(
         retry_count: 0,
         request_start_time: Utc::now(),
         mode,
+        steps_processed: 0,
     };
 
     (signal_run, message)

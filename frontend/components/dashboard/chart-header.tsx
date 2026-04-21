@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface ChartHeaderProps {
@@ -56,7 +57,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
         }
       );
-      await deleteChart(id, projectId);
+      track("dashboards", "chart_deleted");
     } catch (e) {
       toast({
         title: "Failed to delete chart. Please try again.",

@@ -40,11 +40,19 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const isOwner = userMembership.role === "owner";
   const currentUserRole = userMembership.role || "member";
 
-  const stats = await getWorkspaceStats(params.workspaceId);
-
-  const invitations = await db.query.workspaceInvitations.findMany({
-    where: eq(workspaceInvitations.workspaceId, params.workspaceId),
+  const stats = await getWorkspaceStats(params.workspaceId).catch((e) => {
+    console.error("Error fetching workspace stats:", e);
+    return null;
   });
+
+  const invitations = await db.query.workspaceInvitations
+    .findMany({
+      where: eq(workspaceInvitations.workspaceId, params.workspaceId),
+    })
+    .catch((e) => {
+      console.error("Error fetching invitations:", e);
+      return [];
+    });
 
   const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
 

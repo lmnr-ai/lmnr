@@ -7,7 +7,7 @@ import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, Sql
 export type { GenerationMode, GenerationResult } from "./types";
 
 const ExecuteQuerySchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   query: z.string().min(1, { error: "Query is required." }),
   parameters: z
     .looseObject({
@@ -33,7 +33,7 @@ export const executeQuery = async <T extends object>(input: z.infer<typeof Execu
 };
 
 const SqlToJsonInputSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   sql: z.string().min(1, { error: "SQL query is required." }),
 });
 
@@ -58,7 +58,7 @@ export const sqlToJson = async (input: z.infer<typeof SqlToJsonInputSchema>): Pr
 };
 
 const JsonToSqlInputSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   queryStructure: QueryStructureSchema,
 });
 

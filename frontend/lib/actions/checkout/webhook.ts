@@ -2,11 +2,20 @@ import { and, eq, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { invalidateUsageWarningsCacheForWorkspace } from "@/lib/actions/usage/utils";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo, workspaceAddons, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
+import {
+  subscriptionTiers,
+  users,
+  userSubscriptionInfo,
+  workspaceAddons,
+  workspaces,
+  workspaceUsage,
+  workspaceUsageWarnings,
+} from "@/lib/db/migrations/schema";
 
-import { DATAPLANE_ADDON_LOOKUP_KEY } from "./types";
+import { DATAPLANE_ADDON_LOOKUP_KEY, type PaidTier, TIER_CONFIG, type TierConfigEntry } from "./types";
 
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
@@ -51,7 +60,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
   });
   const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
 
-  await db
+  const updatedRows = await db
     .update(workspaces)
     .set({
       subscriptionId,
@@ -69,7 +78,8 @@ export const manageWorkspaceSubscriptionEvent = async ({
       // - the webhook event contains actual tier change
       ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
     })
-    .where(eq(workspaces.id, workspaceId));
+    .where(eq(workspaces.id, workspaceId))
+    .returning({ tierId: workspaces.tierId });
 
   if (workspace && currentTier === "free") {
     await db
@@ -77,14 +87,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       .values({
         workspaceId: workspace.id,
         bytes: 0,
-        signalRuns: 0,
+        signalSteps: 0,
         lastReportedDate: sql`date_trunc('day', now())`,
       })
       .onConflictDoUpdate({
         target: workspaceUsage.workspaceId,
         set: {
           bytes: 0,
-          signalRuns: 0,
+          signalSteps: 0,
           lastReportedDate: sql`date_trunc('day', now())`,
         },
       });
@@ -94,6 +104,30 @@ export const manageWorkspaceSubscriptionEvent = async ({
     await db.delete(workspaceUsage).where(eq(workspaceUsage.workspaceId, workspaceId));
   }
   await updateUsageCacheForWorkspace(workspaceId, true, true);
+  if (updatedRows.length === 0) {
+    return;
+  }
+  const newTierId = updatedRows[0].tierId;
+  try {
+    const newTier = await db.query.subscriptionTiers.findFirst({
+      where: eq(subscriptionTiers.id, newTierId),
+    });
+    const newTierName = newTier?.name?.toLowerCase()?.trim();
+    const currentTierConfig = ["hobby", "pro"].includes(currentTier ?? "")
+      ? TIER_CONFIG[currentTier as PaidTier]
+      : undefined;
+    if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
+      const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
+      await insertNewTierUsageWarnings({
+        workspaceId,
+        newTierConfig,
+        currentTierConfig,
+      });
+      await invalidateUsageWarningsCacheForWorkspace(workspaceId);
+    }
+  } catch (e) {
+    console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
+  }
 };
 
 export const getIdFromStripeObject = (stripeObject: string | { id: string } | null): string | undefined => {
@@ -111,7 +145,7 @@ const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boole
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   if (hasSignalRuns) {
-    await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+    await cache.remove(`${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -236,7 +270,7 @@ export const handleInvoiceFinalized = async (
     .values({
       workspaceId: workspaceId,
       bytes: 0,
-      signalRuns: 0,
+      signalSteps: 0,
       lastReportedDate: sql`date_trunc('day', ${resetDate})`,
     })
     .onConflictDoUpdate({
@@ -244,7 +278,7 @@ export const handleInvoiceFinalized = async (
       set: {
         lastReportedDate: sql`date_trunc('day', ${resetDate})`,
         ...(hasBytes ? { bytes: 0 } : {}),
-        ...(hasSignalRuns ? { signalRuns: 0 } : {}),
+        ...(hasSignalRuns ? { signalSteps: 0 } : {}),
       },
     });
   await db
@@ -252,4 +286,50 @@ export const handleInvoiceFinalized = async (
     .set({ resetTime: sql`date_trunc('day', ${resetDate})` })
     .where(eq(workspaces.id, workspaceId));
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
+};
+
+const insertNewTierUsageWarnings = async ({
+  workspaceId,
+  newTierConfig,
+  currentTierConfig,
+}: {
+  workspaceId: string;
+  newTierConfig: TierConfigEntry;
+  currentTierConfig?: TierConfigEntry;
+}) => {
+  if (currentTierConfig) {
+    await db
+      .delete(workspaceUsageWarnings)
+      .where(
+        and(
+          eq(workspaceUsageWarnings.workspaceId, workspaceId),
+          eq(workspaceUsageWarnings.usageItem, "bytes"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedBytes)
+        )
+      );
+    await db
+      .delete(workspaceUsageWarnings)
+      .where(
+        and(
+          eq(workspaceUsageWarnings.workspaceId, workspaceId),
+          eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalSteps)
+        )
+      );
+  }
+  await db
+    .insert(workspaceUsageWarnings)
+    .values([
+      {
+        workspaceId,
+        usageItem: "bytes",
+        limitValue: newTierConfig.includedBytes,
+      },
+      {
+        workspaceId,
+        usageItem: "signal_steps_processed",
+        limitValue: newTierConfig.includedSignalSteps,
+      },
+    ])
+    .onConflictDoNothing();
 };

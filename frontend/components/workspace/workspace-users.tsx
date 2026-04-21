@@ -3,7 +3,7 @@
 import { isEmpty } from "lodash";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -14,12 +14,13 @@ import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
-import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
+import TransferOwnershipDialog from "@/components/workspace/transfer-ownership-dialog.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
   type WorkspaceInvitation,
@@ -58,6 +59,10 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
 
   const [dialogState, setDialogState] = useState<DialogState>({ type: "none" });
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    track("team", "page_viewed");
+  }, []);
 
   const { setMenu } = useWorkspaceMenuContext();
   const canManageUsers = currentUserRole === "owner" || currentUserRole === "admin";

@@ -17,8 +17,8 @@ export type EventCluster = {
 export const UNCLUSTERED_ID = "__unclustered__";
 
 export const GetEventClustersSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
 });
 
 // QUESTION: wait is this a paginated query?
@@ -117,8 +117,8 @@ export interface TimeSeriesDataPoint {
 
 export const GetClusterEventCountsSchema = z.object({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });

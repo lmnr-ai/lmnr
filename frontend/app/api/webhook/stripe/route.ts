@@ -60,17 +60,19 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
     existingLookupKeys.has(tierConfig.overageMegabytesLookupKey) &&
-    existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)
+    existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)
   ) {
     return;
   }
 
   const overagePrices = await s.prices.list({
-    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalRunsLookupKey],
+    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalStepsProcessedLookupKey],
   });
 
   const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageMegabytesLookupKey);
-  const signalRunsOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageSignalRunsLookupKey);
+  const signalRunsOveragePrice = overagePrices.data.find(
+    (p) => p.lookup_key === tierConfig.overageSignalStepsProcessedLookupKey
+  );
 
   if (!bytesOveragePrice || !signalRunsOveragePrice) {
     console.error(`Could not resolve overage prices for tier ${tierEntry[0]}`);
@@ -81,7 +83,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   if (!existingLookupKeys.has(tierConfig.overageMegabytesLookupKey)) {
     items.push({ price: bytesOveragePrice.id });
   }
-  if (!existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)) {
+  if (!existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)) {
     items.push({ price: signalRunsOveragePrice.id });
   }
 
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       // Filter: must contain a line for a known overage price.
       // This excludes addon-only invoices and other unrelated invoices.
       const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.overageMegabytesLookupKey, c.overageSignalRunsLookupKey])
+        Object.values(TIER_CONFIG).flatMap((c) => [c.overageMegabytesLookupKey, c.overageSignalStepsProcessedLookupKey])
       );
       let hasBytesOverage = false;
       let hasSignalRunsOverage = false;
@@ -148,7 +150,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
         if (lookupKey) {
-          if (String(lookupKey).toLowerCase().includes("signal_runs")) {
+          if (String(lookupKey).toLowerCase().includes("signal")) {
+            // includes signal runs or signal steps lookup key
             hasSignalRunsOverage = true;
             resetTime = new Date(line.period.end * 1000);
           } else if (String(lookupKey).toLowerCase().includes("bytes")) {
@@ -180,9 +183,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     case "customer.subscription.updated":
       await handleSubscriptionChange(event);
       break;
+    // NOTE: if adding new events here, don't forget to enable them via Stripe Workbench
     default:
-      // Unexpected event type
-      // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
       break;
   }
   return new Response("Webhook received.", { status: 200 });

@@ -24,7 +24,14 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
       return aiPromptTools.map((tool: any) => ({
         name: get(tool, "name", ""),
         description: get(tool, "description", ""),
-        parameters: typeof tool.parameters === "string" ? tool.parameters : JSON.stringify(tool.parameters || {}),
+        parameters:
+          typeof tool.parameters === "string"
+            ? tool.parameters
+            : tool.parameters
+              ? JSON.stringify(tool.parameters)
+              : typeof tool.inputSchema === "string"
+                ? tool.inputSchema
+                : JSON.stringify(tool.inputSchema || {}),
       }));
     } catch (e) {
       console.error("Failed to parse ai.prompt.tools:", e);
@@ -36,7 +43,7 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
   // moving the schema parsing to provider-specific types, i.e. @/lib/spans/types
   if (genAiToolDefinitions) {
     try {
-      const parsed = JSON.parse(genAiToolDefinitions);
+      const parsed = typeof genAiToolDefinitions === "string" ? JSON.parse(genAiToolDefinitions) : genAiToolDefinitions;
       return parsed.map((tool: any) => {
         const func = tool.function ?? tool;
         return {

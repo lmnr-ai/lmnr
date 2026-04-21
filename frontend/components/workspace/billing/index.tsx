@@ -2,7 +2,7 @@
 
 import { Calendar, ExternalLink, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   TIER_CONFIG,
   type UpcomingInvoiceInfo,
 } from "@/lib/actions/checkout/types";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -141,6 +142,10 @@ export default function WorkspaceBilling({
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = currentTierKey === "free";
 
+  useEffect(() => {
+    track("billing", "page_viewed", { tier: currentTierKey });
+  }, []);
+
   const handleManagePaymentMethods = async () => {
     setIsLoadingPortal(true);
     try {
@@ -190,7 +195,11 @@ export default function WorkspaceBilling({
 
     if (tierKey === "enterprise") {
       return (
-        <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry" className="block">
+        <Link
+          href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry"
+          className="block"
+          onClick={() => track("billing", "contact_us_clicked")}
+        >
           <Button variant="outline" className="w-full h-8 text-xs">
             Contact us
           </Button>
@@ -213,6 +222,7 @@ export default function WorkspaceBilling({
         <Link
           href={`/checkout?lookupKey=${TIER_CONFIG[tierKey as PaidTier].lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
           className="block"
+          onClick={() => track("billing", "upgrade_clicked", { from_tier: currentTierKey, to_tier: tierKey })}
         >
           <Button variant={tierKey === "pro" ? "default" : "outline"} className="w-full h-8 text-xs">
             Upgrade

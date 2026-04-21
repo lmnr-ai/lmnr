@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 export interface SnippetPreviewProps {
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
+  attributesSnippet?: SnippetInfo;
   snippetsCount?: number;
   className?: string;
   variant?: "table" | "span";
@@ -12,11 +13,12 @@ export interface SnippetPreviewProps {
 export function SnippetPreview({
   inputSnippet,
   outputSnippet,
+  attributesSnippet,
   snippetsCount,
   className,
   variant = "table",
 }: SnippetPreviewProps) {
-  const snippet = inputSnippet ?? outputSnippet;
+  const snippet = inputSnippet ?? outputSnippet ?? attributesSnippet;
   if (!snippet) {
     return <span className="text-xs text-muted-foreground">No preview</span>;
   }
@@ -29,13 +31,7 @@ export function SnippetPreview({
   const count = snippetsCount ?? 0;
 
   return (
-    <span
-      className={cn(
-        "flex gap-1.5 min-w-0",
-        variant === "table" ? "items-center" : "items-center justify-center",
-        className
-      )}
-    >
+    <span className={cn("flex gap-1.5 min-w-0 items-center", className)}>
       <span
         className={cn(
           "whitespace-normal break-words text-secondary-foreground",

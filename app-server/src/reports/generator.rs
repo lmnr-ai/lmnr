@@ -1,6 +1,8 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates per-project AI summaries via the LLM service with tool
-//! calling, generates an HTML report, and pushes email notifications to the notification queue.
+//! calling, builds a ReportData struct, and pushes a single notification message to the
+//! notification queue. Target fetching and rendering happen downstream in the notification
+//! consumer pipeline.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -11,28 +13,27 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
+use super::email_template::{NoteworthyEvent, ProjectReportData};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
+use crate::db::reports::get_signals_for_workspace;
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
+    NotificationDefinitionType, NotificationKind, NotificationMessage, push_to_notification_queue,
 };
-use crate::signals::llm_model;
 use crate::signals::provider::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
 };
 use crate::signals::provider::{
-    LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
+    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
+    ProviderThinkingLevel,
 };
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
-const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 
 /// Report type identifier for signal events summary reports.
 const REPORT_TYPE_SIGNAL_EVENTS_SUMMARY: &str = "SIGNAL_EVENTS_SUMMARY";
@@ -46,7 +47,7 @@ pub struct ReportsGenerator {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
     pub queue: Arc<MessageQueue>,
-    pub llm_client: Option<Arc<ProviderClient>>,
+    pub llm_client: Option<Arc<LlmClient>>,
 }
 
 #[async_trait]
@@ -71,7 +72,7 @@ async fn process_report_trigger(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Option<Arc<ProviderClient>>,
+    llm_client: Option<Arc<LlmClient>>,
 ) -> Result<(), HandlerError> {
     let workspace_id = message.workspace_id;
     let report_id = message.id;
@@ -228,102 +229,66 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    // Build the report
-    let report_data = ReportData {
+    let title = format!("{} – {}", report_name, workspace_name);
+    let period_start_str = period_start.format("%b %d, %Y").to_string();
+    let period_end_str = period_end.format("%b %d, %Y").to_string();
+
+    // Build one NotificationKind::SignalsReport per project. Each report contains
+    // a single project's data so they can be stored individually in CH at project
+    // level. They are all combined into a single queue message so the deliveries
+    // consumer sends them as one email/slack message.
+    let notification_kinds: Vec<NotificationKind> = project_reports
+        .into_iter()
+        .map(|project_report| NotificationKind::SignalsReport {
+            workspace_name: workspace_name.clone(),
+            project_id: project_report.project_id,
+            project_name: project_report.project_name,
+            title: title.clone(),
+            period_label: report_name.clone(),
+            period_start: period_start_str.clone(),
+            period_end: period_end_str.clone(),
+            signal_event_counts: project_report.signal_event_counts,
+            ai_summary: project_report.ai_summary,
+            noteworthy_events: project_report.noteworthy_events,
+        })
+        .collect();
+
+    // Push a single notification message with all per-project reports.
+    // Target fetching and formatting happen in the notification consumer pipeline.
+    // message.project_id is None; the per-notification project_id lives inside
+    // each SignalsReport variant and is extracted by the consumers.
+    let notification_message = NotificationMessage {
+        definition_type: NotificationDefinitionType::Report,
+        definition_id: report_id,
         workspace_id,
-        workspace_name: workspace_name.clone(),
-        period_label: report_name.clone(),
-        period_start: period_start.format("%b %d, %Y").to_string(),
-        period_end: period_end.format("%b %d, %Y").to_string(),
-        projects: project_reports,
-        total_events,
+        project_id: None,
+        notifications: notification_kinds,
     };
 
-    let html = render_report_email(&report_data);
+    let project_count = notification_message.notifications.len();
 
-    // Get email targets from report_targets table
-    let email_targets = get_email_report_targets(&db.pool, &report_id, &workspace_id)
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
-
-    if email_targets.is_empty() {
-        log::info!(
-            "[Reports Generator] No email targets found for report {} in workspace {}",
-            report_id,
-            workspace_id
-        );
-        return Ok(());
+    let serialized_size = serde_json::to_vec(&notification_message)
+        .map(|v| v.len())
+        .unwrap_or(0);
+    if serialized_size >= mq_max_payload() {
+        return Err(HandlerError::permanent(anyhow::anyhow!(
+            "[Reports Generator] MQ payload limit exceeded. payload size: [{}]",
+            serialized_size,
+        )));
     }
 
-    let subject = format!("{} – {}", report_name, workspace_name);
-
-    // Push one notification per email target so each gets its own notification log entry
-    let mut push_failures = 0;
-    for target in &email_targets {
-        let email_payload = EmailPayload {
-            from: REPORT_FROM_EMAIL.to_string(),
-            to: vec![target.email.clone()],
-            subject: subject.clone(),
-            html: html.clone(),
-            inline_logo: true,
-        };
-
-        let message_payload = serde_json::to_value(&email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-
-        let notification_message = NotificationMessage {
-            project_id: Uuid::nil(),
-            trace_id: Uuid::nil(),
-            notification_type: NotificationType::Email,
-            event_name: "report_email".to_string(),
-            payload: message_payload,
+    if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
+        return Err(HandlerError::transient(anyhow::anyhow!(
+            "[Reports Generator] Failed to push report notification for workspace {}: {:?}",
             workspace_id,
-            definition_type: "REPORT".to_string(),
-            definition_id: report_id,
-            target_id: target.id,
-            target_type: "EMAIL".to_string(),
-        };
-
-        // Check payload size on the handler side — exceeding the limit is a permanent
-        // error because retrying won't shrink the payload.
-        let serialized_size = serde_json::to_vec(&notification_message)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::warn!(
-                "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
-                serialized_size,
-                target.email,
-            );
-            return Err(HandlerError::permanent(anyhow::anyhow!(
-                "Notification payload size ({} bytes) exceeds MQ limit",
-                serialized_size,
-            )));
-        }
-
-        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
-            push_failures += 1;
-            log::error!(
-                "[Reports Generator] Failed to push report notification for {}: {:?}",
-                target.email,
-                e
-            );
-        }
-    }
-
-    if push_failures == email_targets.len() {
-        let msg = format!(
-            "Failed to push all {} report notifications to queue for workspace {}",
-            email_targets.len(),
-            workspace_id
-        );
-        // Publish failures are transient (MQ connectivity), retrying may help
-        return Err(HandlerError::transient(anyhow::anyhow!(msg)));
+            e
+        )));
     }
 
     log::info!(
-        "[Reports Generator] Report email notifications pushed to queue for workspace {}",
-        workspace_id
+        "[Reports Generator] Report notification pushed to queue for workspace {} ({} projects)",
+        workspace_id,
+        project_count,
     );
 
     Ok(())
@@ -394,7 +359,7 @@ fn build_summary_context(
 /// Generate a per-project AI summary using the LLM with tool calling.
 /// Returns (summary_text, noteworthy_signal_event_ids).
 async fn generate_project_summary(
-    llm_client: &ProviderClient,
+    llm_client: &LlmClient,
     project_name: &str,
     signal_name_map: &HashMap<Uuid, String>,
     signal_event_counts: &BTreeMap<String, u64>,
@@ -439,14 +404,19 @@ async fn generate_project_summary(
         system_instruction: Some(system_instruction),
         tools: Some(vec![tool]),
         generation_config: Some(ProviderGenerationConfig {
-            temperature: Some(0.2),
+            temperature: Some(1.0),
+            thinking_config: Some(ProviderThinkingConfig {
+                include_thoughts: Some(true),
+                thinking_level: Some(ProviderThinkingLevel::Medium),
+            }),
             ..Default::default()
         }),
+        provider: None,
+        model_size: None,
     };
 
-    let model = llm_model();
     let response = llm_client
-        .generate_content(&model, &request)
+        .generate_content(&request)
         .await
         .map_err(|e| anyhow::anyhow!("LLM generate_content failed: {:?}", e))?;
 

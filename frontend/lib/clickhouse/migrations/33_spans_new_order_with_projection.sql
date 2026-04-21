@@ -132,8 +132,9 @@ INSERT INTO spans_v2 (
     trace_type,
     tags_array,
     events
-FROM spans;
+FROM spans
+WHERE start_time >= now() - interval '7 days';
 
 RENAME TABLE spans TO old_spans;
 RENAME TABLE spans_v2 TO spans;
-DROP TABLE IF EXISTS old_spans;
+-- DROP TABLE IF EXISTS old_spans;

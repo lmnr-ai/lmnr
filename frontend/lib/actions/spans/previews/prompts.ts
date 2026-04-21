@@ -7,33 +7,49 @@ import { flattenPaths } from "./utils.ts";
 
 const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mustache preview template. One template per structure.
 
+Most inputs are tool-use blocks (Anthropic: {type, id, name, input.*}, OpenAI: {id, type, function.name, function.arguments.*}, Gemini: {functionCall.name, functionCall.args.*}). Prefer the most human-readable scalar from the tool's arguments (input / arguments / args / params) over the tool name.
+
 Array access: use .0. for nested arrays. When root is an array (paths start with []), wrap with {{#.}}...{{/.}} and use inner paths.
 
 Rules:
-- Pick 1-3 content fields. Prefer string fields without [meta].
-- {{{ }}} for long text strings. **bold** for labels/names.
-- null ONLY if every field is [meta] or empty.
-- Skip [meta] fields: id, status, type, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint.
+- Pick the single most descriptive content field. Use {{{ }}} (triple braces). Never add markdown or styling.
+- null ONLY if every field is [meta]/[id] or empty.
+- Prefer scalar fields over primitive arrays. Paths ending in []: type (e.g. ids[]: string, tags[]: string) are primitive-value lists with unstable element order. Never use .0. to index into them. Treat them as [meta] when any scalar field exists. Using .0. is only acceptable for arrays of objects with known nested structure (e.g. choices[].message.content).
+- Dictionary paths: paths containing {*} (e.g. tasks{*}: string) represent objects with dynamic/arbitrary key names that vary across instances. They cannot be referenced in Mustache templates. Treat as [meta].
+
+Field classification:
+- [meta] fields (skip): id, ids, status, type, types, kind, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint, signature, tool_use_id. Also includes fields whose values are opaque references (serialized object pointers, memory addresses).
+- [id] fields (skip when siblings have scalar content): name, action, command, function, method, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other scalar content fields exist. Primitive array siblings do not count as content. When an [id] field is the only non-meta scalar (no content sibling, no descriptive nested leaf), surface it per decision order rule 3.
+- Content fields (prefer, in order of preference): description, summary, query, prompt, message, text, content, answer, title, path, url, code, output, result. When multiple exist, pick the earliest-listed one.
 
 Decision order:
-1. Single text field (content, text, result, output, message, answer) → {{{field}}}
-2. Label + value pair → **{{label}}** — {{value}}
-3. Function/tool call (has "name" + "args"/"arguments"/"input") → **{{name}}** (ignore arg fields)
-4. "name" as only non-meta field → **{{name}}**
-5. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
-6. Deeply nested leaf → {{{path.0.to.0.field}}}
-7. All [meta]/empty → null
+1. Scalar content field present → {{{field}}}
+2. [id] field present + scalar sibling fields under a nested key (input/arguments/args/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. If the only siblings are [meta], primitive arrays, or null → use the [id] field.
+3. [id] field is the only non-meta scalar field → {{{field}}}
+4. Multiple non-meta, non-id scalar fields → pick the single most descriptive one as {{{field}}}
+5. Deeply nested scalar leaf → {{{path.0.to.0.field}}}
+6. All [meta]/[id]/empty → null
 
 Examples:
-- "score: number" + "grade: string" → **{{grade}}** — {{score}}
-- "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
-- "name: string" + "args.span_ids[]: string" → **{{name}}**
-- "[].content.parts[].function_call.name: string" + "[].content.parts[].function_call.args.city: string" → {{#.}}**{{content.parts.0.function_call.name}}**{{/.}}
-- "items[].name: string" + "items[].value: string" → {{#items}}\n- **{{name}}**: {{value}}\n{{/items}}
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
 - "[].output[].content[].text: string" → {{#.}}{{{output.0.content.0.text}}}{{/.}}
-- "data.spans[].output[].content[].text: string" → {{{data.spans.0.output.0.content.0.text}}}
-- "id: string [meta]" + "status: string [meta]" + "version: string [meta]" → null`;
+- Anthropic tool_use: "type: string [meta]" + "id: string [meta]" + "name: string [id]" + "input.command: string" + "input.description: string" → {{{input.description}}}
+- Anthropic tool_use: "type: string [meta]" + "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
+- Anthropic tool_use: "type: string [meta]" + "name: string [id]" + "input.path: string" + "input.old_str: string" → {{{input.path}}}
+- OpenAI tool_call: "id: string [meta]" + "type: string [meta]" + "function.name: string [id]" + "function.arguments.description: string" → {{{function.arguments.description}}}
+- OpenAI tool_call: "function.name: string [id]" + "function.arguments.query: string" → {{{function.arguments.query}}}
+- Gemini functionCall: "functionCall.name: string [id]" + "functionCall.args.query: string" → {{{functionCall.args.query}}}
+- "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
+- "action: string [id]" + "params.file_name: string" + "params.old_str: string" → {{{params.file_name}}}
+- "action: string [id]" + "params.keys: string" → {{{params.keys}}}
+- "action: string [id]" + "params.index: number [meta]" → {{{action}}}
+- "command: string [id]" + "ids[]: string [meta]" + "agent_types[]: string" → {{{command}}}
+- "command: string [id]" + "tasks{*}: string" + "kind: string [meta]" → {{{command}}}
+- "name: string [id]" + "arguments.command: string" → {{{arguments.command}}}
+- "command: string" → {{{command}}}
+- "score: number" + "grade: string" → {{{grade}}}
+- "id: string [meta]" + "name: string" + "type: string [meta]" → {{{name}}}
+- "name: string [meta]" + "id: string [meta]" + "type: string [meta]" → null`;
 
 export type PreviewKeyResult = Array<string | null>;
 
@@ -70,7 +86,7 @@ export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<
   if (structures.length === 0) return [];
 
   try {
-    const { text } = await observe({ name: "generatePreviewKeys" }, async () =>
+    const { text } = await observe({ name: "generate-preview-keys" }, async () =>
       generateText({
         model: getLanguageModel("lite"),
         system: PREVIEW_KEY_SYSTEM_PROMPT,

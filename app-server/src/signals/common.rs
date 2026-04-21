@@ -3,25 +3,29 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     ch::{
-        signal_run_messages::{
-            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
-        },
+        signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
     mq::MessageQueue,
     signals::{
-        SignalRun,
+        SignalRun, SignalWorkerConfig,
+        filter::{apply_drop_rules, generate_and_cache_drop_rules, lookup_cached_drop_rules},
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         provider::{
-            ProviderThinkingConfig, ProviderThinkingLevel,
+            LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
             models::{
                 ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
                 ProviderRequest, ProviderRequestItem,
             },
         },
-        spans::get_trace_structure_as_string,
+        spans::{
+            build_trace_structure_string, extract_system_prompts_with_paths, get_trace_ch_spans,
+            structural_skeleton_hash,
+        },
+        summarize::summarize_system_prompts,
         tools::build_tool_definitions,
     },
     worker::HandlerError,
@@ -31,6 +35,8 @@ pub struct ProcessRunResult {
     pub request: ProviderRequestItem,
     pub new_messages: Vec<CHSignalRunMessage>,
     pub request_start_time: chrono::DateTime<chrono::Utc>,
+    /// Number of LLM spans after filtering (only meaningful on step 0)
+    pub steps_processed: u32,
 }
 
 pub async fn handle_failed_runs(
@@ -48,19 +54,6 @@ pub async fn handle_failed_runs(
         log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
     }
 
-    // Delete messages for failed runs since they won't be processed further
-    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
-        .iter()
-        .map(|run| (run.project_id, run.run_id))
-        .collect();
-
-    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
-        );
-    }
-
     // Update job statistics - group by job_id since runs may belong to different jobs
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in &failed_runs {
@@ -75,22 +68,23 @@ pub async fn handle_failed_runs(
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    name = "prepare_single_request",
+    fields(project_id, run_id, signal_id, trace_id)
+)]
 pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
     run_id: Uuid,
-    step: usize,
-    internal_trace_id: Uuid,
-    internal_span_id: Uuid,
-    job_id: Option<Uuid>,
+    signal_id: Uuid,
     prompt: &str,
-    signal_name: &str,
     structured_output_schema: &serde_json::Value,
-    model: &str,
-    provider: &str,
     clickhouse: clickhouse::Client,
+    cache: Arc<Cache>,
+    llm_client: Arc<LlmClient>,
     queue: Arc<MessageQueue>,
-    internal_project_id: Option<Uuid>,
+    config: &SignalWorkerConfig,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -101,14 +95,85 @@ pub async fn process_run(
             HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
         })?;
 
-    let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
-        // No messages exist - build initial prompts
+    let (contents, system_instruction, new_messages, steps_processed) = if existing_messages
+        .is_empty()
+    {
+        let ch_spans = get_trace_ch_spans(clickhouse.clone(), project_id, trace_id)
+            .await
+            .map_err(|e| {
+                HandlerError::Transient(anyhow::anyhow!("Failed to get trace spans: {}", e))
+            })?;
+
+        // 1. Extract system prompts and summarize (also identifies main agent)
+        let extracted = extract_system_prompts_with_paths(&ch_spans);
+
+        let summarization = summarize_system_prompts(
+            &cache,
+            &llm_client,
+            queue.clone(),
+            config.internal_project_id,
+            project_id,
+            signal_id,
+            prompt,
+            &extracted,
+        )
+        .await;
+
+        // 2. Use summary-based fingerprint for drop rules cache; fall back to root span name
+        let fingerprint = summarization.fingerprint.clone().or_else(|| {
+            ch_spans
+                .iter()
+                .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil())
+                .map(|s| structural_skeleton_hash(&s.name))
+        });
+
+        // 3. Resolve span drop rules (cached or generated)
+        let drop_rules = if let Some(ref fp) = fingerprint {
+            match lookup_cached_drop_rules(&cache, project_id, signal_id, prompt, fp).await {
+                Some(rules) => {
+                    if !rules.is_empty() {
+                        log::info!(
+                            "Applying {} cached span drop rules for trace {}",
+                            rules.len(),
+                            trace_id
+                        );
+                    }
+                    rules
+                }
+                None => {
+                    log::info!(
+                        "Filter cache miss for trace {} (fingerprint={}), generating rules",
+                        trace_id,
+                        fp,
+                    );
+                    let unfiltered_structure =
+                        build_trace_structure_string(&ch_spans, trace_id, &summarization.summaries);
+                    generate_and_cache_drop_rules(
+                        &cache,
+                        &llm_client,
+                        queue.clone(),
+                        config.internal_project_id,
+                        project_id,
+                        signal_id,
+                        prompt,
+                        fp,
+                        &unfiltered_structure,
+                    )
+                    .await
+                }
+            }
+        } else {
+            Vec::new()
+        };
+
+        // 4. Apply drop rules and build the final trace string
+        let ch_spans_for_trace = apply_drop_rules(ch_spans, &drop_rules);
+        let steps_processed = ch_spans_for_trace
+            .iter()
+            .filter(|s| s.span_type == 1)
+            .count() as u32;
         let trace_structure =
-            get_trace_structure_as_string(clickhouse.clone(), project_id, trace_id)
-                .await
-                .map_err(|e| {
-                    HandlerError::Transient(anyhow::anyhow!("Failed to get trace structure: {}", e))
-                })?;
+            build_trace_structure_string(&ch_spans_for_trace, trace_id, &summarization.summaries);
 
         let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
 
@@ -163,6 +228,7 @@ pub async fn process_run(
             vec![user_content],
             Some(system_instruction_content),
             vec![system_message, user_message],
+            steps_processed,
         )
     } else {
         let mut contents = Vec::new();
@@ -195,7 +261,9 @@ pub async fn process_run(
             }
         }
 
-        (contents, system_instruction, vec![])
+        // we don't account any subsequently fetched spans into steps processed,
+        // intentionally absorbing this cost
+        (contents, system_instruction, vec![], 0)
     };
 
     // 2. Build tool definitions
@@ -211,10 +279,12 @@ pub async fn process_run(
                 temperature: Some(1.0),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Low),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
                 }),
                 ..Default::default()
             }),
+            provider: None,
+            model_size: None,
         },
         metadata: Some(serde_json::json!({
             "run_id": run_id,
@@ -226,5 +296,6 @@ pub async fn process_run(
         request,
         new_messages,
         request_start_time: processing_start_time,
+        steps_processed,
     })
 }

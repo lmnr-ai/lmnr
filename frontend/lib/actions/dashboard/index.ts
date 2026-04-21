@@ -8,7 +8,7 @@ import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
 
 const GetChartsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 const ChartSettingsSchema = z.object({
@@ -29,42 +29,42 @@ const ChartSettingsSchema = z.object({
 
 export const ChartUpdatesSchema = z.array(
   z.object({
-    id: z.string(),
+    id: z.guid(),
     settings: ChartSettingsSchema,
   })
 );
 
 const UpdateChartsLayoutSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   updates: z.array(
     z.object({
-      id: z.string(),
+      id: z.guid(),
       settings: ChartSettingsSchema,
     })
   ),
 });
 
 const DeleteChartSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const UpdateChartNameSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
   name: z.string().min(1, "Name is required"),
 });
 
 const UpdateChartSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
 });
 
 const CreateChartSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],

@@ -18,9 +18,15 @@ import { type Span, SpanType } from "@/lib/traces/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { SpanViewSkeleton } from "./skeleton";
 
+export type SpanViewTab = "overview" | "span-input" | "span-output" | "attributes" | "events";
+
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  initialSearchTerm?: string;
+  initialTab?: SpanViewTab;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -41,20 +47,19 @@ const SpanViewTabs = ({
   searchRef,
   searchOpen,
   setSearchOpen,
+  initialTab,
 }: {
   span: Span;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+  initialTab?: SpanViewTab;
 }) => {
   const isLLM = span.spanType === SpanType.LLM;
+  const defaultTab = initialTab ?? (isLLM ? "overview" : "span-input");
 
   return (
-    <Tabs
-      className="flex flex-col grow overflow-hidden gap-0"
-      defaultValue={isLLM ? "overview" : "span-input"}
-      tabIndex={0}
-    >
+    <Tabs key={initialTab} className="flex flex-col grow overflow-hidden gap-0" defaultValue={defaultTab} tabIndex={0}>
       <div className="px-2 pb-2 mt-2 border-b w-full">
         <TabsList className="border-none text-xs h-7">
           {isLLM && (
@@ -114,9 +119,16 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({
+  spanId,
+  traceId,
+  initialSearchTerm,
+  initialTab,
+  onClose,
+  isAlwaysSelectSpan,
+}: SpanViewProps) {
   const { projectId } = useParams();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
     data: span,
     isLoading,
@@ -172,9 +184,15 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanSearchProvider>
-        <SpanControls span={span}>
-          <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
+      <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
+        <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
+          <SpanViewTabs
+            span={span}
+            searchRef={searchRef}
+            searchOpen={searchOpen}
+            setSearchOpen={setSearchOpen}
+            initialTab={initialTab}
+          />
         </SpanControls>
       </SpanSearchProvider>
     );

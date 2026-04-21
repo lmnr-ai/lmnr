@@ -8,8 +8,8 @@ import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 import { type Span } from "@/lib/traces/types.ts";
 
 export const GetSharedSpanSchema = z.object({
-  spanId: z.string(),
-  traceId: z.string(),
+  spanId: z.guid(),
+  traceId: z.guid(),
 });
 
 export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) => {

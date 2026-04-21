@@ -52,16 +52,24 @@ const getOptimalDateFormat = (data: Record<string, unknown>[], dataKey: string):
 
     if (dates.length < 2) return "M/dd HH:mm";
 
-    const timeDifferences = dates
-      .sort((a, b) => a.getTime() - b.getTime())
-      .slice(1)
-      .map((date, index) => date.getTime() - dates[index].getTime());
+    const sortedDates = dates.sort((a, b) => a.getTime() - b.getTime());
+
+    const timeDifferences = sortedDates.slice(1).map((date, index) => date.getTime() - sortedDates[index].getTime());
 
     const medianDiff = timeDifferences.sort((a, b) => a - b)[Math.floor(timeDifferences.length / 2)];
 
     const medianDiffHours = medianDiff / (1000 * 60 * 60);
+    const totalSpanHours =
+      (sortedDates[sortedDates.length - 1].getTime() - sortedDates[0].getTime()) / (1000 * 60 * 60);
 
-    return medianDiffHours > 6 ? "M/dd" : "HH:mm";
+    if (medianDiffHours > 6) {
+      return "M/dd";
+    }
+    // If data points are close together but span more than a day, show both date and time
+    if (totalSpanHours > 24) {
+      return "M/dd HH:mm";
+    }
+    return "HH:mm";
   } catch {
     return "M/dd";
   }

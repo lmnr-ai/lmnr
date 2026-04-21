@@ -1,6 +1,6 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import Chat from "@/components/traces/trace-view/chat";
@@ -12,11 +12,10 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
-import { SpanView } from "../span-view";
+import { SpanView, type SpanViewTab } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
-import { ScrollContextProvider } from "./scroll-context";
 import TracePanel from "./trace-panel";
 
 export interface TraceViewPanels {
@@ -74,9 +73,7 @@ export default function TraceViewContent({
     isTraceLoading,
     setIsTraceLoading,
     setIsSpansLoading,
-    traceError,
     setTraceError,
-    spansError,
     setSpansError,
   } = useTraceViewStore(
     (state) => ({
@@ -90,9 +87,7 @@ export default function TraceViewContent({
       isSpansLoading: state.isSpansLoading,
       setIsSpansLoading: state.setIsSpansLoading,
       setIsTraceLoading: state.setIsTraceLoading,
-      traceError: state.traceError,
       setTraceError: state.setTraceError,
-      spansError: state.spansError,
       setSpansError: state.setSpansError,
     }),
     shallow
@@ -180,11 +175,14 @@ export default function TraceViewContent({
     [setSelectedSpan, searchParams, setSpanPath, router, pathName]
   );
 
+  const [traceSearchTerm, setTraceSearchTerm] = useState("");
+
   const fetchSpans = useCallback(
     async (search: string, filters: Filter[]) => {
       try {
         setIsSpansLoading(true);
         setSpansError(undefined);
+        setTraceSearchTerm(search);
 
         const params = new URLSearchParams();
         if (search) {
@@ -328,14 +326,36 @@ export default function TraceViewContent({
     />
   );
 
+  const snippetTab: SpanViewTab | undefined = selectedSpan?.inputSnippet
+    ? "span-input"
+    : selectedSpan?.outputSnippet
+      ? "span-output"
+      : selectedSpan?.attributesSnippet
+        ? "attributes"
+        : undefined;
+
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {!selectedSpan ? (
         <SpanViewSkeleton />
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-        <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+        <HumanEvaluatorSpanView
+          traceId={selectedSpan.traceId}
+          spanId={selectedSpan.spanId}
+          key={selectedSpan.spanId}
+          onClose={() => setSelectedSpan(undefined)}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
+        />
       ) : (
-        <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+        <SpanView
+          key={selectedSpan.spanId}
+          spanId={selectedSpan.spanId}
+          traceId={traceId}
+          initialSearchTerm={traceSearchTerm}
+          initialTab={snippetTab}
+          onClose={() => setSelectedSpan(undefined)}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
+        />
       )}
     </div>
   );
@@ -357,13 +377,9 @@ export default function TraceViewContent({
     showChat,
   };
 
-  return (
-    <ScrollContextProvider>
-      {isNil(sidePanelRef) ? (
-        <FillWidthLayout panels={panels} />
-      ) : (
-        <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
-      )}
-    </ScrollContextProvider>
+  return isNil(sidePanelRef) ? (
+    <FillWidthLayout panels={panels} />
+  ) : (
+    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
   );
 }

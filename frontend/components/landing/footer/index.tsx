@@ -40,7 +40,7 @@ const Footer = ({ className }: Props) => {
               Iterate fast to fix it.
             </div>
             <div className={cn("flex md:gap-5 items-center justify-center", "gap-2 w-[360px]")}>
-              <Link href="https://docs.laminar.sh" target="_blank" className={cn("md:w-[206px]", "flex-1 basis-0")}>
+              <Link href="https://laminar.sh/docs" target="_blank" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                 <LandingButton variant="outline" className="w-full">
                   Read the Docs
                 </LandingButton>

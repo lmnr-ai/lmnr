@@ -2,7 +2,7 @@
 //!
 //! It is responsible for:
 //! - Clustering the signal events
-//! - Sending notifications to the users
+//! - Pushing notification messages for detected events
 
 use std::sync::Arc;
 use uuid::Uuid;
@@ -13,7 +13,7 @@ use crate::db;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
-use crate::notifications::{self, EventIdentificationPayload, NotificationType};
+use crate::notifications::{self, NotificationDefinitionType, NotificationKind};
 
 /// Process notifications and clustering for an identified signal event
 pub async fn process_event_notifications_and_clustering(
@@ -26,52 +26,59 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    let targets =
-        db::alert_targets::get_slack_targets_for_event(&db.pool, project_id, &event_name).await?;
+    {
+        let alerts =
+            db::alert_targets::get_alerts_for_signal(&db.pool, project_id, signal_event.signal_id)
+                .await?;
 
-    for target in &targets {
-        let payload = EventIdentificationPayload {
-            event_name: event_name.to_string(),
-            extracted_information: Some(attributes.clone()),
-            channel_id: target.channel_id.clone(),
-            integration_id: target.integration_id,
-        };
+        for alert in alerts {
+            let min_severity = alert.metadata.severity();
 
-        let message_payload = serde_json::to_value(&payload)?;
+            // Match severity
+            if signal_event.severity != min_severity {
+                continue;
+            }
 
-        let notification_message = notifications::NotificationMessage {
-            project_id,
-            trace_id,
-            notification_type: NotificationType::Slack,
-            event_name: event_name.to_string(),
-            payload: message_payload,
-            workspace_id: target.workspace_id,
-            definition_type: "ALERT".to_string(),
-            definition_id: target.alert_id,
-            target_id: target.id,
-            target_type: "SLACK".to_string(),
-        };
+            // Ignore alerts with skip_similar enabled, the notification will be triggered when a new L0 cluster is detected.
+            if alert.metadata.skip_similar() {
+                continue;
+            }
 
-        let serialized_size = serde_json::to_vec(&notification_message)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::warn!(
-                "MQ payload limit exceeded for channel {}: payload size [{}]",
-                target.channel_id,
-                serialized_size,
-            );
-            continue;
-        }
+            let notification_message = notifications::NotificationMessage {
+                definition_type: NotificationDefinitionType::Alert,
+                definition_id: alert.id,
+                workspace_id: alert.workspace_id,
+                project_id: Some(project_id),
+                notifications: vec![NotificationKind::EventIdentification {
+                    project_id,
+                    signal_id: signal_event.signal_id,
+                    trace_id,
+                    event_id: Some(signal_event.id),
+                    event_name: event_name.clone(),
+                    severity: signal_event.severity,
+                    extracted_information: Some(attributes.clone()),
+                    alert_name: alert.name,
+                }],
+            };
 
-        if let Err(e) =
-            notifications::push_to_notification_queue(notification_message, queue.clone()).await
-        {
-            log::error!(
-                "Failed to push to notification queue for channel {}: {:?}",
-                target.channel_id,
-                e
-            );
+            let serialized_size = serde_json::to_vec(&notification_message)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            if serialized_size >= mq_max_payload() {
+                log::error!(
+                    "MQ payload limit exceeded for event {}: payload size [{}]",
+                    event_name,
+                    serialized_size,
+                );
+            } else if let Err(e) =
+                notifications::push_to_notification_queue(notification_message, queue.clone()).await
+            {
+                log::error!(
+                    "Failed to push to notification queue for event {}: {:?}",
+                    event_name,
+                    e
+                );
+            }
         }
     }
 

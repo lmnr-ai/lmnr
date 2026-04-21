@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import React, { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -74,7 +74,7 @@ const PureToolCallContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span
       className="flex items-center gap-1.5 text-xs font-medium"
       style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -112,7 +112,7 @@ const PureToolResultContentPart = ({
   presetKey,
   children,
 }: ToolResultContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span
       className="flex items-center gap-1.5 text-xs font-medium"
       style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -185,7 +185,7 @@ export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background", className)}>
+      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background rounded-t", className)}>
         <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
           {capitalize(role)}
         </span>
@@ -226,7 +226,7 @@ const PureThinkingContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ThinkingContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span className="flex items-center text-xs">
       <Brain size={12} className="min-w-3 mr-2" />
       {label}
@@ -258,10 +258,12 @@ export const MessageWrapper = ({
   children,
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
+  stickyHeader = true,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
   maxHeight?: number;
+  stickyHeader?: boolean;
 }>) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -285,33 +287,35 @@ export const MessageWrapper = ({
     return () => resizeObserver.disconnect();
   }, [checkOverflow]);
 
-  const isCapped = !isExpanded && isOverflowing;
+  const showToggle = isOverflowing || isExpanded;
 
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className={cn("border rounded overflow-hidden bg-card", isExpanded && isOverflowing && "pb-4")}
-        style={!isExpanded ? { maxHeight } : undefined}
-      >
-        <RoleHeader role={role} />
+    <div className={cn("relative border rounded", { "border-b-0": showToggle })}>
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
+      <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
         <div className="flex flex-col divide-y">{children}</div>
-        {isCapped && (
-          <button
-            onClick={() => setIsExpanded(true)}
-            className="absolute bottom-px left-px right-px h-16 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
-          >
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-        )}
       </div>
-      {isExpanded && isOverflowing && (
-        <button
-          onClick={() => setIsExpanded(false)}
-          className="absolute bottom-px left-px right-px h-8 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
-        >
-          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-        </button>
+      {showToggle && (
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+          <div
+            className="w-full pointer-events-none"
+            style={{
+              height: isExpanded ? 16 : 36,
+              marginTop: isExpanded ? -8 : -36,
+              background: "linear-gradient(to bottom, transparent, hsl(var(--background) / 1))",
+            }}
+          />
+          <div className="w-full bg-background rounded-b">
+            <button
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="h-3 relative w-full flex items-center justify-center text-secondary-foreground cursor-pointer rounded-b border-b transition-colors"
+            >
+              <span className="absolute -top-2.5 w-full flex justify-center">
+                {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+              </span>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
