@@ -30,6 +30,12 @@ use super::spans::{SpanAttributes, SpanUsage};
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
+// Matches the Claude Code billing header, e.g.
+// `x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000;`
+static CLAUDE_CODE_BILLING_HEADER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"x-anthropic-billing-header:(?:\s*[A-Za-z_][A-Za-z0-9_]*=[^\s;]*;)+").unwrap()
+});
+
 /// Calculate usage for both default and LLM spans
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
@@ -239,7 +245,16 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
 
 fn compute_prompt_hash(input: &Option<Value>) -> Option<String> {
     let (system_text, _) = extract_system_message(input.as_ref()?)?;
-    Some(structural_skeleton_hash(&system_text))
+    let stripped = strip_volatile_system_prompt_parts(&system_text);
+    Some(structural_skeleton_hash(&stripped))
+}
+
+/// Strip parts of the system prompt that change between client/SDK versions
+/// (e.g. Claude Code's billing header with `cc_version` and its product intro line)
+fn strip_volatile_system_prompt_parts(system_text: &str) -> String {
+    CLAUDE_CODE_BILLING_HEADER_REGEX
+        .replace_all(system_text, "")
+        .into_owned()
 }
 
 pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>
@@ -365,5 +380,89 @@ fn tranform_model_and_provider(
         // LiteLLM stores "gateway" as "vercel_ai_gateway"
         Some("gateway") => (model_name, Some("vercel_ai_gateway".to_string())),
         _ => (model_name, provider_name),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_claude_code_billing_header() {
+        let input = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are a helpful assistant.";
+        let stripped = strip_volatile_system_prompt_parts(input);
+        assert!(!stripped.contains("cc_version"));
+        assert!(!stripped.contains("x-anthropic-billing-header"));
+        assert!(stripped.contains("You are a helpful assistant."));
+    }
+
+    #[test]
+    fn prompt_hash_stable_across_cc_versions() {
+        let input_v1 = json!([
+            {
+                "role": "system",
+                "content": [
+                    {"text": "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts;", "type": "text"},
+                    {"text": "You are Claude Code.", "type": "text"}
+                ]
+            }
+        ]);
+        let input_v2 = json!([
+            {
+                "role": "system",
+                "content": [
+                    {"text": "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli;", "type": "text"},
+                    {"text": "You are Claude Code.", "type": "text"}
+                ]
+            }
+        ]);
+        let h1 = compute_prompt_hash(&Some(input_v1)).unwrap();
+        let h2 = compute_prompt_hash(&Some(input_v2)).unwrap();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn prompt_hash_differs_when_body_differs() {
+        let a = json!([{"role": "system", "content": "You are assistant A."}]);
+        let b = json!([{"role": "system", "content": "You are assistant B completely different."}]);
+        let ha = compute_prompt_hash(&Some(a)).unwrap();
+        let hb = compute_prompt_hash(&Some(b)).unwrap();
+        assert_ne!(ha, hb);
+    }
+
+    #[test]
+    fn strips_full_billing_header_with_extra_pairs() {
+        let input = "x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000; You are a helpful assistant.";
+        let stripped = strip_volatile_system_prompt_parts(input);
+        assert!(!stripped.contains("cc_version"));
+        assert!(!stripped.contains("cc_entrypoint"));
+        assert!(!stripped.contains("cch="));
+        assert!(!stripped.contains("x-anthropic-billing-header"));
+        assert!(stripped.contains("You are a helpful assistant."));
+    }
+
+    #[test]
+    fn prompt_hash_stable_for_real_claude_agent_payload() {
+        let make_input = |version: &str, cch: &str| {
+            json!([
+                {
+                    "role": "system",
+                    "content": [
+                        {"text": format!("x-anthropic-billing-header: cc_version={version}; cc_entrypoint=sdk-ts; cch={cch};"), "type": "text"},
+                        {"cache_control": {"type": "ephemeral"}, "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK.", "type": "text"},
+                        {"cache_control": {"type": "ephemeral"}, "text": "<role>\nYou are a senior portfolio manager orchestrating a research workflow.\n</role>", "type": "text"}
+                    ]
+                }
+            ])
+        };
+        let h1 = compute_prompt_hash(&Some(make_input("2.1.104.8ec", "00000"))).unwrap();
+        let h2 = compute_prompt_hash(&Some(make_input("2.2.0.abc", "ffffff"))).unwrap();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn leaves_unrelated_prompts_unchanged() {
+        let text = "You are a helpful assistant.\nAlways respond in JSON.";
+        assert_eq!(strip_volatile_system_prompt_parts(text), text);
     }
 }
