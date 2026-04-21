@@ -226,6 +226,20 @@ function SessionsTableContent() {
     [setTraceId, pathName, router, searchParams]
   );
 
+  const handleOpenSession = useCallback(
+    (sessionId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      // `sessionId` is the source-of-truth for whether the session side panel
+      // is open. Clear any `traceId` to avoid two side-panels overlapping.
+      params.set("sessionId", sessionId);
+      params.delete("traceId");
+      params.delete("spanId");
+      setTraceId(null);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams, setTraceId]
+  );
+
   const handleSort = useCallback(
     (column: SessionSortColumn, direction: SortDirection) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -273,6 +287,7 @@ function SessionsTableContent() {
         sessionTraces={sessionTraces}
         onToggleSession={handleToggleSession}
         onTraceClick={handleTraceClick}
+        onOpenSession={handleOpenSession}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
