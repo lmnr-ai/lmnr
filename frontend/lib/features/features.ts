@@ -99,7 +99,7 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.CLUSTERING) {
-    return !!process.env.CLUSTERING_ENABLED;
+    return process.env.CLUSTERING_ENABLED === "true";
   }
 
   if (feature === Feature.SEND_EMAIL) {
