@@ -23,7 +23,7 @@ const createDashboardTraceStore = () =>
     spanId: null,
     signalId: null,
     openTrace: (traceId, spanId, signalId) => set({ traceId, spanId: spanId ?? null, signalId: signalId ?? null }),
-    closeTrace: () => set({ traceId: null, spanId: null }),
+    closeTrace: () => set({ traceId: null, spanId: null, signalId: null }),
   }));
 
 type DashboardTraceStoreApi = ReturnType<typeof createDashboardTraceStore>;
