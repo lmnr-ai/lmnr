@@ -57,7 +57,6 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           optimisticData: (currentData) => (currentData || []).filter((item) => item.id !== id),
         }
       );
-      await deleteChart(id, projectId);
       track("dashboards", "chart_deleted");
     } catch (e) {
       toast({
