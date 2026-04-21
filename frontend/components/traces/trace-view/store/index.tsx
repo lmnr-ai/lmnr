@@ -21,7 +21,7 @@ type PanelWidthKey = "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth";
 type PanelDef = { key: PanelWidthKey; min: number; default: number };
 
 const ALL_PANELS: PanelDef[] = [
-  { key: "tracePanelWidth", min: 400, default: 500 },
+  { key: "tracePanelWidth", min: 488, default: 500 },
   { key: "spanPanelWidth", min: 400, default: 405 },
   { key: "chatPanelWidth", min: 375, default: 385 },
 ];

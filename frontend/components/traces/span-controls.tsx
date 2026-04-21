@@ -8,7 +8,6 @@ import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
-import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,12 +28,12 @@ import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
-export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
-  const setSelectedSpan = useTraceViewBaseStore((state) => state.setSelectedSpan);
-  const isAlwaysSelectSpan = useTraceViewBaseStore((state) => state.isAlwaysSelectSpan);
 
   const errorEventAttributes = useMemo(
     () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -91,11 +90,12 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               </Button>
             </Link>
           )}
-          {!isAlwaysSelectSpan && (
+          {!isAlwaysSelectSpan && onClose && (
             <Button
               variant="ghost"
               className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
-              onClick={() => setSelectedSpan(undefined)}
+              onClick={onClose}
+              aria-label="Close span panel"
             >
               <X className="w-4 h-4" />
             </Button>

@@ -18,7 +18,7 @@ services:
       retries: 3
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:25.12
     pull_policy: always
     container_name: clickhouse
     volumes:

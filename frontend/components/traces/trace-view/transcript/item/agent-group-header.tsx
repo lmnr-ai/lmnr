@@ -2,29 +2,33 @@ import { Bot, ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TranscriptListGroup, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   CollapsedPreviewBlock,
   type PreviewMap,
 } from "@/components/traces/trace-view/transcript/item/collapsed-preview-block";
-import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
-interface AgentGroupHeaderProps {
+export interface AgentGroupHeaderProps {
   group: TranscriptListGroup;
   collapsed: boolean;
   previews: PreviewMap;
   inputPreviews: PreviewMap;
   agentNames: Record<string, string | null | undefined>;
+  onToggle: () => void;
+  className?: string;
 }
 
-export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, agentNames }: AgentGroupHeaderProps) {
-  const toggleTranscriptGroup = useTraceViewBaseStore((s) => s.toggleTranscriptGroup);
-
-  const handleToggle = useCallback(() => {
-    track("traces", "subagent_group_toggled", { expanded: collapsed });
-    toggleTranscriptGroup(group.groupId);
-  }, [toggleTranscriptGroup, group.groupId, collapsed]);
+export function AgentGroupHeader({
+  group,
+  collapsed,
+  previews,
+  inputPreviews,
+  agentNames,
+  onToggle,
+  className,
+}: AgentGroupHeaderProps) {
+  const handleToggle = useCallback(() => onToggle(), [onToggle]);
 
   // When a group has only one LLM span, store/utils sets `lastLlmSpanId` to
   // null to avoid duplicating the same id. In that case, the collapsed header
@@ -58,7 +62,8 @@ export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, ag
     <div
       className={cn(
         "mx-2 border bg-muted/80 overflow-hidden cursor-pointer transition-colors hover:bg-muted",
-        collapsed ? "rounded-lg" : "rounded-t-lg"
+        collapsed ? "rounded-lg" : "rounded-t-lg",
+        className
       )}
       onClick={handleToggle}
     >
@@ -111,12 +116,18 @@ export function AgentGroupHeader({ group, collapsed, previews, inputPreviews, ag
   );
 }
 
-export function GroupChildWrapper({ isLast = false, children }: { isLast?: boolean; children: React.ReactNode }) {
+export function GroupChildWrapper({
+  isLast = false,
+  children,
+  className,
+}: {
+  isLast?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div
-      className={cn("mx-2 border-x transition-colors", {
-        "border-b rounded-b-lg overflow-hidden": isLast,
-      })}
+      className={cn("mx-2 border-x transition-colors", { "border-b rounded-b-lg overflow-hidden": isLast }, className)}
     >
       {children}
     </div>

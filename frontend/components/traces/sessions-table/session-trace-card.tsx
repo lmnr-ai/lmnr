@@ -107,7 +107,7 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
 
         {/* Input column */}
         <TraceIOContent
-          text={traceIO?.input}
+          text={traceIO?.inputPreview}
           isLoading={isIOLoading}
           fallback="No input available"
           isExpanded={isExpanded}
@@ -120,7 +120,7 @@ export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIO
 
         {/* Output column */}
         <TraceIOContent
-          text={traceIO?.output}
+          text={traceIO?.outputPreview}
           isLoading={isIOLoading}
           fallback="No output available"
           isExpanded={isExpanded}

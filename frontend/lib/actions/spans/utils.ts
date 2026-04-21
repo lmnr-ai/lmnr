@@ -53,7 +53,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-const spansSelectColumns = [
+export const spansSelectColumns = [
   "span_id as spanId",
   "trace_id as traceId",
   "parent_span_id as parentSpanId",

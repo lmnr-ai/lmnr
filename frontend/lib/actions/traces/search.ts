@@ -17,14 +17,15 @@ export interface SpanSearchHit {
 
 export const searchSpans = async ({
   projectId,
-  traceId,
+  traceIds,
   searchQuery,
   timeRange,
   searchType,
   getSnippets,
 }: {
   projectId: string;
-  traceId?: string;
+  /** Optional trace-id filter. Omit for project-wide search. */
+  traceIds?: string[];
   searchQuery: string;
   timeRange?: TimeRange;
   searchType?: SpanSearchType[];
@@ -51,7 +52,7 @@ export const searchSpans = async ({
   }
 
   const body = {
-    traceId: traceId,
+    traceIds: traceIds,
     searchQuery: trimmedQuery,
     startTime,
     endTime,
