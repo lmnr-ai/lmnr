@@ -6,6 +6,9 @@ import { type TableColumnConfig } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { type ColumnConfig, DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { formatRelativeTime } from "@/lib/utils";
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}[T ]/;
 
 const PAGE_SIZE = 50;
 
@@ -30,6 +33,9 @@ const formatCell = (value: unknown): string => {
     } catch {
       return "[Object]";
     }
+  }
+  if (typeof value === "string" && ISO_DATE_REGEX.test(value)) {
+    return formatRelativeTime(value);
   }
   return String(value);
 };

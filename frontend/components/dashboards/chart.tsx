@@ -232,14 +232,9 @@ const Chart = ({ chart }: ChartProps) => {
       const signalId = rowData.signal_id;
       const traceId = rowData.trace_id || rowData.id;
 
-      if (signalId) {
-        window.open(`/project/${projectId}/signals/${signalId}`, "_blank");
-        return;
-      }
-
       const spanId = rowData.span_id;
       if (traceId) {
-        openTrace(String(traceId), spanId ? String(spanId) : undefined);
+        openTrace(String(traceId), spanId ? String(spanId) : undefined, signalId ? String(signalId) : undefined);
       }
     },
     [openTrace, projectId]

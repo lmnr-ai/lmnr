@@ -19,9 +19,10 @@ function DashboardContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const isNewChart = searchParams.get("newChart") === "1";
-  const { traceId, spanId, closeTrace } = useDashboardTraceStore((s) => ({
+  const { traceId, spanId, signalId, closeTrace } = useDashboardTraceStore((s) => ({
     traceId: s.traceId,
     spanId: s.spanId,
+    signalId: s.signalId,
     closeTrace: s.closeTrace,
   }));
 
@@ -61,7 +62,14 @@ function DashboardContent() {
           </div>
         </ScrollArea>
       </div>
-      {traceId && <TraceViewSidePanel traceId={traceId} spanId={spanId ?? undefined} onClose={closeTrace} />}
+      {traceId && (
+        <TraceViewSidePanel
+          traceId={traceId}
+          spanId={spanId ?? undefined}
+          initialSignalId={signalId ?? undefined}
+          onClose={closeTrace}
+        />
+      )}
     </>
   );
 }

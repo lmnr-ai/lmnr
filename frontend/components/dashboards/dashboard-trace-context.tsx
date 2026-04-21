@@ -7,10 +7,11 @@ import { shallow } from "zustand/shallow";
 interface DashboardTraceState {
   traceId: string | null;
   spanId: string | null;
+  signalId: string | null;
 }
 
 interface DashboardTraceActions {
-  openTrace: (traceId: string, spanId?: string) => void;
+  openTrace: (traceId: string, spanId?: string, signalId?: string) => void;
   closeTrace: () => void;
 }
 
@@ -20,7 +21,8 @@ const createDashboardTraceStore = () =>
   createStore<DashboardTraceStore>((set) => ({
     traceId: null,
     spanId: null,
-    openTrace: (traceId, spanId) => set({ traceId, spanId: spanId ?? null }),
+    signalId: null,
+    openTrace: (traceId, spanId, signalId) => set({ traceId, spanId: spanId ?? null, signalId: signalId ?? null }),
     closeTrace: () => set({ traceId: null, spanId: null }),
   }));
 
