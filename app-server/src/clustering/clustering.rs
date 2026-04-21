@@ -10,6 +10,7 @@ use crate::cache::{Cache, CacheTrait, keys::CLUSTERING_LOCK_CACHE_KEY};
 use crate::ch::signal_events;
 use crate::db;
 use crate::db::DB;
+use crate::db::alert_targets::DEFAULT_SEVERITY;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{self, AlertType, NotificationDefinitionType, NotificationKind};
@@ -324,8 +325,18 @@ async fn notify_new_l0_clusters(
         let attributes = ch_event.payload_value().unwrap_or_default();
 
         for alert in &signal_event_alerts {
-            if !alert.metadata.matches_severity(ch_event.severity) {
-                continue;
+            // Match severity
+            match alert.metadata.severities.as_deref() {
+                Some([]) => {
+                    log::warn!(
+                        "Alert {} has empty severities array, skipping notification",
+                        alert.id
+                    );
+                    continue;
+                }
+                Some(sevs) if !sevs.contains(&ch_event.severity) => continue,
+                None if ch_event.severity != DEFAULT_SEVERITY => continue,
+                _ => {}
             }
 
             let notification_message = notifications::NotificationMessage {
