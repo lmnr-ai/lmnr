@@ -1,0 +1,87 @@
+import { AnimatePresence, motion } from "framer-motion";
+import React, { useEffect, useRef } from "react";
+import { shallow } from "zustand/shallow";
+
+import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
+
+import { useSessionViewStore } from "./store";
+import { useSessionPanelResize } from "./use-panel-resize";
+
+const enterExitTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
+const instantTransition = { duration: 0 } as const;
+
+export interface SessionViewPanels {
+  sessionPanel: React.ReactNode;
+  spanPanel: React.ReactNode;
+  showSpan: boolean;
+}
+
+interface DynamicWidthLayoutProps {
+  panels: SessionViewPanels;
+  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidthLayoutProps) {
+  const { sessionPanelWidth, spanPanelWidth, resizePanel, setMaxWidth } = useSessionViewStore(
+    (state) => ({
+      sessionPanelWidth: state.sessionPanelWidth,
+      spanPanelWidth: state.spanPanelWidth,
+      resizePanel: state.resizePanel,
+      setMaxWidth: state.setMaxWidth,
+    }),
+    shallow
+  );
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const measured = sidePanelRef?.current?.parentElement ?? containerRef.current;
+    if (!measured) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setMaxWidth(entry.contentRect.width - 80);
+      }
+    });
+    observer.observe(measured);
+    return () => observer.disconnect();
+  }, [sidePanelRef, setMaxWidth]);
+
+  const sessionResize = useSessionPanelResize("session", resizePanel);
+  const spanResize = useSessionPanelResize("span", resizePanel);
+
+  const isResizing = sessionResize.isResizing || spanResize.isResizing;
+  const transition = isResizing ? instantTransition : enterExitTransition;
+
+  return (
+    <div ref={containerRef} className="h-full w-full overflow-hidden">
+      <div className="flex flex-row h-full">
+        {/* Session Panel — always visible */}
+        <div className="relative flex h-full flex-shrink-0" style={{ width: sessionPanelWidth }}>
+          <LeftEdgeResizeHandle onMouseDown={sessionResize.handleMouseDown} />
+          {panels.sessionPanel}
+        </div>
+
+        <AnimatePresence initial={false}>
+          {/* Span Panel */}
+          {panels.showSpan && (
+            <motion.div
+              key="span-panel"
+              className="relative h-full flex-shrink-0 overflow-hidden"
+              initial={{ width: 0, opacity: 0.5 }}
+              animate={{ width: spanPanelWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0.5 }}
+              transition={transition}
+            >
+              <div className="absolute inset-y-0 left-0 flex" style={{ width: spanPanelWidth }}>
+                <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
+                {panels.spanPanel}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}

@@ -213,21 +213,22 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
 /// Given Quickwit hits, fetches context snippets from ClickHouse and enriches
 /// each hit with highlighted matches.
 ///
-/// When `is_single_trace` is false, only the first `DEFAULT_SEARCH_MAX_TRACES`
-/// unique traces are kept.
+/// When `skip_trace_cap` is false, only the first `DEFAULT_SEARCH_MAX_TRACES`
+/// unique traces are kept. Pass `true` when the caller has already scoped the
+/// search to a known set of traces (e.g. single-trace view, session search).
 #[tracing::instrument(skip_all, name = "enrich_hits_with_snippets")]
 pub async fn enrich_hits_with_snippets(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     hits: Vec<SearchSpanHit>,
-    is_single_trace: bool,
+    skip_trace_cap: bool,
     search_query: &str,
 ) -> Vec<SearchSpanHit> {
     let mut unique_traces = HashSet::new();
     let snippet_pairs: Vec<(Uuid, Uuid)> = hits
         .iter()
         .filter_map(|hit| {
-            if !is_single_trace {
+            if !skip_trace_cap {
                 if unique_traces.contains(&hit.trace_id) {
                     return None;
                 }
@@ -248,7 +249,7 @@ pub async fn enrich_hits_with_snippets(
         None => {
             return hits
                 .into_iter()
-                .filter(|hit| is_single_trace || unique_traces.contains(&hit.trace_id))
+                .filter(|hit| skip_trace_cap || unique_traces.contains(&hit.trace_id))
                 .collect();
         }
     };
@@ -262,7 +263,7 @@ pub async fn enrich_hits_with_snippets(
         .collect();
 
     hits.into_iter()
-        .filter(|hit| is_single_trace || unique_traces.contains(&hit.trace_id))
+        .filter(|hit| skip_trace_cap || unique_traces.contains(&hit.trace_id))
         .map(|mut hit| {
             if let Some(row) = snippet_map.get(&hit.span_id) {
                 hit.input_snippet =

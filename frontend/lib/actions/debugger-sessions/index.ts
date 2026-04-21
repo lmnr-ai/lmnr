@@ -80,7 +80,8 @@ export async function getLatestTraceBySessionId(
         metadata,
         status,
         trace_type as traceType,
-        has_browser_session as hasBrowserSession
+        has_browser_session as hasBrowserSession,
+        user_id as userId
       FROM traces
       WHERE simpleJSONExtractString(metadata, 'rollout.session_id') = {sessionId: String}
       ORDER BY start_time DESC

@@ -16,7 +16,7 @@ import {
   type TreeSpan,
 } from "./utils";
 
-export const MAX_ZOOM = 18;
+export const MAX_ZOOM = 25;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 
@@ -70,10 +70,6 @@ export type TraceViewListSpan = {
   cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
-  pathInfo: {
-    display: Array<{ spanId: string; name: string; count?: number }>;
-    full: Array<{ spanId: string; name: string }>;
-  } | null;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
@@ -132,6 +128,7 @@ export type TraceViewTrace = {
   visibility: "public" | "private";
   hasBrowserSession: boolean;
   sessionId?: string;
+  userId?: string;
 };
 
 export type TraceSignal = {

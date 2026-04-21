@@ -33,6 +33,7 @@ interface SessionsVirtualListProps {
   sessionTraces: Record<string, TraceRow[]>;
   onToggleSession: (sessionId: string) => void;
   onTraceClick: (traceId: string) => void;
+  onOpenSession: (sessionId: string) => void;
   hasMore: boolean;
   isFetching: boolean;
   isLoading: boolean;
@@ -65,6 +66,7 @@ export default function SessionsVirtualList({
   sessionTraces,
   onToggleSession,
   onTraceClick,
+  onOpenSession,
   hasMore,
   isFetching,
   isLoading,
@@ -224,6 +226,7 @@ export default function SessionsVirtualList({
               isExpanded={expandedSessions.has(item.session.sessionId)}
               isLast={item.isLast}
               onToggle={() => onToggleSession(item.session.sessionId)}
+              onOpen={() => onOpenSession(item.session.sessionId)}
             />
           );
         case "trace-section-header":
@@ -286,7 +289,7 @@ export default function SessionsVirtualList({
           );
       }
     },
-    [expandedSessions, onToggleSession, onTraceClick, traceIOPreviews]
+    [expandedSessions, onToggleSession, onTraceClick, onOpenSession, traceIOPreviews]
   );
 
   const showList = !isLoading && sessions.length > 0;

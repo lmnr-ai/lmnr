@@ -39,7 +39,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         metadata,
         status,
         trace_type as traceType,
-        has_browser_session as hasBrowserSession
+        has_browser_session as hasBrowserSession,
+        user_id as userId
       FROM traces
       WHERE id = {traceId: UUID}
       LIMIT 1

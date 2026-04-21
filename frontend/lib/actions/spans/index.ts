@@ -111,7 +111,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -281,7 +280,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId,
+        traceIds: [traceId],
         searchQuery: search,
         ...(timeRange && { timeRange }),
         searchType: searchIn as SpanSearchType[],

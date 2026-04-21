@@ -25,6 +25,8 @@ interface SpanViewProps {
   traceId: string;
   initialSearchTerm?: string;
   initialTab?: SpanViewTab;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -117,7 +119,14 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId, initialSearchTerm, initialTab }: SpanViewProps) {
+export function SpanView({
+  spanId,
+  traceId,
+  initialSearchTerm,
+  initialTab,
+  onClose,
+  isAlwaysSelectSpan,
+}: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
@@ -176,7 +185,7 @@ export function SpanView({ spanId, traceId, initialSearchTerm, initialTab }: Spa
   if (span) {
     return (
       <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
-        <SpanControls span={span}>
+        <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
           <SpanViewTabs
             span={span}
             searchRef={searchRef}

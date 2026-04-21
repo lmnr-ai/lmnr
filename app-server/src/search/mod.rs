@@ -64,7 +64,7 @@ pub async fn search_spans(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     query: &str,
-    trace_id: Option<&str>,
+    trace_ids: Option<&[String]>,
     limit: usize,
     offset: usize,
     start_time: Option<DateTime<Utc>>,
@@ -73,14 +73,21 @@ pub async fn search_spans(
 ) -> Result<Vec<SearchSpanHit>, Error> {
     let escaped_query = escape_quickwit_query(query);
 
-    // Filter by project_id and trace_id (if provided)
+    // Filter by project_id and optionally by trace_id(s)
     let mut query_parts = vec![
         format!("project_id:{}", project_id),
         format!("({})", escaped_query),
     ];
 
-    if let Some(trace_id) = trace_id {
-        query_parts.push(format!("trace_id:{}", trace_id));
+    if let Some(ids) = trace_ids {
+        match ids.len() {
+            0 => {}
+            1 => query_parts.push(format!("trace_id:{}", ids[0])),
+            _ => {
+                let id_list = ids.join(" ");
+                query_parts.push(format!("trace_id:IN [{}]", id_list));
+            }
+        }
     }
 
     let query_string = query_parts.join(" AND ");
@@ -136,12 +143,14 @@ pub async fn search_spans(
         })
         .collect();
 
+    let skip_trace_cap = trace_ids.is_some_and(|ids| !ids.is_empty());
+
     let results = if get_snippets {
         snippets::enrich_hits_with_snippets(
             clickhouse,
             project_id,
             span_hits,
-            trace_id.is_some(),
+            skip_trace_cap,
             query,
         )
         .await
