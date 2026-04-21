@@ -355,7 +355,7 @@ export default function SessionList() {
               ) : row.type === "user-input" ? (
                 <InputItem
                   text={traceIO[row.traceId]?.inputPreview ?? null}
-                  isLoading={!traceIO[row.traceId]}
+                  isLoading={traceIO[row.traceId] === undefined}
                   className="px-4"
                 />
               ) : row.type === "group-header" ? (

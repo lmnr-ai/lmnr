@@ -228,7 +228,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                     <Button
                       onClick={handleOpenSession}
                       variant="outline"
-                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
                     >
                       <Layers size={14} className="mr-1 flex-shrink-0" />
                       <span className="truncate">{sessionId}</span>

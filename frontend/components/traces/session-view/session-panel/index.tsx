@@ -157,7 +157,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
                   <SessionTimeline />
                 </div>
               </ResizablePanel>
-              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200 mb-2" />
             </>
           )}
           <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden">
