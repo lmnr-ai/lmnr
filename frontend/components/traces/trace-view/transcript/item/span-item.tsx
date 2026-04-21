@@ -15,31 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
-function InlinePreviewContent({
-  span,
-  previewText,
-  isLoading,
-}: {
-  span: TraceViewListSpan;
-  previewText: string | null;
-  isLoading: boolean;
-}) {
-  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
-
-  if (hasSnippet) {
-    return (
-      <div className="min-w-0 overflow-hidden">
-        <SnippetPreview
-          inputSnippet={span.inputSnippet}
-          outputSnippet={span.outputSnippet}
-          attributesSnippet={span.attributesSnippet}
-          variant="span"
-          className="truncate"
-        />
-      </div>
-    );
-  }
-
+function InlinePreviewContent({ previewText, isLoading }: { previewText: string | null; isLoading: boolean }) {
   if (previewText) {
     return <span className="text-[13px] text-secondary-foreground truncate min-w-0">{previewText}</span>;
   }
@@ -65,7 +41,30 @@ function PendingIndicator({ startTime }: { startTime: string }) {
   return <Skeleton className="w-10 h-4 bg-secondary rounded-md" />;
 }
 
-function LLMOutputPreview({ previewText, isLoading }: { previewText: string | null; isLoading: boolean }) {
+function LLMOutputPreview({
+  span,
+  previewText,
+  isLoading,
+}: {
+  span: TraceViewListSpan;
+  previewText: string | null;
+  isLoading: boolean;
+}) {
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
+
+  if (hasSnippet) {
+    return (
+      <div className="pl-7">
+        <SnippetPreview
+          inputSnippet={span.inputSnippet}
+          outputSnippet={span.outputSnippet}
+          attributesSnippet={span.attributesSnippet}
+          variant="span"
+        />
+      </div>
+    );
+  }
+
   if (previewText) {
     return (
       <div className="pl-7">
@@ -119,7 +118,8 @@ export default function SpanItem({
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
   const previewText = typeof output === "string" && output !== "" ? output : null;
-  const showInlinePreview = !isLLMType && !isPending;
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
+  const showInlinePreview = !isLLMType && !isPending && !hasSnippet;
 
   return (
     <div
@@ -157,7 +157,7 @@ export default function SpanItem({
               <SpanDisplayTooltip isLLM={isLLMType} name={span.name}>
                 <span className="font-medium text-[13px] whitespace-nowrap shrink-0">{getSpanDisplayName(span)}</span>
               </SpanDisplayTooltip>
-              <InlinePreviewContent span={span} previewText={previewText} isLoading={isLoadingOutput} />
+              <InlinePreviewContent previewText={previewText} isLoading={isLoadingOutput} />
             </div>
           ) : (
             <SpanDisplayTooltip isLLM={isLLMType} name={span.name}>
@@ -189,7 +189,9 @@ export default function SpanItem({
           </div>
         </div>
 
-        {isLLMType && !isPending && <LLMOutputPreview previewText={previewText} isLoading={isLoadingOutput} />}
+        {!isPending && (isLLMType || hasSnippet) && (
+          <LLMOutputPreview span={span} previewText={previewText} isLoading={isLoadingOutput} />
+        )}
       </div>
     </div>
   );
