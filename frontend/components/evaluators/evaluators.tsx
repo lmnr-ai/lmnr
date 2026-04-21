@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type Row } from "@tanstack/react-table";
 import { get } from "lodash";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import ManageEvaluatorSheet from "@/components/evaluators/manage-evaluator-sheet
 import { Button } from "@/components/ui/button";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type Evaluator } from "@/lib/evaluators/types";
+import { track } from "@/lib/posthog";
 
 import { defaultEvaluatorsColumnOrder } from "./lib/consts";
 
@@ -46,6 +47,10 @@ const Evaluators = () => {
     resolver: zodResolver(manageEvaluatorSchema),
     defaultValues,
   });
+
+  useEffect(() => {
+    track("evaluators", "page_viewed");
+  }, []);
 
   const { reset } = methods;
   const handleRowClick = useCallback(

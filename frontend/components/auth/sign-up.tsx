@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
 import { AzureButton } from "@/components/auth/azure-button";
@@ -14,6 +14,7 @@ import { KeycloakButton } from "@/components/auth/keycloak-button";
 import { OktaButton } from "@/components/auth/okta-button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface SignUpProps {
@@ -35,9 +36,14 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState<Provider | string>("");
 
+  useEffect(() => {
+    track("auth", "sign_up_page_viewed");
+  }, []);
+
   const handleSignUp = async (provider: Provider) => {
     try {
       setIsLoading(provider);
+      track("auth", "sign_up_attempted", { provider });
       const result = await signIn(provider, { callbackUrl });
 
       if (result && !result.ok) {

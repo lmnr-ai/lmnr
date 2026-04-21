@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -25,6 +26,7 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
     const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
+    track("workspace", "created");
     router.push(`/workspace/${newWorkspace.id}`);
     setIsLoading(false);
   };

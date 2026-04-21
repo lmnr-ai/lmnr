@@ -3,6 +3,8 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
+import { track } from "@/lib/posthog";
+
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -34,6 +36,7 @@ export function EmailSignInButton({ callbackUrl }: EmailSignInProps) {
         className="p-4"
         variant={"light"}
         onClick={() => {
+          track("auth", "sign_in_attempted", { provider: "email" });
           signIn("email", {
             callbackUrl,
             email,
