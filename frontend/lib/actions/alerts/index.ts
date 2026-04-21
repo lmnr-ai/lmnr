@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
-import { type AlertMetadata, type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+import { type AlertTarget, type AlertType, type AlertWithDetails, type SignalEventAlertMetadata } from "./types";
 
 const TargetSchema = z.object({
   type: z.string(),
@@ -14,41 +14,29 @@ const TargetSchema = z.object({
   email: z.email().optional(),
 });
 
-const SignalEventMetadataSchema = z.object({
-  severities: z.array(z.number().int().min(0).max(2)).nonempty(),
+const MetadataSchema = z.object({
+  severity: z.number().int().min(0).max(2),
   skipSimilar: z.boolean().optional(),
 });
-
-const NewClusterMetadataSchema = z.object({}).strict();
-
-// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
-const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
-  if (type === "SIGNAL_EVENT") {
-    const parsed = SignalEventMetadataSchema.parse(metadata ?? {});
-    const dedupedSeverities = Array.from(new Set(parsed.severities)).sort((a, b) => a - b);
-    return { ...parsed, severities: dedupedSeverities };
-  }
-  return NewClusterMetadataSchema.parse(metadata ?? {});
-};
 
 const CreateAlertSchema = z.object({
   projectId: z.guid(),
   name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
+  type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.guid(),
   targets: z.array(TargetSchema),
-  metadata: z.unknown().optional(),
+  metadata: MetadataSchema.optional(),
 });
 
 const UpdateAlertSchema = z.object({
   alertId: z.guid(),
   projectId: z.guid(),
   name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
+  type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.guid(),
   targets: z.array(TargetSchema),
   userEmail: z.string().optional(),
-  metadata: z.unknown().optional(),
+  metadata: MetadataSchema.optional(),
 });
 
 const DeleteAlertSchema = z.object({
@@ -121,18 +109,17 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
     signalName: a.signalName,
     projectName: project.name,
     targets: targetsByAlert.get(a.id) ?? [],
-    metadata: (a.metadata as AlertMetadata) ?? {},
+    metadata: (a.metadata as SignalEventAlertMetadata) ?? null,
   }));
 }
 
 export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
   const { projectId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
-  const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
     const [alert] = await tx
       .insert(alerts)
-      .values({ projectId, name, type, sourceId, metadata: validatedMetadata })
+      .values({ projectId, name, type, sourceId, metadata: metadata ?? {} })
       .returning({ id: alerts.id });
 
     if (targets.length > 0) {
@@ -155,12 +142,11 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
 
 export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
-  const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
     await tx
       .update(alerts)
-      .set({ name, type, sourceId, metadata: validatedMetadata })
+      .set({ name, type, sourceId, ...(metadata !== undefined && { metadata }) })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
     // Fetch existing email targets belonging to OTHER users so we can preserve them.

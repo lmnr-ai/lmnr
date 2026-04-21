@@ -13,8 +13,7 @@ export async function GET(
 
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetEventStatsSchema.omit({ projectId: true, signalId: true }),
-    ["filter", "searchIn", "severities"]
+    GetEventStatsSchema.omit({ projectId: true, signalId: true })
   );
 
   if (!parseResult.success) {

@@ -1,6 +1,5 @@
 "use client";
 
-import { CaretSortIcon } from "@radix-ui/react-icons";
 import { Loader2, Mail, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -11,16 +10,8 @@ import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,21 +19,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import {
   ALERT_TARGET_TYPE,
-  ALERT_TYPE,
-  ALERT_TYPE_LABELS,
-  type AlertType,
   type AlertWithDetails,
   SEVERITY_LABELS,
   SEVERITY_LEVEL,
   type SeverityLevel,
-  type SignalEventAlertMetadata,
 } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
-import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -59,32 +44,23 @@ interface ManageAlertSheetProps {
 }
 
 interface AlertFormValues {
-  type: AlertType | "";
   name: string;
   signalName: string;
   channelId: string;
   emailEnabled: boolean;
-  severities: SeverityLevel[];
+  severity: SeverityLevel;
   skipSimilar: boolean;
 }
 
 const CHART_FIELDS = ["count"] as const;
 
-const SEVERITY_OPTIONS = [SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const;
-
 const DEFAULT_VALUES: AlertFormValues = {
-  type: "",
   name: "",
   signalName: "",
   channelId: "",
   emailEnabled: false,
-  severities: [SEVERITY_LEVEL.CRITICAL],
+  severity: SEVERITY_LEVEL.CRITICAL,
   skipSimilar: true,
-};
-
-const ALERT_TYPE_DESCRIPTIONS: Record<AlertType, string> = {
-  [ALERT_TYPE.SIGNAL_EVENT]: "Notify when a new signal event is detected.",
-  [ALERT_TYPE.NEW_CLUSTER]: "Notify when a new cluster is created.",
 };
 
 export default function ManageAlertSheet({
@@ -99,8 +75,6 @@ export default function ManageAlertSheet({
 }: ManageAlertSheetProps) {
   const isEditMode = !!alert;
   const hasSlackIntegration = !!integrationId;
-  const featureFlags = useFeatureFlags();
-  const clusteringEnabled = featureFlags[Feature.CLUSTERING];
 
   const [isTesting, setIsTesting] = useState(false);
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
@@ -120,10 +94,9 @@ export default function ManageAlertSheet({
     formState: { isSubmitting },
   } = useForm<AlertFormValues>({ defaultValues: DEFAULT_VALUES });
 
-  const alertType = watch("type");
   const signalName = watch("signalName");
   const channelId = watch("channelId");
-  const severities = watch("severities");
+  const severity = watch("severity");
 
   const resetFormFromSignals = useCallback(
     (data: { items: SignalRow[] }) => {
@@ -135,20 +108,14 @@ export default function ManageAlertSheet({
       const signal = data.items?.find((s) => s.id === alert.sourceId);
       const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
       const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
-      const signalEventMeta =
-        alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
 
       reset({
-        type: alert.type,
         name: alert.name,
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
-        severities:
-          signalEventMeta?.severities && signalEventMeta.severities.length > 0
-            ? signalEventMeta.severities
-            : [SEVERITY_LEVEL.CRITICAL],
-        skipSimilar: signalEventMeta?.skipSimilar ?? false,
+        severity: alert.metadata.severity ?? SEVERITY_LEVEL.CRITICAL,
+        skipSimilar: alert.metadata.skipSimilar ?? false,
       });
     },
     [alert, reset, userEmail]
@@ -211,23 +178,10 @@ export default function ManageAlertSheet({
     [signalsData, signalName]
   );
 
-  const additionalParams = useMemo(
-    () =>
-      alertType === ALERT_TYPE.SIGNAL_EVENT && severities.length > 0
-        ? { severities: severities.map(String) }
-        : undefined,
-    [alertType, severities]
-  );
-
-  const statsBaseUrl = useMemo(() => {
-    if (!selectedSignal || !alertType) return "";
-    return alertType === ALERT_TYPE.SIGNAL_EVENT
-      ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats`
-      : `/api/projects/${projectId}/signals/${selectedSignal.id}/clusters/stats`;
-  }, [alertType, projectId, selectedSignal]);
+  const additionalParams = useMemo(() => ({ severity: String(severity) }), [severity]);
 
   const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: statsBaseUrl,
+    baseUrl: selectedSignal ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats` : "",
     chartContainerWidth,
     pastHours: dateRange.pastHours ?? null,
     startDate: dateRange.startDate ?? null,
@@ -263,19 +217,12 @@ export default function ManageAlertSheet({
   const chartConfig = useMemo(
     () => ({
       count: {
-        label: alertType === ALERT_TYPE.NEW_CLUSTER ? "New clusters" : signalName || "Events",
+        label: signalName || "Events",
         color: "hsl(var(--primary))",
       },
     }),
-    [alertType, signalName]
+    [signalName]
   );
-
-  const chartHeading = useMemo(() => {
-    if (alertType === ALERT_TYPE.NEW_CLUSTER) {
-      return `New clusters created in the past ${dateRangeLabel}: ${totalEventCount}`;
-    }
-    return `Notification would have triggered ${totalEventCount} time${totalEventCount === 1 ? "" : "s"} for the past ${dateRangeLabel}`;
-  }, [alertType, dateRangeLabel, totalEventCount]);
 
   const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
     open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
@@ -296,7 +243,7 @@ export default function ManageAlertSheet({
 
   const onSubmit = useCallback(
     async (data: AlertFormValues) => {
-      if (!data.type || !selectedSignal) return;
+      if (!selectedSignal) return;
 
       const targets: Array<{
         type: string;
@@ -338,26 +285,15 @@ export default function ManageAlertSheet({
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
 
-        const metadata =
-          data.type === ALERT_TYPE.SIGNAL_EVENT
-            ? {
-                severities: Array.from(new Set(data.severities)).sort((a, b) => a - b),
-                // skipSimilar relies on the clustering service; force it off when
-                // clustering is disabled so the backend doesn't receive a stale
-                // value from a hidden toggle or the default form state.
-                skipSimilar: clusteringEnabled ? data.skipSimilar : false,
-              }
-            : {};
-
         const res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: data.name.trim(),
-            type: data.type,
+            type: "SIGNAL_EVENT",
             sourceId: selectedSignal.id,
             targets,
-            metadata,
+            metadata: { severity: data.severity, skipSimilar: data.skipSimilar },
           }),
         });
 
@@ -403,7 +339,6 @@ export default function ManageAlertSheet({
       isEditMode,
       alert,
       onOpenChange,
-      clusteringEnabled,
     ]
   );
 
@@ -446,292 +381,208 @@ export default function ManageAlertSheet({
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-6 p-4">
             <Controller
-              name="type"
+              name="name"
               control={control}
-              render={({ field }) => (
+              rules={{ required: "Alert name is required" }}
+              render={({ field, fieldState }) => (
                 <div className="grid gap-2">
-                  <Label>Trigger</Label>
-                  {field.value && (
-                    <p className="text-xs text-muted-foreground">{ALERT_TYPE_DESCRIPTIONS[field.value]}</p>
-                  )}
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={(value) => field.onChange(value as AlertType)}
-                    disabled={isEditMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a notification trigger" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {([ALERT_TYPE.SIGNAL_EVENT, ...(clusteringEnabled ? [ALERT_TYPE.NEW_CLUSTER] : [])] as const).map(
-                        (t) => (
-                          <SelectItem key={t} value={t}>
-                            {ALERT_TYPE_LABELS[t]}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Label>Name</Label>
+                  <Input
+                    {...field}
+                    placeholder="e.g. High error rate alert"
+                    disabled={isSignalsSectionLoading}
+                    className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                  />
+                  {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
                 </div>
               )}
             />
 
-            {alertType && (
-              <>
-                <Controller
-                  name="name"
-                  control={control}
-                  rules={{ required: "Alert name is required" }}
-                  render={({ field, fieldState }) => (
-                    <div className="grid gap-2">
-                      <Label>Name</Label>
-                      <Input
-                        {...field}
-                        placeholder="e.g. High error rate alert"
-                        disabled={isSignalsSectionLoading}
-                        className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
-                      />
+            <Controller
+              name="signalName"
+              control={control}
+              rules={{ required: "Signal is required" }}
+              render={({ field, fieldState }) => (
+                <div className="grid gap-2">
+                  <Label>Signal</Label>
+                  <p className="text-xs text-muted-foreground">Choose the signal that will trigger alert.</p>
+                  {isSignalsSectionLoading ? (
+                    <Skeleton className="h-7 w-full" />
+                  ) : (
+                    <>
+                      <Select
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          setValue("channelId", "");
+                        }}
+                      >
+                        <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
+                          <SelectValue placeholder="Select a signal" />
+                        </SelectTrigger>
+                        <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
+                          {signalsData?.items?.map((s) => (
+                            <SelectItem key={s.id} value={s.name} description={s.prompt}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                    </div>
+                    </>
                   )}
-                />
+                </div>
+              )}
+            />
 
-                <Controller
-                  name="signalName"
-                  control={control}
-                  rules={{ required: "Signal is required" }}
-                  render={({ field, fieldState }) => (
-                    <div className="grid gap-2">
-                      <Label>Signal</Label>
-                      <p className="text-xs text-muted-foreground">Choose the signal that will trigger alert.</p>
-                      {isSignalsSectionLoading ? (
-                        <Skeleton className="h-7 w-full" />
-                      ) : (
-                        <>
-                          <Select
-                            value={field.value}
-                            onValueChange={(value) => {
-                              field.onChange(value);
-                              setValue("channelId", "");
-                            }}
-                          >
-                            <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
-                              <SelectValue placeholder="Select a signal" />
-                            </SelectTrigger>
-                            <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
-                              {signalsData?.items?.map((s) => (
-                                <SelectItem key={s.id} value={s.name} description={s.prompt}>
-                                  {s.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                        </>
-                      )}
-                    </div>
-                  )}
-                />
-
-                {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && (
-                  <Controller
-                    name="severities"
-                    control={control}
-                    shouldUnregister
-                    rules={{
-                      validate: (value) => (value && value.length > 0) || "Select at least one severity level",
-                    }}
-                    render={({ field, fieldState }) => {
-                      const selected = new Set(field.value);
-                      const sortedSelected = SEVERITY_OPTIONS.filter((l) => selected.has(l));
-                      const triggerLabel =
-                        sortedSelected.length === 0
-                          ? "Select severities"
-                          : sortedSelected.map((l) => SEVERITY_LABELS[l]).join(", ");
-                      const toggle = (level: SeverityLevel, checked: boolean) => {
-                        const next = new Set(field.value);
-                        if (checked) {
-                          next.add(level);
-                        } else {
-                          next.delete(level);
-                        }
-                        field.onChange(SEVERITY_OPTIONS.filter((l) => next.has(l)) as SeverityLevel[]);
-                      };
-                      return (
-                        <div className="grid gap-2">
-                          <Label>Severity</Label>
-                          <p className="text-xs text-muted-foreground">
-                            Trigger notifications for events with any of the selected severity levels.
-                          </p>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                  "h-7 w-full justify-between px-2 text-xs font-normal",
-                                  fieldState.error && "border-destructive"
-                                )}
-                              >
-                                <span className="truncate">{triggerLabel}</span>
-                                <CaretSortIcon className="h-4 w-4 opacity-50" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                              <DropdownMenuGroup>
-                                {SEVERITY_OPTIONS.map((level) => {
-                                  const isChecked = selected.has(level);
-                                  return (
-                                    <DropdownMenuItem
-                                      key={level}
-                                      onSelect={(e) => e.preventDefault()}
-                                      onClick={() => toggle(level, !isChecked)}
-                                      className="gap-2"
-                                    >
-                                      <Checkbox
-                                        checked={isChecked}
-                                        onCheckedChange={(checked) => toggle(level, !!checked)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
-                                      />
-                                      <span>{SEVERITY_LABELS[level]}</span>
-                                    </DropdownMenuItem>
-                                  );
-                                })}
-                              </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                        </div>
-                      );
-                    }}
-                  />
+            {selectedSignal && (
+              <Controller
+                name="severity"
+                control={control}
+                render={({ field }) => (
+                  <div className="grid gap-2">
+                    <Label>Severity</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only trigger notifications for events with this severity level.
+                    </p>
+                    <Select
+                      value={String(field.value)}
+                      onValueChange={(v) => field.onChange(Number(v) as SeverityLevel)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {([SEVERITY_LEVEL.INFO, SEVERITY_LEVEL.WARNING, SEVERITY_LEVEL.CRITICAL] as const).map(
+                          (level) => (
+                            <SelectItem key={level} value={String(level)}>
+                              {SEVERITY_LABELS[level]}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
+              />
+            )}
 
-                {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && clusteringEnabled && (
+            {selectedSignal && (
+              <Controller
+                name="skipSimilar"
+                control={control}
+                render={({ field }) => (
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Skip notifications for similar events</p>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, only the first event in a group of similar events will trigger a notification.
+                      </p>
+                    </div>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </div>
+                )}
+              />
+            )}
+
+            {selectedSignal && (
+              <div className="flex flex-col gap-3 border rounded-md p-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Notification would have triggered {totalEventCount} time{totalEventCount === 1 ? "" : "s"} for the
+                    past {dateRangeLabel}
+                  </span>
+                  <DateRangeFilter
+                    mode="state"
+                    value={dateRange}
+                    onChange={handleDateRangeChange}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div ref={chartRefCallback}>
+                  {!eventsStats && isLoadingStats ? (
+                    <div className="overflow-hidden">
+                      <ChartSkeleton />
+                    </div>
+                  ) : (
+                    <TimeSeriesChart
+                      data={eventsStats?.items ?? []}
+                      chartConfig={chartConfig}
+                      fields={CHART_FIELDS}
+                      containerWidth={chartContainerWidth}
+                      onZoom={handleChartZoom}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedSignal && (
+              <div className="grid gap-4">
+                <Label>Notification targets</Label>
+                <p className="text-xs text-muted-foreground -mt-3">Choose where to send alert notifications.</p>
+
+                {hasSlackIntegration && (
                   <Controller
-                    name="skipSimilar"
+                    name="channelId"
                     control={control}
-                    render={({ field }) => (
-                      <div className="flex items-center justify-between rounded-md border p-3">
-                        <div className="pr-3">
-                          <p className="text-sm font-medium">Skip notifications for similar events</p>
-                          <p className="text-xs text-muted-foreground">
-                            When enabled, only the first event in a group of semantically similar events will trigger a
-                            notification. Subsequent events in the same group are ignored.
-                          </p>
-                        </div>
-                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    render={({ field, fieldState }) => (
+                      <div className="grid gap-2">
+                        <Label className="text-xs font-normal text-muted-foreground">Slack Channel</Label>
+                        {isLoadingChannels ? (
+                          <Skeleton className="h-7 w-full" />
+                        ) : (
+                          <>
+                            <div className="flex gap-2">
+                              <Combobox
+                                items={channelItems}
+                                value={field.value || null}
+                                setValue={(v) => field.onChange(v ?? "")}
+                                placeholder="Select a channel (optional)"
+                                noMatchText="No channels found."
+                                triggerClassName={cn("flex-1 h-7 text-xs", fieldState.error && "border-destructive")}
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!channelId || isTesting}
+                                onClick={handleTest}
+                              >
+                                <Loader2 className={cn("hidden", { "animate-spin block mr-1": isTesting })} size={14} />
+                                {!isTesting && <Send className="size-3.5 mr-1" />}
+                                Test
+                              </Button>
+                            </div>
+                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                          </>
+                        )}
                       </div>
                     )}
                   />
                 )}
 
-                {selectedSignal && (
-                  <div className="flex flex-col gap-3 border rounded-md p-3 bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">{chartHeading}</span>
-                      <DateRangeFilter
-                        mode="state"
-                        value={dateRange}
-                        onChange={handleDateRangeChange}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    <div ref={chartRefCallback}>
-                      {!eventsStats && isLoadingStats ? (
-                        <div className="overflow-hidden">
-                          <ChartSkeleton />
+                <Controller
+                  name="emailEnabled"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="size-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Email</p>
+                          <p className="text-xs text-muted-foreground">{userEmail}</p>
                         </div>
-                      ) : (
-                        <TimeSeriesChart
-                          data={eventsStats?.items ?? []}
-                          chartConfig={chartConfig}
-                          fields={CHART_FIELDS}
-                          containerWidth={chartContainerWidth}
-                          onZoom={handleChartZoom}
-                        />
-                      )}
+                      </div>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </div>
-                  </div>
-                )}
-
-                {selectedSignal && (
-                  <div className="grid gap-4">
-                    <Label>Notification targets</Label>
-                    <p className="text-xs text-muted-foreground -mt-3">Choose where to send alert notifications.</p>
-
-                    {hasSlackIntegration && (
-                      <Controller
-                        name="channelId"
-                        control={control}
-                        render={({ field, fieldState }) => (
-                          <div className="grid gap-2">
-                            <Label className="text-xs font-normal text-muted-foreground">Slack Channel</Label>
-                            {isLoadingChannels ? (
-                              <Skeleton className="h-7 w-full" />
-                            ) : (
-                              <>
-                                <div className="flex gap-2">
-                                  <Combobox
-                                    items={channelItems}
-                                    value={field.value || null}
-                                    setValue={(v) => field.onChange(v ?? "")}
-                                    placeholder="Select a channel (optional)"
-                                    noMatchText="No channels found."
-                                    triggerClassName={cn(
-                                      "flex-1 h-7 text-xs",
-                                      fieldState.error && "border-destructive"
-                                    )}
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    disabled={!channelId || isTesting}
-                                    onClick={handleTest}
-                                  >
-                                    <Loader2
-                                      className={cn("hidden", { "animate-spin block mr-1": isTesting })}
-                                      size={14}
-                                    />
-                                    {!isTesting && <Send className="size-3.5 mr-1" />}
-                                    Test
-                                  </Button>
-                                </div>
-                                {fieldState.error && (
-                                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        )}
-                      />
-                    )}
-
-                    <Controller
-                      name="emailEnabled"
-                      control={control}
-                      render={({ field }) => (
-                        <div className="flex items-center justify-between rounded-md border p-3">
-                          <div className="flex items-center gap-2">
-                            <Mail className="size-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-sm font-medium">Email</p>
-                              <p className="text-xs text-muted-foreground">{userEmail}</p>
-                            </div>
-                          </div>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </div>
-                      )}
-                    />
-                  </div>
-                )}
-              </>
+                  )}
+                />
+              </div>
             )}
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || !alertType}>
+          <Button type="submit" disabled={isSubmitting}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

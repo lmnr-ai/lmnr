@@ -9,8 +9,7 @@ use uuid::Uuid;
 
 use super::NotificationKind;
 use super::utils::{
-    build_report_data_from_batch, frontend_url_email, inject_utm_into_links,
-    md_links_to_html_escaped, with_utm,
+    build_report_data_from_batch, inject_utm_into_links, md_links_to_html_escaped, with_utm,
 };
 use crate::reports::email_template::ReportData;
 
@@ -52,10 +51,8 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
         } => {
             let trace_link = with_utm(
                 &format!(
-                    "{}/project/{}/traces/{}?chat=true",
-                    frontend_url_email(),
-                    project_id,
-                    trace_id
+                    "https://lmnr.ai/project/{}/traces/{}?chat=true",
+                    project_id, trace_id
                 ),
                 "email",
                 "signal_alert",
@@ -80,29 +77,6 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
                 ),
             }
         }
-        NotificationKind::NewCluster {
-            project_id,
-            signal_id,
-            signal_name,
-            cluster_id,
-            cluster_name,
-            num_signal_events,
-            num_child_clusters,
-            alert_name,
-        } => EmailContent {
-            from: ALERT_FROM_EMAIL.to_string(),
-            subject: format!("{}: New cluster", signal_name),
-            html: render_new_cluster_email(
-                project_id,
-                signal_id,
-                signal_name,
-                cluster_id,
-                cluster_name,
-                *num_signal_events,
-                *num_child_clusters,
-                alert_name,
-            ),
-        },
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
@@ -169,9 +143,8 @@ fn render_alert_email(
 ) -> String {
     let severity_label = severity_label(severity);
     let severity_color = severity_color(severity);
-    let base = frontend_url_email();
     let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
+        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
         "email",
         "signal_alert",
         "manage_alert",
@@ -180,8 +153,8 @@ fn render_alert_email(
         Some(eid) => {
             let similar_link = with_utm(
                 &format!(
-                    "{}/project/{}/signals/{}?eventCluster={}",
-                    base, project_id, signal_id, eid
+                    "https://lmnr.ai/project/{}/signals/{}?eventCluster={}",
+                    project_id, signal_id, eid
                 ),
                 "email",
                 "signal_alert",
@@ -260,7 +233,7 @@ fn render_alert_email(
     };
 
     let manage_prefs_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
+        &format!("https://lmnr.ai/project/{}/settings?tab=alerts", project_id),
         "email",
         "signal_alert",
         "manage_preferences",
@@ -309,115 +282,6 @@ fn render_alert_email(
     )
 }
 
-/// Render an HTML email for a new-cluster notification.
-#[allow(clippy::too_many_arguments)]
-fn render_new_cluster_email(
-    project_id: &Uuid,
-    signal_id: &Uuid,
-    signal_name: &str,
-    cluster_id: &Uuid,
-    cluster_name: &str,
-    num_signal_events: u32,
-    num_child_clusters: usize,
-    alert_name: &str,
-) -> String {
-    let base = frontend_url_email();
-    let cluster_link = with_utm(
-        &format!(
-            "{}/project/{}/signals/{}?clusterId={}",
-            base, project_id, signal_id, cluster_id
-        ),
-        "email",
-        "new_cluster_alert",
-        "view_cluster",
-    );
-    let alert_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "email",
-        "new_cluster_alert",
-        "manage_alert",
-    );
-    let manage_prefs_link = with_utm(
-        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
-        "email",
-        "new_cluster_alert",
-        "manage_preferences",
-    );
-
-    let details_html = format!(
-        r#"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
-  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;">Details</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Cluster</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{cluster_name}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;">Events</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;">{num_signal_events}</td>
-    </tr>
-    <tr>
-      <td style="padding:6px 0;font-size:13px;color:#6b7280;vertical-align:top;">Child clusters</td>
-      <td style="padding:6px 0 6px 12px;font-size:13px;color:#111827;">{num_child_clusters}</td>
-    </tr>
-  </table>
-</div>"#,
-        cluster_name = html_escape(cluster_name),
-        num_signal_events = num_signal_events,
-        num_child_clusters = num_child_clusters,
-    );
-
-    let context_html = format!(
-        r##"<div style="text-align:center;margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.6;">
-  <span style="vertical-align:middle;">Alert: <a href="{alert_link}" style="color:{primary};text-decoration:none;">{alert_name}</a></span>
-</div>"##,
-        alert_link = alert_link,
-        alert_name = html_escape(alert_name),
-        primary = PRIMARY,
-    );
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{signal_name}: New cluster</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <p style="margin:0 0 6px;font-size:13px;color:#9ca3af;">New cluster</p>
-    <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">{signal_name}</h1>
-  </div>
-
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    {details_html}
-    <div style="text-align:center;padding-top:8px;">
-      <a href="{cluster_link}" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Cluster</a>
-    </div>
-    {context_html}
-  </div>
-
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This alert was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to alerts for this project.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="{manage_prefs_link}" style="color:#D0754E;text-decoration:none;">Manage alert preferences</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        signal_name = html_escape(signal_name),
-        details_html = details_html,
-        cluster_link = cluster_link,
-        context_html = context_html,
-        manage_prefs_link = manage_prefs_link,
-    )
-}
-
 /// Render an HTML email for a usage warning notification.
 fn render_usage_warning_email(
     workspace_name: &str,
@@ -432,15 +296,14 @@ fn render_usage_warning_email(
         _ => "usage",
     };
 
-    let base = frontend_url_email();
     let view_usage_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        &format!("https://lmnr.ai/workspace/{}?tab=usage", workspace_id),
         "email",
         "usage_warning",
         "view_usage",
     );
     let manage_thresholds_link = with_utm(
-        &format!("{}/workspace/{}?tab=usage", base, workspace_id),
+        &format!("https://lmnr.ai/workspace/{}?tab=usage", workspace_id),
         "email",
         "usage_warning",
         "manage_thresholds",
@@ -499,7 +362,6 @@ fn render_usage_warning_email(
 /// Render an HTML email for a signals report notification.
 fn render_report_email(data: &ReportData) -> String {
     let mut projects_html = String::new();
-    let base = frontend_url_email();
 
     for project in &data.projects {
         let mut summary_rows = String::new();
@@ -564,8 +426,7 @@ fn render_report_email(data: &ReportData) -> String {
 
                 let trace_link = with_utm(
                     &format!(
-                        "{}/project/{}/traces/{}?chat=true",
-                        base,
+                        "https://lmnr.ai/project/{}/traces/{}?chat=true",
                         project.project_id,
                         html_escape(&event.trace_id),
                     ),
@@ -618,7 +479,10 @@ fn render_report_email(data: &ReportData) -> String {
     }
 
     let unsubscribe_link = with_utm(
-        &format!("{}/workspace/{}?tab=reports", base, data.workspace_id),
+        &format!(
+            "https://lmnr.ai/workspace/{}?tab=reports",
+            data.workspace_id
+        ),
         "email",
         "signals_report",
         "unsubscribe",

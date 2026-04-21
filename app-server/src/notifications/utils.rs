@@ -6,26 +6,6 @@ use uuid::Uuid;
 use super::NotificationKind;
 use crate::reports::email_template::{ProjectReportData, ReportData};
 
-/// Public-facing base URL used to construct user-clickable links in notifications.
-/// Reads `NEXT_PUBLIC_URL` (the frontend's public URL) so self-hosted deployments
-/// route users to their own instance. Falls back to the given default for the
-/// managed Laminar Cloud experience.
-fn frontend_url_with_default(default: &str) -> String {
-    let raw = std::env::var("NEXT_PUBLIC_URL").unwrap_or_else(|_| default.to_string());
-    raw.trim_end_matches('/').to_string()
-}
-
-/// Public-facing base URL for Slack message links. Defaults to `https://laminar.sh`
-/// (short branded domain used in Slack messages on Laminar Cloud).
-pub(super) fn frontend_url_slack() -> String {
-    frontend_url_with_default("https://laminar.sh")
-}
-
-/// Public-facing base URL for email links. Defaults to `https://lmnr.ai`.
-pub(super) fn frontend_url_email() -> String {
-    frontend_url_with_default("https://lmnr.ai")
-}
-
 /// Append UTM tracking parameters to a notification URL.
 ///
 /// Used so PostHog auto-captures `$utm_source`, `$utm_medium`, `$utm_campaign`,

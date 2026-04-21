@@ -1,14 +1,8 @@
 export const ALERT_TYPE = {
   SIGNAL_EVENT: "SIGNAL_EVENT",
-  NEW_CLUSTER: "NEW_CLUSTER",
 } as const;
 
 export type AlertType = (typeof ALERT_TYPE)[keyof typeof ALERT_TYPE];
-
-export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
-  [ALERT_TYPE.SIGNAL_EVENT]: "New event",
-  [ALERT_TYPE.NEW_CLUSTER]: "New cluster",
-};
 
 export const ALERT_TARGET_TYPE = {
   SLACK: "SLACK",
@@ -30,11 +24,9 @@ export const SEVERITY_LABELS: Record<SeverityLevel, string> = {
 };
 
 export interface SignalEventAlertMetadata {
-  severities?: SeverityLevel[];
+  severity?: SeverityLevel;
   skipSimilar?: boolean;
 }
-
-export type AlertMetadata = Record<string, any>;
 
 export interface AlertTarget {
   id: string;
@@ -55,5 +47,5 @@ export interface AlertWithDetails {
   projectName: string;
   createdAt: string;
   targets: AlertTarget[];
-  metadata: AlertMetadata;
+  metadata: SignalEventAlertMetadata;
 }

@@ -13,7 +13,6 @@ export enum Feature {
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
   BATCH_SIGNALS = "BATCH_SIGNALS",
-  CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
 }
@@ -96,10 +95,6 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.BATCH_SIGNALS) {
     return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  }
-
-  if (feature === Feature.CLUSTERING) {
-    return process.env.CLUSTERING_ENABLED === "true";
   }
 
   if (feature === Feature.SEND_EMAIL) {
