@@ -58,6 +58,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       });
       await res.text();
 
+      if (res.ok) {
+        track("api_keys", "revoked");
+      }
       getProjectApiKeys();
     },
     [projectId, getProjectApiKeys]

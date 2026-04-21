@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 
 import {
@@ -115,6 +116,10 @@ const QueuesContent = () => {
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
 
+  useEffect(() => {
+    track("labeling_queues", "page_viewed");
+  }, []);
+
   const fetchQueues = useCallback(
     async (pageNumber: number) => {
       try {
@@ -180,6 +185,7 @@ const QueuesContent = () => {
       if (res.ok) {
         updateData((currentData) => currentData.filter((queue) => !queueIds.includes(queue.id)));
         setRowSelection({});
+        track("labeling_queues", "deleted", { count: queueIds.length });
         toast({
           title: "Queues deleted",
           description: `Successfully deleted ${queueIds.length} queue(s).`,

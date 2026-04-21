@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ChartTypeField from "./ChartTypeField";
 import DimensionsField from "./DimensionsField";
@@ -105,6 +106,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 
+      track("dashboards", id ? "chart_updated" : "chart_created", { chart_type: chart.settings.config?.type });
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
       router.push(`/project/${projectId}/dashboard`);
     } catch (err) {

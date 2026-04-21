@@ -12,16 +12,26 @@ export type Feature =
   | "settings"
   | "model_costs"
   | "api_keys"
+  | "provider_api_keys"
   | "project"
   | "datasets"
   | "evaluations"
+  | "evaluators"
+  | "playgrounds"
+  | "labeling_queues"
   | "dashboards"
   | "reports"
   | "integrations"
   | "billing"
   | "team"
   | "usage"
-  | "onboarding";
+  | "onboarding"
+  | "auth"
+  | "workspace"
+  | "deployment"
+  | "blog"
+  | "shared"
+  | "invitations";
 
 // Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
 // so there is no concurrent-write race condition. The flag prevents calling posthog.init()

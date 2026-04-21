@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +113,7 @@ export default function ManageEvaluatorSheet({
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
 
+        track("evaluators", isUpdate ? "updated" : "created");
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} evaluator` });
         setOpen(false);
         reset();
