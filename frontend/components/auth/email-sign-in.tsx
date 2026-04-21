@@ -11,11 +11,12 @@ import { Label } from "../ui/label";
 
 interface EmailSignInProps {
   callbackUrl: string;
+  action?: "sign_in_attempted" | "sign_up_attempted";
 }
 
 const validateEmailAddress = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export function EmailSignInButton({ callbackUrl }: EmailSignInProps) {
+export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted" }: EmailSignInProps) {
   const [email, setEmail] = useState("");
 
   return (
@@ -36,7 +37,7 @@ export function EmailSignInButton({ callbackUrl }: EmailSignInProps) {
         className="p-4"
         variant={"light"}
         onClick={() => {
-          track("auth", "sign_in_attempted", { provider: "email" });
+          track("auth", action, { provider: "email" });
           signIn("email", {
             callbackUrl,
             email,

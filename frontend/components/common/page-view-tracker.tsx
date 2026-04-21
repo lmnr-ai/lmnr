@@ -13,7 +13,8 @@ interface PageViewTrackerProps {
 export default function PageViewTracker({ feature, action = "page_viewed", properties }: PageViewTrackerProps) {
   useEffect(() => {
     track(feature, action, properties);
-  }, [feature, action, properties]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return null;
 }

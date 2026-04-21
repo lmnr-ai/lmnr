@@ -139,7 +139,9 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type is defined in `lib/posthog/client.ts` — add new categories there before using them. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
 - All tracking is no-op when PostHog is disabled (`POSTHOG_TELEMETRY !== "true"`). No conditional checks needed in feature code.
 - For page-view tracking on server-component pages, use the `PageViewTracker` client component at `components/common/page-view-tracker.tsx` — server components cannot call `track` directly (no hooks). For server-action buttons that need tracking, wrap them in a dedicated `"use client"` component that calls `track` before invoking the server action (see `components/invitations/invitation-actions.tsx`).
-- Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook.
+- `PageViewTracker` deliberately uses an empty `useEffect` dependency array so it fires exactly once on mount. Callers pass inline `properties` object literals (`{ slug }`, `{ traceId }`), which would otherwise create a new reference on every render and re-fire the event.
+- Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook. `EmailSignInButton` takes an `action` prop (`sign_in_attempted` | `sign_up_attempted`) because the same component is rendered on both `/sign-in` and `/sign-up`.
+- Tracking calls must be guarded by success (`res.ok`). Firing `track(...)` after an unchecked `await res.text()` records events for failed requests and corrupts metrics.
 
 ## Key Technical Details
 
