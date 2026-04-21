@@ -29,7 +29,7 @@ export default async function BlogsPage() {
 
   return (
     <div className="px-4 mt-32 pb-16 grid grid-cols-1 gap-4 container w-full md:grid-cols-3">
-      <PageViewTracker feature="blog" action="index_viewed" />
+      <PageViewTracker feature="blog" action="list_viewed" />
       {posts.map((post, index) => (
         <Link href={`/blog/${post.slug}`} key={index}>
           <Card className="overflow-hidden h-[300px] bg-background flex flex-col">
