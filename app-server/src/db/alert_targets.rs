@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
 use crate::notifications::AlertType;
@@ -41,29 +41,22 @@ pub async fn get_alerts_for_signal(
     signal_id: Uuid,
     alert_type: Option<AlertType>,
 ) -> anyhow::Result<Vec<AlertInfo>> {
-    let mut sql = String::from(
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
         SELECT a.id, a.name, p.workspace_id, a.metadata
         FROM alerts a
         INNER JOIN projects p ON p.id = a.project_id
-        WHERE a.project_id = $1
-          AND a.source_id = $2
-        "#,
+        WHERE a.project_id = "#,
     );
-
-    if alert_type.is_some() {
-        sql.push_str(" AND a.type = $3");
-    }
-
-    let mut query = sqlx::query_as::<_, AlertInfo>(&sql)
-        .bind(project_id)
-        .bind(signal_id);
+    qb.push_bind(project_id)
+        .push(" AND a.source_id = ")
+        .push_bind(signal_id);
 
     if let Some(t) = alert_type {
-        query = query.bind(t.as_str());
+        qb.push(" AND a.type = ").push_bind(t.as_str().to_owned());
     }
 
-    let records = query.fetch_all(pool).await?;
+    let records = qb.build_query_as::<AlertInfo>().fetch_all(pool).await?;
 
     Ok(records)
 }
