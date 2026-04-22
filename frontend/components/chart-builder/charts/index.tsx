@@ -22,6 +22,7 @@ interface ChartRendererCoreProps {
   config: ChartConfig;
   data: Record<string, any>[];
   columns: ColumnInfo[];
+  hiddenColumns?: string[];
   onBarClick?: (rowData: Record<string, any>) => void;
   syncId?: string;
   drag?: ChartDragHandlers;
@@ -35,6 +36,7 @@ export const ChartRendererCore = ({
   config,
   data,
   columns,
+  hiddenColumns,
   onBarClick,
   syncId,
   drag,
@@ -70,7 +72,6 @@ export const ChartRendererCore = ({
   }, [config, data, columns, isTable]);
 
   if (isTable) {
-    const hiddenColumns = config.type === ChartType.Table ? config.hiddenColumns : undefined;
     const tableColumnConfig = config.type === ChartType.Table ? config.tableColumnConfig : undefined;
     return (
       <TableChart

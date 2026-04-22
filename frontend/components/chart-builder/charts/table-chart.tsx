@@ -116,7 +116,7 @@ const TableChart = ({
 
   if (data.length === 0) {
     return (
-      <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
+      <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg w-full">
         <span className="text-muted-foreground">No data</span>
       </div>
     );

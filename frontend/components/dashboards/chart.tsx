@@ -26,6 +26,16 @@ interface ChartProps {
 
 const Chart = ({ chart }: ChartProps) => {
   const { id, name, settings, query } = chart;
+  // Columns flagged hidden on their metric — set by the editor when a chart
+  // was saved with auto-injected click-target IDs.
+  const hiddenColumns = useMemo(
+    () =>
+      (settings.queryStructure?.metrics ?? [])
+        .filter((m) => m.hidden)
+        .map((m) => m.alias ?? m.column)
+        .filter((c): c is string => !!c && c.length > 0),
+    [settings.queryStructure]
+  );
   const { projectId } = useParams();
   const searchParams = useSearchParams();
   const [data, setData] = useState<Record<string, any>[]>([]);
@@ -256,6 +266,7 @@ const Chart = ({ chart }: ChartProps) => {
             config={settings.config}
             data={data}
             columns={columns}
+            hiddenColumns={hiddenColumns}
             onBarClick={handleBarClick}
             syncId="dashboard"
             drag={drag}

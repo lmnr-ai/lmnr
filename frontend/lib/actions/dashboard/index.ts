@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
 import { type DashboardChart } from "@/components/dashboards/types";
+import { QueryStructureSchema } from "@/lib/actions/sql/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
 
@@ -18,7 +19,6 @@ const ChartSettingsSchema = z.object({
     breakdown: z.string().optional(),
     total: z.boolean().optional(),
     displayMode: z.enum(["total", "average", "none"]).optional(),
-    hiddenColumns: z.array(z.string()).optional(),
     tableColumnConfig: z
       .object({
         columnOrder: z.array(z.string()).optional(),
@@ -33,6 +33,7 @@ const ChartSettingsSchema = z.object({
     w: z.number(),
     h: z.number(),
   }),
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 export const ChartUpdatesSchema = z.array(
@@ -69,6 +70,7 @@ const UpdateChartSchema = z.object({
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 const CreateChartSchema = z.object({
@@ -76,6 +78,7 @@ const CreateChartSchema = z.object({
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
@@ -131,14 +134,23 @@ export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchem
 };
 
 export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
-  const { projectId, id, name, query, config } = UpdateChartSchema.parse(input);
+  const { projectId, id, name, query, config, queryStructure } = UpdateChartSchema.parse(input);
+
+  // Patch config and queryStructure on the existing settings jsonb without
+  // clobbering layout. Nested jsonb_set: inner call replaces {config},
+  // outer replaces {queryStructure}.
+  const settingsUpdate = sql`jsonb_set(
+    jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb),
+    '{queryStructure}',
+    ${JSON.stringify(queryStructure ?? null)}::jsonb
+  )`;
 
   await db
     .update(dashboardCharts)
     .set({
       name,
       query,
-      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`,
+      settings: settingsUpdate,
     })
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 
@@ -146,7 +158,7 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
 };
 
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
-  const { name, config, projectId, query } = CreateChartSchema.parse(input);
+  const { name, config, projectId, query, queryStructure } = CreateChartSchema.parse(input);
 
   const existingCharts = (await db.query.dashboardCharts.findMany({
     where: eq(dashboardCharts.projectId, projectId),
@@ -178,6 +190,7 @@ export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
       settings: {
         config,
         layout: { x: bestSlot.x, y: bestSlot.y, w: chartW, h: 6 },
+        queryStructure: queryStructure ?? null,
       },
     })
     .returning();

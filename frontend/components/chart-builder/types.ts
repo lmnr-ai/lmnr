@@ -28,7 +28,6 @@ export interface TableColumnConfig {
 
 export interface TableChartConfig extends BaseChartConfig {
   type: ChartType.Table;
-  hiddenColumns: string[];
   tableColumnConfig?: TableColumnConfig;
 }
 

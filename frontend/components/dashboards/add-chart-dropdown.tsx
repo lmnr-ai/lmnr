@@ -44,6 +44,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
             name: preset.name,
             query: preset.query,
             config: preset.config,
+            queryStructure: preset.queryStructure,
           }),
         });
 

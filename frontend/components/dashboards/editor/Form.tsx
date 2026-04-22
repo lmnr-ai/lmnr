@@ -17,32 +17,12 @@ import { type ColumnInfo, transformDataToColumns } from "@/components/chart-buil
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
 import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
+import { getDefaultTimeRange, injectIdMetrics, needsTimeSeries } from "@/components/dashboards/editor/utils";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts";
-
-const needsTimeSeries = (chartType?: ChartType): boolean =>
-  chartType === ChartType.LineChart || chartType === ChartType.BarChart;
-
-const ID_COLUMNS_BY_TABLE: Record<string, string[]> = {
-  spans: ["trace_id", "span_id"],
-  traces: ["id"],
-  signal_events: ["signal_id", "trace_id"],
-};
-
-const getDefaultTimeRange = (table: string): TimeRange => {
-  const timeColumn = getTimeColumn(table);
-  return {
-    column: timeColumn,
-    from: "{start_time:DateTime64}",
-    to: "{end_time:DateTime64}",
-    fillGaps: true,
-    intervalValue: "1",
-    intervalUnit: "{interval_unit:String}",
-  };
-};
+import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
@@ -55,6 +35,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     executeQuery,
     isLoading,
     error,
+    loadError,
     data,
     setLoading,
     setError,
@@ -70,6 +51,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     executeQuery: state.executeQuery,
     isLoading: state.isLoading,
     error: state.error,
+    loadError: state.loadError,
     data: state.data,
     setLoading: state.setLoading,
     setError: state.setError,
@@ -126,7 +108,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return {
         type: chartType,
         displayMode: "none" as const,
-        hiddenColumns: tableConfig?.hiddenColumns ?? [],
         tableColumnConfig: tableConfig?.tableColumnConfig,
       };
     }
@@ -157,12 +138,28 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return {
         ...chartConfig,
         displayMode,
-        hiddenColumns: chart.settings.config.hiddenColumns,
         tableColumnConfig: chart.settings.config.tableColumnConfig,
       };
     }
     return { ...chartConfig, displayMode };
   }, [chartConfig, displayMode, chart.settings.config]);
+
+  // Hidden columns are derived from the form's metrics plus any runtime-injected
+  // click-target IDs — each metric carries its own `hidden` flag. No separate
+  // hiddenColumns array to keep in sync.
+  const hiddenColumns = useMemo(() => {
+    const formMetrics = (formValues.metrics ?? []).filter((m): m is QueryStructure["metrics"][number] => !!m?.fn);
+    const resolved = injectIdMetrics(
+      formMetrics,
+      formValues.dimensions as string[] | undefined,
+      formValues.table,
+      chartType
+    );
+    return resolved
+      .filter((m) => m.hidden)
+      .map((m) => m.alias ?? m.column ?? "")
+      .filter((c) => c.length > 0);
+  }, [formValues.metrics, formValues.dimensions, formValues.table, chartType]);
 
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
@@ -177,9 +174,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
       const isTable = chartType === ChartType.Table;
-      const needsIdInjection = isHorizontalBar || isTable;
       const allFilters = [...(filters || [])];
 
+      // Non-time-series charts (Table, HorizontalBar) don't use queryStructure.timeRange,
+      // so they'd otherwise pull every row ever. Append the dashboard's selected
+      // start_time/end_time as a WHERE filter on the table's time column so the
+      // result is scoped to the current date range. Line/Bar charts get this for
+      // free via timeRange → the backend generates the WHERE clause itself.
       if (isHorizontalBar || isTable) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
@@ -188,23 +189,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         );
       }
 
-      const injectedMetrics = [...metrics];
-      if (needsIdInjection) {
-        const allExisting = new Set([
-          ...metrics.map((m) => m.column),
-          ...metrics.map((m) => m.alias),
-          ...(dimensions || []),
-        ]);
-        for (const col of ID_COLUMNS_BY_TABLE[table] ?? []) {
-          if (!allExisting.has(col)) {
-            injectedMetrics.push({ fn: "raw", column: col, alias: col, args: [] });
-          }
-        }
-      }
-
-      // Table charts use client-side pagination (LIMIT/OFFSET at fetch time),
-      // so the stored query should have no LIMIT clause.
-      const effectiveLimit = chartType === ChartType.Table ? undefined : limit;
+      const injectedMetrics = injectIdMetrics(metrics, dimensions, table, chartType);
 
       const queryStructure: QueryStructure = {
         table,
@@ -213,7 +198,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         filters: allFilters,
         orderBy: [],
         ...(orderBy && orderBy.length > 0 && { orderBy }),
-        limit: effectiveLimit,
+        limit,
       };
 
       if (needsTimeSeries(chartType)) {
@@ -243,11 +228,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             ? { tableColumnConfig: liveConfig.tableColumnConfig }
             : {}),
         };
-        if (isTable && "hiddenColumns" in updatedConfig) {
-          const userColumns = new Set(metrics.map((m) => m.column));
-          const idCols = ID_COLUMNS_BY_TABLE[table] ?? [];
-          updatedConfig.hiddenColumns = idCols.filter((col) => !userColumns.has(col));
-        }
         setChartConfig(updatedConfig as ChartConfig);
       }
 
@@ -276,7 +256,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   // parameters (time range, interval) change. Parameters live in the
   // zustand store and are read at execution time via getFormattedParameters().
   useEffect(() => {
-    if (isLoadingChart) {
+    if (isLoadingChart || loadError) {
       return;
     }
 
@@ -291,7 +271,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, parameters]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, loadError, parameters]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
@@ -347,13 +327,25 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </Select>
           </div>
         </div>
-        <div className="flex flex-col justify-start items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+        <div className="flex flex-col justify-start items-center w-full flex-1 min-h-0 max-h-[600px] p-4 self-center border rounded border-dashed bg-secondary overflow-hidden">
           {chart.name && (
             <div className="w-full mb-2">
               <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
             </div>
           )}
-          {isLoading ? (
+          {loadError ? (
+            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive max-w-md">
+              <AlertCircle className="w-10 h-10" />
+              <div className="text-center">
+                <p className="text-sm font-medium">Couldn't load chart</p>
+                <p className="text-xs mt-2 text-muted-foreground">
+                  This chart's saved query couldn't be parsed back into the editor. Saving is disabled to prevent
+                  overwriting it.
+                </p>
+                <p className="text-xs mt-2 text-muted-foreground/70 break-all">{loadError}</p>
+              </div>
+            </div>
+          ) : isLoading ? (
             <div className="flex flex-col items-center space-y-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin" />
               <div className="text-center">
@@ -375,6 +367,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
                 config={chartConfigForRendering}
                 data={data}
                 columns={columns}
+                hiddenColumns={hiddenColumns}
                 onColumnConfigChange={handleColumnConfigChange}
                 hasMore={tableHasMore}
                 isFetching={tableIsFetching}

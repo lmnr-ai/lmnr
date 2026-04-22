@@ -15,6 +15,7 @@ type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
   isLoading: boolean;
   error: string | null;
+  loadError: string | null;
   data: Record<string, string | number | boolean>[];
   columns: ColumnDef<any>[];
   parameters: SQLParameter[];
@@ -33,6 +34,7 @@ type DashboardEditorActions = {
   setDisplayMode: (displayMode: DisplayMode) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setLoadError: (loadError: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
   setColumns: (columns: ColumnDef<any>[]) => void;
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
@@ -91,6 +93,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     columns: [],
     isLoading: false,
     error: null,
+    loadError: null,
     data: [],
     parameters: initialParameters,
     tableHasMore: false,
@@ -150,6 +153,10 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
     setError: (error) => {
       set({ error });
+    },
+
+    setLoadError: (loadError) => {
+      set({ loadError });
     },
 
     setData: (data) => {

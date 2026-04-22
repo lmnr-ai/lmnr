@@ -30,7 +30,6 @@ const TableSelect = () => {
       setValue("metrics", [{ fn: "raw", column: "", alias: "", args: [] }], { shouldValidate: true });
       setValue("filters", [], { shouldValidate: true });
       setValue("orderBy", [], { shouldValidate: true });
-      setChartConfig({ ...chart.settings.config, hiddenColumns: [] } as typeof chart.settings.config);
     }
   };
 

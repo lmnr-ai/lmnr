@@ -2,7 +2,7 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, type ChartType } from "@/components/chart-builder/types";
 import {
   canSelectForYAxis as utilCanSelectForYAxis,
   type ColumnInfo,
@@ -81,9 +81,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
 
     setChartType: (type) =>
       set((state: ChartBuilderState) => ({
-        chartConfig: (type === ChartType.Table
-          ? { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined, hiddenColumns: [] }
-          : { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined }) as ChartConfig,
+        chartConfig: { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined } as ChartConfig,
       })),
 
     setXColumn: (columnName) =>
