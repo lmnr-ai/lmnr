@@ -93,13 +93,18 @@ const Chart = ({ chart }: ChartProps) => {
     };
   }, [pastHours, startDate, endDate, groupByInterval]);
 
+  // Cancels an in-flight pagination fetch when fetchData or a newer scroll
+  // supersedes it — otherwise its rows would splice onto fresh page-0 data.
+  const paginationAbortRef = useRef<AbortController | null>(null);
+
   const fetchTablePage = useCallback(
-    async (page: number, parameters: Record<string, string | number>) => {
+    async (page: number, parameters: Record<string, string | number>, signal?: AbortSignal) => {
       const paginatedQuery = `${query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${page * TABLE_PAGE_SIZE}`;
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: paginatedQuery, projectId, parameters }),
+        signal,
       });
 
       if (!response.ok) {
@@ -114,6 +119,11 @@ const Chart = ({ chart }: ChartProps) => {
   );
 
   const fetchData = useCallback(async () => {
+    // Cancel any in-flight pagination — its rows would target the old query.
+    paginationAbortRef.current?.abort();
+    paginationAbortRef.current = null;
+    setTableIsFetching(false);
+
     try {
       const { groupByInterval, ...rest } = timeParameters;
       const parameters = convertToTimeParameters(rest, groupByInterval);
@@ -149,19 +159,29 @@ const Chart = ({ chart }: ChartProps) => {
   const fetchNextTablePage = useCallback(async () => {
     if (tableIsFetching || !tableHasMore) return;
 
+    // Abort any prior pagination (rapid scroll fires multiple times).
+    paginationAbortRef.current?.abort();
+    const controller = new AbortController();
+    paginationAbortRef.current = controller;
+
     setTableIsFetching(true);
     try {
       const { groupByInterval, ...rest } = timeParameters;
       const parameters = convertToTimeParameters(rest, groupByInterval);
       const nextPage = tablePageRef.current + 1;
-      const { rows, hasMore } = await fetchTablePage(nextPage, parameters);
+      const { rows, hasMore } = await fetchTablePage(nextPage, parameters, controller.signal);
       tablePageRef.current = nextPage;
       setData((prev) => [...prev, ...rows]);
       setTableHasMore(hasMore);
     } catch {
-      // Silently fail — the user can scroll again to retry
+      // Aborted — whoever replaced us owns state. Otherwise silently fail,
+      // the user can scroll again to retry.
+      if (controller.signal.aborted) return;
     } finally {
-      setTableIsFetching(false);
+      if (paginationAbortRef.current === controller) {
+        paginationAbortRef.current = null;
+      }
+      if (!controller.signal.aborted) setTableIsFetching(false);
     }
   }, [tableIsFetching, tableHasMore, timeParameters, fetchTablePage]);
 

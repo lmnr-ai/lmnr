@@ -187,6 +187,65 @@ Pass shallow as the equality function to useStore when applicable. That way even
 
 ### AbortController
 
+Use an `AbortController` to cancel in-flight `fetch` requests when a newer request supersedes them or the component/store state they'll update has moved on. Pass the controller's `signal` to `fetch`; the browser rejects the promise with an `AbortError` when aborted, so bail without touching state in the catch.
+
+**Example — per-store cancellation of pagination when the underlying query changes** (`dashboard-editor-store.tsx`):
+
+```typescript
+const createStore = (props) => {
+  // Closure-scoped per store instance — no cross-instance leak.
+  let paginationAbortController: AbortController | null = null;
+
+  return createStore((set, get) => ({
+    executeQuery: async (projectId) => {
+      // A fresh execute is about to replace page-0 data; any in-flight
+      // pagination would splice stale rows onto it.
+      if (paginationAbortController) {
+        paginationAbortController.abort();
+        paginationAbortController = null;
+        set({ tableIsFetching: false });
+      }
+      // ...
+    },
+
+    fetchNextTablePage: async (projectId) => {
+      // Abort any prior pagination (rapid scroll fires multiple times).
+      paginationAbortController?.abort();
+      const controller = new AbortController();
+      paginationAbortController = controller;
+
+      try {
+        const response = await fetch(url, { signal: controller.signal, ... });
+        // ... process result, functional set ...
+      } catch {
+        // Aborted — whoever replaced us owns state. Don't reset flags here.
+        if (controller.signal.aborted) return;
+        set({ tableIsFetching: false });
+      } finally {
+        if (paginationAbortController === controller) {
+          paginationAbortController = null;
+        }
+      }
+    },
+  }));
+};
+```
+
+**Problems this solves / when to use:**
+
+- **Race conditions where an older request overwrites newer state.** Classic example: user paginates (page 1 in-flight), then changes the filter (triggers a new page-0 fetch). Without aborting, page 1 resolves after page 0 and splices stale rows onto fresh data.
+- **Wasted network + server work** when the result is no longer needed. Aborting tells the browser to drop the request, which can also cancel the server-side query if the backend respects it.
+- **Rapid user actions** like repeated scrolls, debounce-escaped clicks, or typing into a search field — only the latest request's result should land.
+
+Prefer `AbortController` over hand-rolled "snapshot state at start, compare at resolve, discard if drifted" patterns — it's the standard browser primitive and cancels the actual network request, not just its effect on state.
+
+**Gotchas:**
+
+- Don't reset loading flags (`isFetching`, `isLoading`, etc.) in the abort branch of the catch. The operation that aborted you is responsible for the next state — resetting here would race with it.
+- When aborting from a different action, the aborting action must handle any loading flag the aborted action left behind (see `executeQuery` above clearing `tableIsFetching`).
+- In the `finally`, only null out the shared controller ref if it still points at the current controller — otherwise a newer operation already replaced it and you'd be clobbering its handle.
+- In the success path, use functional `set((state) => ...)` rather than a closure over `state.data` so you merge with the latest value.
+
 ### Error handling
 
 **Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
