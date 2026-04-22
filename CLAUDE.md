@@ -185,6 +185,8 @@ Use the nuqs library to handle url param state when possible. Avoid using a useE
 
 Pass shallow as the equality function to useStore when applicable. That way even with a new selector reference each render, Zustand compares the result shallowly and won't re-render if the contents are the same.
 
+### AbortController
+
 ### Error handling
 
 **Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.

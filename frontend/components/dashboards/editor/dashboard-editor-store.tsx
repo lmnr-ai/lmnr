@@ -87,6 +87,11 @@ const defaultChart: DashboardEditorState["chart"] = {
 };
 
 const createDashboardEditorStore = (props: DashboardEditorProps) => {
+  // Cancels an in-flight pagination fetch when the query changes underneath it
+  // (e.g. user scrolls mid-fetch, then changes filter → executeQuery resets
+  // page 0). Without this the paginated rows would splice onto fresh data.
+  let paginationAbortController: AbortController | null = null;
+
   const editorState: DashboardEditorState = {
     tab: TabType.Chart,
     chart: props.chart || defaultChart,
@@ -202,6 +207,14 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         return;
       }
 
+      // Cancel any in-flight pagination — it would splice onto the stale data
+      // we're about to replace.
+      if (paginationAbortController) {
+        paginationAbortController.abort();
+        paginationAbortController = null;
+        set({ tableIsFetching: false });
+      }
+
       setLoading(true);
       setError(null);
 
@@ -269,14 +282,13 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
       if (tableIsFetching || !tableHasMore || !chart.query?.trim()) return;
 
+      // Abort any prior pagination (e.g. rapid scroll fires multiple times).
+      paginationAbortController?.abort();
+      const controller = new AbortController();
+      paginationAbortController = controller;
+
       set({ tableIsFetching: true });
       const nextPage = tablePage + 1;
-      // Snapshot of what we're paginating over. If executeQuery runs while we're
-      // in-flight (user changes filter/time range), these won't match at resolve
-      // time and we must discard — otherwise we'd splice stale rows onto fresh
-      // page-0 results.
-      const snapshotQuery = chart.query;
-      const snapshotPage = tablePage;
 
       try {
         const parameters = getFormattedParameters();
@@ -285,6 +297,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query, parameters }),
+          signal: controller.signal,
         });
 
         const result = await response.json();
@@ -297,13 +310,6 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         const hasMore = rows.length > TABLE_PAGE_SIZE;
         const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
 
-        const current = get();
-        if (current.chart.query !== snapshotQuery || current.tablePage !== snapshotPage) {
-          // A fresh executeQuery superseded us — drop this page's results.
-          set({ tableIsFetching: false });
-          return;
-        }
-
         set((state) => ({
           data: [...state.data, ...pageRows],
           tablePage: nextPage,
@@ -311,7 +317,13 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           tableIsFetching: false,
         }));
       } catch {
+        // Aborted — whoever replaced us (executeQuery or newer scroll) owns state.
+        if (controller.signal.aborted) return;
         set({ tableIsFetching: false });
+      } finally {
+        if (paginationAbortController === controller) {
+          paginationAbortController = null;
+        }
       }
     },
   }));
