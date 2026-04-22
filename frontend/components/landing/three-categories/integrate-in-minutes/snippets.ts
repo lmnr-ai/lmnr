@@ -16,6 +16,7 @@ export interface IntegrationData {
   python?: string;
   highlightedLines: number[]; // 0-indexed line numbers
   screenshot: string;
+  docsUrl: string;
 }
 
 export const integrations: Record<Integration, IntegrationData> = {
@@ -25,6 +26,7 @@ export const integrations: Record<Integration, IntegrationData> = {
     alt: "Browser Use",
     highlightedLines: [4, 6],
     screenshot: "/assets/landing/snippet-screenshots/browser-use.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/browser-use",
     python: `from langchain_anthropic import ChatAnthropic
 from browser_use import Agent
 import asyncio
@@ -49,6 +51,7 @@ asyncio.run(main())`,
     alt: "Claude",
     highlightedLines: [3, 7],
     screenshot: "/assets/landing/snippet-screenshots/claude-agent-sdk.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/claude-agent-sdk",
     python: `import asyncio
 import os
 from dotenv import load_dotenv
@@ -72,6 +75,7 @@ asyncio.run(main())`,
     alt: "Vercel AI SDK",
     highlightedLines: [2, 9],
     screenshot: "/assets/landing/snippet-screenshots/vercel-ai-sdk.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/vercel-ai-sdk",
     typescript: `import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { getTracer } from '@lmnr-ai/lmnr';
@@ -91,6 +95,7 @@ const { text } = await generateText({
     alt: "OpenHands",
     highlightedLines: [6, 7],
     screenshot: "/assets/landing/snippet-screenshots/open-hands.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/openhands-sdk",
     python: `import os
 from openhands.sdk import LLM, Agent, Conversation, Tool
 from openhands.tools.file_editor import FileEditorTool
@@ -123,6 +128,7 @@ conversation.send_message("Build a simple todo app")`,
     alt: "LangChain",
     highlightedLines: [0, 12],
     screenshot: "/assets/landing/snippet-screenshots/lang-chain.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/langchain",
     python: `from lmnr import Laminar
 from dotenv import load_dotenv
 import os
@@ -152,6 +158,7 @@ chain = prompt | model | output_parser`,
     alt: "LiteLLM",
     highlightedLines: [2, 5],
     screenshot: "/assets/landing/snippet-screenshots/lite-llm.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/litellm",
     python: `from dotenv import load_dotenv
 import litellm
 from lmnr import Laminar

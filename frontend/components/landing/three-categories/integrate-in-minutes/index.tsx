@@ -22,7 +22,7 @@ import { bodyLarge, subsectionTitle } from "../../class-names";
 import DocsButton from "../../docs-button";
 import LogoButton from "../../logo-button";
 import IntegrationCodeSnippet from "./integration-code-snippet";
-import { type Integration } from "./snippets";
+import { type Integration, integrations as integrationData } from "./snippets";
 
 interface Props {
   className?: string;
@@ -125,7 +125,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
           ))}
       </div>
       <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />
-      <DocsButton href="https://laminar.sh/docs/tracing/integrations/overview" />
+      <DocsButton href={integrationData[selectedIntegration].docsUrl} />
     </div>
   );
 };
