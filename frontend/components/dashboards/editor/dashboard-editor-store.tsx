@@ -265,12 +265,18 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     },
 
     fetchNextTablePage: async (projectId: string) => {
-      const { chart, tableIsFetching, tableHasMore, tablePage, data, getFormattedParameters } = get();
+      const { chart, tableIsFetching, tableHasMore, tablePage, getFormattedParameters } = get();
 
       if (tableIsFetching || !tableHasMore || !chart.query?.trim()) return;
 
       set({ tableIsFetching: true });
       const nextPage = tablePage + 1;
+      // Snapshot of what we're paginating over. If executeQuery runs while we're
+      // in-flight (user changes filter/time range), these won't match at resolve
+      // time and we must discard — otherwise we'd splice stale rows onto fresh
+      // page-0 results.
+      const snapshotQuery = chart.query;
+      const snapshotPage = tablePage;
 
       try {
         const parameters = getFormattedParameters();
@@ -291,12 +297,19 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         const hasMore = rows.length > TABLE_PAGE_SIZE;
         const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
 
-        set({
-          data: [...data, ...pageRows],
+        const current = get();
+        if (current.chart.query !== snapshotQuery || current.tablePage !== snapshotPage) {
+          // A fresh executeQuery superseded us — drop this page's results.
+          set({ tableIsFetching: false });
+          return;
+        }
+
+        set((state) => ({
+          data: [...state.data, ...pageRows],
           tablePage: nextPage,
           tableHasMore: hasMore,
           tableIsFetching: false,
-        });
+        }));
       } catch {
         set({ tableIsFetching: false });
       }
