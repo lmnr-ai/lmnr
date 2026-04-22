@@ -11,6 +11,7 @@ import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
+import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
@@ -18,8 +19,45 @@ import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
+import {
+  hasOpenAIResponsesSignals,
+  type OpenAIResponsesItemsSchema,
+  parseOpenAIResponsesInput,
+  parseOpenAIResponsesOutput,
+} from "@/lib/spans/types/openai-responses";
 
 const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
+
+const RESPONSES_TOOL_CALL_TYPES = new Set([
+  "function_call",
+  "web_search_call",
+  "file_search_call",
+  "computer_call",
+  "image_generation_call",
+  "code_interpreter_call",
+  "local_shell_call",
+  "mcp_call",
+  "mcp_list_tools",
+  "mcp_approval_request",
+]);
+
+const RESPONSES_TOOL_OUTPUT_TYPES = new Set([
+  "function_call_output",
+  "computer_call_output",
+  "local_shell_call_output",
+  "mcp_approval_response",
+]);
+
+function responsesItemRole(item: { type?: string; role?: string } | undefined): string | undefined {
+  if (!item) return undefined;
+  if (item.role) return item.role;
+  const t = item.type;
+  if (!t || t === "message") return item.role;
+  if (t === "reasoning") return "assistant";
+  if (RESPONSES_TOOL_CALL_TYPES.has(t)) return "assistant";
+  if (RESPONSES_TOOL_OUTPUT_TYPES.has(t)) return "tool";
+  return undefined;
+}
 
 function contentHasAnthropicTypes(blocks: unknown): boolean {
   if (!Array.isArray(blocks)) return false;
@@ -46,6 +84,7 @@ function hasAnthropicSignals(messages: unknown): boolean {
 export type ProcessedMessages =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
+  | { type: "openai-responses"; messages: z.infer<typeof OpenAIResponsesItemsSchema> }
   | { type: "anthropic"; messages: z.infer<typeof AnthropicMessagesSchema> }
   | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
@@ -60,6 +99,18 @@ export function processMessages(data: unknown): ProcessedMessages {
     const anthropicInput = parseAnthropicInput(data);
     if (anthropicInput) {
       return { messages: anthropicInput, type: "anthropic" };
+    }
+  }
+
+  if (hasOpenAIResponsesSignals(data)) {
+    const responsesOutput = parseOpenAIResponsesOutput(data);
+    if (responsesOutput) {
+      return { messages: responsesOutput, type: "openai-responses" };
+    }
+
+    const responsesInput = parseOpenAIResponsesInput(data);
+    if (responsesInput) {
+      return { messages: responsesInput, type: "openai-responses" };
     }
   }
 
@@ -125,6 +176,47 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
         }
       }
       break;
+    case "openai-responses":
+      for (const item of result.messages) {
+        switch (item.type) {
+          case "function_call":
+            map.set(item.call_id, item.name);
+            break;
+          case "computer_call":
+            map.set(item.call_id, "computer_use");
+            break;
+          case "local_shell_call":
+            map.set(item.call_id, "local_shell");
+            break;
+          case "mcp_call":
+            map.set(
+              item.id,
+              item.server_label && item.name ? `${item.server_label}.${item.name}` : (item.name ?? "mcp_call")
+            );
+            break;
+          case "web_search_call":
+            map.set(item.id, "web_search");
+            break;
+          case "file_search_call":
+            map.set(item.id, "file_search");
+            break;
+          case "image_generation_call":
+            map.set(item.id, "image_generation");
+            break;
+          case "code_interpreter_call":
+            map.set(item.id, "code_interpreter");
+            break;
+          case "mcp_approval_request":
+            map.set(
+              item.id,
+              item.server_label && item.name
+                ? `${item.server_label}.${item.name}`
+                : (item.name ?? "mcp_approval_request")
+            );
+            break;
+        }
+      }
+      break;
     case "anthropic":
       for (const msg of result.messages) {
         if (typeof msg.content !== "string") {
@@ -162,6 +254,15 @@ export function renderMessageContent(
     case "openai":
       return (
         <OpenAIContentParts
+          parentIndex={index}
+          presetKey={presetKey}
+          message={result.messages[index]}
+          toolNameMap={map}
+        />
+      );
+    case "openai-responses":
+      return (
+        <OpenAIResponsesContentParts
           parentIndex={index}
           presetKey={presetKey}
           message={result.messages[index]}
@@ -268,8 +369,8 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     }
 
     if (found >= 0) {
-      const message = processedResult.messages[found] as { role?: string };
-      role = message?.role;
+      const message = processedResult.messages[found] as { role?: string; type?: string };
+      role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
       const itemStart = cache[found].start;
       const itemEnd = cache[found].end;
       // Show overlay slightly before the header fully scrolls out of view,
@@ -283,7 +384,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
       prevOverlayRef.current = { role, show };
       updateOverlay(overlayRef.current, labelRef.current, role, show);
     }
-  }, [processedResult.messages, virtualizer]);
+  }, [processedResult.messages, processedResult.type, virtualizer]);
 
   const scrollToBottom = useCallback(() => {
     virtualizer.scrollToIndex(processedResult.messages.length - 1, {
@@ -329,11 +430,12 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
               }}
             >
               {items.map((item) => {
-                const message = processedResult.messages[item.index] as { role?: string };
+                const message = processedResult.messages[item.index] as { role?: string; type?: string };
+                const role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
                 return (
                   <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} className="pb-4">
                     <MessageWrapper
-                      role={message?.role}
+                      role={role}
                       presetKey={`collapse-${item.index}-${presetKey}`}
                       maxHeight={maxHeight}
                       stickyHeader={false}
