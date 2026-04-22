@@ -17,7 +17,10 @@ const ColumnsField = () => {
   });
 
   // Track names already used so we can disable them in other rows' selects.
-  const usedColumnNames = useMemo(() => new Set(metrics.filter((m) => m.fn === "raw" && m.column && m.column === m.alias).map((m) => m.column)), [metrics]);
+  const usedColumnNames = useMemo(
+    () => new Set(metrics.filter((m) => m.fn === "raw" && m.column && m.column === m.alias).map((m) => m.column)),
+    [metrics]
+  );
 
   const handleAdd = () => {
     append({ fn: "raw", column: "", alias: "", args: [] });
@@ -41,16 +44,22 @@ const ColumnsField = () => {
         {fields.length === 0 ? (
           <p className="text-xs text-muted-foreground">No columns yet — add one to start.</p>
         ) : (
-          fields.map((field, index) => (
-            <ColumnsRow
-              key={field.id}
-              index={index}
-              table={table}
-              disabledColumnNames={usedColumnNames}
-              onRemove={() => remove(index)}
-              canRemove={fields.length > 1}
-            />
-          ))
+          // Hide metrics flagged `hidden` — those are auto-injected click-target
+          // IDs (trace_id/span_id/etc.), not user-managed columns. They still
+          // exist in form.metrics and get SELECT'd at execute time; the preview
+          // table hides them via the hiddenColumns prop.
+          fields.map((field, index) =>
+            metrics[index]?.hidden ? null : (
+              <ColumnsRow
+                key={field.id}
+                index={index}
+                table={table}
+                disabledColumnNames={usedColumnNames}
+                onRemove={() => remove(index)}
+                canRemove={fields.length > 1}
+              />
+            )
+          )
         )}
       </div>
     </div>
