@@ -258,8 +258,7 @@ const ComputerCallOutputItem = ({
   if (typeof output === "object" && output !== null) {
     const typed = output as { type?: string; image_url?: string; file_id?: string };
     if (typed.type === "computer_screenshot" || typed.type === "input_image") {
-      const url = typed.image_url ?? typed.file_id;
-      if (url) {
+      if (typed.image_url) {
         return (
           <ToolResultContentPart
             toolCallId={item.call_id}
@@ -267,8 +266,18 @@ const ComputerCallOutputItem = ({
             content=""
             presetKey={`${messageIndex}-computer-out-${presetKey}`}
           >
-            <ImageContentPart src={url} />
+            <ImageContentPart src={typed.image_url} />
           </ToolResultContentPart>
+        );
+      }
+      if (typed.file_id) {
+        return (
+          <ToolResultContentPart
+            toolCallId={item.call_id}
+            toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
+            content={`[Image file: ${typed.file_id}]`}
+            presetKey={`${messageIndex}-computer-out-${presetKey}`}
+          />
         );
       }
     }
@@ -374,9 +383,10 @@ const LocalShellCallOutputItem = ({
   toolNameMap?: Map<string, string>;
 }) => {
   const content = typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? "", null, 2);
+  const fallbackId = item.id ?? `local_shell_output_${messageIndex}`;
   return (
     <ToolResultContentPart
-      toolCallId={item.call_id ?? "-"}
+      toolCallId={item.call_id ?? fallbackId}
       toolName={(item.call_id && toolNameMap?.get(item.call_id)) || "local_shell"}
       content={content}
       presetKey={`${messageIndex}-shell-out-${presetKey}`}

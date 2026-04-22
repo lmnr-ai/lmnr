@@ -22,7 +22,6 @@ import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "
 import {
   hasOpenAIResponsesSignals,
   type OpenAIResponsesItemsSchema,
-  parseOpenAIResponsesInput,
   parseOpenAIResponsesOutput,
 } from "@/lib/spans/types/openai-responses";
 
@@ -106,11 +105,6 @@ export function processMessages(data: unknown): ProcessedMessages {
     const responsesOutput = parseOpenAIResponsesOutput(data);
     if (responsesOutput) {
       return { messages: responsesOutput, type: "openai-responses" };
-    }
-
-    const responsesInput = parseOpenAIResponsesInput(data);
-    if (responsesInput) {
-      return { messages: responsesInput, type: "openai-responses" };
     }
   }
 
