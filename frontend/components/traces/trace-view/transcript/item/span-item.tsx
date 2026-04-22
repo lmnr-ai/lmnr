@@ -149,6 +149,7 @@ export default function SpanItem({
             containerWidth={20}
             containerHeight={20}
             size={14}
+            status={span.status}
             className={cn("shrink-0", { "text-muted-foreground bg-muted": isPending })}
           />
 

@@ -1,6 +1,7 @@
 import { clamp, has } from "lodash";
 import { createContext, useContext } from "react";
-import { type StoreApi, useStore } from "zustand";
+import { type StoreApi } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type SpanEvent } from "@/lib/events/types";
@@ -70,6 +71,7 @@ export type TraceViewListSpan = {
   cacheReadInputTokens?: number;
   totalCost: number;
   pending?: boolean;
+  status?: string;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
@@ -455,7 +457,7 @@ export const useTraceViewBaseStore = <T>(
   if (!store) {
     throw new Error("useTraceViewContext must be used within a TraceViewContext provider");
   }
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const useTraceViewBaseStoreRaw = () => {
