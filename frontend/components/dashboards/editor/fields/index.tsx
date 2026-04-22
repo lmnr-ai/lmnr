@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ChartTypeField from "./ChartTypeField";
 import ColumnsField from "./ColumnsField";
@@ -106,6 +107,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 
+      track("dashboards", id ? "chart_updated" : "chart_created", { chart_type: chart.settings.config?.type });
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
       router.push(`/project/${projectId}/dashboards${chart.id ? "" : "?newChart=1"}`);
     } catch (err) {

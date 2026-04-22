@@ -10,6 +10,7 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
   const { trace, updateTraceVisibility } = useTraceViewStore((state) => ({
@@ -36,6 +37,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
           title: "Trace privacy updated.",
         });
         updateTraceVisibility(value);
+        track("traces", "visibility_changed", { visibility: value });
       } else {
         const text = await res.json();
         if ("error" in text) {
@@ -132,7 +134,12 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
               <Button variant="outline">Done</Button>
             </PopoverClose>
             {trace.visibility === "public" && (
-              <CopyButton variant="lightSecondary" icon={<Link className="h-4 w-4 mr-2" />} text={url}>
+              <CopyButton
+                variant="lightSecondary"
+                icon={<Link className="h-4 w-4 mr-2" />}
+                text={url}
+                onCopy={() => track("traces", "share_link_copied")}
+              >
                 <span>Copy link</span>
               </CopyButton>
             )}

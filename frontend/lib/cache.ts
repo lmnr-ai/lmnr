@@ -176,7 +176,6 @@ class CacheManager {
 export const cache = new CacheManager();
 
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
-export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";

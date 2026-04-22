@@ -185,6 +185,7 @@ function DatasetsContent() {
         updateData((currentData) => currentData.filter((dataset) => !datasetIds.includes(dataset.id)));
 
         setRowSelection({});
+        track("datasets", "deleted", { count: datasetIds.length });
         toast({
           title: "Datasets deleted",
           description: `Successfully deleted ${datasetIds.length} dataset(s).`,

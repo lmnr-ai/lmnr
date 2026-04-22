@@ -43,7 +43,7 @@ export function SettingsTable({
   colSpan = 2,
 }: SettingsTableProps) {
   return (
-    <div className="border rounded-md">
+    <div className="border rounded-md overflow-x-auto">
       <table className="w-full">
         {headers && (
           <thead>

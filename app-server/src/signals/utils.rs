@@ -149,10 +149,20 @@ static SPAN_REF_RE: LazyLock<Regex> = LazyLock::new(|| {
 
 static HEX_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9a-fA-F]{6}").unwrap());
 
+// Matches the Claude Code billing header, e.g.
+// `x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000;`
+static CLAUDE_CODE_BILLING_HEADER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"x-anthropic-billing-header:(?:\s*[A-Za-z_][A-Za-z0-9_]*=[^\s;]*;)+").unwrap()
+});
+
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
+/// Volatile client/SDK version headers (e.g. Claude Code's `x-anthropic-billing-header`)
+/// are stripped first so the hash is stable across SDK versions.
 pub fn structural_skeleton_hash(text: &str) -> String {
+    let text = CLAUDE_CODE_BILLING_HEADER_REGEX.replace_all(text, "");
+    let text = text.as_ref();
     // Extract first sentence from original text (before whitespace normalization
     // destroys newline boundaries). Cut at the first real sentence boundary after
     // 20+ chars: either a newline, or a '.' followed by whitespace / end-of-text.
@@ -979,6 +989,45 @@ Do not fabricate data.
             structural_skeleton_hash(normal),
             structural_skeleton_hash(self_closing),
             "Self-closing tags should extract the same tag name"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_ignores_claude_code_billing_header() {
+        let with_header = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are a helpful assistant.";
+        let without = "You are a helpful assistant.";
+        assert_eq!(
+            structural_skeleton_hash(with_header),
+            structural_skeleton_hash(without)
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_ignores_full_billing_header_with_extra_pairs() {
+        let with_header = "x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000; You are a helpful assistant.";
+        let without = "You are a helpful assistant.";
+        assert_eq!(
+            structural_skeleton_hash(with_header),
+            structural_skeleton_hash(without)
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_stable_across_cc_versions() {
+        let v1 = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are Claude Code.";
+        let v2 = "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli; You are Claude Code.";
+        assert_eq!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v2)
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_stable_without_billing_header() {
+        let text = "You are a helpful assistant.\nAlways respond in JSON.";
+        assert_eq!(
+            structural_skeleton_hash(text),
+            structural_skeleton_hash(text)
         );
     }
 }

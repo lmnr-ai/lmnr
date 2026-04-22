@@ -124,6 +124,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
 - Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to CRITICAL (2) when metadata is absent (historical alerts default to the most restrictive level). The frontend edit form also defaults to CRITICAL for alerts without metadata.
 - Creating a signal auto-creates a CRITICAL-severity alert and subscribes all workspace member emails as alert targets.
+- The `NEW_CLUSTER` alert type and the `skipSimilar` metadata option depend on the clustering service. Gate both the auto-creation of `NEW_CLUSTER` alerts in `createSignal` and UI affordances in `manage-alert-sheet.tsx` behind `isFeatureEnabled(Feature.CLUSTERING)` / `useFeatureFlags()[Feature.CLUSTERING]`. When clustering is disabled, force `skipSimilar: false` on submit so the backend doesn't silently drop notifications.
 
 ## Signal Triggers
 
@@ -136,8 +137,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Client-side analytics is centralized in `frontend/lib/posthog/`. Feature code should import `track` from `@/lib/posthog` — never import `posthog-js` directly.
 - Server-side PostHog client lives at `@/lib/posthog/server` (separate import path to avoid bundling `posthog-node` into client bundles).
 - The `AnalyticsProvider` (in `lib/posthog/provider.tsx`) handles both PostHog init and user identification. It wraps `PostHogProvider` from `posthog-js/react` so `usePostHog()` still works as an escape hatch.
-- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type (`'sessions' | 'debugger_sessions' | 'signals' | 'traces' | 'alerts'`) is defined in `lib/posthog/client.ts`. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
+- Custom events use `track(feature, action, properties?)` which emits `${feature}:${action}`. The `Feature` type is defined in `lib/posthog/client.ts` — add new categories there before using them. Use `'sessions'` for trace sessions and `'debugger_sessions'` for CLI debugger sessions — these are distinct features.
 - All tracking is no-op when PostHog is disabled (`POSTHOG_TELEMETRY !== "true"`). No conditional checks needed in feature code.
+- For page-view tracking on server-component pages, use the `PageViewTracker` client component at `components/common/page-view-tracker.tsx` — server components cannot call `track` directly (no hooks). For server-action buttons that need tracking, wrap them in a dedicated `"use client"` component that calls `track` before invoking the server action (see `components/invitations/invitation-actions.tsx`).
+- `PageViewTracker` deliberately uses an empty `useEffect` dependency array so it fires exactly once on mount. Callers pass inline `properties` object literals (`{ slug }`, `{ traceId }`), which would otherwise create a new reference on every render and re-fire the event.
+- Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook. `EmailSignInButton` takes an `action` prop (`sign_in_attempted` | `sign_up_attempted`) because the same component is rendered on both `/sign-in` and `/sign-up`.
+- Tracking calls must be guarded by success (`res.ok`). Firing `track(...)` after an unchecked `await res.text()` records events for failed requests and corrupts metrics.
 
 ## Key Technical Details
 

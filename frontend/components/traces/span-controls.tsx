@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
-import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
@@ -115,12 +114,12 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />
           </div>
+
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
             <ExportSpansPopover span={span} />
             <SpanTagsList spanId={span.spanId} />
           </div>
-          <EvaluatorScoresList spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

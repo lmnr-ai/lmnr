@@ -16,7 +16,11 @@ services:
       retries: 3
 
   clickhouse:
-    image: clickhouse/clickhouse-server:25.12
+    # Version 26.3 will break queries on the spans_v0 view, if they are
+    # not filtered by trace_id and/or ordered by start_time. This is a
+    # known bug, tracking https://github.com/ClickHouse/ClickHouse/pull/101218.
+    # We will pin to the earliest stable version once this is fixed
+    image: clickhouse/clickhouse-server:latest
     pull_policy: always
     container_name: clickhouse
     volumes:
@@ -47,7 +51,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}" ]
+      test:
+        ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       interval: 2s
       timeout: 5s
       retries: 5
@@ -61,7 +66,7 @@ services:
     environment:
       PORT: 8903
     healthcheck:
-      test: [ "CMD", "sleep", "5" ]
+      test: ["CMD", "sleep", "5"]
       interval: 10s
       timeout: 6s
       retries: 3
@@ -74,11 +79,11 @@ services:
       - "7281:7281" # OTLP / gRPC
     environment:
       QW_DATA_DIR: /quickwit/qwdata
-    command: [ "run" ]
+    command: ["run"]
     volumes:
       - quickwit-data:/quickwit/qwdata
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:7280/health/livez" ]
+      test: ["CMD", "curl", "-f", "http://localhost:7280/health/livez"]
       interval: 10s
       timeout: 5s
       retries: 3

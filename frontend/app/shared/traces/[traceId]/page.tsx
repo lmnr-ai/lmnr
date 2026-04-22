@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import PageViewTracker from "@/components/common/page-view-tracker";
 import TraceView from "@/components/shared/traces/trace-view";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
 import { getSharedTrace } from "@/lib/actions/shared/trace";
@@ -66,5 +67,10 @@ export default async function SharedTracePage(props: {
 
   const spans = await getSharedSpans({ traceId }).catch(() => []);
 
-  return <TraceView trace={trace} spans={spans} />;
+  return (
+    <>
+      <PageViewTracker feature="shared" action="trace_viewed" properties={{ traceId }} />
+      <TraceView trace={trace} spans={spans} />
+    </>
+  );
 }

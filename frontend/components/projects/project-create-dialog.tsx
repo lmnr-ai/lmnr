@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
 
@@ -52,6 +53,7 @@ export default function ProjectCreateDialog({
       }
 
       const newProject = (await res.json()) as Project;
+      track("project", "created");
       onProjectCreate?.();
       router.push(`/project/${newProject.id}/dashboards`);
       setIsDialogOpen(false);

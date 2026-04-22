@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ export default function CreateQueueDialog({
         onSuccess(newQueue);
       }
 
+      track("labeling_queues", "created");
       toast({ title: "Successfully created queue" });
       setIsDialogOpen(false);
     } catch (e) {
