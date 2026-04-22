@@ -117,8 +117,8 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     <div className="flex flex-col h-full w-full overflow-hidden">
       {!onClose && (
         <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
+          <Link className="mr-2" href="/">
+            <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
           </Link>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -10,12 +11,17 @@ export const GetSharedTraceSchema = z.object({
   traceId: z.guid(),
 });
 
+// Per-request cache so callers doing the redirect check don't trigger a second
+// Postgres query when getSharedTrace runs for the same traceId in the same
+// request. React's `cache()` is scoped to a single render pass.
+export const getSharedTraceRecord = cache((traceId: string) =>
+  db.query.sharedTraces.findFirst({ where: eq(sharedTraces.id, traceId) })
+);
+
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {
   const { traceId } = GetSharedTraceSchema.parse(input);
 
-  const sharedTrace = await db.query.sharedTraces.findFirst({
-    where: eq(sharedTraces.id, traceId),
-  });
+  const sharedTrace = await getSharedTraceRecord(traceId);
 
   if (!sharedTrace) {
     return undefined;
