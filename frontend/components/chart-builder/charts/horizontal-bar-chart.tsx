@@ -52,13 +52,13 @@ const HorizontalBarChart = ({
     () =>
       data.reduce((acc, cur) => {
         const value = cur[valueColumn];
-        const width = measureText14Inter(yAxisFormatter(value));
+        const width = measureText14Inter(xAxisFormatter(value));
         if (width > acc) {
           return width;
         }
         return acc;
       }, 0) + 16,
-    [data, valueColumn, yAxisFormatter]
+    [data, valueColumn, xAxisFormatter]
   );
 
   const { displayValue, totalMax } = useMemo(
