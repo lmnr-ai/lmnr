@@ -165,6 +165,13 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 
+## Trace Transcript View
+
+- Transcript view source lives in `frontend/components/traces/trace-view/transcript/`. The view dropdown (`view-dropdown.tsx`) defines `ViewTab = "tree" | "transcript"` and defaults to `"transcript"` when the stored value is invalid, so new traces land on transcript, not tree.
+- Subagents only render as grouped cards when spans carry the `lmnr.span.prompt_hash` attribute that the Python `claude_agent_sdk` instrumentation sets. Without matching prompt hashes, the `AgentGroupHeader` fallback does not fire and you get individual rows instead of collapsed cards.
+- Tool/turn previews are generated server-side (provider match, with LLM fallback) and rendered via `LLMOutputPreview`/`CollapsedTextWithMore`. PRs #1665 and #1667 improved the descriptive heuristics. When previews look empty, check the span rendering keys cache (`ca8a68f6` moved them to Redis with system-hash fallback) before assuming the preview generator is broken.
+- Transcript view hides anything that isn't a turn, tool call, subagent card, or user input row. When users report "my custom span is missing," it's usually that span's kind doesn't match. Direct them to Tree view rather than patching the filter.
+
 ## Frontend Best Practices
 
 ### One component per file
