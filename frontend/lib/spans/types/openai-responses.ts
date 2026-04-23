@@ -330,9 +330,9 @@ const OpenAIResponsesCodeInterpreterOutputSchema = z.union([
 export const OpenAIResponsesCodeInterpreterCallItemSchema = z.object({
   type: z.literal("code_interpreter_call"),
   id: z.string(),
-  code: z.string().nullable(),
+  code: z.string().nullish(),
   container_id: z.string(),
-  outputs: z.array(OpenAIResponsesCodeInterpreterOutputSchema).nullable(),
+  outputs: z.array(OpenAIResponsesCodeInterpreterOutputSchema).nullish(),
   status: z.enum(["in_progress", "completed", "incomplete", "interpreting", "failed"]),
 });
 
