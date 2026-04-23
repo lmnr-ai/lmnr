@@ -6,20 +6,18 @@ import { shallow } from "zustand/shallow";
 
 import { type TraceRow } from "@/lib/traces/types";
 
-import DynamicWidthLayout, { type SessionViewPanels } from "./dynamic-width-layout";
+import FillWidthLayout, { type SessionViewPanels } from "./fill-width-layout";
 import SessionPanel from "./session-panel";
 import SessionSpanPanel from "./session-span-panel";
 import { useSessionViewStore } from "./store";
 
 interface SessionViewContentProps {
   sessionId: string;
-  onClose: () => void;
-  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 const PAGE_SIZE = 200;
 
-export default function SessionViewContent({ sessionId, onClose, sidePanelRef }: SessionViewContentProps) {
+export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
   const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
@@ -79,12 +77,12 @@ export default function SessionViewContent({ sessionId, onClose, sidePanelRef }:
 
   const panels: SessionViewPanels = useMemo(
     () => ({
-      sessionPanel: <SessionPanel onClose={onClose} />,
+      sessionPanel: <SessionPanel />,
       spanPanel: <SessionSpanPanel />,
       showSpan: spanPanelOpen,
     }),
-    [onClose, spanPanelOpen]
+    [spanPanelOpen]
   );
 
-  return <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />;
+  return <FillWidthLayout panels={panels} />;
 }
