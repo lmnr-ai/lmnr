@@ -88,8 +88,12 @@ export const GenAIMessagesSchema = z.array(GenAIMessageSchema);
  */
 const GENAI_PART_TYPES = new Set(["text", "thinking", "tool_call", "tool_call_response", "uri", "blob"]);
 
+// Bare strings are a valid *part* shape (the Zod schema accepts them), but they
+// are NOT a reliable detection signal — any emitter with `{role, parts: ["..."]}`
+// would otherwise be misidentified as GenAI. Detection requires at least one
+// object part whose `type` matches a known GenAI discriminator; strings still
+// parse fine once we've committed to the GenAI path.
 const looksLikeGenAIPart = (part: unknown): boolean => {
-  if (typeof part === "string") return true;
   if (typeof part !== "object" || part === null) return false;
   const type = (part as { type?: unknown }).type;
   return typeof type === "string" && GENAI_PART_TYPES.has(type);

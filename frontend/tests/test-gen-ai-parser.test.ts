@@ -72,11 +72,21 @@ describe("parseGenAIMessages", () => {
     assert.strictEqual(content[0].output.value, JSON.stringify({ temp_f: 65 }));
   });
 
-  it("treats bare-string parts as implicit text (for system_instructions arrays)", () => {
+  it("treats bare-string parts as implicit text when mixed with typed parts", () => {
+    // Detection requires at least one object part with a known GenAI `type`
+    // (otherwise `{role, parts: ["..."]}` emitters from other instrumentations
+    // would be misidentified). Once detected, bare strings on other messages
+    // still decode correctly — mirrors the backend shape where a system message
+    // with bare-string parts is prepended to an input.messages array that has
+    // typed parts.
     const input = [
       {
         role: "system",
         parts: ["Be helpful", "Answer concisely"],
+      },
+      {
+        role: "user",
+        parts: [{ type: "text", content: "hi" }],
       },
     ];
 
@@ -87,6 +97,15 @@ describe("parseGenAIMessages", () => {
       { type: "text", text: "Be helpful" },
       { type: "text", text: "Answer concisely" },
     ]);
+    assert.deepStrictEqual(result[1].content, [{ type: "text", text: "hi" }]);
+  });
+
+  it("does not detect payloads whose parts are only bare strings", () => {
+    // A `{role, parts: ["..."]}` payload with no typed discriminator is
+    // ambiguous — it could be any emitter. Fall through so the generic
+    // renderer handles it instead of us silently claiming it as GenAI.
+    const input = [{ role: "system", parts: ["Be helpful"] }];
+    assert.strictEqual(parseGenAIMessages(input), null);
   });
 
   it("skips empty text/thinking parts instead of emitting blank strings", () => {
