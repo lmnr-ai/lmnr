@@ -7,7 +7,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { type Span } from "@/lib/traces/types";
 import { fetcherJSON } from "@/lib/utils.ts";
 
-import { extractInputsForGroup, joinUserParts } from "./extract-input";
+import { extractInputsForGroup, fingerprintUserMessage, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
 
 const bodySchema = z.object({
@@ -105,7 +105,10 @@ export async function getMainAgentIOBatch({
   // endpoint and this function's reliance on parsed.systemText.
   await hydrateMissingPromptHashes(traceData, projectId);
 
-  const bySystemHash = new Map<string, TraceWithParsedInput[]>();
+  // Group by (systemHash, fingerprint). The fingerprint captures the top-level
+  // XML-tag structure of the joined user message so traces whose user messages
+  // share the same scaffolding
+  const byGroupKey = new Map<string, { hash: string; fingerprint: string; traces: TraceWithParsedInput[] }>();
   const noHashTraces: TraceWithParsedInput[] = [];
 
   for (const trace of traceData) {
@@ -113,9 +116,15 @@ export async function getMainAgentIOBatch({
       noHashTraces.push(trace);
       continue;
     }
-    const group = bySystemHash.get(trace.promptHash) ?? [];
-    group.push(trace);
-    bySystemHash.set(trace.promptHash, group);
+    const joined = joinUserParts(trace.parsed?.userParts ?? []);
+    const fingerprint = joined ? fingerprintUserMessage(joined) : "empty";
+    const groupKey = `${trace.promptHash}::${fingerprint}`;
+    const existing = byGroupKey.get(groupKey);
+    if (existing) {
+      existing.traces.push(trace);
+    } else {
+      byGroupKey.set(groupKey, { hash: trace.promptHash, fingerprint, traces: [trace] });
+    }
   }
 
   const results: Record<string, TraceIOResult> = {};
@@ -129,7 +138,9 @@ export async function getMainAgentIOBatch({
   }
 
   await Promise.all(
-    Array.from(bySystemHash.entries()).map(([hash, traces]) => extractInputsForGroup(hash, projectId, traces, results))
+    Array.from(byGroupKey.values()).map(({ hash, fingerprint, traces }) =>
+      extractInputsForGroup(hash, projectId, traces, results, fingerprint)
+    )
   );
 
   for (const traceId of traceIds) {
@@ -174,7 +185,8 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   if (!traceData.promptHash) return rawInput;
 
   const results: Record<string, TraceIOResult> = {};
-  await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results);
+  const fingerprint = fingerprintUserMessage(rawInput);
+  await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results, fingerprint);
 
   return results[traceId]?.inputPreview ?? rawInput;
 }

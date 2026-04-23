@@ -6,7 +6,6 @@ import { shallow } from "zustand/shallow";
 import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { useTraceViewBaseStoreRaw } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -48,7 +47,6 @@ export default function TraceViewContent({
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const baseStore = useTraceViewBaseStoreRaw();
 
   // Panel visibility states
   const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
@@ -225,8 +223,9 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
-        } else if ((baseStore.getState().spanPanelOpen || isAlwaysSelectSpan) && spans.length > 0) {
-          // Auto-select first span if the span panel is open or always-select mode is on
+        } else if (isAlwaysSelectSpan && spans.length > 0) {
+          // Auto-select first span only in the dedicated trace page (always-select mode).
+          // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -251,7 +250,6 @@ export default function TraceViewContent({
       setHasBrowserSession,
       setBrowserSession,
       setSelectedSpan,
-      baseStore,
       isAlwaysSelectSpan,
       spanId,
       searchParams,
