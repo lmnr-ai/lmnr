@@ -1408,8 +1408,14 @@ fn convert_genai_output_messages(value: &Value) -> Option<Vec<ChatMessage>> {
 
 /// `gen_ai.system_instructions` is a JSON array of parts (typically text) that
 /// describe the system prompt. Convert to a single `system`-role ChatMessage.
+/// Returns `None` if the array is empty or all parts were unrecognised — the
+/// caller then falls back to preserving the raw attribute instead of silently
+/// dropping the system prompt.
 fn convert_genai_system_instructions(value: &Value) -> Option<ChatMessage> {
     let parts = convert_genai_parts(value.as_array()?)?;
+    if parts.is_empty() {
+        return None;
+    }
     Some(ChatMessage {
         role: "system".to_string(),
         content: ChatMessageContent::ContentPartList(parts),
@@ -1428,6 +1434,17 @@ fn convert_one_genai_message(raw: &Value) -> Option<ChatMessage> {
         // `id` should bubble up to the canonical ChatMessage.tool_call_id so the
         // frontend threads it to the matching tool_call.
         for part in parts {
+            // Some emitters pass bare strings (e.g. `system_instructions: ["Be helpful"]`)
+            // instead of `{type: "text", content: ...}` objects. Treat those as implicit
+            // text parts so the content isn't silently dropped.
+            if let Some(text) = part.as_str() {
+                if !text.is_empty() {
+                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+                        text: text.to_string(),
+                    }));
+                }
+                continue;
+            }
             let Some(part_obj) = part.as_object() else {
                 continue;
             };
@@ -4342,5 +4359,47 @@ mod tests {
         let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
         assert_eq!(input.len(), 1);
         assert_eq!(input[0].tool_call_id.as_deref(), Some("call_abc"));
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_as_string_array() {
+        // Some emitters ship `gen_ai.system_instructions` as a bare string array
+        // (`["Be helpful"]`) instead of `[{type: "text", content: "..."}]`. Make
+        // sure the text content ends up merged into the final system message rather
+        // than silently dropped.
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }])
+        .to_string();
+        let system_instructions = json!(["Be helpful", "Answer concisely"]).to_string();
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            ("gen_ai.input.messages".to_string(), json!(input_messages)),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
+        assert_eq!(input.len(), 2);
+        assert_eq!(input[0].role, "system");
+        let ChatMessageContent::ContentPartList(parts) = &input[0].content else {
+            panic!("expected system content list, got {:?}", input[0].content);
+        };
+        assert_eq!(parts.len(), 2);
+        match &parts[0] {
+            ChatMessageContentPart::Text(t) => assert_eq!(t.text, "Be helpful"),
+            other => panic!("expected text part, got {:?}", other),
+        }
+        match &parts[1] {
+            ChatMessageContentPart::Text(t) => assert_eq!(t.text, "Answer concisely"),
+            other => panic!("expected text part, got {:?}", other),
+        }
     }
 }
