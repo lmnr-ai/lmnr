@@ -430,17 +430,11 @@ const MCPCallItem = ({
         messageIndex={messageIndex}
         contentPartIndex={0}
       />
-      {item.output !== undefined || item.error ? (
+      {item.output != null || item.error ? (
         <ToolResultContentPart
           toolCallId={item.id}
           toolName={name}
-          content={
-            item.error
-              ? `[Error] ${item.error}`
-              : typeof item.output === "string"
-                ? item.output
-                : JSON.stringify(item.output ?? "", null, 2)
-          }
+          content={item.error ? `[Error] ${item.error}` : (item.output ?? "")}
           presetKey={`${messageIndex}-mcp-out-${presetKey}`}
         />
       ) : null}
