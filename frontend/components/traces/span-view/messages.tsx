@@ -43,7 +43,7 @@ const RESPONSES_TOOL_OUTPUT_TYPES = new Set([
   "mcp_approval_response",
 ]);
 
-function responsesItemRole(item: { type?: string; role?: string } | undefined): string | undefined {
+export function responsesItemRole(item: { type?: string; role?: string } | undefined): string | undefined {
   if (!item) return undefined;
   if (item.role) return item.role;
   const t = item.type;
