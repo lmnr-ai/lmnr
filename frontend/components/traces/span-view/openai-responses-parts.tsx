@@ -5,6 +5,7 @@ import {
   type OpenAIResponsesCodeInterpreterCallItemSchema,
   type OpenAIResponsesComputerCallItemSchema,
   type OpenAIResponsesComputerCallOutputItemSchema,
+  type OpenAIResponsesCustomToolCallOutputSchema,
   type OpenAIResponsesCustomToolCallSchema,
   type OpenAIResponsesFileSearchCallItemSchema,
   type OpenAIResponsesFunctionCallItemSchema,
@@ -213,6 +214,28 @@ const FunctionCallOutputItem = ({
       toolName={toolNameMap?.get(item.call_id)}
       content={content}
       presetKey={`${messageIndex}-fn-out-${presetKey}`}
+    />
+  );
+};
+
+const CustomToolCallOutputItem = ({
+  item,
+  presetKey,
+  messageIndex,
+  toolNameMap,
+}: {
+  item: z.infer<typeof OpenAIResponsesCustomToolCallOutputSchema>;
+  presetKey: string;
+  messageIndex: number;
+  toolNameMap?: Map<string, string>;
+}) => {
+  const content = typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? "", null, 2);
+  return (
+    <ToolResultContentPart
+      toolCallId={item.call_id}
+      toolName={toolNameMap?.get(item.call_id)}
+      content={content}
+      presetKey={`${messageIndex}-custom-out-${presetKey}`}
     />
   );
 };
@@ -615,6 +638,15 @@ const PureOpenAIResponsesContentParts = ({
       return <MCPApprovalResponseItem item={message} presetKey={presetKey} messageIndex={parentIndex} />;
     case "custom_tool_call":
       return <CustomToolCallItem item={message} presetKey={presetKey} messageIndex={parentIndex} />;
+    case "custom_tool_call_output":
+      return (
+        <CustomToolCallOutputItem
+          item={message}
+          presetKey={presetKey}
+          messageIndex={parentIndex}
+          toolNameMap={toolNameMap}
+        />
+      );
     case "item_reference":
       return (
         <TextContentPart

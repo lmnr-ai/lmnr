@@ -416,6 +416,24 @@ export const OpenAIResponsesCustomToolCallSchema = z.object({
   namespace: z.string().nullish(),
 });
 
+export const OpenAIResponsesCustomToolCallOutputSchema = z.object({
+  type: z.literal("custom_tool_call_output"),
+  id: z.string().optional(),
+  call_id: z.string(),
+  output: z.union([
+    z.string(),
+    z.array(
+      z.union([
+        OpenAIResponsesInputTextPartSchema,
+        OpenAIResponsesInputImagePartSchema,
+        OpenAIResponsesInputFilePartSchema,
+      ])
+    ),
+  ]),
+  status: StatusEnumSchema.nullish(),
+  created_by: z.string().nullish(),
+});
+
 export const OpenAIResponsesItemSchema = z.union([
   OpenAIResponsesMessageItemSchema,
   OpenAIResponsesReasoningItemSchema,
@@ -435,6 +453,7 @@ export const OpenAIResponsesItemSchema = z.union([
   OpenAIResponsesMCPApprovalResponseItemSchema,
   OpenAIResponsesItemReferenceSchema,
   OpenAIResponsesCustomToolCallSchema,
+  OpenAIResponsesCustomToolCallOutputSchema,
 ]);
 
 export const OpenAIResponsesItemsSchema = z.array(OpenAIResponsesItemSchema);
