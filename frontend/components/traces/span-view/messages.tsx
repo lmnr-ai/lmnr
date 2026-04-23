@@ -29,6 +29,7 @@ const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "
 
 const RESPONSES_TOOL_CALL_TYPES = new Set([
   "function_call",
+  "custom_tool_call",
   "web_search_call",
   "file_search_call",
   "computer_call",
