@@ -789,10 +789,17 @@ impl Span {
                         .raw_attributes
                         .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
                     {
-                        if let Some(system_parts) = convert_genai_system_instructions(
-                            &parse_genai_messages_attribute(&system),
-                        ) {
+                        let parsed_system = parse_genai_messages_attribute(&system);
+                        if let Some(system_parts) =
+                            convert_genai_system_instructions(&parsed_system)
+                        {
                             messages.insert(0, system_parts);
+                        } else {
+                            // Conversion failed (e.g. value is a plain string, not a parts
+                            // array). Put it back so the attribute isn't silently lost.
+                            self.attributes
+                                .raw_attributes
+                                .insert(GEN_AI_SYSTEM_INSTRUCTIONS.to_string(), system);
                         }
                     }
                     self.input = Some(serde_json::to_value(messages).unwrap_or(parsed));
