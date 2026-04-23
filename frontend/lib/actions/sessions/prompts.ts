@@ -36,19 +36,39 @@ Step 2 — For each candidate, classify it as HARNESS WRAPPER or CONTENT.
 
 Step 3 — If zero HARNESS WRAPPER tags survive Step 2 → output (?s)(.*). Stop. Do NOT look for other anchors. Do NOT fall back to Pattern D on an <h3> or similar content tag.
 
-Step 4 — With the surviving harness wrapper tag(s), pick the pattern:
-  - Scaffolding at top/middle, instruction trails it → Pattern B.
-  - Scaffolding at the bottom, instruction leads it → Pattern D.
-  - Instruction fully inside a dedicated request-like wrapper → Pattern A.
-  - Entire input is balanced wrapper tags with no payload outside → Pattern C.
+Step 4 — Determine WHERE the scaffolding blocks sit, STRUCTURALLY. Pick the anchor tag T (a harness wrapper that appears in every sample). Then for each sample, find:
+  - idx_first_open  = index of the FIRST <T>
+  - idx_last_close  = index of the LAST </T> + length("</T>")
+  - total_len       = length of the sample
 
-Step 5 — Sanity check: mentally run your regex against the input and confirm the capture contains the actual instruction text. If the capture drops meaningful content (e.g. everything after an <h3> that is clearly the body of a PR comment) → you picked the wrong anchor. Go back to Step 2 and re-check whether your "anchor" is actually a content tag in disguise.
+  Classify the layout:
+  - LEADING_SCAFFOLDING:  idx_first_open is at (or very near) 0 AND there is non-trivial prose AFTER idx_last_close. The scaffolding occupies the TOP; the instruction follows it.
+  - TRAILING_SCAFFOLDING: there is non-trivial prose BEFORE idx_first_open AND idx_last_close is at (or very near) total_len. The instruction comes FIRST; scaffolding trails it.
+  - WRAPPED:              the instruction is fully INSIDE a dedicated request-like tag (<user_request>, <task>, <query>, …) that appears in every sample.
+  - ALL_SCAFFOLDING:      the entire sample is balanced wrapper tags; nothing but whitespace outside them.
+  - MIXED / UNCLEAR:      scaffolding appears on BOTH sides, OR the layout differs across samples, OR you cannot tell.
+
+  Map layout → pattern:
+  - LEADING_SCAFFOLDING  → Pattern B  (anchor on CLOSING tag, last occurrence: "(?s).*</T>\\s*(.*)")
+  - TRAILING_SCAFFOLDING → Pattern D  (anchor on OPENING tag, first occurrence: "(?s)^(.*?)<T>")
+  - WRAPPED              → Pattern A
+  - ALL_SCAFFOLDING      → Pattern C
+  - MIXED / UNCLEAR      → PASSTHROUGH
+
+  CRITICAL RULE: the sample starts with "<T>" (idx_first_open === 0) ⇒ it is LEADING_SCAFFOLDING ⇒ Pattern B, not Pattern D. Pattern D with a tag that opens at position 0 yields an empty capture — that is always wrong.
+
+Step 5 — Sanity check by mentally running your regex against the input:
+  a) The capture group MUST contain the actual instruction text. If the capture is empty or clearly missing the request prose → you picked the wrong pattern. Most common mistake: picking D when the scaffolding is actually leading (starts at position 0). Switch to B.
+  b) If the capture drops meaningful content (e.g. everything after an <h3> that is clearly the body of a PR comment) → your "anchor" is a content tag in disguise. Go back to Step 2.
 </decision_procedure>
 
 <failure_modes description="concrete wrong answers we have seen; do not repeat them">
 - Anchoring on <h3>Greptile Summary</h3> (or any other HTML heading) inside a PR-bot comment. <h3> is a CONTENT tag. Do NOT use it. The correct move is either Pattern B on </system-reminder> (a real harness wrapper), or PASSTHROUGH if no wrapper tag fits all samples.
 - Anchoring on <details>, <table>, <p>, <div>, <a>, <img>, etc. inside the body of a comment. These are always content.
 - Picking Pattern D just because a tag happens to appear — Pattern D is only valid when the tag is a HARNESS WRAPPER in the SCAFFOLDING section. If the tag lives in the USER REQUEST section, choose PASSTHROUGH instead.
+- Picking Pattern D on LEADING scaffolding. Example input:
+    "<system-reminder>…big system block…</system-reminder>\\n<system-reminder>…skills manifest…</system-reminder>\\nGood first draft. Now a couple of notes…"
+  Here the sample STARTS with "<system-reminder>", so Pattern D (^(.*?)<system-reminder>) captures the empty string before it and throws away the real instruction. The scaffolding is LEADING, not trailing → use Pattern B: "(?s).*</system-reminder>\\s*(.*)". Rule of thumb: if the input begins with the opening anchor tag, never use Pattern D.
 </failure_modes>
 
 <wrapper_vs_content>
@@ -91,6 +111,9 @@ When these markers are present:
   <pattern id="B" name="After leading scaffolding">
     Scaffolding tags appear at the top/middle; the instruction is the plain text AFTER the LAST scaffolding closing tag. Use when the same closing tag literally ends the scaffolding in every sample.
     <template>(?s).*</tag>\\s*(.*)</template>
+    <entry_condition>
+      This is the correct choice whenever the sample STARTS with the opening wrapper tag (scaffolding is leading), regardless of how many scaffolding blocks appear. One block, two blocks, ten blocks — same pattern. Do NOT switch to Pattern D in this case.
+    </entry_condition>
     <critical>
       The leading ".*" is MANDATORY. It forces the engine — which is greedy — to skip past EVERY earlier occurrence of "</tag>" and anchor on the LAST one. Without the leading ".*", the match starts at the FIRST "</tag>" and the capture group will include all subsequent scaffolding blocks.
     </critical>
@@ -101,16 +124,26 @@ When these markers are present:
   </pattern>
 
   <pattern id="D" name="Before trailing scaffolding">
-    The instruction comes BEFORE the scaffolding (trailing <system-reminder>-style blocks). Use ONLY when the opening tag is a HARNESS WRAPPER (see decision_procedure Step 2) that literally starts each trailing scaffolding block in every sample. Never use Pattern D with a CONTENT tag like <h3>, <p>, <details>, etc.
+    The instruction comes BEFORE the scaffolding (trailing wrapper-style blocks). Use ONLY when the opening tag is a HARNESS WRAPPER (see decision_procedure Step 2) that literally starts each trailing scaffolding block in every sample. Never use Pattern D with a CONTENT tag like <h3>, <p>, <details>, etc.
     <template>(?s)^(.*?)<tag></template>
+    <entry_condition>
+      Pattern D is valid ONLY if, in every sample, there is non-trivial prose BEFORE the first occurrence of &lt;tag&gt;. If the sample starts with &lt;tag&gt; (i.e. the opening tag is at or near position 0), the scaffolding is LEADING, not trailing — use Pattern B instead. Using Pattern D on leading scaffolding produces an empty capture and discards the real instruction.
+    </entry_condition>
     <critical>
       The "^" anchor and the LAZY "(.*?)" are both MANDATORY. "^" pins the match to the start of input; "(.*?)" stops at the FIRST "<tag>" occurrence rather than the last. A greedy "(.*)" would swallow everything up to the final "<tag>" — which is the opposite of what you want here.
     </critical>
     <examples>
-      <correct>(?s)^(.*?)<system-reminder></correct>
-      <wrong reason="greedy (.*) captures through the last opening tag, losing most of the instruction">(?s)^(.*)<system-reminder></wrong>
+      <correct reason="sample starts with prose, trailing scaffolding begins with <some-wrapper>">(?s)^(.*?)<some-wrapper></correct>
+      <wrong reason="greedy (.*) captures through the last opening tag, losing most of the instruction">(?s)^(.*)<some-wrapper></wrong>
+      <wrong reason="sample starts with the wrapper tag, so (.*?) matches empty and the capture is empty; use Pattern B instead">input begins with "<some-wrapper>…</some-wrapper>\\nActual request here" — Pattern D regex would be "(?s)^(.*?)<some-wrapper>" and is WRONG here</wrong>
     </examples>
   </pattern>
+
+  <worked_examples description="shape → regex. Copy the shape, not the tag name.">
+    - Starts with &lt;W&gt;…&lt;/W&gt;, then prose (one or many leading blocks) → Pattern B: (?s).*&lt;/W&gt;\\s*(.*)
+      Do NOT pick Pattern D here; starts-with-tag yields an empty capture.
+    - Starts with prose, then &lt;W&gt;…&lt;/W&gt; trailing → Pattern D: (?s)^(.*?)&lt;W&gt;
+  </worked_examples>
 
   <pattern id="PASSTHROUGH" name="No reliable anchor">
     No wrapper tags at all, or no tag you can rely on across samples.
@@ -160,10 +193,10 @@ HARD RULES:
 - The response must start with "(?s)" and end with the last character of the regex.
 - If you are about to write any non-regex character as the first token, stop and output only the regex.
 
-Examples of correct full responses (entire message body shown between the quotes):
+Examples of correct full responses (entire message body shown between the quotes — these illustrate SHAPE only; use the tag name from the actual input):
 "(?s)(.*)"
-"(?s).*</system-reminder>\\s*(.*)"
-"(?s)^(.*?)<system-reminder>"
+"(?s).*</wrapper>\\s*(.*)"
+"(?s)^(.*?)<wrapper>"
 
 Examples of INCORRECT responses (do NOT do this):
 "Step 1 — ...\\n\\n(?s)(.*)"

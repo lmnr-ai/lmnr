@@ -55,7 +55,7 @@ function extractFromOpenAI(messages: z.infer<typeof OpenAIMessagesSchema>): Pars
       const textParts = systemMsg.content
         .filter((p): p is z.infer<typeof OpenAITextPartSchema> => p.type === "text")
         .map((p) => p.text);
-      if (textParts.length > 0) systemText = textParts.join("\n");
+      if (textParts.length > 0) systemText = textParts.join(" ");
     }
   }
 
@@ -83,7 +83,7 @@ function extractFromAnthropic(messages: z.infer<typeof AnthropicMessagesSchema>)
       const textBlocks = (systemMsg.content as z.infer<typeof AnthropicContentBlockSchema>[]).filter(
         (b): b is { type: "text"; text: string } => b.type === "text"
       );
-      if (textBlocks.length > 0) systemText = textBlocks.map((b) => b.text).join("\n");
+      if (textBlocks.length > 0) systemText = textBlocks.map((b) => b.text).join(" ");
     }
   }
 
@@ -105,10 +105,8 @@ function extractFromGemini(contents: z.infer<typeof GeminiContentsSchema>): Pars
   let systemText: string | null = null;
   const systemContent = contents.find((c) => c.role === "system");
   if (systemContent) {
-    const textParts = systemContent.parts
-      .filter((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)
-      .map((p) => p.text);
-    if (textParts.length > 0) systemText = textParts.join("\n");
+    const firstText = systemContent.parts.find((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)?.text;
+    if (firstText) systemText = firstText;
   }
 
   return { systemText, userParts: extractFirstUserMessageGemini(contents) };
