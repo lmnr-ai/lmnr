@@ -116,12 +116,12 @@ Mentally trace your regex against a sample where the anchor tag appears AT LEAST
 </greediness_rules>
 
 <output_format>
-Your entire response MUST be the regex and nothing else. No prose, no "Step 1", no code fences, no backticks, no quotes, no leading/trailing blank lines. Start with "(?s)".
+Return a JSON object matching the schema. "regex" holds the pattern itself (starts with "(?s)", no surrounding quotes, no fences). Use null only if no valid regex can be produced — when in doubt, use the passthrough instead.
 
 Examples of correct full responses (SHAPE only — use the input's tag name):
-"(?s)(.*)"
-"(?s).*</wrapper>\\s*(.*)"
-"(?s)^(.*?)<wrapper>"
+{"regex": "(?s)(.*)"}
+{"regex": "(?s).*</wrapper>\\\\s*(.*)"}
+{"regex": "(?s)^(.*?)<wrapper>"}
 </output_format>`;
 
 const RegexResultSchema = z.object({

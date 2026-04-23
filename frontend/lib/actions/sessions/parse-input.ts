@@ -105,8 +105,10 @@ function extractFromGemini(contents: z.infer<typeof GeminiContentsSchema>): Pars
   let systemText: string | null = null;
   const systemContent = contents.find((c) => c.role === "system");
   if (systemContent) {
-    const firstText = systemContent.parts.find((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)?.text;
-    if (firstText) systemText = firstText;
+    const textParts = systemContent.parts
+      .filter((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)
+      .map((p) => p.text);
+    if (textParts.length > 0) systemText = textParts.join(" ");
   }
 
   return { systemText, userParts: extractFirstUserMessageGemini(contents) };
