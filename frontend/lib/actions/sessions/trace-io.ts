@@ -186,7 +186,6 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
 
   const results: Record<string, TraceIOResult> = {};
   const fingerprint = fingerprintUserMessage(rawInput);
-  console.log("fingerprint", fingerprint);
   await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results, fingerprint);
 
   return results[traceId]?.inputPreview ?? rawInput;
