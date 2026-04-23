@@ -795,9 +795,13 @@ impl Span {
                 }
                 self.input = Some(parsed);
             } else if let Some(sys) = system_instructions {
-                // `system_instructions` present but no input.messages — surface it
-                // as a one-message array so the frontend sees a consistent shape.
-                self.input = Some(prepend_system_instructions(Value::Array(vec![]), sys));
+                // `system_instructions` present but no `gen_ai.input.messages`. Only
+                // surface it as a standalone system message when `self.input` is still
+                // empty — otherwise we'd clobber whatever the old-format handlers
+                // (`gen_ai.prompt.0.*` / `ai.prompt.messages`) already extracted.
+                if self.input.is_none() {
+                    self.input = Some(prepend_system_instructions(Value::Array(vec![]), sys));
+                }
             }
             if let Some(output) = self
                 .attributes
