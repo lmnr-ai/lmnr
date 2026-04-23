@@ -174,7 +174,11 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
             map.set(item.call_id, "computer_use");
             break;
           case "local_shell_call":
+            // local_shell_call_output has no call_id in the API — its `id` field
+            // references the call's `call_id`. Register both to be resilient to
+            // either convention.
             map.set(item.call_id, "local_shell");
+            map.set(item.id, "local_shell");
             break;
           case "mcp_call":
             map.set(
