@@ -153,9 +153,8 @@ export const OpenAIResponsesFunctionCallItemSchema = z.object({
   call_id: z.string(),
   name: z.string(),
   arguments: z.string(),
-  namespace: z.string().optional(),
+  namespace: z.string().nullish(),
   status: StatusEnumSchema.nullish(),
-  created_by: z.string().optional(),
 });
 
 const OpenAIResponsesFunctionCallOutputContentSchema = z.union([
@@ -408,6 +407,15 @@ export const OpenAIResponsesItemReferenceSchema = z.object({
   id: z.string(),
 });
 
+export const OpenAIResponsesCustomToolCallSchema = z.object({
+  type: z.literal("custom_tool_call"),
+  call_id: z.string(),
+  input: z.string(),
+  name: z.string(),
+  id: z.string().optional(),
+  namespace: z.string().nullish(),
+});
+
 export const OpenAIResponsesItemSchema = z.union([
   OpenAIResponsesMessageItemSchema,
   OpenAIResponsesReasoningItemSchema,
@@ -426,6 +434,7 @@ export const OpenAIResponsesItemSchema = z.union([
   OpenAIResponsesMCPApprovalRequestItemSchema,
   OpenAIResponsesMCPApprovalResponseItemSchema,
   OpenAIResponsesItemReferenceSchema,
+  OpenAIResponsesCustomToolCallSchema,
 ]);
 
 export const OpenAIResponsesItemsSchema = z.array(OpenAIResponsesItemSchema);
@@ -461,6 +470,7 @@ export const parseOpenAIResponsesOutput = (data: unknown): z.infer<typeof OpenAI
   if (typeof data === "object" && data !== null && !Array.isArray(data) && Array.isArray((data as any).output)) {
     const result = OpenAIResponsesResponseSchema.safeParse(data);
     if (result.success) return result.data.output;
+    else console.log(result.error.message);
   }
 
   return parseOpenAIResponsesInput(data);

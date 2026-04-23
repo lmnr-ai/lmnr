@@ -19,7 +19,11 @@ import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
-import { type OpenAIResponsesItemsSchema, parseOpenAIResponsesOutput } from "@/lib/spans/types/openai-responses";
+import {
+  type OpenAIResponsesItemsSchema,
+  parseOpenAIResponsesInput,
+  parseOpenAIResponsesOutput,
+} from "@/lib/spans/types/openai-responses";
 
 const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
 
@@ -105,6 +109,11 @@ export function processMessages(data: unknown): ProcessedMessages {
   const openAIInput = parseOpenAIInput(data);
   if (openAIInput) {
     return { messages: openAIInput, type: "openai" };
+  }
+
+  const responsesInput = parseOpenAIResponsesInput(data);
+  if (responsesInput) {
+    return { messages: responsesInput, type: "openai-responses" };
   }
 
   const responsesOutput = parseOpenAIResponsesOutput(data);
@@ -205,6 +214,9 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
                 ? `${item.server_label}.${item.name}`
                 : (item.name ?? "mcp_approval_request")
             );
+            break;
+          case "custom_tool_call":
+            map.set(item.call_id, item.name);
             break;
         }
       }
