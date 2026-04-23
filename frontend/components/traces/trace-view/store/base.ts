@@ -277,7 +277,10 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isCostHeatmapVisible: false,
 
     // Panel visibility defaults
-    spanPanelOpen: true,
+    // spanPanelOpen is intentionally false — in the dynamic (drawer) layout we keep the
+    // span panel closed until the user selects a span. In the full-width trace page the
+    // panel is driven by isAlwaysSelectSpan instead.
+    spanPanelOpen: false,
     tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
 

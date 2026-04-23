@@ -1,7 +1,10 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
@@ -70,6 +73,79 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
+/**
+ * Matches markdown links pointing at lmnr.ai / laminar.sh trace views, e.g.
+ *   [Label](https://lmnr.ai/project/<pid>/traces/<traceId>?spanId=<uuid>&chat=true)
+ *   [Label](https://www.laminar.sh/project/<pid>/traces/<traceId>?spanId=<uuid>)
+ */
+const LMNR_TRACE_LINK_REGEX =
+  /\[([^\]]+)\]\(https?:\/\/(?:www\.)?(?:lmnr\.ai|laminar\.sh)\/project\/[0-9a-f-]+\/traces\/([0-9a-f-]+)(?:\?[^)]*?spanId=([0-9a-f-]+))?[^)]*\)/gi;
+
+function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; spanId?: string }) {
+  const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
+  const { setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setTraceId(traceId);
+    setSpanId(spanId ?? null);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("traceId", traceId);
+    if (spanId) {
+      params.set("spanId", spanId);
+    } else {
+      params.delete("spanId");
+    }
+    router.replace(`${pathName}?${params.toString()}`);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="text-primary underline underline-offset-2 hover:text-primary/80"
+    >
+      {label}
+    </button>
+  );
+}
+
+function renderPayloadText(text: string): React.ReactNode {
+  LMNR_TRACE_LINK_REGEX.lastIndex = 0;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = LMNR_TRACE_LINK_REGEX.exec(text)) !== null) {
+    const [fullMatch, label, traceId, spanId] = match;
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+
+    parts.push(<SpanLink key={`span-link-${key++}`} label={label} traceId={traceId} spanId={spanId} />);
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  if (parts.length === 0) {
+    return text;
+  }
+
+  return <>{parts}</>;
+}
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -94,7 +170,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              {String(value)}
+              {renderPayloadText(String(value))}
             </span>
           );
       }

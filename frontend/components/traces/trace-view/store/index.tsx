@@ -247,7 +247,6 @@ const createTraceViewStore = (options?: {
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            spanPanelOpen: state.spanPanelOpen,
           };
         },
         merge: (persistedState, currentState) => {
@@ -269,7 +268,6 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
-            ...(typeof persisted.spanPanelOpen === "boolean" && { spanPanelOpen: persisted.spanPanelOpen }),
             tab,
           };
         },
