@@ -39,7 +39,6 @@ const RESPONSES_TOOL_CALL_TYPES = new Set([
   "mcp_call",
   "mcp_list_tools",
   "mcp_approval_request",
-  "custom_tool_call",
 ]);
 
 const RESPONSES_TOOL_OUTPUT_TYPES = new Set([
