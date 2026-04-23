@@ -79,9 +79,21 @@ const MessageItem = ({
               />
             );
           case "input_image": {
-            const url = part.image_url ?? part.file_id;
-            if (!url) return null;
-            return <ImageContentPart key={k} src={url} />;
+            if (part.image_url) {
+              return <ImageContentPart key={k} src={part.image_url} />;
+            }
+            if (part.file_id) {
+              return (
+                <TextContentPart
+                  key={k}
+                  content={`[Image file: ${part.file_id}]`}
+                  presetKey={k}
+                  messageIndex={messageIndex}
+                  contentPartIndex={index}
+                />
+              );
+            }
+            return null;
           }
           case "input_file": {
             const data = part.file_data ?? part.file_url ?? part.file_id;
