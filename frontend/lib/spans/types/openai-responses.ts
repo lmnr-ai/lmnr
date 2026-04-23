@@ -235,7 +235,7 @@ const OpenAIResponsesComputerActionSchema = z.union([
     type: z.literal("double_click"),
     x: z.number(),
     y: z.number(),
-    keys: z.array(z.string()).nullable(),
+    keys: z.array(z.string()).nullish(),
   }),
   z.object({
     type: z.literal("drag"),
