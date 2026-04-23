@@ -440,12 +440,8 @@ export const OpenAIResponsesResponseSchema = z.object({
 export type OpenAIResponsesItem = z.infer<typeof OpenAIResponsesItemSchema>;
 export type OpenAIResponsesMessageItem = z.infer<typeof OpenAIResponsesMessageItemSchema>;
 
-/** Parse input: accepts a plain string, a single item, or an array of items. */
+/** Parse input: accepts a single item or an array of items. */
 export const parseOpenAIResponsesInput = (data: unknown): z.infer<typeof OpenAIResponsesItemsSchema> | null => {
-  if (typeof data === "string") {
-    return [{ type: "message", role: "user", content: data }];
-  }
-
   if (Array.isArray(data)) {
     const result = OpenAIResponsesItemsSchema.safeParse(data);
     if (result.success) return result.data;

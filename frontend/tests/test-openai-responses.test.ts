@@ -75,11 +75,8 @@ describe("openai-responses parser", () => {
     assert.strictEqual(parsed!.length, 2);
   });
 
-  it("parses a bare string input as a single user message", () => {
-    const parsed = parseOpenAIResponsesInput("hello");
-    assert.ok(parsed);
-    assert.strictEqual(parsed!.length, 1);
-    assert.strictEqual((parsed![0] as any).role, "user");
+  it("does not capture bare strings as Responses messages", () => {
+    assert.strictEqual(parseOpenAIResponsesInput("hello"), null);
   });
 
   it("does not parse Chat Completions assistant+tool_calls as Responses items", () => {
