@@ -159,9 +159,9 @@ export default function SessionList() {
       case "trace-empty":
         return 42;
       case "trace-collapsed-end":
-        return 50;
+        return 40;
       case "trace-expanded-end":
-        return 80;
+        return 48;
       case "trace-loading":
       case "user-input":
       case "span":

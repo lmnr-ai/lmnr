@@ -79,15 +79,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     meta: { sql: "start_time" },
   },
   {
-    accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-        return "-";
-      }
-      const duration = end.getTime() - start.getTime();
-      return `${(duration / 1000).toFixed(2)}s`;
-    },
+    accessorFn: (row) => (row.duration ?? 0).toFixed(2) + "s",
     header: "Duration",
     id: "duration",
     size: 100,
