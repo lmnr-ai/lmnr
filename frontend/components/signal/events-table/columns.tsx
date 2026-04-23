@@ -73,14 +73,6 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
-/**
- * Matches markdown links pointing at lmnr.ai / laminar.sh trace views, e.g.
- *   [Label](https://lmnr.ai/project/<pid>/traces/<traceId>?spanId=<uuid>&chat=true)
- *   [Label](https://www.laminar.sh/project/<pid>/traces/<traceId>?spanId=<uuid>)
- */
-const LMNR_TRACE_LINK_REGEX =
-  /\[([^\]]+)\]\(https?:\/\/(?:www\.)?(?:lmnr\.ai|laminar\.sh)\/project\/[0-9a-f-]+\/traces\/([0-9a-f-]+)(?:\?[^)]*?spanId=([0-9a-f-]+))?[^)]*\)/gi;
-
 function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; spanId?: string }) {
   const router = useRouter();
   const pathName = usePathname();
@@ -118,13 +110,17 @@ function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; 
 }
 
 function renderPayloadText(text: string): React.ReactNode {
-  LMNR_TRACE_LINK_REGEX.lastIndex = 0;
+  // Matches markdown links pointing at lmnr.ai / laminar.sh trace views, e.g.
+  //   [Label](https://lmnr.ai/project/<pid>/traces/<traceId>?spanId=<uuid>&chat=true)
+  //   [Label](https://www.laminar.sh/project/<pid>/traces/<traceId>?spanId=<uuid>)
+  const regex =
+    /\[([^\]]+)\]\(https?:\/\/(?:www\.)?(?:lmnr\.ai|laminar\.sh)\/project\/[0-9a-f-]+\/traces\/([0-9a-f-]+)(?:\?[^)]*?spanId=([0-9a-f-]+))?[^)]*\)/gi;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let key = 0;
 
-  while ((match = LMNR_TRACE_LINK_REGEX.exec(text)) !== null) {
+  while ((match = regex.exec(text)) !== null) {
     const [fullMatch, label, traceId, spanId] = match;
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
