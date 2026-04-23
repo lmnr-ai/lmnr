@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
+import { parseGenAIMessages } from "@/lib/spans/types/gen-ai";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 
@@ -105,6 +106,14 @@ export function processMessages(data: unknown): ProcessedMessages {
   const geminiInput = parseGeminiInput(data);
   if (geminiInput) {
     return { messages: geminiInput, type: "gemini" };
+  }
+
+  // OpenTelemetry GenAI semconv (`{role, parts: [{type: "text"|"tool_call"|...}]}`)
+  // emitted by pydantic_ai v5 and other spec-compliant libraries. The backend
+  // preserves the raw shape so we decode it here.
+  const genAIMessages = parseGenAIMessages(data);
+  if (genAIMessages) {
+    return { messages: genAIMessages, type: "generic" };
   }
 
   return {

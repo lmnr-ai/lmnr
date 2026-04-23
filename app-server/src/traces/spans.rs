@@ -19,8 +19,8 @@ use crate::{
         utils::span_id_to_uuid,
     },
     language_model::{
-        ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageImageUrl,
-        ChatMessageText, ChatMessageToolCall, InstrumentationChatMessageContentPart,
+        ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
+        ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
     traces::{
@@ -777,59 +777,34 @@ impl Span {
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
 
-            // OTel GenAI semantic conventions — `gen_ai.input.messages` / `gen_ai.output.messages`
-            // carry a JSON array of `{role, parts: [...]}` objects. Convert to our canonical
-            // ChatMessage shape so the frontend's message renderer can display them. Overrides
-            // older `gen_ai.prompt.*` / `gen_ai.completion.*` if both are present.
-            if let Some(input) = self.attributes.raw_attributes.remove(GEN_AI_INPUT_MESSAGES) {
-                let parsed = parse_genai_messages_attribute(&input);
-                if let Some(mut messages) = convert_genai_input_messages(&parsed) {
-                    if let Some(system) = self
-                        .attributes
-                        .raw_attributes
-                        .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
-                    {
-                        let parsed_system = parse_genai_messages_attribute(&system);
-                        if let Some(system_parts) =
-                            convert_genai_system_instructions(&parsed_system)
-                        {
-                            messages.insert(0, system_parts);
-                        } else {
-                            // Conversion failed (e.g. value is a plain string, not a parts
-                            // array). Put it back so the attribute isn't silently lost.
-                            self.attributes
-                                .raw_attributes
-                                .insert(GEN_AI_SYSTEM_INSTRUCTIONS.to_string(), system);
-                        }
-                    }
-                    self.input = Some(serde_json::to_value(messages).unwrap_or(parsed));
-                } else {
-                    self.input = Some(parsed);
-                }
-            } else if let Some(system) = self
+            // OTel GenAI semantic conventions — `gen_ai.input.messages` /
+            // `gen_ai.output.messages` carry a JSON array of `{role, parts: [...]}`
+            // objects. Preserve the native format end-to-end (the frontend parses it);
+            // we only (a) parse the attribute if it's still a serialised string and
+            // (b) prepend `gen_ai.system_instructions` as a synthetic `role: "system"`
+            // message so the system prompt threads into the same message array.
+            let system_instructions = self
                 .attributes
                 .raw_attributes
                 .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
-            {
-                // `system_instructions` present but no input.messages — surface it anyway.
-                let parsed = parse_genai_messages_attribute(&system);
-                if let Some(system_msg) = convert_genai_system_instructions(&parsed) {
-                    self.input = Some(serde_json::to_value(vec![system_msg]).unwrap_or(parsed));
-                } else {
-                    self.input = Some(parsed);
+                .map(|v| parse_genai_messages_attribute(&v));
+            if let Some(input) = self.attributes.raw_attributes.remove(GEN_AI_INPUT_MESSAGES) {
+                let mut parsed = parse_genai_messages_attribute(&input);
+                if let Some(sys) = system_instructions {
+                    parsed = prepend_system_instructions(parsed, sys);
                 }
+                self.input = Some(parsed);
+            } else if let Some(sys) = system_instructions {
+                // `system_instructions` present but no input.messages — surface it
+                // as a one-message array so the frontend sees a consistent shape.
+                self.input = Some(prepend_system_instructions(Value::Array(vec![]), sys));
             }
             if let Some(output) = self
                 .attributes
                 .raw_attributes
                 .remove(GEN_AI_OUTPUT_MESSAGES)
             {
-                let parsed = parse_genai_messages_attribute(&output);
-                if let Some(messages) = convert_genai_output_messages(&parsed) {
-                    self.output = Some(serde_json::to_value(messages).unwrap_or(parsed));
-                } else {
-                    self.output = Some(parsed);
-                }
+                self.output = Some(parse_genai_messages_attribute(&output));
             }
         }
 
@@ -1376,214 +1351,26 @@ fn parse_genai_messages_attribute(value: &Value) -> Value {
     }
 }
 
-/// Convert an OTel GenAI semconv input-messages array (pydantic_ai-style
-/// `[{role, parts: [...]}]`) into the canonical `Vec<ChatMessage>` shape that
-/// the Laminar frontend already knows how to render. Returns `None` if the
-/// input is not a recognisable array of role-bearing objects — the caller
-/// then falls back to the raw Value.
-///
-/// Each `part` in pydantic_ai/GenAI semconv is one of:
-///   - `{type: "text", content: "..."}`
-///   - `{type: "tool_call", id, name, arguments}`
-///   - `{type: "tool_call_response", id, name, result}`
-///   - `{type: "thinking", content}`
-///   - `{type: "uri"|"blob", modality, mime_type, uri|content}`  (v4+)
-fn convert_genai_input_messages(value: &Value) -> Option<Vec<ChatMessage>> {
-    let arr = value.as_array()?;
-    let mut out = Vec::with_capacity(arr.len());
-    for raw in arr {
-        if let Some(msg) = convert_one_genai_message(raw) {
-            out.push(msg);
-        }
-    }
-    if out.is_empty() { None } else { Some(out) }
-}
-
-/// Output messages share the same `{role, parts: [...]}` shape as input
-/// messages in the OTel GenAI semconv, so we reuse the input converter.
-/// `finish_reason` is already surfaced separately via span attributes.
-fn convert_genai_output_messages(value: &Value) -> Option<Vec<ChatMessage>> {
-    convert_genai_input_messages(value)
-}
-
-/// `gen_ai.system_instructions` is a JSON array of parts (typically text) that
-/// describe the system prompt. Convert to a single `system`-role ChatMessage.
-/// Returns `None` if the array is empty or all parts were unrecognised — the
-/// caller then falls back to preserving the raw attribute instead of silently
-/// dropping the system prompt.
-fn convert_genai_system_instructions(value: &Value) -> Option<ChatMessage> {
-    let parts = convert_genai_parts(value.as_array()?)?;
-    if parts.is_empty() {
-        return None;
-    }
-    Some(ChatMessage {
-        role: "system".to_string(),
-        content: ChatMessageContent::ContentPartList(parts),
-        tool_call_id: None,
-    })
-}
-
-fn convert_one_genai_message(raw: &Value) -> Option<ChatMessage> {
-    let obj = raw.as_object()?;
-    let role = obj.get("role").and_then(|v| v.as_str())?.to_string();
-    let parts_value = obj.get("parts").and_then(|v| v.as_array());
-    let mut content_parts: Vec<ChatMessageContentPart> = Vec::new();
-    let mut tool_call_id: Option<String> = None;
-    if let Some(parts) = parts_value {
-        // Tool response messages carry a single `tool_call_response` part whose
-        // `id` should bubble up to the canonical ChatMessage.tool_call_id so the
-        // frontend threads it to the matching tool_call.
-        for part in parts {
-            // Some emitters pass bare strings (e.g. `system_instructions: ["Be helpful"]`)
-            // instead of `{type: "text", content: ...}` objects. Treat those as implicit
-            // text parts so the content isn't silently dropped.
-            if let Some(text) = part.as_str() {
-                if !text.is_empty() {
-                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                        text: text.to_string(),
-                    }));
-                }
-                continue;
-            }
-            let Some(part_obj) = part.as_object() else {
-                continue;
-            };
-            let ty = part_obj
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("text");
-            match ty {
-                "text" => {
-                    // Skip parts with missing/empty content instead of pushing empty
-                    // text placeholders that clutter the rendered message.
-                    if let Some(text) = part_obj.get("content").and_then(|v| v.as_str())
-                        && !text.is_empty()
-                    {
-                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                            text: text.to_string(),
-                        }));
-                    }
-                }
-                "thinking" => {
-                    // Thinking content gets surfaced as plain text so existing
-                    // renderers display it; backends that want to distinguish
-                    // thinking can still key on the span attribute.
-                    if let Some(text) = part_obj.get("content").and_then(|v| v.as_str())
-                        && !text.is_empty()
-                    {
-                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                            text: text.to_string(),
-                        }));
-                    }
-                }
-                "tool_call" => {
-                    let name = part_obj
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let id = part_obj
-                        .get("id")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
-                    let arguments = part_obj.get("arguments").cloned();
-                    content_parts.push(ChatMessageContentPart::ToolCall(ChatMessageToolCall {
-                        name,
-                        id,
-                        arguments,
-                    }));
-                }
-                "tool_call_response" => {
-                    // Surface the actual tool output as the message content
-                    // (usually this whole message has a single part).
-                    if let Some(id) = part_obj.get("id").and_then(|v| v.as_str()) {
-                        tool_call_id = Some(id.to_string());
-                    }
-                    if let Some(result) = part_obj.get("result") {
-                        let text = match result {
-                            Value::String(s) => s.clone(),
-                            other => json_value_to_string(other),
-                        };
-                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
-                    }
-                }
-                "uri" => {
-                    let uri = part_obj
-                        .get("uri")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let modality = part_obj.get("modality").and_then(|v| v.as_str());
-                    if matches!(modality, Some("image") | None) && !uri.is_empty() {
-                        content_parts.push(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                            url: uri,
-                            detail: None,
-                        }));
-                    } else {
-                        // Fall back to a text representation so the content is
-                        // not lost for unsupported modalities.
-                        content_parts
-                            .push(ChatMessageContentPart::Text(ChatMessageText { text: uri }));
-                    }
-                }
-                "blob" => {
-                    let mime = part_obj
-                        .get("mime_type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("application/octet-stream");
-                    let data = part_obj
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("");
-                    let modality = part_obj.get("modality").and_then(|v| v.as_str());
-                    if matches!(modality, Some("image")) && !data.is_empty() {
-                        content_parts.push(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                            url: format!("data:{mime};base64,{data}"),
-                            detail: None,
-                        }));
-                    } else {
-                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                            text: data.to_string(),
-                        }));
-                    }
-                }
-                _ => {
-                    // Unknown part type — serialise to keep the payload visible.
-                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
-                        text: json_value_to_string(part),
-                    }));
-                }
-            }
-        }
-    }
-    let content = if content_parts.is_empty() {
-        ChatMessageContent::Text(String::new())
-    } else if content_parts.len() == 1 {
-        // Collapse trivial single-text to a plain string so the renderer uses
-        // its simple-text path (matches what OpenAI input looks like).
-        if let ChatMessageContentPart::Text(t) = &content_parts[0] {
-            ChatMessageContent::Text(t.text.clone())
-        } else {
-            ChatMessageContent::ContentPartList(content_parts)
-        }
-    } else {
-        ChatMessageContent::ContentPartList(content_parts)
+/// Prepend `gen_ai.system_instructions` to an already-parsed
+/// `gen_ai.input.messages` value as a synthetic `{role: "system", parts: [...]}`
+/// entry. The native GenAI shape is preserved end-to-end; the frontend handles
+/// rendering of the message array. `system_instructions` may itself be an array
+/// of parts (the common case) or a bare string, which we wrap in a text part.
+fn prepend_system_instructions(messages: Value, system: Value) -> Value {
+    let parts = match system {
+        Value::Array(parts) => parts,
+        Value::String(s) if !s.is_empty() => vec![json!({"type": "text", "content": s})],
+        other => vec![other],
     };
-    Some(ChatMessage {
-        role,
-        content,
-        tool_call_id,
-    })
-}
-
-fn convert_genai_parts(parts: &[Value]) -> Option<Vec<ChatMessageContentPart>> {
-    let fake_msg = json!({ "role": "system", "parts": parts });
-    let msg = convert_one_genai_message(&fake_msg)?;
-    match msg.content {
-        ChatMessageContent::ContentPartList(p) => Some(p),
-        ChatMessageContent::Text(t) => Some(vec![ChatMessageContentPart::Text(ChatMessageText {
-            text: t,
-        })]),
+    let system_msg = json!({ "role": "system", "parts": parts });
+    match messages {
+        Value::Array(mut arr) => {
+            arr.insert(0, system_msg);
+            Value::Array(arr)
+        }
+        // `input.messages` wasn't an array (malformed payload). Wrap both in an
+        // array so the system prompt is still visible alongside the raw value.
+        other => Value::Array(vec![system_msg, other]),
     }
 }
 
@@ -4161,6 +3948,8 @@ mod tests {
     #[test]
     fn test_parse_gen_ai_semconv_chat_span() {
         // Mirrors pydantic_ai v5 InstrumentationSettings output for a chat-model call.
+        // The native `{role, parts: [...]}` shape is preserved end-to-end; the
+        // frontend parses it for rendering.
         let input_messages = json!([
             {
                 "role": "user",
@@ -4168,8 +3957,7 @@ mod tests {
                     {"type": "text", "content": "What's the weather in SF?"}
                 ]
             }
-        ])
-        .to_string();
+        ]);
         let output_messages = json!([
             {
                 "role": "assistant",
@@ -4184,48 +3972,29 @@ mod tests {
                 ],
                 "finish_reason": "tool_calls"
             }
-        ])
-        .to_string();
+        ]);
 
         let attributes = HashMap::from([
             ("gen_ai.operation.name".to_string(), json!("chat")),
             ("gen_ai.provider.name".to_string(), json!("openai")),
             ("gen_ai.request.model".to_string(), json!("gpt-4o")),
-            ("gen_ai.input.messages".to_string(), json!(input_messages)),
-            ("gen_ai.output.messages".to_string(), json!(output_messages)),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.output.messages".to_string(),
+                json!(output_messages.to_string()),
+            ),
         ]);
 
         let mut span = make_llm_span(attributes);
         span.parse_and_enrich_attributes();
 
-        // input has one user message with plain text
-        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
-        assert_eq!(input.len(), 1);
-        assert_eq!(input[0].role, "user");
-        if let ChatMessageContent::Text(t) = &input[0].content {
-            assert_eq!(t, "What's the weather in SF?");
-        } else {
-            panic!("expected plain text content, got {:?}", input[0].content);
-        }
-
-        // output has one assistant message with text + tool_call parts
-        let output: Vec<ChatMessage> =
-            serde_json::from_value(span.output.clone().unwrap()).unwrap();
-        assert_eq!(output.len(), 1);
-        assert_eq!(output[0].role, "assistant");
-        if let ChatMessageContent::ContentPartList(parts) = &output[0].content {
-            assert_eq!(parts.len(), 2);
-            match &parts[1] {
-                ChatMessageContentPart::ToolCall(tc) => {
-                    assert_eq!(tc.name, "get_weather");
-                    assert_eq!(tc.id.as_deref(), Some("call_abc"));
-                    assert_eq!(tc.arguments, Some(json!({"location": "SF"})));
-                }
-                other => panic!("expected tool_call part, got {:?}", other),
-            }
-        } else {
-            panic!("expected content list, got {:?}", output[0].content);
-        }
+        // input/output preserve the original GenAI shape verbatim (the
+        // serialised JSON string is deserialised, nothing else is reshaped).
+        assert_eq!(span.input, Some(input_messages));
+        assert_eq!(span.output, Some(output_messages));
 
         // Raw attributes are consumed so they don't leak into the Attributes tab.
         assert!(
@@ -4332,7 +4101,8 @@ mod tests {
     #[test]
     fn test_parse_gen_ai_semconv_tool_response_message() {
         // Tool-response messages in pydantic_ai come through gen_ai.input.messages as
-        // role=user (or role=tool for some providers) with a single tool_call_response part.
+        // role=user (or role=tool for some providers) with a single tool_call_response
+        // part. The native shape is preserved; the frontend owns rendering.
         let input_messages = json!([
             {
                 "role": "user",
@@ -4345,61 +4115,87 @@ mod tests {
                     }
                 ]
             }
-        ])
-        .to_string();
-
-        let attributes = HashMap::from([
-            ("gen_ai.operation.name".to_string(), json!("chat")),
-            ("gen_ai.input.messages".to_string(), json!(input_messages)),
         ]);
 
-        let mut span = make_llm_span(attributes);
-        span.parse_and_enrich_attributes();
-
-        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
-        assert_eq!(input.len(), 1);
-        assert_eq!(input[0].tool_call_id.as_deref(), Some("call_abc"));
-    }
-
-    #[test]
-    fn test_gen_ai_system_instructions_as_string_array() {
-        // Some emitters ship `gen_ai.system_instructions` as a bare string array
-        // (`["Be helpful"]`) instead of `[{type: "text", content: "..."}]`. Make
-        // sure the text content ends up merged into the final system message rather
-        // than silently dropped.
-        let input_messages = json!([{
-            "role": "user",
-            "parts": [{"type": "text", "content": "Hi"}]
-        }])
-        .to_string();
-        let system_instructions = json!(["Be helpful", "Answer concisely"]).to_string();
-
         let attributes = HashMap::from([
             ("gen_ai.operation.name".to_string(), json!("chat")),
-            ("gen_ai.input.messages".to_string(), json!(input_messages)),
             (
-                "gen_ai.system_instructions".to_string(),
-                json!(system_instructions),
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
             ),
         ]);
 
         let mut span = make_llm_span(attributes);
         span.parse_and_enrich_attributes();
 
-        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
-        assert_eq!(input.len(), 2);
-        assert_eq!(input[0].role, "system");
-        let ChatMessageContent::ContentPartList(parts) = &input[0].content else {
-            panic!("expected system content list, got {:?}", input[0].content);
-        };
-        assert_eq!(parts.len(), 2);
-        match &parts[0] {
-            ChatMessageContentPart::Text(t) => assert_eq!(t.text, "Be helpful"),
-            other => panic!("expected text part, got {:?}", other),
-        }
-        match &parts[1] {
-            ChatMessageContentPart::Text(t) => assert_eq!(t.text, "Answer concisely"),
-            other => panic!("expected text part, got {:?}", other),
-        }
+        assert_eq!(span.input, Some(input_messages));
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_prepended_as_system_message() {
+        // `gen_ai.system_instructions` is prepended to `gen_ai.input.messages` as a
+        // synthetic `{role: "system", parts: [...]}` entry while preserving the
+        // native GenAI shape (no ChatMessage conversion).
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!([{"type": "text", "content": "Be helpful"}, {"type": "text", "content": "Answer concisely"}]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        assert_eq!(arr[0]["parts"], system_instructions);
+        assert_eq!(arr[1], input_messages[0]);
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_as_bare_string_array() {
+        // Some emitters ship `gen_ai.system_instructions` as a bare string array
+        // (`["Be helpful"]`). The raw payload is preserved as-is inside the
+        // synthetic system message's `parts` — we don't reshape it.
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!(["Be helpful", "Answer concisely"]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        // Bare strings are preserved verbatim in `parts`.
+        assert_eq!(arr[0]["parts"], system_instructions);
     }
 }
