@@ -19,8 +19,8 @@ use crate::{
         utils::span_id_to_uuid,
     },
     language_model::{
-        ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
-        ChatMessageToolCall, InstrumentationChatMessageContentPart,
+        ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageImageUrl,
+        ChatMessageText, ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
     traces::{
@@ -33,9 +33,11 @@ use crate::{
 use super::{
     span_attributes::{
         AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX,
-        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST,
-        GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
-        GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
+        GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
+        GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
+        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
+        GEN_AI_TOTAL_COST, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::skip_span_name,
 };
@@ -411,21 +413,44 @@ impl SpanAttributes {
 
     pub fn span_type(&self) -> SpanType {
         if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
-            serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
-        } else {
-            // quick hack until we figure how to set span type on auto-instrumentation
-            if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
-                || self.raw_attributes.iter().any(|(k, _)| {
-                    // AI SDK reports usage on parent spans as well, which we don't want converted to LLM type
-                    (k.starts_with("gen_ai.") && !k.starts_with("gen_ai.usage."))
-                        || k.starts_with("llm.")
-                        || k.starts_with("aisdk.")
-                })
-            {
-                SpanType::LLM
-            } else {
-                SpanType::Default
+            return serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default();
+        }
+
+        // OTel GenAI semantic conventions — use `gen_ai.operation.name` as the authoritative
+        // signal when present (emitted by pydantic_ai v5 and other spec-compliant libraries).
+        if let Some(Value::String(op)) = self.raw_attributes.get(GEN_AI_OPERATION_NAME) {
+            match op.as_str() {
+                "chat" | "text_completion" | "embeddings" | "generate_content" => {
+                    return SpanType::LLM;
+                }
+                "execute_tool" => return SpanType::Tool,
+                // `invoke_agent` stays Default — agent runs are containers whose children carry
+                // the LLM/tool content.
+                "invoke_agent" => return SpanType::Default,
+                _ => {}
             }
+        }
+
+        // Some OTel GenAI emitters (e.g. pydantic_ai's tool spans) omit `gen_ai.operation.name`
+        // but include `gen_ai.tool.call.*` attributes. Infer Tool type from those.
+        if self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_ARGUMENTS)
+            || self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_RESULT)
+        {
+            return SpanType::Tool;
+        }
+
+        // quick hack until we figure how to set span type on auto-instrumentation
+        if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
+            || self.raw_attributes.iter().any(|(k, _)| {
+                // AI SDK reports usage on parent spans as well, which we don't want converted to LLM type
+                (k.starts_with("gen_ai.") && !k.starts_with("gen_ai.usage."))
+                    || k.starts_with("llm.")
+                    || k.starts_with("aisdk.")
+            })
+        {
+            SpanType::LLM
+        } else {
+            SpanType::Default
         }
     }
 
@@ -752,36 +777,81 @@ impl Span {
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
 
-            // New format `gen_ai.input.messages` and `gen_ai.output.messages` overrides the old format `gen_ai.prompt/completion`
-            if let Some(input) = self
+            // OTel GenAI semantic conventions — `gen_ai.input.messages` / `gen_ai.output.messages`
+            // carry a JSON array of `{role, parts: [...]}` objects. Convert to our canonical
+            // ChatMessage shape so the frontend's message renderer can display them. Overrides
+            // older `gen_ai.prompt.*` / `gen_ai.completion.*` if both are present.
+            if let Some(input) = self.attributes.raw_attributes.remove(GEN_AI_INPUT_MESSAGES) {
+                let parsed = parse_genai_messages_attribute(&input);
+                if let Some(mut messages) = convert_genai_input_messages(&parsed) {
+                    if let Some(system) = self
+                        .attributes
+                        .raw_attributes
+                        .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
+                    {
+                        if let Some(system_parts) = convert_genai_system_instructions(
+                            &parse_genai_messages_attribute(&system),
+                        ) {
+                            messages.insert(0, system_parts);
+                        }
+                    }
+                    self.input = Some(serde_json::to_value(messages).unwrap_or(parsed));
+                } else {
+                    self.input = Some(parsed);
+                }
+            } else if let Some(system) = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.input.messages")
+                .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
             {
-                if let Value::String(s) = input {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.input = Some(parsed);
-                    } else {
-                        self.input = Some(serde_json::Value::String(s));
-                    }
+                // `system_instructions` present but no input.messages — surface it anyway.
+                let parsed = parse_genai_messages_attribute(&system);
+                if let Some(system_msg) = convert_genai_system_instructions(&parsed) {
+                    self.input = Some(serde_json::to_value(vec![system_msg]).unwrap_or(parsed));
                 } else {
-                    self.input = Some(input);
+                    self.input = Some(parsed);
                 }
             }
             if let Some(output) = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.output.messages")
+                .remove(GEN_AI_OUTPUT_MESSAGES)
             {
-                if let Value::String(s) = output {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.output = Some(parsed);
-                    } else {
-                        self.output = Some(serde_json::Value::String(s));
-                    }
+                let parsed = parse_genai_messages_attribute(&output);
+                if let Some(messages) = convert_genai_output_messages(&parsed) {
+                    self.output = Some(serde_json::to_value(messages).unwrap_or(parsed));
                 } else {
-                    self.output = Some(output);
+                    self.output = Some(parsed);
                 }
+            }
+        }
+
+        // OTel GenAI tool spans (pydantic_ai's `execute_tool {name}`). These aren't LLM spans,
+        // so they don't go through the LLM path — handle them separately. Some emitters omit
+        // `gen_ai.operation.name` on tool spans, so key off the tool-call attributes.
+        if self.span_type == SpanType::Tool
+            || self
+                .attributes
+                .raw_attributes
+                .contains_key(GEN_AI_TOOL_CALL_ARGUMENTS)
+            || self
+                .attributes
+                .raw_attributes
+                .contains_key(GEN_AI_TOOL_CALL_RESULT)
+        {
+            if let Some(args) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_ARGUMENTS)
+            {
+                self.input = Some(parse_genai_messages_attribute(&args));
+            }
+            if let Some(result) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_RESULT)
+            {
+                self.output = Some(parse_genai_messages_attribute(&result));
             }
         }
 
@@ -1292,6 +1362,206 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
             .collect()
     } else {
         Err(anyhow::anyhow!("Input is not a list"))
+    }
+}
+
+/// Parse a `gen_ai.*` attribute that is either a JSON string (the common case
+/// when the SDK serialises a message array) or an already-structured Value.
+fn parse_genai_messages_attribute(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            serde_json::from_str::<Value>(s).unwrap_or_else(|_| Value::String(s.clone()))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Convert an OTel GenAI semconv input-messages array (pydantic_ai-style
+/// `[{role, parts: [...]}]`) into the canonical `Vec<ChatMessage>` shape that
+/// the Laminar frontend already knows how to render. Returns `None` if the
+/// input is not a recognisable array of role-bearing objects — the caller
+/// then falls back to the raw Value.
+///
+/// Each `part` in pydantic_ai/GenAI semconv is one of:
+///   - `{type: "text", content: "..."}`
+///   - `{type: "tool_call", id, name, arguments}`
+///   - `{type: "tool_call_response", id, name, result}`
+///   - `{type: "thinking", content}`
+///   - `{type: "uri"|"blob", modality, mime_type, uri|content}`  (v4+)
+fn convert_genai_input_messages(value: &Value) -> Option<Vec<ChatMessage>> {
+    let arr = value.as_array()?;
+    let mut out = Vec::with_capacity(arr.len());
+    for raw in arr {
+        if let Some(msg) = convert_one_genai_message(raw) {
+            out.push(msg);
+        }
+    }
+    if out.is_empty() { None } else { Some(out) }
+}
+
+/// Like `convert_genai_input_messages` but preserves `finish_reason` on
+/// assistant messages by dropping it (we surface it via span attributes).
+fn convert_genai_output_messages(value: &Value) -> Option<Vec<ChatMessage>> {
+    convert_genai_input_messages(value)
+}
+
+/// `gen_ai.system_instructions` is a JSON array of parts (typically text) that
+/// describe the system prompt. Convert to a single `system`-role ChatMessage.
+fn convert_genai_system_instructions(value: &Value) -> Option<ChatMessage> {
+    let parts = convert_genai_parts(value.as_array()?)?;
+    Some(ChatMessage {
+        role: "system".to_string(),
+        content: ChatMessageContent::ContentPartList(parts),
+        tool_call_id: None,
+    })
+}
+
+fn convert_one_genai_message(raw: &Value) -> Option<ChatMessage> {
+    let obj = raw.as_object()?;
+    let role = obj.get("role").and_then(|v| v.as_str())?.to_string();
+    let parts_value = obj.get("parts").and_then(|v| v.as_array());
+    let mut content_parts: Vec<ChatMessageContentPart> = Vec::new();
+    let mut tool_call_id: Option<String> = None;
+    if let Some(parts) = parts_value {
+        // Tool response messages carry a single `tool_call_response` part whose
+        // `id` should bubble up to the canonical ChatMessage.tool_call_id so the
+        // frontend threads it to the matching tool_call.
+        for part in parts {
+            let Some(part_obj) = part.as_object() else {
+                continue;
+            };
+            let ty = part_obj
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("text");
+            match ty {
+                "text" => {
+                    let text = part_obj
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
+                }
+                "thinking" => {
+                    // Thinking content gets surfaced as plain text so existing
+                    // renderers display it; backends that want to distinguish
+                    // thinking can still key on the span attribute.
+                    let text = part_obj
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
+                }
+                "tool_call" => {
+                    let name = part_obj
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let id = part_obj
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+                    let arguments = part_obj.get("arguments").cloned();
+                    content_parts.push(ChatMessageContentPart::ToolCall(ChatMessageToolCall {
+                        name,
+                        id,
+                        arguments,
+                    }));
+                }
+                "tool_call_response" => {
+                    // Surface the actual tool output as the message content
+                    // (usually this whole message has a single part).
+                    if let Some(id) = part_obj.get("id").and_then(|v| v.as_str()) {
+                        tool_call_id = Some(id.to_string());
+                    }
+                    if let Some(result) = part_obj.get("result") {
+                        let text = match result {
+                            Value::String(s) => s.clone(),
+                            other => json_value_to_string(other),
+                        };
+                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
+                    }
+                }
+                "uri" => {
+                    let uri = part_obj
+                        .get("uri")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let modality = part_obj.get("modality").and_then(|v| v.as_str());
+                    if matches!(modality, Some("image") | None) && !uri.is_empty() {
+                        content_parts.push(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                            url: uri,
+                            detail: None,
+                        }));
+                    } else {
+                        // Fall back to a text representation so the content is
+                        // not lost for unsupported modalities.
+                        content_parts
+                            .push(ChatMessageContentPart::Text(ChatMessageText { text: uri }));
+                    }
+                }
+                "blob" => {
+                    let mime = part_obj
+                        .get("mime_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("application/octet-stream");
+                    let data = part_obj
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let modality = part_obj.get("modality").and_then(|v| v.as_str());
+                    if matches!(modality, Some("image")) && !data.is_empty() {
+                        content_parts.push(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                            url: format!("data:{mime};base64,{data}"),
+                            detail: None,
+                        }));
+                    } else {
+                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+                            text: data.to_string(),
+                        }));
+                    }
+                }
+                _ => {
+                    // Unknown part type — serialise to keep the payload visible.
+                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+                        text: json_value_to_string(part),
+                    }));
+                }
+            }
+        }
+    }
+    let content = if content_parts.is_empty() {
+        ChatMessageContent::Text(String::new())
+    } else if content_parts.len() == 1 {
+        // Collapse trivial single-text to a plain string so the renderer uses
+        // its simple-text path (matches what OpenAI input looks like).
+        if let ChatMessageContentPart::Text(t) = &content_parts[0] {
+            ChatMessageContent::Text(t.text.clone())
+        } else {
+            ChatMessageContent::ContentPartList(content_parts)
+        }
+    } else {
+        ChatMessageContent::ContentPartList(content_parts)
+    };
+    Some(ChatMessage {
+        role,
+        content,
+        tool_call_id,
+    })
+}
+
+fn convert_genai_parts(parts: &[Value]) -> Option<Vec<ChatMessageContentPart>> {
+    let fake_msg = json!({ "role": "system", "parts": parts });
+    let msg = convert_one_genai_message(&fake_msg)?;
+    match msg.content {
+        ChatMessageContent::ContentPartList(p) => Some(p),
+        ChatMessageContent::Text(t) => Some(vec![ChatMessageContentPart::Text(ChatMessageText {
+            text: t,
+        })]),
     }
 }
 
@@ -3842,5 +4112,230 @@ mod tests {
         );
         assert!(!attrs.raw_attributes.contains_key(GEN_AI_INPUT_TOKENS));
         assert!(!attrs.raw_attributes.contains_key(GEN_AI_OUTPUT_TOKENS));
+    }
+
+    fn make_llm_span(attributes: HashMap<String, Value>) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "chat gpt-4o".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_chat_span() {
+        // Mirrors pydantic_ai v5 InstrumentationSettings output for a chat-model call.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "content": "What's the weather in SF?"}
+                ]
+            }
+        ])
+        .to_string();
+        let output_messages = json!([
+            {
+                "role": "assistant",
+                "parts": [
+                    {"type": "text", "content": "Let me check that."},
+                    {
+                        "type": "tool_call",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": {"location": "SF"}
+                    }
+                ],
+                "finish_reason": "tool_calls"
+            }
+        ])
+        .to_string();
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            ("gen_ai.provider.name".to_string(), json!("openai")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4o")),
+            ("gen_ai.input.messages".to_string(), json!(input_messages)),
+            ("gen_ai.output.messages".to_string(), json!(output_messages)),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        // input has one user message with plain text
+        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0].role, "user");
+        if let ChatMessageContent::Text(t) = &input[0].content {
+            assert_eq!(t, "What's the weather in SF?");
+        } else {
+            panic!("expected plain text content, got {:?}", input[0].content);
+        }
+
+        // output has one assistant message with text + tool_call parts
+        let output: Vec<ChatMessage> =
+            serde_json::from_value(span.output.clone().unwrap()).unwrap();
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0].role, "assistant");
+        if let ChatMessageContent::ContentPartList(parts) = &output[0].content {
+            assert_eq!(parts.len(), 2);
+            match &parts[1] {
+                ChatMessageContentPart::ToolCall(tc) => {
+                    assert_eq!(tc.name, "get_weather");
+                    assert_eq!(tc.id.as_deref(), Some("call_abc"));
+                    assert_eq!(tc.arguments, Some(json!({"location": "SF"})));
+                }
+                other => panic!("expected tool_call part, got {:?}", other),
+            }
+        } else {
+            panic!("expected content list, got {:?}", output[0].content);
+        }
+
+        // Raw attributes are consumed so they don't leak into the Attributes tab.
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.input.messages")
+        );
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_span() {
+        // Mirrors pydantic_ai v5 ToolManager output for `execute_tool {name}`.
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("execute_tool")),
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            (
+                "gen_ai.tool.call.result".to_string(),
+                json!(r#"{"temp_f": 65, "description": "Sunny"}"#),
+            ),
+        ]);
+
+        // Tool spans arrive with SpanType::Tool inferred from gen_ai.operation.name.
+        let attrs_for_type = SpanAttributes::new(attributes.clone());
+        assert_eq!(attrs_for_type.span_type(), SpanType::Tool);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "execute_tool get_weather".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Tool,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!({"location": "SF"})));
+        assert_eq!(
+            span.output,
+            Some(json!({"temp_f": 65, "description": "Sunny"}))
+        );
+    }
+
+    #[test]
+    fn test_span_type_tool_without_operation_name() {
+        // Real-world pydantic_ai tool spans omit gen_ai.operation.name but still carry
+        // gen_ai.tool.call.* attributes. Make sure we still recognize them as Tool.
+        let attrs = SpanAttributes::new(HashMap::from([
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            ("gen_ai.tool.call.result".to_string(), json!("Sunny")),
+        ]));
+        assert_eq!(attrs.span_type(), SpanType::Tool);
+    }
+
+    #[test]
+    fn test_span_type_from_gen_ai_operation_name() {
+        let chat = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("chat"),
+        )]));
+        assert_eq!(chat.span_type(), SpanType::LLM);
+
+        let tool = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("execute_tool"),
+        )]));
+        assert_eq!(tool.span_type(), SpanType::Tool);
+
+        let agent = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("invoke_agent"),
+        )]));
+        // Agent runs stay Default so they render as container spans.
+        assert_eq!(agent.span_type(), SpanType::Default);
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_response_message() {
+        // Tool-response messages in pydantic_ai come through gen_ai.input.messages as
+        // role=user (or role=tool for some providers) with a single tool_call_response part.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "result": {"temp_f": 65}
+                    }
+                ]
+            }
+        ])
+        .to_string();
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            ("gen_ai.input.messages".to_string(), json!(input_messages)),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input: Vec<ChatMessage> = serde_json::from_value(span.input.clone().unwrap()).unwrap();
+        assert_eq!(input.len(), 1);
+        assert_eq!(input[0].tool_call_id.as_deref(), Some("call_abc"));
     }
 }

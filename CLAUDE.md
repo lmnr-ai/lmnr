@@ -118,6 +118,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
 - **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
 
+## OTel GenAI Semantic Convention Ingestion
+
+- `app-server/src/traces/spans.rs` parses OpenTelemetry GenAI semconv attributes (`gen_ai.operation.name`, `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`) into the canonical `ChatMessage` shape the frontend already renders. The helpers live in `spans.rs`: `parse_genai_messages_attribute`, `convert_genai_input_messages`, `convert_genai_output_messages`, `convert_genai_system_instructions`.
+- Span-type inference from `gen_ai.operation.name`: `chat|text_completion|embeddings|generate_content` → LLM, `execute_tool` → Tool, `invoke_agent` → Default.
+- **pydantic_ai tool-span quirk**: pydantic_ai emits `execute_tool <name>` spans WITHOUT `gen_ai.operation.name`; only `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` are set. `span_type()` has a fallback that classifies a span as Tool when either of those attributes is present. Do not remove this fallback when adding other GenAI emitters.
+
 ## Signals and Alerts
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).

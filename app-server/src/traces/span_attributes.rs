@@ -54,3 +54,12 @@ pub const ANTHROPIC_REQUEST_SERVICE_TIER: &str = "anthropic.request.service_tier
 // Newer Vercel AI SDK / Mastra attributes
 pub const AISDK_MODEL_ID: &str = "aisdk.model.id";
 pub const AISDK_MODEL_PROVIDER: &str = "aisdk.model.provider";
+
+// OTel GenAI semantic conventions — structured message attributes
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+pub const GEN_AI_OPERATION_NAME: &str = "gen_ai.operation.name";
+pub const GEN_AI_INPUT_MESSAGES: &str = "gen_ai.input.messages";
+pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
+pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
+pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
+pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
