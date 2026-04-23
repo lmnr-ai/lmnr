@@ -54,9 +54,11 @@ export async function extractInputsForGroup(
           results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
           continue;
         }
-        const extracted = applyRegex(cachedRegex, joinedText);
-        if (extracted) {
-          results[trace.traceId] = { inputPreview: extracted, outputPreview: trace.output, outputSpan: null };
+        const result = applyRegex(cachedRegex, joinedText);
+        if (result.kind === "extracted") {
+          results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
+        } else if (result.kind === "no-user-request") {
+          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         } else {
           allMatched = false;
           break;
@@ -108,11 +110,14 @@ export async function extractInputsForGroup(
         results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         continue;
       }
-      const extracted = observe({ name: "apply-regex", input: { pattern: regex, text: joinedText } }, () =>
+      const result = observe({ name: "apply-regex", input: { pattern: regex, text: joinedText } }, () =>
         applyRegex(regex, joinedText)
       );
-      if (extracted) {
-        results[trace.traceId] = { inputPreview: extracted, outputPreview: trace.output, outputSpan: null };
+      if (result.kind === "extracted") {
+        results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
+        anyMatch = true;
+      } else if (result.kind === "no-user-request") {
+        results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         anyMatch = true;
       } else {
         results[trace.traceId] = { inputPreview: joinedText, outputPreview: trace.output, outputSpan: null };
