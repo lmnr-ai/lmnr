@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
-const SYSTEM_PROMPT = `const SYSTEM_PROMPT = \`<role>
+const SYSTEM_PROMPT = `<role>
 You write re2 regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in XML-like tags (e.g. <system-reminder>, <context>, <env>, <tool_list>, <user-prompt-submit-hook>, <skills>, <reminder>, <metadata>, <session>, or similar). Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction.
 </role>
 
@@ -49,21 +49,21 @@ Step 5 — Sanity-check: mentally run your regex. The capture MUST contain the i
 - Anchoring on <h3>, <details>, <table>, <p>, <div>, <a>, <img>, etc. inside a PR-bot / issue / markdown body. Always content.
 - Anchoring on an HTML comment marker like "<!-- DESCRIPTION END -->" or "<!-- LOCATIONS START -->". These are metadata inside a bot-generated body, not scaffolding. If comments are the only repeating markers across samples, the answer is (?s)(.*).
 - Picking Pattern D because a tag happens to appear. D is only valid when the tag is a HARNESS WRAPPER in the scaffolding region.
-- Picking Pattern D on LEADING scaffolding. Example: "<system-reminder>…</system-reminder>\\\\nGood first draft. Now a couple of notes…" — starts with the tag, so D captures empty. Correct: Pattern B "(?s).*</system-reminder>\\\\s*(.*)". Rule: input begins with the opening anchor tag ⇒ never Pattern D.
+- Picking Pattern D on LEADING scaffolding. Example: "<system-reminder>…</system-reminder>\\nGood first draft. Now a couple of notes…" — starts with the tag, so D captures empty. Correct: Pattern B "(?s).*</system-reminder>\\s*(.*)". Rule: input begins with the opening anchor tag ⇒ never Pattern D.
 </failure_modes>
 
 <patterns>
   <pattern id="A" name="Inside a request-like tag">
-    <template>(?s)<tag>\\\\s*(.*?)\\\\s*</tag></template>
+    <template>(?s)<tag>\\s*(.*?)\\s*</tag></template>
   </pattern>
 
   <pattern id="B" name="After leading scaffolding">
     Scaffolding tags appear at the top; instruction is the plain text AFTER the LAST closing tag.
-    <template>(?s).*</tag>\\\\s*(.*)</template>
+    <template>(?s).*</tag>\\s*(.*)</template>
     <entry_condition>Correct whenever the sample STARTS with the opening wrapper tag, regardless of how many scaffolding blocks appear. Do NOT switch to D.</entry_condition>
     <critical>The leading ".*" is MANDATORY — it forces the (greedy) engine to skip every earlier "</tag>" and anchor on the LAST one. Without it, the match anchors on the FIRST "</tag>" and the capture includes subsequent scaffolding blocks.</critical>
-    <correct>(?s).*</system-reminder>\\\\s*(.*)</correct>
-    <wrong reason="missing leading .* — anchors on FIRST </system-reminder>">(?s)</system-reminder>\\\\s*(.*)</wrong>
+    <correct>(?s).*</system-reminder>\\s*(.*)</correct>
+    <wrong reason="missing leading .* — anchors on FIRST </system-reminder>">(?s)</system-reminder>\\s*(.*)</wrong>
   </pattern>
 
   <pattern id="D" name="Before trailing scaffolding">
@@ -73,7 +73,7 @@ Step 5 — Sanity-check: mentally run your regex. The capture MUST contain the i
     <critical>"^" and LAZY "(.*?)" are both MANDATORY. "^" pins to start; "(.*?)" stops at the FIRST "<tag>". A greedy "(.*)" would swallow through the final "<tag>".</critical>
     <correct>(?s)^(.*?)<some-wrapper></correct>
     <wrong reason="greedy (.*) captures through the last opening tag">(?s)^(.*)<some-wrapper></wrong>
-    <wrong reason="sample starts with the wrapper — capture is empty; use Pattern B">input "<some-wrapper>…</some-wrapper>\\\\nActual request" with "(?s)^(.*?)<some-wrapper>"</wrong>
+    <wrong reason="sample starts with the wrapper — capture is empty; use Pattern B">input "<some-wrapper>…</some-wrapper>\\nActual request" with "(?s)^(.*?)<some-wrapper>"</wrong>
   </pattern>
 
   <pattern id="C" name="Pure wrapper (rare)">
@@ -88,7 +88,7 @@ Step 5 — Sanity-check: mentally run your regex. The capture MUST contain the i
   </pattern>
 
   <shape_examples description="copy the shape, not the tag name">
-    - Starts with &lt;W&gt;…&lt;/W&gt;, then prose → Pattern B: (?s).*&lt;/W&gt;\\\\s*(.*)  (never Pattern D)
+    - Starts with &lt;W&gt;…&lt;/W&gt;, then prose → Pattern B: (?s).*&lt;/W&gt;\\s*(.*)  (never Pattern D)
     - Starts with prose, then trailing &lt;W&gt;…&lt;/W&gt; → Pattern D: (?s)^(.*?)&lt;W&gt;
     - PR-bot / review-bot / issue body: message contains &lt;details&gt;, &lt;summary&gt;, &lt;div&gt;, &lt;a&gt;, &lt;sup&gt;, &lt;img&gt;, and/or HTML comments like "&lt;!-- DESCRIPTION END --&gt;", but NO harness wrapper tag. → PASSTHROUGH (?s)(.*). The bot's body IS the instruction. Do NOT anchor on &lt;details&gt;, &lt;div&gt;, &lt;sup&gt;, or any "&lt;!-- ... --&gt;" marker.
   </shape_examples>
@@ -110,7 +110,7 @@ Step 5 — Sanity-check: mentally run your regex. The capture MUST contain the i
 
 <greediness_rules>
 When the anchor tag appears MULTIPLE TIMES (common — scaffolding blocks repeat), anchor on the right occurrence:
-- LAST occurrence of a closing tag (Pattern B) → GREEDY ".*" prefix: "(?s).*</tag>\\\\s*(.*)".
+- LAST occurrence of a closing tag (Pattern B) → GREEDY ".*" prefix: "(?s).*</tag>\\s*(.*)".
 - FIRST occurrence of an opening tag (Pattern D) → "^" plus LAZY "(.*?)": "(?s)^(.*?)<tag>".
 Mentally trace your regex against a sample where the anchor tag appears AT LEAST TWICE before returning. This is the #1 source of bad regexes for this task.
 </greediness_rules>
@@ -120,9 +120,9 @@ Your entire response MUST be the regex and nothing else. No prose, no "Step 1", 
 
 Examples of correct full responses (SHAPE only — use the input's tag name):
 "(?s)(.*)"
-"(?s).*</wrapper>\\\\s*(.*)"
+"(?s).*</wrapper>\\s*(.*)"
 "(?s)^(.*?)<wrapper>"
-</output_format>\`;`;
+</output_format>`;
 
 const RegexResultSchema = z.object({
   regex: z
