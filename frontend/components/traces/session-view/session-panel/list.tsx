@@ -177,7 +177,7 @@ export default function SessionList() {
     overscan: 20,
     rangeExtractor,
     getItemKey,
-    paddingStart: 8,
+    paddingStart: 0,
   });
 
   const items = virtualizer.getVirtualItems();
@@ -289,7 +289,10 @@ export default function SessionList() {
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
   return (
-    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
+    <div
+      ref={scrollRef}
+      className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar px-2"
+    >
       <div
         className="relative"
         style={{
@@ -305,7 +308,7 @@ export default function SessionList() {
           const activeSticky = isActiveSticky(virtualRow.index);
 
           const positionStyle: React.CSSProperties = activeSticky
-            ? { position: "sticky", top: 0 }
+            ? { position: "sticky", top: 0, background: "hsl(var(--background))" }
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "trace-header") {
@@ -327,7 +330,6 @@ export default function SessionList() {
                   totalTraces={traces.length}
                   onToggle={() => toggleTraceExpanded(row.trace.id)}
                   traceIO={traceIO[row.trace.id]}
-                  className="px-2"
                 />
               ) : row.type === "trace-loading" ? (
                 <div className="flex flex-col gap-2 py-2 px-2">
@@ -343,7 +345,7 @@ export default function SessionList() {
                 <div
                   className={cn(
                     "px-2 flex justify-center items-center",
-                    row.type === "trace-expanded-end" ? "h-[80px]" : "h-[50px]"
+                    row.type === "trace-expanded-end" ? "h-12" : "h-10"
                   )}
                 >
                   <div className="w-full border-b" />

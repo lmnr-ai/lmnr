@@ -6,7 +6,6 @@ import { useCallback, useEffect } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
-import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -38,9 +37,6 @@ function SessionsTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { setTraceId } = useTracesStoreContext((state) => ({
-    setTraceId: state.setTraceId,
-  }));
 
   const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
@@ -112,17 +108,11 @@ function SessionsTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<SessionRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      // `sessionId` is the source-of-truth for whether the session side panel
-      // is open. Clear any `traceId`/`spanId` so the two panels don't overlap.
-      params.set("sessionId", row.original.sessionId);
-      params.delete("traceId");
-      params.delete("spanId");
-      setTraceId(null);
-      router.push(`${pathName}?${params.toString()}`);
+      const encodedSessionId = row.original.sessionId.split("/").map(encodeURIComponent).join("/");
+      router.push(`/project/${projectId}/sessions/${encodedSessionId}`);
       track("sessions", "detail_opened", { source: "table" });
     },
-    [pathName, router, searchParams, setTraceId]
+    [projectId, router]
   );
 
   return (
@@ -133,7 +123,6 @@ function SessionsTableContent() {
         data={sessions}
         getRowId={(session) => session.sessionId}
         onRowClick={handleRowClick}
-        focusedRowId={searchParams.get("sessionId")}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
