@@ -432,7 +432,7 @@ export const OpenAIResponsesItemsSchema = z.array(OpenAIResponsesItemSchema);
 
 /** Full Response object (`object: "response"`). */
 export const OpenAIResponsesResponseSchema = z.object({
-  object: z.literal("response").optional(),
+  object: z.literal("response"),
   id: z.string().optional(),
   output: z.array(OpenAIResponsesItemSchema),
 });
