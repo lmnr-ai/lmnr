@@ -827,18 +827,11 @@ impl Span {
         }
 
         // OTel GenAI tool spans (pydantic_ai's `execute_tool {name}`). These aren't LLM spans,
-        // so they don't go through the LLM path — handle them separately. Some emitters omit
-        // `gen_ai.operation.name` on tool spans, so key off the tool-call attributes.
-        if self.span_type == SpanType::Tool
-            || self
-                .attributes
-                .raw_attributes
-                .contains_key(GEN_AI_TOOL_CALL_ARGUMENTS)
-            || self
-                .attributes
-                .raw_attributes
-                .contains_key(GEN_AI_TOOL_CALL_RESULT)
-        {
+        // so they don't go through the LLM path — handle them separately. Gate on
+        // `span_type == Tool` (which `span_type()` already infers from `gen_ai.operation.name`
+        // or the `gen_ai.tool.call.*` fallback) so we don't clobber LLM-span input/output if a
+        // spec-violating emitter mixes LLM message attrs with tool-call attrs on the same span.
+        if self.span_type == SpanType::Tool {
             if let Some(args) = self
                 .attributes
                 .raw_attributes
@@ -1399,8 +1392,9 @@ fn convert_genai_input_messages(value: &Value) -> Option<Vec<ChatMessage>> {
     if out.is_empty() { None } else { Some(out) }
 }
 
-/// Like `convert_genai_input_messages` but preserves `finish_reason` on
-/// assistant messages by dropping it (we surface it via span attributes).
+/// Output messages share the same `{role, parts: [...]}` shape as input
+/// messages in the OTel GenAI semconv, so we reuse the input converter.
+/// `finish_reason` is already surfaced separately via span attributes.
 fn convert_genai_output_messages(value: &Value) -> Option<Vec<ChatMessage>> {
     convert_genai_input_messages(value)
 }
@@ -1436,23 +1430,27 @@ fn convert_one_genai_message(raw: &Value) -> Option<ChatMessage> {
                 .unwrap_or("text");
             match ty {
                 "text" => {
-                    let text = part_obj
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
+                    // Skip parts with missing/empty content instead of pushing empty
+                    // text placeholders that clutter the rendered message.
+                    if let Some(text) = part_obj.get("content").and_then(|v| v.as_str())
+                        && !text.is_empty()
+                    {
+                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+                            text: text.to_string(),
+                        }));
+                    }
                 }
                 "thinking" => {
                     // Thinking content gets surfaced as plain text so existing
                     // renderers display it; backends that want to distinguish
                     // thinking can still key on the span attribute.
-                    let text = part_obj
-                        .get("content")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    content_parts.push(ChatMessageContentPart::Text(ChatMessageText { text }));
+                    if let Some(text) = part_obj.get("content").and_then(|v| v.as_str())
+                        && !text.is_empty()
+                    {
+                        content_parts.push(ChatMessageContentPart::Text(ChatMessageText {
+                            text: text.to_string(),
+                        }));
+                    }
                 }
                 "tool_call" => {
                     let name = part_obj
