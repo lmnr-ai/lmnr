@@ -19,11 +19,7 @@ import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
-import {
-  hasOpenAIResponsesSignals,
-  type OpenAIResponsesItemsSchema,
-  parseOpenAIResponsesOutput,
-} from "@/lib/spans/types/openai-responses";
+import { type OpenAIResponsesItemsSchema, parseOpenAIResponsesOutput } from "@/lib/spans/types/openai-responses";
 
 const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
 
@@ -101,13 +97,6 @@ export function processMessages(data: unknown): ProcessedMessages {
     }
   }
 
-  if (hasOpenAIResponsesSignals(data)) {
-    const responsesOutput = parseOpenAIResponsesOutput(data);
-    if (responsesOutput) {
-      return { messages: responsesOutput, type: "openai-responses" };
-    }
-  }
-
   const openAIOutput = parseOpenAIOutput(data);
   if (openAIOutput) {
     return { messages: openAIOutput, type: "openai" };
@@ -116,6 +105,11 @@ export function processMessages(data: unknown): ProcessedMessages {
   const openAIInput = parseOpenAIInput(data);
   if (openAIInput) {
     return { messages: openAIInput, type: "openai" };
+  }
+
+  const responsesOutput = parseOpenAIResponsesOutput(data);
+  if (responsesOutput) {
+    return { messages: responsesOutput, type: "openai-responses" };
   }
 
   const langchainMessageResult = LangChainMessageSchema.safeParse(data);

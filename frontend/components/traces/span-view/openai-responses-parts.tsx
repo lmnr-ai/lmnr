@@ -381,18 +381,14 @@ const LocalShellCallOutputItem = ({
   presetKey: string;
   messageIndex: number;
   toolNameMap?: Map<string, string>;
-}) => {
-  const content = typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? "", null, 2);
-  const fallbackId = item.id ?? `local_shell_output_${messageIndex}`;
-  return (
-    <ToolResultContentPart
-      toolCallId={item.call_id ?? fallbackId}
-      toolName={(item.call_id && toolNameMap?.get(item.call_id)) || "local_shell"}
-      content={content}
-      presetKey={`${messageIndex}-shell-out-${presetKey}`}
-    />
-  );
-};
+}) => (
+  <ToolResultContentPart
+    toolCallId={item.id}
+    toolName={toolNameMap?.get(item.id) ?? "local_shell"}
+    content={item.output}
+    presetKey={`${messageIndex}-shell-out-${presetKey}`}
+  />
+);
 
 const MCPCallItem = ({
   item,
