@@ -358,7 +358,7 @@ export default function SessionList() {
                 <InputItem
                   text={traceIO[row.traceId]?.inputPreview ?? null}
                   isLoading={traceIO[row.traceId] === undefined}
-                  className="px-4"
+                  className="rounded-lg"
                 />
               ) : row.type === "group-header" ? (
                 <AgentGroupHeader
@@ -367,11 +367,11 @@ export default function SessionList() {
                   previews={previews}
                   inputPreviews={userInputs}
                   agentNames={agentNames}
-                  className="my-1 mx-4"
+                  className="mx-0"
                   onToggle={() => toggleTranscriptGroup(row.traceId, row.group.groupId)}
                 />
               ) : row.type === "group-span" ? (
-                <GroupChildWrapper isLast={row.isLast} className="mx-4">
+                <GroupChildWrapper isLast={row.isLast} className="mx-0">
                   <SpanItem
                     span={row.span}
                     fullSpan={allSpansById.get(row.span.spanId)}
@@ -385,7 +385,6 @@ export default function SessionList() {
                 </GroupChildWrapper>
               ) : (
                 <SpanItem
-                  className="px-3"
                   span={row.span}
                   fullSpan={allSpansById.get(row.span.spanId)}
                   output={previews[row.span.spanId]}
