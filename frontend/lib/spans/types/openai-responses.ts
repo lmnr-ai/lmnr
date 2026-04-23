@@ -470,7 +470,6 @@ export const parseOpenAIResponsesOutput = (data: unknown): z.infer<typeof OpenAI
   if (typeof data === "object" && data !== null && !Array.isArray(data) && Array.isArray((data as any).output)) {
     const result = OpenAIResponsesResponseSchema.safeParse(data);
     if (result.success) return result.data.output;
-    else console.log(result.error.message);
   }
 
   return parseOpenAIResponsesInput(data);
