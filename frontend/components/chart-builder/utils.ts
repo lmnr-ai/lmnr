@@ -40,7 +40,14 @@ export const canSelectForYAxis = (column: ColumnInfo, chartType: ChartType | und
 export const isValidChartConfiguration = (config: ChartConfig, columns: ColumnInfo[]): boolean => {
   const { type, x, y, breakdown } = config;
 
-  if (!type || !x || !y) return false;
+  if (!type || !y) return false;
+
+  if (type === ChartType.Metric) {
+    const yColumn = columns.find((col) => col.name === y);
+    return !!yColumn;
+  }
+
+  if (!x) return false;
 
   const xColumn = columns.find((col) => col.name === x);
   const yColumn = columns.find((col) => col.name === y);

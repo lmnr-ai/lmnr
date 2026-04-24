@@ -128,16 +128,18 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       <TableSelect />
       <MetricsField />
       <FiltersField />
-      <DimensionsField />
+      {chartType !== ChartType.Metric && <DimensionsField />}
       {chartType === ChartType.HorizontalBarChart && <OrderByField />}
-      <LimitField />
+      {chartType !== ChartType.Metric && <LimitField />}
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="showTotal" checked={total} onCheckedChange={(checked) => setTotal(checked as boolean)} />
-        <Label htmlFor="showTotal" className="text-xs text-secondary-foreground/80 cursor-pointer">
-          Show Total
-        </Label>
-      </div>
+      {chartType !== ChartType.Metric && (
+        <div className="flex items-center gap-2">
+          <Checkbox id="showTotal" checked={total} onCheckedChange={(checked) => setTotal(checked as boolean)} />
+          <Label htmlFor="showTotal" className="text-xs text-secondary-foreground/80 cursor-pointer">
+            Show Total
+          </Label>
+        </div>
+      )}
 
       {saveError && <div className="text-sm text-destructive">{saveError}</div>}
       <Button

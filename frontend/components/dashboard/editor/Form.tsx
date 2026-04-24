@@ -21,6 +21,8 @@ import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts"
 const needsTimeSeries = (chartType?: ChartType): boolean =>
   chartType === ChartType.LineChart || chartType === ChartType.BarChart;
 
+const isMetricType = (chartType?: ChartType): boolean => chartType === ChartType.Metric;
+
 const getDefaultTimeRange = (table: string): TimeRange => {
   const timeColumn = getTimeColumn(table);
   return {
@@ -77,10 +79,21 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return null;
     }
 
-    const isTimeSeries = needsTimeSeries(chartType);
-    const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const firstMetric = metrics[0];
     const metricValue = firstMetric.alias || (firstMetric.fn === "raw" ? "value" : firstMetric.column);
+
+    if (isMetricType(chartType)) {
+      return {
+        type: chartType,
+        x: undefined,
+        y: metricValue,
+        breakdown: undefined,
+        total: false,
+      };
+    }
+
+    const isTimeSeries = needsTimeSeries(chartType);
+    const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const dimensionValue = isTimeSeries ? "time" : dimensions?.[0] || columns[0]?.name || "x";
 
     return {
@@ -112,9 +125,10 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
+      const isMetric = isMetricType(chartType);
       const allFilters = [...(filters || [])];
 
-      if (isHorizontalBar) {
+      if (isHorizontalBar || isMetric) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
           { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
@@ -125,7 +139,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       const queryStructure: QueryStructure = {
         table,
         metrics,
-        dimensions: dimensions || [],
+        dimensions: isMetric ? [] : dimensions || [],
         filters: allFilters,
         orderBy: [],
         ...(orderBy && orderBy.length > 0 && { orderBy }),
@@ -153,7 +167,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       if (chartConfig) {
         setChartConfig({
           type: chartConfig.type!,
-          x: chartConfig.x!,
+          x: chartConfig.x,
           y: chartConfig.y!,
           breakdown: chartConfig.breakdown,
           total: chart.settings.config.total ?? false,

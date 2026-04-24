@@ -1,4 +1,4 @@
-import { ChartBar, ChartColumn, ChartLine, Upload } from "lucide-react";
+import { ChartBar, ChartColumn, ChartLine, Hash, Upload } from "lucide-react";
 import React, { type ReactNode } from "react";
 
 import {
@@ -247,5 +247,9 @@ export const chartTypeLabelMap: Record<ChartType, { label: string; icon: ReactNo
   [ChartType.HorizontalBarChart]: {
     label: "Horizontal Bar Chart",
     icon: <ChartBar className="w-4 h-4 mr-2" />,
+  },
+  [ChartType.Metric]: {
+    label: "Metric",
+    icon: <Hash className="w-4 h-4 mr-2" />,
   },
 };

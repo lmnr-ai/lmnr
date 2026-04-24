@@ -2,6 +2,7 @@ export enum ChartType {
   "LineChart" = "line",
   "BarChart" = "bar",
   "HorizontalBarChart" = "horizontalBar",
+  "Metric" = "metric",
 }
 
 export interface ChartConfig {
