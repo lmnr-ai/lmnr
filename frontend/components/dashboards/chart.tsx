@@ -2,6 +2,7 @@ import { debounce } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { useSWRConfig } from "swr";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
@@ -46,6 +47,7 @@ const Chart = ({ chart }: ChartProps) => {
   const tablePageRef = useRef(0);
   const openTrace = useDashboardTraceStore((s) => s.openTrace);
   const { toast } = useToast();
+  const { mutate: swrMutate } = useSWRConfig();
   const isTable = settings.config.type === ChartType.Table;
   const {
     chartId: selectionChartId,
@@ -235,26 +237,48 @@ const Chart = ({ chart }: ChartProps) => {
   const persistColumnConfig = useMemo(
     () =>
       debounce(async (config: TableColumnConfig) => {
-        const updatedSettings = {
-          ...settings,
-          config: { ...settings.config, tableColumnConfig: config },
-        };
+        const key = `/api/projects/${projectId}/dashboard-charts`;
+        // Derive next state from the *current* SWR cache rather than a
+        // closure-captured `settings`, so a concurrent layout-drag write
+        // doesn't get overwritten with a stale layout.
+        const applyConfig = (charts?: DashboardChart[]): DashboardChart[] =>
+          (charts ?? []).map((c) =>
+            c.id === id
+              ? { ...c, settings: { ...c.settings, config: { ...c.settings.config, tableColumnConfig: config } } }
+              : c
+          );
         try {
-          const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              updates: [{ id, settings: updatedSettings }],
-            }),
-          });
-          if (!res.ok) {
-            toast({ variant: "destructive", title: "Failed to save column layout" });
-          }
+          await swrMutate(
+            key,
+            async (charts?: DashboardChart[]) => {
+              const target = charts?.find((c) => c.id === id);
+              if (!target) return charts;
+              const updatedSettings = {
+                ...target.settings,
+                config: { ...target.settings.config, tableColumnConfig: config },
+              };
+              const res = await fetch(key, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ updates: [{ id, settings: updatedSettings }] }),
+              });
+              if (!res.ok) {
+                throw new Error("Failed to save column layout");
+              }
+              return applyConfig(charts);
+            },
+            {
+              optimisticData: applyConfig,
+              rollbackOnError: true,
+              revalidate: false,
+              populateCache: true,
+            }
+          );
         } catch {
           toast({ variant: "destructive", title: "Failed to save column layout" });
         }
       }, 500),
-    [id, projectId, settings, toast]
+    [id, projectId, toast, swrMutate]
   );
 
   const handleBarClick = useCallback(
