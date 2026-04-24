@@ -2,10 +2,8 @@ import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
-import { extractAnthropicSystemMessage, parseAnthropicInput } from "@/lib/spans/types/anthropic";
-import { extractGeminiSystemMessage, parseGeminiInput } from "@/lib/spans/types/gemini";
-import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
+import { extractSystemText } from "@/lib/spans/providers";
+
 export const GetSystemMessagesSchema = z.object({
   projectId: z.guid(),
   traceId: z.guid(),
@@ -18,84 +16,28 @@ export interface SystemMessageResponse {
   path: string[]; // Return as array
 }
 
-export function extractSystemMessageContent(message: any): string | null {
+/**
+ * Extract system-message text from a SINGLE already-parsed message object.
+ * Delegates to the provider registry by wrapping the message as a
+ * single-item array, so any provider whose `parseSystemAndUser` can
+ * recognise the shape (including OpenAI Responses' `input_text` parts and
+ * Gemini's `parts` array) will be used automatically.
+ */
+export function extractSystemMessageContent(message: unknown): string | null {
   if (!message || typeof message !== "object") return null;
-  if (message.role !== "system") return null;
-
-  if (typeof message.content === "string") {
-    return message.content;
-  }
-
-  if (Array.isArray(message.content)) {
-    const textParts = message.content.filter((part: any) => part.type === "text").map((part: any) => part.text);
-    if (textParts.length > 0) return textParts.join("\n");
-  }
-
-  // Gemini format: { role: "system", parts: [{ text: "..." }] }
-  if (Array.isArray(message.parts)) {
-    const textParts = message.parts.filter((p: any) => p && typeof p.text === "string").map((p: any) => p.text);
-    if (textParts.length > 0) return textParts.join("\n");
-  }
-
-  return null;
+  if ((message as { role?: unknown }).role !== "system") return null;
+  return extractSystemText([message]);
 }
 
+/**
+ * Extract system-message text from the full raw input JSON of an LLM
+ * span. Goes through the provider registry which tries each known
+ * message format in order.
+ */
 export function parseSystemMessageFromInput(input: string): string | null {
   const parsed = tryParseJson(input);
   if (!parsed) return null;
-
-  try {
-    const openAIResult = OpenAIMessagesSchema.safeParse(parsed);
-    if (openAIResult.success) {
-      for (const message of openAIResult.data) {
-        const content = extractSystemMessageContent(message);
-        if (content) return content;
-      }
-    }
-  } catch {
-    // Schema validation failed, try next format
-  }
-
-  try {
-    const langChainResult = LangChainMessagesSchema.safeParse(parsed);
-    if (langChainResult.success) {
-      for (const message of langChainResult.data) {
-        const content = extractSystemMessageContent(message);
-        if (content) return content;
-      }
-    }
-  } catch {
-    // Schema validation failed, try next format
-  }
-
-  // Anthropic
-  const anthropicMessages = parseAnthropicInput(parsed);
-  if (anthropicMessages) {
-    const text = extractAnthropicSystemMessage(anthropicMessages);
-    if (text) return text;
-  }
-
-  // Gemini
-  const geminiContents = parseGeminiInput(parsed);
-  if (geminiContents) {
-    const text = extractGeminiSystemMessage(geminiContents);
-    if (text) return text;
-  }
-
-  try {
-    if (Array.isArray(parsed)) {
-      for (const message of parsed) {
-        if (message && typeof message === "object" && message.role === "system") {
-          const content = extractSystemMessageContent(message);
-          if (content) return content;
-        }
-      }
-    }
-  } catch {
-    // Schema validation failed, try next format
-  }
-
-  return null;
+  return extractSystemText(parsed);
 }
 
 export async function getTraceSystemMessages(
