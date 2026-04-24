@@ -63,9 +63,9 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         title: "Success",
         description: (
           <span>
-            Successfully exported chart to dashboard.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/dashboard`}>
-              Go to dashboard.
+            Successfully exported chart to Dashboards.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/dashboards`}>
+              Go to Dashboards.
             </Link>
           </span>
         ),
@@ -84,7 +84,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-left">Export Chart to Dashboard</DialogTitle>
+          <DialogTitle className="text-left">Export Chart to Dashboards</DialogTitle>
         </DialogHeader>
         <Separator />
         <Input

@@ -10,6 +10,11 @@ export const MetricSchema = z
     column: z.string(),
     args: z.array(z.number()),
     alias: z.string().optional().nullable(),
+    // When true, the column is included in SELECT but hidden from Table chart
+    // rendering. Used for auto-injected click-target columns (trace_id, span_id).
+    // The backend SQL generator ignores this field — it's purely a client-side
+    // rendering hint.
+    hidden: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.fn !== "count" && data.column.trim().length === 0) {
@@ -51,6 +56,7 @@ export const OrderBySchema = z.object({
 
 export const QueryStructureSchema = z.object({
   table: z.string().min(1, "Table is required"),
+  // NOTE: should be "columns", possible future migration
   metrics: z.array(MetricSchema).min(1, "At least one metric is required"),
   dimensions: z.array(z.string().min(1, "Dimension is required")),
   filters: z.array(FilterSchema),

@@ -296,6 +296,33 @@ export const formatSecondsToMinutesAndSeconds = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
+export const formatSecsToHoursMinsSecs = (seconds: number): string => {
+  let h = Math.floor(seconds / 3600);
+  let m = Math.floor((seconds % 3600) / 60);
+  let s = seconds % 60;
+
+  const precision = s < 1 ? 2 : 1;
+  const rounded = parseFloat(s.toFixed(precision));
+  if (rounded >= 60) {
+    s = 0;
+    m += 1;
+    if (m >= 60) {
+      m = 0;
+      h += 1;
+    }
+  } else {
+    s = rounded;
+  }
+
+  const parts: string[] = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (parts.length === 0 || s > 0) {
+    parts.push(`${s < 10 && parts.length > 0 ? s.toFixed(1) : s.toFixed(s < 1 ? 2 : 1)}s`);
+  }
+  return parts.join(" ");
+};
+
 export const pluralize = (count: number, singular: string, plural: string) => {
   const pluralRules = new Intl.PluralRules("en-US");
   const grammaticalNumber = pluralRules.select(count);
