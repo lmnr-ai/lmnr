@@ -210,13 +210,17 @@ pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
                 })
                 .filter(|s| !s.is_empty())
         })
-        // "parts": [{"text": "..."}] (Gemini format)
+        // "parts" shapes — we only inspect the first part (multi-part system
+        // prompts are rare and not worth the complexity here):
+        //   - Gemini:     {"text": "..."}
+        //   - OTel GenAI: {"type": "text", "content": "..."}
+        //     (emitted by pydantic_ai; see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/)
         .or_else(|| {
             sys_msg
                 .get("parts")
                 .and_then(|p| p.as_array())
                 .and_then(|arr| arr.first())
-                .and_then(|p| p.get("text"))
+                .and_then(|first| first.get("text").or_else(|| first.get("content")))
                 .and_then(|t| t.as_str())
                 .map(|s| s.to_string())
         })
@@ -1221,6 +1225,19 @@ mod tests {
         let input = serde_json::json!([
             {"role": "system", "parts": [{"text": "You are a safety-focused agent."}]},
             {"role": "user", "parts": [{"text": "Do something"}]}
+        ]);
+        let (sys_text, remaining) = extract_system_message(&input).unwrap();
+        assert_eq!(sys_text, "You are a safety-focused agent.");
+        assert_eq!(remaining.as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_extract_system_message_otel_genai_parts_format() {
+        // OTel GenAI semconv (pydantic_ai et al.) — text lives under `content`
+        // with a `type: "text"` discriminator, not under `text`.
+        let input = serde_json::json!([
+            {"role": "system", "parts": [{"type": "text", "content": "You are a safety-focused agent."}]},
+            {"role": "user",   "parts": [{"type": "text", "content": "Do something"}]}
         ]);
         let (sys_text, remaining) = extract_system_message(&input).unwrap();
         assert_eq!(sys_text, "You are a safety-focused agent.");
