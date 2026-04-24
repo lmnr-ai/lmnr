@@ -178,10 +178,25 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return { inputSpanIds: ids, promptHashes: hashes };
   }, [transcriptEntries, spans]);
 
+  // An LLM/CACHED standalone span row needs top spacing whenever it has a
+  // preceding row that isn't the user-input row. The user-input row visually
+  // pairs with the LLM that follows, so no extra spacing is added there;
+  // anything else (another LLM, a tool span, a group) gets separated.
+  const needsLlmTopSpacing = useCallback(
+    (index: number) => {
+      const row = flatRows[index];
+      if (!row || row.type !== "span") return false;
+      if (row.span.spanType !== "LLM" && row.span.spanType !== "CACHED") return false;
+      const prev = flatRows[index - 1];
+      return !!prev && prev.type !== "user-input";
+    },
+    [flatRows]
+  );
+
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 186,
+    estimateSize: (index) => (needsLlmTopSpacing(index) ? 202 : 186),
     overscan: 20,
     paddingEnd: 64,
   });
@@ -390,6 +405,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
             const isGroupChild = row.type === "group-span" || row.type === "group-input";
             const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
             const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
+            const needsSpacing = needsLlmTopSpacing(virtualRow.index);
             return (
               <div
                 key={virtualRow.key}
@@ -397,6 +413,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                 ref={virtualizer.measureElement}
                 className={cn({
                   "pt-1": row.type === "group",
+                  "pt-2": needsSpacing,
                   "pb-1": isCollapsedGroup || isLastGroupChild,
                 })}
               >

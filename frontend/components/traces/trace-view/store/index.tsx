@@ -243,7 +243,6 @@ const createTraceViewStore = (options?: {
             tracePanelWidth: state.tracePanelWidth,
             spanPanelWidth: state.spanPanelWidth,
             chatPanelWidth: state.chatPanelWidth,
-            spanPath: state.spanPath,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
@@ -263,7 +262,6 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.tracePanelWidth === "number" && { tracePanelWidth: persisted.tracePanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
             ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
-            ...(Array.isArray(persisted.spanPath) && { spanPath: persisted.spanPath as string[] }),
             ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,

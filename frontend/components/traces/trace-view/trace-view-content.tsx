@@ -100,15 +100,6 @@ export default function TraceViewContent({
     shallow
   );
 
-  // Local storage states
-  const { spanPath, setSpanPath } = useTraceViewStore(
-    (state) => ({
-      spanPath: state.spanPath,
-      setSpanPath: state.setSpanPath,
-    }),
-    shallow
-  );
-
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
       return;
@@ -158,11 +149,6 @@ export default function TraceViewContent({
 
       setSelectedSpan(span);
 
-      const spanPath = span.attributes?.["lmnr.span.path"];
-      if (spanPath && Array.isArray(spanPath)) {
-        setSpanPath(spanPath);
-      }
-
       const currentSpanId = searchParams.get("spanId");
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
@@ -170,7 +156,7 @@ export default function TraceViewContent({
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
-    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
+    [setSelectedSpan, searchParams, router, pathName]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -221,7 +207,7 @@ export default function TraceViewContent({
 
         const urlSpanId = spanId || searchParams.get("spanId");
         if (urlSpanId && spans.length > 0) {
-          const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
+          const selectedSpan = findSpanToSelect(spans, spanId, searchParams);
           setSelectedSpan(selectedSpan);
         } else if (isAlwaysSelectSpan && spans.length > 0) {
           // Auto-select first span only in the dedicated trace page (always-select mode).
@@ -253,7 +239,6 @@ export default function TraceViewContent({
       isAlwaysSelectSpan,
       spanId,
       searchParams,
-      spanPath,
     ]
   );
 

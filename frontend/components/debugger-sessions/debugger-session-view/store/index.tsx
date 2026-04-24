@@ -88,10 +88,6 @@ const createDebuggerSessionStore = ({
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
             set({ selectedSpan: span });
-            const spanPath = span.attributes?.["lmnr.span.path"];
-            if (spanPath && Array.isArray(spanPath)) {
-              set({ spanPath });
-            }
           }
         },
 
@@ -478,7 +474,6 @@ const createDebuggerSessionStore = ({
 
           return {
             sidebarWidth: state.sidebarWidth,
-            spanPath: state.spanPath,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,

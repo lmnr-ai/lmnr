@@ -103,13 +103,15 @@ export function AgentGroupHeader({
           <CollapsedPreviewBlock
             text={previewText}
             isLoading={isLoadingPreview}
-            label={outputSpanId ? "Input" : undefined}
-            variant="collapsed"
+            label={outputSpanId ? "In" : undefined}
+            variant="labeled-row"
           />
         )}
 
+        {collapsed && outputText && previewText && <div className="border-t border-border" />}
+
         {collapsed && outputSpanId && (
-          <CollapsedPreviewBlock text={outputText} isLoading={isLoadingOutput} label="Output" variant="collapsed" />
+          <CollapsedPreviewBlock text={outputText} isLoading={isLoadingOutput} label="Out" variant="labeled-row" />
         )}
       </div>
     </div>
