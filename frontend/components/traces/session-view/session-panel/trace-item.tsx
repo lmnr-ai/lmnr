@@ -132,7 +132,7 @@ export default function TraceItem({
           type="button"
           onClick={handleToggle}
           className={cn(
-            "w-full flex items-center justify-between text-left transition-colors cursor-pointer",
+            "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out",
             expanded
               ? "pl-1.5 pr-3 pt-[9px] pb-2 hover:bg-muted/80"
               : "pl-1.5 pr-3 pt-2 pb-1 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"

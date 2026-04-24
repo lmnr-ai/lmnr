@@ -261,6 +261,7 @@ export const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
   cacheReadInputTokens: span.cacheReadInputTokens,
   totalCost: span.totalCost,
   pending: span.pending,
+  status: span.status,
   inputSnippet: span.inputSnippet,
   outputSnippet: span.outputSnippet,
   attributesSnippet: span.attributesSnippet,
