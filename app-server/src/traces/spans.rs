@@ -464,10 +464,6 @@ impl SpanAttributes {
         if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
             || self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL)
             || self.raw_attributes.contains_key(GEN_AI_RESPONSE_MODEL)
-            || self
-                .raw_attributes
-                .iter()
-                .any(|(k, _)| k.starts_with("llm.") || k.starts_with("aisdk."))
         {
             SpanType::LLM
         } else {
