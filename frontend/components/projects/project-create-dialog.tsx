@@ -55,7 +55,7 @@ export default function ProjectCreateDialog({
       const newProject = (await res.json()) as Project;
       track("project", "created");
       onProjectCreate?.();
-      router.push(`/project/${newProject.id}/dashboards`);
+      router.push(`/project/${newProject.id}/traces`);
       setIsDialogOpen(false);
     } catch (e) {
       toast({

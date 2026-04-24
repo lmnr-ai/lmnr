@@ -48,7 +48,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
       track("onboarding", "first_project_created");
 
       if (newWorkspace.projectId) {
-        router.push(`/project/${newWorkspace.projectId}/dashboards`);
+        router.push(`/project/${newWorkspace.projectId}/traces?onboarding=true`);
       } else {
         router.push(`/workspace/${newWorkspace.id}`);
       }
