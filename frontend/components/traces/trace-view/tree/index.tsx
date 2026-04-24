@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { memo, useEffect, useMemo, useRef } from "react";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { useReportVisibleTimeRange } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useBatchedSpanPreviews } from "../transcript/use-batched-span-previews";
@@ -61,6 +62,25 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       return spanItem && !spanItem.pending ? spanItem.span.spanId : null;
     })
   ) as string[];
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of items) {
+      const spanItem = treeSpans[item.index];
+      if (!spanItem) continue;
+      const s = new Date(spanItem.span.startTime).getTime();
+      const e = new Date(spanItem.span.endTime).getTime();
+      if (s < min) min = s;
+      if (e > max) max = e;
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, treeSpans]);
+
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};

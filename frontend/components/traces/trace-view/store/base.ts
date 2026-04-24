@@ -162,6 +162,12 @@ export interface BaseTraceViewState {
   condensedTimelineZoom: number;
   isCostHeatmapVisible: boolean;
 
+  // Absolute ms time range covered by rows currently visible in the active
+  // transcript/tree virtualizer. Drives the scroll indicator in the condensed
+  // timeline. Undefined when no view is reporting.
+  scrollStartTime?: number;
+  scrollEndTime?: number;
+
   // Panel visibility
   spanPanelOpen: boolean;
   tracesAgentOpen: boolean;
@@ -220,6 +226,7 @@ export interface BaseTraceViewActions {
   setCondensedTimelineZoom: (zoom: number) => void;
   setIsCostHeatmapVisible: (visible: boolean) => void;
   selectMaxSpanCost: () => number;
+  setScrollTimeRange: (start?: number, end?: number) => void;
 
   // Panel visibility actions
   setSpanPanelOpen: (open: boolean) => void;
@@ -275,6 +282,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
     isCostHeatmapVisible: false,
+    scrollStartTime: undefined,
+    scrollEndTime: undefined,
 
     // Panel visibility defaults
     spanPanelOpen: true,
@@ -399,6 +408,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) } as Partial<T>);
     },
     setIsCostHeatmapVisible: (visible: boolean) => set({ isCostHeatmapVisible: visible } as Partial<T>),
+    setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end } as Partial<T>),
     selectMaxSpanCost: () => {
       const spans = get().spans;
       let max = 0;

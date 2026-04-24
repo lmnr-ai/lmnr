@@ -19,6 +19,7 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
+import { useReportVisibleTimeRange } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
@@ -219,6 +220,49 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       }),
     [items, flatRows, transcriptExpandedGroups]
   );
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of items) {
+      const row = flatRows[item.index];
+      if (!row) continue;
+      let startStr: string | undefined;
+      let endStr: string | undefined;
+      switch (row.type) {
+        case "span":
+        case "group-span":
+          startStr = row.span.startTime;
+          endStr = row.span.endTime;
+          break;
+        case "group":
+          startStr = row.startTime;
+          endStr = row.endTime;
+          break;
+        case "group-input": {
+          const s = spansById.get(row.firstLlmSpanId);
+          if (s) {
+            startStr = s.startTime;
+            endStr = s.endTime;
+          }
+          break;
+        }
+        // user-input: no time mapping
+      }
+      if (startStr && endStr) {
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        if (s < min) min = s;
+        if (e > max) max = e;
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, flatRows, spansById]);
+
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
 
   const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,

@@ -36,6 +36,8 @@ function CondensedTimeline() {
     sessionTime,
     sessionStartTime,
     browserSession,
+    scrollStartTime,
+    scrollEndTime,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
@@ -51,6 +53,8 @@ function CondensedTimeline() {
     sessionTime: state.sessionTime,
     sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
+    scrollStartTime: state.scrollStartTime,
+    scrollEndTime: state.scrollEndTime,
   }));
 
   const {
@@ -138,6 +142,16 @@ function CondensedTimeline() {
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
 
+  const scrollIndicator = useMemo(() => {
+    if (scrollStartTime === undefined || scrollEndTime === undefined || totalDurationMs <= 0) return null;
+    const rawLeft = ((scrollStartTime - spanTimelineStartMs) / totalDurationMs) * 100;
+    const rawWidth = ((scrollEndTime - scrollStartTime) / totalDurationMs) * 100;
+    const left = Math.max(0, Math.min(100, rawLeft));
+    const width = Math.max(0, Math.min(100 - left, rawWidth));
+    if (width <= 0) return null;
+    return { left, width };
+  }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, totalDurationMs]);
+
   // Render loading and empty states inside the ref'd element to ensure hooks work correctly
   const renderContent = () => {
     if (isSpansLoading) {
@@ -184,6 +198,15 @@ function CondensedTimeline() {
               style={{ left: `${marker.positionPercent}%` }}
             />
           ))}
+
+          {/* Scroll indicator — highlights the time range covered by rows currently
+              visible in the transcript/tree virtualizer */}
+          {scrollIndicator && (
+            <div
+              className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+              style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
+            />
+          )}
 
           {/* Sticky header - scrolls horizontally with content, sticks vertically */}
           <div
