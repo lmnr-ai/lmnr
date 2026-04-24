@@ -165,6 +165,13 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 
+## Span-view Message Parsing
+
+- Span input/output JSON is normalized into one of several provider shapes by `processMessages` in `frontend/components/traces/span-view/messages.tsx`. Detection order matters: signals-gated Anthropic → OpenAI Chat Completions → OpenAI Responses → LangChain → Anthropic fallback → Gemini → generic. Each provider has a schema + parser file under `frontend/lib/spans/types/` and a renderer under `frontend/components/traces/span-view/<provider>-parts.tsx`.
+- OpenAI Responses API format is flat: items array where each item has a `type` discriminator (`message`, `reasoning`, `function_call`, `function_call_output`, `web_search_call`, `computer_call`, `mcp_call`, etc.). Only message items carry a `role`. For role-colored headers in the Messages virtualizer, `responsesItemRole` in `messages.tsx` synthesizes a role: tool-call items → `assistant`, tool-output items → `tool`, `reasoning` → `assistant`.
+- Responses schemas in `lib/spans/types/openai-responses.ts` deliberately do NOT use `.loose()` — every known field must be listed explicitly. Strict schemas are the detection mechanism: a Chat Completions or LangChain payload must fail to parse here so it can fall through to the right parser. When OpenAI adds a new field, add it to the schema rather than reintroducing `.loose()`.
+- When adding a new provider format, update `ProcessedMessages`, `processMessages`, `buildToolNameMap`, and `renderMessageContent` in `messages.tsx`, and add a renderer component. Tool-call IDs are mapped to tool names via `buildToolNameMap` so tool-result items can show their originating tool name even when the output item only carries `call_id`. Note: `local_shell_call_output` has no `call_id` in the API — key it by `id`.
+
 ## Frontend Best Practices
 
 ### One component per file

@@ -2,10 +2,7 @@ import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
-import { AnthropicOutputMessageSchema, AnthropicOutputMessagesSchema } from "@/lib/spans/types/anthropic";
-import { GeminiOutputSchema } from "@/lib/spans/types/gemini";
-import { LangChainAssistantMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import { OpenAIOutputSchema } from "@/lib/spans/types/openai";
+import { detectProvider, type ProviderHint } from "@/lib/spans/providers";
 
 // ---------------------------------------------------------------------------
 // Payload classification
@@ -51,20 +48,9 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
 // Provider detection (schema-based)
 // ---------------------------------------------------------------------------
 
-export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "unknown";
+export { type ProviderHint };
 
-export const detectOutputStructure = (data: unknown): ProviderHint => {
-  if (OpenAIOutputSchema.safeParse(data).success) return "openai";
-  if (GeminiOutputSchema.safeParse(data).success) return "gemini";
-  if (AnthropicOutputMessageSchema.safeParse(data).success) return "anthropic";
-  if (AnthropicOutputMessagesSchema.safeParse(data).success) return "anthropic";
-
-  // LangChain has no dedicated output schema — check for assistant message(s).
-  if (LangChainAssistantMessageSchema.safeParse(data).success) return "langchain";
-  if (Array.isArray(data) && LangChainMessagesSchema.safeParse(data).success) return "langchain";
-
-  return "unknown";
-};
+export const detectOutputStructure = (data: unknown): ProviderHint => detectProvider(data);
 
 // ---------------------------------------------------------------------------
 // Key classification — used by fingerprinting, path flattening, and
