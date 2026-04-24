@@ -99,7 +99,7 @@ const looksLikeGenAIPart = (part: unknown): boolean => {
   return typeof type === "string" && GENAI_PART_TYPES.has(type);
 };
 
-const looksLikeGenAIMessages = (data: unknown): boolean => {
+export const looksLikeGenAIMessages = (data: unknown): boolean => {
   if (!Array.isArray(data) || data.length === 0) return false;
   return data.some((msg) => {
     if (typeof msg !== "object" || msg === null) return false;

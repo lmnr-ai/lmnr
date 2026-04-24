@@ -460,20 +460,14 @@ impl SpanAttributes {
             return SpanType::Tool;
         }
 
-        // quick hack until we figure how to set span type on auto-instrumentation.
-        // `span_type()` runs inside `from_otel_span` BEFORE `normalize_aisdk_attributes`
-        // copies `aisdk.model.id` → `gen_ai.request.model`, so AI SDK spans that only
-        // carry `aisdk.*` (no `gen_ai.request.model` at ingestion) need the prefix
-        // check to be classified as LLM at persistence time. `llm.*` covers LiteLLM
-        // / OpenLLMetry emitters similarly.
+        // quick hack until we figure how to set span type on auto-instrumentation
         if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
-            || self.raw_attributes.iter().any(|(k, _)| {
-                // AI SDK reports usage on parent spans as well, which we don't want
-                // converted to LLM type.
-                (k.starts_with("gen_ai.") && !k.starts_with("gen_ai.usage."))
-                    || k.starts_with("llm.")
-                    || k.starts_with("aisdk.")
-            })
+            || self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL)
+            || self.raw_attributes.contains_key(GEN_AI_RESPONSE_MODEL)
+            || self
+                .raw_attributes
+                .iter()
+                .any(|(k, _)| k.starts_with("llm.") || k.starts_with("aisdk."))
         {
             SpanType::LLM
         } else {
@@ -1082,15 +1076,6 @@ impl Span {
     }
 
     pub fn is_llm_span(&self) -> bool {
-        // If the parsed `self.span_type` says this is a Tool span, trust that over
-        // `attributes.span_type()` — the latter re-derives from raw_attributes every
-        // call, and the OTel GenAI tool-span path removes `gen_ai.tool.call.*` during
-        // enrichment. Without this guard, `attributes.span_type()` would fall through
-        // to the generic `gen_ai.*` heuristic and return LLM, so `is_llm_span()` would
-        // start reporting true for what is really a tool span.
-        if self.span_type == SpanType::Tool {
-            return false;
-        }
         let is_cached_llm_span = self.attributes.span_type() == SpanType::Cached
             && self
                 .attributes
@@ -4198,10 +4183,8 @@ mod tests {
             Some(json!({"temp_f": 65, "description": "Sunny"}))
         );
 
-        // After enrichment removes gen_ai.tool.call.*, attributes.span_type() would
-        // otherwise fall through to the generic gen_ai.* heuristic and return LLM.
-        // is_llm_span() must short-circuit on self.span_type == Tool so downstream
-        // code doesn't misclassify the span and overwrite its tool input/output.
+        // `gen_ai.operation.name == "execute_tool"` survives enrichment, so
+        // `attributes.span_type()` keeps returning Tool and `is_llm_span()` is false.
         assert!(!span.is_llm_span());
     }
 
@@ -4241,35 +4224,6 @@ mod tests {
         )]));
         // Agent runs stay Default so they render as container spans.
         assert_eq!(agent.span_type(), SpanType::Default);
-    }
-
-    #[test]
-    fn test_span_type_from_prefix_fallback() {
-        // `span_type()` is called in `from_otel_span` BEFORE `normalize_aisdk_attributes`
-        // copies `aisdk.model.id` → `gen_ai.request.model`. Mastra / AI SDK auto-
-        // instrumented spans that only carry `aisdk.*` at ingestion time must still
-        // be classified as LLM, so downstream persistence stores the right span_type
-        // and analytics / cost-tracking queries filtered on `span_type = LLM` work.
-        let aisdk_only = SpanAttributes::new(HashMap::from([
-            ("aisdk.model.id".to_string(), json!("gpt-4o")),
-            ("aisdk.model.provider".to_string(), json!("openai")),
-        ]));
-        assert_eq!(aisdk_only.span_type(), SpanType::LLM);
-
-        // LiteLLM / OpenLLMetry emitters carry `llm.*` attributes — same story.
-        let llm_prefix_only = SpanAttributes::new(HashMap::from([(
-            "llm.request.type".to_string(),
-            json!("completion"),
-        )]));
-        assert_eq!(llm_prefix_only.span_type(), SpanType::LLM);
-
-        // `gen_ai.usage.*` on its own must not flip the span to LLM — AI SDK reports
-        // usage on parent spans that aren't LLM calls.
-        let usage_only = SpanAttributes::new(HashMap::from([(
-            "gen_ai.usage.input_tokens".to_string(),
-            json!(42),
-        )]));
-        assert_eq!(usage_only.span_type(), SpanType::Default);
     }
 
     #[test]
