@@ -101,10 +101,12 @@ export const TRACE_VIEW_ATTRIBUTE_KEYS = [
  * trip correctly regardless of embedded commas or quoted characters.
  */
 export const buildTraceViewAttributesExpression = (columnAlias = "attributes"): string => {
-  const escapeKey = (k: string) => k.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const escapeJsonKey = (k: string) => k.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const escapeSqlStr = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   const pairs = TRACE_VIEW_ATTRIBUTE_KEYS.map((key) => {
-    const escaped = escapeKey(key);
-    return `if(JSONHas(attributes, '${key}'), concat('"${escaped}":', JSONExtractRaw(attributes, '${key}')), '')`;
+    const sqlKey = escapeSqlStr(key);
+    const jsonLiteral = escapeSqlStr(`"${escapeJsonKey(key)}":`);
+    return `if(JSONHas(attributes, '${sqlKey}'), concat('${jsonLiteral}', JSONExtractRaw(attributes, '${sqlKey}')), '')`;
   });
   return `concat('{', arrayStringConcat(arrayFilter(x -> x != '', [${pairs.join(", ")}]), ','), '}') as ${columnAlias}`;
 };
