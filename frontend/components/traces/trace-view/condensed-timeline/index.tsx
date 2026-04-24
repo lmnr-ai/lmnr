@@ -61,6 +61,7 @@ function CondensedTimeline() {
     spans: condensedSpans,
     startTime: spanTimelineStartMs,
     totalDurationMs,
+    timelineWidthInMilliseconds,
     totalRows,
   } = useMemo(() => getCondensedTimelineData(), [getCondensedTimelineData, storeSpans]);
 
@@ -143,14 +144,14 @@ function CondensedTimeline() {
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
 
   const scrollIndicator = useMemo(() => {
-    if (scrollStartTime === undefined || scrollEndTime === undefined || totalDurationMs <= 0) return null;
-    const rawLeft = ((scrollStartTime - spanTimelineStartMs) / totalDurationMs) * 100;
-    const rawWidth = ((scrollEndTime - scrollStartTime) / totalDurationMs) * 100;
+    if (scrollStartTime === undefined || scrollEndTime === undefined || timelineWidthInMilliseconds <= 0) return null;
+    const rawLeft = ((scrollStartTime - spanTimelineStartMs) / timelineWidthInMilliseconds) * 100;
+    const rawWidth = ((scrollEndTime - scrollStartTime) / timelineWidthInMilliseconds) * 100;
     const left = Math.max(0, Math.min(100, rawLeft));
     const width = Math.max(0, Math.min(100 - left, rawWidth));
     if (width <= 0) return null;
     return { left, width };
-  }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, totalDurationMs]);
+  }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, timelineWidthInMilliseconds]);
 
   // Render loading and empty states inside the ref'd element to ensure hooks work correctly
   const renderContent = () => {

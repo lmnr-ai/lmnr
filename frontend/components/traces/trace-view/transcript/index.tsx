@@ -19,7 +19,10 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
-import { useReportVisibleTimeRange } from "@/components/traces/trace-view/use-report-visible-time-range";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
@@ -221,10 +224,14 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [items, flatRows, transcriptExpandedGroups]
   );
 
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
   const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
     let min = Infinity;
     let max = -Infinity;
-    for (const item of items) {
+    for (const item of inViewport) {
       const row = flatRows[item.index];
       if (!row) continue;
       let startStr: string | undefined;
@@ -260,7 +267,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       return { visibleStartTime: undefined, visibleEndTime: undefined };
     }
     return { visibleStartTime: min, visibleEndTime: max };
-  }, [items, flatRows, spansById]);
+  }, [items, flatRows, spansById, scrollOffset, viewportHeight]);
 
   useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
 

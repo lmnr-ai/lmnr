@@ -4,7 +4,10 @@ import { useParams } from "next/navigation";
 import { memo, useEffect, useMemo, useRef } from "react";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import { useReportVisibleTimeRange } from "@/components/traces/trace-view/use-report-visible-time-range";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useBatchedSpanPreviews } from "../transcript/use-batched-span-previews";
@@ -63,10 +66,14 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     })
   ) as string[];
 
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
   const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
     let min = Infinity;
     let max = -Infinity;
-    for (const item of items) {
+    for (const item of inViewport) {
       const spanItem = treeSpans[item.index];
       if (!spanItem) continue;
       const s = new Date(spanItem.span.startTime).getTime();
@@ -78,7 +85,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       return { visibleStartTime: undefined, visibleEndTime: undefined };
     }
     return { visibleStartTime: min, visibleEndTime: max };
-  }, [items, treeSpans]);
+  }, [items, treeSpans, scrollOffset, viewportHeight]);
 
   useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
 
