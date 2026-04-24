@@ -8,6 +8,7 @@ import { FormProvider, useForm } from "react-hook-form";
 import { ChartType } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
 import { Form } from "@/components/dashboards/editor/Form";
+import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
 import { convertSqlToJson, getDefaultFormValues } from "@/components/dashboards/editor/utils";
 import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -42,10 +43,10 @@ const ChartBuilder = () => {
       // were already in the stored queryStructure we'd end up with duplicates
       // every edit cycle. The new save path never writes these filters —
       // this strip is only load-bearing for legacy charts loaded via
-      // convertSqlToJson, where the parsed SQL still carries them.
-      const filteredFilters = (queryStructure.filters || []).filter(
-        (filter) => filter.field !== "start_time" && filter.field !== "end_time"
-      );
+      // convertSqlToJson, where the parsed SQL still carries them. Derive the
+      // column from the table so signal_events ("timestamp") is handled too.
+      const timeColumn = getTimeColumn(queryStructure.table);
+      const filteredFilters = (queryStructure.filters || []).filter((filter) => filter.field !== timeColumn);
       // Table charts never carry a LIMIT — pagination is applied at fetch time
       // in the executor. A legacy chart's SQL might have a LIMIT though, so
       // normalize on load to keep the invariant consistent with transformFormForChartType.
