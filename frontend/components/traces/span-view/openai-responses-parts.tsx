@@ -318,40 +318,34 @@ const ComputerCallOutputItem = ({
   messageIndex: number;
   toolNameMap?: Map<string, string>;
 }) => {
-  const output = item.output as { type?: string; image_url?: string; file_id?: string } | unknown;
-  if (typeof output === "object" && output !== null) {
-    const typed = output as { type?: string; image_url?: string; file_id?: string };
-    if (typed.type === "computer_screenshot" || typed.type === "input_image") {
-      if (typed.image_url) {
-        return (
-          <ToolResultContentPart
-            toolCallId={item.call_id}
-            toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
-            content=""
-            presetKey={`${messageIndex}-computer-out-${presetKey}`}
-          >
-            <ImageContentPart src={typed.image_url} />
-          </ToolResultContentPart>
-        );
-      }
-      if (typed.file_id) {
-        return (
-          <ToolResultContentPart
-            toolCallId={item.call_id}
-            toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
-            content={`[Image file: ${typed.file_id}]`}
-            presetKey={`${messageIndex}-computer-out-${presetKey}`}
-          />
-        );
-      }
-    }
+  const { output } = item;
+  if (output.image_url) {
+    return (
+      <ToolResultContentPart
+        toolCallId={item.call_id}
+        toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
+        content=""
+        presetKey={`${messageIndex}-computer-out-${presetKey}`}
+      >
+        <ImageContentPart src={output.image_url} />
+      </ToolResultContentPart>
+    );
   }
-  const content = typeof output === "string" ? output : JSON.stringify(output ?? "", null, 2);
+  if (output.file_id) {
+    return (
+      <ToolResultContentPart
+        toolCallId={item.call_id}
+        toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
+        content={`[Image file: ${output.file_id}]`}
+        presetKey={`${messageIndex}-computer-out-${presetKey}`}
+      />
+    );
+  }
   return (
     <ToolResultContentPart
       toolCallId={item.call_id}
       toolName={toolNameMap?.get(item.call_id) ?? "computer_use"}
-      content={content}
+      content={JSON.stringify(output, null, 2)}
       presetKey={`${messageIndex}-computer-out-${presetKey}`}
     />
   );
