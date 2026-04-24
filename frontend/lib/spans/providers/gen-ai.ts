@@ -47,7 +47,7 @@ const parseSystemAndUserGenAI = (data: unknown): ParsedInput | null => {
   const systemMsg = messages.find((m) => m.role === "system");
   if (systemMsg) {
     const texts = extractGenAIText(systemMsg.parts);
-    if (texts.length > 0) systemText = texts.join("\n");
+    if (texts.length > 0) systemText = texts.join(" ");
   }
 
   return { systemText, userParts: extractFirstUserMessage(messages) };

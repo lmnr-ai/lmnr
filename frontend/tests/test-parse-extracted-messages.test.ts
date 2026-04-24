@@ -20,7 +20,7 @@ describe("parseExtractedMessages", () => {
     assert.deepStrictEqual(result.userParts, [{ text: "What's the weather in SF?" }]);
   });
 
-  it("joins multiple text parts in a single GenAI message with newlines", () => {
+  it("joins multiple text parts in a single GenAI message with spaces", () => {
     const system = JSON.stringify({
       role: "system",
       parts: [
@@ -38,7 +38,7 @@ describe("parseExtractedMessages", () => {
 
     const result = parseExtractedMessages(system, user);
     assert.ok(result);
-    assert.strictEqual(result.systemText, "Part A\nPart B");
+    assert.strictEqual(result.systemText, "Part A Part B");
     assert.deepStrictEqual(result.userParts, [{ text: "Line 1" }, { text: "Line 2" }]);
   });
 
