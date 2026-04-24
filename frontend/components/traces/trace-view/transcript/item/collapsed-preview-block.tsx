@@ -13,9 +13,19 @@ export function CollapsedPreviewBlock({
   text: string | null;
   isLoading: boolean;
   label?: string;
-  variant?: "text" | "collapsed";
+  variant?: "text" | "collapsed" | "labeled-row";
 }) {
   if (text) {
+    if (variant === "labeled-row") {
+      return (
+        <div className="flex min-w-0 gap-2 items-start animate-in fade-in duration-150">
+          {label && <span className="text-xs text-muted-foreground shrink-0 w-6 pt-[2px] tracking-wide">{label}</span>}
+          <div className="flex-1 min-w-0">
+            <CollapsedTextWithMore text={text} lineHeight={17} maxLines={2} />
+          </div>
+        </div>
+      );
+    }
     if (variant === "collapsed") {
       return (
         <div className="flex flex-col min-w-0 pl-7 animate-in fade-in duration-150">
@@ -32,6 +42,16 @@ export function CollapsedPreviewBlock({
   }
 
   if (isLoading) {
+    if (variant === "labeled-row") {
+      return (
+        <div className="flex min-w-0 gap-2 items-start">
+          {label && <span className="text-xs text-muted-foreground shrink-0 w-6 pt-[2px] tracking-wide">{label}</span>}
+          <div className="flex-1 min-w-0">
+            <PreviewLoadingPlaceholder />
+          </div>
+        </div>
+      );
+    }
     if (variant === "collapsed") {
       return (
         <div className="pl-7">

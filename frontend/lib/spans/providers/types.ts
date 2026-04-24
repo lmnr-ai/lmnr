@@ -5,14 +5,7 @@ import { type ExtractedTool } from "@/lib/actions/spans/previews/tool-detection"
  * Canonical provider identifiers. Keep the list in sync with `PROVIDERS`
  * in `./index.ts` — adding a new adapter means extending both.
  */
-export type ProviderHint =
-  | "openai"
-  | "openai-responses"
-  | "anthropic"
-  | "gemini"
-  | "langchain"
-  | "gen-ai"
-  | "unknown";
+export type ProviderHint = "openai" | "openai-responses" | "anthropic" | "gemini" | "langchain" | "gen-ai" | "unknown";
 
 /**
  * A provider adapter encapsulates everything we need to know about a

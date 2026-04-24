@@ -69,7 +69,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
-    setSpanPath,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
     // Debugger state
@@ -104,7 +103,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
-    setSpanPath: state.setSpanPath,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     // Debugger state
@@ -180,11 +178,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
 
       setSelectedSpan(span);
 
-      const spanPath = span.attributes?.["lmnr.span.path"];
-      if (spanPath && Array.isArray(spanPath)) {
-        setSpanPath(spanPath);
-      }
-
       const currentSpanId = searchParams.get("spanId");
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
@@ -192,7 +185,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
-    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
+    [setSelectedSpan, searchParams, router, pathName]
   );
 
   const fetchSpans = useCallback(

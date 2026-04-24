@@ -146,7 +146,6 @@ export interface BaseTraceViewState {
   isTraceLoading: boolean;
   traceError?: string;
   spans: TraceViewSpan[];
-  spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
   selectedSpan?: TraceViewSpan;
@@ -202,7 +201,6 @@ export interface BaseTraceViewActions {
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
-  setSpanPath: (spanPath: string[]) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
@@ -268,7 +266,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     sessionStartTime: undefined,
     tab: "transcript",
     langGraph: false,
-    spanPath: null,
     hasBrowserSession: options?.initialTrace?.hasBrowserSession || false,
     showTreeContent: true,
     condensedTimelineEnabled: true,
@@ -277,7 +274,10 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isCostHeatmapVisible: false,
 
     // Panel visibility defaults
-    spanPanelOpen: true,
+    // spanPanelOpen is intentionally false — in the dynamic (drawer) layout we keep the
+    // span panel closed until the user selects a span. In the full-width trace page the
+    // panel is driven by isAlwaysSelectSpan instead.
+    spanPanelOpen: false,
     tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
 
@@ -372,10 +372,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         }
 
         get().setSelectedSpan(span);
-        const spanPath = span.attributes?.["lmnr.span.path"];
-        if (spanPath && Array.isArray(spanPath)) {
-          set({ spanPath } as Partial<T>);
-        }
       }
     },
     setSessionTime: (sessionTime) => set({ sessionTime } as Partial<T>),
@@ -416,7 +412,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         spans.map((span) => (span.spanId === spanId ? { ...span, collapsed: !span.collapsed } : span))
       );
     },
-    setSpanPath: (spanPath) => set({ spanPath } as Partial<T>),
     getHasLangGraph: () =>
       !!get().spans.find(
         (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)

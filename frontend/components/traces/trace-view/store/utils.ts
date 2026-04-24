@@ -417,10 +417,22 @@ export const buildTranscriptListEntries = (
     return result;
   };
 
-  // Pass 1: collect all spans per boundary, preserving time order
+  // Pass 1: collect all spans per boundary, preserving time order.
+  //
+  // Boundary spans are excluded from their own group UNLESS the boundary
+  // itself is an LLM/CACHED span. In the latter case (a leaf subagent that
+  // consists of a single LLM call), the boundary span IS the subagent's
+  // inference and must be included so `groupMeta` has a `firstLlmSpanId`
+  // to render in the group header. Non-LLM boundary spans (e.g. TOOL/DEFAULT
+  // parents that bracket the subagent loop) are kept out and emitted as a
+  // standalone span above the group block in Pass 3.
   const groupSpansMap = new Map<string, TraceViewSpan[]>();
   for (const span of listSpans) {
-    const boundary = findGroupBoundary(span.spanId);
+    const isBoundary = groupBoundarySet.has(span.spanId);
+    const isLlm = span.spanType === "LLM" || span.spanType === "CACHED";
+    if (isBoundary && !isLlm) continue;
+
+    const boundary = isBoundary ? span.spanId : findGroupBoundary(span.spanId);
     if (!boundary) continue;
     if (!groupSpansMap.has(boundary)) {
       groupSpansMap.set(boundary, []);
@@ -485,28 +497,33 @@ export const buildTranscriptListEntries = (
     });
   }
 
-  // Pass 3: emit flat entries — standalone spans, group headers + child spans
-  const emittedGroups = new Set<string>();
-  const entries: TranscriptListEntry[] = [];
-
+  // Pass 3: emit flat entries — standalone spans, group headers + child spans.
+  //
+  // Only non-LLM boundary spans get emitted as a standalone entry above the
+  // group block. LLM/CACHED boundaries are already represented inside the
+  // group header (as firstSpan / firstLlmSpanId) and must NOT be duplicated.
+  const boundarySpanMap = new Map<string, TraceViewSpan>();
   for (const span of listSpans) {
-    const boundary = findGroupBoundary(span.spanId);
-
-    if (!boundary) {
-      entries.push({ type: "span", span: toLightweight(span) });
-      continue;
+    if (groupBoundarySet.has(span.spanId) && span.spanType !== "LLM" && span.spanType !== "CACHED") {
+      boundarySpanMap.set(span.spanId, span);
     }
+  }
 
-    if (emittedGroups.has(boundary)) continue;
-    emittedGroups.add(boundary);
+  const emitBoundaryBlock = (boundary: string, entries: TranscriptListEntry[]) => {
+    const boundarySpan = boundarySpanMap.get(boundary);
+    if (boundarySpan) {
+      entries.push({ type: "span", span: toLightweight(boundarySpan) });
+    }
 
     const meta = groupMeta.get(boundary);
     if (!meta) {
-      const groupSpans = groupSpansMap.get(boundary)!;
-      for (const s of groupSpans) {
-        entries.push({ type: "span", span: toLightweight(s) });
+      const groupSpans = groupSpansMap.get(boundary);
+      if (groupSpans) {
+        for (const s of groupSpans) {
+          entries.push({ type: "span", span: toLightweight(s) });
+        }
       }
-      continue;
+      return;
     }
 
     const { childSpans, ...groupHeader } = meta;
@@ -528,6 +545,29 @@ export const buildTranscriptListEntries = (
         isLast: i === childSpans.length - 1,
       });
     }
+  };
+
+  const emittedGroups = new Set<string>();
+  const entries: TranscriptListEntry[] = [];
+
+  for (const span of listSpans) {
+    if (groupBoundarySet.has(span.spanId)) {
+      if (emittedGroups.has(span.spanId)) continue;
+      emittedGroups.add(span.spanId);
+      emitBoundaryBlock(span.spanId, entries);
+      continue;
+    }
+
+    const boundary = findGroupBoundary(span.spanId);
+
+    if (!boundary) {
+      entries.push({ type: "span", span: toLightweight(span) });
+      continue;
+    }
+
+    if (emittedGroups.has(boundary)) continue;
+    emittedGroups.add(boundary);
+    emitBoundaryBlock(boundary, entries);
   }
 
   return entries;
