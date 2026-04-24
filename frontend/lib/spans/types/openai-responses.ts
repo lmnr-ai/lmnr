@@ -458,11 +458,73 @@ export const OpenAIResponsesItemSchema = z.union([
 
 export const OpenAIResponsesItemsSchema = z.array(OpenAIResponsesItemSchema);
 
-/** Full Response object (`object: "response"`). */
+/**
+ * Full Response object (`object: "response"`).
+ *
+ * All known top-level fields are listed explicitly per the schema
+ * convention in CLAUDE.md — strict field listing is the detection
+ * mechanism, so unrelated payloads must fail to parse here.
+ */
 export const OpenAIResponsesResponseSchema = z.object({
   object: z.literal("response"),
   id: z.string().optional(),
   output: z.array(OpenAIResponsesItemSchema),
+  created_at: z.number().nullish(),
+  status: z.enum(["completed", "failed", "in_progress", "cancelled", "queued", "incomplete"]).nullish(),
+  error: z.object({ code: z.string().nullish(), message: z.string().nullish() }).nullish(),
+  incomplete_details: z.object({ reason: z.string().nullish() }).nullish(),
+  instructions: z.union([z.string(), z.array(OpenAIResponsesItemSchema)]).nullish(),
+  model: z.string().nullish(),
+  metadata: z.record(z.string(), z.string()).nullish(),
+  usage: z
+    .object({
+      input_tokens: z.number().nullish(),
+      input_tokens_details: z.object({ cached_tokens: z.number().nullish() }).nullish(),
+      output_tokens: z.number().nullish(),
+      output_tokens_details: z.object({ reasoning_tokens: z.number().nullish() }).nullish(),
+      total_tokens: z.number().nullish(),
+    })
+    .nullish(),
+  temperature: z.number().nullish(),
+  top_p: z.number().nullish(),
+  top_logprobs: z.number().nullish(),
+  max_output_tokens: z.number().nullish(),
+  max_tool_calls: z.number().nullish(),
+  parallel_tool_calls: z.boolean().nullish(),
+  previous_response_id: z.string().nullish(),
+  conversation: z.union([z.string(), z.object({ id: z.string() })]).nullish(),
+  tool_choice: z.unknown().nullish(),
+  tools: z.array(z.unknown()).nullish(),
+  reasoning: z
+    .object({
+      effort: z.enum(["minimal", "low", "medium", "high"]).nullish(),
+      summary: z.enum(["auto", "concise", "detailed"]).nullish(),
+      generate_summary: z.string().nullish(),
+    })
+    .nullish(),
+  text: z
+    .object({
+      format: z.unknown().nullish(),
+      verbosity: z.enum(["low", "medium", "high"]).nullish(),
+    })
+    .nullish(),
+  truncation: z.enum(["auto", "disabled"]).nullish(),
+  background: z.boolean().nullish(),
+  store: z.boolean().nullish(),
+  stream: z.boolean().nullish(),
+  stream_options: z.object({ include_obfuscation: z.boolean().nullish() }).nullish(),
+  include: z.array(z.string()).nullish(),
+  service_tier: z.enum(["auto", "default", "flex", "scale", "priority"]).nullish(),
+  user: z.string().nullish(),
+  safety_identifier: z.string().nullish(),
+  prompt: z
+    .object({
+      id: z.string(),
+      variables: z.record(z.string(), z.unknown()).nullish(),
+      version: z.string().nullish(),
+    })
+    .nullish(),
+  prompt_cache_key: z.string().nullish(),
 });
 
 export type OpenAIResponsesItem = z.infer<typeof OpenAIResponsesItemSchema>;
