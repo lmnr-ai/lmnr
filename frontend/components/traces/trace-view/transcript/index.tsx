@@ -71,6 +71,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     transcriptExpandedGroups,
     toggleTranscriptGroup,
     setTab,
+    setScrollTimeRange,
   } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -82,6 +83,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       transcriptExpandedGroups: state.transcriptExpandedGroups,
       toggleTranscriptGroup: state.toggleTranscriptGroup,
       setTab: state.setTab,
+      setScrollTimeRange: state.setScrollTimeRange,
     }),
     shallow
   );
@@ -269,7 +271,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return { visibleStartTime: min, visibleEndTime: max };
   }, [items, flatRows, spansById, scrollOffset, viewportHeight]);
 
-  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime, setTimeRange: setScrollTimeRange });
 
   const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,

@@ -61,6 +61,14 @@ interface SessionViewState {
   sessionTimelineEnabled: boolean;
   sessionTimelineZoom: number;
 
+  // Absolute-ms (start, end) covering the times of rows currently visible in
+  // the session panel virtualizer. Each timeline segment draws a scroll
+  // indicator only if at least one endpoint of the range is inside its own
+  // time domain — segments wholly enclosed by the range (intermediate
+  // segments the user isn't actually looking at) draw nothing.
+  scrollStartTime?: number;
+  scrollEndTime?: number;
+
   // Search state — non-null searchResults means a search is active.
   searchResults?: Record<string, SessionSpansTraceResult>;
   isSearchLoading: boolean;
@@ -100,6 +108,7 @@ interface SessionViewActions {
 
   setSessionTimelineEnabled: (enabled: boolean) => void;
   setSessionTimelineZoom: (zoom: number) => void;
+  setScrollTimeRange: (start?: number, end?: number) => void;
 
   searchSessionSpans: (filters: Filter[], search: string) => Promise<void>;
   clearSearch: () => void;
@@ -189,6 +198,9 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         sessionTimelineEnabled: false,
         sessionTimelineZoom: 1,
+
+        scrollStartTime: undefined,
+        scrollEndTime: undefined,
 
         searchResults: undefined,
         isSearchLoading: false,
@@ -319,6 +331,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         setSessionTimelineEnabled: (enabled) => set({ sessionTimelineEnabled: enabled }),
         setSessionTimelineZoom: (zoom) => set({ sessionTimelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
+        setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end }),
 
         setSelectedSpan: (selectedSpan) => {
           set({ selectedSpan, spanPanelOpen: !!selectedSpan });

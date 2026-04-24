@@ -6,7 +6,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { cn } from "@/lib/utils";
 
-import { type SessionViewSelectedSpan } from "../store";
+import { type SessionViewSelectedSpan, useSessionViewStore } from "../store";
 import SessionTimelineSpanContainerElement from "./session-timeline-span-container";
 import SessionTimelineTraceBarElement from "./session-timeline-trace-bar";
 import { type SessionTimelineSegmentData } from "./utils";
@@ -62,6 +62,28 @@ function SessionTimelineSegment({
 
   const segmentOffsetMs = segment.startTimeMs - sessionStartMs;
 
+  // Scroll indicator — the session panel writes the absolute-ms (start, end)
+  // time range covered by rows in its viewport. This range can span a session
+  // gap when the user is looking at two traces in different clusters, so we
+  // compute the *intersection* with this segment's own time domain rather
+  // than clamping a scrollEnd−scrollStart width. A segment that is wholly
+  // enclosed by the range (neither endpoint inside) is treated as an
+  // intermediate segment the user isn't looking at — render nothing.
+  const scrollStartTime = useSessionViewStore((s) => s.scrollStartTime);
+  const scrollEndTime = useSessionViewStore((s) => s.scrollEndTime);
+  const scrollIndicator = useMemo(() => {
+    if (scrollStartTime === undefined || scrollEndTime === undefined || segment.widthMs <= 0) return null;
+    const startInside = scrollStartTime >= segment.startTimeMs && scrollStartTime < segment.endTimeMs;
+    const endInside = scrollEndTime > segment.startTimeMs && scrollEndTime <= segment.endTimeMs;
+    if (!startInside && !endInside) return null;
+    const intersectStart = Math.max(scrollStartTime, segment.startTimeMs);
+    const intersectEnd = Math.min(scrollEndTime, segment.endTimeMs);
+    if (intersectEnd <= intersectStart) return null;
+    const left = ((intersectStart - segment.startTimeMs) / segment.widthMs) * 100;
+    const right = ((intersectEnd - segment.startTimeMs) / segment.widthMs) * 100;
+    return { left, width: right - left };
+  }, [scrollStartTime, scrollEndTime, segment.startTimeMs, segment.endTimeMs, segment.widthMs]);
+
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -93,6 +115,14 @@ function SessionTimelineSegment({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
+      {/* Scroll indicator — clamped to this segment's time domain */}
+      {scrollIndicator && (
+        <div
+          className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+          style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
+        />
+      )}
+
       {/* Time marker lines */}
       {timeMarkers.map((marker, i) => (
         <div

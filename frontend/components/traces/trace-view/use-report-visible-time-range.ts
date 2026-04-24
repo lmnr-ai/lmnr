@@ -1,14 +1,18 @@
 import { useEffect, useRef } from "react";
 
-import { useTraceViewBaseStore } from "./store/base";
-
 /**
- * Filter TanStack virtual items down to those actually inside the viewport,
- * excluding the overscan buffer. TanStack Virtual has no built-in accessor for
- * this — `getVirtualItems()` includes the overscan — so we compare each item's
- * pixel range to the virtualizer's scroll offset and scroll-rect height.
+ * Filter TanStack virtual items down to those meaningfully inside the viewport,
+ * excluding the overscan buffer AND edge slivers. TanStack Virtual has no
+ * built-in accessor — `getVirtualItems()` includes overscan.
+ *
+ * We use a center-in-viewport rule rather than any-overlap: a row only counts
+ * if its vertical center is inside `[scrollOffset, scrollOffset+height]`.
+ * Any-overlap is too permissive — a 1px sliver of the next row at the viewport
+ * edge would count as "visible," and if that row carried a wildly different
+ * time (e.g. a trace 24h later), it would drag the reported range across a
+ * session gap and light up segments the user isn't looking at.
  */
-export const filterToViewport = <T extends { start: number; end: number }>(
+export const filterToViewport = <T extends { start: number; size: number }>(
   items: T[],
   scrollOffset: number,
   viewportHeight: number
@@ -16,7 +20,10 @@ export const filterToViewport = <T extends { start: number; end: number }>(
   if (viewportHeight <= 0) return items;
   const top = scrollOffset;
   const bottom = scrollOffset + viewportHeight;
-  return items.filter((item) => item.end > top && item.start < bottom);
+  return items.filter((item) => {
+    const center = item.start + item.size / 2;
+    return center >= top && center < bottom;
+  });
 };
 
 /**
@@ -25,8 +32,15 @@ export const filterToViewport = <T extends { start: number; end: number }>(
  * range when the caller unmounts so a switch between transcript and tree hands
  * ownership cleanly from one producer to the other.
  */
-export const useReportVisibleTimeRange = ({ start, end }: { start?: number; end?: number }) => {
-  const setScrollTimeRange = useTraceViewBaseStore((state) => state.setScrollTimeRange);
+export const useReportVisibleTimeRange = ({
+  start,
+  end,
+  setTimeRange,
+}: {
+  start?: number;
+  end?: number;
+  setTimeRange: (start?: number, end?: number) => void;
+}) => {
   const pendingRef = useRef<{ start?: number; end?: number }>({ start: undefined, end: undefined });
   const rafRef = useRef<number | null>(null);
   const lastRef = useRef<{ start?: number; end?: number }>({ start: undefined, end: undefined });
@@ -39,9 +53,9 @@ export const useReportVisibleTimeRange = ({ start, end }: { start?: number; end?
       const { start: s, end: e } = pendingRef.current;
       if (lastRef.current.start === s && lastRef.current.end === e) return;
       lastRef.current = { start: s, end: e };
-      setScrollTimeRange(s, e);
+      setTimeRange(s, e);
     });
-  }, [start, end, setScrollTimeRange]);
+  }, [start, end, setTimeRange]);
 
   useEffect(
     () => () => {
@@ -50,8 +64,8 @@ export const useReportVisibleTimeRange = ({ start, end }: { start?: number; end?
         rafRef.current = null;
       }
       lastRef.current = { start: undefined, end: undefined };
-      setScrollTimeRange(undefined, undefined);
+      setTimeRange(undefined, undefined);
     },
-    [setScrollTimeRange]
+    [setTimeRange]
   );
 };

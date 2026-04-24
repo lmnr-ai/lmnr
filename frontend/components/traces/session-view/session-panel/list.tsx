@@ -12,6 +12,10 @@ import {
   InputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +46,7 @@ export default function SessionList() {
     toggleTraceExpanded,
     toggleTranscriptGroup,
     setSelectedSpan,
+    setScrollTimeRange,
   } = useSessionViewStore(
     (s) => ({
       projectId: s.projectId,
@@ -56,6 +61,7 @@ export default function SessionList() {
       toggleTraceExpanded: s.toggleTraceExpanded,
       toggleTranscriptGroup: s.toggleTranscriptGroup,
       setSelectedSpan: s.setSelectedSpan,
+      setScrollTimeRange: s.setScrollTimeRange,
     }),
     shallow
   );
@@ -181,6 +187,53 @@ export default function SessionList() {
   });
 
   const items = virtualizer.getVirtualItems();
+
+  // --- Visible time range for the timeline's scroll indicator ---
+  //
+  // Only rows that actually carry a meaningful time range contribute. Spacers
+  // (trace-collapsed-end / trace-expanded-end), user-input, and loading/error/
+  // empty rows are skipped — otherwise a 1-px sliver of an adjacent spacer
+  // would drag min/max to that neighbor trace's full extent.
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of inViewport) {
+      const row = flatRows[item.index];
+      if (!row) continue;
+      let startStr: string | undefined;
+      let endStr: string | undefined;
+      if (row.type === "span" || row.type === "group-span") {
+        startStr = row.span.startTime;
+        endStr = row.span.endTime;
+      } else if (row.type === "group-header") {
+        startStr = row.group.startTime;
+        endStr = row.group.endTime;
+      } else if (row.type === "trace-header") {
+        startStr = row.trace.startTime;
+        endStr = row.trace.endTime;
+      }
+      if (startStr && endStr) {
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        if (s < min) min = s;
+        if (e > max) max = e;
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, flatRows, scrollOffset, viewportHeight]);
+
+  useReportVisibleTimeRange({
+    start: visibleStartTime,
+    end: visibleEndTime,
+    setTimeRange: setScrollTimeRange,
+  });
 
   // Declarative scroll-to-selected-span. When `selectedSpan` changes (e.g. via
   // the URL resolver in session-view-content), flat rows rebuild once the

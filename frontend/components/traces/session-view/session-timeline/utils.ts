@@ -51,11 +51,19 @@ export interface SessionTimelineSegmentData {
   startTimeMs: number;
   endTimeMs: number;
   durationMs: number;
+  /** Denominator used when positioning elements as % — duration rounded up to
+   *  the next whole second (matches `upperIntervalMs` in the layout routine,
+   *  which mirrors the condensed-timeline convention in trace-view). */
+  widthMs: number;
   totalRows: number;
 }
 
 export interface SessionTimelineGapData {
   durationMs: number;
+  /** Absolute ms time at the end of the previous cluster (= gap start). */
+  startMs: number;
+  /** Absolute ms time at the start of the next cluster (= gap end). */
+  endMs: number;
 }
 
 export type SessionTimelineSection =
@@ -76,8 +84,10 @@ export interface SessionTimelineSections {
 /** Gaps larger than this are collapsed into a divider. */
 export const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-/** Fixed pixel width for gap dividers. */
-export const GAP_WIDTH_PX = 48;
+/** Fixed pixel width for gap dividers INCLUDING the 8px gutters on each side.
+ *  The gap component owns the gutters so they participate in the
+ *  scroll-indicator highlight when the range straddles the gap. */
+export const GAP_WIDTH_PX = 64;
 
 /** Minimum block height (in rows) for both trace bars and empty/loading
  *  span containers. Matches the 2-row allocation used by the trace bar's
@@ -401,13 +411,17 @@ export function computeSessionTimelineSegments(
         startTimeMs: cluster.startMs,
         endTimeMs: cluster.endMs,
         durationMs,
+        widthMs: Math.max(Math.ceil(durationMs / 1000) * 1000, 1),
         totalRows,
       },
     });
 
     if (i < clusters.length - 1) {
       const gapMs = clusters[i + 1].startMs - cluster.endMs;
-      sections.push({ type: "gap", gap: { durationMs: gapMs } });
+      sections.push({
+        type: "gap",
+        gap: { durationMs: gapMs, startMs: cluster.endMs, endMs: clusters[i + 1].startMs },
+      });
     }
   }
 

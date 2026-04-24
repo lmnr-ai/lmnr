@@ -21,15 +21,23 @@ interface TreeProps {
 const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
-    useTraceViewBaseStore((state) => ({
-      getTreeSpans: state.getTreeSpans,
-      spans: state.spans,
-      trace: state.trace,
-      isSpansLoading: state.isSpansLoading,
-      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-      selectedSpan: state.selectedSpan,
-    }));
+  const {
+    getTreeSpans,
+    spans,
+    trace,
+    isSpansLoading,
+    condensedTimelineVisibleSpanIds,
+    selectedSpan,
+    setScrollTimeRange,
+  } = useTraceViewBaseStore((state) => ({
+    getTreeSpans: state.getTreeSpans,
+    spans: state.spans,
+    trace: state.trace,
+    isSpansLoading: state.isSpansLoading,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    selectedSpan: state.selectedSpan,
+    setScrollTimeRange: state.setScrollTimeRange,
+  }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
@@ -87,7 +95,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     return { visibleStartTime: min, visibleEndTime: max };
   }, [items, treeSpans, scrollOffset, viewportHeight]);
 
-  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime });
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime, setTimeRange: setScrollTimeRange });
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
