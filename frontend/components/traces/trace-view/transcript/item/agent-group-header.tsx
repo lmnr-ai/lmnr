@@ -81,13 +81,7 @@ export function AgentGroupHeader({
           >
             <Bot size={14} />
           </div>
-          <span
-            className={cn("font-medium text-[13px] whitespace-nowrap truncate", {
-              shimmer: isLoadingPreview,
-            })}
-          >
-            {displayName}
-          </span>
+          <span className="font-medium text-[13px] whitespace-nowrap truncate">{displayName}</span>
           <div className="flex items-center shrink-0 ml-auto gap-2">
             <SpanStatsShield
               variant="inline"
