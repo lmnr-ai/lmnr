@@ -264,6 +264,15 @@ export default function TraceViewContent({
     onClose();
   }, [onClose, pathName, router, searchParams]);
 
+  const handleSpanPanelClose = useCallback(() => {
+    setSelectedSpan(undefined);
+    if (searchParams.get("spanId")) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      router.replace(`${pathName}?${params.toString()}`);
+    }
+  }, [setSelectedSpan, searchParams, router, pathName]);
+
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -341,7 +350,7 @@ export default function TraceViewContent({
           traceId={selectedSpan.traceId}
           spanId={selectedSpan.spanId}
           key={selectedSpan.spanId}
-          onClose={() => setSelectedSpan(undefined)}
+          onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       ) : (
@@ -351,7 +360,7 @@ export default function TraceViewContent({
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
           initialTab={snippetTab}
-          onClose={() => setSelectedSpan(undefined)}
+          onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       )}

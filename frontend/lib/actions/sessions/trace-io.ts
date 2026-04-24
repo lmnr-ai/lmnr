@@ -278,6 +278,7 @@ async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<
   }
 
   const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
+
   return {
     traceId,
     output: null,

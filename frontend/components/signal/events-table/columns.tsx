@@ -13,6 +13,7 @@ import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type EventRow } from "@/lib/events/types.ts";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
@@ -110,33 +111,24 @@ function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; 
 }
 
 function renderPayloadText(text: string): React.ReactNode {
-  // Matches markdown links pointing at lmnr.ai / laminar.sh trace views, e.g.
-  //   [Label](https://lmnr.ai/project/<pid>/traces/<traceId>?spanId=<uuid>&chat=true)
-  //   [Label](https://www.laminar.sh/project/<pid>/traces/<traceId>?spanId=<uuid>)
-  const regex =
-    /\[([^\]]+)\]\(https?:\/\/(?:www\.)?(?:lmnr\.ai|laminar\.sh)\/project\/[0-9a-f-]+\/traces\/([0-9a-f-]+)(?:\?[^)]*?spanId=([0-9a-f-]+))?[^)]*\)/gi;
+  const matches = parseSpanLinks(text);
+  if (matches.length === 0) {
+    return text;
+  }
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
 
-  while ((match = regex.exec(text)) !== null) {
-    const [fullMatch, label, traceId, spanId] = match;
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+  matches.forEach((m, i) => {
+    if (m.index > lastIndex) {
+      parts.push(text.slice(lastIndex, m.index));
     }
-
-    parts.push(<SpanLink key={`span-link-${key++}`} label={label} traceId={traceId} spanId={spanId} />);
-
-    lastIndex = match.index + fullMatch.length;
-  }
+    parts.push(<SpanLink key={`span-link-${i}`} label={m.label} traceId={m.traceId} spanId={m.spanId} />);
+    lastIndex = m.index + m.length;
+  });
 
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex));
-  }
-
-  if (parts.length === 0) {
-    return text;
   }
 
   return <>{parts}</>;

@@ -420,6 +420,7 @@ export const buildTranscriptListEntries = (
   // Pass 1: collect all spans per boundary, preserving time order
   const groupSpansMap = new Map<string, TraceViewSpan[]>();
   for (const span of listSpans) {
+    if (groupBoundarySet.has(span.spanId)) continue;
     const boundary = findGroupBoundary(span.spanId);
     if (!boundary) continue;
     if (!groupSpansMap.has(boundary)) {
@@ -485,28 +486,29 @@ export const buildTranscriptListEntries = (
     });
   }
 
-  // Pass 3: emit flat entries — standalone spans, group headers + child spans
-  const emittedGroups = new Set<string>();
-  const entries: TranscriptListEntry[] = [];
-
+  // Pass 3: emit flat entries — standalone spans, group headers + child spans.
+  const boundarySpanMap = new Map<string, TraceViewSpan>();
   for (const span of listSpans) {
-    const boundary = findGroupBoundary(span.spanId);
-
-    if (!boundary) {
-      entries.push({ type: "span", span: toLightweight(span) });
-      continue;
+    if (groupBoundarySet.has(span.spanId)) {
+      boundarySpanMap.set(span.spanId, span);
     }
+  }
 
-    if (emittedGroups.has(boundary)) continue;
-    emittedGroups.add(boundary);
+  const emitBoundaryBlock = (boundary: string, entries: TranscriptListEntry[]) => {
+    const boundarySpan = boundarySpanMap.get(boundary);
+    if (boundarySpan) {
+      entries.push({ type: "span", span: toLightweight(boundarySpan) });
+    }
 
     const meta = groupMeta.get(boundary);
     if (!meta) {
-      const groupSpans = groupSpansMap.get(boundary)!;
-      for (const s of groupSpans) {
-        entries.push({ type: "span", span: toLightweight(s) });
+      const groupSpans = groupSpansMap.get(boundary);
+      if (groupSpans) {
+        for (const s of groupSpans) {
+          entries.push({ type: "span", span: toLightweight(s) });
+        }
       }
-      continue;
+      return;
     }
 
     const { childSpans, ...groupHeader } = meta;
@@ -528,6 +530,29 @@ export const buildTranscriptListEntries = (
         isLast: i === childSpans.length - 1,
       });
     }
+  };
+
+  const emittedGroups = new Set<string>();
+  const entries: TranscriptListEntry[] = [];
+
+  for (const span of listSpans) {
+    if (groupBoundarySet.has(span.spanId)) {
+      if (emittedGroups.has(span.spanId)) continue;
+      emittedGroups.add(span.spanId);
+      emitBoundaryBlock(span.spanId, entries);
+      continue;
+    }
+
+    const boundary = findGroupBoundary(span.spanId);
+
+    if (!boundary) {
+      entries.push({ type: "span", span: toLightweight(span) });
+      continue;
+    }
+
+    if (emittedGroups.has(boundary)) continue;
+    emittedGroups.add(boundary);
+    emitBoundaryBlock(boundary, entries);
   }
 
   return entries;
