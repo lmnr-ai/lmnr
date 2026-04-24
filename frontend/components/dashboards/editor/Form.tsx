@@ -3,35 +3,26 @@
 import { debounce } from "lodash";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { ChartType } from "@/components/chart-builder/types";
+import {
+  type ChartConfig,
+  ChartType,
+  resolveDisplayMode,
+  type TableColumnConfig,
+} from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
-import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
+import { useDashboardEditorStoreContext } from "@/components/dashboards/editor/dashboard-editor-store";
+import { QueryBuilderFields } from "@/components/dashboards/editor/fields";
+import { getTimeColumn } from "@/components/dashboards/editor/table-schemas";
+import { getDefaultTimeRange, injectIdMetrics, needsTimeSeries } from "@/components/dashboards/editor/utils";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts";
-
-const needsTimeSeries = (chartType?: ChartType): boolean =>
-  chartType === ChartType.LineChart || chartType === ChartType.BarChart;
-
-const getDefaultTimeRange = (table: string): TimeRange => {
-  const timeColumn = getTimeColumn(table);
-  return {
-    column: timeColumn,
-    from: "{start_time:DateTime64}",
-    to: "{end_time:DateTime64}",
-    fillGaps: true,
-    intervalValue: "1",
-    intervalUnit: "{interval_unit:String}",
-  };
-};
+import { type QueryStructure } from "@/lib/actions/sql/types.ts";
 
 export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
@@ -44,11 +35,15 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     executeQuery,
     isLoading,
     error,
+    loadError,
     data,
     setLoading,
     setError,
     parameters,
     setParameterValue,
+    tableHasMore,
+    tableIsFetching,
+    fetchNextTablePage,
   } = useDashboardEditorStoreContext((state) => ({
     chart: state.chart,
     setQuery: state.setQuery,
@@ -56,25 +51,65 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     executeQuery: state.executeQuery,
     isLoading: state.isLoading,
     error: state.error,
+    loadError: state.loadError,
     data: state.data,
     setLoading: state.setLoading,
     setError: state.setError,
     parameters: state.parameters,
     setParameterValue: state.setParameterValue,
+    tableHasMore: state.tableHasMore,
+    tableIsFetching: state.tableIsFetching,
+    fetchNextTablePage: state.fetchNextTablePage,
   }));
 
   const formValues = useWatch({ control });
 
+  // Ref to the latest chart so generateAndExecuteQuery reads fresh tableColumnConfig
+  // without re-creating the callback on every column reorder/resize (which would
+  // re-trigger the debounced query execution).
+  const chartRef = useRef(chart);
+  useEffect(() => {
+    chartRef.current = chart;
+  }, [chart]);
+
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
+  const handleColumnConfigChange = useCallback(
+    (columnConfig: TableColumnConfig) => {
+      const currentConfig = chart.settings.config;
+      if (currentConfig.type === ChartType.Table) {
+        setChartConfig({
+          ...currentConfig,
+          tableColumnConfig: columnConfig,
+        });
+      }
+    },
+    [chart.settings.config, setChartConfig]
+  );
+
+  const handleFetchNextPage = useCallback(() => {
+    if (projectId) {
+      fetchNextTablePage(projectId as string);
+    }
+  }, [projectId, fetchNextTablePage]);
+
   const chartType = chart.settings.config.type;
-  const totalValue = chart.settings.config.total ?? false;
+  const displayMode = resolveDisplayMode(chart.settings.config);
 
   const chartConfig = useMemo(() => {
     const { metrics, dimensions } = formValues;
 
     if (!chartType || !metrics?.[0]) {
       return null;
+    }
+
+    if (chartType === ChartType.Table) {
+      const tableConfig = chart.settings.config.type === ChartType.Table ? chart.settings.config : null;
+      return {
+        type: chartType,
+        displayMode: "none" as const,
+        tableColumnConfig: tableConfig?.tableColumnConfig,
+      };
     }
 
     const isTimeSeries = needsTimeSeries(chartType);
@@ -88,17 +123,43 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       x: isHorizontalBar ? metricValue : dimensionValue,
       y: isHorizontalBar ? dimensionValue : metricValue,
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
-      total: false,
+      displayMode: "none" as const,
     };
+    // NOTE: deliberately omitting `columns` — it's derived from `data` which is
+    // set by executeQuery, so including it creates an infinite re-fetch cycle.
+    // The `columns[0]?.name` fallback below uses the value from the previous
+    // render's closure, which is acceptable for this UI.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType, formValues]);
 
-  const chartConfigForRendering = useMemo(() => {
+  const chartConfigForRendering = useMemo((): ChartConfig | null => {
     if (!chartConfig) return null;
-    return {
-      ...chartConfig,
-      total: totalValue,
-    };
-  }, [chartConfig, totalValue]);
+    if (chartConfig.type === ChartType.Table && chart.settings.config.type === ChartType.Table) {
+      return {
+        ...chartConfig,
+        displayMode,
+        tableColumnConfig: chart.settings.config.tableColumnConfig,
+      };
+    }
+    return { ...chartConfig, displayMode };
+  }, [chartConfig, displayMode, chart.settings.config]);
+
+  // Hidden columns are derived from the form's metrics plus any runtime-injected
+  // click-target IDs — each metric carries its own `hidden` flag. No separate
+  // hiddenColumns array to keep in sync.
+  const hiddenColumns = useMemo(() => {
+    const formMetrics = (formValues.metrics ?? []).filter((m): m is QueryStructure["metrics"][number] => !!m?.fn);
+    const resolved = injectIdMetrics(
+      formMetrics,
+      formValues.dimensions as string[] | undefined,
+      formValues.table,
+      chartType
+    );
+    return resolved
+      .filter((m) => m.hidden)
+      .map((m) => m.alias ?? m.column ?? "")
+      .filter((c) => c.length > 0);
+  }, [formValues.metrics, formValues.dimensions, formValues.table, chartType]);
 
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
@@ -112,9 +173,15 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
+      const isTable = chartType === ChartType.Table;
       const allFilters = [...(filters || [])];
 
-      if (isHorizontalBar) {
+      // Non-time-series charts (Table, HorizontalBar) don't use queryStructure.timeRange,
+      // so they'd otherwise pull every row ever. Append the dashboard's selected
+      // start_time/end_time as a WHERE filter on the table's time column so the
+      // result is scoped to the current date range. Line/Bar charts get this for
+      // free via timeRange → the backend generates the WHERE clause itself.
+      if (isHorizontalBar || isTable) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
           { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
@@ -122,9 +189,11 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         );
       }
 
+      const injectedMetrics = injectIdMetrics(metrics, dimensions, table, chartType);
+
       const queryStructure: QueryStructure = {
         table,
-        metrics,
+        metrics: injectedMetrics,
         dimensions: dimensions || [],
         filters: allFilters,
         orderBy: [],
@@ -151,13 +220,15 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       // Update store with new query and config
       setQuery(sqlData.sql);
       if (chartConfig) {
-        setChartConfig({
-          type: chartConfig.type!,
-          x: chartConfig.x!,
-          y: chartConfig.y!,
-          breakdown: chartConfig.breakdown,
-          total: chart.settings.config.total ?? false,
-        });
+        const liveConfig = chartRef.current.settings.config;
+        const updatedConfig = {
+          ...chartConfig,
+          displayMode,
+          ...(isTable && liveConfig.type === ChartType.Table
+            ? { tableColumnConfig: liveConfig.tableColumnConfig }
+            : {}),
+        };
+        setChartConfig(updatedConfig as ChartConfig);
       }
 
       await executeQuery(projectId as string);
@@ -171,6 +242,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     formState.isValid,
     projectId,
     chartConfig,
+    displayMode,
     getValues,
     setQuery,
     setChartConfig,
@@ -184,7 +256,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   // parameters (time range, interval) change. Parameters live in the
   // zustand store and are read at execution time via getFormattedParameters().
   useEffect(() => {
-    if (isLoadingChart) {
+    if (isLoadingChart || loadError) {
       return;
     }
 
@@ -199,7 +271,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, parameters]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, loadError, parameters]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
@@ -255,9 +327,26 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </Select>
           </div>
         </div>
-        <div className="flex flex-col justify-center items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
-          {isLoading ? (
-            <div className="flex flex-col items-center space-y-4 text-muted-foreground">
+        <div className="flex flex-col justify-start items-center w-full flex-1 min-h-0 max-h-[600px] p-4 self-center border rounded border-dashed bg-secondary overflow-hidden">
+          {chart.name && (
+            <div className="w-full mb-2">
+              <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
+            </div>
+          )}
+          {loadError ? (
+            <div className="flex flex-1 flex-col justify-center items-center space-y-3 text-destructive max-w-md">
+              <AlertCircle className="w-10 h-10" />
+              <div className="text-center">
+                <p className="text-sm font-medium">Couldn't load chart</p>
+                <p className="text-xs mt-2 text-muted-foreground">
+                  This chart's saved query couldn't be parsed back into the editor. Saving is disabled to prevent
+                  overwriting it.
+                </p>
+                <p className="text-xs mt-2 text-muted-foreground/70 break-all">{loadError}</p>
+              </div>
+            </div>
+          ) : isLoading ? (
+            <div className="flex flex-1 flex-col items-center justify-center space-y-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin" />
               <div className="text-center">
                 <p className="text-sm font-medium">Generating chart...</p>
@@ -274,7 +363,16 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </div>
           ) : chartConfigForRendering ? (
             <div className="w-full h-full">
-              <ChartRendererCore config={chartConfigForRendering} data={data} columns={columns} />
+              <ChartRendererCore
+                config={chartConfigForRendering}
+                data={data}
+                columns={columns}
+                hiddenColumns={hiddenColumns}
+                onColumnConfigChange={handleColumnConfigChange}
+                hasMore={tableHasMore}
+                isFetching={tableIsFetching}
+                fetchNextPage={handleFetchNextPage}
+              />
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-3 text-muted-foreground">

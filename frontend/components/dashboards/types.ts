@@ -1,4 +1,5 @@
 import { type ChartConfig } from "@/components/chart-builder/types";
+import { type QueryStructure } from "@/lib/actions/sql/types";
 
 export interface DashboardChart {
   id: string;
@@ -11,6 +12,7 @@ export interface DashboardChart {
       w: number;
       h: number;
     };
+    queryStructure?: QueryStructure | null;
   };
   query: string;
   createdAt: string;

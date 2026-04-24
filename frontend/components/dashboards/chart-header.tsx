@@ -1,9 +1,9 @@
-import { Edit, EllipsisVertical, GripVertical, Pen, Trash2 } from "lucide-react";
+import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -138,10 +138,10 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0 -mr-1"
+              className="h-6 w-6 text-muted-foreground p-0 ml-auto focus-visible:ring-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <EllipsisVertical className="h-3 w-3" />
+              <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-32">
@@ -155,7 +155,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
               Rename
             </DropdownMenuItem>
-            <Link passHref href={`/project/${projectId}/dashboard/${id}`}>
+            <Link passHref href={`/project/${projectId}/dashboards/${id}`}>
               <DropdownMenuItem className="cursor-pointer">
                 <Edit className="h-3.5 w-3.5 mr-1 text-inherit" />
                 Edit

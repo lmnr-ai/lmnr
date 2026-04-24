@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Controller, useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
-import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
+import { getAvailableColumns } from "@/components/dashboards/editor/table-schemas";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

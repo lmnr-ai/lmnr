@@ -6,18 +6,23 @@ import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ChartType } from "@/components/chart-builder/types.ts";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
+import { TABLE_PAGE_SIZE } from "@/components/dashboards/editor/constants";
+import { type DashboardChart } from "@/components/dashboards/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
   isLoading: boolean;
   error: string | null;
+  loadError: string | null;
   data: Record<string, string | number | boolean>[];
   columns: ColumnDef<any>[];
   parameters: SQLParameter[];
   tab: TabType;
+  tableHasMore: boolean;
+  tableIsFetching: boolean;
+  tablePage: number;
 };
 
 type DashboardEditorActions = {
@@ -26,14 +31,16 @@ type DashboardEditorActions = {
   setQuery: (query: string) => void;
   setName: (name: string) => void;
   setChartConfig: (config: DashboardChart["settings"]["config"]) => void;
-  setTotal: (total: boolean) => void;
+  setDisplayMode: (displayMode: DisplayMode) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setLoadError: (loadError: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
   setColumns: (columns: ColumnDef<any>[]) => void;
   setParameterValue: (name: string, value: SQLParameter["value"]) => void;
   getFormattedParameters: () => Record<string, string | number>;
   executeQuery: (projectId: string) => Promise<void>;
+  fetchNextTablePage: (projectId: string) => Promise<void>;
 };
 
 enum TabType {
@@ -66,7 +73,7 @@ const defaultChart: DashboardEditorState["chart"] = {
     config: {
       x: undefined,
       y: undefined,
-      total: false,
+      displayMode: "none",
       breakdown: undefined,
       type: ChartType.LineChart,
     },
@@ -80,14 +87,23 @@ const defaultChart: DashboardEditorState["chart"] = {
 };
 
 const createDashboardEditorStore = (props: DashboardEditorProps) => {
+  // Cancels an in-flight pagination fetch when the query changes underneath it
+  // (e.g. user scrolls mid-fetch, then changes filter → executeQuery resets
+  // page 0). Without this the paginated rows would splice onto fresh data.
+  let paginationAbortController: AbortController | null = null;
+
   const editorState: DashboardEditorState = {
     tab: TabType.Chart,
     chart: props.chart || defaultChart,
     columns: [],
     isLoading: false,
     error: null,
+    loadError: null,
     data: [],
     parameters: initialParameters,
+    tableHasMore: false,
+    tableIsFetching: false,
+    tablePage: 0,
   };
 
   return createStore<DashboardEditorStore>()((set, get) => ({
@@ -121,7 +137,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         },
       })),
 
-    setTotal: (total) =>
+    setDisplayMode: (displayMode) =>
       set((state) => ({
         chart: {
           ...state.chart,
@@ -129,7 +145,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
             ...state.chart.settings,
             config: {
               ...state.chart.settings.config,
-              total,
+              displayMode,
+              total: undefined,
             },
           },
         },
@@ -141,6 +158,10 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
 
     setError: (error) => {
       set({ error });
+    },
+
+    setLoadError: (loadError) => {
+      set({ loadError });
     },
 
     setData: (data) => {
@@ -186,15 +207,26 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         return;
       }
 
+      // Cancel any in-flight pagination — it would splice onto the stale data
+      // we're about to replace.
+      if (paginationAbortController) {
+        paginationAbortController.abort();
+        paginationAbortController = null;
+        set({ tableIsFetching: false });
+      }
+
       setLoading(true);
       setError(null);
 
+      const isTable = chart.settings.config.type === ChartType.Table;
+
       try {
         const parameters = getFormattedParameters();
+        const query = isTable ? `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET 0` : chart.query;
         const response = await fetch(`/api/projects/${projectId}/sql`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: chart.query, parameters }),
+          body: JSON.stringify({ query, parameters }),
         });
 
         const data = await response.json();
@@ -203,7 +235,17 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           throw new Error(data?.error || `Query failed with status ${response.status}`);
         }
 
-        setData(Array.isArray(data) ? data : []);
+        const rows: Record<string, any>[] = Array.isArray(data) ? data : [];
+
+        if (isTable) {
+          const hasMore = rows.length > TABLE_PAGE_SIZE;
+          const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
+          setData(pageRows);
+          set({ tableHasMore: hasMore, tablePage: 0, tableIsFetching: false });
+        } else {
+          setData(rows);
+        }
+
         if (!isEmpty(data)) {
           setColumns(
             Object.keys(data?.[0]).map((column) => ({
@@ -232,6 +274,56 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
       } finally {
         set({ tab: TabType.Chart });
         setLoading(false);
+      }
+    },
+
+    fetchNextTablePage: async (projectId: string) => {
+      const { chart, tableIsFetching, tableHasMore, tablePage, getFormattedParameters } = get();
+
+      if (tableIsFetching || !tableHasMore || !chart.query?.trim()) return;
+
+      // Abort any prior pagination (e.g. rapid scroll fires multiple times).
+      paginationAbortController?.abort();
+      const controller = new AbortController();
+      paginationAbortController = controller;
+
+      set({ tableIsFetching: true });
+      const nextPage = tablePage + 1;
+
+      try {
+        const parameters = getFormattedParameters();
+        const query = `${chart.query} LIMIT ${TABLE_PAGE_SIZE + 1} OFFSET ${nextPage * TABLE_PAGE_SIZE}`;
+        const response = await fetch(`/api/projects/${projectId}/sql`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, parameters }),
+          signal: controller.signal,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result?.error || `Query failed with status ${response.status}`);
+        }
+
+        const rows: Record<string, any>[] = Array.isArray(result) ? result : [];
+        const hasMore = rows.length > TABLE_PAGE_SIZE;
+        const pageRows = hasMore ? rows.slice(0, TABLE_PAGE_SIZE) : rows;
+
+        set((state) => ({
+          data: [...state.data, ...pageRows],
+          tablePage: nextPage,
+          tableHasMore: hasMore,
+          tableIsFetching: false,
+        }));
+      } catch {
+        // Aborted — whoever replaced us (executeQuery or newer scroll) owns state.
+        if (controller.signal.aborted) return;
+        set({ tableIsFetching: false });
+      } finally {
+        if (paginationAbortController === controller) {
+          paginationAbortController = null;
+        }
       }
     },
   }));

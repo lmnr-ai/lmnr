@@ -18,9 +18,22 @@ const LimitField = () => {
         render={({ field }) => (
           <Input
             type="number"
+            min={1}
             placeholder="Enter numeric limit"
             value={field.value || ""}
-            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (!raw) {
+                field.onChange(undefined);
+                return;
+              }
+              const parsed = parseInt(raw);
+              if (Number.isNaN(parsed)) {
+                field.onChange(undefined);
+                return;
+              }
+              field.onChange(parsed);
+            }}
             className="text-xs! placeholder:text-xs hide-arrow"
           />
         )}

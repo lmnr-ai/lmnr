@@ -7,8 +7,8 @@ import {
   useWatch,
 } from "react-hook-form";
 
-import { FILTER_OPERATOR_OPTIONS } from "@/components/dashboard/editor/constants";
-import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
+import { FILTER_OPERATOR_OPTIONS } from "@/components/dashboards/editor/constants";
+import { getAvailableColumns } from "@/components/dashboards/editor/table-schemas";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
