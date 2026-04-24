@@ -74,6 +74,41 @@ export const spansSelectColumns = [
   "duration",
 ];
 
+// Subset of attribute keys actually consumed by the trace-view transcript/tree.
+// Used to avoid pulling the full `attributes` JSON blob (which can be huge for
+// LLM spans) when rendering the spans list. The full attributes are still
+// fetched by the single-span endpoint (see getSpan) used by span-view.
+export const TRACE_VIEW_ATTRIBUTE_KEYS = [
+  "lmnr.span.path",
+  "lmnr.span.ids_path",
+  "lmnr.span.prompt_hash",
+  "lmnr.internal.has_browser_session",
+  "lmnr.association.properties.tags",
+  "lmnr.association.properties.langgraph.nodes",
+  "lmnr.association.properties.langgraph.edges",
+  "gen_ai.usage.cache_read_input_tokens",
+  "gen_ai.usage.reasoning_tokens",
+] as const;
+
+/**
+ * Builds a ClickHouse expression that extracts only the keys listed in
+ * TRACE_VIEW_ATTRIBUTE_KEYS from the `attributes` JSON column and assembles
+ * them into a compact JSON object string. Missing keys are omitted so the
+ * downstream `tryParseJson` + `get` access pattern keeps working unchanged.
+ *
+ * Uses the full JSONExtractRaw/JSONHas (rather than simpleJSON* variants) so
+ * array/nested values — e.g. `lmnr.span.ids_path` and `lmnr.span.path` — round
+ * trip correctly regardless of embedded commas or quoted characters.
+ */
+export const buildTraceViewAttributesExpression = (columnAlias = "attributes"): string => {
+  const escapeKey = (k: string) => k.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const pairs = TRACE_VIEW_ATTRIBUTE_KEYS.map((key) => {
+    const escaped = escapeKey(key);
+    return `if(JSONHas(attributes, '${key}'), concat('"${escaped}":', JSONExtractRaw(attributes, '${key}')), '')`;
+  });
+  return `concat('{', arrayStringConcat(arrayFilter(x -> x != '', [${pairs.join(", ")}]), ','), '}') as ${columnAlias}`;
+};
+
 export interface BuildSpansQueryOptions {
   columns?: string[];
   projectId: string;
