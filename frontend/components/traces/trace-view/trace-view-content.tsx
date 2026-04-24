@@ -31,6 +31,7 @@ export interface TraceViewContentProps {
   propsTrace?: TraceViewTrace;
   onClose: () => void;
   isAlwaysSelectSpan?: boolean;
+  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -41,6 +42,7 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
+  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -282,6 +284,13 @@ export default function TraceViewContent({
       }
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
+
+  // The store is created once with `initialChatOpen`, but `chat=true` may not be
+  // in the URL yet at that moment (router.push is a transition). Sync explicitly
+  // so a late-arriving `chat=true` still opens the panel.
+  useEffect(() => {
+    if (showChatInitial) setTracesAgentOpen(true);
+  }, [showChatInitial, setTracesAgentOpen]);
 
   useEffect(() => {
     handleFetchTrace();

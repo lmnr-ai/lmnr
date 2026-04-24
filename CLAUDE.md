@@ -172,6 +172,7 @@ The frontend uses Husky with lint-staged. Before commits:
 ## Trace View Store
 
 - `spanPanelOpen` in `trace-view/store/base.ts` must default to `false` and must NOT be persisted by `partialize`/`merge` in `store/index.tsx`. The dynamic (drawer) layout reads `showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spans.length > 0)`. If `spanPanelOpen` persists as `true`, the panel flashes open on mount and then snaps shut when `fetchSpans` calls `setSelectedSpan(undefined)` (which sets `spanPanelOpen: !!span`). The full-width trace page relies on `isAlwaysSelectSpan` to keep the panel pinned open.
+- `showChatInitial` (derived from `chat=true` in the URL) must be passed through to `TraceViewContent` AND synced to `tracesAgentOpen` via `useEffect`. The store's `initialChatOpen` option is only read once at store creation via `useState`, but row click handlers set `traceId` synchronously while `router.push` defers the URL param update — so the store is often created with the stale (pre-push) URL. The effect in `TraceViewContent` compensates by opening the chat panel once `showChatInitial` flips to `true`.
 
 ## Signal Event Payloads
 
