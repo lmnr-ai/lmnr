@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronsRight, Copy, GanttChart } from "lucide-react";
+import { AlertTriangle, GanttChart } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -8,36 +8,22 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import { computeTraceStats, StatsShields } from "@/components/traces/stats-shields";
 import { filterColumns } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
-import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import SessionTimeline from "../session-timeline";
 import { useSessionViewStore } from "../store";
 import SessionList from "./list";
 
-interface SessionPanelProps {
-  onClose: () => void;
-}
-
 /**
- * Shell around the session view — header (close, session-id dropdown),
+ * Shell around the session view — header (session-id dropdown),
  * advanced-search input, optional session timeline, stats shields. The
  * virtualized row list lives in `./list.tsx`.
  */
-export default function SessionPanel({ onClose }: SessionPanelProps) {
-  const { toast } = useToast();
-
+export default function SessionPanel() {
   const {
-    session,
     traces,
     isTracesLoading,
     tracesError,
@@ -47,7 +33,6 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     setSessionTimelineEnabled,
   } = useSessionViewStore(
     (s) => ({
-      session: s.session,
       traces: s.traces,
       isTracesLoading: s.isTracesLoading,
       tracesError: s.tracesError,
@@ -70,42 +55,13 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
     [searchSessionSpans, clearSearch]
   );
 
-  const handleCopySessionId = async () => {
-    if (!session?.sessionId) return;
-    try {
-      await navigator.clipboard.writeText(session.sessionId);
-      toast({ title: "Copied session ID", duration: 1000 });
-    } catch {
-      toast({ variant: "destructive", title: "Failed to copy session ID" });
-    }
-  };
-
   const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
       {/* Header */}
-      <div className="flex flex-col gap-1.5 px-2 py-1.5 shrink-0">
+      <div className="flex flex-col gap-1.5 px-2 py-2 shrink-0">
         <div className="flex h-7 items-center justify-start gap-2">
-          <Button variant="ghost" className="h-7 px-0.5" onClick={onClose} aria-label="Close session view">
-            <ChevronsRight className="w-5 h-5" />
-          </Button>
-          <span className="flex items-center h-7">
-            <span className="text-base font-medium flex-shrink-0">Session</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-6 px-1 hover:bg-secondary" disabled={!session?.sessionId}>
-                  <ChevronDown className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={handleCopySessionId}>
-                  <Copy size={14} />
-                  Copy session ID
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </span>
           {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
           {traces.length > 0 && (
             <Button
@@ -143,7 +99,7 @@ export default function SessionPanel({ onClose }: SessionPanelProps) {
           <p className="text-sm text-muted-foreground">{tracesError}</p>
         </div>
       ) : isTracesLoading && traces.length === 0 ? (
-        <div className="flex flex-col gap-2 p-3">
+        <div className="flex flex-col gap-2 px-4 py-3">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />

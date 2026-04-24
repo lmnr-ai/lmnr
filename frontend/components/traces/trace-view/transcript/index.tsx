@@ -188,6 +188,29 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const items = virtualizer.getVirtualItems();
 
+  const selectedRowIndex = useMemo(() => {
+    const selectedId = selectedSpan?.spanId;
+    if (!selectedId) return -1;
+    return flatRows.findIndex((row) => {
+      switch (row.type) {
+        case "span":
+        case "group-span":
+          return row.span.spanId === selectedId;
+        case "group":
+          return (
+            row.firstSpan.spanId === selectedId || row.firstLlmSpanId === selectedId || row.lastLlmSpanId === selectedId
+          );
+        default:
+          return false;
+      }
+    });
+  }, [flatRows, selectedSpan?.spanId]);
+
+  useEffect(() => {
+    if (selectedRowIndex < 0 || isSpansLoading) return;
+    virtualizer.scrollToIndex(selectedRowIndex, { align: "auto" });
+  }, [selectedRowIndex, virtualizer, isSpansLoading]);
+
   const allVisibleSpanIds = useMemo(
     () =>
       items.flatMap((item) => {

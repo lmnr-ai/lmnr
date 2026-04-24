@@ -132,11 +132,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenSession = useCallback(() => {
     if (!hasSession) return;
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.set("sessionId", sessionId);
-    searchParams.delete("traceId");
-    searchParams.delete("spanId");
-    window.open(`/project/${projectId}/traces?${searchParams.toString()}`, "_blank");
+    const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+    window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
   }, [hasSession, sessionId, projectId]);
 
   const userId = trace?.userId;
