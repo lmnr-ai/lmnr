@@ -47,3 +47,20 @@ export const findAdapter = (hint: ProviderHint | undefined): ProviderAdapter | n
   if (!hint || hint === "unknown") return null;
   return PROVIDERS.find((p) => p.id === hint) ?? null;
 };
+
+/**
+ * Find system-message text within an LLM input payload. Iterates each
+ * adapter's `parseSystemAndUser` and returns the first non-null,
+ * non-empty `systemText`.
+ *
+ * Callers pass the already-JSON-parsed payload (array or single item).
+ * Adding a new provider = implement `parseSystemAndUser` — this function
+ * picks it up automatically.
+ */
+export const extractSystemText = (data: unknown): string | null => {
+  for (const adapter of PROVIDERS) {
+    const parsed = adapter.parseSystemAndUser?.(data);
+    if (parsed?.systemText) return parsed.systemText;
+  }
+  return null;
+};

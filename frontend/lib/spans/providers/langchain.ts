@@ -1,6 +1,7 @@
 import { isString } from "lodash";
 import { type z } from "zod/v4";
 
+import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-input";
 import { type ExtractedTool } from "@/lib/actions/spans/previews/tool-detection";
 import {
   LangChainAssistantMessageSchema,
@@ -12,6 +13,7 @@ import { type ProviderAdapter } from "./types";
 import { isBlank, joinNonEmpty } from "./utils";
 
 type LangChainAssistant = z.infer<typeof LangChainAssistantMessageSchema>;
+type LangChainMessage = z.infer<typeof LangChainMessagesSchema>[number];
 
 // ---------------------------------------------------------------------------
 // LangChain has no dedicated output schema. We treat any payload that
@@ -23,6 +25,40 @@ const detectLangChain = (data: unknown): boolean => {
   if (LangChainAssistantMessageSchema.safeParse(data).success) return true;
   if (Array.isArray(data) && LangChainMessagesSchema.safeParse(data).success) return true;
   return false;
+};
+
+const collectLangChainText = (content: unknown): string[] => {
+  if (typeof content === "string") return content.length > 0 ? [content] : [];
+  if (!Array.isArray(content)) return [];
+  const texts: string[] = [];
+  for (const part of content) {
+    const text = LangChainTextPartSchema.safeParse(part).data?.text;
+    if (text) texts.push(text);
+  }
+  return texts;
+};
+
+const parseSystemAndUserLangChain = (data: unknown): ParsedInput | null => {
+  const arr = Array.isArray(data) ? data : [data];
+  const multi = LangChainMessagesSchema.safeParse(arr);
+  if (!multi.success) return null;
+
+  let systemText: string | null = null;
+  let userParts: TextPart[] = [];
+
+  for (const msg of multi.data as LangChainMessage[]) {
+    if (msg.role === "system" && systemText === null) {
+      const texts = collectLangChainText(msg.content);
+      if (texts.length > 0) systemText = texts.join("\n");
+      continue;
+    }
+    if ((msg.role === "user" || msg.role === "human") && userParts.length === 0) {
+      userParts = collectLangChainText(msg.content).map((text) => ({ text }));
+    }
+  }
+
+  if (systemText === null && userParts.length === 0) return null;
+  return { systemText, userParts };
 };
 
 const parseLangChainAssistants = (data: unknown): LangChainAssistant[] | null => {
@@ -76,9 +112,7 @@ const extractToolsIfToolOnlyLangChain = (data: unknown): ExtractedTool[] | null 
 export const langchainAdapter: ProviderAdapter = {
   id: "langchain",
   detect: detectLangChain,
-  // Intentionally omits parseSystemAndUser: LangChain request payloads
-  // were never handled by parse-input, and the session grouping pipeline
-  // doesn't rely on it. Can be added later if needed.
+  parseSystemAndUser: parseSystemAndUserLangChain,
   renderOutputText: renderOutputTextLangChain,
   extractToolsIfToolOnly: extractToolsIfToolOnlyLangChain,
 };

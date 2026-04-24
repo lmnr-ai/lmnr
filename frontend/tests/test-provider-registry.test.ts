@@ -5,6 +5,7 @@ import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
 import { matchProviderKey } from "@/lib/actions/spans/previews/provider-keys";
 import { extractToolsIfToolOnly } from "@/lib/actions/spans/previews/tool-detection";
 import { detectOutputStructure } from "@/lib/actions/spans/previews/utils";
+import { extractSystemMessageContent, parseSystemMessageFromInput } from "@/lib/actions/spans/system-messages";
 import { detectProvider } from "@/lib/spans/providers";
 
 describe("provider registry: detectProvider", () => {
@@ -192,5 +193,91 @@ describe("provider registry: parseExtractedMessages", () => {
 
   it("returns null when no provider matches", () => {
     assert.strictEqual(parseExtractedMessages('{"foo":"bar"}', '{"baz":1}'), null);
+  });
+});
+
+describe("system-messages: extractSystemMessageContent (single message)", () => {
+  it("returns null for non-system messages", () => {
+    assert.strictEqual(extractSystemMessageContent({ role: "user", content: "hi" }), null);
+  });
+
+  it("extracts string content (OpenAI / LangChain)", () => {
+    assert.strictEqual(extractSystemMessageContent({ role: "system", content: "be nice" }), "be nice");
+  });
+
+  it("extracts OpenAI chat text-part content", () => {
+    const msg = { role: "system", content: [{ type: "text", text: "chat sys" }] };
+    assert.strictEqual(extractSystemMessageContent(msg), "chat sys");
+  });
+
+  it("extracts OpenAI Responses input_text content", () => {
+    // Previously returned null because the function only looked for `type: "text"`.
+    const msg = { role: "system", content: [{ type: "input_text", text: "responses sys" }] };
+    assert.strictEqual(extractSystemMessageContent(msg), "responses sys");
+  });
+
+  it("extracts OpenAI Responses message wrapper with input_text", () => {
+    const msg = {
+      type: "message",
+      role: "system",
+      content: [{ type: "input_text", text: "wrapped sys" }],
+    };
+    assert.strictEqual(extractSystemMessageContent(msg), "wrapped sys");
+  });
+
+  it("extracts Gemini parts content", () => {
+    const msg = { role: "system", parts: [{ text: "gemini sys" }] };
+    assert.strictEqual(extractSystemMessageContent(msg), "gemini sys");
+  });
+
+  it("returns null for garbage input", () => {
+    assert.strictEqual(extractSystemMessageContent(null), null);
+    assert.strictEqual(extractSystemMessageContent("string"), null);
+    assert.strictEqual(extractSystemMessageContent({}), null);
+  });
+});
+
+describe("system-messages: parseSystemMessageFromInput (raw JSON)", () => {
+  it("extracts from OpenAI Chat Completions array", () => {
+    const input = JSON.stringify([
+      { role: "system", content: "sys" },
+      { role: "user", content: "u" },
+    ]);
+    assert.strictEqual(parseSystemMessageFromInput(input), "sys");
+  });
+
+  it("extracts from OpenAI Responses items array", () => {
+    const input = JSON.stringify([
+      { type: "message", role: "system", content: [{ type: "input_text", text: "r-sys" }] },
+      { type: "message", role: "user", content: [{ type: "input_text", text: "u" }] },
+    ]);
+    assert.strictEqual(parseSystemMessageFromInput(input), "r-sys");
+  });
+
+  it("extracts from Gemini contents array", () => {
+    const input = JSON.stringify([
+      { role: "system", parts: [{ text: "g-sys" }] },
+      { role: "user", parts: [{ text: "u" }] },
+    ]);
+    assert.strictEqual(parseSystemMessageFromInput(input), "g-sys");
+  });
+
+  it("extracts from LangChain array with `human` role", () => {
+    // This shape fails OpenAI's strict parser (role:"human" rejected) and
+    // must fall through to the LangChain adapter.
+    const input = JSON.stringify([
+      { role: "system", content: "lc-sys" },
+      { role: "human", content: "u" },
+    ]);
+    assert.strictEqual(parseSystemMessageFromInput(input), "lc-sys");
+  });
+
+  it("returns null when JSON is invalid", () => {
+    assert.strictEqual(parseSystemMessageFromInput("not json"), null);
+  });
+
+  it("returns null when no system message is present", () => {
+    const input = JSON.stringify([{ role: "user", content: "hi" }]);
+    assert.strictEqual(parseSystemMessageFromInput(input), null);
   });
 });
