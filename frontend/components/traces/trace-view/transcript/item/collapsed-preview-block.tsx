@@ -45,9 +45,7 @@ export function CollapsedPreviewBlock({
     if (variant === "labeled-row") {
       return (
         <div className="flex min-w-0 gap-2 items-start">
-          {label && (
-            <span className="text-xs text-muted-foreground shrink-0 w-6 pt-[2px] uppercase tracking-wide">{label}</span>
-          )}
+          {label && <span className="text-xs text-muted-foreground shrink-0 w-6 pt-[2px] tracking-wide">{label}</span>}
           <div className="flex-1 min-w-0">
             <PreviewLoadingPlaceholder />
           </div>
