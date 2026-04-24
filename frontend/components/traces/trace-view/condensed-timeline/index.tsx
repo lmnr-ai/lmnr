@@ -12,6 +12,7 @@ import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-eleme
 import Controls from "./controls";
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
+import SubagentGroupElement from "./subagent-group-element";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
 import { useHoverNeedle } from "./use-hover-needle";
 import { useScrollToSpan } from "./use-scroll-to-span";
@@ -23,6 +24,7 @@ function CondensedTimeline() {
 
   const {
     getCondensedTimelineData,
+    getCondensedSubagentGroups,
     spans: storeSpans,
     selectedSpan,
     setSelectedSpan,
@@ -38,8 +40,11 @@ function CondensedTimeline() {
     browserSession,
     scrollStartTime,
     scrollEndTime,
+    transcriptExpandedGroups,
+    toggleTranscriptGroup,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
+    getCondensedSubagentGroups: state.getCondensedSubagentGroups,
     spans: state.spans,
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
@@ -55,6 +60,8 @@ function CondensedTimeline() {
     browserSession: state.browserSession,
     scrollStartTime: state.scrollStartTime,
     scrollEndTime: state.scrollEndTime,
+    transcriptExpandedGroups: state.transcriptExpandedGroups,
+    toggleTranscriptGroup: state.toggleTranscriptGroup,
   }));
 
   const {
@@ -66,6 +73,49 @@ function CondensedTimeline() {
   } = useMemo(() => getCondensedTimelineData(), [getCondensedTimelineData, storeSpans]);
 
   const maxSpanCost = useMemo(() => selectMaxSpanCost(), [selectMaxSpanCost, storeSpans]);
+
+  // Subagent groups — reuses the transcript's grouping logic and collapsed state
+  // so toggling a group header in the transcript flips its wrapper in the
+  // timeline too. Bounding boxes come from the already-computed condensed
+  // layout (no separate position math).
+  const subagentGroups = useMemo(() => getCondensedSubagentGroups(), [getCondensedSubagentGroups, storeSpans]);
+
+  const groupBoxes = useMemo(() => {
+    if (subagentGroups.length === 0) return [];
+    const posById = new Map(condensedSpans.map((c) => [c.span.spanId, c]));
+    const boxes: Array<{
+      groupId: string;
+      left: number;
+      width: number;
+      topRow: number;
+      rowSpan: number;
+      collapsed: boolean;
+    }> = [];
+    for (const group of subagentGroups) {
+      let minLeft = Infinity;
+      let maxRight = -Infinity;
+      let minRow = Infinity;
+      let maxRow = -Infinity;
+      for (const spanId of group.spanIds) {
+        const pos = posById.get(spanId);
+        if (!pos) continue;
+        if (pos.left < minLeft) minLeft = pos.left;
+        if (pos.left + pos.width > maxRight) maxRight = pos.left + pos.width;
+        if (pos.row < minRow) minRow = pos.row;
+        if (pos.row > maxRow) maxRow = pos.row;
+      }
+      if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) continue;
+      boxes.push({
+        groupId: group.groupId,
+        left: minLeft,
+        width: maxRight - minLeft,
+        topRow: minRow,
+        rowSpan: maxRow - minRow + 1,
+        collapsed: !transcriptExpandedGroups.has(group.groupId),
+      });
+    }
+    return boxes;
+  }, [subagentGroups, condensedSpans, transcriptExpandedGroups]);
 
   // Compute dynamic time markers based on container width and zoom
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
@@ -249,6 +299,22 @@ function CondensedTimeline() {
                 />
               );
             })}
+
+            {/* Subagent group wrappers — collapsed = solid fill covering the group's
+                spans; expanded = cyan outline, pointer-events-none so spans underneath
+                stay interactive */}
+            {groupBoxes.map((box) => (
+              <SubagentGroupElement
+                key={box.groupId}
+                groupId={box.groupId}
+                left={box.left}
+                width={box.width}
+                topRow={box.topRow}
+                rowSpan={box.rowSpan}
+                collapsed={box.collapsed}
+                onToggle={toggleTranscriptGroup}
+              />
+            ))}
 
             {/* Selection overlay - only handles drag selection, clicks go to span elements */}
             <SelectionOverlay

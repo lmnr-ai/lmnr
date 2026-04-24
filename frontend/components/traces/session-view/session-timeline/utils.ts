@@ -3,6 +3,7 @@
 // deduplication once the session timeline design stabilizes.
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { computeSubagentGroups } from "@/components/traces/trace-view/store/utils";
 import { type TraceRow } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
@@ -32,6 +33,16 @@ export interface SessionTimelineContainerSpan {
   color: string;
 }
 
+/** Bounding box of a subagent group inside an expanded trace container.
+ *  Coordinates are CONTAINER-RELATIVE (same frame as spans). */
+export interface SessionTimelineSubagentGroupBox {
+  groupId: string;
+  left: number;
+  width: number;
+  topRow: number;
+  rowSpan: number;
+}
+
 /** Expanded trace rendered as a bordered container holding its spans.
  *  Replaces the trace bar entirely when expanded + spans are loaded. */
 export interface SessionTimelineSpanContainer {
@@ -42,6 +53,7 @@ export interface SessionTimelineSpanContainer {
   row: number; // starting row in segment
   rowHeight: number; // number of rows this container occupies (>= 2)
   spans: SessionTimelineContainerSpan[];
+  groupBoxes: SessionTimelineSubagentGroupBox[];
 }
 
 export type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanContainer;
@@ -164,8 +176,8 @@ function clusterTraces(traces: TraceRow[]): TraceCluster[] {
 function packSpansInContainer(
   spans: TraceViewSpan[],
   trace: TraceRow
-): { spans: SessionTimelineContainerSpan[]; rowCount: number } {
-  if (spans.length === 0) return { spans: [], rowCount: 0 };
+): { spans: SessionTimelineContainerSpan[]; rowCount: number; groupBoxes: SessionTimelineSubagentGroupBox[] } {
+  if (spans.length === 0) return { spans: [], rowCount: 0, groupBoxes: [] };
 
   const traceStartMs = new Date(trace.startTime).getTime();
   const traceEndMs = new Date(trace.endTime).getTime();
@@ -235,7 +247,37 @@ function packSpansInContainer(
     result.push({ span, left, width, row: targetRow, color });
   }
 
-  return { spans: result, rowCount: rowOccupancy.length };
+  // Subagent group wrappers — bounding boxes derived from the packed span
+  // positions above, container-relative. Skips groups with no represented
+  // spans (should be rare — happens if subagent spans are all DEFAULT type
+  // and got filtered upstream).
+  const groups = computeSubagentGroups(spans);
+  const posById = new Map(result.map((r) => [r.span.spanId, r]));
+  const groupBoxes: SessionTimelineSubagentGroupBox[] = [];
+  for (const group of groups) {
+    let minLeft = Infinity;
+    let maxRight = -Infinity;
+    let minRow = Infinity;
+    let maxRow = -Infinity;
+    for (const spanId of group.spanIds) {
+      const pos = posById.get(spanId);
+      if (!pos) continue;
+      if (pos.left < minLeft) minLeft = pos.left;
+      if (pos.left + pos.width > maxRight) maxRight = pos.left + pos.width;
+      if (pos.row < minRow) minRow = pos.row;
+      if (pos.row > maxRow) maxRow = pos.row;
+    }
+    if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) continue;
+    groupBoxes.push({
+      groupId: group.groupId,
+      left: minLeft,
+      width: maxRight - minLeft,
+      topRow: minRow,
+      rowSpan: maxRow - minRow + 1,
+    });
+  }
+
+  return { spans: result, rowCount: rowOccupancy.length, groupBoxes };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,7 +330,12 @@ function computeSegmentLayout(
     // Rendered element for this block (without `row` yet — assigned below).
     render:
       | { type: "trace"; shimmer: boolean }
-      | { type: "span-container"; rowHeight: number; spans: SessionTimelineContainerSpan[] };
+      | {
+          type: "span-container";
+          rowHeight: number;
+          spans: SessionTimelineContainerSpan[];
+          groupBoxes: SessionTimelineSubagentGroupBox[];
+        };
   };
 
   const blocks: Block[] = traces
@@ -316,7 +363,7 @@ function computeSegmentLayout(
           left,
           width,
           height: rowHeight,
-          render: { type: "span-container", rowHeight, spans: packed.spans },
+          render: { type: "span-container", rowHeight, spans: packed.spans, groupBoxes: packed.groupBoxes },
         };
       }
 
@@ -361,6 +408,7 @@ function computeSegmentLayout(
         row,
         rowHeight: block.render.rowHeight,
         spans: block.render.spans,
+        groupBoxes: block.render.groupBoxes,
       });
     }
   }

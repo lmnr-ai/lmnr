@@ -11,6 +11,8 @@ import { type SpanType } from "@/lib/traces/types";
 import {
   buildTranscriptListEntries,
   computePathInfoMap,
+  computeSubagentGroups,
+  type CondensedSubagentGroup,
   type CondensedTimelineData,
   transformSpansToCondensedTimeline,
   transformSpansToTree,
@@ -246,6 +248,7 @@ export interface BaseTraceViewActions {
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
+  getCondensedSubagentGroups: () => CondensedSubagentGroup[];
   getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
 }
@@ -349,6 +352,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const { spans, condensedTimelineVisibleSpanIds } = get();
       return buildTranscriptListEntries(spans, condensedTimelineVisibleSpanIds);
     },
+    getCondensedSubagentGroups: () => computeSubagentGroups(get().spans),
 
     toggleTranscriptGroup: (groupId: string) => {
       const prev = get().transcriptExpandedGroups;
