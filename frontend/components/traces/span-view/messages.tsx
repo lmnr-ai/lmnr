@@ -64,6 +64,26 @@ export function processMessages(data: unknown): ProcessedMessages {
     }
   }
 
+  // OpenTelemetry GenAI semconv (`{role, parts: [{type: "text"|"tool_call"|...}]}`)
+  // emitted by pydantic_ai v5 and other spec-compliant libraries. The backend
+  // preserves the raw shape so we decode it here.
+  //
+  // Must run BEFORE OpenAI/LangChain/Gemini detectors: `OpenAIAssistantMessageSchema`
+  // has every field optional except `role` and Zod silently strips unknown keys, so
+  // `{role: "assistant", parts: [...], finish_reason: "stop"}` matches it and renders
+  // as an empty OpenAI message. `looksLikeGenAIMessages` is narrow enough to run
+  // early — it requires a `parts` array with an object carrying a GenAI `type`
+  // discriminator, which none of the other formats emit.
+  //
+  // There is no dedicated `gen_ai` renderer: every GenAI part type maps losslessly
+  // onto a ModelMessage content part (see `convertOne` in `gen-ai.ts`), so the
+  // generic renderer is sufficient. Add one if the spec grows a part type with no
+  // ModelMessage analogue.
+  const genAIMessages = parseGenAIMessages(data);
+  if (genAIMessages) {
+    return { messages: genAIMessages, type: "generic" };
+  }
+
   const openAIOutput = parseOpenAIOutput(data);
   if (openAIOutput) {
     return { messages: openAIOutput, type: "openai" };
@@ -106,14 +126,6 @@ export function processMessages(data: unknown): ProcessedMessages {
   const geminiInput = parseGeminiInput(data);
   if (geminiInput) {
     return { messages: geminiInput, type: "gemini" };
-  }
-
-  // OpenTelemetry GenAI semconv (`{role, parts: [{type: "text"|"tool_call"|...}]}`)
-  // emitted by pydantic_ai v5 and other spec-compliant libraries. The backend
-  // preserves the raw shape so we decode it here.
-  const genAIMessages = parseGenAIMessages(data);
-  if (genAIMessages) {
-    return { messages: genAIMessages, type: "generic" };
   }
 
   return {

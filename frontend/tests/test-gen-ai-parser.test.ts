@@ -121,6 +121,51 @@ describe("parseGenAIMessages", () => {
     assert.deepStrictEqual(result[0].content, [{ type: "text", text: "hello" }]);
   });
 
+  it("detects assistant messages with finish_reason and a single text part", () => {
+    // Regression: `OpenAIAssistantMessageSchema` has every field optional except
+    // `role` and Zod strips unknown keys, so `{role: "assistant", parts: [...],
+    // finish_reason: "stop"}` matches it trivially and renders as an empty OpenAI
+    // message. `parseGenAIMessages` must claim this payload so `processMessages`
+    // (which now runs GenAI detection before OpenAI) routes it correctly.
+    const input = [
+      {
+        role: "assistant",
+        parts: [{ type: "text", content: "Security reviews are required for any change touching billing." }],
+        finish_reason: "stop",
+      },
+    ];
+
+    const result = parseGenAIMessages(input);
+    assert.ok(result, "expected GenAI parser to claim this payload");
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(result[0].role, "assistant");
+    assert.deepStrictEqual(result[0].content, [
+      { type: "text", text: "Security reviews are required for any change touching billing." },
+    ]);
+  });
+
+  it("maps thinking parts to ModelMessage reasoning parts", () => {
+    // Emitting `reasoning` (not `text`) lets the generic renderer surface a
+    // distinct "Thinking" label, matching how Anthropic's dedicated renderer
+    // shows its thinking blocks.
+    const input = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "thinking", content: "Let me think about this..." },
+          { type: "text", content: "The answer is 42." },
+        ],
+      },
+    ];
+
+    const result = parseGenAIMessages(input);
+    assert.ok(result);
+    assert.deepStrictEqual(result[0].content, [
+      { type: "reasoning", text: "Let me think about this..." },
+      { type: "text", text: "The answer is 42." },
+    ]);
+  });
+
   it("decodes uri/blob parts as image or file depending on modality/mime", () => {
     const input = [
       {

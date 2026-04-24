@@ -441,12 +441,8 @@ impl SpanAttributes {
 
         // quick hack until we figure how to set span type on auto-instrumentation
         if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
-            || self.raw_attributes.iter().any(|(k, _)| {
-                // AI SDK reports usage on parent spans as well, which we don't want converted to LLM type
-                (k.starts_with("gen_ai.") && !k.starts_with("gen_ai.usage."))
-                    || k.starts_with("llm.")
-                    || k.starts_with("aisdk.")
-            })
+            || self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL)
+            || self.raw_attributes.contains_key(GEN_AI_RESPONSE_MODEL)
         {
             SpanType::LLM
         } else {

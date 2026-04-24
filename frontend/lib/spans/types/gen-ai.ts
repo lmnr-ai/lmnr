@@ -126,10 +126,19 @@ const convertOne = (
     }
     const type = (part as { type?: string }).type;
     switch (type) {
-      case "text":
-      case "thinking": {
+      case "text": {
         const text = (part as { content?: string }).content ?? "";
         if (text.length > 0) content.push({ type: "text", text });
+        break;
+      }
+      case "thinking": {
+        // Emit as a ModelMessage `reasoning` part (not `text`) so the generic
+        // renderer can surface it with a distinct "Thinking" label — matching
+        // how dedicated provider renderers (e.g. Anthropic) display their
+        // thinking blocks. Without this, thinking content is visually
+        // indistinguishable from regular assistant text.
+        const text = (part as { content?: string }).content ?? "";
+        if (text.length > 0) content.push({ type: "reasoning", text });
         break;
       }
       case "tool_call": {
