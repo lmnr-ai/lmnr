@@ -33,7 +33,7 @@ const parseSystemAndUserAnthropic = (data: unknown): ParsedInput | null => {
       const textBlocks = (systemMsg.content as AnthropicBlock[]).filter(
         (b): b is { type: "text"; text: string } => b.type === "text"
       );
-      if (textBlocks.length > 0) systemText = textBlocks.map((b) => b.text).join("\n");
+      if (textBlocks.length > 0) systemText = textBlocks.map((b) => b.text).join(" ");
     }
   }
 

@@ -27,7 +27,7 @@ const parseSystemAndUserOpenAI = (data: unknown): ParsedInput | null => {
       const textParts = systemMsg.content
         .filter((p): p is z.infer<typeof OpenAITextPartSchema> => p.type === "text")
         .map((p) => p.text);
-      if (textParts.length > 0) systemText = textParts.join("\n");
+      if (textParts.length > 0) systemText = textParts.join(" ");
     }
   }
 

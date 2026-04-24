@@ -26,7 +26,7 @@ const parseSystemAndUserGemini = (data: unknown): ParsedInput | null => {
     const textParts = systemContent.parts
       .filter((p): p is z.infer<typeof GeminiTextPartSchema> => "text" in p)
       .map((p) => p.text);
-    if (textParts.length > 0) systemText = textParts.join("\n");
+    if (textParts.length > 0) systemText = textParts.join(" ");
   }
 
   return { systemText, userParts: extractFirstUserMessage(contents) };
