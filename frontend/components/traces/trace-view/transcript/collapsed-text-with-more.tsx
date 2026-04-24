@@ -36,7 +36,7 @@ export function CollapsedTextWithMore({ text, lineHeight, maxLines = 4, classNam
 
   return (
     <div
-      className={cn("text-sm text-secondary-foreground/95 whitespace-pre-wrap break-words", className)}
+      className={cn("text-[13px] text-secondary-foreground/95 whitespace-pre-wrap break-words", className)}
       style={{ lineHeight: `${lineHeight + 4}px` }}
     >
       <p ref={textRef} className={isExpanded ? undefined : clampClass}>

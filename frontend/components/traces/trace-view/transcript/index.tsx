@@ -196,7 +196,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => (needsLlmTopSpacing(index) ? 202 : 186),
+    estimateSize: (index) => (needsLlmTopSpacing(index) ? 198 : 182),
     overscan: 20,
     paddingEnd: 64,
   });
@@ -413,7 +413,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                 ref={virtualizer.measureElement}
                 className={cn({
                   "pt-1": row.type === "group",
-                  "pt-2": needsSpacing,
+                  "pt-4": needsSpacing,
                   "pb-1": isCollapsedGroup || isLastGroupChild,
                 })}
               >
