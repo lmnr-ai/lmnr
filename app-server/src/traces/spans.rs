@@ -33,9 +33,13 @@ use crate::{
 use super::{
     span_attributes::{
         AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX,
-        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST,
-        GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
-        GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
+        GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
+        GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
+        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
+        GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::skip_span_name,
 };
@@ -203,6 +207,29 @@ impl SpanAttributes {
         self.normalize_if_absent("ai.usage.inputTokens", GEN_AI_INPUT_TOKENS);
         self.normalize_if_absent("ai.usage.outputTokens", GEN_AI_OUTPUT_TOKENS);
 
+        //
+        // Normalize spec-aligned OTel GenAI dotted form and pydantic_ai's
+        // `gen_ai.usage.details.*` form into the legacy underscore keys. The
+        // frontend (and ClickHouse aggregations) query the legacy keys directly
+        // off the stored attributes, so this rewrite is what makes cache tokens
+        // from these instrumentations show up in the UI.
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+
         let Some(prefix) = self.detect_aisdk_operation_prefix() else {
             return;
         };
@@ -292,16 +319,12 @@ impl SpanAttributes {
                 0
             };
 
-        let cache_write_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        let cache_read_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        // Cache token aliases (OTel dotted form, pydantic_ai `details.*` form,
+        // AI SDK variants) are rewritten into these legacy keys by
+        // `normalize_aisdk_attributes`, which runs in `parse_and_enrich_attributes`
+        // before any caller reaches this function. Keep this read simple.
+        let cache_write_tokens = self.int_attr(GEN_AI_CACHE_WRITE_INPUT_TOKENS).unwrap_or(0);
+        let cache_read_tokens = self.int_attr(GEN_AI_CACHE_READ_INPUT_TOKENS).unwrap_or(0);
 
         let regular_input_tokens =
             (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
@@ -411,21 +434,40 @@ impl SpanAttributes {
 
     pub fn span_type(&self) -> SpanType {
         if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
-            serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
-        } else {
-            // quick hack until we figure how to set span type on auto-instrumentation
-            if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
-                || self.raw_attributes.iter().any(|(k, _)| {
-                    // AI SDK reports usage on parent spans as well, which we don't want converted to LLM type
-                    (k.starts_with("gen_ai.") && !k.starts_with("gen_ai.usage."))
-                        || k.starts_with("llm.")
-                        || k.starts_with("aisdk.")
-                })
-            {
-                SpanType::LLM
-            } else {
-                SpanType::Default
+            return serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default();
+        }
+
+        // OTel GenAI semantic conventions — use `gen_ai.operation.name` as the authoritative
+        // signal when present (emitted by pydantic_ai v5 and other spec-compliant libraries).
+        if let Some(Value::String(op)) = self.raw_attributes.get(GEN_AI_OPERATION_NAME) {
+            match op.as_str() {
+                "chat" | "text_completion" | "embeddings" | "generate_content" => {
+                    return SpanType::LLM;
+                }
+                "execute_tool" => return SpanType::Tool,
+                // `invoke_agent` stays Default — agent runs are containers whose children carry
+                // the LLM/tool content.
+                "invoke_agent" => return SpanType::Default,
+                _ => {}
             }
+        }
+
+        // Some OTel GenAI emitters (e.g. pydantic_ai's tool spans) omit `gen_ai.operation.name`
+        // but include `gen_ai.tool.call.*` attributes. Infer Tool type from those.
+        if self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_ARGUMENTS)
+            || self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_RESULT)
+        {
+            return SpanType::Tool;
+        }
+
+        // quick hack until we figure how to set span type on auto-instrumentation
+        if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
+            || self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL)
+            || self.raw_attributes.contains_key(GEN_AI_RESPONSE_MODEL)
+        {
+            SpanType::LLM
+        } else {
+            SpanType::Default
         }
     }
 
@@ -752,36 +794,60 @@ impl Span {
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
 
-            // New format `gen_ai.input.messages` and `gen_ai.output.messages` overrides the old format `gen_ai.prompt/completion`
-            if let Some(input) = self
+            // OTel GenAI semantic conventions — `gen_ai.input.messages` /
+            // `gen_ai.output.messages` carry a JSON array of `{role, parts: [...]}`
+            // objects. Preserve the native format end-to-end (the frontend parses it);
+            // we only (a) parse the attribute if it's still a serialised string and
+            // (b) prepend `gen_ai.system_instructions` as a synthetic `role: "system"`
+            // message so the system prompt threads into the same message array.
+            let system_instructions = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.input.messages")
-            {
-                if let Value::String(s) = input {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.input = Some(parsed);
-                    } else {
-                        self.input = Some(serde_json::Value::String(s));
-                    }
-                } else {
-                    self.input = Some(input);
+                .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
+                .map(|v| parse_genai_messages_attribute(&v));
+            if let Some(input) = self.attributes.raw_attributes.remove(GEN_AI_INPUT_MESSAGES) {
+                let mut parsed = parse_genai_messages_attribute(&input);
+                if let Some(sys) = system_instructions {
+                    parsed = prepend_system_instructions(parsed, sys);
+                }
+                self.input = Some(parsed);
+            } else if let Some(sys) = system_instructions {
+                // `system_instructions` present but no `gen_ai.input.messages`. Only
+                // surface it as a standalone system message when `self.input` is still
+                // empty — otherwise we'd clobber whatever the old-format handlers
+                // (`gen_ai.prompt.0.*` / `ai.prompt.messages`) already extracted.
+                if self.input.is_none() {
+                    self.input = Some(prepend_system_instructions(Value::Array(vec![]), sys));
                 }
             }
             if let Some(output) = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.output.messages")
+                .remove(GEN_AI_OUTPUT_MESSAGES)
             {
-                if let Value::String(s) = output {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.output = Some(parsed);
-                    } else {
-                        self.output = Some(serde_json::Value::String(s));
-                    }
-                } else {
-                    self.output = Some(output);
-                }
+                self.output = Some(parse_genai_messages_attribute(&output));
+            }
+        }
+
+        // OTel GenAI tool spans (pydantic_ai's `execute_tool {name}`). These aren't LLM spans,
+        // so they don't go through the LLM path — handle them separately. Gate on
+        // `span_type == Tool` (which `span_type()` already infers from `gen_ai.operation.name`
+        // or the `gen_ai.tool.call.*` fallback) so we don't clobber LLM-span input/output if a
+        // spec-violating emitter mixes LLM message attrs with tool-call attrs on the same span.
+        if self.span_type == SpanType::Tool {
+            if let Some(args) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_ARGUMENTS)
+            {
+                self.input = Some(parse_genai_messages_attribute(&args));
+            }
+            if let Some(result) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_RESULT)
+            {
+                self.output = Some(parse_genai_messages_attribute(&result));
             }
         }
 
@@ -1292,6 +1358,40 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
             .collect()
     } else {
         Err(anyhow::anyhow!("Input is not a list"))
+    }
+}
+
+/// Parse a `gen_ai.*` attribute that is either a JSON string (the common case
+/// when the SDK serialises a message array) or an already-structured Value.
+fn parse_genai_messages_attribute(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            serde_json::from_str::<Value>(s).unwrap_or_else(|_| Value::String(s.clone()))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Prepend `gen_ai.system_instructions` to an already-parsed
+/// `gen_ai.input.messages` value as a synthetic `{role: "system", parts: [...]}`
+/// entry. The native GenAI shape is preserved end-to-end; the frontend handles
+/// rendering of the message array. `system_instructions` may itself be an array
+/// of parts (the common case) or a bare string, which we wrap in a text part.
+fn prepend_system_instructions(messages: Value, system: Value) -> Value {
+    let parts = match system {
+        Value::Array(parts) => parts,
+        Value::String(s) if !s.is_empty() => vec![json!({"type": "text", "content": s})],
+        other => vec![other],
+    };
+    let system_msg = json!({ "role": "system", "parts": parts });
+    match messages {
+        Value::Array(mut arr) => {
+            arr.insert(0, system_msg);
+            Value::Array(arr)
+        }
+        // `input.messages` wasn't an array (malformed payload). Wrap both in an
+        // array so the system prompt is still visible alongside the raw value.
+        other => Value::Array(vec![system_msg, other]),
     }
 }
 
@@ -3654,6 +3754,105 @@ mod tests {
     }
 
     #[test]
+    fn test_otel_dotted_cache_tokens_normalize_to_legacy_key() {
+        // The frontend reads cache tokens directly off the persisted raw
+        // attributes under the legacy key `gen_ai.usage.cache_read_input_tokens`
+        // (see `frontend/lib/actions/shared/trace/index.ts`). So for UI display
+        // it is not enough that `input_tokens()` falls back — we must also copy
+        // the OTel-spec dotted form into the legacy key during normalization.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(100)),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(40),
+            ),
+            (
+                "gen_ai.usage.cache_creation.input_tokens".to_string(),
+                json!(10),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(10))
+        );
+    }
+
+    #[test]
+    fn test_pydantic_details_cache_tokens_normalize_to_legacy_key() {
+        // Same as above, but for pydantic_ai's `gen_ai.usage.details.cache_*_tokens`
+        // form. Without this normalization, spans from pydantic-ai instrumentation
+        // would show cache tokens = 0 in the UI.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(130213)),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(128955),
+            ),
+            (
+                "gen_ai.usage.details.cache_write_tokens".to_string(),
+                json!(1253),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(128955))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(1253))
+        );
+
+        // Downstream `input_tokens()` reads the canonical legacy keys — verify
+        // the computed breakdown matches a realistic Anthropic prompt-cache hit.
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_read_tokens, 128955);
+        assert_eq!(input_tokens.cache_write_tokens, 1253);
+        assert_eq!(input_tokens.regular_input_tokens, 5);
+        assert_eq!(input_tokens.total(), 130213);
+    }
+
+    #[test]
+    fn test_legacy_cache_tokens_not_overwritten_by_fallback_keys() {
+        // If both legacy and fallback forms are present, legacy wins and is
+        // preserved — `normalize_if_absent` must not clobber an existing value.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(500)),
+            (
+                "gen_ai.usage.cache_read_input_tokens".to_string(),
+                json!(100),
+            ),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(200),
+            ),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(300),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(100))
+        );
+    }
+
+    #[test]
     fn test_cache_tokens_exceed_total_clips_to_zero() {
         // When cache tokens > total (inconsistent instrumentation), regular_input_tokens
         // should clip to 0 rather than go negative.
@@ -3842,5 +4041,285 @@ mod tests {
         );
         assert!(!attrs.raw_attributes.contains_key(GEN_AI_INPUT_TOKENS));
         assert!(!attrs.raw_attributes.contains_key(GEN_AI_OUTPUT_TOKENS));
+    }
+
+    fn make_llm_span(attributes: HashMap<String, Value>) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "chat gpt-4o".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_chat_span() {
+        // Mirrors pydantic_ai v5 InstrumentationSettings output for a chat-model call.
+        // The native `{role, parts: [...]}` shape is preserved end-to-end; the
+        // frontend parses it for rendering.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "content": "What's the weather in SF?"}
+                ]
+            }
+        ]);
+        let output_messages = json!([
+            {
+                "role": "assistant",
+                "parts": [
+                    {"type": "text", "content": "Let me check that."},
+                    {
+                        "type": "tool_call",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": {"location": "SF"}
+                    }
+                ],
+                "finish_reason": "tool_calls"
+            }
+        ]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            ("gen_ai.provider.name".to_string(), json!("openai")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4o")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.output.messages".to_string(),
+                json!(output_messages.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        // input/output preserve the original GenAI shape verbatim (the
+        // serialised JSON string is deserialised, nothing else is reshaped).
+        assert_eq!(span.input, Some(input_messages));
+        assert_eq!(span.output, Some(output_messages));
+
+        // Raw attributes are consumed so they don't leak into the Attributes tab.
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.input.messages")
+        );
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_span() {
+        // Mirrors pydantic_ai v5 ToolManager output for `execute_tool {name}`.
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("execute_tool")),
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            (
+                "gen_ai.tool.call.result".to_string(),
+                json!(r#"{"temp_f": 65, "description": "Sunny"}"#),
+            ),
+        ]);
+
+        // Tool spans arrive with SpanType::Tool inferred from gen_ai.operation.name.
+        let attrs_for_type = SpanAttributes::new(attributes.clone());
+        assert_eq!(attrs_for_type.span_type(), SpanType::Tool);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "execute_tool get_weather".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Tool,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!({"location": "SF"})));
+        assert_eq!(
+            span.output,
+            Some(json!({"temp_f": 65, "description": "Sunny"}))
+        );
+
+        // `gen_ai.operation.name == "execute_tool"` survives enrichment, so
+        // `attributes.span_type()` keeps returning Tool and `is_llm_span()` is false.
+        assert!(!span.is_llm_span());
+    }
+
+    #[test]
+    fn test_span_type_tool_without_operation_name() {
+        // Real-world pydantic_ai tool spans omit gen_ai.operation.name but still carry
+        // gen_ai.tool.call.* attributes. Make sure we still recognize them as Tool.
+        let attrs = SpanAttributes::new(HashMap::from([
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            ("gen_ai.tool.call.result".to_string(), json!("Sunny")),
+        ]));
+        assert_eq!(attrs.span_type(), SpanType::Tool);
+    }
+
+    #[test]
+    fn test_span_type_from_gen_ai_operation_name() {
+        let chat = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("chat"),
+        )]));
+        assert_eq!(chat.span_type(), SpanType::LLM);
+
+        let tool = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("execute_tool"),
+        )]));
+        assert_eq!(tool.span_type(), SpanType::Tool);
+
+        let agent = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("invoke_agent"),
+        )]));
+        // Agent runs stay Default so they render as container spans.
+        assert_eq!(agent.span_type(), SpanType::Default);
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_response_message() {
+        // Tool-response messages in pydantic_ai come through gen_ai.input.messages as
+        // role=user (or role=tool for some providers) with a single tool_call_response
+        // part. The native shape is preserved; the frontend owns rendering.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "result": {"temp_f": 65}
+                    }
+                ]
+            }
+        ]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(input_messages));
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_prepended_as_system_message() {
+        // `gen_ai.system_instructions` is prepended to `gen_ai.input.messages` as a
+        // synthetic `{role: "system", parts: [...]}` entry while preserving the
+        // native GenAI shape (no ChatMessage conversion).
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!([{"type": "text", "content": "Be helpful"}, {"type": "text", "content": "Answer concisely"}]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        assert_eq!(arr[0]["parts"], system_instructions);
+        assert_eq!(arr[1], input_messages[0]);
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_as_bare_string_array() {
+        // Some emitters ship `gen_ai.system_instructions` as a bare string array
+        // (`["Be helpful"]`). The raw payload is preserved as-is inside the
+        // synthetic system message's `parts` — we don't reshape it.
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!(["Be helpful", "Answer concisely"]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        // Bare strings are preserved verbatim in `parts`.
+        assert_eq!(arr[0]["parts"], system_instructions);
     }
 }

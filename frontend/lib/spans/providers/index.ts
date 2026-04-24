@@ -1,5 +1,6 @@
 import { anthropicAdapter } from "./anthropic";
 import { geminiAdapter } from "./gemini";
+import { genAIAdapter } from "./gen-ai";
 import { langchainAdapter } from "./langchain";
 import { openaiAdapter } from "./openai";
 import { openaiResponsesAdapter } from "./openai-responses";
@@ -11,6 +12,11 @@ export { type ProviderAdapter, type ProviderHint } from "./types";
  * Registry of known message-format adapters. Order matters: dispatch
  * sites iterate this list and pick the first match.
  *
+ * GenAI (OTel semconv) runs first because its `{role, parts: [...]}` shape
+ * can incidentally match the optional-content OpenAI assistant schema and
+ * be misparsed as an empty OpenAI message. The GenAI detect is gated on
+ * a GenAI type discriminator so it won't false-positive on OpenAI/Gemini.
+ *
  * Keep OpenAI Chat ahead of OpenAI Responses so a plain chat-completions
  * payload isn't accidentally matched as a Responses item. Keep Anthropic
  * after OpenAI so ambiguous shapes prefer the more common provider —
@@ -21,6 +27,7 @@ export { type ProviderAdapter, type ProviderHint } from "./types";
  * line below.
  */
 export const PROVIDERS: readonly ProviderAdapter[] = [
+  genAIAdapter,
   openaiAdapter,
   openaiResponsesAdapter,
   anthropicAdapter,
