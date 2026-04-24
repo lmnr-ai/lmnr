@@ -1,5 +1,5 @@
 import { scaleTime } from "d3-scale";
-import { format, isValid, parseISO } from "date-fns";
+import { format, isValid } from "date-fns";
 import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
@@ -17,13 +17,20 @@ const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
+export const parseUtcTimestamp = (s: string): Date => {
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
+  const hasTime = s.includes("T") || s.includes(" ");
+  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
+  return new Date(s);
+};
+
 const tryFormatAsDate = (value: string | number | Date, formatPattern: string = "M/dd"): string => {
   try {
     const date =
       value instanceof Date
         ? value
         : typeof value === "string"
-          ? parseISO(value.includes("T") && !value.endsWith("Z") ? value + "Z" : value)
+          ? parseUtcTimestamp(value)
           : typeof value === "number"
             ? new Date(value)
             : null;
@@ -40,8 +47,8 @@ const getOptimalDateFormat = (data: Record<string, unknown>[], dataKey: string):
       .map((row) => {
         try {
           const value = row[dataKey];
-          if (typeof value === "string" && value.includes("T")) {
-            return parseISO(value);
+          if (typeof value === "string") {
+            return parseUtcTimestamp(value);
           }
           return new Date(value as string | number | Date);
         } catch {
@@ -92,13 +99,6 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
 
     return String(value);
   };
-};
-
-export const parseUtcTimestamp = (s: string): Date => {
-  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
-  const hasTime = s.includes("T") || s.includes(" ");
-  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
-  return new Date(s);
 };
 
 export const selectNiceTicksFromData = (

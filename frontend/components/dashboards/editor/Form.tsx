@@ -346,7 +346,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
               </div>
             </div>
           ) : isLoading ? (
-            <div className="flex flex-col items-center space-y-4 text-muted-foreground">
+            <div className="flex flex-1 flex-col items-center justify-center space-y-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin" />
               <div className="text-center">
                 <p className="text-sm font-medium">Generating chart...</p>

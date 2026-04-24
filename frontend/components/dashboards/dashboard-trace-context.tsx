@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, type PropsWithChildren, useContext, useMemo } from "react";
-import { createStore, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createStore } from "zustand";
 import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 interface DashboardTraceState {
   traceId: string | null;
@@ -31,7 +32,7 @@ type DashboardTraceStoreApi = ReturnType<typeof createDashboardTraceStore>;
 const DashboardTraceContext = createContext<DashboardTraceStoreApi | null>(null);
 
 export const DashboardTraceProvider = ({ children }: PropsWithChildren) => {
-  const store = useMemo(() => createDashboardTraceStore(), []);
+  const [store] = useState(() => createDashboardTraceStore());
 
   return <DashboardTraceContext.Provider value={store}>{children}</DashboardTraceContext.Provider>;
 };
@@ -41,5 +42,5 @@ export const useDashboardTraceStore = <T,>(selector: (state: DashboardTraceStore
   if (!store) {
     throw new Error("useDashboardTraceStore must be used within a DashboardTraceProvider");
   }
-  return useStore(store, selector, shallow);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };

@@ -14,15 +14,12 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 const formatRange = (startTs: string, endTs: string) => {
   const start = parseUtcTimestamp(startTs);
   const end = parseUtcTimestamp(endTs);
-  const startStr = format(start, "MMM d, HH:mm");
 
-  if (format(start, "MMM d") === format(end, "MMM d")) {
-    return `${startStr} – ${format(end, "HH:mm")}`;
+  // Same calendar day — collapse the right side to just the time.
+  if (format(start, "yyyy-MM-dd") === format(end, "yyyy-MM-dd")) {
+    return `${format(start, "MMM d, HH:mm")} – ${format(end, "HH:mm")}`;
   }
-  if (format(start, "MMM") === format(end, "MMM")) {
-    return `${startStr} – ${format(end, "d, HH:mm")}`;
-  }
-  return `${startStr} – ${format(end, "MMM d, HH:mm")}`;
+  return `${format(start, "MMM d, HH:mm")} – ${format(end, "MMM d, HH:mm")}`;
 };
 
 const formatDuration = (startMs: number, endMs: number) => {
