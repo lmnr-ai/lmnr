@@ -37,7 +37,9 @@ use super::{
         GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
         GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
         GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
-        GEN_AI_TOTAL_COST, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::skip_span_name,
 };
@@ -205,6 +207,29 @@ impl SpanAttributes {
         self.normalize_if_absent("ai.usage.inputTokens", GEN_AI_INPUT_TOKENS);
         self.normalize_if_absent("ai.usage.outputTokens", GEN_AI_OUTPUT_TOKENS);
 
+        //
+        // Normalize spec-aligned OTel GenAI dotted form and pydantic_ai's
+        // `gen_ai.usage.details.*` form into the legacy underscore keys. The
+        // frontend (and ClickHouse aggregations) query the legacy keys directly
+        // off the stored attributes, so this rewrite is what makes cache tokens
+        // from these instrumentations show up in the UI.
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+
         let Some(prefix) = self.detect_aisdk_operation_prefix() else {
             return;
         };
@@ -294,16 +319,12 @@ impl SpanAttributes {
                 0
             };
 
-        let cache_write_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        let cache_read_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        // Cache token aliases (OTel dotted form, pydantic_ai `details.*` form,
+        // AI SDK variants) are rewritten into these legacy keys by
+        // `normalize_aisdk_attributes`, which runs in `parse_and_enrich_attributes`
+        // before any caller reaches this function. Keep this read simple.
+        let cache_write_tokens = self.int_attr(GEN_AI_CACHE_WRITE_INPUT_TOKENS).unwrap_or(0);
+        let cache_read_tokens = self.int_attr(GEN_AI_CACHE_READ_INPUT_TOKENS).unwrap_or(0);
 
         let regular_input_tokens =
             (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
@@ -3739,6 +3760,105 @@ mod tests {
             Some(&json!(60))
         );
         assert!(attrs.raw_attributes.contains_key("ai.prompt.messages"));
+    }
+
+    #[test]
+    fn test_otel_dotted_cache_tokens_normalize_to_legacy_key() {
+        // The frontend reads cache tokens directly off the persisted raw
+        // attributes under the legacy key `gen_ai.usage.cache_read_input_tokens`
+        // (see `frontend/lib/actions/shared/trace/index.ts`). So for UI display
+        // it is not enough that `input_tokens()` falls back — we must also copy
+        // the OTel-spec dotted form into the legacy key during normalization.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(100)),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(40),
+            ),
+            (
+                "gen_ai.usage.cache_creation.input_tokens".to_string(),
+                json!(10),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(10))
+        );
+    }
+
+    #[test]
+    fn test_pydantic_details_cache_tokens_normalize_to_legacy_key() {
+        // Same as above, but for pydantic_ai's `gen_ai.usage.details.cache_*_tokens`
+        // form. Without this normalization, spans from pydantic-ai instrumentation
+        // would show cache tokens = 0 in the UI.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(130213)),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(128955),
+            ),
+            (
+                "gen_ai.usage.details.cache_write_tokens".to_string(),
+                json!(1253),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(128955))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(1253))
+        );
+
+        // Downstream `input_tokens()` reads the canonical legacy keys — verify
+        // the computed breakdown matches a realistic Anthropic prompt-cache hit.
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_read_tokens, 128955);
+        assert_eq!(input_tokens.cache_write_tokens, 1253);
+        assert_eq!(input_tokens.regular_input_tokens, 5);
+        assert_eq!(input_tokens.total(), 130213);
+    }
+
+    #[test]
+    fn test_legacy_cache_tokens_not_overwritten_by_fallback_keys() {
+        // If both legacy and fallback forms are present, legacy wins and is
+        // preserved — `normalize_if_absent` must not clobber an existing value.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(500)),
+            (
+                "gen_ai.usage.cache_read_input_tokens".to_string(),
+                json!(100),
+            ),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(200),
+            ),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(300),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(100))
+        );
     }
 
     #[test]

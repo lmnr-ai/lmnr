@@ -30,8 +30,22 @@ pub const SPAN_PATH: &str = "lmnr.span.path";
 pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 
+// Legacy names (pre-spec). These remain the canonical internal keys our
+// normalization writes into — they are what `db/spans.rs` and the signals
+// pipeline read. New instrumentations use the dotted forms below.
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+
+// Current OTel GenAI spec (dotted form). See:
+// https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
+pub const GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.cache_read.input_tokens";
+pub const GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED: &str =
+    "gen_ai.usage.cache_creation.input_tokens";
+
+// pydantic_ai-specific keys under the `gen_ai.usage.details.*` prefix.
+pub const GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS: &str = "gen_ai.usage.details.cache_read_tokens";
+pub const GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS: &str = "gen_ai.usage.details.cache_write_tokens";
 
 // Additional usage attributes for cost calculation
 pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_tokens";
