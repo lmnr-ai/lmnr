@@ -3,6 +3,7 @@ import { type z } from "zod/v4";
 
 import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-input";
 import {
+  OpenAIResponsesItemSchema,
   OpenAIResponsesItemsSchema as ItemsSchema,
   type OpenAIResponsesItemsSchema,
   type OpenAIResponsesMessageItemSchema,
@@ -95,7 +96,7 @@ const detectResponses = (data: unknown): boolean => {
   }
 
   if (isDistinctivelyResponses(data)) {
-    return ItemsSchema.safeParse(data).success;
+    return OpenAIResponsesItemSchema.safeParse(data).success;
   }
 
   return false;
