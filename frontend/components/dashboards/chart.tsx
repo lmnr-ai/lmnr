@@ -267,7 +267,7 @@ const Chart = ({ chart }: ChartProps) => {
         openTrace(String(traceId), spanId ? String(spanId) : undefined, signalId ? String(signalId) : undefined);
       }
     },
-    [openTrace, projectId]
+    [openTrace]
   );
 
   return (

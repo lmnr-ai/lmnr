@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, type PropsWithChildren, useContext, useMemo } from "react";
-import { createStore, useStore } from "zustand";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createStore } from "zustand";
 import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 interface DashboardSelectionState {
   chartId: string | null;
@@ -41,7 +42,7 @@ type DashboardSelectionStoreApi = ReturnType<typeof createDashboardSelectionStor
 const DashboardSelectionContext = createContext<DashboardSelectionStoreApi | null>(null);
 
 export const DashboardSelectionProvider = ({ children }: PropsWithChildren) => {
-  const store = useMemo(() => createDashboardSelectionStore(), []);
+  const [store] = useState(() => createDashboardSelectionStore());
 
   return <DashboardSelectionContext.Provider value={store}>{children}</DashboardSelectionContext.Provider>;
 };
@@ -51,5 +52,5 @@ export const useDashboardSelectionStore = <T,>(selector: (state: DashboardSelect
   if (!store) {
     throw new Error("useDashboardSelectionStore must be used within a DashboardSelectionProvider");
   }
-  return useStore(store, selector, shallow);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };
