@@ -55,7 +55,6 @@ function TracesTableContent() {
   const {
     traceId,
     setTraceId: onRowClick,
-    setShowChatInitial,
     fetchStats,
     incrementStat,
     chartContainerWidth,
@@ -64,7 +63,6 @@ function TracesTableContent() {
   } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
-    setShowChatInitial: state.setShowChatInitial,
     fetchStats: state.fetchStats,
     incrementStat: state.incrementStat,
     chartContainerWidth: state.chartContainerWidth,
@@ -355,17 +353,23 @@ function TracesTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
-      setShowChatInitial(row.original.totalTokens > 1000);
       onRowClick?.(row.id);
     },
-    [onRowClick, setShowChatInitial]
+    [onRowClick]
   );
 
+  // Auto-open the chat panel for traces that have meaningful LLM activity.
+  // The `chat` query param survives refresh so the panel state is preserved.
   const getRowHref = useCallback(
     (row: Row<TraceRow>) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("traceId", row.id);
       params.delete("spanId");
+      if (row.original.totalTokens > 1000) {
+        params.set("chat", "true");
+      } else {
+        params.delete("chat");
+      }
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]

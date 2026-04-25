@@ -31,6 +31,7 @@ export interface TraceViewContentProps {
   propsTrace?: TraceViewTrace;
   onClose: () => void;
   isAlwaysSelectSpan?: boolean;
+  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -41,6 +42,7 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
+  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -100,15 +102,6 @@ export default function TraceViewContent({
     shallow
   );
 
-  // Local storage states
-  const { spanPath, setSpanPath } = useTraceViewStore(
-    (state) => ({
-      spanPath: state.spanPath,
-      setSpanPath: state.setSpanPath,
-    }),
-    shallow
-  );
-
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
       return;
@@ -158,11 +151,6 @@ export default function TraceViewContent({
 
       setSelectedSpan(span);
 
-      const spanPath = span.attributes?.["lmnr.span.path"];
-      if (spanPath && Array.isArray(spanPath)) {
-        setSpanPath(spanPath);
-      }
-
       const currentSpanId = searchParams.get("spanId");
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
@@ -170,7 +158,7 @@ export default function TraceViewContent({
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
-    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
+    [setSelectedSpan, searchParams, router, pathName]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -221,7 +209,7 @@ export default function TraceViewContent({
 
         const urlSpanId = spanId || searchParams.get("spanId");
         if (urlSpanId && spans.length > 0) {
-          const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
+          const selectedSpan = findSpanToSelect(spans, spanId, searchParams);
           setSelectedSpan(selectedSpan);
         } else if (isAlwaysSelectSpan && spans.length > 0) {
           // Auto-select first span only in the dedicated trace page (always-select mode).
@@ -253,7 +241,6 @@ export default function TraceViewContent({
       isAlwaysSelectSpan,
       spanId,
       searchParams,
-      spanPath,
     ]
   );
 
@@ -263,6 +250,15 @@ export default function TraceViewContent({
     router.push(`${pathName}?${params.toString()}`);
     onClose();
   }, [onClose, pathName, router, searchParams]);
+
+  const handleSpanPanelClose = useCallback(() => {
+    setSelectedSpan(undefined);
+    if (searchParams.get("spanId")) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      router.replace(`${pathName}?${params.toString()}`);
+    }
+  }, [setSelectedSpan, searchParams, router, pathName]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -288,6 +284,15 @@ export default function TraceViewContent({
       }
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
+
+  // The store is created once with `initialChatOpen` from whatever URL state
+  // exists when the provider mounts, but `router.push` is a transition so the
+  // `chat` param can arrive late — or be stale from a previous trace. Keep the
+  // panel in sync with the URL both ways so a late-arriving `chat=true` opens
+  // the panel and a late-arriving `chat=false` closes it.
+  useEffect(() => {
+    setTracesAgentOpen(!!showChatInitial);
+  }, [showChatInitial, setTracesAgentOpen]);
 
   useEffect(() => {
     handleFetchTrace();
@@ -341,7 +346,7 @@ export default function TraceViewContent({
           traceId={selectedSpan.traceId}
           spanId={selectedSpan.spanId}
           key={selectedSpan.spanId}
-          onClose={() => setSelectedSpan(undefined)}
+          onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       ) : (
@@ -351,7 +356,7 @@ export default function TraceViewContent({
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
           initialTab={snippetTab}
-          onClose={() => setSelectedSpan(undefined)}
+          onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       )}

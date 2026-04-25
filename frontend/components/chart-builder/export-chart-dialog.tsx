@@ -36,8 +36,8 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
     setIsLoading(true);
     try {
-      await fetch(`/api/projects/${projectId}/dashboard-charts`, {
-        method: "PUT",
+      const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+        method: "POST",
         body: JSON.stringify({
           query,
           name,
@@ -45,19 +45,32 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         }),
       });
 
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errMessage ?? "Failed to export chart. Please try again.",
+        });
+        return;
+      }
+
       setOpen(false);
       toast({
         title: "Success",
         description: (
           <span>
-            Successfully exported chart to dashboard.{" "}
-            <Link className="text-primary" href={`/project/${projectId}/dashboard`}>
-              Go to dashboard.
+            Successfully exported chart to Dashboards.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/dashboards`}>
+              Go to Dashboards.
             </Link>
           </span>
         ),
       });
-    } catch (e) {
+    } catch {
       toast({ variant: "destructive", title: "Error", description: "Failed to export chart. Please try again." });
     } finally {
       setIsLoading(false);
@@ -71,7 +84,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-left">Export Chart to Dashboard</DialogTitle>
+          <DialogTitle className="text-left">Export Chart to Dashboards</DialogTitle>
         </DialogHeader>
         <Separator />
         <Input

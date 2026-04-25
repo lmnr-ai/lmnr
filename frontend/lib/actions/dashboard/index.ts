@@ -2,8 +2,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { ChartType } from "@/components/chart-builder/types";
-import { type DashboardChart } from "@/components/dashboard/types";
-import { repositionCharts } from "@/lib/actions/dashboard/utils";
+import { type DashboardChart } from "@/components/dashboards/types";
+import { QueryStructureSchema } from "@/lib/actions/sql/types";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts } from "@/lib/db/migrations/schema";
 
@@ -14,10 +14,18 @@ const GetChartsSchema = z.object({
 const ChartSettingsSchema = z.object({
   config: z.object({
     type: z.enum(ChartType),
-    x: z.string(),
-    y: z.string(),
+    x: z.string().optional(),
+    y: z.string().optional(),
     breakdown: z.string().optional(),
     total: z.boolean().optional(),
+    displayMode: z.enum(["total", "average", "none"]).optional(),
+    tableColumnConfig: z
+      .object({
+        columnOrder: z.array(z.string()).optional(),
+        columnSizing: z.record(z.string(), z.number()).optional(),
+        columnVisibility: z.record(z.string(), z.boolean()).optional(),
+      })
+      .optional(),
   }),
   layout: z.object({
     x: z.number(),
@@ -25,6 +33,7 @@ const ChartSettingsSchema = z.object({
     w: z.number(),
     h: z.number(),
   }),
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 export const ChartUpdatesSchema = z.array(
@@ -61,6 +70,7 @@ const UpdateChartSchema = z.object({
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 const CreateChartSchema = z.object({
@@ -68,6 +78,7 @@ const CreateChartSchema = z.object({
   name: z.string().min(1, "Name is required"),
   query: z.string(),
   config: ChartSettingsSchema.shape["config"],
+  queryStructure: QueryStructureSchema.optional().nullable(),
 });
 
 export const getCharts = async (input: z.infer<typeof GetChartsSchema>) => {
@@ -123,14 +134,23 @@ export const updateChartName = async (input: z.infer<typeof UpdateChartNameSchem
 };
 
 export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
-  const { projectId, id, name, query, config } = UpdateChartSchema.parse(input);
+  const { projectId, id, name, query, config, queryStructure } = UpdateChartSchema.parse(input);
+
+  // Patch config and queryStructure on the existing settings jsonb without
+  // clobbering layout. Nested jsonb_set: inner call replaces {config},
+  // outer replaces {queryStructure}.
+  const settingsUpdate = sql`jsonb_set(
+    jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb),
+    '{queryStructure}',
+    ${JSON.stringify(queryStructure ?? null)}::jsonb
+  )`;
 
   await db
     .update(dashboardCharts)
     .set({
       name,
       query,
-      settings: sql`jsonb_set(settings, '{config}', ${JSON.stringify(config)}::jsonb)`,
+      settings: settingsUpdate,
     })
     .where(and(eq(dashboardCharts.projectId, projectId), eq(dashboardCharts.id, id)));
 
@@ -138,33 +158,42 @@ export const updateChart = async (input: z.infer<typeof UpdateChartSchema>) => {
 };
 
 export const createChart = async (input: z.infer<typeof CreateChartSchema>) => {
-  const { name, config, projectId, query } = CreateChartSchema.parse(input);
+  const { name, config, projectId, query, queryStructure } = CreateChartSchema.parse(input);
 
-  const newChart = {
-    name,
-    query,
-    projectId,
-    settings: {
-      config,
-      layout: { x: 0, y: 0, w: 4, h: 6 },
-    },
-  };
-
-  const chartSettings = (await db.query.dashboardCharts.findMany({
+  const existingCharts = (await db.query.dashboardCharts.findMany({
     where: eq(dashboardCharts.projectId, projectId),
-    columns: {
-      id: true,
-      settings: true,
-    },
-  })) as z.infer<typeof ChartUpdatesSchema>;
+    columns: { settings: true },
+  })) as Pick<DashboardChart, "settings">[];
 
-  const reorderedCharts = repositionCharts(chartSettings);
-
-  const [created] = await db.transaction(async (tx) => {
-    const result = await tx.insert(dashboardCharts).values(newChart).returning();
-    await updateChartsLayout({ projectId, updates: reorderedCharts });
-    return result;
+  const chartW = 4;
+  const slots = [0, 4, 8];
+  const slotHeights = slots.map((slotX) => {
+    const bottom = existingCharts.reduce((max, chart) => {
+      const { x, y, w, h } = chart.settings.layout;
+      // Check if this chart overlaps the slot's columns
+      if (x < slotX + chartW && x + w > slotX) {
+        return Math.max(max, y + h);
+      }
+      return max;
+    }, 0);
+    return { x: slotX, y: bottom };
   });
+
+  const bestSlot = slotHeights.reduce((best, slot) => (slot.y < best.y ? slot : best));
+
+  const [created] = await db
+    .insert(dashboardCharts)
+    .values({
+      name,
+      query,
+      projectId,
+      settings: {
+        config,
+        layout: { x: bestSlot.x, y: bestSlot.y, w: chartW, h: 6 },
+        queryStructure: queryStructure ?? null,
+      },
+    })
+    .returning();
 
   return created as DashboardChart;
 };
