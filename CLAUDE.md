@@ -174,6 +174,13 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 
+## Trace-view Span Attributes
+
+- The trace-view (transcript/tree) and shared-trace endpoints do NOT fetch the full `attributes` JSON blob from ClickHouse. LLM spans' `attributes` can be tens of kB each, so we extract only the keys listed in `TRACE_VIEW_ATTRIBUTE_KEYS` via `buildTraceViewAttributesExpression()` in `frontend/lib/actions/spans/utils.ts`. Downstream `tryParseJson` + key access keeps working unchanged because missing keys are omitted from the synthesized JSON.
+- The single-span endpoint (`getSpan` in `frontend/lib/actions/span/index.ts`) still selects the full `attributes` — span-view renders the complete attribute table. Do not trim it there.
+- When adding a new consumer of `attributes` inside trace-view components (transcript/tree/store/search/lang-graph), add the key to `TRACE_VIEW_ATTRIBUTE_KEYS` or the access will silently return undefined.
+- Use full `JSONHas` + `JSONExtractRaw` (not `simpleJSON*` variants) in the expression — array/nested values like `lmnr.span.ids_path` contain embedded commas that the simple variants mishandle.
+
 ## Dashboard Charts API
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).
