@@ -213,7 +213,7 @@ export default function ManageAlertSheet({
 
   const additionalParams = useMemo(
     () =>
-      alertType === ALERT_TYPE.SIGNAL_EVENT && severities.length > 0
+      alertType === ALERT_TYPE.SIGNAL_EVENT && severities && severities.length > 0
         ? { severities: severities.map(String) }
         : undefined,
     [alertType, severities]
