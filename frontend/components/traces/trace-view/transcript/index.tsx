@@ -201,19 +201,18 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const selectedRowIndex = useMemo(() => {
     const selectedId = selectedSpan?.spanId;
     if (!selectedId) return -1;
-    return flatRows.findIndex((row) => {
-      switch (row.type) {
-        case "span":
-        case "group-span":
-          return row.span.spanId === selectedId;
-        case "group":
-          return (
-            row.firstSpan.spanId === selectedId || row.firstLlmSpanId === selectedId || row.lastLlmSpanId === selectedId
-          );
-        default:
-          return false;
-      }
-    });
+    // Prefer the actual span row over the group header — when a subagent group is
+    // expanded, clicking a span that is also the group's first/last LLM (or the
+    // boundary span itself) should scroll to the span row, not the group header.
+    const spanRowIndex = flatRows.findIndex(
+      (row) => (row.type === "span" || row.type === "group-span") && row.span.spanId === selectedId
+    );
+    if (spanRowIndex >= 0) return spanRowIndex;
+    return flatRows.findIndex(
+      (row) =>
+        row.type === "group" &&
+        (row.firstSpan.spanId === selectedId || row.firstLlmSpanId === selectedId || row.lastLlmSpanId === selectedId)
+    );
   }, [flatRows, selectedSpan?.spanId]);
 
   useEffect(() => {
