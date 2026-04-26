@@ -1,3 +1,4 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -13,6 +14,8 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { sharedTraces, traces, tracesAgentChats, tracesAgentMessages } from "@/lib/db/migrations/schema";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -36,7 +39,7 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
 
 export const DeleteTracesSchema = z.object({
   projectId: z.guid(),
-  traceIds: z.array(z.string()).min(1),
+  traceIds: z.array(z.guid()).min(1),
 });
 
 export const GetTracesByIdsSchema = z.object({
@@ -235,19 +238,87 @@ export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>
 }
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
-  const { projectId, traceIds } = input;
+  const { projectId, traceIds } = DeleteTracesSchema.parse(input);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(tracesAgentMessages)
+      .where(and(eq(tracesAgentMessages.projectId, projectId), inArray(tracesAgentMessages.traceId, traceIds)));
+    await tx
+      .delete(tracesAgentChats)
+      .where(and(eq(tracesAgentChats.projectId, projectId), inArray(tracesAgentChats.traceId, traceIds)));
+    await tx.delete(sharedTraces).where(and(eq(sharedTraces.projectId, projectId), inArray(sharedTraces.id, traceIds)));
+    await tx.delete(traces).where(and(eq(traces.projectId, projectId), inArray(traces.id, traceIds)));
+  });
 
   await clickhouseClient.command({
     query: `
-        DELETE FROM spans
-        WHERE project_id = {projectId: UUID} 
-            AND trace_id in ({traceIds: Array(UUID)})
-      `,
+      DELETE FROM events_to_clusters
+      WHERE project_id = {projectId: UUID}
+        AND event_id IN (
+          SELECT id
+          FROM signal_events
+          WHERE project_id = {projectId: UUID}
+            AND trace_id IN ({traceIds: Array(UUID)})
+        )
+    `,
     query_params: {
       traceIds,
       projectId,
     },
+    clickhouse_settings: {
+      mutations_sync: "1",
+    },
   });
+
+  await clickhouseClient.command({
+    query: `
+      DELETE FROM signal_run_messages
+      WHERE project_id = {projectId: UUID}
+        AND run_id IN (
+          SELECT run_id
+          FROM signal_runs FINAL
+          WHERE project_id = {projectId: UUID}
+            AND trace_id IN ({traceIds: Array(UUID)})
+        )
+    `,
+    query_params: {
+      traceIds,
+      projectId,
+    },
+    clickhouse_settings: {
+      mutations_sync: "1",
+    },
+  });
+
+  const clickhouseDeletes = [
+    { table: "spans", column: "trace_id" },
+    { table: "traces_replacing", column: "id" },
+    { table: "trace_tags", column: "trace_id" },
+    { table: "trace_summaries", column: "trace_id" },
+    { table: "browser_session_events", column: "trace_id" },
+    { table: "events", column: "trace_id" },
+    { table: "logs", column: "trace_id" },
+    { table: "signal_runs", column: "trace_id" },
+    { table: "signal_events", column: "trace_id" },
+  ];
+
+  for (const { table, column } of clickhouseDeletes) {
+    await clickhouseClient.command({
+      query: `
+        DELETE FROM ${table}
+        WHERE project_id = {projectId: UUID}
+          AND ${column} IN ({traceIds: Array(UUID)})
+      `,
+      query_params: {
+        traceIds,
+        projectId,
+      },
+      clickhouse_settings: {
+        mutations_sync: "1",
+      },
+    });
+  }
 }
 
 export { EVENTS_TRACE_VIEW_WIDTH, TRACES_TRACE_VIEW_WIDTH };

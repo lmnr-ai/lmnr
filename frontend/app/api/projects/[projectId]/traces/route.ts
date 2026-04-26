@@ -40,7 +40,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const traceIds = req.nextUrl.searchParams.getAll("traceId");
+  let traceIds: unknown = req.nextUrl.searchParams.getAll("traceId");
+
+  if (Array.isArray(traceIds) && traceIds.length === 0) {
+    try {
+      const body = (await req.json()) as { traceIds?: unknown };
+      traceIds = body.traceIds;
+    } catch {
+      // Keep query-param parsing as the fallback for empty or malformed bodies.
+    }
+  }
 
   const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
 

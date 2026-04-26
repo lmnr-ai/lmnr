@@ -1619,7 +1619,10 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/traces")
                                     .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::traces::process_traces),
+                                    .service(api::v1::traces::process_traces)
+                                    // The handler blocks ingest-only keys; keeping it in this
+                                    // scope avoids duplicate /v1/traces route registration.
+                                    .service(api::v1::traces::delete_traces),
                             )
                             .service(
                                 web::scope("/v1/spans")

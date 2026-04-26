@@ -15,8 +15,9 @@ import { defaultTracesColumnOrder, filters, PREVIEW_COLUMN } from "@/components/
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
 import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
@@ -32,7 +33,7 @@ const DEFAULT_TARGET_BARS = 48;
 export default function TracesTable() {
   const customColumns = useTracesTableStore((s) => s.customColumns);
   const defaultColumnOrder = useMemo(
-    () => [...defaultTracesColumnOrder, ...customColumns.map((cc) => `custom:${cc.name}`)],
+    () => ["__row_selection", ...defaultTracesColumnOrder, ...customColumns.map((cc) => `custom:${cc.name}`)],
     [customColumns]
   );
 
@@ -54,7 +55,8 @@ function TracesTableContent() {
 
   const {
     traceId,
-    setTraceId: onRowClick,
+    setTraceId,
+    setSpanId,
     fetchStats,
     incrementStat,
     chartContainerWidth,
@@ -63,6 +65,7 @@ function TracesTableContent() {
   } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
     fetchStats: state.fetchStats,
     incrementStat: state.incrementStat,
     chartContainerWidth: state.chartContainerWidth,
@@ -80,6 +83,7 @@ function TracesTableContent() {
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
 
   const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage("traces-table:realtime", false);
+  const { rowSelection, onRowSelectionChange } = useSelection();
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
@@ -121,14 +125,14 @@ function TracesTableContent() {
   useEffect(() => {
     if (effectiveColumns.length === 0) return;
 
-    const pinned = new Set(["status", "preview"]);
-    const visibleIds = new Set(effectiveColumns.map((c) => c.id!));
+    const pinned = new Set(["__row_selection", "status", "preview"]);
+    const visibleIds = new Set(["__row_selection", ...effectiveColumns.map((c) => c.id!)]);
     const hasPreview = visibleIds.has("preview");
 
     const rest = columnOrder.filter((id) => visibleIds.has(id) && !pinned.has(id));
     const newIds = [...visibleIds].filter((id) => !new Set(columnOrder).has(id) && !pinned.has(id));
 
-    const newOrder = ["status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
+    const newOrder = ["__row_selection", "status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
 
     if (newOrder.length !== columnOrder.length || newOrder.some((id, i) => columnOrder[i] !== id)) {
       setColumnOrder(newOrder);
@@ -353,9 +357,9 @@ function TracesTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
-      onRowClick?.(row.id);
+      setTraceId(row.id);
     },
-    [onRowClick]
+    [setTraceId]
   );
 
   // Auto-open the chat panel for traces that have meaningful LLM activity.
@@ -390,6 +394,72 @@ function TracesTableContent() {
     [searchParams, router, pathName]
   );
 
+  const handleDeleteTraces = useCallback(
+    async (traceIds: string[]) => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/traces`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ traceIds }),
+        });
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          let message = responseText || "Failed to delete traces";
+          try {
+            message = JSON.parse(responseText).error || message;
+          } catch {
+            // Keep the plain response text.
+          }
+          throw new Error(message);
+        }
+
+        updateData((currentTraces) => currentTraces.filter((trace) => !traceIds.includes(trace.id)));
+        onRowSelectionChange({});
+
+        if (traceId && traceIds.includes(traceId)) {
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("traceId");
+          params.delete("spanId");
+          router.push(`${pathName}?${params.toString()}`);
+          setTraceId(null);
+          setSpanId(null);
+        }
+
+        if (statsUrl) {
+          fetchStats(statsUrl);
+        }
+
+        toast({
+          title: "Trace deletion requested",
+          description: `Requested deletion of ${traceIds.length} trace${traceIds.length === 1 ? "" : "s"}.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Failed to delete traces",
+          description: error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+        });
+      }
+    },
+    [
+      fetchStats,
+      onRowSelectionChange,
+      pathName,
+      projectId,
+      router,
+      searchParams,
+      setSpanId,
+      setTraceId,
+      statsUrl,
+      toast,
+      traceId,
+      updateData,
+    ]
+  );
+
   const columnLabels = useMemo(
     () =>
       columnDefs.map((column) => ({
@@ -416,14 +486,22 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status", "preview"]}
+        enableRowSelection
+        state={{ rowSelection }}
+        onRowSelectionChange={onRowSelectionChange}
+        lockedColumns={["__row_selection", "status", "preview"]}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
+        selectionPanel={(selectedRowIds) => (
+          <div className="flex flex-col space-y-2">
+            <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTraces} entityName="traces" />
+          </div>
+        )}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
+          <TracesColumnsMenu lockedColumns={["__row_selection", "status", "preview"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
