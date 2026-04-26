@@ -32,12 +32,12 @@ use crate::{
 
 use super::{
     span_attributes::{
-        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX,
+        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
         GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
         GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
         GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
         GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
-        GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
         GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
@@ -848,6 +848,40 @@ impl Span {
                 .remove(GEN_AI_TOOL_CALL_RESULT)
             {
                 self.output = Some(parse_genai_messages_attribute(&result));
+            }
+        }
+
+        // OTel GenAI: rename spans to the user-supplied tool/agent name when present.
+        // pydantic_ai (and other spec-compliant emitters) use names like
+        // "execute_tool get_weather" / "invoke_agent my_agent", which duplicate the
+        // operation prefix already exposed via `gen_ai.operation.name`. Strip it so the
+        // transcript shows the bare tool/agent name. Path's last segment is updated in
+        // lockstep so `lmnr.span.path` stays consistent.
+        let op = self
+            .attributes
+            .raw_attributes
+            .get(GEN_AI_OPERATION_NAME)
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if let Some(op) = op {
+            let new_name = match op.as_str() {
+                "execute_tool" => self.attributes.raw_attributes.get(GEN_AI_TOOL_NAME),
+                "invoke_agent" => self.attributes.raw_attributes.get(GEN_AI_AGENT_NAME),
+                _ => None,
+            }
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+            if let Some(new_name) = new_name {
+                if new_name != self.name {
+                    rename_last_span_in_path(
+                        &mut self.attributes.raw_attributes,
+                        &self.name,
+                        &new_name,
+                    );
+                    self.name = new_name;
+                }
             }
         }
 
@@ -4179,9 +4213,109 @@ mod tests {
             Some(json!({"temp_f": 65, "description": "Sunny"}))
         );
 
+        // Span name is stripped from `execute_tool {name}` to just the tool name.
+        assert_eq!(span.name, "get_weather");
+
         // `gen_ai.operation.name == "execute_tool"` survives enrichment, so
         // `attributes.span_type()` keeps returning Tool and `is_llm_span()` is false.
         assert!(!span.is_llm_span());
+    }
+
+    #[test]
+    fn test_gen_ai_invoke_agent_span_renamed_to_agent_name() {
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("invoke_agent")),
+            ("gen_ai.agent.name".to_string(), json!("triage_agent")),
+            (
+                "lmnr.span.path".to_string(),
+                json!(["root", "invoke_agent triage_agent"]),
+            ),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "invoke_agent triage_agent".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.name, "triage_agent");
+        // Path's last segment is updated in lockstep with the rename.
+        assert_eq!(
+            span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["root", "triage_agent"]))
+        );
+    }
+
+    #[test]
+    fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
+        // No tool name attribute → name unchanged.
+        let mut attributes = HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("execute_tool"),
+        )]);
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "execute_tool".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Tool,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+        assert_eq!(span.name, "execute_tool");
+
+        // Empty agent name → name unchanged.
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("invoke_agent")),
+            ("gen_ai.agent.name".to_string(), json!("")),
+        ]);
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "invoke_agent".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+        assert_eq!(span.name, "invoke_agent");
     }
 
     #[test]
