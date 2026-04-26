@@ -682,6 +682,12 @@ impl SpanAttributes {
                 .get("lmnr.internal.cc_skip_span")
                 .is_some_and(|v| *v == Value::Bool(true))
     }
+
+    fn is_skip_mastra_span(&self) -> bool {
+        self.raw_attributes
+            .get("lmnr.internal.mastra.span_type")
+            .is_some_and(|v| *v == Value::String("model_generation".to_string()))
+    }
 }
 
 impl Span {
@@ -1137,6 +1143,11 @@ impl Span {
             if self.attributes.is_skip_cc_span() {
                 return false;
             }
+
+            if self.attributes.is_skip_mastra_span() {
+                return false;
+            }
+
             // For older versions of our proxy, apply similar heuristics here directly
             if self.attributes.is_claude_code_span()
                 && (self
@@ -4264,10 +4275,8 @@ mod tests {
     #[test]
     fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
         // No tool name attribute → name unchanged.
-        let mut attributes = HashMap::from([(
-            "gen_ai.operation.name".to_string(),
-            json!("execute_tool"),
-        )]);
+        let mut attributes =
+            HashMap::from([("gen_ai.operation.name".to_string(), json!("execute_tool"))]);
         let mut span = Span {
             span_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),
