@@ -57,6 +57,9 @@ interface SessionViewState {
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
   transcriptExpandedGroups: Set<string>;
 
+  /** One-shot scroll request: timeline click → panel list scrolls to group header. */
+  scrollToGroup: { traceId: string; groupId: string } | null;
+
   // Session timeline
   sessionTimelineEnabled: boolean;
   sessionTimelineZoom: number;
@@ -105,6 +108,8 @@ interface SessionViewActions {
   setTraceSpansError: (traceId: string, error?: string) => void;
 
   toggleTranscriptGroup: (traceId: string, groupId: string) => void;
+  requestScrollToGroup: (traceId: string, groupId: string) => void;
+  consumeScrollToGroup: () => void;
 
   setSessionTimelineEnabled: (enabled: boolean) => void;
   setSessionTimelineZoom: (zoom: number) => void;
@@ -195,6 +200,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         expandedTraceIds: new Set<string>(),
         transcriptExpandedGroups: new Set<string>(),
+        scrollToGroup: null,
 
         sessionTimelineEnabled: false,
         sessionTimelineZoom: 1,
@@ -327,6 +333,11 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           if (next.has(key)) next.delete(key);
           else next.add(key);
           set({ transcriptExpandedGroups: next });
+        },
+
+        requestScrollToGroup: (traceId, groupId) => set({ scrollToGroup: { traceId, groupId } }),
+        consumeScrollToGroup: () => {
+          if (get().scrollToGroup !== null) set({ scrollToGroup: null });
         },
 
         setSessionTimelineEnabled: (enabled) => set({ sessionTimelineEnabled: enabled }),

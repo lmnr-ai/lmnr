@@ -41,7 +41,7 @@ function CondensedTimeline() {
     scrollStartTime,
     scrollEndTime,
     transcriptExpandedGroups,
-    toggleTranscriptGroup,
+    requestScrollToGroup,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     getCondensedSubagentGroups: state.getCondensedSubagentGroups,
@@ -61,7 +61,7 @@ function CondensedTimeline() {
     scrollStartTime: state.scrollStartTime,
     scrollEndTime: state.scrollEndTime,
     transcriptExpandedGroups: state.transcriptExpandedGroups,
-    toggleTranscriptGroup: state.toggleTranscriptGroup,
+    requestScrollToGroup: state.requestScrollToGroup,
   }));
 
   const {
@@ -300,9 +300,9 @@ function CondensedTimeline() {
               );
             })}
 
-            {/* Subagent group wrappers — collapsed = solid fill covering the group's
-                spans; expanded = cyan outline, pointer-events-none so spans underneath
-                stay interactive */}
+            {/* Subagent group wrappers — collapsed = solid fill, click scrolls
+                the transcript to the group header. Expanded = outline only,
+                pointer-events-none so spans underneath stay interactive. */}
             {groupBoxes.map((box) => (
               <SubagentGroupElement
                 key={box.groupId}
@@ -312,7 +312,7 @@ function CondensedTimeline() {
                 topRow={box.topRow}
                 rowSpan={box.rowSpan}
                 collapsed={box.collapsed}
-                onToggle={toggleTranscriptGroup}
+                onRequestScroll={requestScrollToGroup}
               />
             ))}
 

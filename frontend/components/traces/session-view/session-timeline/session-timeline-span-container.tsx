@@ -31,10 +31,10 @@ const SessionTimelineSpanContainerElement = ({
   onClick,
   onSpanClick,
 }: SessionTimelineSpanContainerElementProps) => {
-  const { transcriptExpandedGroups, toggleTranscriptGroup } = useSessionViewStore(
+  const { transcriptExpandedGroups, requestScrollToGroup } = useSessionViewStore(
     (s) => ({
       transcriptExpandedGroups: s.transcriptExpandedGroups,
-      toggleTranscriptGroup: s.toggleTranscriptGroup,
+      requestScrollToGroup: s.requestScrollToGroup,
     }),
     shallow
   );
@@ -67,10 +67,11 @@ const SessionTimelineSpanContainerElement = ({
         />
       ))}
 
-      {/* Subagent group wrappers — collapsed = solid cyan over the group's
-          spans; expanded = cyan outline, pointer-events-none so span bars
-          underneath stay interactive. Sync'd with the transcript via the
-          session store's namespaced transcriptExpandedGroups. */}
+      {/* Subagent group wrappers — collapsed = solid cyan, click scrolls the
+          panel list to the group header. Expanded = outline only,
+          pointer-events-none so span bars underneath stay interactive.
+          Collapsed/expanded state is sync'd with the panel transcript via
+          the session store's namespaced transcriptExpandedGroups. */}
       {container.groupBoxes.map((box) => {
         const collapsed = !transcriptExpandedGroups.has(`${container.traceId}::${box.groupId}`);
         return (
@@ -90,7 +91,7 @@ const SessionTimelineSpanContainerElement = ({
               collapsed
                 ? (e) => {
                     e.stopPropagation();
-                    toggleTranscriptGroup(container.traceId, box.groupId);
+                    requestScrollToGroup(container.traceId, box.groupId);
                   }
                 : undefined
             }

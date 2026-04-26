@@ -72,6 +72,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     toggleTranscriptGroup,
     setTab,
     setScrollTimeRange,
+    scrollToGroupId,
+    consumeScrollToGroup,
   } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -84,6 +86,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       toggleTranscriptGroup: state.toggleTranscriptGroup,
       setTab: state.setTab,
       setScrollTimeRange: state.setScrollTimeRange,
+      scrollToGroupId: state.scrollToGroupId,
+      consumeScrollToGroup: state.consumeScrollToGroup,
     }),
     shallow
   );
@@ -216,6 +220,15 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     if (selectedRowIndex < 0 || isSpansLoading) return;
     virtualizer.scrollToIndex(selectedRowIndex, { align: "auto" });
   }, [selectedRowIndex, virtualizer, isSpansLoading]);
+
+  // Scroll the matching group header into view in response to a click on a
+  // subagent block in the condensed timeline.
+  useEffect(() => {
+    if (!scrollToGroupId || isSpansLoading) return;
+    const index = flatRows.findIndex((row) => row.type === "group" && row.groupId === scrollToGroupId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: "start" });
+    consumeScrollToGroup();
+  }, [scrollToGroupId, flatRows, virtualizer, isSpansLoading, consumeScrollToGroup]);
 
   const allVisibleSpanIds = useMemo(
     () =>

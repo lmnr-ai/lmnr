@@ -199,6 +199,9 @@ export interface BaseTraceViewState {
 
   // Transcript mode: IDs of groups the user has expanded
   transcriptExpandedGroups: Set<string>;
+
+  /** One-shot scroll request: timeline click → transcript scrolls to group header. */
+  scrollToGroupId: string | null;
 }
 
 export interface BaseTraceViewActions {
@@ -245,6 +248,8 @@ export interface BaseTraceViewActions {
   consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
   toggleTranscriptGroup: (groupId: string) => void;
+  requestScrollToGroup: (groupId: string) => void;
+  consumeScrollToGroup: () => void;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
@@ -307,6 +312,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
     transcriptExpandedGroups: new Set<string>(),
+    scrollToGroupId: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -363,6 +369,11 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         next.add(groupId);
       }
       set({ transcriptExpandedGroups: next } as Partial<T>);
+    },
+
+    requestScrollToGroup: (groupId: string) => set({ scrollToGroupId: groupId } as Partial<T>),
+    consumeScrollToGroup: () => {
+      if (get().scrollToGroupId !== null) set({ scrollToGroupId: null } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),

@@ -24,6 +24,9 @@ import { buildSessionFlatRows, formatGap } from "../utils";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
+/** Sticky trace-header height; used as scroll offset so headers land below it. */
+const STICKY_HEADER_HEIGHT = 36;
+
 /**
  * Virtualized body of the session panel. Reads everything it needs directly
  * from the session-view store — no props. Owns:
@@ -47,6 +50,8 @@ export default function SessionList() {
     toggleTranscriptGroup,
     setSelectedSpan,
     setScrollTimeRange,
+    scrollToGroup,
+    consumeScrollToGroup,
   } = useSessionViewStore(
     (s) => ({
       projectId: s.projectId,
@@ -62,6 +67,8 @@ export default function SessionList() {
       toggleTranscriptGroup: s.toggleTranscriptGroup,
       setSelectedSpan: s.setSelectedSpan,
       setScrollTimeRange: s.setScrollTimeRange,
+      scrollToGroup: s.scrollToGroup,
+      consumeScrollToGroup: s.consumeScrollToGroup,
     }),
     shallow
   );
@@ -261,6 +268,38 @@ export default function SessionList() {
     });
     return () => cancelAnimationFrame(rafId);
   }, [selectedSpan, flatRows, virtualizer]);
+
+  // Scroll the matching group-header row into view in response to a click on
+  // a subagent block in the session timeline. The scroll lands 36px below the
+  // top to clear the sticky trace-header.
+  //
+  // Two passes are needed: `getOffsetForIndex` returns estimates for unmeasured
+  // rows (estimateSize=70 vs real heights), so the first scroll lands close
+  // enough to force measurement, and the second scroll uses the now-accurate
+  // offset.
+  useEffect(() => {
+    if (!scrollToGroup) return;
+    const idx = flatRows.findIndex(
+      (r) =>
+        r.type === "group-header" && r.traceId === scrollToGroup.traceId && r.group.groupId === scrollToGroup.groupId
+    );
+    if (idx === -1) {
+      consumeScrollToGroup();
+      return;
+    }
+
+    const scrollWithOffset = () => {
+      const offset = virtualizer.getOffsetForIndex(idx, "start")?.[0];
+      if (offset !== undefined) virtualizer.scrollToOffset(Math.max(0, offset - STICKY_HEADER_HEIGHT));
+    };
+
+    scrollWithOffset();
+    const rafId = requestAnimationFrame(() => {
+      scrollWithOffset();
+      consumeScrollToGroup();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToGroup, flatRows, virtualizer, consumeScrollToGroup]);
 
   // --- Preview fetching (batched across traces) ---
   //

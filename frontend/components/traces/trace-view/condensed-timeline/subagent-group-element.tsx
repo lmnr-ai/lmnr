@@ -11,7 +11,7 @@ interface SubagentGroupElementProps {
   topRow: number;
   rowSpan: number;
   collapsed: boolean;
-  onToggle: (groupId: string) => void;
+  onRequestScroll: (groupId: string) => void;
 }
 
 function SubagentGroupElement({
@@ -21,7 +21,7 @@ function SubagentGroupElement({
   topRow,
   rowSpan,
   collapsed,
-  onToggle,
+  onRequestScroll,
 }: SubagentGroupElementProps) {
   const top = topRow * ROW_HEIGHT + 1;
   const height = rowSpan * ROW_HEIGHT - 2;
@@ -31,8 +31,8 @@ function SubagentGroupElement({
       className={cn(
         "absolute rounded-xs border",
         collapsed
-          ? "bg-subagent/40 cursor-pointer hover:bg-subagent/50 z-10 border-subagent"
-          : "pointer-events-none outline outline-offset-1 outline-subagent/40 bg-subagent/10 border-none"
+          ? "bg-subagent/30 cursor-pointer hover:bg-subagent/40 z-10 border-subagent"
+          : "pointer-events-none outline outline-offset-1 outline-subagent/30 bg-subagent/10 border-none"
       )}
       style={{
         left: `${left}%`,
@@ -43,7 +43,7 @@ function SubagentGroupElement({
       onClick={(e) => {
         if (!collapsed) return;
         e.stopPropagation();
-        onToggle(groupId);
+        onRequestScroll(groupId);
       }}
     />
   );
