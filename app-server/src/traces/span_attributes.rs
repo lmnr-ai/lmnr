@@ -77,3 +77,5 @@ pub const GEN_AI_OUTPUT_MESSAGES: &str = "gen_ai.output.messages";
 pub const GEN_AI_SYSTEM_INSTRUCTIONS: &str = "gen_ai.system_instructions";
 pub const GEN_AI_TOOL_CALL_ARGUMENTS: &str = "gen_ai.tool.call.arguments";
 pub const GEN_AI_TOOL_CALL_RESULT: &str = "gen_ai.tool.call.result";
+pub const GEN_AI_TOOL_NAME: &str = "gen_ai.tool.name";
+pub const GEN_AI_AGENT_NAME: &str = "gen_ai.agent.name";
