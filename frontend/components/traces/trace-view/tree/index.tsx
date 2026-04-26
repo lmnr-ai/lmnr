@@ -29,6 +29,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     condensedTimelineVisibleSpanIds,
     selectedSpan,
     setScrollTimeRange,
+    scrollToGroupId,
+    consumeScrollToGroup,
   } = useTraceViewBaseStore((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
@@ -37,6 +39,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     selectedSpan: state.selectedSpan,
     setScrollTimeRange: state.setScrollTimeRange,
+    scrollToGroupId: state.scrollToGroupId,
+    consumeScrollToGroup: state.consumeScrollToGroup,
   }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
@@ -64,6 +68,20 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       return () => cancelAnimationFrame(rafId);
     }
   }, [selectedSpanIndex, virtualizer, isSpansLoading]);
+
+  // Scroll the matching boundary span into view in response to a click on a
+  // subagent block in the condensed timeline. The condensed timeline shares
+  // group ids with the transcript (`group-<boundarySpanId>`), so we strip the
+  // prefix to find the boundary span row in the tree.
+  useEffect(() => {
+    if (!scrollToGroupId || isSpansLoading) return;
+    const boundarySpanId = scrollToGroupId.startsWith("group-") ? scrollToGroupId.slice("group-".length) : null;
+    if (boundarySpanId) {
+      const index = treeSpans.findIndex((item) => item.span.spanId === boundarySpanId);
+      if (index >= 0) virtualizer.scrollToIndex(index, { align: "start" });
+    }
+    consumeScrollToGroup();
+  }, [scrollToGroupId, treeSpans, virtualizer, isSpansLoading, consumeScrollToGroup]);
 
   const items = virtualizer?.getVirtualItems() || [];
 
