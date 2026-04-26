@@ -21,7 +21,7 @@ import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
-import List from "@/components/traces/trace-view/transcript";
+import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
@@ -491,7 +491,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
             </div>
             {tab === "transcript" && (
               <div className="flex flex-1 h-full overflow-hidden relative">
-                <List onSpanSelect={handleSpanSelect} />
+                <Transcript onSpanSelect={handleSpanSelect} />
               </div>
             )}
             {tab === "tree" && (

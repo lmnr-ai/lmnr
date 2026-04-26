@@ -17,7 +17,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer from "../session-player";
 import CondensedTimeline from "./condensed-timeline";
 import Header from "./header";
-import List from "./transcript";
+import Transcript from "./transcript";
 import Tree from "./tree";
 
 interface TracePanelProps {
@@ -149,7 +149,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
             </div>
             {tab === "transcript" && (
               <div className="flex flex-1 h-full overflow-hidden relative">
-                <List onSpanSelect={handleSpanSelect} />
+                <Transcript onSpanSelect={handleSpanSelect} />
               </div>
             )}
             {tab === "tree" && (

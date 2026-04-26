@@ -19,7 +19,7 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import List from "@/components/traces/trace-view/transcript";
+import Transcript from "@/components/traces/trace-view/transcript";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
@@ -181,7 +181,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
               )}
               {tab === "transcript" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <List onSpanSelect={handleSpanSelect} isShared />
+                  <Transcript onSpanSelect={handleSpanSelect} isShared />
                 </div>
               )}
             </ResizablePanel>

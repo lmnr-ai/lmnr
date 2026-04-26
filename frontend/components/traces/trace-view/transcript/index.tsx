@@ -1,8 +1,8 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { isEmpty, times } from "lodash";
 import { ListTree } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import {
@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
 
-interface ListProps {
+interface TranscriptProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
@@ -54,7 +54,7 @@ function getSpanIdsForRow(row: FlatRow, expandedGroups: Set<string>): string[] {
   }
 }
 
-const List = ({ onSpanSelect, isShared = false }: ListProps) => {
+const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
@@ -193,12 +193,62 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     [flatRows]
   );
 
+  const stickyIndexes = useMemo(
+    () =>
+      flatRows.reduce<number[]>((acc, row, idx) => {
+        if (row.type === "group" && transcriptExpandedGroups.has(row.groupId)) acc.push(idx);
+        return acc;
+      }, []),
+    [flatRows, transcriptExpandedGroups]
+  );
+
+  const activeStickyIndexRef = useRef<number | null>(null);
+  const isActiveSticky = useCallback((index: number) => activeStickyIndexRef.current === index, []);
+
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      if (stickyIndexes.length === 0) {
+        activeStickyIndexRef.current = null;
+        return defaultRangeExtractor(range);
+      }
+      // The active sticky header is the most recent expanded-group header
+      // whose index is at or before the viewport start AND whose group's
+      // last child hasn't scrolled out yet. Once we've scrolled past the
+      // last row of the group, the header should un-stick.
+      let active: number | null = null;
+      for (let i = stickyIndexes.length - 1; i >= 0; i--) {
+        const headerIdx = stickyIndexes[i];
+        if (range.startIndex < headerIdx) continue;
+        // Find the index of the last row that belongs to this group
+        // (header itself or the trailing group-span/group-input rows).
+        let lastIdx = headerIdx;
+        for (let j = headerIdx + 1; j < flatRows.length; j++) {
+          const r = flatRows[j];
+          if (r.type === "group-span" || r.type === "group-input") {
+            lastIdx = j;
+          } else {
+            break;
+          }
+        }
+        if (range.startIndex <= lastIdx) {
+          active = headerIdx;
+        }
+        break;
+      }
+      activeStickyIndexRef.current = active;
+      const next = new Set([...(active !== null ? [active] : []), ...defaultRangeExtractor(range)]);
+      return [...next].sort((a, b) => a - b);
+    },
+    [stickyIndexes, flatRows]
+  );
+
   const virtualizer = useVirtualizer({
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => (needsLlmTopSpacing(index) ? 198 : 182),
     overscan: 20,
     paddingEnd: 64,
+    rangeExtractor,
   });
 
   const items = virtualizer.getVirtualItems();
@@ -389,42 +439,43 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           position: "relative",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            transform: `translateY(${items[0]?.start ?? 0}px)`,
-          }}
-        >
-          {items.map((virtualRow) => {
-            const row = flatRows[virtualRow.index];
-            if (!row) return null;
-            const nextRow = flatRows[virtualRow.index + 1];
-            const isGroupChild = row.type === "group-span" || row.type === "group-input";
-            const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
-            const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
-            const needsSpacing = needsLlmTopSpacing(virtualRow.index);
-            return (
-              <div
-                key={virtualRow.key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
-                className={cn({
-                  "pt-1": row.type === "group",
-                  "pt-4": needsSpacing,
-                  "pb-1": isCollapsedGroup || isLastGroupChild,
-                })}
-              >
-                {renderRow(row)}
-              </div>
-            );
-          })}
-        </div>
+        {items.map((virtualRow) => {
+          const row = flatRows[virtualRow.index];
+          if (!row) return null;
+          const nextRow = flatRows[virtualRow.index + 1];
+          const isGroupChild = row.type === "group-span" || row.type === "group-input";
+          const isCollapsedGroup = row.type === "group" && (!nextRow || !isGroupChildType(nextRow.type));
+          const isLastGroupChild = isGroupChild && (!nextRow || !isGroupChildType(nextRow.type));
+          const needsSpacing = needsLlmTopSpacing(virtualRow.index);
+          const activeSticky = isActiveSticky(virtualRow.index);
+
+          const positionStyle: CSSProperties = activeSticky
+            ? { position: "sticky", top: 0, background: "hsl(var(--background))" }
+            : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
+
+          if (row.type === "group") {
+            positionStyle.zIndex = activeSticky ? 10 : 1;
+          }
+
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              style={{ ...positionStyle, left: 0, width: "100%" }}
+              className={cn({
+                "pt-1": row.type === "group",
+                "pt-4": needsSpacing,
+                "pb-1": isCollapsedGroup || isLastGroupChild,
+              })}
+            >
+              {renderRow(row)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-export default List;
+export default Transcript;
