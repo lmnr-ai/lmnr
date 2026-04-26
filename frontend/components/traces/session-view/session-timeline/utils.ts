@@ -3,6 +3,7 @@
 // deduplication once the session timeline design stabilizes.
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { computeSubagentGroups } from "@/components/traces/trace-view/store/utils";
 import { type TraceRow } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
@@ -32,6 +33,16 @@ export interface SessionTimelineContainerSpan {
   color: string;
 }
 
+/** Bounding box of a subagent group inside an expanded trace container.
+ *  Coordinates are CONTAINER-RELATIVE (same frame as spans). */
+export interface SessionTimelineSubagentGroupBox {
+  groupId: string;
+  left: number;
+  width: number;
+  topRow: number;
+  rowSpan: number;
+}
+
 /** Expanded trace rendered as a bordered container holding its spans.
  *  Replaces the trace bar entirely when expanded + spans are loaded. */
 export interface SessionTimelineSpanContainer {
@@ -42,6 +53,7 @@ export interface SessionTimelineSpanContainer {
   row: number; // starting row in segment
   rowHeight: number; // number of rows this container occupies (>= 2)
   spans: SessionTimelineContainerSpan[];
+  groupBoxes: SessionTimelineSubagentGroupBox[];
 }
 
 export type SessionTimelineElement = SessionTimelineTraceBar | SessionTimelineSpanContainer;
@@ -51,11 +63,19 @@ export interface SessionTimelineSegmentData {
   startTimeMs: number;
   endTimeMs: number;
   durationMs: number;
+  /** Denominator used when positioning elements as % — duration rounded up to
+   *  the next whole second (matches `upperIntervalMs` in the layout routine,
+   *  which mirrors the condensed-timeline convention in trace-view). */
+  widthMs: number;
   totalRows: number;
 }
 
 export interface SessionTimelineGapData {
   durationMs: number;
+  /** Absolute ms time at the end of the previous cluster (= gap start). */
+  startMs: number;
+  /** Absolute ms time at the start of the next cluster (= gap end). */
+  endMs: number;
 }
 
 export type SessionTimelineSection =
@@ -76,8 +96,10 @@ export interface SessionTimelineSections {
 /** Gaps larger than this are collapsed into a divider. */
 export const GAP_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-/** Fixed pixel width for gap dividers. */
-export const GAP_WIDTH_PX = 48;
+/** Fixed pixel width for gap dividers INCLUDING the 8px gutters on each side.
+ *  The gap component owns the gutters so they participate in the
+ *  scroll-indicator highlight when the range straddles the gap. */
+export const GAP_WIDTH_PX = 64;
 
 /** Minimum block height (in rows) for both trace bars and empty/loading
  *  span containers. Matches the 2-row allocation used by the trace bar's
@@ -154,8 +176,8 @@ function clusterTraces(traces: TraceRow[]): TraceCluster[] {
 function packSpansInContainer(
   spans: TraceViewSpan[],
   trace: TraceRow
-): { spans: SessionTimelineContainerSpan[]; rowCount: number } {
-  if (spans.length === 0) return { spans: [], rowCount: 0 };
+): { spans: SessionTimelineContainerSpan[]; rowCount: number; groupBoxes: SessionTimelineSubagentGroupBox[] } {
+  if (spans.length === 0) return { spans: [], rowCount: 0, groupBoxes: [] };
 
   const traceStartMs = new Date(trace.startTime).getTime();
   const traceEndMs = new Date(trace.endTime).getTime();
@@ -225,7 +247,37 @@ function packSpansInContainer(
     result.push({ span, left, width, row: targetRow, color });
   }
 
-  return { spans: result, rowCount: rowOccupancy.length };
+  // Subagent group wrappers — bounding boxes derived from the packed span
+  // positions above, container-relative. Skips groups with no represented
+  // spans (should be rare — happens if subagent spans are all DEFAULT type
+  // and got filtered upstream).
+  const groups = computeSubagentGroups(spans);
+  const posById = new Map(result.map((r) => [r.span.spanId, r]));
+  const groupBoxes: SessionTimelineSubagentGroupBox[] = [];
+  for (const group of groups) {
+    let minLeft = Infinity;
+    let maxRight = -Infinity;
+    let minRow = Infinity;
+    let maxRow = -Infinity;
+    for (const spanId of group.spanIds) {
+      const pos = posById.get(spanId);
+      if (!pos) continue;
+      if (pos.left < minLeft) minLeft = pos.left;
+      if (pos.left + pos.width > maxRight) maxRight = pos.left + pos.width;
+      if (pos.row < minRow) minRow = pos.row;
+      if (pos.row > maxRow) maxRow = pos.row;
+    }
+    if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) continue;
+    groupBoxes.push({
+      groupId: group.groupId,
+      left: minLeft,
+      width: maxRight - minLeft,
+      topRow: minRow,
+      rowSpan: maxRow - minRow + 1,
+    });
+  }
+
+  return { spans: result, rowCount: rowOccupancy.length, groupBoxes };
 }
 
 // ---------------------------------------------------------------------------
@@ -278,7 +330,12 @@ function computeSegmentLayout(
     // Rendered element for this block (without `row` yet — assigned below).
     render:
       | { type: "trace"; shimmer: boolean }
-      | { type: "span-container"; rowHeight: number; spans: SessionTimelineContainerSpan[] };
+      | {
+          type: "span-container";
+          rowHeight: number;
+          spans: SessionTimelineContainerSpan[];
+          groupBoxes: SessionTimelineSubagentGroupBox[];
+        };
   };
 
   const blocks: Block[] = traces
@@ -306,7 +363,7 @@ function computeSegmentLayout(
           left,
           width,
           height: rowHeight,
-          render: { type: "span-container", rowHeight, spans: packed.spans },
+          render: { type: "span-container", rowHeight, spans: packed.spans, groupBoxes: packed.groupBoxes },
         };
       }
 
@@ -351,6 +408,7 @@ function computeSegmentLayout(
         row,
         rowHeight: block.render.rowHeight,
         spans: block.render.spans,
+        groupBoxes: block.render.groupBoxes,
       });
     }
   }
@@ -401,13 +459,17 @@ export function computeSessionTimelineSegments(
         startTimeMs: cluster.startMs,
         endTimeMs: cluster.endMs,
         durationMs,
+        widthMs: Math.max(Math.ceil(durationMs / 1000) * 1000, 1),
         totalRows,
       },
     });
 
     if (i < clusters.length - 1) {
       const gapMs = clusters[i + 1].startMs - cluster.endMs;
-      sections.push({ type: "gap", gap: { durationMs: gapMs } });
+      sections.push({
+        type: "gap",
+        gap: { durationMs: gapMs, startMs: cluster.endMs, endMs: clusters[i + 1].startMs },
+      });
     }
   }
 

@@ -57,9 +57,20 @@ interface SessionViewState {
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
   transcriptExpandedGroups: Set<string>;
 
+  /** One-shot scroll request: timeline click → panel list scrolls to group header. */
+  scrollToGroup: { traceId: string; groupId: string } | null;
+
   // Session timeline
   sessionTimelineEnabled: boolean;
   sessionTimelineZoom: number;
+
+  // Absolute-ms (start, end) covering the times of rows currently visible in
+  // the session panel virtualizer. Each timeline segment draws a scroll
+  // indicator only if at least one endpoint of the range is inside its own
+  // time domain — segments wholly enclosed by the range (intermediate
+  // segments the user isn't actually looking at) draw nothing.
+  scrollStartTime?: number;
+  scrollEndTime?: number;
 
   // Search state — non-null searchResults means a search is active.
   searchResults?: Record<string, SessionSpansTraceResult>;
@@ -97,9 +108,12 @@ interface SessionViewActions {
   setTraceSpansError: (traceId: string, error?: string) => void;
 
   toggleTranscriptGroup: (traceId: string, groupId: string) => void;
+  requestScrollToGroup: (traceId: string, groupId: string) => void;
+  consumeScrollToGroup: () => void;
 
   setSessionTimelineEnabled: (enabled: boolean) => void;
   setSessionTimelineZoom: (zoom: number) => void;
+  setScrollTimeRange: (start?: number, end?: number) => void;
 
   searchSessionSpans: (filters: Filter[], search: string) => Promise<void>;
   clearSearch: () => void;
@@ -186,9 +200,13 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 
         expandedTraceIds: new Set<string>(),
         transcriptExpandedGroups: new Set<string>(),
+        scrollToGroup: null,
 
         sessionTimelineEnabled: false,
         sessionTimelineZoom: 1,
+
+        scrollStartTime: undefined,
+        scrollEndTime: undefined,
 
         searchResults: undefined,
         isSearchLoading: false,
@@ -317,8 +335,14 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           set({ transcriptExpandedGroups: next });
         },
 
+        requestScrollToGroup: (traceId, groupId) => set({ scrollToGroup: { traceId, groupId } }),
+        consumeScrollToGroup: () => {
+          if (get().scrollToGroup !== null) set({ scrollToGroup: null });
+        },
+
         setSessionTimelineEnabled: (enabled) => set({ sessionTimelineEnabled: enabled }),
         setSessionTimelineZoom: (zoom) => set({ sessionTimelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
+        setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end }),
 
         setSelectedSpan: (selectedSpan) => {
           set({ selectedSpan, spanPanelOpen: !!selectedSpan });

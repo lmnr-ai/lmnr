@@ -170,7 +170,7 @@ function SessionTimeline() {
         onMouseLeave={handleMouseLeaveTimeline}
       >
         <div
-          className="flex h-full"
+          className="flex h-full px-4"
           style={{
             // At zoom=1 the segments fill the visible area; gaps add fixed extra width.
             width: `calc(${100 * zoom}% + ${totalGapWidth * (zoom > 1 ? 1 : 0)}px)`,
@@ -182,7 +182,7 @@ function SessionTimeline() {
             section.type === "segment" ? (
               <div
                 key={`seg-${i}`}
-                className="min-w-0 px-2 overflow-y-clip"
+                className="min-w-0 overflow-y-clip"
                 style={{
                   // flex-grow proportional to duration; segments split the
                   // available space after gaps are subtracted.
@@ -201,7 +201,12 @@ function SessionTimeline() {
                 />
               </div>
             ) : (
-              <SessionTimelineGap key={`gap-${i}`} durationMs={section.gap.durationMs} />
+              <SessionTimelineGap
+                key={`gap-${i}`}
+                durationMs={section.gap.durationMs}
+                startMs={section.gap.startMs}
+                endMs={section.gap.endMs}
+              />
             )
           )}
         </div>

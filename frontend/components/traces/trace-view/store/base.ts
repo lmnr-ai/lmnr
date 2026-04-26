@@ -11,6 +11,8 @@ import { type SpanType } from "@/lib/traces/types";
 import {
   buildTranscriptListEntries,
   computePathInfoMap,
+  computeSubagentGroups,
+  type CondensedSubagentGroup,
   type CondensedTimelineData,
   transformSpansToCondensedTimeline,
   transformSpansToTree,
@@ -161,6 +163,12 @@ export interface BaseTraceViewState {
   condensedTimelineZoom: number;
   isCostHeatmapVisible: boolean;
 
+  // Absolute ms time range covered by rows currently visible in the active
+  // transcript/tree virtualizer. Drives the scroll indicator in the condensed
+  // timeline. Undefined when no view is reporting.
+  scrollStartTime?: number;
+  scrollEndTime?: number;
+
   // Panel visibility
   spanPanelOpen: boolean;
   tracesAgentOpen: boolean;
@@ -190,6 +198,9 @@ export interface BaseTraceViewState {
 
   // Transcript mode: IDs of groups the user has expanded
   transcriptExpandedGroups: Set<string>;
+
+  /** One-shot scroll request: timeline click → transcript scrolls to group header. */
+  scrollToGroupId: string | null;
 }
 
 export interface BaseTraceViewActions {
@@ -218,6 +229,7 @@ export interface BaseTraceViewActions {
   setCondensedTimelineZoom: (zoom: number) => void;
   setIsCostHeatmapVisible: (visible: boolean) => void;
   selectMaxSpanCost: () => number;
+  setScrollTimeRange: (start?: number, end?: number) => void;
 
   // Panel visibility actions
   setSpanPanelOpen: (open: boolean) => void;
@@ -234,9 +246,12 @@ export interface BaseTraceViewActions {
   consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
   toggleTranscriptGroup: (groupId: string) => void;
+  requestScrollToGroup: (groupId: string) => void;
+  consumeScrollToGroup: () => void;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
+  getCondensedSubagentGroups: () => CondensedSubagentGroup[];
   getTranscriptListData: () => TranscriptListEntry[];
   getHasLangGraph: () => boolean;
 }
@@ -272,6 +287,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
     isCostHeatmapVisible: false,
+    scrollStartTime: undefined,
+    scrollEndTime: undefined,
 
     // Panel visibility defaults
     // spanPanelOpen is intentionally false — in the dynamic (drawer) layout we keep the
@@ -295,6 +312,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Transcript mode: IDs of groups the user has expanded (all collapsed by default)
     transcriptExpandedGroups: new Set<string>(),
+    scrollToGroupId: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -340,6 +358,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const { spans, condensedTimelineVisibleSpanIds } = get();
       return buildTranscriptListEntries(spans, condensedTimelineVisibleSpanIds);
     },
+    getCondensedSubagentGroups: () => computeSubagentGroups(get().spans),
 
     toggleTranscriptGroup: (groupId: string) => {
       const prev = get().transcriptExpandedGroups;
@@ -350,6 +369,11 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         next.add(groupId);
       }
       set({ transcriptExpandedGroups: next } as Partial<T>);
+    },
+
+    requestScrollToGroup: (groupId: string) => set({ scrollToGroupId: groupId } as Partial<T>),
+    consumeScrollToGroup: () => {
+      if (get().scrollToGroupId !== null) set({ scrollToGroupId: null } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
@@ -395,6 +419,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) } as Partial<T>);
     },
     setIsCostHeatmapVisible: (visible: boolean) => set({ isCostHeatmapVisible: visible } as Partial<T>),
+    setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end } as Partial<T>),
     selectMaxSpanCost: () => {
       const spans = get().spans;
       let max = 0;

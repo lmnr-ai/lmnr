@@ -19,6 +19,10 @@ import {
 } from "@/components/traces/trace-view/transcript/item";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/transcript/use-batched-span-previews";
 import { useTraceUserInput } from "@/components/traces/trace-view/transcript/use-trace-user-input";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { track } from "@/lib/posthog";
@@ -67,6 +71,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     transcriptExpandedGroups,
     toggleTranscriptGroup,
     setTab,
+    setScrollTimeRange,
+    scrollToGroupId,
+    consumeScrollToGroup,
   } = useTraceViewBaseStore(
     (state) => ({
       getTranscriptListData: state.getTranscriptListData,
@@ -78,6 +85,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
       transcriptExpandedGroups: state.transcriptExpandedGroups,
       toggleTranscriptGroup: state.toggleTranscriptGroup,
       setTab: state.setTab,
+      setScrollTimeRange: state.setScrollTimeRange,
+      scrollToGroupId: state.scrollToGroupId,
+      consumeScrollToGroup: state.consumeScrollToGroup,
     }),
     shallow
   );
@@ -256,25 +266,33 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
   const selectedRowIndex = useMemo(() => {
     const selectedId = selectedSpan?.spanId;
     if (!selectedId) return -1;
-    return flatRows.findIndex((row) => {
-      switch (row.type) {
-        case "span":
-        case "group-span":
-          return row.span.spanId === selectedId;
-        case "group":
-          return (
-            row.firstSpan.spanId === selectedId || row.firstLlmSpanId === selectedId || row.lastLlmSpanId === selectedId
-          );
-        default:
-          return false;
-      }
-    });
+    // Prefer the actual span row over the group header — when a subagent group is
+    // expanded, clicking a span that is also the group's first/last LLM (or the
+    // boundary span itself) should scroll to the span row, not the group header.
+    const spanRowIndex = flatRows.findIndex(
+      (row) => (row.type === "span" || row.type === "group-span") && row.span.spanId === selectedId
+    );
+    if (spanRowIndex >= 0) return spanRowIndex;
+    return flatRows.findIndex(
+      (row) =>
+        row.type === "group" &&
+        (row.firstSpan.spanId === selectedId || row.firstLlmSpanId === selectedId || row.lastLlmSpanId === selectedId)
+    );
   }, [flatRows, selectedSpan?.spanId]);
 
   useEffect(() => {
     if (selectedRowIndex < 0 || isSpansLoading) return;
     virtualizer.scrollToIndex(selectedRowIndex, { align: "auto" });
   }, [selectedRowIndex, virtualizer, isSpansLoading]);
+
+  // Scroll the matching group header into view in response to a click on a
+  // subagent block in the condensed timeline.
+  useEffect(() => {
+    if (!scrollToGroupId || isSpansLoading) return;
+    const index = flatRows.findIndex((row) => row.type === "group" && row.groupId === scrollToGroupId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: "start" });
+    consumeScrollToGroup();
+  }, [scrollToGroupId, flatRows, virtualizer, isSpansLoading, consumeScrollToGroup]);
 
   const allVisibleSpanIds = useMemo(
     () =>
@@ -284,6 +302,53 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
       }),
     [items, flatRows, transcriptExpandedGroups]
   );
+
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of inViewport) {
+      const row = flatRows[item.index];
+      if (!row) continue;
+      let startStr: string | undefined;
+      let endStr: string | undefined;
+      switch (row.type) {
+        case "span":
+        case "group-span":
+          startStr = row.span.startTime;
+          endStr = row.span.endTime;
+          break;
+        case "group":
+          startStr = row.startTime;
+          endStr = row.endTime;
+          break;
+        case "group-input": {
+          const s = spansById.get(row.firstLlmSpanId);
+          if (s) {
+            startStr = s.startTime;
+            endStr = s.endTime;
+          }
+          break;
+        }
+        // user-input: no time mapping
+      }
+      if (startStr && endStr) {
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        if (s < min) min = s;
+        if (e > max) max = e;
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, flatRows, spansById, scrollOffset, viewportHeight]);
+
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime, setTimeRange: setScrollTimeRange });
 
   const { previews, inputPreviews, agentNames } = useBatchedSpanPreviews(
     projectId,

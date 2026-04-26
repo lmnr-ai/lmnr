@@ -12,6 +12,10 @@ import {
   InputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +23,9 @@ import { useSessionViewStore } from "../store";
 import { buildSessionFlatRows, formatGap } from "../utils";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
+
+/** Sticky trace-header height; used as scroll offset so headers land below it. */
+const STICKY_HEADER_HEIGHT = 36;
 
 /**
  * Virtualized body of the session panel. Reads everything it needs directly
@@ -42,6 +49,9 @@ export default function SessionList() {
     toggleTraceExpanded,
     toggleTranscriptGroup,
     setSelectedSpan,
+    setScrollTimeRange,
+    scrollToGroup,
+    consumeScrollToGroup,
   } = useSessionViewStore(
     (s) => ({
       projectId: s.projectId,
@@ -56,6 +66,9 @@ export default function SessionList() {
       toggleTraceExpanded: s.toggleTraceExpanded,
       toggleTranscriptGroup: s.toggleTranscriptGroup,
       setSelectedSpan: s.setSelectedSpan,
+      setScrollTimeRange: s.setScrollTimeRange,
+      scrollToGroup: s.scrollToGroup,
+      consumeScrollToGroup: s.consumeScrollToGroup,
     }),
     shallow
   );
@@ -182,6 +195,53 @@ export default function SessionList() {
 
   const items = virtualizer.getVirtualItems();
 
+  // --- Visible time range for the timeline's scroll indicator ---
+  //
+  // Only rows that actually carry a meaningful time range contribute. Spacers
+  // (trace-collapsed-end / trace-expanded-end), user-input, and loading/error/
+  // empty rows are skipped — otherwise a 1-px sliver of an adjacent spacer
+  // would drag min/max to that neighbor trace's full extent.
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of inViewport) {
+      const row = flatRows[item.index];
+      if (!row) continue;
+      let startStr: string | undefined;
+      let endStr: string | undefined;
+      if (row.type === "span" || row.type === "group-span") {
+        startStr = row.span.startTime;
+        endStr = row.span.endTime;
+      } else if (row.type === "group-header") {
+        startStr = row.group.startTime;
+        endStr = row.group.endTime;
+      } else if (row.type === "trace-header") {
+        startStr = row.trace.startTime;
+        endStr = row.trace.endTime;
+      }
+      if (startStr && endStr) {
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        if (s < min) min = s;
+        if (e > max) max = e;
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, flatRows, scrollOffset, viewportHeight]);
+
+  useReportVisibleTimeRange({
+    start: visibleStartTime,
+    end: visibleEndTime,
+    setTimeRange: setScrollTimeRange,
+  });
+
   // Declarative scroll-to-selected-span. When `selectedSpan` changes (e.g. via
   // the URL resolver in session-view-content), flat rows rebuild once the
   // trace's spans are loaded — at which point `findIndex` succeeds and we
@@ -208,6 +268,38 @@ export default function SessionList() {
     });
     return () => cancelAnimationFrame(rafId);
   }, [selectedSpan, flatRows, virtualizer]);
+
+  // Scroll the matching group-header row into view in response to a click on
+  // a subagent block in the session timeline. The scroll lands 36px below the
+  // top to clear the sticky trace-header.
+  //
+  // Two passes are needed: `getOffsetForIndex` returns estimates for unmeasured
+  // rows (estimateSize=70 vs real heights), so the first scroll lands close
+  // enough to force measurement, and the second scroll uses the now-accurate
+  // offset.
+  useEffect(() => {
+    if (!scrollToGroup) return;
+    const idx = flatRows.findIndex(
+      (r) =>
+        r.type === "group-header" && r.traceId === scrollToGroup.traceId && r.group.groupId === scrollToGroup.groupId
+    );
+    if (idx === -1) {
+      consumeScrollToGroup();
+      return;
+    }
+
+    const scrollWithOffset = () => {
+      const offset = virtualizer.getOffsetForIndex(idx, "start")?.[0];
+      if (offset !== undefined) virtualizer.scrollToOffset(Math.max(0, offset - STICKY_HEADER_HEIGHT));
+    };
+
+    scrollWithOffset();
+    const rafId = requestAnimationFrame(() => {
+      scrollWithOffset();
+      consumeScrollToGroup();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToGroup, flatRows, virtualizer, consumeScrollToGroup]);
 
   // --- Preview fetching (batched across traces) ---
   //

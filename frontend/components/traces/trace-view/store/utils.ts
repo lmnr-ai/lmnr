@@ -362,6 +362,68 @@ export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> =
   return boundaryIds;
 };
 
+export interface CondensedSubagentGroup {
+  /** Matches transcriptExpandedGroups keys (`group-<boundarySpanId>`). */
+  groupId: string;
+  /** All span IDs belonging to this subagent group (any span type). */
+  spanIds: string[];
+}
+
+/**
+ * Groups every span under its nearest subagent boundary ancestor, returning
+ * `{groupId, spanIds}` per subagent. Shares `group-<boundary>` naming with
+ * `buildTranscriptListEntries` so the condensed timeline can sync its
+ * collapsed/expanded state with the transcript via `transcriptExpandedGroups`.
+ */
+export const computeSubagentGroups = (allSpans: TraceViewSpan[]): CondensedSubagentGroup[] => {
+  const groupBoundarySet = computeSubagentBoundaries(allSpans);
+  if (groupBoundarySet.size === 0) return [];
+
+  const parentMap = new Map<string, string | undefined>();
+  for (const s of allSpans) parentMap.set(s.spanId, s.parentSpanId);
+
+  const spanGroupCache = new Map<string, string | null>();
+  const findGroupBoundary = (spanId: string): string | null => {
+    if (spanGroupCache.has(spanId)) return spanGroupCache.get(spanId)!;
+    const visited: string[] = [spanId];
+    let current: string | undefined = spanId;
+    let result: string | null = null;
+    while (current) {
+      if (groupBoundarySet.has(current)) {
+        result = current;
+        break;
+      }
+      const parent = parentMap.get(current);
+      if (!parent) break;
+      if (spanGroupCache.has(parent)) {
+        result = spanGroupCache.get(parent)!;
+        break;
+      }
+      visited.push(parent);
+      current = parent;
+    }
+    for (const id of visited) spanGroupCache.set(id, result);
+    return result;
+  };
+
+  const groupSpansMap = new Map<string, string[]>();
+  for (const span of allSpans) {
+    const boundary = findGroupBoundary(span.spanId);
+    if (!boundary) continue;
+    let bucket = groupSpansMap.get(boundary);
+    if (!bucket) {
+      bucket = [];
+      groupSpansMap.set(boundary, bucket);
+    }
+    bucket.push(span.spanId);
+  }
+
+  return Array.from(groupSpansMap.entries()).map(([boundary, spanIds]) => ({
+    groupId: `group-${boundary}`,
+    spanIds,
+  }));
+};
+
 /**
  * Builds the flat list of transcript entries from spans.
  * Handles subagent grouping: spans under a subagent boundary are collapsed
