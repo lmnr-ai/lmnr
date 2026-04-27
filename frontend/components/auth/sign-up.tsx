@@ -43,7 +43,10 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
   const handleSignUp = async (provider: Provider) => {
     try {
       setIsLoading(provider);
-      track("auth", "sign_up_attempted", { provider });
+      // sendInstantly bypasses posthog-js's batching queue — `signIn` triggers
+      // a window.location redirect almost immediately, which would otherwise
+      // drop the queued event.
+      track("auth", "sign_up_attempted", { provider }, { sendInstantly: true });
       const result = await signIn(provider, { callbackUrl });
 
       if (result && !result.ok) {
