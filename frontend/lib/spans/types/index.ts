@@ -85,6 +85,12 @@ const processContentPart = (
         text: part.text,
       };
 
+    case "reasoning":
+      return {
+        type: "reasoning" as const,
+        text: part.text,
+      };
+
     case "image_url":
       if ("image_url" in part) {
         return {
