@@ -22,6 +22,35 @@ import AnnotationInterface from "./annotation-interface";
 import { QueueStoreProvider, useQueueStore } from "./queue-store";
 import SchemaDefinitionDialog from "./schema-definition-dialog";
 
+/**
+ * Check if a value looks like an LLM chat message array.
+ * Returns true for arrays of objects with "role" and "content" fields,
+ * which is the standard format used by OpenAI, Anthropic, etc.
+ */
+function looksLikeMessageArray(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  if (value.length === 0) return false;
+  return value.every((item) => typeof item === "object" && item !== null && "role" in item && "content" in item);
+}
+
+/**
+ * Determine the best default rendering mode for a queue item payload
+ * and extract the relevant value to pass to ContentRenderer.
+ *
+ * If the payload (or its data/target fields) contain LLM message arrays,
+ * returns "messages" mode with the extracted message array so that
+ * ContentRenderer receives the correct data shape.
+ */
+function getPayloadRendering(payload: unknown): { mode: string; value: unknown } {
+  if (looksLikeMessageArray(payload)) return { mode: "messages", value: payload };
+  if (typeof payload === "object" && payload !== null) {
+    const obj = payload as Record<string, unknown>;
+    if (looksLikeMessageArray(obj.data)) return { mode: "messages", value: obj.data };
+    if (looksLikeMessageArray(obj.target)) return { mode: "messages", value: obj.target };
+  }
+  return { mode: "json", value: payload };
+}
+
 function QueueInner() {
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -98,6 +127,8 @@ function QueueInner() {
     // No source - manually created
     return null;
   }, [currentItem, projectId]);
+
+  const payloadRendering = useMemo(() => getPayloadRendering(currentItem?.payload), [currentItem?.payload]);
 
   const onChange = useCallback(
     (v: string) => {
@@ -299,12 +330,14 @@ function QueueInner() {
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ContentRenderer
+                  key={currentItem?.id}
                   presetKey={`labeling-queue-${storeQueue?.id}`}
                   codeEditorClassName="rounded-b"
                   className="rounded"
-                  defaultMode="json"
+                  defaultMode={payloadRendering.mode}
+                  modes={["MESSAGES", "JSON", "YAML", "TEXT"]}
                   readOnly
-                  value={JSON.stringify(currentItem?.payload, null, 2)}
+                  value={JSON.stringify(payloadRendering.value, null, 2)}
                 />
               </div>
             </>
