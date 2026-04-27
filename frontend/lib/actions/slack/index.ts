@@ -174,7 +174,7 @@ interface SlackConversationsListResponse {
 async function fetchSlackConversationsPage(token: string, cursor: string): Promise<SlackConversationsListResponse> {
   const url = new URL("https://slack.com/api/conversations.list");
   url.searchParams.set("exclude_archived", "true");
-  url.searchParams.set("types", "public_channel");
+  url.searchParams.set("types", "public_channel,private_channel");
   url.searchParams.set("limit", String(SLACK_CONVERSATIONS_PAGE_LIMIT));
   if (cursor) {
     url.searchParams.set("cursor", cursor);
