@@ -150,3 +150,8 @@ To learn more about instrumenting your code, check out our client libraries:
 
  <a href="https://www.npmjs.com/package/@lmnr-ai/lmnr"> ![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837) </a>
  <a href="https://pypi.org/project/lmnr/"> ![PyPI - Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9) </a>
+
+
+## Support
+
+If you find this project helpful, please consider giving it a ⭐
