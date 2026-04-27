@@ -1,6 +1,17 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronUp, CircleAlert, FileText, Info, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
+  FileText,
+  Info,
+  Layers,
+  Settings,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
@@ -12,14 +23,14 @@ import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
 
-interface NoteworthyEvent {
+interface NoteworthyEventPayload {
   signal_name: string;
   summary: string;
   timestamp: string;
   trace_id: string;
 }
 
-interface SignalsReport {
+interface SignalsReportPayload {
   workspace_name: string;
   project_id: string;
   project_name: string;
@@ -29,15 +40,29 @@ interface SignalsReport {
   period_end: string;
   signal_event_counts: Record<string, number>;
   ai_summary: string;
-  noteworthy_events: NoteworthyEvent[];
+  noteworthy_events: NoteworthyEventPayload[];
 }
 
-interface EventIdentification {
+interface EventIdentificationPayload {
   project_id: string;
+  signal_id: string;
   trace_id: string;
+  event_id: string | null;
   event_name: string;
   severity: number;
   extracted_information: Record<string, unknown> | null;
+  alert_name: string;
+}
+
+interface NewClusterPayload {
+  project_id: string;
+  signal_id: string;
+  signal_name: string;
+  cluster_id: string;
+  cluster_name: string;
+  num_signal_events: number;
+  num_child_clusters: number;
+  alert_name: string;
 }
 
 interface BaseNotification {
@@ -45,20 +70,27 @@ interface BaseNotification {
   summary: string;
 }
 
-interface AlertNotification extends BaseNotification {
+interface NewEventNotification extends BaseNotification {
   kind: "alert";
   extractedFields: [string, string][];
   traceLink: string;
+  similarEventsLink: string | null;
   severity: number;
+}
+
+interface NewClusterNotification extends BaseNotification {
+  kind: "cluster";
+  clusterLink: string;
+  details: [string, string][];
 }
 
 interface ReportNotification extends BaseNotification {
   kind: "report";
   aiSummary: string | null;
-  noteworthyEvents: NoteworthyEvent[];
+  noteworthyEvents: NoteworthyEventPayload[];
 }
 
-type FormattedNotification = AlertNotification | ReportNotification;
+type FormattedNotification = NewEventNotification | NewClusterNotification | ReportNotification;
 
 const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
 
@@ -105,7 +137,14 @@ const renderWithLinks = (text: string): ReactNode => {
 
 const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { EventIdentification: EventIdentification } = JSON.parse(notification.payload);
+    const payload: { EventIdentification?: EventIdentificationPayload; NewCluster?: NewClusterPayload } = JSON.parse(
+      notification.payload
+    );
+
+    if (payload.NewCluster) {
+      return formatNewClusterPayload(payload.NewCluster);
+    }
+
     const event = payload.EventIdentification;
     if (!event) return null;
 
@@ -113,18 +152,24 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     if (event.severity == null) return null;
 
     const severity = event.severity;
-    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
 
     const extractedFields: [string, string][] = event.extracted_information
       ? Object.entries(event.extracted_information).map(([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)])
       : [];
 
+    const similarEventsLink = event.event_id
+      ? `/project/${event.project_id}/signals/${event.signal_id}?eventCluster=${event.event_id}`
+      : null;
+
+    const severityLabel = SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Unknown";
+
     return {
       kind: "alert",
-      title: event.event_name,
-      summary: `New ${severityLabel} event detected`,
+      title: `${event.event_name}`,
+      summary: `New ${severityLabel} event`,
       extractedFields,
       traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
+      similarEventsLink,
       severity,
     };
   } catch {
@@ -132,9 +177,25 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
   }
 };
 
+const formatNewClusterPayload = (cluster: NewClusterPayload): NewClusterNotification => {
+  const details: [string, string][] = [
+    ["Name", cluster.cluster_name],
+    ["Events", String(cluster.num_signal_events)],
+    ["Child clusters", String(cluster.num_child_clusters)],
+  ];
+
+  return {
+    kind: "cluster",
+    title: cluster.signal_name,
+    summary: "New cluster",
+    clusterLink: `/project/${cluster.project_id}/signals/${cluster.signal_id}?clusterId=${cluster.cluster_id}`,
+    details,
+  };
+};
+
 const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: { SignalsReport: SignalsReport } = JSON.parse(notification.payload);
+    const payload: { SignalsReport: SignalsReportPayload } = JSON.parse(notification.payload);
     const report = payload.SignalsReport;
     if (!report) {
       return null;
@@ -212,8 +273,8 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotifi
     {formatted.noteworthyEvents.length > 0 && (
       <div className="flex flex-col gap-1.5 mt-1">
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Noteworthy events</span>
-        {formatted.noteworthyEvents.slice(0, 3).map((event) => (
-          <div key={event.trace_id} className="flex flex-col gap-0.5">
+        {formatted.noteworthyEvents.slice(0, 3).map((event, index) => (
+          <div key={`${event.trace_id}-${index}`} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
               <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
@@ -222,10 +283,11 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: ReportNotifi
             {projectId && (
               <Link
                 href={`/project/${projectId}/traces/${event.trace_id}?chat=true`}
-                className="text-[11px] text-muted-foreground underline hover:text-foreground mt-0.5 w-fit"
+                className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground mt-0.5 w-fit"
                 onClick={(e) => e.stopPropagation()}
               >
                 View trace
+                <ArrowUpRight className="size-3 text-primary" />
               </Link>
             )}
           </div>
@@ -302,13 +364,52 @@ const NotificationItem = ({
               ))}
             </div>
           )}
-          <Link
-            href={formatted.traceLink}
-            className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
-            onClick={(e) => e.stopPropagation()}
-          >
-            View trace
-          </Link>
+          <div className="flex flex-col gap-1">
+            <Link
+              href={formatted.traceLink}
+              className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View trace
+              <ArrowUpRight className="size-3 text-primary" />
+            </Link>
+            {formatted.similarEventsLink && (
+              <Link
+                href={formatted.similarEventsLink}
+                className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View similar events
+                <ArrowUpRight className="size-3 text-primary" />
+              </Link>
+            )}
+          </div>
+        </>
+      )}
+      {formatted.kind === "cluster" && (
+        <>
+          {formatted.details.length > 0 && (
+            <div className="flex flex-col gap-0.5">
+              {formatted.details.map(([key, value]) => (
+                <div key={key} className="flex gap-1.5 text-xs leading-snug">
+                  <span className="text-muted-foreground shrink-0">{key}:</span>
+                  <span className={cn("break-words", isUnread ? "text-foreground/80" : "text-secondary-foreground")}>
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-3">
+            <Link
+              href={formatted.clusterLink}
+              className="inline-flex items-center gap-0.5 text-[11px] text-secondary-foreground hover:text-foreground w-fit"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View cluster
+              <ArrowUpRight className="size-3 text-primary" />
+            </Link>
+          </div>
         </>
       )}
       {formatted.kind === "report" && <NotificationDetails formatted={formatted} projectId={projectId} />}
@@ -327,6 +428,8 @@ const NotificationItem = ({
         <div className="flex items-center gap-1.5">
           {formatted.kind === "alert" ? (
             <SeverityIcon severity={formatted.severity} />
+          ) : formatted.kind === "cluster" ? (
+            <Layers className="size-3.5 shrink-0 text-muted-foreground/60" />
           ) : (
             <FileText className="size-3.5 shrink-0 text-muted-foreground/60" />
           )}
@@ -457,16 +560,33 @@ const NotificationPanel = () => {
   return (
     <>
       <div className="absolute inset-0 z-40 bg-black/20" onClick={close} />
-      <div className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg">
+      <div
+        className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg"
+        onClickCapture={(e) => {
+          if ((e.target as HTMLElement).closest("a")) close();
+        }}
+      >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
             <span className="text-sm font-medium">Notifications</span>
-            <button
-              onClick={close}
-              className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-            >
-              <X className="size-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {project && (
+                <Link
+                  href={`/project/${project.id}/settings?tab=alerts`}
+                  onClick={close}
+                  title="Alert settings"
+                  className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+                >
+                  <Settings className="size-4" />
+                </Link>
+              )}
+              <button
+                onClick={close}
+                className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {!hasNotifications ? (

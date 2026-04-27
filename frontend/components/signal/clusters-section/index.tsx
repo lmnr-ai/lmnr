@@ -8,6 +8,7 @@ import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import {
   getChartClusters,
   getCurrentNode,
@@ -28,6 +29,7 @@ import { getClusterColor, UNCLUSTERED_COLOR } from "./colors";
 export default function ClustersSection() {
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
+  const [, setEmergingClusterId] = useEmergingClusterId();
 
   // For leaf nodes, stay at the parent's navigation level
   const isLeaf = useSignalStoreContext((state) => getIsLeaf(state, clusterId));
@@ -109,6 +111,10 @@ export default function ClustersSection() {
   // Navigation callbacks
   const navigateToCluster = useCallback(
     (id: string) => {
+      // Picking anything in the cluster tree exits the emerging-cluster view —
+      // otherwise the events fetcher would keep filtering to the L0 cluster
+      // (it prioritizes emergingClusterId over clusterId/unclustered).
+      setEmergingClusterId(null);
       // Toggle off if clicking the already-selected leaf/unclustered — go back to parent
       if (id === clusterId && isLeaf) {
         setClusterId(displayId);
@@ -116,7 +122,7 @@ export default function ClustersSection() {
         setClusterId(id);
       }
     },
-    [setClusterId, clusterId, isLeaf, displayId]
+    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
   );
 
   if (isClustersLoading) {

@@ -7,7 +7,6 @@ import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
 export type TracesState = {
   traceId: string | null;
   spanId: string | null;
-  showChatInitial: boolean;
   stats?: TracesStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
@@ -16,7 +15,6 @@ export type TracesState = {
 export type TracesActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  setShowChatInitial: (showChatInitial: boolean) => void;
   fetchStats: (url: string) => Promise<void>;
   incrementStat: (timestamp: string, isError: boolean) => void;
   setChartContainerWidth: (width: number) => void;
@@ -36,7 +34,6 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
   const DEFAULT_PROPS: TracesState = {
     traceId: null,
     spanId: null,
-    showChatInitial: false,
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
@@ -49,8 +46,6 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
     setTraceId: (traceId) => set({ traceId }),
 
     setSpanId: (spanId: string | null) => set({ spanId }),
-
-    setShowChatInitial: (showChatInitial: boolean) => set({ showChatInitial }),
 
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
 

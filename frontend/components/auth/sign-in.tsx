@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
 import { AzureButton } from "@/components/auth/azure-button";
@@ -15,6 +15,7 @@ import { KeycloakButton } from "@/components/auth/keycloak-button";
 import { OktaButton } from "@/components/auth/okta-button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface SignInProps {
@@ -37,9 +38,14 @@ const SignIn = ({ callbackUrl }: SignInProps) => {
   const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
 
+  useEffect(() => {
+    track("auth", "sign_in_page_viewed");
+  }, []);
+
   const handleSignIn = async (provider: Provider) => {
     try {
       setIsLoading(provider);
+      track("auth", "sign_in_attempted", { provider });
       const result = await signIn(provider, { callbackUrl });
 
       if (result && !result.ok) {

@@ -42,6 +42,7 @@ type TestView = "picker" | "results";
 
 function DrawerContent({
   setOpen,
+  onClose,
   onSuccess,
   showTest,
   setShowTest,
@@ -49,6 +50,7 @@ function DrawerContent({
   defaultMode,
 }: {
   setOpen: (open: boolean) => void;
+  onClose: () => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   showTest: boolean;
   setShowTest: (show: boolean) => void;
@@ -104,7 +106,7 @@ function DrawerContent({
       <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden min-w-0">
         <div className="flex items-center justify-between px-5 pt-3">
           <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
-          <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close">
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -198,6 +200,8 @@ export default function ManageSignalSheet({
     [form, projectId, defaultMode, setOpen]
   );
 
+  const onClose = useCallback(() => onOpenChange(false), [onOpenChange]);
+
   return (
     <FormProvider {...form}>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -211,6 +215,7 @@ export default function ManageSignalSheet({
         >
           <DrawerContent
             setOpen={setOpen}
+            onClose={onClose}
             onSuccess={onSuccess}
             showTest={showTest}
             setShowTest={setShowTest}

@@ -1,19 +1,22 @@
 import { DollarSign, Minus, Plus } from "lucide-react";
 
-import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
+import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export default function Controls() {
-  const { condensedTimelineZoom, setCondensedTimelineZoom, isCostHeatmapVisible, setIsCostHeatmapVisible } =
-    useTraceViewBaseStore((state) => ({
-      condensedTimelineZoom: state.condensedTimelineZoom,
-      setCondensedTimelineZoom: state.setCondensedTimelineZoom,
-      isCostHeatmapVisible: state.isCostHeatmapVisible,
-      setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
-    }));
+interface ControlsProps {
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+}
+
+export default function Controls({ onZoomIn, onZoomOut }: ControlsProps) {
+  const { condensedTimelineZoom, isCostHeatmapVisible, setIsCostHeatmapVisible } = useTraceViewBaseStore((state) => ({
+    condensedTimelineZoom: state.condensedTimelineZoom,
+    isCostHeatmapVisible: state.isCostHeatmapVisible,
+    setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
+  }));
 
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
@@ -40,7 +43,7 @@ export default function Controls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom + ZOOM_INCREMENT)}
+          onClick={onZoomIn}
         >
           <Plus className="size-3" />
         </Button>
@@ -49,7 +52,7 @@ export default function Controls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom - ZOOM_INCREMENT)}
+          onClick={onZoomOut}
         >
           <Minus className="size-3" />
         </Button>

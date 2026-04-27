@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { CheckCircle2, Clock, Loader2, SquareArrowOutUpRight, StopCircle } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -16,6 +16,7 @@ import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 const FETCH_SIZE = 50;
 
@@ -95,7 +96,7 @@ const EmptyRow = (
             <code className="text-xs bg-muted px-1 py-0.5 rounded">npx lmnr-cli dev</code>.
           </p>
           <a
-            href="https://docs.laminar.sh/platform/debugger"
+            href="https://laminar.sh/docs/platform/debugger"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
@@ -113,6 +114,10 @@ function DebuggerSessionsContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    track("debugger_sessions", "page_viewed");
+  }, []);
 
   const fetchDebuggerSessions = useCallback(
     async (pageNumber: number) => {
@@ -171,6 +176,7 @@ function DebuggerSessionsContent() {
             data={debuggerSessions ?? []}
             hasMore={hasMore}
             getRowHref={(row) => `debugger-sessions/${row.id}`}
+            onRowClick={() => track("debugger_sessions", "session_opened")}
             isFetching={isFetching}
             isLoading={isLoading}
             fetchNextPage={fetchNextPage}

@@ -8,11 +8,19 @@ import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
-import { type AlertWithDetails } from "@/lib/actions/alerts/types";
+import {
+  ALERT_TYPE,
+  ALERT_TYPE_LABELS,
+  type AlertWithDetails,
+  SEVERITY_LABELS,
+  type SeverityLevel,
+  type SignalEventAlertMetadata,
+} from "@/lib/actions/alerts/types";
 import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
@@ -55,7 +63,7 @@ export default function AlertsSettings({
   if (isFreeTier) {
     return (
       <SettingsSection>
-        <SettingsSectionHeader title="Alerts" description="Configure alerts for signal events." />
+        <SettingsSectionHeader title="Alerts" description="Configure alerts." />
         <div className="rounded-lg border border-border bg-muted/30 p-5 flex items-start gap-4">
           <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
             <Lock className="h-5 w-5" />
@@ -82,7 +90,7 @@ export default function AlertsSettings({
     <SettingsSection>
       <SettingsSectionHeader
         title="Alerts"
-        description="Configure alerts for signal events. Notifications can be sent to Slack and email."
+        description="Configure alerts for new events or clusters. Notifications can be sent to Slack and email."
       />
 
       <SlackConnectionCard
@@ -110,18 +118,39 @@ export default function AlertsSettings({
         isLoading={isLoadingAlerts}
         isEmpty={isNil(alertsList) || isEmpty(alertsList)}
         emptyMessage="No alerts configured. Create one to start receiving notifications."
-        headers={["Name", "Send to", "Created", ""]}
-        colSpan={4}
+        headers={["Name", "Trigger", "Signal", "Severity", "Send to", "Created", ""]}
+        colSpan={7}
       >
         {alertsList?.map((alert) => {
           // Only show the current user's own email target + all non-email targets
           const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          const signalEventMeta =
+            alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
           return (
             <SettingsTableRow key={alert.id}>
-              <td className="px-4 text-sm font-medium max-w-36">
+              <td className="px-4 text-sm font-medium max-w-48">
                 <span title={alert.name} className="block truncate">
                   {alert.name}
                 </span>
+              </td>
+              <td className="px-4 align-middle">
+                <div className="flex items-center">
+                  <Badge variant="outline" className="font-normal text-xs whitespace-nowrap bg-secondary/50">
+                    {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
+                  </Badge>
+                </div>
+              </td>
+              <td className="px-4 text-sm text-muted-foreground max-w-48">
+                <span title={alert.signalName ?? undefined} className="block truncate">
+                  {alert.signalName ?? "—"}
+                </span>
+              </td>
+              <td className="px-4 text-xs text-muted-foreground">
+                {alert.type === ALERT_TYPE.SIGNAL_EVENT
+                  ? signalEventMeta?.severities && signalEventMeta.severities.length > 0
+                    ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
+                    : "Critical"
+                  : "—"}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />

@@ -35,19 +35,20 @@ function isBedrockConfigured(): boolean {
   );
 }
 
+/** Non-throwing check: true when any supported AI provider has credentials configured. */
+export function isAiProviderConfigured(): boolean {
+  return isGeminiConfigured() || isBedrockConfigured();
+}
+
 function getActiveProvider(): AIProvider {
-  if (isGeminiConfigured()) {
-    return "gemini";
+  if (!isAiProviderConfigured()) {
+    throw new Error(
+      "No AI provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini, " +
+        "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
+    );
   }
 
-  if (isBedrockConfigured()) {
-    return "bedrock";
-  }
-
-  throw new Error(
-    "No AI provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini, " +
-      "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
-  );
+  return isGeminiConfigured() ? "gemini" : "bedrock";
 }
 
 export function getLanguageModel(tier: ModelTier = "default"): LanguageModel {

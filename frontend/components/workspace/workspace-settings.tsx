@@ -9,6 +9,7 @@ import { useSWRConfig } from "swr";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/types";
 
@@ -70,6 +71,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           { revalidate: false, populateCache: true, rollbackOnError: true }
         );
 
+        track("workspace", "renamed");
         toast({
           title: "Workspace Renamed",
           description: "Workspace renamed successfully!",
@@ -116,6 +118,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
         { revalidate: false, populateCache: true, rollbackOnError: true }
       );
 
+      track("workspace", "deleted");
       toast({
         title: "Workspace deleted successfully",
         description: "Redirecting to workspaces page...",

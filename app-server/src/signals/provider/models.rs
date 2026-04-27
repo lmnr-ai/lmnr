@@ -211,6 +211,17 @@ pub struct ProviderUsageMetadata {
     pub cache_creation_input_tokens: Option<i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProviderBatchState {
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+    Expired,
+    Unspecified,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderBatchOperation {
@@ -221,4 +232,6 @@ pub struct ProviderBatchOperation {
     pub response: Option<ProviderBatchOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ProviderErrorInfo>,
+    #[serde(skip)]
+    pub state: Option<ProviderBatchState>,
 }

@@ -14,14 +14,8 @@ import { cn, swrFetcher } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import TagsDropdown, { type Tag as TagType } from "./tags-dropdown";
 
-interface TraceTagsListProps {
-  traceId: string;
-  className?: string;
-}
-
-const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
+export function useTraceTags(traceId: string) {
   const { projectId } = useParams();
-  const { toast } = useToast();
 
   const { data: tagClasses = [], mutate: mutateTagClasses } = useSWR<TagClass[]>(
     `/api/projects/${projectId}/tag-classes`,
@@ -42,6 +36,18 @@ const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
       })),
     [rawTags, tagClasses]
   );
+
+  return { projectId, tagClasses, rawTags, tags, mutateTagClasses, mutateTags };
+}
+
+interface TraceTagsProps {
+  traceId: string;
+  className?: string;
+}
+
+export const TraceTagsButton = ({ traceId, className }: TraceTagsProps) => {
+  const { projectId, tagClasses, rawTags, tags, mutateTagClasses, mutateTags } = useTraceTags(traceId);
+  const { toast } = useToast();
 
   const onAttach = async (tagClassName: string) => {
     try {
@@ -141,21 +147,28 @@ const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
   };
 
   return (
+    <TagsDropdown
+      tags={tags}
+      tagClasses={tagClasses}
+      onAttach={onAttach}
+      onDetach={onDetach}
+      onCreateAndAttach={onCreateAndAttach}
+    >
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
+          <Tag className="size-3.5" />
+          Tags
+        </Button>
+      </DropdownMenuTrigger>
+    </TagsDropdown>
+  );
+};
+
+export const TraceTagsPills = ({ traceId }: TraceTagsProps) => {
+  const { tags } = useTraceTags(traceId);
+
+  return (
     <>
-      <TagsDropdown
-        tags={tags}
-        tagClasses={tagClasses}
-        onAttach={onAttach}
-        onDetach={onDetach}
-        onCreateAndAttach={onCreateAndAttach}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-            <Tag className="size-3.5" />
-            Tags
-          </Button>
-        </DropdownMenuTrigger>
-      </TagsDropdown>
       {tags.map(({ name, color, id }) => (
         <Badge key={id} variant="outline" className="rounded-full gap-1">
           <div className="rounded-full size-2.5 bg-gray-300" style={{ backgroundColor: color }} />
@@ -165,5 +178,3 @@ const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
     </>
   );
 };
-
-export default TraceTagsList;

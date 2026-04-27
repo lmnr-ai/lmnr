@@ -54,7 +54,7 @@ const ThreeCategories = ({ className }: Props) => (
         <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
           <DebuggerVideo />
         </div>
-        <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
+        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
       </div>
 
       {/* Understand traces easily */}
@@ -77,7 +77,7 @@ const ThreeCategories = ({ className }: Props) => (
                   of spans.
                 </p>
               </div>
-              <DocsButton href="https://docs.laminar.sh/tracing/introduction" />
+              <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
             </div>
           </div>
           <div
@@ -94,7 +94,7 @@ const ThreeCategories = ({ className }: Props) => (
                   Ask our AI agent to summarize, analyze, and debug your trace no matter the complexity.
                 </p>
               </div>
-              <DocsButton href="https://docs.laminar.sh/platform/viewing-traces#ask-ai" />
+              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#ask-ai" />
             </div>
           </div>
         </div>
@@ -117,7 +117,7 @@ const ThreeCategories = ({ className }: Props) => (
               </span>
             </p>
           </div>
-          <DocsButton href="https://docs.laminar.sh/tracing/browser-agent-observability" />
+          <DocsButton href="https://laminar.sh/docs/tracing/browser-agent-observability" />
         </div>
         <BrowserScreenRecordingImage
           className={cn("relative shrink-0 md:w-[720px] md:h-[450px] ", "w-full h-[240px]")}
@@ -151,7 +151,7 @@ const ThreeCategories = ({ className }: Props) => (
                 </div>
               </div>
             </div>
-            <DocsButton href="https://docs.laminar.sh/platform/sql-editor" />
+            <DocsButton href="https://laminar.sh/docs/platform/sql-editor" />
           </div>
           <SQLImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
         </div>
@@ -180,7 +180,7 @@ const ThreeCategories = ({ className }: Props) => (
               </div>
             </div>
           </div>
-          <DocsButton href="https://docs.laminar.sh/custom-dashboards/overview" />
+          <DocsButton href="https://laminar.sh/docs/custom-dashboards/overview" />
         </div>
         <DashboardImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
       </div>
@@ -228,7 +228,7 @@ const ThreeCategories = ({ className }: Props) => (
             </div>
           </div>
         </div>
-        <DocsButton href="https://docs.laminar.sh/evaluations/introduction" />
+        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
       </div>
     </div>
     <div className="w-full sticky left-0 bottom-0 h-[100px] bg-gradient-to-t from-landing-surface-800 to-transparent z-30" />

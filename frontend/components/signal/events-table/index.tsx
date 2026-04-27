@@ -7,7 +7,9 @@ import { shallow } from "zustand/shallow";
 
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
+import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
@@ -22,6 +24,7 @@ import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { buildEventsColumns } from "./columns";
 
@@ -58,6 +61,7 @@ function PureEventsTable() {
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();
+  const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
   const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
@@ -97,7 +101,9 @@ function PureEventsTable() {
 
         filter.forEach((f) => urlParams.append("filter", f));
 
-        if (isUnclusteredFilter) {
+        if (emergingClusterId) {
+          urlParams.set("emergingClusterId", emergingClusterId);
+        } else if (isUnclusteredFilter) {
           urlParams.set("unclustered", "true");
         } else {
           selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
@@ -125,7 +131,18 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter, signal.id, params.projectId, toast]
+    [
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+      signal.id,
+      params.projectId,
+      toast,
+    ]
   );
 
   const getRowHref = useCallback(
@@ -140,6 +157,7 @@ function PureEventsTable() {
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
       const traceId = row.original.traceId;
+      track("signals", "event_to_trace");
       setTraceId(traceId);
 
       const newParams = new URLSearchParams(searchParams.toString());
@@ -160,7 +178,17 @@ function PureEventsTable() {
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
+    deps: [
+      params.projectId,
+      signal.id,
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+    ],
   });
 
   // Find the first event matching the active traceId to highlight it
@@ -216,7 +244,7 @@ function PureEventsTable() {
           />
           <DateRangeFilter />
         </div>
-        <ClusterBreadcrumbs />
+        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
         <DataTableFilterList />
         <ClustersSection />
       </InfiniteDataTable>

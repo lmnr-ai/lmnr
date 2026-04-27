@@ -26,6 +26,7 @@ import {
 import { useWorkspaceMenuContext, type WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils.ts";
 import { type WorkspaceTier } from "@/lib/workspaces/types.ts";
 
@@ -103,7 +104,10 @@ export const WorkspaceSidebarContent = ({ isOwner, tier }: WorkspaceSidebarConte
                   className={cn({
                     "bg-accent": m.value === menu,
                   })}
-                  onClick={() => setMenu(m.value)}
+                  onClick={() => {
+                    setMenu(m.value);
+                    track("workspace", "menu_selected", { menu: m.value });
+                  }}
                   asChild
                 >
                   <Link href={`${pathName}?tab=${m.value}`}>

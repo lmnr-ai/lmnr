@@ -24,6 +24,29 @@ export function joinUserParts(parts: TextPart[]): string | null {
   return text.length > 0 ? text : null;
 }
 
+// Structural fingerprint of a user message: sequence of top-level XML-like tags (nested tags ignored), or "plain" for messages with no tags.
+export function fingerprintUserMessage(input: string): string {
+  const TOP_LEVEL_TAG = /<([a-zA-Z_][\w-]*)\b[^>]*>([\s\S]*?)<\/\1\s*>/;
+  const parts: string[] = [];
+  let rest = input;
+
+  while (rest.length > 0) {
+    const match = TOP_LEVEL_TAG.exec(rest);
+    if (!match) {
+      if (rest.trim().length > 0) parts.push("plain");
+      break;
+    }
+    const before = rest.slice(0, match.index);
+    if (before.trim().length > 0) parts.push("plain");
+    const name = match[1].toLowerCase();
+    parts.push(name, `/${name}`);
+    rest = rest.slice(match.index + match[0].length);
+  }
+
+  const deduped = parts.filter((p, i) => !(p === "plain" && parts[i - 1] === "plain"));
+  return deduped.length ? deduped.join(",") : "plain";
+}
+
 interface TraceForExtraction {
   traceId: string;
   output: string | null;
@@ -38,9 +61,12 @@ export async function extractInputsForGroup(
   systemHash: string,
   projectId: string,
   traces: TraceForExtraction[],
-  results: Record<string, { input: string | null; output: string | null }>
+  // Accepts any result shape with text preview fields + a nullable outputSpan;
+  // trace-io.ts hydrates the full Span afterwards, this layer only writes text.
+  results: Record<string, { inputPreview: string | null; outputPreview: string | null; outputSpan: unknown }>,
+  fingerprint: string = "plain"
 ): Promise<void> {
-  const cacheKey = `${REGEX_CACHE_PREFIX}${projectId}:${systemHash}`;
+  const cacheKey = `${REGEX_CACHE_PREFIX}${projectId}:${systemHash}:${fingerprint}`;
 
   try {
     const cachedRegex = await cache.get<string>(cacheKey);
@@ -49,12 +75,14 @@ export async function extractInputsForGroup(
       for (const trace of traces) {
         const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
         if (!joinedText) {
-          results[trace.traceId] = { input: null, output: trace.output };
+          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
           continue;
         }
-        const extracted = applyRegex(cachedRegex, joinedText);
-        if (extracted) {
-          results[trace.traceId] = { input: extracted, output: trace.output };
+        const result = applyRegex(cachedRegex, joinedText);
+        if (result.kind === "extracted") {
+          results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
+        } else if (result.kind === "no-user-request") {
+          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         } else {
           allMatched = false;
           break;
@@ -67,25 +95,34 @@ export async function extractInputsForGroup(
       await cache.remove(cacheKey).catch(() => {});
     }
   } catch {
-    // Redis unavailable
+    // ignore cache errors
   }
 
   const samples = traces.slice(0, BATCH_SIZE).filter((t) => t.parsed && t.parsed.userParts.length > 0);
   if (samples.length === 0) {
     for (const trace of traces) {
-      results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+      results[trace.traceId] = {
+        inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
+        outputPreview: trace.output,
+        outputSpan: null,
+      };
     }
     return;
   }
 
-  await observe({ name: "extract_trace_inputs" }, async () => {
-    const llmInput = buildDeduplicatedLLMInput(samples.map((s) => s.parsed!.userParts));
+  await observe({ name: "trace-io:extract-trace-inputs", input: { projectId } }, async () => {
+    const allUserParts = samples.map((s) => s.parsed!.userParts);
+    const llmInput = buildDeduplicatedLLMInput(allUserParts);
     const regex = await generateExtractionRegex(llmInput);
 
     if (!regex) {
       for (const trace of traces) {
         if (!(trace.traceId in results)) {
-          results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+          results[trace.traceId] = {
+            inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
+            outputPreview: trace.output,
+            outputSpan: null,
+          };
         }
       }
       return;
@@ -95,18 +132,20 @@ export async function extractInputsForGroup(
     for (const trace of traces) {
       const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
       if (!joinedText) {
-        results[trace.traceId] = { input: null, output: trace.output };
+        results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         continue;
       }
-      const extracted = observe(
-        { name: "apply_trace_input_extraction_regex", input: { pattern: regex, text: joinedText } },
-        () => applyRegex(regex, joinedText)
+      const result = observe({ name: "apply-regex", input: { pattern: regex, text: joinedText } }, () =>
+        applyRegex(regex, joinedText)
       );
-      if (extracted) {
-        results[trace.traceId] = { input: extracted, output: trace.output };
+      if (result.kind === "extracted") {
+        results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
+        anyMatch = true;
+      } else if (result.kind === "no-user-request") {
+        results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         anyMatch = true;
       } else {
-        results[trace.traceId] = { input: joinedText, output: trace.output };
+        results[trace.traceId] = { inputPreview: joinedText, outputPreview: trace.output, outputSpan: null };
       }
     }
 

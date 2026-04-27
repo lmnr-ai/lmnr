@@ -176,10 +176,9 @@ class CacheManager {
 export const cache = new CacheManager();
 
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
-export const PROJECT_EVALUATORS_BY_PATH_CACHE_KEY = "project_evaluators_by_path";
 export const PROJECT_CACHE_KEY = "project";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
-export const WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
+export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
 export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
@@ -195,3 +194,6 @@ export const PROJECT_MEMBER_CACHE_KEY = (projectId: string, userId: string) => `
 
 export const AUTOCOMPLETE_CACHE_KEY = (resource: string, projectId: string, field: string): string =>
   `autocomplete:${resource}:${projectId}:${field}`;
+
+export const SPAN_RENDERING_KEY_CACHE_KEY = (projectId: string, schemaFingerprint: string): string =>
+  `span_rendering_key:${projectId}:${schemaFingerprint}`;

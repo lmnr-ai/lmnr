@@ -2,6 +2,7 @@ import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +12,7 @@ import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-eleme
 import Controls from "./controls";
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
+import SubagentGroupElement from "./subagent-group-element";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
 import { useHoverNeedle } from "./use-hover-needle";
 import { useScrollToSpan } from "./use-scroll-to-span";
@@ -22,6 +24,7 @@ function CondensedTimeline() {
 
   const {
     getCondensedTimelineData,
+    getCondensedSubagentGroups,
     spans: storeSpans,
     selectedSpan,
     setSelectedSpan,
@@ -35,8 +38,13 @@ function CondensedTimeline() {
     sessionTime,
     sessionStartTime,
     browserSession,
+    scrollStartTime,
+    scrollEndTime,
+    transcriptExpandedGroups,
+    requestScrollToGroup,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
+    getCondensedSubagentGroups: state.getCondensedSubagentGroups,
     spans: state.spans,
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
@@ -50,16 +58,64 @@ function CondensedTimeline() {
     sessionTime: state.sessionTime,
     sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
+    scrollStartTime: state.scrollStartTime,
+    scrollEndTime: state.scrollEndTime,
+    transcriptExpandedGroups: state.transcriptExpandedGroups,
+    requestScrollToGroup: state.requestScrollToGroup,
   }));
 
   const {
     spans: condensedSpans,
     startTime: spanTimelineStartMs,
     totalDurationMs,
+    timelineWidthInMilliseconds,
     totalRows,
   } = useMemo(() => getCondensedTimelineData(), [getCondensedTimelineData, storeSpans]);
 
   const maxSpanCost = useMemo(() => selectMaxSpanCost(), [selectMaxSpanCost, storeSpans]);
+
+  // Subagent groups — reuses the transcript's grouping logic and collapsed state
+  // so toggling a group header in the transcript flips its wrapper in the
+  // timeline too. Bounding boxes come from the already-computed condensed
+  // layout (no separate position math).
+  const subagentGroups = useMemo(() => getCondensedSubagentGroups(), [getCondensedSubagentGroups, storeSpans]);
+
+  const groupBoxes = useMemo(() => {
+    if (subagentGroups.length === 0) return [];
+    const posById = new Map(condensedSpans.map((c) => [c.span.spanId, c]));
+    const boxes: Array<{
+      groupId: string;
+      left: number;
+      width: number;
+      topRow: number;
+      rowSpan: number;
+      collapsed: boolean;
+    }> = [];
+    for (const group of subagentGroups) {
+      let minLeft = Infinity;
+      let maxRight = -Infinity;
+      let minRow = Infinity;
+      let maxRow = -Infinity;
+      for (const spanId of group.spanIds) {
+        const pos = posById.get(spanId);
+        if (!pos) continue;
+        if (pos.left < minLeft) minLeft = pos.left;
+        if (pos.left + pos.width > maxRight) maxRight = pos.left + pos.width;
+        if (pos.row < minRow) minRow = pos.row;
+        if (pos.row > maxRow) maxRow = pos.row;
+      }
+      if (!Number.isFinite(minLeft) || !Number.isFinite(maxRight)) continue;
+      boxes.push({
+        groupId: group.groupId,
+        left: minLeft,
+        width: maxRight - minLeft,
+        topRow: minRow,
+        rowSpan: maxRow - minRow + 1,
+        collapsed: !transcriptExpandedGroups.has(group.groupId),
+      });
+    }
+    return boxes;
+  }, [subagentGroups, condensedSpans, transcriptExpandedGroups]);
 
   // Compute dynamic time markers based on container width and zoom
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
@@ -94,6 +150,30 @@ function CondensedTimeline() {
   // Cmd/Ctrl + scroll to zoom
   useWheelZoom(scrollRef, condensedTimelineZoom, setCondensedTimelineZoom);
 
+  const handleZoom = useCallback(
+    (direction: "in" | "out") => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      const newZoom =
+        direction === "in" ? condensedTimelineZoom + ZOOM_INCREMENT : condensedTimelineZoom - ZOOM_INCREMENT;
+      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
+
+      const containerWidth = container.clientWidth;
+      const centerX = container.scrollLeft + containerWidth / 2;
+      const fraction = centerX / container.scrollWidth;
+
+      setCondensedTimelineZoom(newZoom);
+
+      requestAnimationFrame(() => {
+        const newScrollWidth = container.scrollWidth;
+        const newScrollLeft = fraction * newScrollWidth - containerWidth / 2;
+        container.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
+      });
+    },
+    [condensedTimelineZoom, setCondensedTimelineZoom]
+  );
+
   const handleSelectionComplete = useCallback(
     (selectedIds: Set<string>) => {
       const visibleIds = computeVisibleSpanIds(selectedIds, storeSpans);
@@ -112,6 +192,16 @@ function CondensedTimeline() {
   );
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
+
+  const scrollIndicator = useMemo(() => {
+    if (scrollStartTime === undefined || scrollEndTime === undefined || timelineWidthInMilliseconds <= 0) return null;
+    const rawLeft = ((scrollStartTime - spanTimelineStartMs) / timelineWidthInMilliseconds) * 100;
+    const rawWidth = ((scrollEndTime - scrollStartTime) / timelineWidthInMilliseconds) * 100;
+    const left = Math.max(0, Math.min(100, rawLeft));
+    const width = Math.max(0, Math.min(100 - left, rawWidth));
+    if (width <= 0) return null;
+    return { left, width };
+  }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, timelineWidthInMilliseconds]);
 
   // Render loading and empty states inside the ref'd element to ensure hooks work correctly
   const renderContent = () => {
@@ -160,6 +250,15 @@ function CondensedTimeline() {
             />
           ))}
 
+          {/* Scroll indicator — highlights the time range covered by rows currently
+              visible in the transcript/tree virtualizer */}
+          {scrollIndicator && (
+            <div
+              className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
+              style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
+            />
+          )}
+
           {/* Sticky header - scrolls horizontally with content, sticks vertically */}
           <div
             className={cn(
@@ -201,10 +300,27 @@ function CondensedTimeline() {
               );
             })}
 
+            {/* Subagent group wrappers — collapsed = solid fill, click scrolls
+                the transcript to the group header. Expanded = outline only,
+                pointer-events-none so spans underneath stay interactive. */}
+            {groupBoxes.map((box) => (
+              <SubagentGroupElement
+                key={box.groupId}
+                groupId={box.groupId}
+                left={box.left}
+                width={box.width}
+                topRow={box.topRow}
+                rowSpan={box.rowSpan}
+                collapsed={box.collapsed}
+                onRequestScroll={requestScrollToGroup}
+              />
+            ))}
+
             {/* Selection overlay - only handles drag selection, clicks go to span elements */}
             <SelectionOverlay
               spans={condensedSpans}
               containerRef={timelineContentRef}
+              scrollContainerRef={scrollRef}
               onSelectionComplete={handleSelectionComplete}
             />
           </div>
@@ -244,7 +360,7 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <Controls />
+      <Controls onZoomIn={() => handleZoom("in")} onZoomOut={() => handleZoom("out")} />
     </div>
   );
 }

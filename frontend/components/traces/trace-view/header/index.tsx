@@ -1,16 +1,17 @@
-import { ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
+import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TraceTagsList from "@/components/tags/trace-tags-list";
+import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
 import { cn } from "@/lib/utils";
@@ -126,10 +127,34 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const signalCount = traceSignals.length;
 
+  const sessionId = trace?.sessionId;
+  const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+
+  const handleOpenSession = useCallback(() => {
+    if (!hasSession) return;
+    const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+    window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
+  }, [hasSession, sessionId, projectId]);
+
+  const userId = trace?.userId;
+  const hasUser = userId && userId !== "<null>" && userId !== "";
+
+  const { tags: traceTags } = useTraceTags(traceId);
+  const hasRow2 = hasSession || hasUser || traceTags.length > 0;
+
+  const handleOpenUserTraces = useCallback(() => {
+    if (!hasUser) return;
+    const params = new URLSearchParams();
+    params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
+    params.set("pastHours", "2160");
+    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
+  }, [hasUser, userId, projectId]);
+
   return (
     <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
-      <div className="flex items-start gap-1">
-        <div className="flex flex-wrap items-center gap-1 flex-1">
+      {/* Row 1: core trace controls + actions (share justified to end) */}
+      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
@@ -165,11 +190,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          {trace?.metadata && (
-            <span className={HEADER_ITEM_CLS}>
-              <Metadata metadata={trace?.metadata} />
-            </span>
-          )}
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
@@ -185,11 +205,64 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          <TraceTagsList traceId={traceId} />
+          <span className={HEADER_ITEM_CLS}>
+            <Metadata metadata={trace?.metadata} />
+          </span>
+          <span className={HEADER_ITEM_CLS}>
+            <TraceTagsButton traceId={traceId} />
+          </span>
         </div>
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
-      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
+      {/* Row 2: context pills (session, user, tags) */}
+      {hasRow2 && (
+        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+          {hasSession && (
+            <span className={HEADER_ITEM_CLS}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleOpenSession}
+                      variant="outline"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
+                    >
+                      <Layers size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{sessionId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Open session in a new tab</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          )}
+          {hasUser && (
+            <span className={HEADER_ITEM_CLS}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleOpenUserTraces}
+                      variant="outline"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                    >
+                      <User size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{userId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">See user traces in a new tab</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          )}
+          <TraceTagsPills traceId={traceId} />
+        </div>
+      )}
+      {signalsPanelOpen && (
+        <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
+      )}
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}

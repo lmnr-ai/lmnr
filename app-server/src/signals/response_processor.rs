@@ -33,7 +33,7 @@ use crate::{
             InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
         },
     },
-    utils::limits::update_workspace_signal_runs_used,
+    utils::limits::update_workspace_signal_steps_processed,
     worker::HandlerError,
 };
 
@@ -84,9 +84,9 @@ pub async fn process_provider_responses(
     responses: &[ProviderInlineResponse],
     batch_id: Option<String>,
     clickhouse: clickhouse::Client,
+    db: Arc<DB>,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
-    db: Arc<DB>,
 ) -> Result<ProcessedResponses, HandlerError> {
     let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
     for msg in messages.iter() {
@@ -234,26 +234,28 @@ pub async fn finalize_runs(
         succeeded_runs.iter().map(CHSignalRun::from).collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
     if is_feature_enabled(Feature::UsageLimit) {
-        let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
+        let mut run_steps_by_project_id: HashMap<Uuid, usize> = HashMap::new();
         for run in succeeded_runs {
             let cost = run.steps_processed as usize;
-            *runs_by_project_id.entry(run.project_id).or_insert(0) += cost;
+            *run_steps_by_project_id.entry(run.project_id).or_insert(0) += cost;
         }
-        let update_futures = runs_by_project_id.into_iter().map(|(project_id, runs)| {
-            let db = db.clone();
-            let clickhouse = clickhouse.clone();
-            let cache = cache.clone();
-            let queue = queue.clone();
-            async move {
-                if let Err(e) = update_workspace_signal_runs_used(
-                    db, clickhouse, cache, queue, project_id, runs,
-                )
-                .await
-                {
-                    log::error!("Failed to update workspace signal runs used: {}", e);
+        let update_futures = run_steps_by_project_id
+            .into_iter()
+            .map(|(project_id, steps)| {
+                let db = db.clone();
+                let clickhouse = clickhouse.clone();
+                let cache = cache.clone();
+                let queue = queue.clone();
+                async move {
+                    if let Err(e) = update_workspace_signal_steps_processed(
+                        db, clickhouse, cache, queue, project_id, steps,
+                    )
+                    .await
+                    {
+                        log::error!("Failed to update workspace signal runs used: {}", e);
+                    }
                 }
-            }
-        });
+            });
         futures_util::future::join_all(update_futures).await;
     }
 
@@ -826,7 +828,10 @@ pub async fn handle_create_event(
             )
             .await
             .map_err(|e| {
-                log::warn!("[SIGNAL JOB] Retrying notifications/clustering: {:?}", e);
+                log::warn!(
+                    "[SIGNAL JOB] Retrying processing event notifications and clustering: {:?}",
+                    e
+                );
                 backoff::Error::transient(e)
             })
         }

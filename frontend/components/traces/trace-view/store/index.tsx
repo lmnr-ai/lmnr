@@ -21,7 +21,7 @@ type PanelWidthKey = "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth";
 type PanelDef = { key: PanelWidthKey; min: number; default: number };
 
 const ALL_PANELS: PanelDef[] = [
-  { key: "tracePanelWidth", min: 400, default: 500 },
+  { key: "tracePanelWidth", min: 488, default: 500 },
   { key: "spanPanelWidth", min: 400, default: 405 },
   { key: "chatPanelWidth", min: 375, default: 385 },
 ];
@@ -227,28 +227,34 @@ const createTraceViewStore = (options?: {
       },
       {
         name: options?.storeKey ?? "trace-view-state",
+        version: 1,
+        migrate: (persistedState, version) => {
+          // v0 -> v1: transcript is the new default tab; move legacy users off "tree" once.
+          if (version < 1 && persistedState && typeof persistedState === "object") {
+            (persistedState as Record<string, unknown>).tab = "transcript";
+          }
+          return persistedState as TraceViewStore;
+        },
         partialize: (state) => {
-          const persistentTabs = ["tree", "reader"] as const;
+          const persistentTabs = ["tree", "transcript"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
             tracePanelWidth: state.tracePanelWidth,
             spanPanelWidth: state.spanPanelWidth,
             chatPanelWidth: state.chatPanelWidth,
-            spanPath: state.spanPath,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            spanPanelOpen: state.spanPanelOpen,
           };
         },
         merge: (persistedState, currentState) => {
           const persisted = (persistedState ?? {}) as Record<string, unknown>;
-          const validTabs = ["tree", "reader"] as const;
+          const validTabs = ["tree", "transcript"] as const;
           const tab =
             persisted.tab && validTabs.includes(persisted.tab as (typeof validTabs)[number])
               ? (persisted.tab as TraceViewStore["tab"])
-              : currentState.tab;
+              : "transcript";
 
           return {
             ...currentState,
@@ -256,12 +262,10 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.tracePanelWidth === "number" && { tracePanelWidth: persisted.tracePanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
             ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
-            ...(Array.isArray(persisted.spanPath) && { spanPath: persisted.spanPath as string[] }),
             ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
-            ...(typeof persisted.spanPanelOpen === "boolean" && { spanPanelOpen: persisted.spanPanelOpen }),
             tab,
           };
         },

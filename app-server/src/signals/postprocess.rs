@@ -10,10 +10,11 @@ use uuid::Uuid;
 use crate::ch::signal_events::CHSignalEvent;
 use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
+use crate::db::alert_targets::DEFAULT_SEVERITY;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
-use crate::notifications::{self, NotificationDefinitionType, NotificationKind};
+use crate::notifications::{self, AlertType, NotificationDefinitionType, NotificationKind};
 
 /// Process notifications and clustering for an identified signal event
 pub async fn process_event_notifications_and_clustering(
@@ -27,31 +28,48 @@ pub async fn process_event_notifications_and_clustering(
     let attributes = signal_event.payload_value().unwrap_or_default();
 
     {
-        let alerts =
-            db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
+        let alerts = db::alert_targets::get_alerts_for_signal(
+            &db.pool,
+            project_id,
+            signal_event.signal_id,
+            Some(AlertType::SignalEvent),
+        )
+        .await?;
 
         for alert in alerts {
-            let min_severity = alert
-                .metadata
-                .get("severity")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(2) as u8;
+            // Match severity
+            match alert.metadata.severities.as_deref() {
+                Some([]) => {
+                    log::warn!(
+                        "Alert {} has empty severities array, skipping notification",
+                        alert.id
+                    );
+                    continue;
+                }
+                Some(sevs) if !sevs.contains(&signal_event.severity) => continue,
+                None if signal_event.severity != DEFAULT_SEVERITY => continue,
+                _ => {}
+            }
 
-            if signal_event.severity < min_severity {
+            // Ignore alerts with skip_similar enabled, the notification will be triggered when a new L0 cluster is detected.
+            if alert.metadata.skip_similar() {
                 continue;
             }
 
             let notification_message = notifications::NotificationMessage {
                 definition_type: NotificationDefinitionType::Alert,
-                definition_id: alert.alert_id,
+                definition_id: alert.id,
                 workspace_id: alert.workspace_id,
                 project_id: Some(project_id),
                 notifications: vec![NotificationKind::EventIdentification {
                     project_id,
+                    signal_id: signal_event.signal_id,
                     trace_id,
+                    event_id: Some(signal_event.id),
                     event_name: event_name.clone(),
                     severity: signal_event.severity,
                     extracted_information: Some(attributes.clone()),
+                    alert_name: alert.name,
                 }],
             };
 

@@ -71,7 +71,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
     ...chartState,
     setChartConfig: (config) =>
       set((state: ChartBuilderState) => ({
-        chartConfig: { ...state.chartConfig, ...config },
+        chartConfig: { ...state.chartConfig, ...config } as ChartConfig,
       })),
 
     setChartName: (name) =>
@@ -81,13 +81,7 @@ const createChartBuilderStore = (props: ChartBuilderProps) => {
 
     setChartType: (type) =>
       set((state: ChartBuilderState) => ({
-        chartConfig: {
-          ...state.chartConfig,
-          type,
-          x: undefined,
-          y: undefined,
-          breakdown: undefined,
-        },
+        chartConfig: { ...state.chartConfig, type, x: undefined, y: undefined, breakdown: undefined } as ChartConfig,
       })),
 
     setXColumn: (columnName) =>

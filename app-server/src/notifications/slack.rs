@@ -12,7 +12,7 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::build_report_data_from_batch;
+use super::utils::{build_report_data_from_batch, frontend_url_slack, inject_utm_into_links, with_utm};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -70,14 +70,41 @@ pub fn format_message_blocks_batch(
         NotificationKind::EventIdentification {
             project_id,
             trace_id,
+            event_id,
             event_name,
             extracted_information,
+            alert_name,
+            severity,
+            signal_id,
             ..
         } => format_event_identification_blocks(
             &project_id.to_string(),
+            &signal_id.to_string(),
             &trace_id.to_string(),
+            event_id.as_ref(),
             event_name,
             extracted_information.clone(),
+            alert_name,
+            severity,
+        ),
+        NotificationKind::NewCluster {
+            project_id,
+            signal_id,
+            signal_name,
+            cluster_id,
+            cluster_name,
+            num_signal_events,
+            num_child_clusters,
+            alert_name,
+        } => format_new_cluster_blocks(
+            project_id,
+            signal_id,
+            signal_name,
+            cluster_id,
+            cluster_name,
+            *num_signal_events,
+            *num_child_clusters,
+            alert_name,
         ),
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
@@ -102,25 +129,49 @@ fn md_links_to_slack(text: &str) -> String {
 // Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
+    signal_id: &str,
     trace_id: &str,
-    event_name: &str,
+    event_id: Option<&Uuid>,
+    signal_name: &str,
     extracted_information: Option<serde_json::Value>,
+    alert_name: &str,
+    severity: &u8,
 ) -> serde_json::Value {
-    let trace_link = format!(
-        "https://lmnr.ai/project/{}/traces/{}?chat=true",
-        project_id, trace_id
+    let base = frontend_url_slack();
+    let trace_link = with_utm(
+        &format!("{}/project/{}/traces/{}?chat=true", base, project_id, trace_id),
+        "slack",
+        "signal_alert",
+        "view_trace",
     );
+
+    let severity_label = match severity {
+        0 => ":large_green_circle: Info",
+        1 => ":large_orange_circle: Warning",
+        2 => ":red_circle: Critical",
+        _ => "Unknown",
+    };
 
     let info_entries: Vec<String> = if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => md_links_to_slack(s),
+                        serde_json::Value::String(s) => md_links_to_slack(&inject_utm_into_links(
+                            s,
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        )),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
                         serde_json::Value::Null => String::new(),
-                        _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                        _ => inject_utm_into_links(
+                            &serde_json::to_string_pretty(value).unwrap_or_default(),
+                            "slack",
+                            "signal_alert",
+                            "event_description",
+                        ),
                     };
                     format!("_{}_:\n{}", key, formatted_value)
                 })
@@ -131,6 +182,14 @@ fn format_event_identification_blocks(
     } else {
         vec![]
     };
+
+    let mut blocks = vec![json!({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": format!("`{}`: New Event", signal_name)
+        }
+    })];
 
     if !info_entries.is_empty() {
         const MAX_SECTION_TEXT_LEN: usize = 3000;
@@ -144,45 +203,128 @@ fn format_event_identification_blocks(
             }
             combined.push_str(entry);
         }
-        let mut blocks = vec![
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
-                }
-            }),
-            json!({
-                "type": "section",
-                "text": { "type": "mrkdwn", "text": combined }
-            }),
-        ];
         blocks.push(json!({
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": combined }
         }));
-        blocks.push(json!({"type": "divider"}));
-        return json!(blocks);
     }
+
+    blocks.push(json!({
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "text": {
+                    "type": "plain_text",
+                    "text": "View Trace",
+                    "emoji": true
+                },
+                "url": trace_link,
+                "action_id": "view_trace"
+            }
+        ]
+    }));
+    let signal_link = with_utm(
+        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
+        "slack",
+        "signal_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
+        "slack",
+        "signal_alert",
+        "manage_alert",
+    );
+    let mut context_elements = vec![
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Severity: {}", severity_label)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Signal: <{}|{}>", signal_link, signal_name)
+        }),
+        json!({
+            "type": "mrkdwn",
+            "text": format!("Alert: <{}|{}>", alert_link, alert_name)
+        }),
+    ];
+    if let Some(eid) = event_id {
+        let similar_link = with_utm(
+            &format!(
+                "{}/project/{}/signals/{}?eventCluster={}",
+                base, project_id, signal_id, eid,
+            ),
+            "slack",
+            "signal_alert",
+            "similar_events",
+        );
+        context_elements.push(json!({
+            "type": "mrkdwn",
+            "text": format!("Similar Events: <{}|View>", similar_link)
+        }));
+    }
+    blocks.push(json!({
+        "type": "context",
+        "elements": context_elements
+    }));
+    blocks.push(json!({"type": "divider"}));
+
+    json!(blocks)
+}
+
+// Format Slack message blocks for a new-cluster notification.
+#[allow(clippy::too_many_arguments)]
+fn format_new_cluster_blocks(
+    project_id: &Uuid,
+    signal_id: &Uuid,
+    signal_name: &str,
+    cluster_id: &Uuid,
+    cluster_name: &str,
+    num_signal_events: u32,
+    num_child_clusters: usize,
+    alert_name: &str,
+) -> serde_json::Value {
+    let base = frontend_url_slack();
+    let cluster_link = with_utm(
+        &format!(
+            "{}/project/{}/signals/{}?clusterId={}",
+            base, project_id, signal_id, cluster_id
+        ),
+        "slack",
+        "new_cluster_alert",
+        "view_cluster",
+    );
+    let signal_link = with_utm(
+        &format!("{}/project/{}/signals/{}", base, project_id, signal_id),
+        "slack",
+        "new_cluster_alert",
+        "view_signal",
+    );
+    let alert_link = with_utm(
+        &format!("{}/project/{}/settings?tab=alerts", base, project_id),
+        "slack",
+        "new_cluster_alert",
+        "manage_alert",
+    );
+
+    let details_text = format!(
+        "*Cluster:* {}\n*Events:* {}\n*Child clusters:* {}",
+        cluster_name, num_signal_events, num_child_clusters
+    );
 
     json!([
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": format!("✅ *Event Detected: {}*", event_name)
+                "text": format!("`{}`: New Cluster", signal_name)
             }
+        },
+        {
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": details_text }
         },
         {
             "type": "actions",
@@ -191,11 +333,24 @@ fn format_event_identification_blocks(
                     "type": "button",
                     "text": {
                         "type": "plain_text",
-                        "text": "View Trace",
+                        "text": "View Cluster",
                         "emoji": true
                     },
-                    "url": trace_link,
-                    "action_id": "view_trace"
+                    "url": cluster_link,
+                    "action_id": "view_cluster"
+                }
+            ]
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": format!("Signal: <{}|{}>", signal_link, signal_name)
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": format!("Alert: <{}|{}>", alert_link, alert_name)
                 }
             ]
         },
@@ -229,6 +384,7 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     ];
 
     const MAX_SECTION_TEXT_LEN: usize = 3000;
+    let base = frontend_url_slack();
 
     for project in &report.projects {
         let mut text = String::new();
@@ -246,13 +402,18 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
         if !project.noteworthy_events.is_empty() {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
+                let trace_link = with_utm(
+                    &format!(
+                        "{}/project/{}/traces/{}?chat=true",
+                        base, project.project_id, event.trace_id,
+                    ),
+                    "slack",
+                    "signals_report",
+                    "view_trace",
+                );
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://lmnr.ai/project/{}/traces/{}?chat=true|View trace>\n",
-                    event.signal_name,
-                    event.summary,
-                    event.timestamp,
-                    project.project_id,
-                    event.trace_id,
+                    "• `{}` – {} ({}) <{}|View trace>\n",
+                    event.signal_name, event.summary, event.timestamp, trace_link,
                 );
                 if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
                     break;

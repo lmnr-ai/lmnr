@@ -51,11 +51,11 @@ const exporter = new OTLPTraceExporter({
 });
 ```
 
-See [OpenTelemetry](https://docs.laminar.sh/tracing/otel) for more context and Python gRPC examples.
+See [OpenTelemetry](https://laminar.sh/docs/tracing/otel) for more context and Python gRPC examples.
 
 ## Fast Path: Let the Agent Migrate It
 
-If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](https://docs.laminar.sh/getting-started#set-up-with-ai)) with the following prompt:
+If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](https://laminar.sh/docs/getting-started#set-up-with-ai)) with the following prompt:
 
 ```text
 Use the laminar-instrument-codebase skill to migrate this repo from Traceloop to Laminar.
@@ -74,11 +74,11 @@ What it will do:
 ## Manual Migration (Full Control)
 
 1. Create a Laminar project and set `LMNR_PROJECT_API_KEY`.
-2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](https://docs.laminar.sh/hosting-options) if you are self-hosting.
+2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](https://laminar.sh/docs/hosting-options) if you are self-hosting.
 3. Replace Traceloop initialization with Laminar initialization.
 
 ```typescript
-import { Laminar } from '@lmnr-ai/lmnr';
+import { Laminar } from "@lmnr-ai/lmnr";
 
 Laminar.initialize({
   projectApiKey: process.env.LMNR_PROJECT_API_KEY!,
@@ -96,7 +96,7 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
 5. If you use decorators or manual spans, map them to Laminar equivalents. Laminar collapses workflow/task into a single `@observe()` decorator - a simpler mental model with the same trace fidelity. Use the mapping table below.
 
 6. Verify in the UI.
-   Run a single request. You should see a full trace tree with LLM spans. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
+   Run a single request. You should see a full trace tree with LLM spans. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://laminar.sh/docs/platform/viewing-traces).
 
 ## Traceloop to Laminar Mapping
 
@@ -116,13 +116,21 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
     </thead>
     <tbody className="font-light text-white/85">
       <tr>
-        <td className="px-2 py-1 align-top"><code>Traceloop.init()</code> auto-instrumentation</td>
-        <td className="px-2 py-1 align-top"><code>Laminar.initialize()</code></td>
+        <td className="px-2 py-1 align-top">
+          <code>Traceloop.init()</code> auto-instrumentation
+        </td>
+        <td className="px-2 py-1 align-top">
+          <code>Laminar.initialize()</code>
+        </td>
         <td className="px-2 py-1 align-top">Same concept, both auto-instrument major providers.</td>
       </tr>
       <tr>
-        <td className="px-2 py-1 align-top"><code>@workflow</code> / <code>@task</code> decorators</td>
-        <td className="px-2 py-1 align-top"><code>@observe()</code></td>
+        <td className="px-2 py-1 align-top">
+          <code>@workflow</code> / <code>@task</code> decorators
+        </td>
+        <td className="px-2 py-1 align-top">
+          <code>@observe()</code>
+        </td>
         <td className="px-2 py-1 align-top">Simpler mental model - one decorator for everything.</td>
       </tr>
       <tr>
@@ -138,7 +146,9 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
       <tr>
         <td className="px-2 py-1 align-top">Built-in evaluators (faithfulness, relevance)</td>
         <td className="px-2 py-1 align-top">Laminar evals SDK + CLI</td>
-        <td className="px-2 py-1 align-top">Different approach - run evals locally or in CI, not as a managed service.</td>
+        <td className="px-2 py-1 align-top">
+          Different approach - run evals locally or in CI, not as a managed service.
+        </td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Custom evaluators</td>
@@ -148,7 +158,9 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
       <tr>
         <td className="px-2 py-1 align-top">Monitors (production quality gates)</td>
         <td className="px-2 py-1 align-top">Signals</td>
-        <td className="px-2 py-1 align-top">Describe patterns in natural language; Laminar detects them across traces.</td>
+        <td className="px-2 py-1 align-top">
+          Describe patterns in natural language; Laminar detects them across traces.
+        </td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Experiments / A/B model testing</td>
@@ -171,12 +183,12 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
 
 ## What You Gain with Laminar
 
-- [Browser session recordings synced to traces](https://docs.laminar.sh/tracing/browser-agent-observability)
-- [SQL editor for ad-hoc analysis](https://docs.laminar.sh/platform/sql-editor)
-- [Signals for natural language monitoring](https://docs.laminar.sh/signals)
-- [Evals you can run locally or in CI](https://docs.laminar.sh/evaluations/introduction)
+- [Browser session recordings synced to traces](https://laminar.sh/docs/tracing/browser-agent-observability)
+- [SQL editor for ad-hoc analysis](https://laminar.sh/docs/platform/sql-editor)
+- [Signals for natural language monitoring](https://laminar.sh/docs/signals)
+- [Evals you can run locally or in CI](https://laminar.sh/docs/evaluations/introduction)
 - Fully open source and self-hostable, independent of enterprise platform roadmaps
 
-Once you're set up, explore [Signals](https://docs.laminar.sh/signals), [SQL analysis](https://docs.laminar.sh/platform/sql-editor), and [real-time agent tracing](https://docs.laminar.sh/platform/viewing-traces) in the docs.
+Once you're set up, explore [Signals](https://laminar.sh/docs/signals), [SQL analysis](https://laminar.sh/docs/platform/sql-editor), and [real-time agent tracing](https://laminar.sh/docs/platform/viewing-traces) in the docs.
 
 If anything doesn't map cleanly, drop into our [Discord](https://discord.gg/nNFUUDAKub) and we'll help you sort it out.
