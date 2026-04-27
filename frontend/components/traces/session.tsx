@@ -1,13 +1,20 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import React from "react";
+import React, { useEffect } from "react";
 
 import { SessionView } from "@/components/traces/session-view";
 import Header from "@/components/ui/header";
+import { track } from "@/lib/posthog";
 
 const Session = ({ sessionId }: { sessionId: string }) => {
   const { projectId } = useParams<{ projectId: string }>();
+
+  useEffect(() => {
+    track("sessions", "session_page_viewed", { sessionId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
       <Header

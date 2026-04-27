@@ -21,6 +21,7 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { track } from "@/lib/posthog";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
@@ -111,6 +112,11 @@ export default function ClustersSection() {
   // Navigation callbacks
   const navigateToCluster = useCallback(
     (id: string) => {
+      track("signals", "cluster_clicked", {
+        clusterId: id,
+        isUnclustered: id === UNCLUSTERED_ID,
+        drillDownDepth,
+      });
       // Picking anything in the cluster tree exits the emerging-cluster view —
       // otherwise the events fetcher would keep filtering to the L0 cluster
       // (it prioritizes emergingClusterId over clusterId/unclustered).
@@ -122,7 +128,7 @@ export default function ClustersSection() {
         setClusterId(id);
       }
     },
-    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
+    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId, drillDownDepth]
   );
 
   if (isClustersLoading) {

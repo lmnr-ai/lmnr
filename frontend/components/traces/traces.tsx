@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
+import { track } from "@/lib/posthog";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -41,6 +42,7 @@ function TracesContent() {
   const showChatInitial = searchParams.get("chat") === "true";
 
   const resetUrlParams = (newView: string) => {
+    track("traces", "tab_changed", { tab: newView });
     const params = new URLSearchParams(searchParams);
     params.delete("filter");
     params.delete("textSearch");

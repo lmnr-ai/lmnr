@@ -6,6 +6,7 @@ export type Feature =
   | "sessions"
   | "debugger_sessions"
   | "signals"
+  | "signal_jobs"
   | "traces"
   | "alerts"
   | "sql_editor"
@@ -31,7 +32,9 @@ export type Feature =
   | "deployment"
   | "blog"
   | "shared"
-  | "invitations";
+  | "invitations"
+  | "notifications"
+  | "advanced_search";
 
 // Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
 // so there is no concurrent-write race condition. The flag prevents calling posthog.init()

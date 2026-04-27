@@ -181,6 +181,7 @@ const AdvancedSearch = ({
     onSubmit={onSubmit}
     suggestions={suggestions}
     storageKey={storageKey}
+    resource={resource}
   >
     <AdvancedSearchInner
       filters={filters}

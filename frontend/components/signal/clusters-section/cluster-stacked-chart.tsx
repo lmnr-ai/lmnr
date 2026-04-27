@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { type ClusterStatsDataPoint, type EventCluster } from "@/lib/actions/clusters";
+import { track } from "@/lib/posthog";
 
 import { UNCLUSTERED_COLOR, withOpacity } from "./colors";
 
@@ -21,6 +23,22 @@ export default function ClusterStackedChart({
   containerWidth,
   colorMap,
 }: ClusterStackedChartProps) {
+  const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
+
+  const handleZoom = useCallback(
+    (start: string, end: string) => {
+      track("signals", "cluster_chart_zoomed", { clusterCount: clusters.length });
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("pastHours");
+      params.set("startDate", start);
+      params.set("endDate", end);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [clusters.length, pathName, router, searchParams]
+  );
+
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
@@ -76,6 +94,7 @@ export default function ClusterStackedChart({
       fields={fields}
       containerWidth={containerWidth}
       showTotal={false}
+      onZoom={handleZoom}
       className="!h-full"
     />
   );

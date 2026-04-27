@@ -26,6 +26,7 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { track } from "@/lib/posthog";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
 const FETCH_SIZE = 50;
@@ -218,6 +219,13 @@ const CreateSignalJobContent = () => {
         throw new Error(body?.error ?? "Failed to create signal job");
       }
 
+      track("signal_jobs", "created", {
+        signalId: signal.id,
+        mode: jobMode,
+        selectionMode,
+        traceCount: selectedCount,
+      });
+
       setConfirmDialogOpen(false);
       router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
       toast({
@@ -371,6 +379,7 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
 
   useEffect(() => {
     setTraceId(traceId ?? null);
+    track("signal_jobs", "create_page_viewed");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

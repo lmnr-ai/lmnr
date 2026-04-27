@@ -7,6 +7,7 @@ import { formatNotification } from "@/components/notifications/notification-pane
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
+import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
 const NotificationTrigger = () => {
@@ -18,9 +19,20 @@ const NotificationTrigger = () => {
 
   const hasUnread = notifications?.some((n) => !n.isRead && formatNotification(n) !== null) ?? false;
 
+  const handleClick = () => {
+    // Fire only on open — collapse is less interesting for reach tracking.
+    if (!isOpen) {
+      track("notifications", "panel_opened", {
+        hasUnread,
+        unreadCount: notifications?.filter((n) => !n.isRead).length ?? 0,
+      });
+    }
+    toggle();
+  };
+
   return (
     <button
-      onClick={toggle}
+      onClick={handleClick}
       className={cn(
         "relative flex items-center justify-center rounded-md p-1",
         "text-secondary-foreground hover:bg-secondary/60 transition-colors",
