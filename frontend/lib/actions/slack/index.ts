@@ -29,6 +29,7 @@ export interface SlackIntegration {
 export interface SlackChannel {
   id: string;
   name: string;
+  isMember: boolean;
 }
 
 export async function getSlackIntegration(workspaceId: string): Promise<SlackIntegration | null> {
@@ -153,28 +154,85 @@ async function getIntegrationWithToken(workspaceId: string) {
   return { ...integration, decryptedToken: token };
 }
 
+const SLACK_CONVERSATIONS_PAGE_LIMIT = 1000;
+const SLACK_RATE_LIMIT_MAX_RETRIES = 3;
+const SLACK_RATE_LIMIT_DEFAULT_RETRY_SECONDS = 5;
+
+interface SlackChannelApiShape {
+  id: string;
+  name: string;
+  is_member?: boolean;
+}
+
+interface SlackConversationsListResponse {
+  ok: boolean;
+  error?: string;
+  channels?: SlackChannelApiShape[];
+  response_metadata?: { next_cursor?: string };
+}
+
+async function fetchSlackConversationsPage(token: string, cursor: string): Promise<SlackConversationsListResponse> {
+  const url = new URL("https://slack.com/api/conversations.list");
+  url.searchParams.set("exclude_archived", "true");
+  url.searchParams.set("types", "public_channel");
+  url.searchParams.set("limit", String(SLACK_CONVERSATIONS_PAGE_LIMIT));
+  if (cursor) {
+    url.searchParams.set("cursor", cursor);
+  }
+
+  for (let attempt = 0; attempt < SLACK_RATE_LIMIT_MAX_RETRIES; attempt++) {
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (response.status === 429) {
+      const retryAfterHeader = response.headers.get("Retry-After");
+      const retryAfterSeconds = retryAfterHeader
+        ? Math.max(1, parseInt(retryAfterHeader, 10) || SLACK_RATE_LIMIT_DEFAULT_RETRY_SECONDS)
+        : SLACK_RATE_LIMIT_DEFAULT_RETRY_SECONDS;
+      await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+      continue;
+    }
+
+    const data = (await response.json()) as SlackConversationsListResponse;
+
+    // Slack returns 200 OK with {ok: false, error: "ratelimited"} in some rate-limit cases.
+    if (!data.ok && data.error === "ratelimited") {
+      await new Promise((resolve) => setTimeout(resolve, SLACK_RATE_LIMIT_DEFAULT_RETRY_SECONDS * 1000));
+      continue;
+    }
+
+    return data;
+  }
+
+  throw new Error("Slack API error: rate limit retries exhausted");
+}
+
 export async function getSlackChannels(workspaceId: string): Promise<SlackChannel[]> {
   const integration = await getIntegrationWithToken(workspaceId);
 
-  const response = await fetch(
-    "https://slack.com/api/conversations.list?exclude_archived=true&types=public_channel,private_channel&limit=200",
-    {
-      headers: {
-        Authorization: `Bearer ${integration.decryptedToken}`,
-      },
+  const channels: SlackChannel[] = [];
+  let cursor = "";
+
+  do {
+    const data = await fetchSlackConversationsPage(integration.decryptedToken, cursor);
+
+    if (!data.ok) {
+      throw new Error(`Slack API error: ${data.error}`);
     }
-  );
 
-  const data = await response.json();
+    for (const ch of data.channels ?? []) {
+      channels.push({
+        id: ch.id,
+        name: ch.name,
+        isMember: !!ch.is_member,
+      });
+    }
 
-  if (!data.ok) {
-    throw new Error(`Slack API error: ${data.error}`);
-  }
+    cursor = data.response_metadata?.next_cursor ?? "";
+  } while (cursor);
 
-  return (data.channels || []).map((ch: { id: string; name: string }) => ({
-    id: ch.id,
-    name: ch.name,
-  }));
+  return channels;
 }
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
