@@ -24,7 +24,7 @@ const NotificationTrigger = () => {
     if (!isOpen) {
       track("notifications", "panel_opened", {
         hasUnread,
-        unreadCount: notifications?.filter((n) => !n.isRead).length ?? 0,
+        unreadCount: notifications?.filter((n) => !n.isRead && formatNotification(n) !== null).length ?? 0,
       });
     }
     toggle();
