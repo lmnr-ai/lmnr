@@ -118,9 +118,14 @@ function createCoreSlice(
 
       get().pushUndoSnapshot();
 
+      // Count only complete tags (matching `submit`) so the metric is consistent across entry points.
+      const existingCompleteCount = get().tags.filter((t) =>
+        Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""
+      ).length;
+
       track("advanced_search", "submitted", {
         resource: resource ?? "unknown",
-        filterCount: get().tags.length + 1,
+        filterCount: existingCompleteCount + 1,
         hasSearch: false,
         mode,
       });
