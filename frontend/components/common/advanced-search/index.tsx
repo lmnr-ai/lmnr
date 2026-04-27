@@ -21,7 +21,7 @@ import {
 
 interface AdvancedSearchInnerProps {
   filters: ColumnFilter[];
-  resource?: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -104,8 +104,9 @@ const AdvancedSearchInner = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTags, setTags, updateLastSubmitted, mode]);
 
+  const autocompleteResource = resource === "traces" || resource === "spans" ? resource : null;
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(
-    suggestions || !resource ? null : `/api/projects/${projectId}/${resource}/autocomplete`,
+    suggestions || !autocompleteResource ? null : `/api/projects/${projectId}/${autocompleteResource}/autocomplete`,
     swrFetcher,
     {
       onSuccess: (data) => {
@@ -146,7 +147,7 @@ AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource?: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
