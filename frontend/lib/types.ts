@@ -10,6 +10,11 @@ export type ChatMessageText = {
   text: string;
 };
 
+export type ChatMessageReasoning = {
+  type: "reasoning";
+  text: string;
+};
+
 export type ChatMessageImageUrl =
   | {
       type: "image_url";
@@ -45,6 +50,7 @@ export type ChatMessageToolCall = {
 
 export type ChatMessageContentPart =
   | ChatMessageText
+  | ChatMessageReasoning
   | ChatMessageImageUrl
   | ChatMessageImage
   | ChatMessageDocumentUrl
