@@ -301,20 +301,7 @@ export default function ManageAlertSheet({
         email?: string;
       }> = [];
 
-      if (hasSlackIntegration && integrationId && isEditMode && alert) {
-        // Legacy SLACK targets without a channelName can't be rehydrated into the name-based
-        // tag input. Carry them through so updateAlert's delete-then-reinsert doesn't wipe them.
-        for (const t of alert.targets) {
-          if (t.type === ALERT_TARGET_TYPE.SLACK && !t.channelName && t.channelId) {
-            targets.push({
-              type: ALERT_TARGET_TYPE.SLACK,
-              integrationId: t.integrationId ?? undefined,
-              channelId: t.channelId,
-              channelName: undefined,
-            });
-          }
-        }
-      }
+      const verifiedChannelIds = new Set<string>();
 
       if (data.channels.length > 0 && hasSlackIntegration && integrationId) {
         try {
@@ -337,6 +324,7 @@ export default function ManageAlertSheet({
               channelId: ch.id,
               channelName: ch.name,
             });
+            verifiedChannelIds.add(ch.id);
           }
         } catch (e) {
           toast({
@@ -346,7 +334,31 @@ export default function ManageAlertSheet({
           });
           return;
         }
-      } else if (!hasSlackIntegration && isEditMode && alert) {
+      }
+
+      if (hasSlackIntegration && integrationId && isEditMode && alert) {
+        // Legacy SLACK targets without a channelName can't be rehydrated into the name-based
+        // tag input. Carry them through so updateAlert's delete-then-reinsert doesn't wipe them.
+        // Skip any whose channelId was already covered by the verified set so we don't create
+        // duplicate alertTargets rows.
+        for (const t of alert.targets) {
+          if (
+            t.type === ALERT_TARGET_TYPE.SLACK &&
+            !t.channelName &&
+            t.channelId &&
+            !verifiedChannelIds.has(t.channelId)
+          ) {
+            targets.push({
+              type: ALERT_TARGET_TYPE.SLACK,
+              integrationId: t.integrationId ?? undefined,
+              channelId: t.channelId,
+              channelName: undefined,
+            });
+          }
+        }
+      }
+
+      if (!hasSlackIntegration && isEditMode && alert) {
         // Preserve existing Slack targets the user can't see/edit when Slack is disconnected
         for (const t of alert.targets) {
           if (t.type === ALERT_TARGET_TYPE.SLACK) {
