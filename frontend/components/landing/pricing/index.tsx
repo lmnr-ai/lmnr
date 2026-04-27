@@ -35,7 +35,7 @@ export default function Pricing() {
           underlying LLM calls (steps) to produce a structured event. You pay for the steps processed by Signals, not
           for the spans your agent emits. Read more in the{" "}
           <a
-            href="https://docs.lmnr.ai/signals/introduction"
+            href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-landing-text-100"
