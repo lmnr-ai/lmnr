@@ -157,7 +157,7 @@ export async function getSlackChannels(workspaceId: string): Promise<SlackChanne
   const integration = await getIntegrationWithToken(workspaceId);
 
   const response = await fetch(
-    "https://slack.com/api/conversations.list?exclude_archived=true&types=public_channel,private_channel&limit=200",
+    "https://slack.com/api/conversations.list?exclude_archived=true&types=public_channel&limit=1000",
     {
       headers: {
         Authorization: `Bearer ${integration.decryptedToken}`,
