@@ -12,7 +12,6 @@ import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import {
   DropdownMenu,
@@ -41,11 +40,13 @@ import {
   type SignalEventAlertMetadata,
 } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
-import { type SlackChannel } from "@/lib/actions/slack";
+import { type VerifiedSlackChannel } from "@/lib/actions/slack";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
+
+import SlackChannelsInput from "./slack-channels-input";
 
 interface ManageAlertSheetProps {
   projectId: string;
@@ -62,7 +63,7 @@ interface AlertFormValues {
   type: AlertType | "";
   name: string;
   signalName: string;
-  channelId: string;
+  channels: string[];
   emailEnabled: boolean;
   severities: SeverityLevel[];
   skipSimilar: boolean;
@@ -76,7 +77,7 @@ const DEFAULT_VALUES: AlertFormValues = {
   type: "",
   name: "",
   signalName: "",
-  channelId: "",
+  channels: [],
   emailEnabled: false,
   severities: [SEVERITY_LEVEL.CRITICAL],
   skipSimilar: true,
@@ -122,7 +123,7 @@ export default function ManageAlertSheet({
 
   const alertType = watch("type");
   const signalName = watch("signalName");
-  const channelId = watch("channelId");
+  const channels = watch("channels");
   const severities = watch("severities");
 
   const resetFormFromSignals = useCallback(
@@ -133,7 +134,13 @@ export default function ManageAlertSheet({
       }
 
       const signal = data.items?.find((s) => s.id === alert.sourceId);
-      const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
+      const slackChannels = Array.from(
+        new Set(
+          alert.targets
+            .filter((t) => t.type === ALERT_TARGET_TYPE.SLACK && !!t.channelName)
+            .map((t) => t.channelName as string)
+        )
+      );
       const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
       const signalEventMeta =
         alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
@@ -142,7 +149,7 @@ export default function ManageAlertSheet({
         type: alert.type,
         name: alert.name,
         signalName: signal?.name ?? "",
-        channelId: slackTarget?.channelId ?? "",
+        channels: slackChannels,
         emailEnabled: !!emailTarget,
         severities:
           signalEventMeta?.severities && signalEventMeta.severities.length > 0
@@ -277,18 +284,6 @@ export default function ManageAlertSheet({
     return `Notification would have triggered ${totalEventCount} time${totalEventCount === 1 ? "" : "s"} for the past ${dateRangeLabel}`;
   }, [alertType, dateRangeLabel, totalEventCount]);
 
-  const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
-    swrFetcher
-  );
-
-  const selectedChannel = useMemo(() => channels?.find((ch) => ch.id === channelId), [channels, channelId]);
-
-  const channelItems = useMemo(
-    () => (channels ?? []).map((ch) => ({ value: ch.id, label: `#${ch.name}` })),
-    [channels]
-  );
-
   const resetForm = useCallback(() => {
     reset(DEFAULT_VALUES);
     setDateRange({ pastHours: "168" });
@@ -306,13 +301,36 @@ export default function ManageAlertSheet({
         email?: string;
       }> = [];
 
-      if (data.channelId && hasSlackIntegration && integrationId) {
-        targets.push({
-          type: ALERT_TARGET_TYPE.SLACK,
-          integrationId,
-          channelId: data.channelId,
-          channelName: selectedChannel?.name ?? "",
-        });
+      if (data.channels.length > 0 && hasSlackIntegration && integrationId) {
+        try {
+          const verifyRes = await fetch(`/api/workspaces/${workspaceId}/slack/channels/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ names: data.channels }),
+          });
+          if (!verifyRes.ok) {
+            const error = (await verifyRes.json().catch(() => ({ error: "Failed to verify Slack channels." }))) as {
+              error: string;
+            };
+            throw new Error(error?.error ?? "Failed to verify Slack channels.");
+          }
+          const verified = (await verifyRes.json()) as VerifiedSlackChannel[];
+          for (const ch of verified) {
+            targets.push({
+              type: ALERT_TARGET_TYPE.SLACK,
+              integrationId,
+              channelId: ch.id,
+              channelName: ch.name,
+            });
+          }
+        } catch (e) {
+          toast({
+            variant: "destructive",
+            title: "Slack channel verification failed",
+            description: e instanceof Error ? e.message : "Failed to verify Slack channels.",
+          });
+          return;
+        }
       } else if (!hasSlackIntegration && isEditMode && alert) {
         // Preserve existing Slack targets the user can't see/edit when Slack is disconnected
         for (const t of alert.targets) {
@@ -375,7 +393,8 @@ export default function ManageAlertSheet({
             : `"${data.name.trim()}" is now active and will send notifications.`,
         });
         track("alerts", isEditMode ? "updated" : "created", {
-          has_slack: !!data.channelId,
+          has_slack: data.channels.length > 0,
+          slack_channel_count: data.channels.length,
           has_email: data.emailEnabled,
         });
         onSaved();
@@ -395,7 +414,6 @@ export default function ManageAlertSheet({
       integrationId,
       hasSlackIntegration,
       selectedSignal,
-      selectedChannel,
       userEmail,
       onSaved,
       resetForm,
@@ -404,18 +422,19 @@ export default function ManageAlertSheet({
       alert,
       onOpenChange,
       clusteringEnabled,
+      workspaceId,
     ]
   );
 
   const handleTest = useCallback(async () => {
-    if (!channelId || !signalName) return;
+    if (channels.length === 0 || !signalName) return;
 
     setIsTesting(true);
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/slack/channels/${channelId}/test`, {
+      const res = await fetch(`/api/workspaces/${workspaceId}/slack/channels/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventName: signalName }),
+        body: JSON.stringify({ names: channels, eventName: signalName }),
       });
 
       if (!res.ok) {
@@ -423,7 +442,13 @@ export default function ManageAlertSheet({
         throw new Error(error?.error ?? "Failed to send test notification");
       }
 
-      toast({ title: "Test sent", description: "A test notification was sent to the selected channel." });
+      toast({
+        title: "Test sent",
+        description:
+          channels.length === 1
+            ? "A test notification was sent to the selected channel."
+            : `A test notification was sent to ${channels.length} channels.`,
+      });
     } catch (e) {
       toast({
         variant: "destructive",
@@ -433,7 +458,7 @@ export default function ManageAlertSheet({
     } finally {
       setIsTesting(false);
     }
-  }, [workspaceId, channelId, signalName, toast]);
+  }, [workspaceId, channels, signalName, toast]);
 
   const isSignalsSectionLoading = isLoadingSignals || isValidatingSignals;
 
@@ -512,7 +537,7 @@ export default function ManageAlertSheet({
                             value={field.value}
                             onValueChange={(value) => {
                               field.onChange(value);
-                              setValue("channelId", "");
+                              setValue("channels", []);
                             }}
                           >
                             <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
@@ -663,46 +688,36 @@ export default function ManageAlertSheet({
 
                     {hasSlackIntegration && (
                       <Controller
-                        name="channelId"
+                        name="channels"
                         control={control}
                         render={({ field, fieldState }) => (
                           <div className="grid gap-2">
-                            <Label className="text-xs font-normal text-muted-foreground">Slack Channel</Label>
-                            {isLoadingChannels ? (
-                              <Skeleton className="h-7 w-full" />
-                            ) : (
-                              <>
-                                <div className="flex gap-2">
-                                  <Combobox
-                                    items={channelItems}
-                                    value={field.value || null}
-                                    setValue={(v) => field.onChange(v ?? "")}
-                                    placeholder="Select a channel (optional)"
-                                    noMatchText="No channels found."
-                                    triggerClassName={cn(
-                                      "flex-1 h-7 text-xs",
-                                      fieldState.error && "border-destructive"
-                                    )}
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    disabled={!channelId || isTesting}
-                                    onClick={handleTest}
-                                  >
-                                    <Loader2
-                                      className={cn("hidden", { "animate-spin block mr-1": isTesting })}
-                                      size={14}
-                                    />
-                                    {!isTesting && <Send className="size-3.5 mr-1" />}
-                                    Test
-                                  </Button>
-                                </div>
-                                {fieldState.error && (
-                                  <p className="text-xs text-destructive">{fieldState.error.message}</p>
-                                )}
-                              </>
-                            )}
+                            <Label className="text-xs font-normal text-muted-foreground">Slack Channels</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Type channel names and press Enter. Channels are verified when you save. For private
+                              channels, invite the Laminar app first with{" "}
+                              <code className="text-[11px]">/invite @Laminar</code>.
+                            </p>
+                            <div className="flex gap-2">
+                              <SlackChannelsInput
+                                values={field.value}
+                                onChange={field.onChange}
+                                placeholder="#alerts, #ops"
+                                hasError={!!fieldState.error}
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={field.value.length === 0 || isTesting}
+                                onClick={handleTest}
+                              >
+                                <Loader2 className={cn("hidden", { "animate-spin block mr-1": isTesting })} size={14} />
+                                {!isTesting && <Send className="size-3.5 mr-1" />}
+                                Test
+                              </Button>
+                            </div>
+                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
                           </div>
                         )}
                       />

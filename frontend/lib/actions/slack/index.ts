@@ -19,6 +19,23 @@ const SendTestNotificationSchema = z.object({
   eventName: z.string().optional(),
 });
 
+const SendTestNotificationByNamesSchema = z.object({
+  workspaceId: z.guid(),
+  names: z.array(z.string().min(1)).min(1),
+  eventName: z.string().optional(),
+});
+
+const VerifySlackChannelsSchema = z.object({
+  workspaceId: z.guid(),
+  names: z.array(z.string().min(1)).min(1),
+});
+
+// Cap how many pages we are willing to walk so a huge workspace can't
+// stall a save indefinitely. 50 * 1000 = 50k channels, which is well above
+// any realistic Slack workspace.
+const MAX_VERIFY_PAGES = 50;
+const VERIFY_PAGE_SIZE = 1000;
+
 export interface SlackIntegration {
   id: string;
   workspaceId: string;
@@ -27,6 +44,11 @@ export interface SlackIntegration {
 }
 
 export interface SlackChannel {
+  id: string;
+  name: string;
+}
+
+export interface VerifiedSlackChannel {
   id: string;
   name: string;
 }
@@ -177,14 +199,69 @@ export async function getSlackChannels(workspaceId: string): Promise<SlackChanne
   }));
 }
 
-export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
-  const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
+const normalizeChannelName = (name: string) => name.trim().replace(/^#/, "").toLowerCase();
+
+export async function verifySlackChannels(
+  input: z.infer<typeof VerifySlackChannelsSchema>
+): Promise<VerifiedSlackChannel[]> {
+  const { workspaceId, names } = VerifySlackChannelsSchema.parse(input);
 
   const integration = await getIntegrationWithToken(workspaceId);
 
-  const displayEventName = eventName || "test_event";
+  const targets = Array.from(new Set(names.map(normalizeChannelName))).filter((n) => n.length > 0);
+  if (targets.length === 0) return [];
 
-  const blocks = [
+  // First attempt: resolve by directly looking up each name via `conversations.info` is
+  // not supported (Slack requires an id). So we page through `conversations.list` and
+  // stop as soon as every requested name is resolved.
+  const remaining = new Set(targets);
+  const resolved = new Map<string, VerifiedSlackChannel>();
+  let cursor: string | undefined;
+
+  for (let page = 0; page < MAX_VERIFY_PAGES && remaining.size > 0; page++) {
+    const url = new URL("https://slack.com/api/conversations.list");
+    url.searchParams.set("exclude_archived", "true");
+    url.searchParams.set("types", "public_channel,private_channel");
+    url.searchParams.set("limit", String(VERIFY_PAGE_SIZE));
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${integration.decryptedToken}` },
+    });
+    const data = await response.json();
+
+    if (!data.ok) {
+      throw new Error(`Slack API error: ${data.error}`);
+    }
+
+    for (const ch of (data.channels ?? []) as { id: string; name: string }[]) {
+      const normalized = normalizeChannelName(ch.name);
+      if (remaining.has(normalized)) {
+        resolved.set(normalized, { id: ch.id, name: ch.name });
+        remaining.delete(normalized);
+        if (remaining.size === 0) break;
+      }
+    }
+
+    cursor = data.response_metadata?.next_cursor || undefined;
+    if (!cursor) break;
+  }
+
+  if (remaining.size > 0) {
+    const missing = Array.from(remaining).map((n) => `#${n}`);
+    throw new Error(
+      `Slack channel${missing.length === 1 ? "" : "s"} not found: ${missing.join(", ")}. ` +
+        `Make sure the channel exists and that the Laminar app has been added to it.`
+    );
+  }
+
+  // Preserve the caller's input order.
+  return targets.map((n) => resolved.get(n)!).filter(Boolean);
+}
+
+const buildTestBlocks = (eventName?: string) => {
+  const displayEventName = eventName || "test_event";
+  return [
     {
       type: "section",
       text: {
@@ -212,11 +289,13 @@ export async function sendTestSlackNotification(input: z.infer<typeof SendTestNo
       ],
     },
   ];
+};
 
+const postTestMessage = async (token: string, channelId: string, blocks: unknown[]) => {
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${integration.decryptedToken}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -228,6 +307,16 @@ export async function sendTestSlackNotification(input: z.infer<typeof SendTestNo
   });
 
   const data = await response.json();
+  return data as { ok: boolean; error?: string };
+};
+
+export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
+  const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
+
+  const integration = await getIntegrationWithToken(workspaceId);
+  const blocks = buildTestBlocks(eventName);
+
+  const data = await postTestMessage(integration.decryptedToken, channelId, blocks);
 
   if (!data.ok) {
     if (data.error === "not_in_channel") {
@@ -236,6 +325,32 @@ export async function sendTestSlackNotification(input: z.infer<typeof SendTestNo
       );
     }
     throw new Error(`Failed to send test notification: ${data.error}`);
+  }
+
+  return { success: true };
+}
+
+export async function sendTestSlackNotificationByNames(input: z.infer<typeof SendTestNotificationByNamesSchema>) {
+  const { workspaceId, names, eventName } = SendTestNotificationByNamesSchema.parse(input);
+
+  const channels = await verifySlackChannels({ workspaceId, names });
+  const integration = await getIntegrationWithToken(workspaceId);
+  const blocks = buildTestBlocks(eventName);
+
+  const failures: Array<{ channel: string; error: string }> = [];
+  for (const ch of channels) {
+    const data = await postTestMessage(integration.decryptedToken, ch.id, blocks);
+    if (!data.ok) {
+      const error =
+        data.error === "not_in_channel"
+          ? "The Laminar bot is not in this channel. Invite it with /invite @Laminar in the channel, then try again."
+          : `Failed to send test notification: ${data.error}`;
+      failures.push({ channel: `#${ch.name}`, error });
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(failures.map((f) => `${f.channel}: ${f.error}`).join("\n"));
   }
 
   return { success: true };
