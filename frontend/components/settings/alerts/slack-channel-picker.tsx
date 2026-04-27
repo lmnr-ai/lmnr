@@ -14,7 +14,7 @@ export interface SlackChannelSelection {
 }
 
 interface SlackChannelPickerProps {
-  channels: SlackChannel[] | undefined;
+  channels?: SlackChannel[];
   isLoading: boolean;
   value: SlackChannelSelection[];
   onChange: (value: SlackChannelSelection[]) => void;
