@@ -63,8 +63,7 @@ function SignalContent() {
 
   const handleTabChange = useCallback(
     (tab: string) => {
-      const feature = tab === "jobs" ? "signal_jobs" : "signals";
-      track(feature, "tab_viewed", { signalId: signal.id, tab });
+      track("signals", "tab_viewed", { signalId: signal.id, tab });
       const params = new URLSearchParams(searchParams);
       params.set("tab", tab);
       push(`${pathName}?${params.toString()}`);

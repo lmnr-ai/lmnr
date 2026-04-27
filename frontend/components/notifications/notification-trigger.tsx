@@ -22,10 +22,7 @@ const NotificationTrigger = () => {
   const handleClick = () => {
     // Fire only on open — collapse is less interesting for reach tracking.
     if (!isOpen) {
-      track("notifications", "panel_opened", {
-        hasUnread,
-        unreadCount: notifications?.filter((n) => !n.isRead && formatNotification(n) !== null).length ?? 0,
-      });
+      track("notifications", "panel_opened", { hasUnread });
     }
     toggle();
   };

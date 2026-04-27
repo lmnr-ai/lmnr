@@ -6,7 +6,6 @@ export type Feature =
   | "sessions"
   | "debugger_sessions"
   | "signals"
-  | "signal_jobs"
   | "traces"
   | "alerts"
   | "sql_editor"

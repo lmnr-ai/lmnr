@@ -112,23 +112,11 @@ function createCoreSlice(
     },
 
     addCompleteTag: (field, operator, value, router, pathname, searchParams) => {
-      const { filters, onSubmit, mode, resource } = get();
+      const { filters, onSubmit, mode } = get();
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
       get().pushUndoSnapshot();
-
-      // Count only complete tags (matching `submit`) so the metric is consistent across entry points.
-      const existingCompleteCount = get().tags.filter((t) =>
-        Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""
-      ).length;
-
-      track("advanced_search", "submitted", {
-        resource: resource ?? "unknown",
-        filterCount: existingCompleteCount + 1,
-        hasSearch: false,
-        mode,
-      });
 
       const tagValue = columnFilter.dataType === "array" && !Array.isArray(value) ? [value] : value;
 

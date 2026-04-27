@@ -219,7 +219,7 @@ const CreateSignalJobContent = () => {
         throw new Error(body?.error ?? "Failed to create signal job");
       }
 
-      track("signal_jobs", "created", {
+      track("signals", "job_created", {
         signalId: signal.id,
         mode: jobMode,
         selectionMode,
@@ -379,7 +379,7 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
 
   useEffect(() => {
     setTraceId(traceId ?? null);
-    track("signal_jobs", "create_page_viewed");
+    track("signals", "job_create_page_viewed");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
