@@ -301,6 +301,21 @@ export default function ManageAlertSheet({
         email?: string;
       }> = [];
 
+      if (hasSlackIntegration && integrationId && isEditMode && alert) {
+        // Legacy SLACK targets without a channelName can't be rehydrated into the name-based
+        // tag input. Carry them through so updateAlert's delete-then-reinsert doesn't wipe them.
+        for (const t of alert.targets) {
+          if (t.type === ALERT_TARGET_TYPE.SLACK && !t.channelName && t.channelId) {
+            targets.push({
+              type: ALERT_TARGET_TYPE.SLACK,
+              integrationId: t.integrationId ?? undefined,
+              channelId: t.channelId,
+              channelName: undefined,
+            });
+          }
+        }
+      }
+
       if (data.channels.length > 0 && hasSlackIntegration && integrationId) {
         try {
           const verifyRes = await fetch(`/api/workspaces/${workspaceId}/slack/channels/verify`, {
