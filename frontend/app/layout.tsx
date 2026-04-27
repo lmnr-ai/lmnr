@@ -2,11 +2,13 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
+import { getServerSession } from "next-auth";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
+import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { PostHogProvider } from "@/lib/posthog";
@@ -73,10 +75,13 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: PropsWithChildren) {
   const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
+  const session = await getServerSession(authOptions).catch(() => null);
+  const email = session?.user?.email ?? undefined;
+
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
+        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]} email={email}>
           <body className="flex flex-col h-full">
             <NuqsAdapter>
               <div className="flex">

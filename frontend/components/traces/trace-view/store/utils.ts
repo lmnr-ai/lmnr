@@ -281,6 +281,9 @@ type LlmSpanInfo = {
 };
 
 // Shared with TOP_PATH_QUERY in lib/actions/sessions/trace-io.ts and useTraceUserInput.
+// The parent-path keying (drop trailing leaf segment) used here must also stay
+// in sync with the `arrayPopBack(splitByChar('.', path))` expression in those
+// SQL queries — both pick the same "main agent" identity.
 export const MAIN_AGENT_SEARCH_WINDOW = 5;
 
 /**
@@ -314,11 +317,16 @@ export const computeSubagentBoundaries = (spans: TraceViewSpan[]): Set<string> =
 
     const spanPathAttr = span.attributes?.["lmnr.span.path"];
     const spanPathArr = Array.isArray(spanPathAttr) ? spanPathAttr : [];
+    // Drop the trailing segment (the current span's own name) when keying
+    // subagent identity. The current span name can be dynamic (e.g. tool
+    // names parameterised per call) while still being the same agent step,
+    // so we group by the parent path which is the stable subagent location.
+    const parentSpanPath = spanPathArr.slice(0, -1).join(".");
 
     llmSpans.push({
       spanId: span.spanId,
       parentSpanId: span.parentSpanId ?? "",
-      spanPath: spanPathArr.join("."),
+      spanPath: parentSpanPath,
       spanPathLength: spanPathArr.length,
       promptHash,
       idsPath: idsPath.filter((id) => id !== NULL_SPAN_ID),

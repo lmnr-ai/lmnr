@@ -24,17 +24,11 @@ const OptOutSchema = z.object({
   email: z.email(),
 });
 
-const SetSlackTargetSchema = z.object({
+const SetSlackTargetsSchema = z.object({
   reportId: z.uuid(),
   workspaceId: z.uuid(),
   integrationId: z.uuid(),
-  channelId: z.string().min(1),
-  channelName: z.string(),
-});
-
-const RemoveSlackTargetSchema = z.object({
-  reportId: z.uuid(),
-  workspaceId: z.uuid(),
+  channels: z.array(z.object({ id: z.string().min(1), name: z.string() })),
 });
 
 export async function getReports(workspaceId: string, userEmail?: string): Promise<ReportWithDetails[]> {
@@ -140,11 +134,12 @@ export async function optOutReport(input: z.infer<typeof OptOutSchema>) {
   return { success: true };
 }
 
-export async function setSlackTarget(input: z.infer<typeof SetSlackTargetSchema>) {
-  const { reportId, workspaceId, integrationId, channelId, channelName } = SetSlackTargetSchema.parse(input);
+// Replace ALL Slack targets for a report with the provided channel set.
+// Pass an empty `channels` array to remove every Slack target.
+export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchema>) {
+  const { reportId, workspaceId, integrationId, channels } = SetSlackTargetsSchema.parse(input);
 
   return await db.transaction(async (tx) => {
-    // Remove existing Slack target for this report (only one Slack channel per report)
     await tx
       .delete(reportTargets)
       .where(
@@ -155,31 +150,19 @@ export async function setSlackTarget(input: z.infer<typeof SetSlackTargetSchema>
         )
       );
 
-    await tx.insert(reportTargets).values({
-      workspaceId,
-      reportId,
-      type: REPORT_TARGET_TYPE.SLACK,
-      integrationId,
-      channelId,
-      channelName,
-    });
+    if (channels.length > 0) {
+      await tx.insert(reportTargets).values(
+        channels.map((c) => ({
+          workspaceId,
+          reportId,
+          type: REPORT_TARGET_TYPE.SLACK,
+          integrationId,
+          channelId: c.id,
+          channelName: c.name,
+        }))
+      );
+    }
 
     return { success: true };
   });
-}
-
-export async function removeSlackTarget(input: z.infer<typeof RemoveSlackTargetSchema>) {
-  const { reportId, workspaceId } = RemoveSlackTargetSchema.parse(input);
-
-  await db
-    .delete(reportTargets)
-    .where(
-      and(
-        eq(reportTargets.reportId, reportId),
-        eq(reportTargets.workspaceId, workspaceId),
-        eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
-      )
-    );
-
-  return { success: true };
 }

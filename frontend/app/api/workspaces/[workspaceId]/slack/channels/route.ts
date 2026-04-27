@@ -8,8 +8,8 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ work
   const workspaceId = params.workspaceId;
 
   try {
-    const channels = await getSlackChannels(workspaceId);
-    return NextResponse.json(channels);
+    const result = await getSlackChannels(workspaceId);
+    return NextResponse.json(result);
   } catch (error) {
     console.error(error);
     if (error instanceof ZodError) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty, isNil } from "lodash";
-import { Lock, Pen, Trash2 } from "lucide-react";
+import { Ellipsis, Lock, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
@@ -10,6 +10,12 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter.ts
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
@@ -155,24 +161,37 @@ export default function AlertsSettings({
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
               </td>
-              <td className="px-4 text-xs text-muted-foreground">
+              <td className="px-4 text-xs text-muted-foreground min-w-32">
                 <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
               </td>
-              <td className="px-4 w-1/10">
-                <div className="flex justify-end gap-4">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setEditTarget(alert);
-                      setSheetOpen(true);
-                    }}
-                  >
-                    <Pen size={14} className="text-muted-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
-                    <Trash2 size={14} className="text-destructive" />
-                  </Button>
+              <td className="px-4 w-1/12">
+                <div className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground">
+                        <Ellipsis size={14} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-32">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditTarget(alert);
+                          setSheetOpen(true);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setDeleteTarget(alert)}
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1 text-inherit" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </td>
             </SettingsTableRow>
