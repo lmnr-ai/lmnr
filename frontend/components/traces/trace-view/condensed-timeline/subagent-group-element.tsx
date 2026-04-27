@@ -31,8 +31,8 @@ function SubagentGroupElement({
       className={cn(
         "absolute rounded-xs border",
         collapsed
-          ? "bg-subagent/30 cursor-pointer hover:bg-subagent/40 z-10 border-subagent"
-          : "pointer-events-none outline outline-offset-1 outline-subagent/30 bg-subagent/10 border-none"
+          ? "bg-subagent/20 cursor-pointer hover:bg-subagent/30 z-10 border-subagent"
+          : "pointer-events-none outline outline-offset-1 outline-subagent/40 bg-subagent/5 border-none"
       )}
       style={{
         left: `${left}%`,
