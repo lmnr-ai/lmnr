@@ -151,6 +151,7 @@ pub struct ChatMessageAISDKToolResult {
 #[serde(tag = "type")]
 pub enum ChatMessageContentPart {
     Text(ChatMessageText),
+    Reasoning(ChatMessageText),
     ImageUrl(ChatMessageImageUrl),
     Image(ChatMessageImage),
     Document(ChatMessageDocument),
@@ -263,6 +264,7 @@ pub struct InstrumentationChatMessageAISDKToolResult {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InstrumentationChatMessageContentPart {
     Text(ChatMessageText),
+    Reasoning(ChatMessageText),
     ImageUrl(InstrumentationChatMessageImageUrl),
     Image(InstrumentationChatMessageImage),
     Document(InstrumentationChatMessageDocument),
@@ -279,6 +281,9 @@ impl ChatMessageContentPart {
     ) -> ChatMessageContentPart {
         match part {
             InstrumentationChatMessageContentPart::Text(text) => ChatMessageContentPart::Text(text),
+            InstrumentationChatMessageContentPart::Reasoning(reasoning) => {
+                ChatMessageContentPart::Reasoning(reasoning)
+            }
             InstrumentationChatMessageContentPart::ImageUrl(image_url) => match image_url {
                 InstrumentationChatMessageImageUrl::OpenAIImageUrl(image_url) => {
                     ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
