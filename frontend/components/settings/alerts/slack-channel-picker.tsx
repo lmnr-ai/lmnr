@@ -124,8 +124,10 @@ const SlackChannelPicker = ({
         return;
       }
       if (e.key === "Enter") {
+        // Always prevent default so Enter doesn't bubble to the surrounding
+        // alert form and submit it while the user is interacting with the picker.
+        e.preventDefault();
         if (filtered[highlightedIndex]) {
-          e.preventDefault();
           addChannel(filtered[highlightedIndex]);
         }
         return;
