@@ -64,10 +64,20 @@ export default function ManageReportSheet({
     setChannelId(currentSlackTarget?.channelId ?? "");
   }, [open, report, currentEmailSubscribed, currentSlackTarget]);
 
-  const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
-    swrFetcher
-  );
+  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
+    channels: SlackChannel[];
+    rateLimited: boolean;
+  }>(open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null, swrFetcher);
+  const channels = channelsResult?.channels;
+
+  useEffect(() => {
+    if (channelsResult?.rateLimited) {
+      toast({
+        title: "Slack channel list may be incomplete",
+        description: "Slack rate-limited the request. Some channels may not appear in the picker.",
+      });
+    }
+  }, [channelsResult, toast]);
 
   const selectedChannel = useMemo(() => channels?.find((ch) => ch.id === channelId), [channels, channelId]);
 
