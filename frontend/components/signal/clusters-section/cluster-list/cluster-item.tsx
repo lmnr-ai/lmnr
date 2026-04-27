@@ -108,6 +108,11 @@ export default function ClusterItem({
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={onClick}
+        onWheel={() => {
+          clearLeaveTimeout();
+          setHovered(false);
+          setRect(null);
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={scheduleClose}
       >
@@ -124,7 +129,7 @@ export default function ClusterItem({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { duration: 0.15, delay: 0.5 } }}
                 exit={{ opacity: 0, transition: { duration: 0.15 } }}
-                className="fixed z-50"
+                className="fixed z-50 pointer-events-none"
                 style={{
                   top: rect.top,
                   left: rect.left,

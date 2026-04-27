@@ -1,21 +1,22 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import EventsTable from "@/components/signal/events-table";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
-import SignalOverviewTooltip from "@/components/signal/signal-overview-tooltip";
+import SignalTabCard from "@/components/signal/signal-tab-card";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
+import { getColumnName, getOperatorLabel } from "@/components/signals/trigger-filter-field";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
-import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 
 const ManageSignalSheet = dynamic(
@@ -69,33 +70,58 @@ function SignalContent() {
     [pathName, push, searchParams]
   );
 
+  const triggersDescription = useMemo(() => {
+    if (signal.triggers.length === 0) return "No triggers configured";
+    return signal.triggers
+      .map((trigger) =>
+        trigger.filters
+          .map((f) => `${getColumnName(f.column)} ${getOperatorLabel(f.column, f.operator)} ${f.value}`)
+          .join(" and ")
+      )
+      .join(", ");
+  }, [signal.triggers]);
+
+  const openEditSheet = !isFreeTier ? () => setIsSheetOpen(true) : undefined;
+
   return (
     <>
       <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
-        <div className="flex items-center gap-4 px-4">
-          <SignalOverviewTooltip
-            signal={signal}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            onEditClick={() => setIsSheetOpen(true)}
+        <div className="flex items-stretch gap-3 px-4">
+          <SignalTabCard
+            title="Events"
+            description="Traces that match your definition"
+            isActive={activeTab === "events"}
+            onClick={() => handleTabChange("events")}
+          />
+          <SignalTabCard
+            title="Jobs"
+            description="Run on past traces"
+            isActive={activeTab === "jobs"}
+            onClick={() => handleTabChange("jobs")}
+          />
+          <SignalTabCard
+            title="Runs"
+            description="All signal runs"
+            isActive={activeTab === "runs"}
+            onClick={() => handleTabChange("runs")}
+          />
+          <SignalTabCard
+            title={`Triggers (${signal.triggers.length})`}
+            description={triggersDescription}
+            onClick={openEditSheet}
           >
-            <TabsList className="h-8">
-              <TabsTrigger className="text-xs" value="events">
-                Events
-              </TabsTrigger>
-              <TabsTrigger className="text-xs" value="jobs">
-                Jobs
-              </TabsTrigger>
-              <TabsTrigger className="text-xs" value="runs">
-                Runs
-              </TabsTrigger>
-            </TabsList>
-          </SignalOverviewTooltip>
+            <Pencil size={12} className="text-muted-foreground" />
+          </SignalTabCard>
           {!isFreeTier && (
-            <Button icon="edit" onClick={() => setIsSheetOpen(true)}>
-              Edit Signal
-            </Button>
+            <button
+              type="button"
+              onClick={() => setIsSheetOpen(true)}
+              className="size-14 shrink-0 rounded-lg bg-primary border border-white/40 hover:bg-primary/90 flex items-center justify-center transition-colors"
+              aria-label="Edit signal"
+            >
+              <Pencil className="size-4 text-primary-foreground" />
+            </button>
           )}
         </div>
 
