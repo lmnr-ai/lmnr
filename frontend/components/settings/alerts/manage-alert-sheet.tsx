@@ -117,7 +117,6 @@ export default function ManageAlertSheet({
     handleSubmit,
     watch,
     reset,
-    setValue,
     formState: { isSubmitting },
   } = useForm<AlertFormValues>({ defaultValues: DEFAULT_VALUES });
 
@@ -139,20 +138,15 @@ export default function ManageAlertSheet({
       const signalEventMeta =
         alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
 
-      // Historical alerts may have stored only a channel name (no ID), or both.
-      // Use the ID when present; fall back to the name so the chip is still visible.
-      // If the channel list has loaded, we can also upgrade name-only targets to
-      // proper IDs once we recognize them.
-      const restoredSlackChannels: SlackChannelSelection[] = slackTargets.map((t) => ({
-        id: t.channelId ?? t.channelName ?? "",
-        name: t.channelName ?? t.channelId ?? "",
-      }));
+      const restoredSlackChannels: SlackChannelSelection[] = slackTargets
+        .filter((t) => t.channelId && t.channelName)
+        .map((t) => ({ id: t.channelId!, name: t.channelName! }));
 
       reset({
         type: alert.type,
         name: alert.name,
         signalName: signal?.name ?? "",
-        slackChannels: restoredSlackChannels.filter((c) => c.id),
+        slackChannels: restoredSlackChannels,
         emailEnabled: !!emailTarget,
         severities:
           signalEventMeta?.severities && signalEventMeta.severities.length > 0
@@ -284,48 +278,23 @@ export default function ManageAlertSheet({
     if (alertType === ALERT_TYPE.NEW_CLUSTER) {
       return `New clusters created in the past ${dateRangeLabel}: ${totalEventCount}`;
     }
-    return `Notification would have triggered ${totalEventCount} time${totalEventCount === 1 ? "" : "s"} for the past ${dateRangeLabel}`;
+    return `${totalEventCount} event${totalEventCount === 1 ? "" : "s"} for the past ${dateRangeLabel}`;
   }, [alertType, dateRangeLabel, totalEventCount]);
 
-  const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
-    swrFetcher
-  );
+  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
+    channels: SlackChannel[];
+    rateLimited: boolean;
+  }>(open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null, swrFetcher);
+  const channels = channelsResult?.channels;
 
-  // Once channels are loaded, upgrade any restored selections that were keyed by
-  // name (from historical alerts stored without channel IDs) to their proper IDs.
-  // A ref gates the scan so it runs once per (alert, channels) pair rather than
-  // on every picker interaction. It resets when `alert` or `channels` changes
-  // (e.g. opening the sheet for a different alert) so a fresh pass occurs.
-  const hasUpgradedSlackChannelsRef = useRef(false);
   useEffect(() => {
-    hasUpgradedSlackChannelsRef.current = false;
-  }, [alert, channels]);
-  useEffect(() => {
-    if (!channels || hasUpgradedSlackChannelsRef.current) return;
-    if (slackChannels.length === 0) return;
-    const channelsById = new Map(channels.map((c) => [c.id, c]));
-    const channelsByName = new Map(channels.map((c) => [c.name.toLowerCase(), c]));
-    let changed = false;
-    const next = slackChannels.map((sel) => {
-      if (channelsById.has(sel.id)) {
-        const live = channelsById.get(sel.id)!;
-        if (live.name !== sel.name) {
-          changed = true;
-          return { id: live.id, name: live.name };
-        }
-        return sel;
-      }
-      const match = channelsByName.get(sel.name.toLowerCase());
-      if (match) {
-        changed = true;
-        return { id: match.id, name: match.name };
-      }
-      return sel;
-    });
-    hasUpgradedSlackChannelsRef.current = true;
-    if (changed) setValue("slackChannels", next, { shouldDirty: false });
-  }, [channels, slackChannels, setValue]);
+    if (channelsResult?.rateLimited) {
+      toast({
+        title: "Slack channel list may be incomplete",
+        description: "Slack rate-limited the request. Some channels may not appear in the picker.",
+      });
+    }
+  }, [channelsResult, toast]);
 
   const resetForm = useCallback(() => {
     reset(DEFAULT_VALUES);

@@ -1,10 +1,10 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { Command as CommandPrimitive } from "cmdk";
 import { Hash, Loader2, X } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { cn } from "@/lib/utils";
 
@@ -24,28 +24,6 @@ interface SlackChannelPickerProps {
   invalid?: boolean;
 }
 
-// Rank: exact match > prefix match > substring match; boost channels the bot is in.
-const scoreChannel = (name: string, query: string, isMember: boolean): number => {
-  const lowerName = name.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  let score: number;
-  if (!lowerQuery) {
-    score = 10;
-  } else if (lowerName === lowerQuery) {
-    score = 1000;
-  } else if (lowerName.startsWith(lowerQuery)) {
-    score = 500;
-  } else if (lowerName.includes(lowerQuery)) {
-    score = 100;
-  } else {
-    return -1;
-  }
-  return score + (isMember ? 50 : 0);
-};
-
-const ROW_HEIGHT = 30;
-const MAX_VISIBLE_ROWS = 8;
-
 const SlackChannelPicker = ({
   channels,
   isLoading,
@@ -58,40 +36,31 @@ const SlackChannelPicker = ({
 }: SlackChannelPickerProps) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const selectedIds = useMemo(() => new Set(value.map((v) => v.id)), [value]);
 
-  const filtered = useMemo(() => {
+  // Drop already-selected channels and put member channels first; cmdk handles
+  // the rest of the search/ranking as the user types.
+  const options = useMemo(() => {
     if (!channels) return [];
-    const scored: { channel: SlackChannel; score: number }[] = [];
-    for (const channel of channels) {
-      if (selectedIds.has(channel.id)) continue;
-      const score = scoreChannel(channel.name, query, channel.isMember);
-      if (score < 0) continue;
-      scored.push({ channel, score });
-    }
-    scored.sort((a, b) => b.score - a.score || a.channel.name.localeCompare(b.channel.name));
-    return scored.map((s) => s.channel);
-  }, [channels, query, selectedIds]);
+    return channels
+      .filter((c) => !selectedIds.has(c.id))
+      .sort((a, b) => {
+        if (a.isMember !== b.isMember) return a.isMember ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [channels, selectedIds]);
 
   useEffect(() => {
-    setHighlightedIndex(0);
-  }, [query, filtered.length]);
-
-  const virtualizer = useVirtualizer({
-    count: filtered.length,
-    getScrollElement: () => listRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
-  });
-
-  useEffect(() => {
-    if (!open || filtered.length === 0) return;
-    virtualizer.scrollToIndex(highlightedIndex, { align: "auto" });
-  }, [highlightedIndex, open, filtered.length, virtualizer]);
+    if (!open) return;
+    const handle = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
 
   const addChannel = useCallback(
     (channel: SlackChannel) => {
@@ -112,26 +81,6 @@ const SlackChannelPicker = ({
 
   const handleInputKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        if (!open) setOpen(true);
-        setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(0, filtered.length - 1)));
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setHighlightedIndex((prev) => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === "Enter") {
-        // Always prevent default so Enter doesn't bubble to the surrounding
-        // alert form and submit it while the user is interacting with the picker.
-        e.preventDefault();
-        if (filtered[highlightedIndex]) {
-          addChannel(filtered[highlightedIndex]);
-        }
-        return;
-      }
       if (e.key === "Escape") {
         setOpen(false);
         return;
@@ -141,18 +90,26 @@ const SlackChannelPicker = ({
         removeChannel(value[value.length - 1].id);
       }
     },
-    [addChannel, filtered, highlightedIndex, open, query, removeChannel, value]
+    [query, removeChannel, value]
   );
 
-  const items = virtualizer.getVirtualItems();
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <div ref={containerRef} className={cn("relative", className)}>
+      <Command
+        className="overflow-visible bg-transparent"
+        // cmdk's default filter scores against `value` (channel id) AND keywords;
+        // we only want to match against the channel name in `keywords`.
+        filter={(_, search, keywords) => {
+          const name = (keywords?.[0] ?? "").toLowerCase();
+          const q = search.toLowerCase();
+          if (!q) return 1;
+          if (name === q) return 1;
+          if (name.startsWith(q)) return 0.9;
+          if (name.includes(q)) return 0.5;
+          return 0;
+        }}
+      >
         <div
-          role="combobox"
-          aria-expanded={open}
-          aria-disabled={disabled}
           onClick={() => {
             if (disabled) return;
             setOpen(true);
@@ -162,8 +119,7 @@ const SlackChannelPicker = ({
             "flex flex-wrap items-center gap-1 min-h-7 w-full rounded-md border bg-background px-2 py-1 text-xs",
             "focus-within:outline-hidden focus-within:ring-1 focus-within:ring-ring",
             disabled && "opacity-50 cursor-not-allowed",
-            invalid && "border-destructive",
-            className
+            invalid && "border-destructive"
           )}
         >
           {value.map((v) => (
@@ -189,79 +145,58 @@ const SlackChannelPicker = ({
             </span>
           ))}
           <div className="flex items-center gap-1 flex-1 min-w-24">
-            <input
+            <CommandPrimitive.Input
               ref={inputRef}
-              type="text"
               value={query}
-              disabled={disabled}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                if (!open) setOpen(true);
+              onValueChange={(v) => {
+                setQuery(v);
+                setOpen(true);
               }}
               onFocus={() => setOpen(true)}
               onKeyDown={handleInputKeyDown}
+              disabled={disabled}
               placeholder={value.length === 0 ? placeholder : ""}
               className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
             />
             {isLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
           </div>
         </div>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={4}
-        className="p-0 w-[var(--radix-popover-trigger-width)]"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onWheel={(e) => e.stopPropagation()}
-      >
-        {isLoading ? (
-          <div className="p-3 text-xs text-muted-foreground flex items-center gap-2">
-            <Loader2 className="size-3 animate-spin" />
-            Loading channels...
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="p-3 text-xs text-muted-foreground text-center">
-            {query ? "No channels match your search." : "No channels available."}
-          </div>
-        ) : (
-          <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: ROW_HEIGHT * MAX_VISIBLE_ROWS }}>
-            <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
-              {items.map((item) => {
-                const channel = filtered[item.index];
-                return (
-                  <div
-                    key={channel.id}
-                    role="option"
-                    aria-selected={item.index === highlightedIndex}
-                    onMouseEnter={() => setHighlightedIndex(item.index)}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      addChannel(channel);
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: `${item.size}px`,
-                      transform: `translateY(${item.start}px)`,
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 px-2 text-xs cursor-pointer select-none",
-                      item.index === highlightedIndex && "bg-accent text-accent-foreground"
-                    )}
-                  >
-                    <Hash className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate flex-1">{channel.name}</span>
-                    {channel.isMember && <span className="text-[10px] text-muted-foreground shrink-0">member</span>}
-                  </div>
-                );
-              })}
-            </div>
+
+        {open && (
+          <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md">
+            {isLoading ? (
+              <div className="p-3 text-xs text-muted-foreground flex items-center gap-2">
+                <Loader2 className="size-3 animate-spin" />
+                Loading channels...
+              </div>
+            ) : (
+              <CommandList className="max-h-60">
+                <CommandEmpty className="p-3 text-xs text-muted-foreground text-center">
+                  {query ? "No channels match your search." : "No channels available."}
+                </CommandEmpty>
+                {options.length > 0 && (
+                  <CommandGroup>
+                    {options.map((channel) => (
+                      <CommandItem
+                        key={channel.id}
+                        value={channel.id}
+                        keywords={[channel.name]}
+                        onSelect={() => addChannel(channel)}
+                        className="text-xs"
+                      >
+                        <Hash className="size-3 shrink-0 text-muted-foreground" />
+                        <span className="truncate flex-1">{channel.name}</span>
+                        {channel.isMember && <span className="text-[10px] text-muted-foreground shrink-0">member</span>}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+              </CommandList>
+            )}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+      </Command>
+    </div>
   );
 };
 
