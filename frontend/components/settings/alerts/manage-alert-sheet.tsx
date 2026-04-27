@@ -336,24 +336,6 @@ export default function ManageAlertSheet({
         }
       }
 
-      // Legacy Slack targets missing channelId or channelName aren't shown in the
-      // picker (resetFormFromSignals filters them out), so they'd be silently
-      // dropped by the full-targets replace on save. Carry them through untouched.
-      // (The !hasSlackIntegration branch above already preserves all Slack targets,
-      // so only run this when Slack is connected.)
-      if (hasSlackIntegration && isEditMode && alert) {
-        for (const t of alert.targets) {
-          if (t.type !== ALERT_TARGET_TYPE.SLACK) continue;
-          if (t.channelId && t.channelName) continue;
-          targets.push({
-            type: ALERT_TARGET_TYPE.SLACK,
-            integrationId: t.integrationId ?? undefined,
-            channelId: t.channelId ?? undefined,
-            channelName: t.channelName ?? undefined,
-          });
-        }
-      }
-
       if (data.emailEnabled && userEmail) {
         targets.push({
           type: ALERT_TARGET_TYPE.EMAIL,
