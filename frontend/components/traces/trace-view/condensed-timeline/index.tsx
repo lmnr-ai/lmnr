@@ -42,6 +42,7 @@ function CondensedTimeline() {
     scrollEndTime,
     transcriptExpandedGroups,
     requestScrollToGroup,
+    tab,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     getCondensedSubagentGroups: state.getCondensedSubagentGroups,
@@ -62,6 +63,7 @@ function CondensedTimeline() {
     scrollEndTime: state.scrollEndTime,
     transcriptExpandedGroups: state.transcriptExpandedGroups,
     requestScrollToGroup: state.requestScrollToGroup,
+    tab: state.tab,
   }));
 
   const {
@@ -111,11 +113,11 @@ function CondensedTimeline() {
         width: maxRight - minLeft,
         topRow: minRow,
         rowSpan: maxRow - minRow + 1,
-        collapsed: !transcriptExpandedGroups.has(group.groupId),
+        collapsed: tab === "tree" ? false : !transcriptExpandedGroups.has(group.groupId),
       });
     }
     return boxes;
-  }, [subagentGroups, condensedSpans, transcriptExpandedGroups]);
+  }, [subagentGroups, condensedSpans, transcriptExpandedGroups, tab]);
 
   // Compute dynamic time markers based on container width and zoom
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
