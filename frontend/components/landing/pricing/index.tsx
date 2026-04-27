@@ -28,8 +28,23 @@ export default function Pricing() {
     {
       id: "signals-step",
       question: "What is a Signals step?",
-      answer:
-        "A Signals step is one LLM call inside a trace that a Signal reads when it evaluates that trace. Each Signal is a plain-language prompt plus a structured output schema; when it runs on a trace, Laminar re-reads the underlying LLM calls (steps) to produce a structured event. You pay for the steps processed by Signals, not for the spans your agent emits. Read more in the Signals docs at docs.lmnr.ai/signals/introduction.",
+      answer: (
+        <>
+          A Signals step is one LLM call inside a trace that a Signal reads when it evaluates that trace. Each Signal is
+          a plain-language prompt plus a structured output schema; when it runs on a trace, Laminar re-reads the
+          underlying LLM calls (steps) to produce a structured event. You pay for the steps processed by Signals, not
+          for the spans your agent emits. Read more in the{" "}
+          <a
+            href="https://docs.lmnr.ai/signals/introduction"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-landing-text-100"
+          >
+            Signals docs
+          </a>
+          .
+        </>
+      ),
     },
     {
       id: "signals-step-consumption",
