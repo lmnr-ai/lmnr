@@ -51,7 +51,14 @@ export const SlackChannelsInput = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+      if (e.key === "Enter" || e.key === ",") {
+        // Always block the default; an empty Enter would otherwise submit the
+        // surrounding form and save the alert before the user finishes typing.
+        e.preventDefault();
+        if (inputValue.trim()) addValue(inputValue);
+        return;
+      }
+      if (e.key === "Tab") {
         if (inputValue.trim()) {
           e.preventDefault();
           addValue(inputValue);
