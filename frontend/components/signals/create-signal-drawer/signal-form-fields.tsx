@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { tryParseJson } from "@/lib/utils";
+import { cn, tryParseJson } from "@/lib/utils";
 
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
@@ -18,7 +18,7 @@ import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
 import { type ManageSignalForm } from "./types";
 
-export default function SignalFormFields({ showTemplates }: { showTemplates: boolean }) {
+export default function SignalFormFields({ showTemplates, className }: { showTemplates: boolean; className?: string }) {
   const {
     control,
     setValue,
@@ -45,7 +45,7 @@ export default function SignalFormFields({ showTemplates }: { showTemplates: boo
   }, [setValue]);
 
   return (
-    <div className="grid gap-3 py-4">
+    <div className={cn("grid gap-3 py-4", className)}>
       <div className="grid gap-1.5">
         <Label htmlFor="name" className="text-sm font-medium">
           Name

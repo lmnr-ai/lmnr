@@ -45,6 +45,7 @@ interface ManageSignalContentProps {
   onSubmitComplete: (data: ManageSignalForm) => void;
   previousTriggerIds: string[];
   className?: string;
+  scrollAreaClassName?: string;
 }
 
 export default function ManageSignalContent({
@@ -56,6 +57,7 @@ export default function ManageSignalContent({
   onSubmitComplete,
   previousTriggerIds,
   className,
+  scrollAreaClassName,
 }: ManageSignalContentProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
@@ -107,8 +109,8 @@ export default function ManageSignalContent({
           </Button>
         </div>
       )}
-      <ScrollArea className="flex-1 px-5">
-        <SignalFormFields showTemplates={!id} />
+      <ScrollArea className={cn("flex-1 px-5 flex flex-col items-center w-full")}>
+        <SignalFormFields showTemplates={!id} className={cn("", scrollAreaClassName)} />
       </ScrollArea>
       <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
         <Button

@@ -13,6 +13,7 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
+import { Button } from "@/components/ui/button";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -21,6 +22,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { useProjectContext } from "@/contexts/project-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -59,6 +61,8 @@ const getEmptyRow = ({
 function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
+  const { workspace } = useProjectContext();
+  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
@@ -154,6 +158,12 @@ function PureEventsTable() {
     [pathName, searchParams]
   );
 
+  const handleOpenSettings = useCallback(() => {
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.set("view", "settings");
+    router.push(`${pathName}?${newParams.toString()}`);
+  }, [searchParams, pathName, router]);
+
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
       const traceId = row.original.traceId;
@@ -243,6 +253,11 @@ function PureEventsTable() {
             }))}
           />
           <DateRangeFilter />
+          {!isFreeTier && (
+            <Button icon="settings" onClick={handleOpenSettings}>
+              Settings
+            </Button>
+          )}
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
         <DataTableFilterList />

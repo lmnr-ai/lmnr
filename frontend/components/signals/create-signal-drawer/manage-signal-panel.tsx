@@ -13,10 +13,16 @@ import { getDefaultValues, type ManageSignalForm } from "./types";
 interface Props {
   defaultValues?: ManageSignalForm;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
+  scrollAreaClassName?: string;
   className?: string;
 }
 
-export default function ManageSignalPanel({ defaultValues: initialValues, onSuccess, className }: Props) {
+export default function ManageSignalPanel({
+  defaultValues: initialValues,
+  onSuccess,
+  className,
+  scrollAreaClassName,
+}: Props) {
   const { projectId } = useParams();
   const [showTest, setShowTest] = useState(false);
   const featureFlags = useFeatureFlags();
@@ -62,6 +68,7 @@ export default function ManageSignalPanel({ defaultValues: initialValues, onSucc
         className={className}
         onSuccess={onSuccess}
         onSubmitComplete={onSubmitComplete}
+        scrollAreaClassName={scrollAreaClassName}
         previousTriggerIds={previousTriggerIds}
       />
     </FormProvider>
