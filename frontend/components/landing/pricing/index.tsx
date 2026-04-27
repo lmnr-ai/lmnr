@@ -42,7 +42,7 @@ export default function Pricing() {
           >
             Signals docs
           </a>
-          .
+          {"."}
         </>
       ),
     },
