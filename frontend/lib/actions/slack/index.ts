@@ -48,11 +48,6 @@ export interface SlackChannel {
   name: string;
 }
 
-export interface VerifiedSlackChannel {
-  id: string;
-  name: string;
-}
-
 export async function getSlackIntegration(workspaceId: string): Promise<SlackIntegration | null> {
   const [result] = await db
     .select({
@@ -201,13 +196,7 @@ export async function getSlackChannels(workspaceId: string): Promise<SlackChanne
 
 const normalizeChannelName = (name: string) => name.trim().replace(/^#/, "").toLowerCase();
 
-export async function verifySlackChannels(
-  input: z.infer<typeof VerifySlackChannelsSchema>
-): Promise<VerifiedSlackChannel[]> {
-  const { workspaceId, names } = VerifySlackChannelsSchema.parse(input);
-
-  const integration = await getIntegrationWithToken(workspaceId);
-
+const resolveSlackChannelsByNames = async (token: string, names: string[]): Promise<SlackChannel[]> => {
   const targets = Array.from(new Set(names.map(normalizeChannelName))).filter((n) => n.length > 0);
   if (targets.length === 0) return [];
 
@@ -215,7 +204,7 @@ export async function verifySlackChannels(
   // not supported (Slack requires an id). So we page through `conversations.list` and
   // stop as soon as every requested name is resolved.
   const remaining = new Set(targets);
-  const resolved = new Map<string, VerifiedSlackChannel>();
+  const resolved = new Map<string, SlackChannel>();
   let cursor: string | undefined;
 
   for (let page = 0; page < MAX_VERIFY_PAGES && remaining.size > 0; page++) {
@@ -226,7 +215,7 @@ export async function verifySlackChannels(
     if (cursor) url.searchParams.set("cursor", cursor);
 
     const response = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${integration.decryptedToken}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
 
@@ -257,6 +246,12 @@ export async function verifySlackChannels(
 
   // Preserve the caller's input order.
   return targets.map((n) => resolved.get(n)!).filter(Boolean);
+};
+
+export async function verifySlackChannels(input: z.infer<typeof VerifySlackChannelsSchema>): Promise<SlackChannel[]> {
+  const { workspaceId, names } = VerifySlackChannelsSchema.parse(input);
+  const integration = await getIntegrationWithToken(workspaceId);
+  return resolveSlackChannelsByNames(integration.decryptedToken, names);
 }
 
 const buildTestBlocks = (eventName?: string) => {
@@ -333,8 +328,8 @@ export async function sendTestSlackNotification(input: z.infer<typeof SendTestNo
 export async function sendTestSlackNotificationByNames(input: z.infer<typeof SendTestNotificationByNamesSchema>) {
   const { workspaceId, names, eventName } = SendTestNotificationByNamesSchema.parse(input);
 
-  const channels = await verifySlackChannels({ workspaceId, names });
   const integration = await getIntegrationWithToken(workspaceId);
+  const channels = await resolveSlackChannelsByNames(integration.decryptedToken, names);
   const blocks = buildTestBlocks(eventName);
 
   const failures: Array<{ channel: string; error: string }> = [];

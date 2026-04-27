@@ -40,7 +40,7 @@ import {
   type SignalEventAlertMetadata,
 } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
-import { type VerifiedSlackChannel } from "@/lib/actions/slack";
+import { type SlackChannel } from "@/lib/actions/slack";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -329,7 +329,7 @@ export default function ManageAlertSheet({
             };
             throw new Error(error?.error ?? "Failed to verify Slack channels.");
           }
-          const verified = (await verifyRes.json()) as VerifiedSlackChannel[];
+          const verified = (await verifyRes.json()) as SlackChannel[];
           for (const ch of verified) {
             targets.push({
               type: ALERT_TARGET_TYPE.SLACK,
