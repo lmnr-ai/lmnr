@@ -294,8 +294,16 @@ export default function ManageAlertSheet({
 
   // Once channels are loaded, upgrade any restored selections that were keyed by
   // name (from historical alerts stored without channel IDs) to their proper IDs.
+  // A ref gates the scan so it runs once per (alert, channels) pair rather than
+  // on every picker interaction. It resets when `alert` or `channels` changes
+  // (e.g. opening the sheet for a different alert) so a fresh pass occurs.
+  const hasUpgradedSlackChannelsRef = useRef(false);
   useEffect(() => {
-    if (!channels || slackChannels.length === 0) return;
+    hasUpgradedSlackChannelsRef.current = false;
+  }, [alert, channels]);
+  useEffect(() => {
+    if (!channels || hasUpgradedSlackChannelsRef.current) return;
+    if (slackChannels.length === 0) return;
     const channelsById = new Map(channels.map((c) => [c.id, c]));
     const channelsByName = new Map(channels.map((c) => [c.name.toLowerCase(), c]));
     let changed = false;
@@ -315,6 +323,7 @@ export default function ManageAlertSheet({
       }
       return sel;
     });
+    hasUpgradedSlackChannelsRef.current = true;
     if (changed) setValue("slackChannels", next, { shouldDirty: false });
   }, [channels, slackChannels, setValue]);
 
