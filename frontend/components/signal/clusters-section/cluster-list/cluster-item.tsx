@@ -27,6 +27,7 @@ export default function ClusterItem({
   isSelected,
   filteredCount,
   onClick,
+  isPaywall,
 }: {
   cluster: ClusterNode;
   iconVariant: IconVariant;
@@ -34,6 +35,8 @@ export default function ClusterItem({
   isSelected: boolean;
   filteredCount: number | undefined;
   onClick: () => void;
+  /** When true, render the row as a paywalled preview: name blurred, no click, no hover tooltip. */
+  isPaywall?: boolean;
 }) {
   const hasChildren = iconVariant === "boxes";
   const displayCount = filteredCount ?? 0;
@@ -99,7 +102,7 @@ export default function ClusterItem({
   }, [clearLeaveTimeout, clearOpenTimeout]);
 
   const icon = (
-    <div className="size-4 flex  justify-center items-center">
+    <div className={cn("size-4 flex  justify-center items-center", { "blur-[5px]": isPaywall })}>
       {iconVariant === "boxes" ? (
         <Boxes
           className="size-4.5 shrink-0"
@@ -125,22 +128,23 @@ export default function ClusterItem({
       <button
         ref={buttonRef}
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer text-secondary-foreground w-full min-w-0",
-          hovered && "bg-muted",
+          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors text-secondary-foreground w-full min-w-0",
+          isPaywall ? "cursor-default" : "cursor-pointer",
+          !isPaywall && hovered && "bg-muted",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
-        onClick={onClick}
+        onClick={isPaywall ? undefined : onClick}
         onWheel={() => {
           clearOpenTimeout();
           clearLeaveTimeout();
           setHovered(false);
           setRect(null);
         }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={scheduleClose}
+        onMouseEnter={isPaywall ? undefined : handleMouseEnter}
+        onMouseLeave={isPaywall ? undefined : scheduleClose}
       >
         {icon}
-        <span className="truncate">{cluster.name}</span>
+        <span className={cn("truncate", isPaywall && "blur-[5px] select-none")}>{cluster.name}</span>
         <span className="text-muted-foreground text-xs ml-auto shrink-0">{displayCount}</span>
       </button>
 

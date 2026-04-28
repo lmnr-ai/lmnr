@@ -22,6 +22,7 @@ interface ClusterListProps {
   filteredCountByCluster: Map<string, number>;
   onNavigateToCluster: (clusterId: string) => void;
   className?: string;
+  isPaywall?: boolean;
 }
 
 export default function ClusterList({
@@ -30,6 +31,7 @@ export default function ClusterList({
   filteredCountByCluster,
   onNavigateToCluster,
   className,
+  isPaywall,
 }: ClusterListProps) {
   const [clusterId] = useClusterId();
 
@@ -73,6 +75,7 @@ export default function ClusterList({
                   isSelected={clusterId === cluster.id}
                   filteredCount={filteredCount}
                   onClick={() => onNavigateToCluster(cluster.id)}
+                  isPaywall={isPaywall}
                 />
               );
             })}
@@ -87,6 +90,7 @@ export default function ClusterList({
                   isSelected={clusterId === UNCLUSTERED_ID}
                   filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
                   onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
+                  isPaywall={isPaywall}
                 />
               </>
             )}
