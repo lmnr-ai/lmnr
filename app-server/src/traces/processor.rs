@@ -104,7 +104,14 @@ pub async fn process_span_messages(
                 );
             }
 
-            send_trace_updates(&updated_traces, &pubsub).await;
+            send_trace_updates(
+                &updated_traces,
+                &spans,
+                cache.clone(),
+                clickhouse.clone(),
+                &pubsub,
+            )
+            .await;
 
             Some(updated_traces)
         }

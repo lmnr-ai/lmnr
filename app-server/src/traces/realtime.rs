@@ -1,6 +1,7 @@
 //! Realtime updates for traces and spans via SSE
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -8,10 +9,17 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::{Cache, CacheTrait, keys::TRACE_EVALUATION_ID_CACHE_KEY},
+    ch::evaluation_datapoints::get_evaluation_id_by_trace_id,
     db::{spans::Span, spans::SpanType, trace::Trace},
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
+    traces::span_attributes::ASSOCIATION_PROPERTIES_PREFIX,
 };
+
+const TRACE_EVALUATION_ID_TTL_SECONDS: u64 = 86_400;
+const EVALUATION_TOP_SPAN_NAME: &str = "evaluation";
+const EVALUATION_ID_ATTRIBUTE_SUFFIX: &str = "evaluation_id";
 
 /// Realtime trace data for frontend consumption
 #[derive(Debug, Serialize)]
@@ -119,29 +127,45 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     }
 }
 
-/// Send trace update events to SSE connections for the traces table
-pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
+pub async fn send_trace_updates(
+    traces: &[Trace],
+    spans: &[Span],
+    cache: Arc<Cache>,
+    clickhouse: clickhouse::Client,
+    pubsub: &PubSub,
+) {
     if traces.is_empty() {
         return;
     }
 
-    // Group traces by project_id
+    let trace_to_evaluation = resolve_trace_to_evaluation(traces, spans, cache, clickhouse).await;
+
     let mut traces_by_project: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
+    let mut traces_by_evaluation: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
     let mut traces_by_rollout_session: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> =
         HashMap::new();
 
     for trace in traces {
-        // Very rudimentary filter to exclude evaluation traces
-        if let Some(top_span_name) = trace.top_span_name() {
-            if top_span_name == "evaluation" {
-                continue;
-            }
-        }
+        let realtime_trace = RealtimeTrace::from_trace(trace);
 
-        traces_by_project
-            .entry(trace.project_id())
-            .or_default()
-            .push(RealtimeTrace::from_trace(trace));
+        if let Some(evaluation_id) = trace_to_evaluation.get(&trace.id()) {
+            traces_by_evaluation
+                .entry((trace.project_id(), *evaluation_id))
+                .or_default()
+                .push(realtime_trace);
+        } else if trace
+            .top_span_name()
+            .as_deref()
+            .is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME)
+        {
+            // Unresolved evaluation trace — keep it out of the global feed.
+            continue;
+        } else {
+            traces_by_project
+                .entry(trace.project_id())
+                .or_default()
+                .push(realtime_trace);
+        }
 
         if let Some(rollout_session_id) = trace
             .metadata()
@@ -168,6 +192,18 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
         };
 
         send_to_key(pubsub, &project_id, "traces", trace_message).await;
+    }
+
+    for ((project_id, evaluation_id), traces_data) in traces_by_evaluation {
+        let trace_message = SseMessage {
+            event_type: "trace_update".to_string(),
+            data: serde_json::json!({
+                "traces": traces_data
+            }),
+        };
+
+        let evaluation_key = format!("evaluation_{}", evaluation_id);
+        send_to_key(pubsub, &project_id, &evaluation_key, trace_message).await;
     }
 
     for ((project_id, rollout_session_id), traces_data) in traces_by_rollout_session {
@@ -209,6 +245,119 @@ impl RealtimeTrace {
             tags: trace.tags().clone(),
             root_span_input: trace.root_span_input(),
             root_span_output: trace.root_span_output(),
+        }
+    }
+}
+
+/// Build a `trace_id -> evaluation_id` map for evaluation traces in this batch.
+async fn resolve_trace_to_evaluation(
+    traces: &[Trace],
+    spans: &[Span],
+    cache: Arc<Cache>,
+    clickhouse: clickhouse::Client,
+) -> HashMap<Uuid, Uuid> {
+    let evaluation_traces: Vec<(Uuid, Uuid)> = traces
+        .iter()
+        .filter(|t| {
+            t.top_span_name()
+                .as_deref()
+                .is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME)
+        })
+        .map(|t| (t.id(), t.project_id()))
+        .collect();
+
+    if evaluation_traces.is_empty() {
+        return HashMap::new();
+    }
+
+    let from_spans = evaluation_ids_from_spans(spans);
+
+    let mut resolved: HashMap<Uuid, Uuid> = HashMap::new();
+    let mut needs_lookup: Vec<(Uuid, Uuid)> = Vec::new();
+
+    for (trace_id, project_id) in evaluation_traces {
+        if let Some(eval_id) = from_spans.get(&trace_id).copied() {
+            resolved.insert(trace_id, eval_id);
+        } else {
+            needs_lookup.push((trace_id, project_id));
+        }
+    }
+
+    if needs_lookup.is_empty() {
+        return resolved;
+    }
+
+    let lookups = needs_lookup.into_iter().map(|(trace_id, project_id)| {
+        let cache = cache.clone();
+        let clickhouse = clickhouse.clone();
+        async move {
+            let eval_id = resolve_one(trace_id, project_id, cache, clickhouse).await?;
+            Some((trace_id, eval_id))
+        }
+    });
+
+    for (trace_id, eval_id) in futures_util::future::join_all(lookups)
+        .await
+        .into_iter()
+        .flatten()
+    {
+        resolved.insert(trace_id, eval_id);
+    }
+
+    resolved
+}
+
+fn evaluation_ids_from_spans(spans: &[Span]) -> HashMap<Uuid, Uuid> {
+    let key = format!("{ASSOCIATION_PROPERTIES_PREFIX}.{EVALUATION_ID_ATTRIBUTE_SUFFIX}");
+    let mut out: HashMap<Uuid, Uuid> = HashMap::new();
+    for span in spans {
+        if out.contains_key(&span.trace_id) {
+            continue;
+        }
+        if let Some(eval_id) = span
+            .attributes
+            .raw_attributes
+            .get(&key)
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok())
+        {
+            out.insert(span.trace_id, eval_id);
+        }
+    }
+    out
+}
+
+async fn resolve_one(
+    trace_id: Uuid,
+    project_id: Uuid,
+    cache: Arc<Cache>,
+    clickhouse: clickhouse::Client,
+) -> Option<Uuid> {
+    let key = format!(
+        "{}:{}:{}",
+        TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id
+    );
+
+    match cache.get::<Uuid>(&key).await {
+        Ok(Some(eval_id)) => return Some(eval_id),
+        Ok(None) => {}
+        Err(e) => log::warn!("Failed to read evaluation_id cache for {}: {:?}", key, e),
+    }
+
+    match get_evaluation_id_by_trace_id(clickhouse, project_id, trace_id).await {
+        Ok(Some(eval_id)) => {
+            if let Err(e) = cache
+                .insert_with_ttl(&key, eval_id, TRACE_EVALUATION_ID_TTL_SECONDS)
+                .await
+            {
+                log::warn!("Failed to cache evaluation_id for {}: {:?}", key, e);
+            }
+            Some(eval_id)
+        }
+        Ok(None) => None,
+        Err(e) => {
+            log::warn!("Failed to look up evaluation_id for {}: {:?}", trace_id, e);
+            None
         }
     }
 }

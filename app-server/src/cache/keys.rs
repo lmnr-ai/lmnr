@@ -22,3 +22,4 @@ pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary";
 pub const SPAN_DROP_RULES_CACHE_KEY: &str = "span_drop_rules_v3";
+pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";

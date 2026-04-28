@@ -32,7 +32,12 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Status",
     size: 70,
     enableSorting: false,
-    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false },
+    meta: {
+      sql: "multiIf(trace_status = 'error', 'error', notEmpty(scores) AND top_span_id != '00000000-0000-0000-0000-000000000000', 'success', 'pending')",
+      dataType: "string",
+      filterable: false,
+      comparable: false,
+    },
   },
   {
     id: "index",

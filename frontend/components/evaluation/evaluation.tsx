@@ -11,10 +11,18 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import { useEvalStore } from "@/components/evaluation/store";
+import {
+  applyScoresToStats,
+  type EvaluationStatsPayload,
+  flattenScores,
+  mergeDatapointUpsertIntoRows,
+  mergeTraceUpdateIntoRows,
+} from "@/components/evaluation/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
+import { useRealtime } from "@/lib/hooks/use-realtime.ts";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { TraceViewSidePanel } from "../traces/trace-view";
@@ -31,7 +39,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
-  const params = useParams();
+  const params = useParams<{ projectId: string }>();
   const targetId = searchParams.get("targetId");
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
@@ -65,12 +73,13 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     // columnDefs used internally in buildStatParams via store
   }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
-  const { data: statsData, isLoading: isStatsLoading } = useSWR<{
-    evaluation: EvaluationType;
-    allStatistics: Record<string, any>;
-    allDistributions: Record<string, any>;
-    scores: string[];
-  }>(statsUrl, swrFetcher);
+  const {
+    data: statsData,
+    isLoading: isStatsLoading,
+    mutate: mutateStats,
+  } = useSWR<EvaluationStatsPayload>(statsUrl, swrFetcher, {
+    revalidateOnFocus: false,
+  });
 
   // Target statistics URL (if comparing)
   const targetStatsUrl = useMemo(() => {
@@ -82,12 +91,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     // columnDefs used internally in buildStatParams via store
   }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
-  const { data: targetStatsData } = useSWR<{
-    evaluation: EvaluationType;
-    allStatistics: Record<string, any>;
-    allDistributions: Record<string, any>;
-    scores: string[];
-  }>(targetStatsUrl, swrFetcher);
+  const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
+    revalidateOnFocus: false,
+  });
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
 
@@ -166,6 +172,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     isFetching: isFetchingPage,
     isLoading: isLoadingDatapoints,
     fetchNextPage,
+    updateData,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
     enabled: !isStatsLoading,
@@ -206,6 +213,59 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
       setSelectedScore(scores[0]);
     }
   }
+
+  // Realtime merge by datapoint id. `targetId` (comparison view) disables
+  const mergeDatapointUpsert = useCallback(
+    (incoming: EvalRow & { id: string }) => {
+      if (targetId) return;
+      const flattened = flattenScores(incoming["scores"]);
+      updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
+      // SWR cache is the single source of truth for chart data — mutating it
+      mutateStats((current) => applyScoresToStats(current, flattened), { revalidate: false });
+    },
+
+    [updateData, targetId, mutateStats]
+  );
+
+  // Realtime merge of trace stats (cost/duration/status/tokens) onto the row
+  const mergeTraceUpdate = useCallback(
+    (trace: Record<string, unknown> & { id: string }) => {
+      if (targetId) return;
+      updateData((rows) => mergeTraceUpdateIntoRows(rows, trace));
+    },
+    [updateData, targetId]
+  );
+
+  const realtimeHandlers = useMemo(
+    () => ({
+      datapoint_upsert: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data) as { datapoints?: Array<EvalRow & { id: string }> };
+          payload.datapoints?.forEach(mergeDatapointUpsert);
+        } catch (e) {
+          console.warn("Failed to parse realtime datapoint_upsert:", e);
+        }
+      },
+      trace_update: (event: MessageEvent) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            traces?: Array<Record<string, unknown> & { id: string }>;
+          };
+          payload.traces?.forEach(mergeTraceUpdate);
+        } catch (e) {
+          console.warn("Failed to parse realtime trace_update:", e);
+        }
+      },
+    }),
+    [mergeDatapointUpsert, mergeTraceUpdate]
+  );
+
+  useRealtime({
+    key: `evaluation_${evaluationId}`,
+    projectId: params.projectId,
+    enabled: !targetId,
+    eventHandlers: realtimeHandlers,
+  });
 
   return (
     <>

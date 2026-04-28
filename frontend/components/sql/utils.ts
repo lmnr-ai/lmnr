@@ -197,6 +197,7 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "trace_status", type: "String", description: "Status of the associated trace" },
       { name: "trace_metadata", type: "String", description: "Metadata from the associated trace as stringified JSON" },
       { name: "trace_tags", type: "Array(String)", description: "Tags from the associated trace" },
+      { name: "top_span_id", type: "UUID", description: "ID of the top-level span of the associated trace" },
       {
         name: "trace_spans",
         type: "Array(Tuple(name String, duration Float64, type String))",
