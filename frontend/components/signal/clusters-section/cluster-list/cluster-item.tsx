@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Circle, CircleDashed, Folder } from "lucide-react";
+import { Box, Boxes, CircleDashed } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -68,6 +68,25 @@ export default function ClusterItem({
     []
   );
 
+  // Close the hover card on user-perceptible scroll while open. Threshold
+  // ignores tiny phantom shifts (e.g. body width changes from the card's open
+  // animation, focus auto-scroll-into-view) so the card doesn't dismiss itself.
+  useEffect(() => {
+    if (!hovered) return;
+    const startY = window.scrollY;
+    const startX = window.scrollX;
+    const onScroll = () => {
+      const dy = Math.abs(window.scrollY - startY);
+      const dx = Math.abs(window.scrollX - startX);
+      if (dy < 4 && dx < 4) return;
+      clearLeaveTimeout();
+      setHovered(false);
+      setRect(null);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hovered, clearLeaveTimeout]);
+
   const handleMouseEnter = useCallback(() => {
     clearLeaveTimeout();
     if (buttonRef.current) {
@@ -87,14 +106,15 @@ export default function ClusterItem({
 
   const icon =
     iconVariant === "folder" ? (
-      <Folder className="w-4 h-4 shrink-0" fill={withOpacity(color, 0.25)} stroke={color} strokeWidth={1.5} />
+      <Boxes className="w-4 h-4 shrink-0" fill={withOpacity(color, 0.25)} stroke={color} strokeWidth={1.5} />
     ) : iconVariant === "circle-dashed" ? (
       <CircleDashed className="size-3.5 shrink-0" stroke={color} />
     ) : (
-      <Circle
+      <Box
         fill={isSelected ? color : withOpacity(color, 0.25)}
         stroke={color}
-        className="size-3.5 rounded-full shrink-0"
+        className="size-3.5 shrink-0"
+        strokeWidth={1.5}
       />
     );
 
@@ -137,6 +157,10 @@ export default function ClusterItem({
                 }}
               >
                 <motion.button
+                  // Prevent default focus on mousedown — focus would auto-scroll
+                  // partially-offscreen cards into view, which dismisses them
+                  // mid-click and eats the click event.
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setHovered(false);
                     setRect(null);

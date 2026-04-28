@@ -5,6 +5,7 @@ import DocsButton from "../docs-button";
 import SectionName from "../section-name";
 import AskAIImage from "./ask-ai-image";
 import BrowserScreenRecordingImage from "./browser-screen-recording-image";
+import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";
 import DebuggerVideo from "./debugger-video";
 import EvalsImage from "./evals-image";
@@ -45,6 +46,8 @@ const ThreeCategories = ({ className }: Props) => (
       <SectionName label="Tracing" index={1} />
 
       <IntegrateInMinutes />
+
+      <ComposableTrace />
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">

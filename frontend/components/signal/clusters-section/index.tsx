@@ -15,7 +15,9 @@ import {
   getDrillDownDepth,
   getFilteredCountByCluster,
   getIsLeaf,
+  getUnclusteredVirtualCluster,
   getVisibleClusters,
+  selectUnclusteredCount,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -57,6 +59,8 @@ export default function ClustersSection() {
     (state) => getFilteredCountByCluster(state, displayId, hasTimeRange),
     shallow
   );
+  const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
+  const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
 
   // Build stable color map from sibling list so colors match between list and chart
   const colorMap = useMemo(() => {
@@ -156,9 +160,12 @@ export default function ClustersSection() {
         <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
           <ClusterList
             className="h-full w-full"
-            displayId={displayId}
             drillDownDepth={drillDownDepth}
             filteredCountByCluster={filteredCountByCluster}
+            visibleClusters={visibleClusters}
+            unclusteredCount={unclusteredCount}
+            unclusteredVirtualCluster={unclusteredVirtualCluster}
+            selectedClusterId={clusterId}
             onNavigateToCluster={navigateToCluster}
           />
         </ResizablePanel>
