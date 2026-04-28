@@ -45,7 +45,7 @@ export default function SignalFormFields({ showTemplates, className }: { showTem
   }, [setValue]);
 
   return (
-    <div className={cn("grid gap-3 py-4", className)}>
+    <div className={cn("grid gap-8 py-4", className)}>
       <div className="grid gap-1.5">
         <Label htmlFor="name" className="text-sm font-medium">
           Name

@@ -48,7 +48,7 @@ export default function ClusterList({
             {visibleClusters.map((cluster, index) => {
               const hasChildren = cluster.children.length > 0;
               const filteredCount = filteredCountByCluster.get(cluster.id);
-              const iconVariant: IconVariant = hasChildren ? "folder" : "circle";
+              const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
               return (
                 <ClusterItem
                   key={cluster.id}

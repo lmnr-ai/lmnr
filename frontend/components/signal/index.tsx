@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 
 import EventsTable from "@/components/signal/events-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -10,6 +10,7 @@ import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/c
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import Header from "@/components/ui/header.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 
 function SignalContent() {
@@ -19,7 +20,7 @@ function SignalContent() {
   const searchParams = useSearchParams();
   const { workspace } = useProjectContext();
 
-  const view = searchParams.get("view") ?? "events";
+  const activeTab = searchParams.get("tab") || "events";
 
   const { signal } = useSignalStoreContext((state) => ({
     signal: state.signal,
@@ -34,7 +35,6 @@ function SignalContent() {
   }));
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
-  const isSettings = view === "settings" && !isFreeTier;
 
   const handleSuccess = useCallback(
     async (form: ManageSignalForm) => {
@@ -49,33 +49,46 @@ function SignalContent() {
     [signal, setSignal]
   );
 
-  const headerPath = useMemo(
-    () =>
-      isSettings
-        ? [
-            { name: "signals", href: `/project/${params.projectId}/signals` },
-            { name: signal.name, href: pathName },
-            { name: "settings" },
-          ]
-        : [{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }],
-    [isSettings, params.projectId, signal.name, pathName]
+  const handleTabChange = useCallback(
+    (tab: string) => {
+      const params = new URLSearchParams(searchParams);
+      params.set("tab", tab);
+      push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, push, searchParams]
   );
 
   return (
     <>
-      <Header path={headerPath} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {isSettings ? (
-          <ManageSignalPanel
-            key={signal.id}
-            defaultValues={signal}
-            onSuccess={handleSuccess}
-            scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
-          />
-        ) : (
+      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
+        <div className="px-4">
+          <TabsList className="h-8">
+            <TabsTrigger className="text-xs" value="events">
+              Events
+            </TabsTrigger>
+            {!isFreeTier && (
+              <TabsTrigger className="text-xs" value="settings">
+                Settings
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
+
+        <TabsContent value="events" className="flex flex-col overflow-hidden">
           <EventsTable />
+        </TabsContent>
+        {!isFreeTier && (
+          <TabsContent value="settings" className="flex flex-col overflow-hidden">
+            <ManageSignalPanel
+              key={signal.id}
+              defaultValues={signal}
+              onSuccess={handleSuccess}
+              scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
+            />
+          </TabsContent>
         )}
-      </div>
+      </Tabs>
 
       {traceId && (
         <TraceViewSidePanel
