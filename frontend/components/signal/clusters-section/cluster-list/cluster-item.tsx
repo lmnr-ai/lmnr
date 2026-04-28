@@ -98,24 +98,27 @@ export default function ClusterItem({
     }, 80);
   }, [clearLeaveTimeout, clearOpenTimeout]);
 
-  const icon =
-    iconVariant === "boxes" ? (
-      <Boxes
-        className="w-4 h-4 shrink-0"
-        fill={withOpacity(color, 0.1)}
-        stroke={withOpacity(color, 0.7)}
-        strokeWidth={1.5}
-      />
-    ) : iconVariant === "circle-dashed" ? (
-      <CircleDashed className="size-3.5 shrink-0" stroke={color} />
-    ) : (
-      <Box
-        fill={isSelected ? withOpacity(color, 0.5) : withOpacity(color, 0.1)}
-        stroke={isSelected ? color : withOpacity(color, 0.7)}
-        className="size-3.5 shrink-0"
-        strokeWidth={1.5}
-      />
-    );
+  const icon = (
+    <div className="size-4 flex  justify-center items-center">
+      {iconVariant === "boxes" ? (
+        <Boxes
+          className="size-4.5 shrink-0"
+          fill={withOpacity(color, 0.1)}
+          stroke={withOpacity(color, 0.7)}
+          strokeWidth={1}
+        />
+      ) : iconVariant === "circle-dashed" ? (
+        <CircleDashed className="size-3.5 shrink-0" stroke={color} />
+      ) : (
+        <Box
+          fill={isSelected ? withOpacity(color, 0.5) : withOpacity(color, 0.1)}
+          stroke={isSelected ? color : withOpacity(color, 0.7)}
+          className="size-3.5 shrink-0"
+          strokeWidth={1.5}
+        />
+      )}
+    </div>
+  );
 
   return (
     <>

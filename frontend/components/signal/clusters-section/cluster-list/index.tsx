@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
@@ -38,6 +39,20 @@ export default function ClusterList({
 
   const showUnclustered = drillDownDepth === 0;
 
+  // Sort clusters so empty ones (0 items in selected range) sink to the bottom.
+  // Keep the source-array index attached so colors stay tied to a cluster's original position.
+  const orderedClusters = useMemo(
+    () =>
+      visibleClusters
+        .map((cluster, originalIndex) => ({ cluster, originalIndex }))
+        .sort((a, b) => {
+          const aEmpty = (filteredCountByCluster.get(a.cluster.id) ?? 0) > 0 ? 0 : 1;
+          const bEmpty = (filteredCountByCluster.get(b.cluster.id) ?? 0) > 0 ? 0 : 1;
+          return aEmpty - bEmpty;
+        }),
+    [visibleClusters, filteredCountByCluster]
+  );
+
   return (
     <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden min-w-0", className)}>
       <div className="flex flex-col gap-0.5 py-2 px-2 min-w-0">
@@ -45,7 +60,7 @@ export default function ClusterList({
           <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
         ) : (
           <>
-            {visibleClusters.map((cluster, index) => {
+            {orderedClusters.map(({ cluster, originalIndex }) => {
               const hasChildren = cluster.children.length > 0;
               const filteredCount = filteredCountByCluster.get(cluster.id);
               const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
@@ -54,7 +69,7 @@ export default function ClusterList({
                   key={cluster.id}
                   cluster={cluster}
                   iconVariant={iconVariant}
-                  color={getClusterColor(index, drillDownDepth)}
+                  color={getClusterColor(originalIndex, drillDownDepth)}
                   isSelected={clusterId === cluster.id}
                   filteredCount={filteredCount}
                   onClick={() => onNavigateToCluster(cluster.id)}
