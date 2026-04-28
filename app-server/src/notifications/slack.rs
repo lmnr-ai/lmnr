@@ -139,7 +139,7 @@ fn truncate_to_slack_section_limit(text: &str) -> String {
         return text.to_string();
     }
 
-    let keep = SLACK_SECTION_TEXT_LIMIT - ELLIPSIS.len();
+    let keep = SLACK_SECTION_TEXT_LIMIT - ELLIPSIS.chars().count();
     let mut out: String = text.chars().take(keep).collect();
     out.push_str(ELLIPSIS);
     out
