@@ -89,7 +89,7 @@ class TestQueryValidator:
 
     def test_validate_basic_traces_select(self, query_validator: QueryValidator, sample_project_id: str):
         """Test validation of basic SELECT query on traces"""
-        query = "SELECT trace_id, start_time FROM traces"
+        query = "SELECT id, start_time FROM traces"
         result = query_validator.validate_and_secure_query(query, sample_project_id)
 
         # Should replace traces with traces_v0 function call
@@ -108,7 +108,7 @@ class TestQueryValidator:
 
     def test_validate_tags_select(self, query_validator: QueryValidator, sample_project_id: str):
         """Test validation of SELECT query on tags"""
-        query = "SELECT id, name, value FROM tags"
+        query = "SELECT id, name, source FROM tags"
         result = query_validator.validate_and_secure_query(query, sample_project_id)
 
         assert f"FROM tags_v0(project_id = '{sample_project_id}') AS tags" in result
@@ -122,7 +122,7 @@ class TestQueryValidator:
 
     def test_traces_with_time_filters(self, query_validator: QueryValidator, sample_project_id: str):
         """Test traces query with time filters"""
-        query = "SELECT trace_id FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
+        query = "SELECT id FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
         result = query_validator.validate_and_secure_query(query, sample_project_id)
 
         # Should extract time filters and use them in the view function
@@ -130,7 +130,7 @@ class TestQueryValidator:
 
     def test_traces_with_partial_time_filters(self, query_validator: QueryValidator, sample_project_id: str):
         """Test traces query with only start_time filter"""
-        query = "SELECT trace_id FROM traces WHERE start_time > '2024-01-01'"
+        query = "SELECT id FROM traces WHERE start_time > '2024-01-01'"
         result = query_validator.validate_and_secure_query(query, sample_project_id)
 
         # Should extract start_time and use default end_time
@@ -298,7 +298,7 @@ class TestExpectedQueryTransformations:
 
     def test_basic_traces_query_transformation(self, query_validator: QueryValidator, sample_project_id: str):
         """Test basic traces query transformation"""
-        input_query = "SELECT trace_id, duration FROM traces"
+        input_query = "SELECT id, duration FROM traces"
         result = query_validator.validate_and_secure_query(input_query, sample_project_id)
 
         # Should include all three parameters for traces_v0
@@ -341,7 +341,7 @@ class TestExpectedQueryTransformations:
 
     def test_traces_time_range_query(self, query_validator: QueryValidator, sample_project_id: str):
         """Test traces time range query"""
-        input_query = "SELECT trace_id, duration FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
+        input_query = "SELECT id, duration FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'"
         result = query_validator.validate_and_secure_query(input_query, sample_project_id)
 
         # Should extract time filters for the view function
@@ -349,7 +349,7 @@ class TestExpectedQueryTransformations:
 
     def test_traces_time_range_query_between(self, query_validator: QueryValidator, sample_project_id: str):
         """Test traces time range query"""
-        input_query = "SELECT trace_id, duration FROM traces WHERE start_time BETWEEN '2024-01-01' AND '2024-01-02'"
+        input_query = "SELECT id, duration FROM traces WHERE start_time BETWEEN '2024-01-01' AND '2024-01-02'"
         result = query_validator.validate_and_secure_query(input_query, sample_project_id)
 
         # Should extract time filters for the view function
@@ -535,6 +535,379 @@ ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
         result = query_validator.validate_and_secure_query(test_query, sample_project_id)
 
         assert f"FROM spans_v0(project_id = '{sample_project_id}') AS spans" in result
+
+
+class TestUnqualifiedColumnValidation:
+    """Test that unqualified columns are validated against the allowlist (Fix 3)"""
+
+    def test_reject_nonexistent_unqualified_column(self, query_validator: QueryValidator, sample_project_id: str):
+        """SELECT nonexistent_col FROM spans should raise QueryValidationError."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT nonexistent_col FROM spans", sample_project_id
+            )
+
+    def test_accept_valid_unqualified_column(self, query_validator: QueryValidator, sample_project_id: str):
+        """SELECT name FROM spans should pass validation."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT name FROM spans", sample_project_id
+        )
+        assert "name" in result
+
+    def test_accept_qualified_column(self, query_validator: QueryValidator, sample_project_id: str):
+        """SELECT s.name FROM spans s should pass (qualified, already validated)."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT s.name FROM spans s", sample_project_id
+        )
+        assert "name" in result
+
+    def test_accept_count_star_alias(self, query_validator: QueryValidator, sample_project_id: str):
+        """SELECT COUNT(*) AS total FROM spans should pass (aliased aggregate)."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT COUNT(*) AS total FROM spans", sample_project_id
+        )
+        assert "total" in result
+
+    def test_accept_cte_column_references(self, query_validator: QueryValidator, sample_project_id: str):
+        """CTE queries where the outer SELECT references CTE columns should work."""
+        query = """
+        WITH span_counts AS (
+            SELECT name, COUNT(*) as cnt
+            FROM spans
+            GROUP BY name
+        )
+        SELECT name, cnt FROM span_counts
+        """
+        result = query_validator.validate_and_secure_query(query, sample_project_id)
+        assert "span_counts" in result
+
+    def test_accept_alias_in_order_by(self, query_validator: QueryValidator, sample_project_id: str):
+        """Aliases used in ORDER BY should not be rejected."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT COUNT(*) AS total FROM spans ORDER BY total DESC",
+            sample_project_id
+        )
+        assert "ORDER BY" in result
+
+    def test_accept_alias_in_group_by(self, query_validator: QueryValidator, sample_project_id: str):
+        """Aliases used in GROUP BY should work when column is in a function."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT name, COUNT(*) AS cnt FROM spans GROUP BY name",
+            sample_project_id
+        )
+        assert "GROUP BY" in result
+
+    def test_accept_column_inside_function(self, query_validator: QueryValidator, sample_project_id: str):
+        """Columns inside function calls should not be rejected (may be aliased)."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT countIf(status = 'ERROR') AS err_count FROM spans",
+            sample_project_id
+        )
+        assert "err_count" in result
+
+    def test_reject_nonexistent_in_where_clause(self, query_validator: QueryValidator, sample_project_id: str):
+        """Nonexistent column in WHERE should be rejected."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT name FROM spans WHERE fake_col = 'test'",
+                sample_project_id
+            )
+
+    def test_accept_subquery_alias_columns(self, query_validator: QueryValidator, sample_project_id: str):
+        """Columns from subquery results should pass (opaque schema)."""
+        query = """
+        SELECT sub.cnt FROM (
+            SELECT COUNT(*) AS cnt FROM spans
+        ) sub
+        """
+        result = query_validator.validate_and_secure_query(query, sample_project_id)
+        assert "cnt" in result
+
+    def test_accept_unqualified_subquery_columns(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified columns from subquery results should pass (opaque schema)."""
+        query = """
+        SELECT cnt FROM (
+            SELECT COUNT(*) AS cnt FROM spans
+        ) sub
+        """
+        result = query_validator.validate_and_secure_query(query, sample_project_id)
+        assert "cnt" in result
+
+    def test_accept_select_star(self, query_validator: QueryValidator, sample_project_id: str):
+        """SELECT * should continue to work."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT * FROM spans", sample_project_id
+        )
+        assert "spans_v0" in result
+
+    def test_reject_nonexistent_with_multiple_tables(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified column not in any joined table should be rejected."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT fake_col FROM spans JOIN events ON spans.span_id = events.span_id",
+                sample_project_id
+            )
+
+    def test_reject_nonexistent_with_aliased_table(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified invalid column should be rejected even when the table is aliased."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT nonexistent_col FROM spans s", sample_project_id
+            )
+
+    def test_accept_valid_column_with_aliased_table(self, query_validator: QueryValidator, sample_project_id: str):
+        """Valid unqualified column should pass when the table is aliased."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT name FROM spans s", sample_project_id
+        )
+        assert "name" in result
+
+    def test_reject_nonexistent_with_subquery_in_join_on(self, query_validator: QueryValidator, sample_project_id: str):
+        """Subquery in JOIN ON condition should not disable column validation."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT nonexistent_col FROM spans s JOIN events e ON s.span_id IN (SELECT span_id FROM events)",
+                sample_project_id
+            )
+
+
+class TestExpandedBlockedFunctions:
+    """Test that newly blocked functions are properly rejected (Fix 4)"""
+
+    def test_reject_deltalake(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM deltaLake('s3://bucket/path')", sample_project_id
+            )
+
+    def test_reject_iceberg(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM iceberg('s3://bucket/path')", sample_project_id
+            )
+
+    def test_reject_hudi(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM hudi('s3://bucket/path')", sample_project_id
+            )
+
+    def test_reject_format(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM format('CSV', '1,2,3')", sample_project_id
+            )
+
+    def test_reject_urlcluster(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM urlCluster('cluster', 'http://evil.com')", sample_project_id
+            )
+
+    def test_reject_s3queue(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM s3Queue('s3://bucket/path')", sample_project_id
+            )
+
+    def test_reject_hive(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT * FROM hive('thrift://host:9083', 'db', 'table')", sample_project_id
+            )
+
+    def test_reject_currentdatabase(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT currentDatabase() FROM spans", sample_project_id
+            )
+
+    def test_reject_hostname(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT hostName() FROM spans", sample_project_id
+            )
+
+    def test_reject_version(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT version() FROM spans", sample_project_id
+            )
+
+    def test_reject_uptime(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT uptime() FROM spans", sample_project_id
+            )
+
+    def test_reject_getmacro(self, query_validator: QueryValidator, sample_project_id: str):
+        with pytest.raises(QueryValidationError, match="not allowed"):
+            query_validator.validate_and_secure_query(
+                "SELECT getMacro('key') FROM spans", sample_project_id
+            )
+
+    def test_existing_safe_functions_still_allowed(self, query_validator: QueryValidator, sample_project_id: str):
+        """Ensure no false positives on safe functions."""
+        safe_queries = [
+            "SELECT count(*) FROM spans",
+            "SELECT sum(total_cost) FROM spans",
+            "SELECT avg(duration) FROM spans",
+            "SELECT min(start_time), max(end_time) FROM spans",
+            "SELECT toStartOfInterval(start_time, INTERVAL 5 MINUTE) AS t FROM spans",
+            "SELECT quantile(0.9)(duration) FROM spans",
+            "SELECT countIf(status = 'ERROR') FROM spans",
+        ]
+        for query in safe_queries:
+            result = query_validator.validate_and_secure_query(query, sample_project_id)
+            assert "spans_v0" in result
+
+
+class TestEndToEndHardening:
+    """End-to-end tests combining JSON->SQL conversion with query validation.
+
+    These tests verify the complete pipeline: JSON filter spec -> SQL generation
+    -> AST validation and rewriting.
+    """
+
+    def test_e2e_quote_in_filter_value(self, query_validator: QueryValidator, sample_project_id: str):
+        """Filter with O'Brien should produce valid, validated SQL."""
+        from src.json_to_sql import convert_json_to_sql
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "name", "op": "eq", "string_value": "O'Brien"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        sql = convert_json_to_sql(query_json)
+        result = query_validator.validate_and_secure_query(sql, sample_project_id)
+        assert "O''Brien" in result
+
+    def test_e2e_valid_query_with_limit(self, query_validator: QueryValidator, sample_project_id: str):
+        """Full pipeline: JSON -> SQL -> validated query with limit."""
+        from src.json_to_sql import convert_json_to_sql
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "span_id", "alias": "value"}],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+            "order_by": [{"field": "value", "dir": "desc"}],
+            "limit": 5
+        }
+        sql = convert_json_to_sql(query_json)
+        result = query_validator.validate_and_secure_query(sql, sample_project_id)
+        assert "LIMIT 5" in result
+        assert "spans_v0" in result
+
+    def test_e2e_time_series_with_model_filter(self, query_validator: QueryValidator, sample_project_id: str):
+        """Full pipeline: time series query with filters through validation."""
+        from src.json_to_sql import convert_json_to_sql
+        query_json = {
+            "table": "spans",
+            "time_range": {
+                "column": "start_time",
+                "from": "{start_time:DateTime64}",
+                "to": "{end_time:DateTime64}",
+                "interval_unit": "{interval_unit:String}",
+                "interval_value": "1",
+                "fill_gaps": True
+            },
+            "dimensions": ["model"],
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "value"}],
+            "filters": [
+                {"field": "model", "op": "ne", "string_value": "<null>"},
+                {"field": "span_type", "op": "eq", "string_value": "LLM"}
+            ]
+        }
+        sql = convert_json_to_sql(query_json)
+        result = query_validator.validate_and_secure_query(sql, sample_project_id)
+        assert "spans_v0" in result
+        assert "WITH FILL" in result
+
+    def test_e2e_malicious_field_sanitized(self, query_validator: QueryValidator, sample_project_id: str):
+        """Malicious field name is sanitized via AST round-trip, then fails validation.
+        The _safe_column_expr neutralizes injected SQL by parsing and regenerating."""
+        from src.json_to_sql import convert_json_to_sql
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "1=1; DROP TABLE spans --", "op": "eq", "string_value": "x"},
+            ],
+        }
+        # This produces sanitized SQL (the injection is neutralized by AST round-trip)
+        sql = convert_json_to_sql(query_json)
+        # The DROP TABLE is removed by the AST parser; the expression becomes "1 = 1"
+        assert "DROP" not in sql
+
+    def test_e2e_malformed_field_raises(self, sample_project_id: str):
+        """Completely malformed field name should raise at JSON->SQL stage."""
+        from src.json_to_sql import convert_json_to_sql, QueryBuilderError
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": ")))INVALID(((", "op": "eq", "string_value": "x"},
+            ],
+        }
+        with pytest.raises(QueryBuilderError):
+            convert_json_to_sql(query_json)
+
+    def test_e2e_malicious_limit_blocked(self, sample_project_id: str):
+        """Malicious limit should be blocked at JSON->SQL stage."""
+        from src.json_to_sql import convert_json_to_sql, QueryBuilderError
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": "10; DROP TABLE spans"
+        }
+        with pytest.raises(QueryBuilderError, match="LIMIT must be a positive integer"):
+            convert_json_to_sql(query_json)
+
+    def test_e2e_blocked_function_in_raw_metric(self, sample_project_id: str):
+        """Newly blocked functions should be rejected in raw metrics too."""
+        from src.json_to_sql import convert_json_to_sql, QueryBuilderError
+        for func in ["deltaLake", "iceberg", "hudi", "urlCluster", "s3Queue", "hive"]:
+            query_json = {
+                "table": "spans",
+                "metrics": [{"fn": "raw", "column": f"{func}('evil')", "alias": "bad"}],
+                "dimensions": ["name"],
+            }
+            with pytest.raises(QueryBuilderError, match="not allowed"):
+                convert_json_to_sql(query_json)
+
+    def test_e2e_unqualified_invalid_column_rejected(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified invalid column in a hand-written query should be rejected."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT name, fake_column FROM spans", sample_project_id
+            )
+
+    def test_e2e_complex_cte_with_traces_and_spans(self, query_validator: QueryValidator, sample_project_id: str):
+        """Complex CTE joining traces and spans should pass validation."""
+        query = """
+        WITH trace_data AS (
+            SELECT id, duration, user_id
+            FROM traces
+            WHERE start_time >= '2024-01-01' AND start_time < '2024-02-01'
+        ),
+        span_data AS (
+            SELECT trace_id, name, duration
+            FROM spans
+            WHERE start_time >= '2024-01-01' AND start_time < '2024-02-01'
+        )
+        SELECT * FROM trace_data
+        LEFT JOIN span_data ON trace_data.id = span_data.trace_id
+        """
+        result = query_validator.validate_and_secure_query(query, sample_project_id)
+        assert "traces_v0" in result
+        assert "spans_v0" in result
 
 
 if __name__ == "__main__":
