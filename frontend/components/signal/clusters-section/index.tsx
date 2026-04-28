@@ -174,10 +174,10 @@ export default function ClustersSection() {
             {isPaywall && (
               <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">
                 <span className="text-xs text-muted-foreground flex-1 min-w-0">
-                  Unlock event clusters for high-level insights
+                  Event clusters for high-level insights
                 </span>
                 <Link href={billingHref}>
-                  <Button size="sm">Upgrade</Button>
+                  <Button size="sm">Upgrade to Pro</Button>
                 </Link>
               </div>
             )}
