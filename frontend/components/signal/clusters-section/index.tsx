@@ -113,9 +113,7 @@ export default function ClustersSection() {
   const navigateToCluster = useCallback(
     (id: string) => {
       track("signals", "cluster_clicked", {
-        clusterId: id,
-        isUnclustered: id === UNCLUSTERED_ID,
-        drillDownDepth,
+        clusterId: id === UNCLUSTERED_ID ? "-" : id,
       });
       // Picking anything in the cluster tree exits the emerging-cluster view —
       // otherwise the events fetcher would keep filtering to the L0 cluster
@@ -128,7 +126,7 @@ export default function ClustersSection() {
         setClusterId(id);
       }
     },
-    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId, drillDownDepth]
+    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
   );
 
   if (isClustersLoading) {
