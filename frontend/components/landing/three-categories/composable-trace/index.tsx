@@ -9,6 +9,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 
 import { bodyLarge, subsectionTitle } from "../../class-names";
 import DocsButton from "../../docs-button";
+import MobileBento from "./mobile-bento";
 import TraceBento from "./trace-bento";
 
 interface Props {
@@ -31,18 +32,31 @@ const ComposableTrace = ({ className }: Props) => {
   const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${TRACE_ID}/spans`, swrFetcher);
 
   return (
-    <div ref={ref} className={cn("hidden md:flex flex-col gap-[54px] items-start w-full", className)}>
-      <div className="flex flex-col gap-1 items-start w-full">
-        <h2 className={subsectionTitle}>Full context at a glance</h2>
-        <p className={bodyLarge}>This is a real Laminar trace</p>
+    <>
+      {/* Desktop */}
+      <div ref={ref} className={cn("hidden md:flex flex-col gap-[54px] items-start w-full", className)}>
+        <div className="flex flex-col gap-1 items-start w-full">
+          <h2 className={subsectionTitle}>Full context at a glance</h2>
+          <p className={bodyLarge}>This is a real Laminar trace</p>
+        </div>
+
+        <TraceViewStoreProvider storeKey="landing-composable-trace" initialTrace={trace}>
+          <TraceBento progress={easedProgress} trace={trace} spans={spans ?? []} initialSpanId={INITIAL_SPAN_ID} />
+        </TraceViewStoreProvider>
+
+        <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
       </div>
 
-      <TraceViewStoreProvider storeKey="landing-composable-trace" initialTrace={trace}>
-        <TraceBento progress={easedProgress} trace={trace} spans={spans ?? []} initialSpanId={INITIAL_SPAN_ID} />
-      </TraceViewStoreProvider>
-
-      <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
-    </div>
+      {/* Mobile */}
+      <div className={cn("md:hidden flex flex-col gap-8 items-start w-full", className)}>
+        <div className="flex flex-col gap-1 items-start w-full">
+          <h2 className={subsectionTitle}>Full context at a glance</h2>
+          <p className={bodyLarge}>Tools to understand what your agent was doing and where it went wrong</p>
+        </div>
+        <MobileBento />
+        <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
+      </div>
+    </>
   );
 };
 

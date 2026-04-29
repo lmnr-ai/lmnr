@@ -18,7 +18,7 @@ type StepKey = "receive-alerts" | "get-context" | "fix";
 const STEPS: { key: StepKey; label: string }[] = [
   { key: "receive-alerts", label: "Receive alerts" },
   { key: "get-context", label: "Get context" },
-  { key: "fix", label: "Fix" },
+  { key: "fix", label: "Fix with confidence" },
 ];
 
 const ROTATE_MS = 4000;
@@ -41,19 +41,14 @@ const SlackNotifications = ({ className }: Props) => {
       ref={ref}
       className={cn(
         "bg-landing-surface-700 overflow-hidden relative rounded-lg w-full",
-        "md:h-[223px] md:flex md:flex-row md:items-stretch md:gap-[30px] md:pl-8 md:pr-14",
-        "flex flex-col gap-5 p-5 h-[321px]",
+        "md:h-[200px] md:flex md:flex-row md:items-stretch md:px-8 md:py-7 md:justify-start md:gap-20",
+        "flex flex-col gap-12 p-5 h-[400px]",
         className
       )}
     >
-      {/* Left column: title + stepper */}
-      <div
-        className={cn(
-          "shrink-0 z-10",
-          "md:flex md:flex-col md:flex-1 md:min-w-0 md:justify-between md:py-8",
-          "flex flex-col gap-5 w-full"
-        )}
-      >
+      {/* Left column: title + stepper. Sizes to its content on desktop so the step row never overflows its column;
+          combined with shrink-0 on the mock, this pushes the mock past the container's right edge when needed. */}
+      <div className={cn("shrink-0 z-10", "md:flex md:flex-col md:justify-between md:h-full", "flex flex-col gap-5")}>
         <div className="flex flex-col gap-1 items-start md:w-[381px] w-full">
           <p className="font-space-grotesk md:text-2xl md:leading-8 text-xl text-landing-text-100 w-full">
             Slack and email alerts
@@ -71,12 +66,12 @@ const SlackNotifications = ({ className }: Props) => {
                 key={step.key}
                 type="button"
                 onClick={() => setStepIndex(i)}
-                className="flex md:gap-4 gap-3 items-center cursor-pointer"
+                className="flex md:gap-3 gap-3 items-center cursor-pointer"
               >
                 <div
                   className={cn(
                     "flex items-center justify-center rounded border border-landing-surface-400 transition-colors",
-                    "md:size-8 size-5",
+                    "md:size-7 size-5",
                     isActive ? "bg-landing-surface-500" : "bg-landing-surface-600"
                   )}
                 >
@@ -91,7 +86,7 @@ const SlackNotifications = ({ className }: Props) => {
                 </div>
                 <span
                   className={cn(
-                    "font-space-grotesk md:text-2xl md:leading-8 text-sm leading-5 whitespace-nowrap transition-colors",
+                    "md:text-base md:leading-5 text-sm leading-5 whitespace-nowrap transition-colors",
                     isActive ? "text-landing-text-100" : "text-landing-text-300"
                   )}
                 >
@@ -103,8 +98,9 @@ const SlackNotifications = ({ className }: Props) => {
         </div>
       </div>
 
-      {/* Right mock — top-anchored, overflows past container bottom on desktop & mobile */}
-      <div className={cn("md:w-[494px] md:shrink-0 md:self-start md:mt-[48.5px]", "w-full")}>
+      {/* Right mock — top-anchored. When the left column grows past its allocated space, the row overflows
+          past the container's right edge (clipped by overflow-hidden). */}
+      <div className={cn("md:w-[494px] md:shrink-0 md:self-start", "w-full")}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeKey}
@@ -112,7 +108,7 @@ const SlackNotifications = ({ className }: Props) => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="w-full"
+            className="md:w-[540px] w-[400px]"
           >
             {activeKey === "receive-alerts" && <SlackAlertMock />}
             {activeKey === "get-context" && <GetContextMock />}

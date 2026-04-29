@@ -22,7 +22,7 @@ const LINES: Line[] = [
 const FixMock = ({ className }: Props) => (
   <div
     className={cn(
-      "bg-landing-surface-500 border border-landing-text-600 rounded font-mono text-xs overflow-hidden",
+      "bg-landing-surface-600 border border-landing-surface-500 rounded font-mono text-xs overflow-hidden",
       className
     )}
   >
@@ -40,8 +40,8 @@ const FixMock = ({ className }: Props) => (
             key={i}
             className={cn("mb-0 leading-5 whitespace-pre", {
               "text-landing-text-300": line.kind === "context",
-              "text-red-300/70 bg-red-500/10 -mx-2 px-2": line.kind === "removed",
-              "text-green-300/80 bg-green-500/10 -mx-2 px-2": line.kind === "added",
+              "text-landing-text-400 bg-landing-surface-500/60 -mx-2 px-2": line.kind === "removed",
+              "text-landing-primary-300 bg-landing-primary-400-10 -mx-2 px-2": line.kind === "added",
             })}
           >
             {line.kind === "removed" ? "- " : line.kind === "added" ? "+ " : "  "}
