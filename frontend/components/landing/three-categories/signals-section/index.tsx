@@ -32,7 +32,7 @@ const TABS: { key: TabKey; label: string; quote: string }[] = [
   },
   {
     key: "identify-user-friction",
-    label: "Identify user friction",
+    label: "User friction",
     quote:
       "“Analyze this session for signs of user frustration or friction. Look for confusion, repeated attempts, or poor user experience.”",
   },
@@ -140,32 +140,36 @@ const SignalsSection = ({ className }: Props) => {
           </motion.div>
         </div>
 
-        {/* Mobile layout — right-aligned quote + pills, image with gradient overlay */}
-        <div className="md:hidden flex flex-col gap-6 w-full">
-          <div className="flex flex-col gap-3 items-end w-full">
-            <p className="font-space-grotesk text-lg leading-7 text-landing-text-100 text-right w-full">
-              {activeQuote}
-            </p>
-            <div className="flex gap-2 items-center">
-              <span className="px-2 py-0.5 rounded text-xs font-mono text-landing-text-300 bg-landing-surface-600 border border-landing-surface-500">
-                Events
-              </span>
-              <span className="px-2 py-0.5 rounded text-xs font-mono text-landing-text-300 bg-landing-surface-600 border border-landing-surface-500">
-                Clusters
-              </span>
+        {/* Mobile layout — single card with quote, Events/Clusters labels, and mock UI image */}
+        <div className="md:hidden bg-landing-surface-700 rounded overflow-hidden relative w-full h-[549px] px-4 py-3">
+          <div className="flex flex-col gap-5 h-full items-start">
+            <p className="font-sans text-sm leading-5 text-landing-text-100 w-full h-[100px]">{activeQuote}</p>
+            <div className="flex gap-3 items-start w-full">
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <p className="font-space-grotesk text-sm leading-5 text-landing-text-100 w-full">Events</p>
+                <p className="font-sans text-[10px] leading-[14px] text-landing-text-300 w-full">
+                  Signals agent detects events from your traces based on your definition.
+                </p>
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <p className="font-space-grotesk text-sm leading-5 text-landing-text-100 w-full">Clusters</p>
+                <p className="font-sans text-[10px] leading-[14px] text-landing-text-300 w-full">
+                  All events are automatically clustered for high-level insights.
+                </p>
+              </div>
+            </div>
+            <div className="relative shrink-0 w-[474px] h-[479px]">
+              <Image
+                src={MOBILE_IMAGE_BY_TAB[activeTab]}
+                alt={`Signals UI — ${activeTab}`}
+                fill
+                sizes="474px"
+                className="object-cover"
+                priority
+              />
             </div>
           </div>
-          <div className="relative w-full aspect-[860/640] rounded-lg overflow-hidden border border-landing-surface-500">
-            <Image
-              src={MOBILE_IMAGE_BY_TAB[activeTab]}
-              alt={`Signals UI — ${activeTab}`}
-              fill
-              sizes="(min-width: 768px) 0px, 100vw"
-              className="object-cover object-top"
-              priority
-            />
-            <div className="absolute bottom-0 left-0 right-0 h-[80px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
-          </div>
+          <div className="absolute bottom-0 left-0 right-0 h-[122px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
         </div>
 
         {/* Slack and email alerts card */}
@@ -173,7 +177,7 @@ const SignalsSection = ({ className }: Props) => {
           className={cn(
             "bg-landing-surface-700 flex items-center justify-between overflow-hidden relative rounded-lg w-full",
             "md:h-[182px] md:flex-row md:pl-8 md:pr-14 md:py-6",
-            "flex-col gap-6 p-6"
+            "flex-col gap-5 p-5"
           )}
         >
           <div className="flex flex-col gap-1 md:h-full items-start shrink-0 md:w-[381px] w-full">

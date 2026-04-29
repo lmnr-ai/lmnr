@@ -1,5 +1,5 @@
 const SlackAlertPreview = () => (
-  <div className="flex md:gap-3 gap-2 md:items-start items-stretch md:max-w-[494px] w-full overflow-hidden rounded border border-landing-surface-500 md:px-4 px-3 md:py-3 py-2.5 bg-landing-surface-600">
+  <div className="flex gap-3 md:items-start items-stretch md:max-w-[494px] w-full overflow-hidden rounded border border-landing-surface-500 px-4 py-3 bg-landing-surface-600">
     <div className="shrink-0 size-8 bg-landing-surface-700 rounded flex items-center justify-center">
       <svg width="60" height="60" viewBox="0 0 76 76" fill="none" className="size-4">
         <path
