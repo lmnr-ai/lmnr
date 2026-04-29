@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { bodyLarge, subsectionTitle } from "../../class-names";
 import DocsButton from "../../docs-button";
 import SignalsMockUI from "./signals-mock-ui";
-import SlackAlertPreview from "./slack-alert-preview";
+import SlackNotifications from "./slack-notifications";
 
 interface Props {
   className?: string;
@@ -172,25 +172,7 @@ const SignalsSection = ({ className }: Props) => {
           <div className="absolute bottom-0 left-0 right-0 h-[122px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
         </div>
 
-        {/* Slack and email alerts card */}
-        <div
-          className={cn(
-            "bg-landing-surface-700 flex items-center justify-between overflow-hidden relative rounded-lg w-full",
-            "md:h-[182px] md:flex-row md:pl-8 md:pr-14 md:py-6",
-            "flex-col gap-5 p-5"
-          )}
-        >
-          <div className="flex flex-col gap-1 md:h-full items-start shrink-0 md:w-[381px] w-full">
-            <p className="font-space-grotesk md:text-2xl md:leading-8 text-xl text-landing-text-100 w-full">
-              Slack and email alerts
-            </p>
-            <p className="font-sans md:text-base text-sm text-landing-text-300 leading-5 w-full">
-              Receive alerts about critical issues and weekly summaries of your signal events.
-            </p>
-          </div>
-          <SlackAlertPreview />
-          <div className="hidden md:block absolute bottom-0 left-0 right-0 h-[73px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
-        </div>
+        <SlackNotifications />
       </div>
 
       <DocsButton href="https://laminar.sh/docs/signals#signals" />

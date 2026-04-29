@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
+import AskAi from "./ask-ai";
 import TraceSection from "./trace-section";
 
 interface Props {
@@ -77,24 +78,18 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
   const outlineColor = useTransform(outerOpacity, (v) => `rgba(37, 37, 38, ${v})`);
 
   return (
-    <div className="relative w-full h-[765px] p-8">
+    <div className="relative w-full h-[765px] p-4">
       <motion.div
         style={{ opacity: outerOpacity }}
         className="absolute inset-0 rounded-lg bg-landing-surface-600 border border-landing-surface-500 pointer-events-none"
       />
-
-      <motion.div
-        style={{ opacity: outerOpacity }}
-        className="absolute w-full bottom-0 h-[200px] pointer-events-none z-20 bg-gradient-to-t from-landing-surface-600 to-transparent left-0"
-      />
-
       <motion.div style={{ outlineColor }} className="flex w-full h-full relative z-10 outline rounded-lg">
-        <div className="flex flex-col flex-1 min-w-0 h-full">
+        <div className="flex flex-col w-[420px] shrink-0 h-full">
           <TraceSection
             label="Timeline"
             progress={progress}
             fromX={-12}
-            fromY={-12}
+            fromY={-6}
             keepCorners={{ tl: true }}
             className="w-full h-[200px] shrink-0"
           >
@@ -110,7 +105,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
             label="Transcript"
             progress={progress}
             fromX={-12}
-            fromY={12}
+            fromY={6}
             keepCorners={{ bl: true }}
             className="w-full flex-1 min-h-0"
           >
@@ -155,14 +150,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </TraceSection>
         </div>
 
-        <TraceSection
-          label="Selected span"
-          progress={progress}
-          fromX={12}
-          fromY={-12}
-          keepCorners={{ tr: true, br: true }}
-          className="w-[526px] h-full shrink-0"
-        >
+        <TraceSection label="Selected span" progress={progress} fromX={0} fromY={-6} className="flex-1 min-w-0 h-full">
           <div className="w-full h-full bg-background overflow-hidden">
             {selectedSpan && trace ? (
               <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
@@ -171,6 +159,19 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                 Loading…
               </div>
             )}
+          </div>
+        </TraceSection>
+
+        <TraceSection
+          label="Ask AI"
+          progress={progress}
+          fromX={12}
+          fromY={-6}
+          keepCorners={{ tr: true, br: true }}
+          className="flex-1 min-w-0 h-full"
+        >
+          <div className="w-full h-full bg-background overflow-hidden">
+            <AskAi />
           </div>
         </TraceSection>
       </motion.div>
