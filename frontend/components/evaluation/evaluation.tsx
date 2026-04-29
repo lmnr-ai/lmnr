@@ -228,16 +228,23 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         return mergeDatapointUpsertIntoRows(rows, incoming, flattened);
       });
       if (Object.keys(flattened).length === 0) return;
-      // If any score would clamp into an edge bucket (i.e. it's outside the
-      // existing distribution bounds), trigger a SWR revalidation
-      if (hasOutOfRangeScore(statsData, flattened)) {
+
+      let needsRevalidate = false;
+      mutateStats(
+        (current) => {
+          if (hasOutOfRangeScore(current, flattened)) {
+            needsRevalidate = true;
+            return current;
+          }
+          return applyScoresToStats(current, flattened, previous);
+        },
+        { revalidate: false }
+      );
+      if (needsRevalidate) {
         mutateStats();
-      } else {
-        mutateStats((current) => applyScoresToStats(current, flattened, previous), { revalidate: false });
       }
     },
-
-    [updateData, targetId, mutateStats, statsData]
+    [updateData, targetId, mutateStats]
   );
 
   // Realtime merge of trace stats (cost/duration/status/tokens) onto the row
