@@ -14,7 +14,9 @@ import { useEvalStore } from "@/components/evaluation/store";
 import {
   applyScoresToStats,
   type EvaluationStatsPayload,
+  extractFlattenedScores,
   flattenScores,
+  hasOutOfRangeScore,
   mergeDatapointUpsertIntoRows,
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
@@ -219,12 +221,23 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     (incoming: EvalRow & { id: string }) => {
       if (targetId) return;
       const flattened = flattenScores(incoming["scores"]);
-      updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
-      // SWR cache is the single source of truth for chart data — mutating it
-      mutateStats((current) => applyScoresToStats(current, flattened), { revalidate: false });
+      let previous: Record<string, number> = {};
+      updateData((rows) => {
+        const existing = rows.find((r) => r["id"] === incoming.id);
+        previous = extractFlattenedScores(existing);
+        return mergeDatapointUpsertIntoRows(rows, incoming, flattened);
+      });
+      if (Object.keys(flattened).length === 0) return;
+      // If any score would clamp into an edge bucket (i.e. it's outside the
+      // existing distribution bounds), trigger a SWR revalidation
+      if (hasOutOfRangeScore(statsData, flattened)) {
+        mutateStats();
+      } else {
+        mutateStats((current) => applyScoresToStats(current, flattened, previous), { revalidate: false });
+      }
     },
 
-    [updateData, targetId, mutateStats]
+    [updateData, targetId, mutateStats, statsData]
   );
 
   // Realtime merge of trace stats (cost/duration/status/tokens) onto the row

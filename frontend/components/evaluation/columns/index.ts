@@ -1,5 +1,6 @@
 import { type ColumnDef } from "@tanstack/react-table";
 
+import { deriveStatus } from "@/components/evaluation/utils";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { CostCell } from "./cost-cell";
@@ -27,17 +28,12 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   },
   {
     id: "status",
-    accessorFn: (row) => row["status"],
+    accessorFn: (row) => deriveStatus(row),
     cell: StatusCell,
     header: "Status",
     size: 70,
     enableSorting: false,
-    meta: {
-      sql: "multiIf(trace_status = 'error', 'error', notEmpty(scores) AND top_span_id != '00000000-0000-0000-0000-000000000000', 'success', 'pending')",
-      dataType: "string",
-      filterable: false,
-      comparable: false,
-    },
+    meta: { dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "index",
@@ -209,6 +205,20 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       comparable: false,
       hidden: true,
     },
+  },
+  {
+    id: "traceStatus",
+    accessorFn: (row) => row["traceStatus"],
+    header: "Trace Status",
+    enableSorting: false,
+    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false, hidden: true },
+  },
+  {
+    id: "topSpanId",
+    accessorFn: (row) => row["topSpanId"],
+    header: "Top Span ID",
+    enableSorting: false,
+    meta: { sql: "top_span_id", dataType: "string", filterable: false, comparable: false, hidden: true },
   },
 ];
 

@@ -1,5 +1,6 @@
-import { flow, isNumber, mean, round } from "lodash";
+import { flow, get, isNumber, mean, round } from "lodash";
 
+import { calculateScoreDistribution } from "@/lib/actions/evaluation/utils";
 import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, type ScoreRange } from "@/lib/colors";
 import {
   type EvalRow,
@@ -8,18 +9,23 @@ import {
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
 
-/**
- * Mirrors the `multiIf` formula in the `status` column SQL so realtime patches
- */
 export type EvalDatapointStatus = "error" | "pending" | "success";
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
 export const deriveStatus = (row: EvalRow): EvalDatapointStatus => {
   if (row["traceStatus"] === "error") return "error";
 
-  const scores = row["scores"];
-  const hasScoresString = typeof scores === "string" && scores.length > 0;
+  const scores = get(row, "scores");
+  const hasScoresString = typeof scores === "string" && scores.length > 0 && scores !== "{}";
   const hasFlattenedScores = Object.keys(row).some((k) => k.startsWith("score:") && row[k] != null);
-  return hasScoresString || hasFlattenedScores ? "success" : "pending";
+  if (!hasScoresString && !hasFlattenedScores) return "pending";
+
+  const topSpanId = get(row, "topSpanId");
+  if (typeof topSpanId !== "string" || topSpanId === "" || topSpanId === NIL_UUID) {
+    return "pending";
+  }
+  return "success";
 };
 
 /**
@@ -56,11 +62,7 @@ export type EvaluationStatsPayload = {
 const sumBucketHeights = (buckets: EvaluationScoreDistributionBucket[]): number =>
   buckets.reduce((acc, b) => acc + (b.heights[0] ?? 0), 0);
 
-const incrementBucket = (
-  buckets: EvaluationScoreDistributionBucket[],
-  value: number
-): EvaluationScoreDistributionBucket[] => {
-  if (buckets.length === 0) return buckets;
+const findBucketIdx = (buckets: EvaluationScoreDistributionBucket[], value: number): number => {
   let idx = buckets.findIndex((b, i) =>
     i === buckets.length - 1
       ? value >= b.lowerBound && value <= b.upperBound
@@ -69,11 +71,42 @@ const incrementBucket = (
   if (idx === -1) {
     idx = value < buckets[0].lowerBound ? 0 : buckets.length - 1;
   }
+  return idx;
+};
+
+const adjustBucket = (
+  buckets: EvaluationScoreDistributionBucket[],
+  value: number,
+  delta: number
+): EvaluationScoreDistributionBucket[] => {
+  if (buckets.length === 0) return buckets;
+  const idx = findBucketIdx(buckets, value);
   const next = [...buckets];
   const heights = [...next[idx].heights];
-  heights[0] = (heights[0] ?? 0) + 1;
+  heights[0] = Math.max(0, (heights[0] ?? 0) + delta);
   next[idx] = { ...next[idx], heights };
   return next;
+};
+
+/**
+ * Returns true if any of the supplied score values would fall outside the
+ * existing bucket bounds for that score
+ */
+export const hasOutOfRangeScore = (
+  current: EvaluationStatsPayload | undefined,
+  flattened: Record<string, number>
+): boolean => {
+  if (!current) return false;
+  for (const [key, value] of Object.entries(flattened)) {
+    const name = key.slice("score:".length);
+    const buckets = current.allDistributions[name];
+    if (!buckets || buckets.length === 0) continue;
+    if (sumBucketHeights(buckets) === 0) continue;
+    const lo = buckets[0].lowerBound;
+    const hi = buckets[buckets.length - 1].upperBound;
+    if (value < lo || value > hi) return true;
+  }
+  return false;
 };
 
 /**
@@ -82,11 +115,11 @@ const incrementBucket = (
  * into edge buckets and self-heal on the next full refetch (mount / SWR
  * revalidation). Used as an SWR `mutate` updater so the cache stays the single
  * source of truth.
-
  */
 export const applyScoresToStats = (
   current: EvaluationStatsPayload | undefined,
-  flattened: Record<string, number>
+  flattened: Record<string, number>,
+  previous: Record<string, number> = {}
 ): EvaluationStatsPayload | undefined => {
   if (!current) return current;
   const entries = Object.entries(flattened);
@@ -94,34 +127,58 @@ export const applyScoresToStats = (
 
   const allStatistics = { ...current.allStatistics };
   const allDistributions = { ...current.allDistributions };
-  const knownScores = new Set(current.scores);
   const newNames: string[] = [];
 
   for (const [key, value] of entries) {
     const name = key.slice("score:".length);
-    const buckets = allDistributions[name];
+    const existingBuckets = allDistributions[name];
+    const prevValue = previous[key];
+    const isUpdate = typeof prevValue === "number" && Number.isFinite(prevValue);
 
-    if (!buckets || buckets.length === 0) {
-      if (!knownScores.has(name)) {
-        knownScores.add(name);
-        newNames.push(name);
-      }
+    // First time we see this score (no buckets yet, or seed buckets are empty
+    // because the server had nothing to bucket): seed via the same routine the
+    // server uses, then continue. Bounds will self-heal on revalidation.
+    if (!existingBuckets || sumBucketHeights(existingBuckets) === 0) {
+      allDistributions[name] = calculateScoreDistribution([{ scores: { [name]: value } }], name);
+      allStatistics[name] = { averageValue: value };
+      if (!current.scores.includes(name)) newNames.push(name);
       continue;
     }
 
-    const seedCount = sumBucketHeights(buckets);
+    const seedCount = sumBucketHeights(existingBuckets);
     const seedAvg = allStatistics[name]?.averageValue ?? 0;
-    const nextCount = seedCount + 1;
 
-    allDistributions[name] = incrementBucket(buckets, value);
-    allStatistics[name] = {
-      averageValue: (seedAvg * seedCount + value) / nextCount,
-    };
+    if (isUpdate) {
+      // Subtract old contribution, add new — count stays the same.
+      let nextBuckets = adjustBucket(existingBuckets, prevValue, -1);
+      nextBuckets = adjustBucket(nextBuckets, value, +1);
+      allDistributions[name] = nextBuckets;
+      allStatistics[name] = {
+        averageValue: (seedAvg * seedCount - prevValue + value) / seedCount,
+      };
+    } else {
+      const nextCount = seedCount + 1;
+      allDistributions[name] = adjustBucket(existingBuckets, value, +1);
+      allStatistics[name] = {
+        averageValue: (seedAvg * seedCount + value) / nextCount,
+      };
+    }
   }
 
   const scores = newNames.length > 0 ? [...current.scores, ...newNames] : current.scores;
 
   return { ...current, scores, allStatistics, allDistributions };
+};
+
+export const extractFlattenedScores = (row: EvalRow | undefined): Record<string, number> => {
+  if (!row) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (k.startsWith("score:") && typeof v === "number" && Number.isFinite(v)) {
+      out[k] = v;
+    }
+  }
+  return out;
 };
 
 export type ScoreRanges = Record<string, ScoreRange>;
@@ -201,12 +258,10 @@ export const mergeDatapointUpsertIntoRows = (
   const idx = rows.findIndex((r) => r["id"] === incoming.id);
   if (idx !== -1) {
     const next = [...rows];
-    const merged = { ...next[idx], ...incoming, ...flattened };
-    merged["status"] = deriveStatus(merged);
-    next[idx] = merged;
+    next[idx] = { ...next[idx], ...incoming, ...flattened };
     return next;
   }
-  const seeded: EvalRow = { ...incoming, ...flattened, status: deriveStatus(incoming) };
+  const seeded: EvalRow = { ...incoming, ...flattened };
   const incomingIndex = Number(seeded["index"] ?? Number.POSITIVE_INFINITY);
   const insertAt = rows.findIndex((r) => Number(r["index"] ?? -1) > incomingIndex);
   if (insertAt === -1) return [...rows, seeded];
@@ -236,7 +291,7 @@ export const mergeTraceUpdateIntoRows = (
   const duration = startTime && endTime ? (Date.parse(endTime) - Date.parse(startTime)) / 1000 : undefined;
 
   const next = [...rows];
-  const merged: EvalRow = {
+  next[idx] = {
     ...next[idx],
     cost,
     inputCost,
@@ -246,12 +301,11 @@ export const mergeTraceUpdateIntoRows = (
     outputTokens: trace["outputTokens"],
     totalTokens: trace["totalTokens"],
     traceStatus: trace["status"],
+    topSpanId: trace["topSpanId"],
     startTime,
     endTime,
     ...(duration != null ? { duration } : {}),
   };
-  merged["status"] = deriveStatus(merged);
-  next[idx] = merged;
   return next;
 };
 

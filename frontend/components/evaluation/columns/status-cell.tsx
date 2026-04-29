@@ -1,9 +1,10 @@
 import { Check, Loader2, X } from "lucide-react";
 
+import { deriveStatus } from "@/components/evaluation/utils";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 export const StatusCell = ({ row }: { row: { original: EvalRow } }) => {
-  const status = row.original["status"];
+  const status = deriveStatus(row.original);
 
   if (status === "error") {
     return (
