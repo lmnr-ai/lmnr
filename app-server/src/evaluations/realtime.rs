@@ -1,13 +1,62 @@
+use std::sync::Arc;
+
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
+    cache::{Cache, CacheTrait, keys::TRACE_EVALUATION_ID_CACHE_KEY},
     ch::evaluation_datapoints::CHEvaluationDatapoint,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
 };
 
 const TRUNCATE_CHARS: usize = 200;
+const TRACE_EVALUATION_ID_TTL_SECONDS: u64 = 86_400;
+
+async fn cache_trace_evaluation_id(
+    cache: &Cache,
+    project_id: &Uuid,
+    trace_id: &Uuid,
+    evaluation_id: &Uuid,
+) {
+    let key = format!("{}:{}:{}", TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id);
+    if let Err(e) = cache
+        .insert_with_ttl(&key, *evaluation_id, TRACE_EVALUATION_ID_TTL_SECONDS)
+        .await
+    {
+        log::warn!("Failed to cache evaluation_id for {}: {:?}", key, e);
+    }
+}
+
+pub async fn lookup_trace_evaluation_id(
+    cache: &Cache,
+    project_id: &Uuid,
+    trace_id: &Uuid,
+) -> Option<Uuid> {
+    let key = format!("{}:{}:{}", TRACE_EVALUATION_ID_CACHE_KEY, project_id, trace_id);
+    match cache.get::<Uuid>(&key).await {
+        Ok(Some(eval_id)) => Some(eval_id),
+        Ok(None) => None,
+        Err(e) => {
+            log::warn!("Failed to read evaluation_id cache for {}: {:?}", key, e);
+            None
+        }
+    }
+}
+
+pub async fn cache_inserted_datapoint_trace_ids(
+    cache: Arc<Cache>,
+    project_id: &Uuid,
+    evaluation_id: &Uuid,
+    rows: &[CHEvaluationDatapoint],
+) {
+    for row in rows {
+        if row.trace_id.is_nil() {
+            continue;
+        }
+        cache_trace_evaluation_id(&cache, project_id, &row.trace_id, evaluation_id).await;
+    }
+}
 
 /// Lightweight datapoint payload sent over SSE.
 #[derive(Serialize)]
@@ -65,7 +114,7 @@ impl<'a> RealtimeDatapoint<'a> {
     }
 }
 
-pub async fn publish_datapoint_upsert(
+pub async fn send_datapoint_updates(
     pubsub: &PubSub,
     project_id: &Uuid,
     evaluation_id: &Uuid,
@@ -80,20 +129,6 @@ pub async fn publish_datapoint_upsert(
     };
     let key = format!("evaluation_{}", evaluation_id);
     send_to_key(pubsub, project_id, &key, message).await;
-}
-
-pub async fn publish_inserted_datapoints(
-    pubsub: &PubSub,
-    project_id: &Uuid,
-    evaluation_id: &Uuid,
-    rows: &[CHEvaluationDatapoint],
-) {
-    if rows.is_empty() {
-        return;
-    }
-    let payloads: Vec<RealtimeDatapoint<'_>> =
-        rows.iter().map(RealtimeDatapoint::from_ch_insert).collect();
-    publish_datapoint_upsert(pubsub, project_id, evaluation_id, &payloads).await;
 }
 
 fn clip_str(s: &str, max_chars: usize) -> &str {

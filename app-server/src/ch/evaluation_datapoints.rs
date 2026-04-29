@@ -97,31 +97,6 @@ impl CHEvaluationDatapoint {
     }
 }
 
-#[derive(Row, Serialize, Deserialize)]
-struct EvaluationIdRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    evaluation_id: Uuid,
-}
-
-pub async fn get_evaluation_id_by_trace_id(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    trace_id: Uuid,
-) -> Result<Option<Uuid>> {
-    let row = clickhouse
-        .query(
-            "SELECT evaluation_id FROM evaluation_datapoints
-             PREWHERE trace_id = ?
-             WHERE project_id = ?
-             LIMIT 1",
-        )
-        .bind(trace_id)
-        .bind(project_id)
-        .fetch_optional::<EvaluationIdRow>()
-        .await?;
-    Ok(row.map(|r| r.evaluation_id))
-}
-
 pub async fn ch_insert_evaluation_datapoints(
     clickhouse: clickhouse::Client,
     eval_dps: &[CHEvaluationDatapoint],

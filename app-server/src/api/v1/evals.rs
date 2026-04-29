@@ -1,11 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
         EvaluationDatapointResult, UpdatedDatapointStrings,
         insert_evaluation_datapoints,
-        realtime::{RealtimeDatapoint, publish_datapoint_upsert, publish_inserted_datapoints},
+        realtime::{
+            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates,
+        },
         update_evaluation_datapoint,
     },
     names::NameGenerator,
@@ -66,6 +69,7 @@ pub async fn save_eval_datapoints(
     req: Json<SaveEvalDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
+    cache: web::Data<Cache>,
     pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
@@ -86,7 +90,18 @@ pub async fn save_eval_datapoints(
     )
     .await?;
 
-    publish_inserted_datapoints(pubsub.get_ref().as_ref(), &project_id, &eval_id, &ch_rows).await;
+    cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
+
+    let realtime_points: Vec<RealtimeDatapoint<'_>> =
+        ch_rows.iter().map(RealtimeDatapoint::from_ch_insert).collect();
+
+    send_datapoint_updates(
+        pubsub.get_ref().as_ref(),
+        &project_id,
+        &eval_id,
+        &realtime_points,
+    )
+    .await;
 
     Ok(HttpResponse::Ok().json(eval_id))
 }
@@ -138,7 +153,7 @@ pub async fn update_eval_datapoint(
         &ch_executor_output,
         &ch_scores,
     );
-    publish_datapoint_upsert(
+    send_datapoint_updates(
         pubsub.get_ref().as_ref(),
         &project_id,
         &eval_id,

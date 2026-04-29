@@ -34,7 +34,10 @@ use crate::{
     },
     traces::{
         provider::convert_span_to_provider_format,
-        realtime::{send_span_updates, send_trace_updates},
+        realtime::{
+            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
+            send_span_updates, send_trace_updates,
+        },
         utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
     },
     utils::limits::{get_workspace_signal_runs_limit_exceeded, update_workspace_bytes_ingested},
@@ -104,14 +107,7 @@ pub async fn process_span_messages(
                 );
             }
 
-            send_trace_updates(
-                &updated_traces,
-                &spans,
-                cache.clone(),
-                clickhouse.clone(),
-                &pubsub,
-            )
-            .await;
+            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
 
             Some(updated_traces)
         }
@@ -251,6 +247,57 @@ pub async fn process_span_messages(
     }
 
     Ok(())
+}
+
+async fn dispatch_trace_realtime_updates(
+    traces: &[Trace],
+    cache: Arc<Cache>,
+    pubsub: &PubSub,
+) {
+    if traces.is_empty() {
+        return;
+    }
+
+    let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
+    let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
+    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
+
+    for trace in traces {
+        for channel in channels_for_trace(trace, cache.as_ref()).await {
+            match channel {
+                TraceChannel::Project => {
+                    project_buckets
+                        .entry(trace.project_id())
+                        .or_default()
+                        .push(RealtimeTrace::from_trace(trace));
+                }
+                TraceChannel::Evaluation(evaluation_id) => {
+                    evaluation_buckets
+                        .entry((trace.project_id(), evaluation_id))
+                        .or_default()
+                        .push(RealtimeTrace::from_trace(trace));
+                }
+                TraceChannel::RolloutDebugger(rollout_session_id) => {
+                    debugger_buckets
+                        .entry((trace.project_id(), rollout_session_id))
+                        .or_default()
+                        .push(RealtimeDebuggerTrace::from_trace(trace));
+                }
+            }
+        }
+    }
+
+    for (project_id, traces_data) in project_buckets {
+        send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
+    }
+    for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
+        let key = format!("evaluation_{}", evaluation_id);
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+    for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
+        let key = format!("rollout_session_{}", rollout_session_id);
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
 }
 
 async fn check_and_push_signals(
