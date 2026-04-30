@@ -278,12 +278,20 @@ function BrowserSessionSurfaceInner({ traceId }: BrowserSessionSurfaceProps) {
         </div>
       )}
       <div className="flex-1 min-h-0 min-w-0 relative">
-        {isLoading ? (
-          <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+        {/* The container is always rendered so containerRef.current is stable
+         *  across the async load flow. Loader / empty-state are overlays. If
+         *  the container were conditionally rendered on !isLoading, a cache
+         *  miss would unmount it during fetch and the synchronous mountOrSwap
+         *  call after fetch completes would see a null ref and bail — the
+         *  player would never mount for that chapter. */}
+        <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+        {isLoading && (
+          <div className="absolute inset-0 flex gap-2 p-4 items-center justify-center bg-background">
             <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
           </div>
-        ) : isEmpty ? (
-          <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+        )}
+        {isEmpty && !isLoading && (
+          <div className="absolute inset-0 flex gap-2 p-4 items-center justify-center bg-background">
             <div className="text-center">
               <h3 className="text-sm font-medium mb-1">No browser session</h3>
               <p className="text-xs text-muted-foreground">
@@ -291,8 +299,6 @@ function BrowserSessionSurfaceInner({ traceId }: BrowserSessionSurfaceProps) {
               </p>
             </div>
           </div>
-        ) : (
-          <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
         )}
       </div>
     </div>
