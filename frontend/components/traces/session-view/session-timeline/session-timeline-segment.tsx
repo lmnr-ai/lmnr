@@ -3,6 +3,7 @@
 
 import { PlayIcon } from "@radix-ui/react-icons";
 import React, { memo, useCallback, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { cn } from "@/lib/utils";
@@ -63,31 +64,38 @@ function SessionTimelineSegment({
 
   const segmentOffsetMs = segment.startTimeMs - sessionStartMs;
 
-  // Scroll indicator — the session panel writes the absolute-ms (start, end)
-  // time range covered by rows in its viewport. This range can span a session
-  // gap when the user is looking at two traces in different clusters, so we
-  // compute the *intersection* with this segment's own time domain rather
-  // than clamping a scrollEnd−scrollStart width. A segment that is wholly
-  // enclosed by the range (neither endpoint inside) is treated as an
-  // intermediate segment the user isn't looking at — render nothing.
-  const scrollStartTime = useSessionViewStore((s) => s.scrollStartTime);
-  const scrollEndTime = useSessionViewStore((s) => s.scrollEndTime);
-
-  // Media playhead — render only if it falls inside this segment's time
-  // domain. Mirrors trace-view's condensed-timeline playhead.
+  // Consolidate every store read this segment needs into a single shallow-
+  // guarded selector. Individual `useSessionViewStore(s => s.field)` calls
+  // would each register a subscription, and during playback `playheadEpochMs`
+  // updates at ~24 Hz — every segment would re-render once per tick per
+  // subscription.
   //
-  // Derive the percent inside the selector so segments where the playhead is
-  // outside their time domain return `null` every tick. Zustand's default
-  // Object.is equality treats null-to-null as unchanged, so those segments do
-  // NOT re-render at 24 Hz during playback — only the segment currently
-  // hosting the playhead does.
-  const playheadLeftPercent = useSessionViewStore((s) => {
-    if (!s.mediaPanelOpen || s.playheadEpochMs === undefined || segment.widthMs <= 0) return null;
-    if (s.playheadEpochMs < segment.startTimeMs || s.playheadEpochMs > segment.endTimeMs) return null;
-    return ((s.playheadEpochMs - segment.startTimeMs) / segment.widthMs) * 100;
-  });
-  const mediaPanelOpen = useSessionViewStore((s) => s.mediaPanelOpen);
-  const seekTo = useSessionViewStore((s) => s.seekTo);
+  // `playheadLeftPercent` is DERIVED inside the selector (not selected as a
+  // raw `playheadEpochMs` and computed in the component) so that segments
+  // whose time domain doesn't contain the playhead return `null` every tick.
+  // With `shallow` equality, a null-to-null transition is a no-op, so only
+  // the segment currently hosting the playhead re-renders at 24 Hz.
+  //
+  // `scrollStartTime` / `scrollEndTime` come from the session panel writing
+  // the absolute-ms range of rows in its viewport. The range can span a
+  // session gap when the user is looking at two traces in different clusters,
+  // so the consumer below computes the INTERSECTION with this segment's time
+  // domain rather than clamping a scrollEnd-scrollStart width.
+  const { playheadLeftPercent, mediaPanelOpen, seekTo, scrollStartTime, scrollEndTime } = useSessionViewStore(
+    (s) => ({
+      playheadLeftPercent:
+        !s.mediaPanelOpen || s.playheadEpochMs === undefined || segment.widthMs <= 0
+          ? null
+          : s.playheadEpochMs < segment.startTimeMs || s.playheadEpochMs > segment.endTimeMs
+            ? null
+            : ((s.playheadEpochMs - segment.startTimeMs) / segment.widthMs) * 100,
+      mediaPanelOpen: s.mediaPanelOpen,
+      seekTo: s.seekTo,
+      scrollStartTime: s.scrollStartTime,
+      scrollEndTime: s.scrollEndTime,
+    }),
+    shallow
+  );
   const scrollIndicator = useMemo(() => {
     if (scrollStartTime === undefined || scrollEndTime === undefined || segment.widthMs <= 0) return null;
     const startInside = scrollStartTime >= segment.startTimeMs && scrollStartTime < segment.endTimeMs;
