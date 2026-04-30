@@ -216,6 +216,7 @@ class TableRegistry:
             "trace_status",
             "trace_metadata",
             "trace_tags",
+            "top_span_id",
             "trace_spans",
         }
         self.tables["evaluation_datapoints"] = TableSchema(
