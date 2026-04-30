@@ -25,7 +25,7 @@ function SessionMediaPlayer() {
     setActiveMediaTraceId,
     setMediaPanelOpen,
     playheadEpochMs,
-    seekTo,
+    seekToChapter,
     togglePlay,
   } = useSessionViewStore(
     (s) => ({
@@ -34,17 +34,20 @@ function SessionMediaPlayer() {
       setActiveMediaTraceId: s.setActiveMediaTraceId,
       setMediaPanelOpen: s.setMediaPanelOpen,
       playheadEpochMs: s.playheadEpochMs,
-      seekTo: s.seekTo,
+      seekToChapter: s.seekToChapter,
       togglePlay: s.togglePlay,
     }),
     shallow
   );
 
-  // Select an initial chapter the first time the panel opens.
+  // Select an initial chapter the first time the panel opens. `seekToChapter`
+  // writes `activeMediaTraceId`, `playheadEpochMs`, and `seekRequest` in a
+  // single set() — separate calls would let subscribers observe the old
+  // chapter paired with the new seek (see `browser-session-surface.tsx`
+  // subscribe closure over traceId).
   useEffect(() => {
     if (activeMediaTraceId || chapters.length === 0) return;
-    setActiveMediaTraceId(chapters[0].traceId);
-    seekTo(chapters[0].startTimeMs);
+    seekToChapter(chapters[0].traceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapters.length, activeMediaTraceId]);
 
@@ -53,7 +56,10 @@ function SessionMediaPlayer() {
   // playhead in a chapter that no longer contains it. If the playhead is past
   // the active chapter's end (either because playback reached the tail or the
   // user seeked into a gap), jump to the start of the next chapter so playback
-  // continues across the session.
+  // continues across the session. Use `seekToChapter` so the traceId/playhead/
+  // seekRequest writes land atomically; splitting them (setActiveMediaTraceId
+  // + seekTo) fires a subscribe between the two and the old chapter's
+  // surface receives a seek request targeting the new chapter's timestamp.
   useEffect(() => {
     if (playheadEpochMs === undefined || chapters.length === 0) return;
 
@@ -68,11 +74,9 @@ function SessionMediaPlayer() {
     // whose start is after the playhead and snap to it; if none, stop.
     const nextIdx = chapters.findIndex((c) => c.startTimeMs > playheadEpochMs);
     if (nextIdx !== -1) {
-      const next = chapters[nextIdx];
-      setActiveMediaTraceId(next.traceId);
-      seekTo(next.startTimeMs);
+      seekToChapter(chapters[nextIdx].traceId);
     }
-  }, [playheadEpochMs, chapters, activeMediaTraceId, setActiveMediaTraceId, seekTo]);
+  }, [playheadEpochMs, chapters, activeMediaTraceId, setActiveMediaTraceId, seekToChapter]);
 
   const activeChapter = useMemo(
     () => chapters.find((c) => c.traceId === activeMediaTraceId),
