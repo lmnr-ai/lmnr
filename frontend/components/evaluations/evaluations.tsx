@@ -4,14 +4,13 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
-import SearchInput from "@/components/common/search-input";
+import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -265,7 +264,6 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
-                  <DataTableFilter columns={filters} />
                   <ColumnsMenu
                     lockedColumns={["__row_selection"]}
                     columnLabels={columns.map((column) => ({
@@ -273,9 +271,15 @@ function EvaluationsContent() {
                       label: typeof column.header === "string" ? column.header : column.id!,
                     }))}
                   />
-                  <SearchInput placeholder="Search evaluations by name..." />
                 </div>
-                <DataTableFilterList />
+                <div className="w-full px-px">
+                  <AdvancedSearch
+                    storageKey="evaluations"
+                    filters={filters}
+                    placeholder="Search evaluations by name..."
+                    className="w-full flex-1"
+                  />
+                </div>
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>

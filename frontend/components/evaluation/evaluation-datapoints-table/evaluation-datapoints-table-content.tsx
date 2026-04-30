@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
-import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -167,7 +166,6 @@ const EvaluationDatapointsTableContent = ({
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full space-x-2">
-          <DataTableFilter columns={columnFilters} />
           <EvalColumnsMenu
             columnLabels={visibleColumns.map((column) => ({
               id: column.id!,
@@ -195,9 +193,15 @@ const EvaluationDatapointsTableContent = ({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
-          <SearchEvaluationInput />
         </div>
-        <DataTableFilterList />
+        <div className="w-full px-px">
+          <AdvancedSearch
+            storageKey="evaluation-datapoints"
+            filters={columnFilters}
+            placeholder="Search in data, targets, scores and spans..."
+            className="w-full flex-1"
+          />
+        </div>
       </InfiniteDataTable>
     </div>
   );
