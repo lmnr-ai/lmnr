@@ -34,20 +34,25 @@ interface Props {
 
 const logos: { src: string; alt: string; name: string; integration?: Integration; docsUrl?: string }[] = [
   { src: browserUse, alt: "Browser Use", name: "browser-use", integration: "browser-use" },
-  { src: claude, alt: "Claude", name: "claude", integration: "claude" },
-  { src: vercel, alt: "Vercel", name: "vercel", integration: "vercel" },
+  { src: claude, alt: "Claude Agent SDK", name: "claude", integration: "claude" },
+  { src: vercel, alt: "Vercel AI SDK", name: "vercel", integration: "vercel" },
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
   { src: langchain, alt: "LangChain", name: "langchain", integration: "langchain" },
-  { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
+  { src: lightLlm, alt: "LiteLLM", name: "light-llm", integration: "light-llm" },
   { src: mastra, alt: "Mastra", name: "mastra", integration: "mastra" },
   { src: openaiAgents, alt: "OpenAI Agents SDK", name: "openai-agents-sdk", integration: "openai-agents-sdk" },
   { src: pydanticAi, alt: "Pydantic AI", name: "pydantic-ai", integration: "pydantic-ai" },
   { src: opencodeSdk, alt: "OpenCode SDK", name: "opencode-sdk", integration: "opencode-sdk" },
-  { src: gemini, alt: "Gemini", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
-  { src: openAi, alt: "OpenAI", name: "open-ai", docsUrl: "https://laminar.sh/docs/tracing/integrations/openai" },
+  { src: gemini, alt: "Gemini API", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
+  { src: openAi, alt: "OpenAI SDK", name: "open-ai", docsUrl: "https://laminar.sh/docs/tracing/integrations/openai" },
   { src: groq, alt: "Groq", name: "groq", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
   { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
-  { src: bedrock, alt: "Bedrock", name: "bedrock", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
+  {
+    src: bedrock,
+    alt: "AWS Bedrock",
+    name: "bedrock",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/overview",
+  },
   {
     src: playwright,
     alt: "Playwright",
@@ -56,7 +61,7 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   },
   {
     src: openTelemetry,
-    alt: "Open Telemetry",
+    alt: "OpenTelemetry",
     name: "open-telemetry",
     docsUrl: "https://laminar.sh/docs/tracing/otel",
   },
@@ -117,6 +122,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
               key={logo.name}
               logoSrc={logo.src}
               alt={logo.alt}
+              tooltipLabel={logo.alt}
               isActive={logo.integration === selectedIntegration}
               onClick={() => handleSelectIntegration(logo.integration!)}
             />
@@ -129,7 +135,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
         {logos
           .filter((logo) => !logo.integration)
           .map((logo) => (
-            <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} href={logo.docsUrl} />
+            <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} tooltipLabel={logo.alt} href={logo.docsUrl} />
           ))}
       </div>
       <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />

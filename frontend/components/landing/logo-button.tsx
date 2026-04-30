@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface LogoButtonProps {
@@ -13,6 +14,7 @@ interface LogoButtonProps {
   size?: "sm" | "md" | "lg";
   href?: string;
   onClick?: () => void;
+  tooltipLabel?: string;
 }
 
 const sizeStyles = {
@@ -30,7 +32,16 @@ const sizeStyles = {
   },
 };
 
-const LogoButton = ({ className, logoSrc, alt, isActive = false, size = "md", onClick, href }: LogoButtonProps) => {
+const LogoButton = ({
+  className,
+  logoSrc,
+  alt,
+  isActive = false,
+  size = "md",
+  onClick,
+  href,
+  tooltipLabel,
+}: LogoButtonProps) => {
   const sizeStyle = sizeStyles[size];
   const isClickable = !!onClick || !!href;
 
@@ -54,18 +65,27 @@ const LogoButton = ({ className, logoSrc, alt, isActive = false, size = "md", on
     />
   );
 
-  if (href) {
-    return (
-      <Link href={href} target="_blank" rel="noopener noreferrer" className={sharedClassName}>
-        {imageElement}
-      </Link>
-    );
-  }
-
-  return (
+  const triggerElement = href ? (
+    <Link href={href} target="_blank" rel="noopener noreferrer" className={sharedClassName}>
+      {imageElement}
+    </Link>
+  ) : (
     <button onClick={onClick} className={sharedClassName}>
       {imageElement}
     </button>
+  );
+
+  if (!tooltipLabel) {
+    return triggerElement;
+  }
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>{triggerElement}</TooltipTrigger>
+        <TooltipContent>{tooltipLabel}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
