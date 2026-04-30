@@ -40,6 +40,7 @@ function SignalContent() {
     async (form: ManageSignalForm) => {
       setSignal({
         ...signal,
+        name: form.name,
         prompt: form.prompt,
         schemaFields: form.schemaFields,
         triggers: form.triggers,

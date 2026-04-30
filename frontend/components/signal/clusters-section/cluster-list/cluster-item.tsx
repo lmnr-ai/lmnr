@@ -162,20 +162,10 @@ export default function ClusterItem({
                   left: rect.left,
                   minWidth: rect.width,
                 }}
-                onMouseEnter={clearLeaveTimeout}
-                onMouseLeave={() => {
-                  setHovered(false);
-                  setRect(null);
-                }}
               >
-                <motion.button
-                  onClick={() => {
-                    setHovered(false);
-                    setRect(null);
-                    onClick();
-                  }}
+                <motion.div
                   className={cn(
-                    "flex flex-col pl-2 pr-3 pt-1.5 pb-1 rounded text-sm text-left cursor-pointer overflow-hidden",
+                    "flex flex-col pl-2 pr-3 pt-1.5 pb-1 rounded text-sm text-left overflow-hidden",
                     "bg-muted outline -outline-offset-1 outline-border shadow-md shadow-background/80 w-full",
                     isSelected && "font-medium"
                   )}
@@ -222,7 +212,7 @@ export default function ClusterItem({
                       </span>
                     )}
                   </motion.div>
-                </motion.button>
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>,
