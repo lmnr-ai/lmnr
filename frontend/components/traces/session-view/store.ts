@@ -12,17 +12,36 @@ import { type TraceRow } from "@/lib/traces/types";
 
 export type SessionResizablePanel = "session" | "span";
 
-type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth";
+type PanelWidthKey = "sessionPanelWidth" | "spanPanelWidth" | "mediaPanelWidth";
 type PanelDef = { key: PanelWidthKey; min: number; default: number };
 
 const ALL_PANELS: PanelDef[] = [
   { key: "sessionPanelWidth", min: 400, default: 520 },
   { key: "spanPanelWidth", min: 400, default: 405 },
+  { key: "mediaPanelWidth", min: 420, default: 560 },
 ];
+
+/** Kind of media surface a chapter resolves to after its data loads. */
+export type MediaChapterKind = "browser" | "images" | "empty" | "unknown";
 
 export type SessionViewSelectedSpan = {
   traceId: string;
   spanId: string;
+};
+
+/** Media player mode, reflects whether the current chapter is browser-session
+ *  or span-image-based. Written by the orchestrator after chapter metadata
+ *  resolves; read by the player surfaces. */
+export type MediaPlayerMode = "browser" | "images";
+
+export type MediaChapterMeta = {
+  kind: MediaChapterKind;
+  /** Absolute-ms start of the first event/image for this trace. Empty chapters
+   *  may not have this — in that case we fall back to the trace's startTime. */
+  contentStartMs?: number;
+  /** Absolute-ms end of the last event/image for this trace. Empty chapters may
+   *  not have this — fall back to trace endTime. */
+  contentEndMs?: number;
 };
 
 export type SessionSummary = {
@@ -81,9 +100,28 @@ interface SessionViewState {
   selectedSpan?: SessionViewSelectedSpan;
   spanPanelOpen: boolean;
 
+  // Media player state
+  // mediaPanelOpen is deliberately not persisted — the player owns heavy rrweb
+  // resources and we never want it to auto-open on a fresh mount.
+  mediaPanelOpen: boolean;
+  /** Absolute epoch ms. Canonical playhead — every surface derives its own
+   *  local offset from this + the active chapter's startTime. */
+  playheadEpochMs?: number;
+  isPlaying: boolean;
+  playbackSpeed: number;
+  /** traceId of the chapter whose content is currently loaded in the player. */
+  activeMediaTraceId?: string;
+  /** Cached metadata per chapter (trace). Written as chapter content loads. */
+  mediaChapterMeta: Record<string, MediaChapterMeta>;
+  /** One-shot request from timeline/UI to seek the playhead; consumed by the
+   *  player surface's subscribe loop so it can debounce and drive the imperative
+   *  player APIs without a feedback loop. */
+  seekRequest: { epochMs: number; token: number } | null;
+
   // Panel widths
   sessionPanelWidth: number;
   spanPanelWidth: number;
+  mediaPanelWidth: number;
   maxWidth: number;
 }
 
@@ -121,6 +159,21 @@ interface SessionViewActions {
   setSelectedSpan: (selection?: SessionViewSelectedSpan) => void;
   setSpanPanelOpen: (open: boolean) => void;
 
+  // Media player actions
+  setMediaPanelOpen: (open: boolean) => void;
+  /** Set playhead without registering a seek request. Use when the player
+   *  surface is driving updates (so the surface doesn't re-seek itself). */
+  setPlayheadEpochMs: (ms?: number) => void;
+  /** Move the playhead AND ask the active surface to seek. */
+  seekTo: (ms: number) => void;
+  setIsPlaying: (playing: boolean) => void;
+  togglePlay: () => void;
+  setPlaybackSpeed: (speed: number) => void;
+  setActiveMediaTraceId: (traceId?: string) => void;
+  setChapterMeta: (traceId: string, meta: MediaChapterMeta) => void;
+  /** Jump to the start of a chapter (used by chapter dropdown + seek-bar dbl-click). */
+  seekToChapter: (traceId: string) => void;
+
   resizePanel: (panel: SessionResizablePanel, delta: number) => void;
   setMaxWidth: (maxWidth: number) => void;
   fitPanelsToMaxWidth: () => void;
@@ -131,6 +184,7 @@ export type SessionViewStore = SessionViewState & SessionViewActions;
 function getVisiblePanels(state: SessionViewStore): PanelDef[] {
   const result: PanelDef[] = [ALL_PANELS[0]]; // session always visible
   if (state.spanPanelOpen) result.push(ALL_PANELS[1]);
+  if (state.mediaPanelOpen) result.push(ALL_PANELS[2]);
   return result;
 }
 
@@ -215,8 +269,17 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         selectedSpan: undefined,
         spanPanelOpen: false,
 
+        mediaPanelOpen: false,
+        playheadEpochMs: undefined,
+        isPlaying: false,
+        playbackSpeed: 1,
+        activeMediaTraceId: undefined,
+        mediaChapterMeta: {},
+        seekRequest: null,
+
         sessionPanelWidth: ALL_PANELS[0].default,
         spanPanelWidth: ALL_PANELS[1].default,
+        mediaPanelWidth: ALL_PANELS[2].default,
         maxWidth: Infinity,
 
         setSession: (session) => set({ session }),
@@ -355,6 +418,41 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           get().fitPanelsToMaxWidth();
         },
 
+        setMediaPanelOpen: (open) => {
+          set({ mediaPanelOpen: open });
+          if (!open) {
+            // Stop playback and drop the active chapter when the panel closes
+            // so the rrweb instance can be torn down cleanly.
+            set({ isPlaying: false, activeMediaTraceId: undefined });
+          }
+          get().fitPanelsToMaxWidth();
+        },
+
+        setPlayheadEpochMs: (ms) => set({ playheadEpochMs: ms }),
+
+        seekTo: (ms) => {
+          const prev = get().seekRequest?.token ?? 0;
+          set({ playheadEpochMs: ms, seekRequest: { epochMs: ms, token: prev + 1 } });
+        },
+
+        setIsPlaying: (isPlaying) => set({ isPlaying }),
+        togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+        setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed }),
+
+        setActiveMediaTraceId: (activeMediaTraceId) => set({ activeMediaTraceId }),
+
+        setChapterMeta: (traceId, meta) =>
+          set((state) => ({ mediaChapterMeta: { ...state.mediaChapterMeta, [traceId]: meta } })),
+
+        seekToChapter: (traceId) => {
+          const state = get();
+          const trace = state.traces.find((t) => t.id === traceId);
+          if (!trace) return;
+          const meta = state.mediaChapterMeta[traceId];
+          const targetMs = meta?.contentStartMs ?? new Date(trace.startTime).getTime();
+          get().seekTo(targetMs);
+        },
+
         searchSessionSpans: async (filters, search) => {
           const state = get();
           const { projectId, session } = state;
@@ -467,8 +565,10 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         partialize: (state) => ({
           sessionPanelWidth: state.sessionPanelWidth,
           spanPanelWidth: state.spanPanelWidth,
+          mediaPanelWidth: state.mediaPanelWidth,
           sessionTimelineEnabled: state.sessionTimelineEnabled,
           sessionTimelineZoom: state.sessionTimelineZoom,
+          playbackSpeed: state.playbackSpeed,
         }),
         merge: (persistedState, currentState) => {
           const persisted = (persistedState ?? {}) as Record<string, unknown>;
@@ -476,17 +576,47 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             ...currentState,
             ...(typeof persisted.sessionPanelWidth === "number" && { sessionPanelWidth: persisted.sessionPanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
+            ...(typeof persisted.mediaPanelWidth === "number" && { mediaPanelWidth: persisted.mediaPanelWidth }),
             ...(typeof persisted.sessionTimelineEnabled === "boolean" && {
               sessionTimelineEnabled: persisted.sessionTimelineEnabled,
             }),
             ...(typeof persisted.sessionTimelineZoom === "number" && {
               sessionTimelineZoom: persisted.sessionTimelineZoom,
             }),
+            ...(typeof persisted.playbackSpeed === "number" && { playbackSpeed: persisted.playbackSpeed }),
           };
         },
       }
     )
   );
+
+export type MediaChapter = {
+  traceId: string;
+  label: string;
+  /** Absolute epoch ms. */
+  startTimeMs: number;
+  /** Absolute epoch ms. */
+  endTimeMs: number;
+  /** Resolved kind once metadata is loaded, otherwise `"unknown"`. */
+  kind: MediaChapterKind;
+};
+
+/** Build ordered chapters (one per trace in the session). Kind is `"unknown"`
+ *  until the orchestrator probes the trace and fills in `mediaChapterMeta`. */
+export function selectMediaChapters(state: SessionViewStore): MediaChapter[] {
+  return state.traces.map((t) => {
+    const meta = state.mediaChapterMeta[t.id];
+    const startTimeMs = meta?.contentStartMs ?? new Date(t.startTime).getTime();
+    const endTimeMs = meta?.contentEndMs ?? new Date(t.endTime).getTime();
+    return {
+      traceId: t.id,
+      label: t.topSpanName || t.id.slice(0, 8),
+      startTimeMs,
+      endTimeMs,
+      kind: meta?.kind ?? "unknown",
+    };
+  });
+}
 
 const SessionViewStoreContext = createContext<StoreApi<SessionViewStore> | undefined>(undefined);
 
@@ -514,6 +644,16 @@ export const useSessionViewStore = <T>(
     throw new Error("useSessionViewStore must be used within a SessionViewStoreProvider");
   }
   return useStoreWithEqualityFn(store, selector, equalityFn);
+};
+
+/** Raw store handle — use when you need `subscribe` or `getState` (e.g. inside
+ *  imperative player lifecycles that must not re-render on every state tick). */
+export const useSessionViewStoreRaw = (): StoreApi<SessionViewStore> => {
+  const store = useContext(SessionViewStoreContext);
+  if (!store) {
+    throw new Error("useSessionViewStoreRaw must be used within a SessionViewStoreProvider");
+  }
+  return store;
 };
 
 export default SessionViewStoreProvider;

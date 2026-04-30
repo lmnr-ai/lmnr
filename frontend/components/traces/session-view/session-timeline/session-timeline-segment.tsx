@@ -1,6 +1,7 @@
 // TODO: This component duplicates structure from trace-view/condensed-timeline.
 // Review for deduplication once session timeline design stabilizes.
 
+import { PlayIcon } from "@radix-ui/react-icons";
 import React, { memo, useCallback, useMemo } from "react";
 
 import { useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
@@ -71,6 +72,18 @@ function SessionTimelineSegment({
   // intermediate segment the user isn't looking at — render nothing.
   const scrollStartTime = useSessionViewStore((s) => s.scrollStartTime);
   const scrollEndTime = useSessionViewStore((s) => s.scrollEndTime);
+
+  // Media playhead — render only if it falls inside this segment's time
+  // domain. Mirrors trace-view's condensed-timeline playhead.
+  const playheadEpochMs = useSessionViewStore((s) => s.playheadEpochMs);
+  const mediaPanelOpen = useSessionViewStore((s) => s.mediaPanelOpen);
+  const playheadLeftPercent = useMemo(() => {
+    if (!mediaPanelOpen || playheadEpochMs === undefined || segment.widthMs <= 0) return null;
+    if (playheadEpochMs < segment.startTimeMs || playheadEpochMs > segment.endTimeMs) return null;
+    return ((playheadEpochMs - segment.startTimeMs) / segment.widthMs) * 100;
+  }, [mediaPanelOpen, playheadEpochMs, segment.startTimeMs, segment.endTimeMs, segment.widthMs]);
+
+  const seekTo = useSessionViewStore((s) => s.seekTo);
   const scrollIndicator = useMemo(() => {
     if (scrollStartTime === undefined || scrollEndTime === undefined || segment.widthMs <= 0) return null;
     const startInside = scrollStartTime >= segment.startTimeMs && scrollStartTime < segment.endTimeMs;
@@ -107,6 +120,20 @@ function SessionTimelineSegment({
     onHover(null);
   }, [onHover]);
 
+  // Alt-click on the segment body seeks the media playhead to that instant.
+  // Plain click is reserved for span selection (handled by inner bars) so the
+  // timeline's dominant interaction — selecting a span — keeps working when
+  // the media panel is open.
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!mediaPanelOpen || !e.altKey) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      seekTo(segment.startTimeMs + fraction * segment.widthMs);
+    },
+    [mediaPanelOpen, seekTo, segment.startTimeMs, segment.widthMs]
+  );
+
   return (
     <div
       ref={segmentRef}
@@ -114,6 +141,7 @@ function SessionTimelineSegment({
       style={{ minHeight: contentHeight }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
     >
       {/* Scroll indicator — clamped to this segment's time domain */}
       {scrollIndicator && (
@@ -121,6 +149,16 @@ function SessionTimelineSegment({
           className="absolute bottom-[-60px] top-0 bg-muted/75 pointer-events-none"
           style={{ left: `${scrollIndicator.left}%`, width: `${scrollIndicator.width}%` }}
         />
+      )}
+
+      {/* Media playhead — only drawn when the current chapter lands in this segment */}
+      {playheadLeftPercent !== null && (
+        <div className="absolute inset-y-0 pointer-events-none z-[36]" style={{ left: `${playheadLeftPercent}%` }}>
+          <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+            <PlayIcon className="size-3 text-primary fill-primary" />
+          </div>
+          <div className="absolute top-[6px] bottom-0 w-px bg-primary/80" />
+        </div>
       )}
 
       {/* Time marker lines */}
