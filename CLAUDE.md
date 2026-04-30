@@ -319,3 +319,8 @@ try {
 ```
 
 **Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).
+
+## Landing Page
+
+- The landing page is gated behind a feature flag that only evaluates `true` when `ENVIRONMENT=PRODUCTION` (see `lib/features/features.ts`). In dev mode, `/` redirects signed-out users to `/sign-in`. For local preview, build and serve the frontend with `next start` and temporarily add a route that renders `<Landing hasSession={false} />` directly — changes require `pnpm run build` + restart to pick up.
+- The "Start tracing your agent in minutes" section lives at `frontend/components/landing/three-categories/integrate-in-minutes/`. To add a new integration: (1) add SVG to `frontend/assets/landing/logos/`, (2) add trace screenshot (captured against the live app) to `frontend/public/assets/landing/snippet-screenshots/`, (3) extend the `Integration` union + `integrations` record in `snippets.ts` (fields: `name`, `logoSrc`, `alt`, `highlightedLines`, `screenshot`, `docsUrl`, and `python` or `typescript`), (4) add an entry to the `logos` array in `index.tsx` with the same `integration` key. The first 10 `logos` entries with an `integration` field are the clickable snippet buttons; the rest (no `integration`) link out to docs.

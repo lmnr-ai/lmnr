@@ -10,11 +10,15 @@ import gemini from "@/assets/landing/logos/gemini.svg";
 import groq from "@/assets/landing/logos/groq.svg";
 import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import mastra from "@/assets/landing/logos/mastra.svg";
 import mistral from "@/assets/landing/logos/mistral.svg";
 import openAi from "@/assets/landing/logos/open-ai.svg";
 import openHands from "@/assets/landing/logos/open-hands.svg";
 import openTelemetry from "@/assets/landing/logos/open-telemetry.svg";
+import openaiAgents from "@/assets/landing/logos/openai-agents.svg";
+import opencodeSdk from "@/assets/landing/logos/opencode-sdk.svg";
 import playwright from "@/assets/landing/logos/playwright.svg";
+import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +39,10 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
   { src: langchain, alt: "LangChain", name: "langchain", integration: "langchain" },
   { src: lightLlm, alt: "Light LLM", name: "light-llm", integration: "light-llm" },
+  { src: mastra, alt: "Mastra", name: "mastra", integration: "mastra" },
+  { src: openaiAgents, alt: "OpenAI Agents SDK", name: "openai-agents-sdk", integration: "openai-agents-sdk" },
+  { src: pydanticAi, alt: "Pydantic AI", name: "pydantic-ai", integration: "pydantic-ai" },
+  { src: opencodeSdk, alt: "OpenCode SDK", name: "opencode-sdk", integration: "opencode-sdk" },
   { src: gemini, alt: "Gemini", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
   { src: openAi, alt: "OpenAI", name: "open-ai", docsUrl: "https://laminar.sh/docs/tracing/integrations/openai" },
   { src: groq, alt: "Groq", name: "groq", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
