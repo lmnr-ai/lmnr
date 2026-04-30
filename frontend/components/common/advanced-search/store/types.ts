@@ -41,7 +41,6 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   setActiveRecentIndex: (index: number) => void;
   setOpenSelectId: (id: string | null) => void;
   setTags: (tags: FilterTag[]) => void;
-  setFilters: (filters: ColumnFilter[]) => void;
   addTag: (field: string) => void;
   addCompleteTag: (
     field: string,

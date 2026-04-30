@@ -11,6 +11,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
@@ -264,6 +265,7 @@ function EvaluationsContent() {
                 )}
               >
                 <div className="flex flex-1 w-full space-x-2">
+                  <DataTableFilter columns={filters} />
                   <ColumnsMenu
                     lockedColumns={["__row_selection"]}
                     columnLabels={columns.map((column) => ({
@@ -272,11 +274,11 @@ function EvaluationsContent() {
                     }))}
                   />
                 </div>
-                <div className="w-full px-px">
+                <div className="w-full">
                   <AdvancedSearch
                     storageKey="evaluations"
                     filters={filters}
-                    placeholder="Search evaluations by name..."
+                    placeholder="Search evaluations..."
                     className="w-full flex-1"
                   />
                 </div>

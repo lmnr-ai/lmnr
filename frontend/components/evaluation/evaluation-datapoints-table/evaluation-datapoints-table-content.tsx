@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -166,6 +167,7 @@ const EvaluationDatapointsTableContent = ({
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter columns={columnFilters} />
           <EvalColumnsMenu
             columnLabels={visibleColumns.map((column) => ({
               id: column.id!,
@@ -194,7 +196,7 @@ const EvaluationDatapointsTableContent = ({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="w-full px-px">
+        <div className="w-full">
           <AdvancedSearch
             storageKey="evaluation-datapoints"
             filters={columnFilters}
