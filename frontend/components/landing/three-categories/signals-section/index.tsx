@@ -68,7 +68,7 @@ const SignalsSection = ({ className }: Props) => {
       </div>
 
       <div className={cn("flex flex-col items-center w-full", "md:gap-8 gap-4")}>
-        {/* Tabs (multiselect) */}
+        {/* Tabs */}
         <div className="flex md:gap-3 gap-2 items-stretch w-full">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;

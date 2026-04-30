@@ -92,7 +92,8 @@ function buildScenario(parents: ParentSpec[], leaves: LeafSpec[]): MockDataset {
   // Build cluster tree
   const leafByParent = new Map<string | null, ClusterNode[]>();
   for (const leaf of leaves) {
-    const numEvents = leaf.descriptions.length * Math.round(8 + Math.random() * 16);
+    // Deterministic per-leaf multiplier in [8, 24] so SSR and client hydration agree.
+    const numEvents = leaf.descriptions.length * (8 + hashToMinutes(`${leaf.id}:n`, 17));
     const node: ClusterNode = {
       id: leaf.id,
       name: leaf.name,
