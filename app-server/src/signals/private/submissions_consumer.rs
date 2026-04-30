@@ -11,10 +11,10 @@ use uuid::Uuid;
 use crate::{
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
+    llm::{LlmClient, models::ProviderRequestItem},
     mq::MessageQueue,
-    signals::{
+    signals::private::{
         SignalRun, SignalWorkerConfig, llm_model, llm_provider,
-        provider::{LlmClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
@@ -27,7 +27,7 @@ use crate::{
 
 use crate::{
     db::spans::SpanType,
-    signals::{
+    signals::private::{
         common::{ProcessRunResult, handle_failed_runs, process_run},
         utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
@@ -354,7 +354,7 @@ async fn submit_batch_to_llm(
             )
             .await;
 
-            if matches!(e, crate::signals::provider::ProviderError::NotSupported(_)) {
+            if matches!(e, crate::llm::ProviderError::NotSupported(_)) {
                 log::info!(
                     "[SIGNAL JOB] Batch API not supported by provider, falling back to realtime API"
                 );

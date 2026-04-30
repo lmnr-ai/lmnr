@@ -5,10 +5,8 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::SIGNAL_TRIGGERS_CACHE_KEY},
-    db::{
-        DB,
-        signal_triggers::{SignalTrigger, get_signal_triggers},
-    },
+    db::DB,
+    signals::private::db::signal_triggers::{SignalTrigger, get_signal_triggers},
 };
 
 /// Get signal triggers for a project with read-through cache
@@ -23,24 +21,24 @@ pub async fn get_signal_triggers_cached(
     let cache_res = cache.get::<Vec<SignalTrigger>>(&cache_key).await;
 
     match cache_res {
-        Ok(Some(spans)) => Ok(spans),
+        Ok(Some(triggers)) => Ok(triggers),
         Ok(None) | Err(_) => {
             // Cache miss or error, fetch from database
-            let spans: Vec<SignalTrigger> = get_signal_triggers(&db.pool, project_id).await?;
+            let triggers: Vec<SignalTrigger> = get_signal_triggers(&db.pool, project_id).await?;
 
             // Store in cache (ignore cache write errors)
             if let Err(e) = cache
-                .insert::<Vec<SignalTrigger>>(&cache_key, spans.clone())
+                .insert::<Vec<SignalTrigger>>(&cache_key, triggers.clone())
                 .await
             {
                 log::error!(
-                    "Failed to insert semantic event trigger spans into cache: {:?}, project_id={}",
+                    "Failed to insert signal triggers into cache: {:?}, project_id={}",
                     e,
                     project_id
                 );
             }
 
-            Ok(spans)
+            Ok(triggers)
         }
     }
 }

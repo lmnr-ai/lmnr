@@ -1,4 +1,6 @@
-use crate::signals::provider::{
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
+use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, ProviderUsageMetadata,
     models::{
         ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall,

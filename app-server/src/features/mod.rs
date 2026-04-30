@@ -17,6 +17,7 @@ pub enum Feature {
     SqlQueryEngine,
     ClickhouseReadOnly,
     Tracing,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     Clustering,
     Signals,
     Reports,

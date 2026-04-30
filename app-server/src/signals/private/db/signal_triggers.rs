@@ -3,9 +3,9 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::signals::Signal;
-use super::utils::Filter;
-use crate::signals::SignalMode;
+use crate::db::signals::Signal;
+use crate::db::utils::Filter;
+use crate::signals::private::SignalMode;
 
 /// Signal trigger with pre-parsed filters
 #[derive(Debug, Clone, Serialize, Deserialize)]

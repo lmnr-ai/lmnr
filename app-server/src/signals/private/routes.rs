@@ -10,12 +10,11 @@ use crate::{
     features::is_feature_enabled,
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::enqueue::enqueue_signal_job,
+    routes::{error::Error, types::ResponseResult},
+    signals::private::enqueue::enqueue_signal_job,
     sql::{self, ClickhouseReadonlyClient},
     utils::limits::get_workspace_signal_runs_limit_exceeded,
 };
-
-use super::{ResponseResult, error::Error};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

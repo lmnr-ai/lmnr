@@ -8,10 +8,10 @@ use crate::ch::spans::CHSpan;
 use super::search::fuzzy_search;
 use super::spans::{extract_exception_from_events, get_span_type, span_short_id};
 use super::utils::{clean_whitespace, nanoseconds_to_iso, strip_noise, try_parse_json};
-use crate::signals::prompts::{
+use crate::signals::private::prompts::{
     GET_FULL_SPAN_INFO_DESCRIPTION, SEARCH_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
 };
-use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
+use crate::llm::models::{ProviderFunctionDeclaration, ProviderTool};
 
 /// Full span info returned by get_full_spans tool
 #[derive(Debug, Clone, Serialize, Deserialize)]

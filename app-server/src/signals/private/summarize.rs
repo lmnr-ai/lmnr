@@ -11,18 +11,18 @@ use crate::cache::keys::SYS_PROMPT_SUMMARY_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::db::spans::SpanType;
 use crate::mq::MessageQueue;
-use crate::signals::prompts::BATCH_SUMMARIZATION_PROMPT;
-use crate::signals::provider::models::{
+use crate::signals::private::prompts::BATCH_SUMMARIZATION_PROMPT;
+use crate::llm::models::{
     ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderPart,
     ProviderRequest, ProviderTool,
 };
-use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
-use crate::signals::spans::ExtractedSystemPrompt;
-use crate::signals::utils::{
+use crate::llm::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
+use crate::signals::private::spans::ExtractedSystemPrompt;
+use crate::signals::private::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
-    structural_skeleton_hash,
 };
-use crate::signals::{llm_model, llm_provider};
+use crate::signals::private::{llm_model, llm_provider};
+use crate::traces::prompt_hash::structural_skeleton_hash;
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 
@@ -110,7 +110,7 @@ fn build_summarization_tool() -> Vec<ProviderTool> {
 }
 
 fn parse_summarization_response(
-    response: &crate::signals::provider::models::ProviderResponse,
+    response: &crate::llm::models::ProviderResponse,
     extracted: &HashMap<String, ExtractedSystemPrompt>,
 ) -> SummarizationResult {
     let mut summaries = HashMap::new();
@@ -324,7 +324,7 @@ pub async fn summarize_system_prompts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signals::provider::models::*;
+    use crate::llm::models::*;
 
     fn make_extracted(pairs: &[(&str, &str)]) -> HashMap<String, ExtractedSystemPrompt> {
         pairs

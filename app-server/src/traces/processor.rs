@@ -6,14 +6,9 @@ use rayon::prelude::*;
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::sampling::{get_sampling_factors_cached, should_sample_trace};
-use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::{
-        Cache, CacheTrait, autocomplete::populate_autocomplete_cache,
-        keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-    },
+    cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
         spans::CHSpan,
@@ -22,7 +17,7 @@ use crate::{
     db::{
         DB,
         spans::{Span, SpanType},
-        trace::{Trace, TraceType, upsert_trace_statistics_batch},
+        trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -38,13 +33,12 @@ use crate::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
-        utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
+        utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    utils::limits::{get_workspace_signal_runs_limit_exceeded, update_workspace_bytes_ingested},
+    utils::limits::update_workspace_bytes_ingested,
     worker::HandlerError,
 };
 
-const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
 #[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
@@ -140,28 +134,20 @@ pub async fn process_span_messages(
 
     // Check signal triggers AFTER spans are inserted into ClickHouse
     // so the signal agent can see the trace data when processing.
+    // The signals entry point handles its own runtime feature gate and
+    // per-project filtering/grouping internally — when the cargo feature
+    // is off (OSS) or the runtime feature is disabled, this returns
+    // immediately without cloning/grouping the traces.
     if let Some(updated_traces) = &updated_traces {
-        if is_feature_enabled(Feature::Signals) {
-            let default_trace_type: i16 = Into::<u8>::into(TraceType::DEFAULT) as i16;
-            let default_traces: Vec<Trace> = updated_traces
-                .iter()
-                .filter(|trace| trace.trace_type() == default_trace_type)
-                .cloned()
-                .collect();
-            let traces_by_project = group_traces_by_project(&default_traces);
-            for (project_id, project_traces) in &traces_by_project {
-                check_and_push_signals(
-                    *project_id,
-                    project_traces,
-                    &spans,
-                    db.clone(),
-                    cache.clone(),
-                    clickhouse.clone(),
-                    queue.clone(),
-                )
-                .await;
-            }
-        }
+        crate::signals::check_and_push_signals(
+            updated_traces,
+            &spans,
+            db.clone(),
+            cache.clone(),
+            clickhouse.clone(),
+            queue.clone(),
+        )
+        .await;
     }
 
     // Send realtime span updates
@@ -249,11 +235,7 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_realtime_updates(
-    traces: &[Trace],
-    cache: Arc<Cache>,
-    pubsub: &PubSub,
-) {
+async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
     if traces.is_empty() {
         return;
     }
@@ -297,168 +279,5 @@ async fn dispatch_trace_realtime_updates(
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
-    }
-}
-
-async fn check_and_push_signals(
-    project_id: Uuid,
-    traces: &[&Trace],
-    spans: &[Span],
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-) {
-    let triggers = match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
-        Ok(triggers) => triggers,
-        Err(e) => {
-            log::error!(
-                "Failed to get signals triggers for project {}: {:?}",
-                project_id,
-                e
-            );
-            return;
-        }
-    };
-
-    if triggers.is_empty() {
-        return;
-    }
-
-    if is_feature_enabled(Feature::UsageLimit) {
-        let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
-            db.clone(),
-            clickhouse.clone(),
-            cache.clone(),
-            project_id,
-        )
-        .await;
-        if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
-            log::debug!(
-                "Workspace signal runs limit exceeded for project [{}]. Skipping triggers.",
-                project_id,
-            );
-            return;
-        }
-    }
-
-    // Lazily fetch pre-computed sampling factors only if any trigger has sampling enabled
-    let any_has_sampling = triggers.iter().any(|t| t.signal.sample_rate.is_some());
-    let sampling_factors = if any_has_sampling {
-        match get_sampling_factors_cached(cache.clone(), &clickhouse, project_id).await {
-            Ok(factors) => Some(factors),
-            Err(e) => {
-                log::error!(
-                    "Failed to get sampling factors for project {}: {:?}. \
-                     Sampled signals will be skipped; non-sampled signals proceed normally.",
-                    project_id,
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    for trigger in &triggers {
-        let matching_traces = traces
-            .iter()
-            .filter(|trace| trace.matches_filters(spans, &trigger.filters));
-
-        for trace in matching_traces {
-            // Check sampling if enabled for this signal
-            if let Some(sample_rate) = trigger.signal.sample_rate {
-                if let Some(ref factors) = sampling_factors {
-                    if !should_sample_trace(sample_rate, &trace.user_id(), factors) {
-                        log::debug!(
-                            "Skipping trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                        continue;
-                    } else {
-                        log::debug!(
-                            "Processing trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                    }
-                } else {
-                    // Sampling factors failed to load — skip sampled triggers
-                    // to avoid processing all traces unsampled (over-billing)
-                    continue;
-                }
-            }
-
-            // Filters matched - try to acquire lock to prevent duplicate triggers
-            let lock_key = format!(
-                "{}:{}:{}:{}",
-                SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-                project_id,
-                trigger.signal.id,
-                trace.id(),
-            );
-
-            match cache.exists(&lock_key).await {
-                Ok(true) => {
-                    continue;
-                }
-                Ok(false) => {
-                    // Lock doesn't exist, try to acquire it
-                }
-                Err(e) => {
-                    log::warn!(
-                        "[Signal trigger] Failed to check lock existence (key {}): {:?}",
-                        lock_key,
-                        e
-                    );
-                    // Continue to try acquiring lock
-                }
-            }
-
-            // Try to acquire the lock
-            let lock_acquired = match cache
-                .try_acquire_lock(&lock_key, SIGNAL_TRIGGER_LOCK_TTL_SECONDS)
-                .await
-            {
-                Ok(acquired) => acquired,
-                Err(e) => {
-                    // On lock error, still try to push (fail-open behavior)
-                    log::error!(
-                        "Failed to acquire lock for signal '{}' on trace {}: {:?}",
-                        trigger.signal.name,
-                        trace.id(),
-                        e
-                    );
-                    true // Proceed anyway
-                }
-            };
-
-            if !lock_acquired {
-                // Lock was already held by another processor
-                continue;
-            }
-
-            // Lock acquired - enqueue signal trigger run
-            if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
-                trace.id(),
-                trace.project_id(),
-                trigger.id,
-                trigger.signal.clone(),
-                clickhouse.clone(),
-                queue.clone(),
-                trigger.mode.as_u8(),
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to enqueue signal trigger run: trace_id={}, project_id={}, trigger_id={}, signal={}, error={:?}",
-                    trace.id(),
-                    trace.project_id(),
-                    trigger.id,
-                    trigger.signal.name,
-                    e
-                );
-            }
-        }
     }
 }

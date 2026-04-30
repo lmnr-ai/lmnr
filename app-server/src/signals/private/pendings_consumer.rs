@@ -4,19 +4,16 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    ch::{
-        signal_run_messages::insert_signal_run_messages,
-        signal_runs::{CHSignalRun, insert_signal_runs},
-    },
+    ch::signal_run_messages::insert_signal_run_messages,
     db::DB,
+    llm::{
+        LlmClient,
+        models::{ProviderBatchOutput, ProviderBatchState},
+    },
     mq::MessageQueue,
-    signals::SignalRun,
-    signals::{
-        SignalWorkerConfig,
-        provider::{
-            LlmClient,
-            models::{ProviderBatchOutput, ProviderBatchState},
-        },
+    signals::private::{
+        SignalRun, SignalWorkerConfig,
+        ch::signal_runs::{CHSignalRun, insert_signal_runs},
         push_to_signals_queue,
         queue::{
             SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue,
@@ -304,7 +301,7 @@ async fn process_failed_batch(
         }
         for (job_id, failed_count) in failed_by_job {
             if let Err(e) =
-                crate::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, 0, failed_count)
+                crate::signals::private::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, 0, failed_count)
                     .await
             {
                 log::error!("Failed to update job statistics for job {}: {}", job_id, e);

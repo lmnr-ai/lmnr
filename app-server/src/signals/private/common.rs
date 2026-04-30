@@ -4,23 +4,22 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    ch::{
-        signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
-        signal_runs::{CHSignalRun, insert_signal_runs},
+    ch::signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
+    db::DB,
+    llm::{
+        LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
+        models::{
+            ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
+            ProviderRequest, ProviderRequestItem,
+        },
     },
-    db::{DB, signal_jobs::update_signal_job_stats},
     mq::MessageQueue,
-    signals::{
+    signals::private::{
         SignalRun, SignalWorkerConfig,
+        ch::signal_runs::{CHSignalRun, insert_signal_runs},
+        db::signal_jobs::update_signal_job_stats,
         filter::{apply_drop_rules, generate_and_cache_drop_rules, lookup_cached_drop_rules},
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-        provider::{
-            LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
-            models::{
-                ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
-                ProviderRequest, ProviderRequestItem,
-            },
-        },
         spans::{
             build_trace_structure_string, extract_system_prompts_with_paths, get_trace_ch_spans,
             structural_skeleton_hash,

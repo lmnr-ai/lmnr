@@ -1,8 +1,10 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use super::{
     BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
     InlineRequestItem, Operation,
 };
-use crate::signals::provider::{
+use crate::llm::{
     LanguageModelClient, ProviderResult,
     models::{ProviderBatchOperation, ProviderRequest, ProviderRequestItem, ProviderResponse},
 };
