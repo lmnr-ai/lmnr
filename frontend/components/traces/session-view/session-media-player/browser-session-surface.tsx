@@ -217,21 +217,24 @@ function BrowserSessionSurfaceInner({ traceId }: BrowserSessionSurfaceProps) {
         if (state.seekRequest && state.seekRequest !== prev.seekRequest) {
           const localMs = Math.max(0, state.seekRequest.epochMs - content.startTime);
           // Guard the feedback loop: if this seek is within 50ms of the last
-          // time we reported up from the player, skip.
-          if (Math.abs(state.seekRequest.epochMs - lastSurfaceEpochMsRef.current) < 50) return;
-          try {
-            const wasPlaying = state.isPlaying;
-            if (wasPlaying) player.pause();
-            setTimeout(() => {
-              try {
-                player.goto(localMs);
-                if (wasPlaying) player.play();
-              } catch {
-                /* player disposed */
-              }
-            }, 0);
-          } catch {
-            /* ignore */
+          // time we reported up from the player, skip the seek — but still
+          // fall through to the play/pause and speed handlers below, since a
+          // single store update may have flipped those at the same time.
+          if (Math.abs(state.seekRequest.epochMs - lastSurfaceEpochMsRef.current) >= 50) {
+            try {
+              const wasPlaying = state.isPlaying;
+              if (wasPlaying) player.pause();
+              setTimeout(() => {
+                try {
+                  player.goto(localMs);
+                  if (wasPlaying) player.play();
+                } catch {
+                  /* player disposed */
+                }
+              }, 0);
+            } catch {
+              /* ignore */
+            }
           }
         }
         if (state.isPlaying !== prev.isPlaying) {
