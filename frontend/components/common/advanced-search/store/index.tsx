@@ -2,7 +2,16 @@
 
 import { isEqual, uniqueId } from "lodash";
 import { useSearchParams } from "next/navigation";
-import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  type PropsWithChildren,
+  type RefObject,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -77,6 +86,10 @@ function createCoreSlice(
 
     setTags: (tags) => {
       set({ tags });
+    },
+
+    setFilters: (filters) => {
+      set({ filters });
     },
 
     addTag: (field) => {
@@ -500,6 +513,18 @@ export const AdvancedSearchStoreProvider = ({
   const [storeState] = useState(() =>
     createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions, storageKey, resource)
   );
+
+  // Sync filters prop into the store so dynamically-loaded columns (e.g. async
+  // score columns on the evaluation datapoints page) are registered after mount.
+  // Without this, addTag / addCompleteTag / updateTagField would call
+  // `filters.find(...)` against the stale mount-time list and silently fail.
+  useEffect(() => {
+    const currentFilters = storeState.getState().filters;
+    if (!isEqual(currentFilters, filters)) {
+      storeState.getState().setFilters(filters);
+    }
+  }, [filters, storeState]);
+
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
 
