@@ -10,7 +10,7 @@ import { type SpanImage } from "@/lib/actions/span/images";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useSessionViewStore, useSessionViewStoreRaw } from "../store";
+import { selectMediaChapters, useSessionViewStore, useSessionViewStoreRaw } from "../store";
 
 interface ImagesSurfaceProps {
   traceId: string;
@@ -113,6 +113,13 @@ function ImagesSurfaceInner({ traceId }: ImagesSurfaceProps) {
   // Playback ticker: advance playhead based on speed when playing. Only
   // schedules a timer while isPlaying is true so we don't burn cycles on a
   // 24Hz no-op when the user has the images chapter paused.
+  //
+  // At the end of this chapter we must nudge the playhead PAST `last` (by
+  // 1ms) — the orchestrator's containment check uses `<=`, so a playhead
+  // clamped exactly to `last` still registers as "inside this chapter" and
+  // auto-advance never fires. Stepping 1ms past pushes the playhead into the
+  // gap / next-chapter region so the orchestrator can snap to the next
+  // chapter's start. If this is the last chapter (no next target), pause.
   useEffect(() => {
     if (!isPlaying || !images.length) return;
     const interval = setInterval(() => {
@@ -121,7 +128,14 @@ function ImagesSurfaceInner({ traceId }: ImagesSurfaceProps) {
       const playhead = state.playheadEpochMs ?? images[0].timestamp;
       const last = images[images.length - 1].timestamp;
       if (playhead >= last) {
-        rawStore.getState().setIsPlaying(false);
+        const chapters = selectMediaChapters(state);
+        const hasNext = chapters.some((c) => c.startTimeMs > last);
+        if (hasNext) {
+          // Let the orchestrator auto-advance to the next chapter.
+          rawStore.getState().setPlayheadEpochMs(last + 1);
+        } else {
+          rawStore.getState().setIsPlaying(false);
+        }
         return;
       }
       const next = Math.min(last, playhead + 42 * state.playbackSpeed);
