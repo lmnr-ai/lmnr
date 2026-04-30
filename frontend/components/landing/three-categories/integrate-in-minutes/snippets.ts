@@ -282,7 +282,7 @@ if __name__ == "__main__":
     name: "OpenCode SDK",
     logoSrc: opencodeSdk,
     alt: "OpenCode SDK",
-    highlightedLines: [1, 4, 5, 6, 7, 8, 15],
+    highlightedLines: [1, 3, 4, 5, 6, 7, 14],
     screenshot: "/assets/landing/snippet-screenshots/opencode-sdk.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/opencode",
     typescript: `import * as opencode from "@opencode-ai/sdk";
