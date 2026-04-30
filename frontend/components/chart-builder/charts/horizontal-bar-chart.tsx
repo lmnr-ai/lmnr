@@ -136,7 +136,20 @@ const HorizontalBarChart = ({
                 dataKey={valueColumn}
                 fill={config.color}
                 shape={(props: any) => {
-                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
+                  const {
+                    payload,
+                    tooltipPayload,
+                    tooltipPosition,
+                    dataKey,
+                    stackedBarStart,
+                    stackedBarEnd,
+                    parentViewBox,
+                    originalDataIndex,
+                    isActive,
+                    background,
+                    index,
+                    ...svgProps
+                  } = props;
                   const isClickable = onBarClick && (payload?.trace_id || payload?.id);
                   return (
                     <rect

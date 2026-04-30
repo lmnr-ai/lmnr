@@ -194,6 +194,14 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).
 
+## Recharts v3
+
+- On recharts v3.x the internal path `recharts/types/chart/generateCategoricalChart` no longer exists — `CategoricalChartFunc` is not re-exported from the public API. We define it locally in `frontend/components/chart-builder/charts/line-chart.tsx` from the now-exported `MouseHandlerDataParam` and import it from that module in all consumers (`traces-chart`, `time-series-chart`, `dashboards/chart`).
+- `MouseHandlerDataParam.activeLabel` is typed `string | number | undefined` in v3 (was `string`). Any state setter or store that stores it as `string` must wrap with `String(e.activeLabel)` AND use `!= null` checks (not truthy) so the numeric 0 is not dropped.
+- The `ChartTooltipContent` in `components/ui/chart.tsx` must intersect `Omit<RechartsPrimitive.DefaultTooltipContentProps<TooltipValueType, TooltipNameType>, 'accessibilityLayer'>` to get the `payload`/`label`/etc props typed. Same pattern for `ChartLegendContent` using `Pick<DefaultLegendContentProps, 'payload' | 'verticalAlign'>`. Filter payload arrays with `item.type !== 'none'` before rendering.
+- Custom `shape={...}` render props on `<Bar>` receive several new recharts-internal props (`stackedBarStart`, `stackedBarEnd`, `parentViewBox`, `originalDataIndex`, `isActive`, `background`, `index`, `tooltipPayload`, `tooltipPosition`). If you spread `...props` onto a DOM element (e.g. `<rect>`), React warns `does not recognize the X prop on a DOM element`. Destructure and drop them explicitly — see `horizontal-bar-chart.tsx` shape prop.
+- `hsl(var(--chart-N))` color references still work in v3 — the `--chart-N` CSS vars in `globals.css` store raw HSL triplets, not full `hsl(...)` values. No migration needed there.
+
 ## Trace View Store
 
 - `spanPanelOpen` in `trace-view/store/base.ts` must default to `false` and must NOT be persisted by `partialize`/`merge` in `store/index.tsx`. The dynamic (drawer) layout reads `showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spans.length > 0)`. If `spanPanelOpen` persists as `true`, the panel flashes open on mount and then snaps shut when `fetchSpans` calls `setSelectedSpan(undefined)` (which sets `spanPanelOpen: !!span`). The full-width trace page relies on `isAlwaysSelectSpan` to keep the panel pinned open.

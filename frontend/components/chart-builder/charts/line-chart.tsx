@@ -1,12 +1,21 @@
 import React, { useMemo } from "react";
-import { CartesianGrid, Line, LineChart as RechartsLineChart, ReferenceArea, XAxis, YAxis } from "recharts";
-import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import {
+  CartesianGrid,
+  Line,
+  LineChart as RechartsLineChart,
+  type MouseHandlerDataParam,
+  ReferenceArea,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { formatMetricValue } from "./format-value";
 import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+
+export type CategoricalChartFunc = (nextState: MouseHandlerDataParam, event: React.SyntheticEvent) => void;
 
 export interface ChartDragHandlers {
   onMouseDown: CategoricalChartFunc;

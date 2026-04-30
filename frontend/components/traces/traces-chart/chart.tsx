@@ -3,8 +3,8 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
-import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
+import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import {
   chartConfig,
@@ -80,15 +80,15 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
   }, [refArea.left, refArea.right, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
-    if (e && e.activeLabel) {
-      setRefArea({ left: e.activeLabel });
+    if (e?.activeLabel != null) {
+      setRefArea({ left: String(e.activeLabel) });
     }
   }, []);
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (refArea.left && e && e.activeLabel) {
-        setRefArea({ left: refArea.left, right: e.activeLabel });
+      if (refArea.left && e?.activeLabel != null) {
+        setRefArea({ left: refArea.left, right: String(e.activeLabel) });
       }
     },
     [refArea.left]
