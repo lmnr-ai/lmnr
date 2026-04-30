@@ -156,6 +156,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - `PageViewTracker` deliberately uses an empty `useEffect` dependency array so it fires exactly once on mount. Callers pass inline `properties` object literals (`{ slug }`, `{ traceId }`), which would otherwise create a new reference on every render and re-fire the event.
 - Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook. `EmailSignInButton` takes an `action` prop (`sign_in_attempted` | `sign_up_attempted`) because the same component is rendered on both `/sign-in` and `/sign-up`.
 - Tracking calls must be guarded by success (`res.ok`). Firing `track(...)` after an unchecked `await res.text()` records events for failed requests and corrupts metrics.
+- `AdvancedSearch` submit tracking lives in a single place: the store's `submit` function (`components/common/advanced-search/store/index.tsx`). `removeTag` and `applyRecentSearch` funnel through `submit`, so they are covered automatically; do not instrument them separately. `addCompleteTag` and `clearAll` do NOT funnel through `submit` — we intentionally accept under-counting there in exchange for one consistent metric definition (same `filterCount`/`hasSearch` logic everywhere). The `resource` prop is threaded into the store so the event can label its origin (`traces` / `spans` / `unknown`).
 
 ## Key Technical Details
 

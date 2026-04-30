@@ -9,6 +9,7 @@ import { persist } from "zustand/middleware";
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter, type FilterDataType, FilterSchema } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
+import { track } from "@/lib/posthog";
 
 import {
   type AdvancedSearchMode,
@@ -39,7 +40,8 @@ function createCoreSlice(
   filters: ColumnFilter[],
   mode: AdvancedSearchMode,
   onSubmit?: (filters: Filter[], search: string) => void,
-  suggestions?: Map<string, string[]>
+  suggestions?: Map<string, string[]>,
+  resource?: string
 ): Omit<AdvancedSearchStore, keyof RecentsSlice | keyof UndoRedoSlice> {
   return {
     autocompleteData: suggestions || new Map(),
@@ -54,6 +56,7 @@ function createCoreSlice(
 
     filters,
     mode,
+    resource,
     onSubmit,
 
     getActiveTagId: () => {
@@ -246,7 +249,7 @@ function createCoreSlice(
     getTagFocusState: (tagId) => get().tagFocusStates.get(tagId) || { type: "idle" },
 
     submit: (router, pathname, searchParams) => {
-      const { tags, inputValue, onSubmit, mode } = get();
+      const { tags, inputValue, onSubmit, mode, resource } = get();
       // Skip incomplete tags (empty value) so we don't submit invalid filters
       const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
       const filterObjects = completeTags.map(createFilterFromTag);
@@ -261,6 +264,15 @@ function createCoreSlice(
         return;
       }
       get().pushUndoSnapshot();
+
+      if (filterObjects.length > 0 || searchValue.length > 0) {
+        track("advanced_search", "submitted", {
+          resource: resource ?? "unknown",
+          filterCount: filterObjects.length,
+          hasSearch: searchValue.length > 0,
+          mode,
+        });
+      }
 
       if (mode === "url") {
         const params = new URLSearchParams(searchParams.toString());
@@ -346,7 +358,8 @@ const createAdvancedSearchStore = (
   mode: AdvancedSearchMode,
   onSubmit?: (filters: Filter[], search: string) => void,
   suggestions?: Map<string, string[]>,
-  storageKey?: string
+  storageKey?: string,
+  resource?: string
 ) => {
   let lastSubmitted = {
     filters: initialTags.map(createFilterFromTag),
@@ -373,7 +386,7 @@ const createAdvancedSearchStore = (
   };
 
   const storeConfig = (set: StoreSet, get: StoreGet): AdvancedSearchStore => ({
-    ...createCoreSlice(set, get, context, filters, mode, onSubmit, suggestions),
+    ...createCoreSlice(set, get, context, filters, mode, onSubmit, suggestions, resource),
     ...createRecentsSlice(set, get, context),
     ...createUndoRedoSlice(set, get, context),
   });
@@ -431,6 +444,7 @@ interface AdvancedSearchStoreProviderProps {
   onSubmit?: (filters: Filter[], search: string) => void;
   suggestions?: Map<string, string[]>;
   storageKey?: string;
+  resource?: string;
 }
 
 export const AdvancedSearchStoreProvider = ({
@@ -442,6 +456,7 @@ export const AdvancedSearchStoreProvider = ({
   onSubmit,
   suggestions,
   storageKey,
+  resource,
 }: PropsWithChildren<AdvancedSearchStoreProviderProps>) => {
   const searchParams = useSearchParams();
 
@@ -483,7 +498,7 @@ export const AdvancedSearchStoreProvider = ({
   }, [searchParams, filters, mode, initialFilters, initialSearch]);
 
   const [storeState] = useState(() =>
-    createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions, storageKey)
+    createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions, storageKey, resource)
   );
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
