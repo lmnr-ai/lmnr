@@ -450,7 +450,16 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
           if (!trace) return;
           const meta = state.mediaChapterMeta[traceId];
           const targetMs = meta?.contentStartMs ?? new Date(trace.startTime).getTime();
-          get().seekTo(targetMs);
+          // Swap the active chapter and the seek request in a single set() so
+          // subscribers see the new traceId before processing the seek. Without
+          // this, the old chapter's surface briefly receives the seek with its
+          // stale traceId in scope.
+          const prevToken = state.seekRequest?.token ?? 0;
+          set({
+            activeMediaTraceId: traceId,
+            playheadEpochMs: targetMs,
+            seekRequest: { epochMs: targetMs, token: prevToken + 1 },
+          });
         },
 
         searchSessionSpans: async (filters, search) => {

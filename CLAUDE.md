@@ -209,6 +209,8 @@ The session-view media player (`frontend/components/traces/session-view/session-
 - `useSessionViewStoreRaw()` returns the bare `StoreApi` — use inside rrweb event listeners / setInterval ticks where you need `getState()` / `subscribe()` without re-subscribing the component.
 - `selectMediaChapters(state)` is a plain selector (not memoized). Pair with `shallow` equality on `useSessionViewStore` so consumers don't re-render when the array reference changes but contents are identical.
 - `fill-width-layout.tsx` SIZES config needs an explicit `PanelSizes` interface + `satisfies Record<string, PanelSizes>` annotation — otherwise TS narrows each literal to its own shape and property access on the selected config breaks.
+- `seekToChapter` in `store.ts` MUST update `activeMediaTraceId`, `playheadEpochMs`, and `seekRequest` in a single `set()` — not call `seekTo` after `setActiveMediaTraceId`. Zustand fires subscribe listeners between the two writes, so the old chapter's `browser-session-surface.tsx` subscribe (closed over the stale `traceId`) receives a seek-request that's out of bounds for its content.
+- Per-tick re-renders from the playhead: timeline segments / gaps should derive the `playheadLeftPercent` (or `null` when outside their own time domain) INSIDE the zustand selector, not select `playheadEpochMs` then derive in `useMemo`. During playback `playheadEpochMs` changes at 24 Hz; with the derivation in `useMemo`, every segment re-renders every tick. With derivation inside the selector, Object.is equality treats null-to-null as unchanged, so only the segment currently hosting the playhead re-renders.
 
 ## Signal Event Payloads
 

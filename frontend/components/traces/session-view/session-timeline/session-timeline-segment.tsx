@@ -75,14 +75,18 @@ function SessionTimelineSegment({
 
   // Media playhead — render only if it falls inside this segment's time
   // domain. Mirrors trace-view's condensed-timeline playhead.
-  const playheadEpochMs = useSessionViewStore((s) => s.playheadEpochMs);
+  //
+  // Derive the percent inside the selector so segments where the playhead is
+  // outside their time domain return `null` every tick. Zustand's default
+  // Object.is equality treats null-to-null as unchanged, so those segments do
+  // NOT re-render at 24 Hz during playback — only the segment currently
+  // hosting the playhead does.
+  const playheadLeftPercent = useSessionViewStore((s) => {
+    if (!s.mediaPanelOpen || s.playheadEpochMs === undefined || segment.widthMs <= 0) return null;
+    if (s.playheadEpochMs < segment.startTimeMs || s.playheadEpochMs > segment.endTimeMs) return null;
+    return ((s.playheadEpochMs - segment.startTimeMs) / segment.widthMs) * 100;
+  });
   const mediaPanelOpen = useSessionViewStore((s) => s.mediaPanelOpen);
-  const playheadLeftPercent = useMemo(() => {
-    if (!mediaPanelOpen || playheadEpochMs === undefined || segment.widthMs <= 0) return null;
-    if (playheadEpochMs < segment.startTimeMs || playheadEpochMs > segment.endTimeMs) return null;
-    return ((playheadEpochMs - segment.startTimeMs) / segment.widthMs) * 100;
-  }, [mediaPanelOpen, playheadEpochMs, segment.startTimeMs, segment.endTimeMs, segment.widthMs]);
-
   const seekTo = useSessionViewStore((s) => s.seekTo);
   const scrollIndicator = useMemo(() => {
     if (scrollStartTime === undefined || scrollEndTime === undefined || segment.widthMs <= 0) return null;

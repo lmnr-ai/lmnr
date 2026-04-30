@@ -132,6 +132,9 @@ function ChapterSeekBar() {
         className="relative flex-1 h-2 rounded-full bg-secondary cursor-pointer group"
         role="slider"
         aria-label="Media timeline"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={playheadPct !== null ? Math.round(playheadPct) : 0}
       >
         <div className="absolute inset-0 flex items-center gap-[2px] pointer-events-none">
           {layout.bands.map((band) => (
