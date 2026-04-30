@@ -29,11 +29,6 @@ export type SessionViewSelectedSpan = {
   spanId: string;
 };
 
-/** Media player mode, reflects whether the current chapter is browser-session
- *  or span-image-based. Written by the orchestrator after chapter metadata
- *  resolves; read by the player surfaces. */
-export type MediaPlayerMode = "browser" | "images";
-
 export type MediaChapterMeta = {
   kind: MediaChapterKind;
   /** Absolute-ms start of the first event/image for this trace. Empty chapters
