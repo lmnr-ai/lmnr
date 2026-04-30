@@ -110,7 +110,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <BarChart
           data={data}
-          margin={{ left: -8, top: 8 }}
+          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -122,11 +122,12 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
+            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
           <ChartTooltip
             content={
               <ChartTooltipContent

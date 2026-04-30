@@ -7,7 +7,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -88,7 +88,7 @@ const HorizontalBarChart = ({
           barCategoryGap={0}
           layout="vertical"
           data={data}
-          margin={{ ...getChartMargins(), right: maxTextWidth }}
+          margin={{ right: maxTextWidth }}
         >
           <XAxis
             hide
@@ -104,7 +104,7 @@ const HorizontalBarChart = ({
             yAxisId={0}
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
+            width="auto"
             dataKey={categoryColumn}
             tickFormatter={yAxisFormatter}
           />
