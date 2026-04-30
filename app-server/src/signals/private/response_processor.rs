@@ -12,20 +12,21 @@ use crate::{
     cache::Cache,
     ch::signal_events::{CHSignalEvent, insert_signal_events},
     ch::signal_run_messages::CHSignalRunMessage,
-    ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::DB,
     db::spans::SpanType,
     features::{Feature, is_feature_enabled},
+    llm::models::{
+        ProviderContent as Content, ProviderFinishReason as FinishReason,
+        ProviderFunctionCall as FunctionCall, ProviderFunctionResponse as FunctionResponse,
+        ProviderInlineResponse, ProviderPart as Part,
+    },
     mq::MessageQueue,
-    signals::{
-        SignalRun, SignalWorkerConfig, llm_model, llm_provider,
+    signals::private::{
+        SignalRun, SignalWorkerConfig,
+        ch::signal_runs::{CHSignalRun, insert_signal_runs},
+        llm_model, llm_provider,
         postprocess::process_event_notifications_and_clustering,
         prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
-        provider::models::{
-            ProviderContent as Content, ProviderFinishReason as FinishReason,
-            ProviderFunctionCall as FunctionCall, ProviderFunctionResponse as FunctionResponse,
-            ProviderInlineResponse, ProviderPart as Part,
-        },
         queue::SignalMessage,
         spans::{get_trace_span_ids_and_end_time, span_short_id},
         tools::{SpanSearchRequest, get_full_spans, search_in_spans},
@@ -275,14 +276,14 @@ pub async fn finalize_runs(
     let mut succeeded_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in succeeded_runs {
         if let Some(job_id) = run.job_id {
-            if run.status == crate::signals::RunStatus::Completed {
+            if run.status == crate::signals::private::RunStatus::Completed {
                 *succeeded_by_job.entry(job_id).or_insert(0) += 1;
             }
         }
     }
     for (job_id, count) in succeeded_by_job {
         if let Err(e) =
-            crate::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, count, 0).await
+            crate::signals::private::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, count, 0).await
         {
             log::error!("Failed to update job stats: {}", e);
         }
@@ -292,14 +293,14 @@ pub async fn finalize_runs(
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in permanently_failed_runs {
         if let Some(job_id) = run.job_id {
-            if run.status == crate::signals::RunStatus::Failed {
+            if run.status == crate::signals::private::RunStatus::Failed {
                 *failed_by_job.entry(job_id).or_insert(0) += 1;
             }
         }
     }
     for (job_id, count) in failed_by_job {
         if let Err(e) =
-            crate::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, 0, count).await
+            crate::signals::private::db::signal_jobs::update_signal_job_stats(&db.pool, job_id, 0, count).await
         {
             log::error!("Failed to update job stats: {}", e);
         }

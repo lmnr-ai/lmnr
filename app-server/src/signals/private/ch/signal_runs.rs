@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::utils::chrono_to_nanoseconds;
-use crate::signals::SignalRun;
+use crate::ch::utils::chrono_to_nanoseconds;
+use crate::signals::private::SignalRun;
 
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHSignalRun {

@@ -182,60 +182,7 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
-pub use super::utils::structural_skeleton_hash;
-
-/// Extract the system message from a parsed LLM input message array.
-/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
-    let messages = parsed.as_array()?;
-    let sys_idx = messages.iter().position(|m| {
-        m.get("role")
-            .and_then(|r| r.as_str())
-            .is_some_and(|r| r == "system")
-    })?;
-    let sys_msg = &messages[sys_idx];
-    let content_val = sys_msg.get("content");
-    let sys_text = content_val
-        // "content": "plain string" (OpenAI format)
-        .and_then(|c| c.as_str().map(|s| s.to_string()))
-        // "content": [{"text": "...", "type": "text"}, ...] (Anthropic format)
-        .or_else(|| {
-            content_val
-                .and_then(|c| c.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                })
-                .filter(|s| !s.is_empty())
-        })
-        // "parts" shapes — we only inspect the first part (multi-part system
-        // prompts are rare and not worth the complexity here):
-        //   - Gemini:     {"text": "..."}
-        //   - OTel GenAI: {"type": "text", "content": "..."}
-        //     (emitted by pydantic_ai; see https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/)
-        .or_else(|| {
-            sys_msg
-                .get("parts")
-                .and_then(|p| p.as_array())
-                .and_then(|arr| arr.first())
-                .and_then(|first| first.get("text").or_else(|| first.get("content")))
-                .and_then(|t| t.as_str())
-                .map(|s| s.to_string())
-        })
-        .unwrap_or_default();
-    if sys_text.is_empty() {
-        return None;
-    }
-    let remaining: Vec<Value> = messages
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != sys_idx)
-        .map(|(_, m)| m.clone())
-        .collect();
-    Some((sys_text, Value::Array(remaining)))
-}
+pub use crate::traces::prompt_hash::{extract_system_message, structural_skeleton_hash};
 
 #[derive(Debug)]
 pub struct ExtractedSystemPrompt {
@@ -1202,87 +1149,6 @@ mod tests {
 
         assert!(outer_tool.input.contains(&span_short_id(&outer_llm)));
         assert!(inner_tool.input.contains(&span_short_id(&inner_llm)));
-    }
-
-    // ===================================================================
-    // extract_system_message
-    // ===================================================================
-
-    #[test]
-    fn test_extract_system_message_openai_format() {
-        let input = serde_json::json!([
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Hello"}
-        ]);
-        let (sys_text, remaining) = extract_system_message(&input).unwrap();
-        assert_eq!(sys_text, "You are a helpful assistant.");
-        assert_eq!(remaining.as_array().unwrap().len(), 1);
-        assert_eq!(remaining[0]["role"], "user");
-    }
-
-    #[test]
-    fn test_extract_system_message_gemini_parts_format() {
-        let input = serde_json::json!([
-            {"role": "system", "parts": [{"text": "You are a safety-focused agent."}]},
-            {"role": "user", "parts": [{"text": "Do something"}]}
-        ]);
-        let (sys_text, remaining) = extract_system_message(&input).unwrap();
-        assert_eq!(sys_text, "You are a safety-focused agent.");
-        assert_eq!(remaining.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_extract_system_message_otel_genai_parts_format() {
-        // OTel GenAI semconv (pydantic_ai et al.) — text lives under `content`
-        // with a `type: "text"` discriminator, not under `text`.
-        let input = serde_json::json!([
-            {"role": "system", "parts": [{"type": "text", "content": "You are a safety-focused agent."}]},
-            {"role": "user",   "parts": [{"type": "text", "content": "Do something"}]}
-        ]);
-        let (sys_text, remaining) = extract_system_message(&input).unwrap();
-        assert_eq!(sys_text, "You are a safety-focused agent.");
-        assert_eq!(remaining.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_extract_system_message_none_when_absent() {
-        let input = serde_json::json!([
-            {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi"}
-        ]);
-        assert!(extract_system_message(&input).is_none());
-    }
-
-    #[test]
-    fn test_extract_system_message_none_for_non_array() {
-        let input = serde_json::json!({"role": "system", "content": "test"});
-        assert!(extract_system_message(&input).is_none());
-    }
-
-    // ===================================================================
-    // structural_skeleton_hash
-    // ===================================================================
-
-    #[test]
-    fn test_hash_stability() {
-        let hash1 = structural_skeleton_hash("You are a helpful assistant.");
-        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
-        assert_eq!(hash1, hash2);
-        assert_eq!(hash1.len(), 8);
-    }
-
-    #[test]
-    fn test_hash_whitespace_normalization() {
-        let hash1 = structural_skeleton_hash("You  are\n a   helpful\tassistant.");
-        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_hash_case_normalization() {
-        let hash1 = structural_skeleton_hash("You Are A Helpful Assistant.");
-        let hash2 = structural_skeleton_hash("you are a helpful assistant.");
-        assert_eq!(hash1, hash2);
     }
 
     // ===================================================================

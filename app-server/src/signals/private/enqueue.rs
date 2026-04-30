@@ -4,15 +4,15 @@ use chrono::Utc;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::ch::signal_runs::insert_signal_runs;
+use crate::signals::private::ch::signal_runs::insert_signal_runs;
 use crate::db::DB;
 use crate::db::signals::Signal;
 use crate::mq::MessageQueue;
-use crate::routes::signals::SubmitSignalJobResponse;
-use crate::signals::provider::always_use_realtime;
-use crate::signals::queue::SignalMessage;
-use crate::signals::utils::{InternalSpan, emit_internal_span};
-use crate::signals::{llm_model, llm_provider, push_to_signals_queue};
+use crate::signals::private::routes::SubmitSignalJobResponse;
+use crate::llm::always_use_realtime;
+use crate::signals::private::queue::SignalMessage;
+use crate::signals::private::utils::{InternalSpan, emit_internal_span};
+use crate::signals::private::{llm_model, llm_provider, push_to_signals_queue};
 
 /// Creates a signal run and message, emits internal tracing span.
 /// Does NOT push to queue yet - caller is responsible for pushing after ClickHouse insert.
@@ -127,7 +127,7 @@ pub async fn enqueue_signal_job(
 ) -> anyhow::Result<SubmitSignalJobResponse> {
     let total_traces: i32 = trace_ids.len() as i32;
 
-    let job = crate::db::signal_jobs::create_signal_job(
+    let job = crate::signals::private::db::signal_jobs::create_signal_job(
         &db.pool,
         signal.id,
         project_id,
@@ -161,9 +161,9 @@ pub async fn enqueue_signal_job(
     }
 
     // Step 2: Insert all runs into ClickHouse before pushing to queue
-    let ch_runs: Vec<crate::ch::signal_runs::CHSignalRun> = signal_runs
+    let ch_runs: Vec<crate::signals::private::ch::signal_runs::CHSignalRun> = signal_runs
         .iter()
-        .map(crate::ch::signal_runs::CHSignalRun::from)
+        .map(crate::signals::private::ch::signal_runs::CHSignalRun::from)
         .collect();
 
     insert_signal_runs(clickhouse.clone(), &ch_runs)
@@ -180,7 +180,7 @@ pub async fn enqueue_signal_job(
     for (idx, message) in messages.into_iter().enumerate() {
         let push_result = if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime()
         {
-            crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+            crate::signals::private::queue::push_to_realtime_queue(message, queue.clone()).await
         } else {
             push_to_signals_queue(message, queue.clone()).await
         };
@@ -196,10 +196,10 @@ pub async fn enqueue_signal_job(
 
     // Step 4: If any runs failed during queue push, update them in ClickHouse and update job stats
     if failed_count > 0 {
-        let failed_ch_runs: Vec<crate::ch::signal_runs::CHSignalRun> = signal_runs
+        let failed_ch_runs: Vec<crate::signals::private::ch::signal_runs::CHSignalRun> = signal_runs
             .iter()
             .filter(|run| run.status == super::RunStatus::Failed)
-            .map(crate::ch::signal_runs::CHSignalRun::from)
+            .map(crate::signals::private::ch::signal_runs::CHSignalRun::from)
             .collect();
 
         // Update failed runs in ClickHouse
@@ -211,7 +211,7 @@ pub async fn enqueue_signal_job(
             })?;
 
         // Update job statistics
-        crate::db::signal_jobs::update_signal_job_stats(&db.pool, job.id, 0, failed_count)
+        crate::signals::private::db::signal_jobs::update_signal_job_stats(&db.pool, job.id, 0, failed_count)
             .await
             .map_err(|e| {
                 log::error!(
@@ -257,7 +257,7 @@ pub async fn enqueue_signal_trigger_run(
     .await;
 
     // Step 2: Insert runs into ClickHouse first
-    let ch_runs = vec![crate::ch::signal_runs::CHSignalRun::from(&signal_run)];
+    let ch_runs = vec![crate::signals::private::ch::signal_runs::CHSignalRun::from(&signal_run)];
 
     insert_signal_runs(clickhouse.clone(), &ch_runs)
         .await
@@ -273,7 +273,7 @@ pub async fn enqueue_signal_trigger_run(
 
     // Step 3: Now that ClickHouse insert succeeded, push to queue
     let push_result = if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime() {
-        crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+        crate::signals::private::queue::push_to_realtime_queue(message, queue.clone()).await
     } else {
         push_to_signals_queue(message, queue.clone()).await
     };
@@ -289,7 +289,7 @@ pub async fn enqueue_signal_trigger_run(
 
         // Mark run as failed and update in ClickHouse
         let failed_run = signal_run.failed("Failed to push to signals queue");
-        let failed_ch_runs = vec![crate::ch::signal_runs::CHSignalRun::from(&failed_run)];
+        let failed_ch_runs = vec![crate::signals::private::ch::signal_runs::CHSignalRun::from(&failed_run)];
 
         insert_signal_runs(clickhouse.clone(), &failed_ch_runs)
             .await

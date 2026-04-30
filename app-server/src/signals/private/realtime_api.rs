@@ -6,15 +6,15 @@ use crate::{
     cache::Cache,
     ch::signal_run_messages::insert_signal_run_messages,
     db::{DB, spans::SpanType},
+    llm::{
+        LlmClient,
+        models::{ProviderBatchOutput, ProviderInlineResponse},
+    },
     mq::MessageQueue,
-    signals::{
+    signals::private::{
         SignalRun, SignalWorkerConfig,
         common::{ProcessRunResult, handle_failed_runs, process_run},
         llm_model, llm_provider,
-        provider::{
-            LlmClient,
-            models::{ProviderBatchOutput, ProviderInlineResponse},
-        },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
         utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
@@ -167,7 +167,7 @@ impl SignalJobRealtimeHandler {
     #[tracing::instrument(skip_all)]
     async fn process_realtime_request(
         &self,
-        request: crate::signals::provider::models::ProviderRequest,
+        request: crate::llm::models::ProviderRequest,
         message: SignalMessage,
         backoff: ExponentialBackoff,
     ) {
@@ -368,10 +368,10 @@ mod tests {
     use crate::mq::{
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
     };
-    use crate::signals::provider::ProviderClient;
-    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
-    use crate::signals::provider::models::ProviderRequest;
-    use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
+    use crate::llm::ProviderClient;
+    use crate::llm::mock::{GenerateFailureMode, MockProviderClient};
+    use crate::llm::models::ProviderRequest;
+    use crate::signals::private::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
     use std::time::Duration;
     use uuid::Uuid;
 

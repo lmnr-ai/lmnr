@@ -14,7 +14,7 @@ use crate::{
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
-    signals::{spans::extract_system_message, utils::structural_skeleton_hash},
+    traces::prompt_hash::{extract_system_message, structural_skeleton_hash},
 };
 
 use super::span_attributes::{
@@ -306,6 +306,7 @@ pub fn convert_any_value_to_json_value(
 }
 
 /// Groups traces by their project_id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
     let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
     for trace in traces {

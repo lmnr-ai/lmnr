@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult};
 use crate::batch_worker::{config::BatchingConfig, message_handler::MessageDelivery};
 use crate::mq::MessageQueue;
-use crate::signals::queue::{
+use crate::signals::private::queue::{
     SignalJobSubmissionBatchMessage, SignalMessage, push_to_submissions_queue,
 };
 use crate::worker::HandlerError;

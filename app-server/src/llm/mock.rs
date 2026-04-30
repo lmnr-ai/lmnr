@@ -13,6 +13,8 @@
 //!
 //! For programmatic control in tests, use [`MockProviderClient::with_generate_failure`] to
 //! configure `generate_content` to fail a specified number of times before succeeding.
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -20,7 +22,7 @@ use dashmap::DashMap;
 use uuid::Uuid;
 
 use super::models::ProviderRequest;
-use crate::signals::provider::{
+use crate::llm::{
     LanguageModelClient, ProviderBatchOperation, ProviderBatchOutput, ProviderBatchState,
     ProviderCandidate, ProviderContent, ProviderError, ProviderFinishReason, ProviderFunctionCall,
     ProviderInlineResponse, ProviderPart, ProviderRequestItem, ProviderResponse, ProviderResult,

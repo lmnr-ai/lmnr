@@ -9,14 +9,14 @@ use crate::cache::{Cache, CacheTrait};
 use crate::ch::spans::CHSpan;
 use crate::db::spans::SpanType;
 use crate::mq::MessageQueue;
-use crate::signals::prompts::{FILTER_GENERATION_SYSTEM_PROMPT, FILTER_GENERATION_USER_PROMPT};
-use crate::signals::provider::models::{
+use crate::signals::private::prompts::{FILTER_GENERATION_SYSTEM_PROMPT, FILTER_GENERATION_USER_PROMPT};
+use crate::llm::models::{
     ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig,
     ProviderPart, ProviderRequest, ProviderTool,
 };
-use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
-use crate::signals::spans::extract_exception_from_events;
-use crate::signals::utils::{
+use crate::llm::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
+use crate::signals::private::spans::extract_exception_from_events;
+use crate::signals::private::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
 };
 
@@ -177,7 +177,7 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
 }
 
 fn parse_drop_rules_from_response(
-    response: &crate::signals::provider::models::ProviderResponse,
+    response: &crate::llm::models::ProviderResponse,
 ) -> Vec<DropRule> {
     let mut rules = Vec::new();
     let parts = response
