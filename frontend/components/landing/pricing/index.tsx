@@ -23,13 +23,40 @@ export default function Pricing() {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that the pricing calculator does not take into account stored images and is an approximation of the total data usage.",
+        "Data usage is the total text and image bytes Laminar stores for you across traces, evaluations, and datasets. Billing applies to bytes beyond your tier's included allowance. You are never charged for your agent's own span volume, only for the data you send us to store. The pricing calculator approximates data from token counts (roughly 3 bytes per token) and does not account for stored images, so treat the estimate as a lower bound.",
     },
     {
-      id: "signal-run",
-      question: "What is an agent step in Signals?",
+      id: "signals-step",
+      question: "What is a Signals step?",
+      answer: (
+        <>
+          A Signals step is one LLM call inside a trace that a Signal reads when it evaluates that trace. Each Signal is
+          a plain-language prompt plus a structured output schema; when it runs on a trace, Laminar re-reads the
+          underlying LLM calls (steps) to produce a structured event. You pay for the steps processed by Signals, not
+          for the spans your agent emits. Read more in the{" "}
+          <a
+            href="https://laminar.sh/docs/signals/introduction"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-landing-text-100"
+          >
+            Signals docs
+          </a>
+          {"."}
+        </>
+      ),
+    },
+    {
+      id: "signals-step-consumption",
+      question: "When are Signals steps consumed?",
       answer:
-        "Laminar Signals analyze your agents. Depending on signal definition, Laminar analyzes different number of steps of your agent. A step represents a single LLM call in your agent.",
+        "Signals run in two modes. Triggers run a Signal automatically on new traces that match your filters, which is useful for live dashboards and alerts. Jobs run a Signal across a historical slice of traces, which is useful to backfill a new Signal or re-evaluate a changed prompt. Both modes consume Signals steps from your plan at the same rate. Trigger filters are AND-combined, so you can narrow down which traces a Signal reads and only spend steps on the traces you care about.",
+    },
+    {
+      id: "overage",
+      question: "What happens if I exceed my plan's included usage?",
+      answer:
+        "Paid tiers keep working past their included allowance and bill overage at the per-GB and per-Signals-step rates listed on each plan. The Free tier has no overage; once you hit its data or Signals-step cap, you'll need to upgrade to keep ingesting. Enterprise has custom limits and rates negotiated per contract.",
     },
   ];
 
@@ -45,7 +72,7 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-400"
             features={[
               "1 GB data",
-              "1,000 agent steps processing",
+              "1,000 Signals steps processing",
               "15 day retention",
               "1 project",
               "1 seat",
@@ -68,13 +95,13 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-400"
             features={[
               "3 GB data included",
-              "5,000 agent steps processing included",
+              "5,000 Signals steps processing included",
               "30 day retention",
               "Unlimited projects",
               "Unlimited seats",
               "Email support",
             ]}
-            subfeatures={["then $2 / GB", "then $0.0075 / agent step", null, null, null, null]}
+            subfeatures={["then $2 / GB", "then $0.0075 / Signals step", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -92,13 +119,13 @@ export default function Pricing() {
             subfeatureClassName="text-landing-text-100"
             features={[
               "10 GB data included",
-              "50,000 agent steps processing included",
+              "50,000 Signals steps processing included",
               "90 day retention",
               "Unlimited projects",
               "Unlimited seats",
               "Slack support",
             ]}
-            subfeatures={["then $1.50 / GB", "then $0.005 / agent step", null, null, null, null]}
+            subfeatures={["then $1.50 / GB", "then $0.005 / Signals step", null, null, null, null]}
           />
           <Link href="/projects" className="w-full z-20">
             <LandingButton
