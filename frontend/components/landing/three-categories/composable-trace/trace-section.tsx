@@ -25,7 +25,7 @@ interface Props {
 const RADIUS = 8;
 
 const TraceSection = ({ label, progress, fromX = 0, fromY = 0, keepCorners = {}, className, children }: Props) => {
-  const labelOpacity = useTransform(progress, [0, 1], [1, 0]);
+  const coverOpacity = useTransform(progress, [0, 1], [1, 0]);
   const x = useTransform(progress, [0, 1], [fromX, 0]);
   const y = useTransform(progress, [0, 1], [fromY, 0]);
 
@@ -56,12 +56,8 @@ const TraceSection = ({ label, progress, fromX = 0, fromY = 0, keepCorners = {},
     >
       <div className="relative w-full h-full overflow-hidden isolate">{children}</div>
       <motion.div
-        className="w-full z-10 bg-gradient-to-b from-25% from-landing-surface-700 to-transparent h-[200px] absolute top-0 left-0 pointer-events-none"
-        style={{ opacity: labelOpacity }}
-      />
-      <motion.div
-        style={{ opacity: labelOpacity }}
-        className="absolute inset-0 flex items-start px-5 py-4 bg-landing-surface-700/50 z-10 pointer-events-none"
+        style={{ opacity: coverOpacity }}
+        className="absolute inset-0 flex items-start px-5 py-4 bg-landing-surface-700/90 backdrop-blur-md z-10 pointer-events-none"
       >
         <p className="font-space-grotesk text-xl text-landing-text-200 leading-8">{label}</p>
       </motion.div>

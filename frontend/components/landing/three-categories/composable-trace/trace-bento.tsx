@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type MotionValue, useTransform } from "framer-motion";
+import { type MotionValue, useTransform } from "framer-motion";
 import { CirclePlay } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
@@ -74,20 +74,20 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
 
   const llmSpanIds = useMemo(() => spans.filter((s) => s.spanType === SpanType.LLM).map((s) => s.spanId), [spans]);
 
-  const outerOpacity = useTransform(progress, [0, 1], [0, 1]);
-  const outlineColor = useTransform(outerOpacity, (v) => `rgba(37, 37, 38, ${v})`);
+  // Each section reveals one at a time as the parent scroll progresses 0 → 1.
+  const timelineProgress = useTransform(progress, [0.0, 0.18], [0, 1]);
+  const transcriptProgress = useTransform(progress, [0.25, 0.43], [0, 1]);
+  const spanProgress = useTransform(progress, [0.5, 0.68], [0, 1]);
+  const aiProgress = useTransform(progress, [0.75, 0.93], [0, 1]);
 
   return (
     <div className="relative w-full h-[765px] p-4">
-      <motion.div
-        style={{ opacity: outerOpacity }}
-        className="absolute inset-0 rounded-lg bg-landing-surface-600 border border-landing-surface-500 pointer-events-none"
-      />
-      <motion.div style={{ outlineColor }} className="flex w-full h-full relative z-10 outline rounded-lg">
+      <div className="absolute inset-0 rounded-lg bg-landing-surface-600 border border-landing-surface-500 pointer-events-none" />
+      <div className="flex w-full h-full relative z-10 rounded-lg">
         <div className="flex flex-col w-[420px] shrink-0 h-full">
           <TraceSection
             label="Timeline"
-            progress={progress}
+            progress={timelineProgress}
             fromX={-12}
             fromY={-6}
             keepCorners={{ tl: true }}
@@ -103,7 +103,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
 
           <TraceSection
             label="Transcript"
-            progress={progress}
+            progress={transcriptProgress}
             fromX={-12}
             fromY={6}
             keepCorners={{ bl: true }}
@@ -150,7 +150,13 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </TraceSection>
         </div>
 
-        <TraceSection label="Selected span" progress={progress} fromX={0} fromY={-6} className="flex-1 min-w-0 h-full">
+        <TraceSection
+          label="Selected span"
+          progress={spanProgress}
+          fromX={0}
+          fromY={-6}
+          className="flex-1 min-w-0 h-full"
+        >
           <div className="w-full h-full bg-background overflow-hidden">
             {selectedSpan && trace ? (
               <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
@@ -164,7 +170,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
 
         <TraceSection
           label="Ask AI"
-          progress={progress}
+          progress={aiProgress}
           fromX={12}
           fromY={-6}
           keepCorners={{ tr: true, br: true }}
@@ -174,7 +180,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
             <AskAi />
           </div>
         </TraceSection>
-      </motion.div>
+      </div>
     </div>
   );
 };
