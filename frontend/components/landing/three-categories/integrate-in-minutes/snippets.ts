@@ -228,7 +228,7 @@ console.log(result.text);`,
     name: "OpenAI Agents SDK",
     logoSrc: openaiAgents,
     alt: "OpenAI Agents SDK",
-    highlightedLines: [3, 5],
+    highlightedLines: [3, 5, 7],
     screenshot: "/assets/landing/snippet-screenshots/openai-agents-sdk.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/openai-agents-sdk",
     python: `import asyncio
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     name: "Pydantic AI",
     logoSrc: pydanticAi,
     alt: "Pydantic AI",
-    highlightedLines: [3, 5],
+    highlightedLines: [3, 5, 12],
     screenshot: "/assets/landing/snippet-screenshots/pydantic-ai.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/pydantic-ai",
     python: `import asyncio
