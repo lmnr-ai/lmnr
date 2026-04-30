@@ -5,14 +5,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import { EvalStoreProvider, useEvalStore } from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -30,9 +30,10 @@ import { swrFetcher } from "@/lib/utils";
 interface SharedEvaluationProps {
   evaluationId: string;
   evaluationName: string;
+  initialScoreNames: string[];
 }
 
-function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluationProps) {
+function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEvaluationProps, "initialScoreNames">) {
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const pathName = usePathname();
@@ -42,7 +43,14 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  // Store — seeded with `initialScoreNames` and `isShared: true` at
+  // provider creation, so `columnDefs` is correct on the first render.
+  const columnDefs = useEvalStore((s) => s.columnDefs);
+  const scoreNames = useEvalStore((s) => s.scoreNames);
+  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
+  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
+
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
@@ -50,41 +58,18 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const pageSize = 50;
 
-  // Store actions
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
-  const setIsComparison = useEvalStore((s) => s.setIsComparison);
-  const setIsShared = useEvalStore((s) => s.setIsShared);
-
-  // Shared evals never have comparison mode — reset in case it persists from a previous page.
-  useEffect(() => {
-    setIsComparison(false);
-    setIsShared(true);
-  }, [setIsComparison, setIsShared]);
-
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
     allStatistics: Record<string, EvaluationScoreStatistics>;
     allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-    scores: string[];
   }>(statsUrl, swrFetcher);
-
-  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
-
-  // Rebuild column defs when scores change.
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
@@ -150,12 +135,11 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     [pathName, searchParams]
   );
 
-  const [prevScores, setPrevScores] = useState<string[]>([]);
-  if (scores !== prevScores) {
-    setPrevScores(scores);
-    if (scores.length > 0 && (!selectedScore || !scores.includes(selectedScore))) {
-      setSelectedScore(scores[0]);
-    }
+  // Shared evals don't get realtime updates, so `scoreNames` never grows;
+  // but if the seed list was empty (eval has no scored datapoints yet) and
+  // somehow becomes non-empty later, fall through to picking the first.
+  if (!selectedScore && scoreNames.length > 0) {
+    setSelectedScore(scoreNames[0]);
   }
 
   const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth();
@@ -194,7 +178,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
             <>
               <div className="flex-none w-72">
                 <ScoreCard
-                  scores={scores}
+                  scores={scoreNames}
                   selectedScore={selectedScore}
                   setSelectedScore={setSelectedScore}
                   statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
@@ -215,7 +199,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           isLoading={isStatsLoading || isLoadingDatapoints}
           datapointId={datapointId}
           data={allDatapoints}
-          scores={scores}
+          scores={scoreNames}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
           hasMore={hasMorePages}
@@ -246,8 +230,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
 export default function SharedEvaluation(props: SharedEvaluationProps) {
   return (
-    <DataTableStateProvider storageKey="shared-evaluation-datapoints">
-      <SharedEvaluationContent {...props} />
-    </DataTableStateProvider>
+    <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames} isShared>
+      <DataTableStateProvider storageKey="shared-evaluation-datapoints">
+        <SharedEvaluationContent evaluationId={props.evaluationId} evaluationName={props.evaluationName} />
+      </DataTableStateProvider>
+    </EvalStoreProvider>
   );
 }

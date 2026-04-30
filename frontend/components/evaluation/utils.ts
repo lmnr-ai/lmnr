@@ -51,12 +51,14 @@ export const flattenScores = (scores: unknown): Record<string, number> => {
 
 /**
  * Server-computed stats payload returned by `/api/.../evaluations/[id]/stats`.
+ * Score names are NOT returned here — they live in the eval store
+ * (`useEvalStore.scoreNames`), seeded from the server-side
+ * `getEvaluationScoreNames` and updated by realtime events.
  */
 export type EvaluationStatsPayload = {
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-  scores: string[];
 };
 
 const sumBucketHeights = (buckets: EvaluationScoreDistributionBucket[]): number =>
@@ -115,6 +117,10 @@ export const hasOutOfRangeScore = (
  * into edge buckets and self-heal on the next full refetch (mount / SWR
  * revalidation). Used as an SWR `mutate` updater so the cache stays the single
  * source of truth.
+ *
+ * Adding new score *names* is the eval store's responsibility (via
+ * `addScoreName`), not this function's — keeping name-tracking separate from
+ * stats math.
  */
 export const applyScoresToStats = (
   current: EvaluationStatsPayload | undefined,
@@ -127,7 +133,6 @@ export const applyScoresToStats = (
 
   const allStatistics = { ...current.allStatistics };
   const allDistributions = { ...current.allDistributions };
-  const newNames: string[] = [];
 
   for (const [key, value] of entries) {
     const name = key.slice("score:".length);
@@ -141,7 +146,6 @@ export const applyScoresToStats = (
     if (!existingBuckets || sumBucketHeights(existingBuckets) === 0) {
       allDistributions[name] = calculateScoreDistribution([{ scores: { [name]: value } }], name);
       allStatistics[name] = { averageValue: value };
-      if (!current.scores.includes(name)) newNames.push(name);
       continue;
     }
 
@@ -165,9 +169,7 @@ export const applyScoresToStats = (
     }
   }
 
-  const scores = newNames.length > 0 ? [...current.scores, ...newNames] : current.scores;
-
-  return { ...current, scores, allStatistics, allDistributions };
+  return { ...current, allStatistics, allDistributions };
 };
 
 export const extractFlattenedScores = (row: EvalRow | undefined): Record<string, number> => {

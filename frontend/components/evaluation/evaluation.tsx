@@ -10,7 +10,7 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import { EvalStoreProvider, useEvalStore } from "@/components/evaluation/store";
 import {
   applyScoresToStats,
   type EvaluationStatsPayload,
@@ -35,9 +35,12 @@ interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
   evaluationName: string;
+  initialScoreNames: string[];
 }
 
-function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
+const pageSize = 50;
+
+function EvaluationContent({ evaluations, evaluationId, evaluationName, initialScoreNames }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -49,31 +52,25 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => initialScoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
   );
 
-  // Pagination state
-  const pageSize = 50;
-
-  // Store
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+  const addScoreName = useEvalStore((s) => s.addScoreName);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
-  const setIsShared = useEvalStore((s) => s.setIsShared);
   const columnDefs = useEvalStore((s) => s.columnDefs);
+  const scoreNames = useEvalStore((s) => s.scoreNames);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
 
-  // Statistics URL (fetches all stats at once)
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const {
     data: statsData,
@@ -90,32 +87,16 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
     revalidateOnFocus: false,
   });
 
-  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
-
   // Sync comparison state from URL
   useEffect(() => {
     setIsComparison(!!targetId);
   }, [targetId, setIsComparison]);
-
-  // Reset shared state — authenticated evals are not shared.
-  useEffect(() => {
-    setIsShared(false);
-  }, [setIsShared]);
-
-  const customColumns = useEvalStore((s) => s.customColumns);
-
-  // Rebuild column defs when scores or custom columns change.
-  // This must run before useInfiniteScroll's effect (declaration order).
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, customColumns, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
@@ -208,12 +189,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     setTraceId(id);
   };
 
-  const [prevScores, setPrevScores] = useState<string[]>([]);
-  if (scores !== prevScores) {
-    setPrevScores(scores);
-    if (scores.length > 0 && (!selectedScore || !scores.includes(selectedScore))) {
-      setSelectedScore(scores[0]);
-    }
+  if (!selectedScore && scoreNames.length > 0) {
+    setSelectedScore(scoreNames[0]);
   }
 
   // Realtime merge by datapoint id. `targetId` (comparison view) disables
@@ -228,6 +205,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         return mergeDatapointUpsertIntoRows(rows, incoming, flattened);
       });
       if (Object.keys(flattened).length === 0) return;
+
+      Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
 
       let needsRevalidate = false;
       mutateStats(
@@ -244,7 +223,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         mutateStats();
       }
     },
-    [updateData, targetId, mutateStats]
+    [updateData, targetId, mutateStats, addScoreName]
   );
 
   // Realtime merge of trace stats (cost/duration/status/tokens) onto the row
@@ -308,7 +287,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
               <>
                 <div className="flex-none w-72">
                   <ScoreCard
-                    scores={scores}
+                    scores={scoreNames}
                     selectedScore={selectedScore}
                     setSelectedScore={setSelectedScore}
                     statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
@@ -342,7 +321,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
             isLoading={isStatsLoading || isLoadingDatapoints}
             datapointId={datapointId}
             data={allDatapoints}
-            scores={scores}
+            scores={scoreNames}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
             hasMore={hasMorePages}
@@ -392,8 +371,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 
 export default function Evaluation(props: EvaluationProps) {
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
-      <EvaluationContent {...props} />
-    </DataTableStateProvider>
+    <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames}>
+      <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
+        <EvaluationContent {...props} />
+      </DataTableStateProvider>
+    </EvalStoreProvider>
   );
 }
