@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -24,7 +24,6 @@ export default function ManageSignalPanel({
   scrollAreaClassName,
 }: Props) {
   const { projectId } = useParams();
-  const [showTest, setShowTest] = useState(false);
   const featureFlags = useFeatureFlags();
   const defaultMode = featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1;
 
@@ -63,8 +62,6 @@ export default function ManageSignalPanel({
     <FormProvider {...form}>
       <ManageSignalContent
         variant="panel"
-        showTest={showTest}
-        setShowTest={setShowTest}
         className={className}
         onSuccess={onSuccess}
         onSubmitComplete={onSubmitComplete}

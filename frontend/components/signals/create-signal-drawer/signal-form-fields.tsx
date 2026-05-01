@@ -1,11 +1,12 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import templates from "@/components/signals/prompts";
 import { getDefaultSchemaFields, jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,15 +16,24 @@ import { cn, tryParseJson } from "@/lib/utils";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
+import TestSection from "./test-section";
 import TriggersSection from "./triggers-section";
 import { type ManageSignalForm } from "./types";
 
-export default function SignalFormFields({ showTemplates, className }: { showTemplates: boolean; className?: string }) {
+export default function SignalFormFields({
+  showTemplates,
+  isLoading,
+  className,
+}: {
+  showTemplates: boolean;
+  isLoading: boolean;
+  className?: string;
+}) {
   const {
     control,
     setValue,
     getValues,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useFormContext<ManageSignalForm>();
 
   const applyTemplate = useCallback(
@@ -45,7 +55,15 @@ export default function SignalFormFields({ showTemplates, className }: { showTem
   }, [setValue]);
 
   return (
-    <div className={cn("grid gap-8 py-4", className)}>
+    <div
+      className={cn(
+        "grid gap-8 py-4",
+        {
+          "pb-16": !showTemplates,
+        },
+        className
+      )}
+    >
       <div className="grid gap-1.5">
         <Label htmlFor="name" className="text-sm font-medium">
           Name
@@ -109,6 +127,13 @@ export default function SignalFormFields({ showTemplates, className }: { showTem
       <TriggersSection />
 
       <SamplingSection />
+
+      <TestSection />
+
+      <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid}>
+        <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
+        {showTemplates ? "Save" : "Create"}
+      </Button>
     </div>
   );
 }
