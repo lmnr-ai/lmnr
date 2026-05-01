@@ -9,7 +9,7 @@ import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize"
 
 import { type TraceViewPanels } from "./trace-view-content";
 
-const enterExitTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
+const enterExitTransition = { duration: 0.25, ease: "easeOut" } as const;
 const instantTransition = { duration: 0 } as const;
 
 interface DynamicWidthLayoutProps {
@@ -67,17 +67,16 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
   return (
     <div ref={containerRef} className="h-full w-full overflow-hidden">
       <div className="flex flex-row h-full">
-        {/* Trace Panel — always visible */}
+        {/* Trace has no inner-abs wrapper because it never animates from 0 — content reflows
+            with the flex item. Span/chat keep the inner-abs pinned-at-target slide-in pattern. */}
         <motion.div
-          className="relative flex h-full flex-shrink-0 overflow-hidden"
+          className="relative flex h-full flex-shrink-0"
           initial={false}
           animate={{ width: widths.trace }}
           transition={transition}
         >
-          <div className="absolute inset-y-0 left-0 flex" style={{ width: widths.trace }}>
-            <LeftEdgeResizeHandle onMouseDown={traceResize.handleMouseDown} />
-            {panels.tracePanel}
-          </div>
+          <LeftEdgeResizeHandle onMouseDown={traceResize.handleMouseDown} />
+          {panels.tracePanel}
         </motion.div>
 
         <AnimatePresence initial={false}>
