@@ -281,7 +281,7 @@ if __name__ == "__main__":
     name: "OpenCode SDK",
     logoSrc: opencodeSdk,
     alt: "OpenCode SDK",
-    highlightedLines: [1, 3, 4, 5, 6, 7, 24],
+    highlightedLines: [1, 3, 4, 5, 6, 7, 23],
     screenshot: "/assets/landing/snippet-screenshots/opencode-sdk.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/opencode",
     typescript: `import * as opencode from "@opencode-ai/sdk";
@@ -298,15 +298,13 @@ const { client, server } = await opencode.createOpencode();
 try {
   const sessionRes = await client.session.create({ body: { title: "agent run" } });
 
-async () => {
-    await client.session.prompt({
-      path: { id: sessionRes.data.id },
-      body: {
-        model: { providerID: "anthropic", modelID: "claude-haiku-4-5" },
-        parts: [{ type: "text", text: "Create a Python factorial function and test it." }],
-      },
-    });
-  };
+  await client.session.prompt({
+    path: { id: sessionRes.data.id },
+    body: {
+      model: { providerID: "anthropic", modelID: "claude-haiku-4-5" },
+      parts: [{ type: "text", text: "Create a Python factorial function and test it." }],
+    },
+  });
 } finally {
   server.close();
   await Laminar.shutdown();
