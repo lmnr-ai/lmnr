@@ -7,7 +7,7 @@ import RoundedBar from "@/components/charts/time-series-chart/bar";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { calculateDisplayValue, createAxisFormatter } from "./utils";
 
 interface BarChartProps {
   data: Record<string, any>[];
@@ -24,11 +24,6 @@ interface BarChartProps {
 const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn, syncId, drag }: BarChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
-
-  const chartMargins = useMemo(() => {
-    const yValues = data.flatMap((row) => keys.map((key) => row[key])).filter((value) => value != null);
-    return getChartMargins(yValues, yAxisFormatter);
-  }, [data, keys, yAxisFormatter]);
 
   const { displayValue, totalMax } = useMemo(
     () => calculateDisplayValue(data, keys, displayMode),
@@ -59,7 +54,6 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsBarChart
           data={data}
-          margin={chartMargins}
           syncId={syncId}
           onMouseDown={drag?.onMouseDown}
           onMouseMove={drag?.onMouseMove}
@@ -78,10 +72,9 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
           <YAxis
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
             tickCount={5}
             domain={["auto", totalMax]}
-            width={32}
+            width="auto"
             tickFormatter={yAxisFormatter}
           />
           <ChartTooltip

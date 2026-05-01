@@ -42,7 +42,7 @@ export default function Chart({ className, scoreName, distribution, isLoading = 
               padding={{ left: 0, right: 0 }}
               tick={renderTick as any}
             />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} width="auto" />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
             <Bar key={scoreName} dataKey="height" fill="hsl(var(--chart-1))" radius={4} name={scoreName} />
           </BarChart>
