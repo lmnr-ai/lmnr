@@ -2,11 +2,10 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useStore } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
-import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
+import { selectVisibleColumnDefs, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +25,7 @@ import { type EvaluationDatapointsTableProps } from ".";
 const EvaluationDatapointsTableContent = ({
   data,
   scores,
+  columnDefs: columns,
   handleRowClick,
   getRowHref,
   datapointId,
@@ -43,8 +43,10 @@ const EvaluationDatapointsTableContent = ({
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
 
   // Store state
-  const columns = useEvalStore((s) => s.columnDefs);
+  const isComparison = useEvalStore((s) => s.isComparison);
+  const isShared = useEvalStore((s) => s.isShared);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
+  const scoreRanges = useEvalStore((s) => s.scoreRanges);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
   const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
@@ -119,8 +121,11 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  // Visible columns (hidden + output-in-comparison filtered out)
-  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
+  const visibleColumns = useMemo(() => selectVisibleColumnDefs(columns, isComparison), [columns, isComparison]);
+  const tableMeta = useMemo(
+    () => ({ evalCellMeta: { isComparison, isShared, heatmapEnabled, scoreRanges } }),
+    [isComparison, isShared, heatmapEnabled, scoreRanges]
+  );
 
   // Derive filter definitions from column defs in the store
   const columnFilters = useMemo(
@@ -145,6 +150,7 @@ const EvaluationDatapointsTableContent = ({
       <InfiniteDataTable
         columns={visibleColumns}
         data={data ?? []}
+        meta={tableMeta}
         hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
@@ -161,6 +167,7 @@ const EvaluationDatapointsTableContent = ({
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
           <EvalColumnsMenu
+            columnDefs={columns}
             columnLabels={visibleColumns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,

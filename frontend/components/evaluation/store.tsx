@@ -1,9 +1,10 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
@@ -41,7 +42,6 @@ export interface EvalStoreState {
   heatmapEnabled: boolean;
   isComparison: boolean;
   isShared: boolean;
-  columnDefs: ColumnDef<EvalRow>[];
   customColumns: CustomColumn[];
   /**
    * Single source of truth for the list of score names belonging to the
@@ -56,23 +56,26 @@ export interface EvalStoreState {
   setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
   setIsComparison: (value: boolean) => void;
-  /** Append a single score name if not present. Triggers a column rebuild. */
   addScoreName: (name: string) => void;
   addCustomColumn: (column: CustomColumn) => void;
   updateCustomColumn: (oldName: string, column: CustomColumn) => void;
   removeCustomColumn: (name: string) => void;
-  buildStatsParams: (raw: RawUrlParams) => URLSearchParams;
-  buildFetchParams: (raw: RawUrlParams & { pageNumber: number; pageSize: number }) => URLSearchParams;
 }
 
-export const selectVisibleColumns = (s: EvalStoreState): ColumnDef<EvalRow>[] =>
-  s.columnDefs.filter((c) => !c.meta?.hidden && !(s.isComparison && c.id === "output"));
+export const selectVisibleColumnDefs = (
+  columnDefs: ColumnDef<EvalRow>[],
+  isComparison: boolean
+): ColumnDef<EvalRow>[] => columnDefs.filter((c) => !c.meta?.hidden && !(isComparison && c.id === "output"));
 
-function buildColumnDefs({
+export function buildColumnDefs({
   scoreNames,
   customColumns,
   isShared,
-}: Pick<EvalStoreState, "scoreNames" | "customColumns" | "isShared">): ColumnDef<EvalRow>[] {
+}: {
+  scoreNames: string[];
+  customColumns: CustomColumn[];
+  isShared: boolean;
+}): ColumnDef<EvalRow>[] {
   const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
 
   // Don't include custom columns in shared evaluations to prevent
@@ -96,6 +99,86 @@ function buildColumnDefs({
   return [...STATIC_COLUMNS, ...scoreCols, ...customCols];
 }
 
+/**
+ * Pure URL-params builder for the stats endpoint. Takes columnDefs as input
+ * (derived in the component) so the helper has no dependency on store state.
+ */
+export function buildStatsParams(
+  raw: RawUrlParams,
+  columnDefs: ColumnDef<EvalRow>[],
+  scoreNames: string[]
+): URLSearchParams {
+  const urlParams = new URLSearchParams();
+  if (raw.search) urlParams.set("search", raw.search);
+  raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
+  raw.filter.forEach((f) => urlParams.append("filter", f));
+
+  // Only send columns referenced by active filters (optimization for URL length)
+  const parsedFilters = raw.filter
+    .map((f) => {
+      try {
+        return JSON.parse(f);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean) as { column: string }[];
+  if (parsedFilters.length > 0) {
+    const filterIds = new Set(parsedFilters.map((f) => f.column));
+    const filterColPayload: EvalQueryColumn[] = [];
+    filterIds.forEach((id) => {
+      if (id.startsWith("score:")) {
+        const name = id.slice("score:".length);
+        if (!scoreNames.includes(name)) return;
+        filterColPayload.push({
+          id,
+          sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
+          comparable: true,
+          dbType: "Float64",
+        });
+        return;
+      }
+      const col = columnDefs.find((c) => c.id === id);
+      if (col?.meta?.sql) {
+        filterColPayload.push({
+          id: col.id!,
+          sql: col.meta.sql,
+          comparable: col.meta.comparable ?? false,
+          ...(col.meta.filterSql && { filterSql: col.meta.filterSql }),
+          ...(col.meta.dbType && { dbType: col.meta.dbType }),
+        });
+      }
+    });
+    urlParams.set("columns", JSON.stringify(filterColPayload));
+  }
+
+  return urlParams;
+}
+
+export function buildFetchParams(
+  raw: RawUrlParams & { pageNumber: number; pageSize: number },
+  columnDefs: ColumnDef<EvalRow>[]
+): URLSearchParams {
+  const urlParams = new URLSearchParams();
+  urlParams.set("pageNumber", raw.pageNumber.toString());
+  urlParams.set("pageSize", raw.pageSize.toString());
+  if (raw.search) urlParams.set("search", raw.search);
+  raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
+  raw.filter.forEach((f) => urlParams.append("filter", f));
+
+  urlParams.set("columns", JSON.stringify(toColumnsPayload(columnDefs)));
+
+  if (raw.sortBy) {
+    urlParams.set("sortBy", raw.sortBy);
+    const col = columnDefs.find((c) => c.id === raw.sortBy);
+    if (col?.meta?.sql) urlParams.set("sortSql", col.meta.sql);
+  }
+  if (raw.sortDirection) urlParams.set("sortDirection", raw.sortDirection);
+  if (raw.targetId) urlParams.set("targetId", raw.targetId);
+
+  return urlParams;
+}
+
 export interface EvalStoreInit {
   initialScoreNames: string[];
   /** True for shared (public) evaluations. */
@@ -107,147 +190,46 @@ type EvalStoreApi = StoreApi<EvalStoreState>;
 function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit): EvalStoreApi {
   return createStore<EvalStoreState>()(
     persist(
-      (set, get) => {
-        const customColumns: CustomColumn[] = [];
-        return {
-          scoreRanges: {},
-          heatmapEnabled: false,
-          isComparison: false,
-          isShared,
-          customColumns,
-          scoreNames: initialScoreNames,
-          columnDefs: buildColumnDefs({
-            scoreNames: initialScoreNames,
-            customColumns,
-            isShared,
-          }),
+      (set, get) => ({
+        scoreRanges: {},
+        heatmapEnabled: false,
+        isComparison: false,
+        isShared,
+        customColumns: [],
+        scoreNames: initialScoreNames,
 
-          setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
-          setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
-          setIsComparison: (value) => set({ isComparison: value }),
+        setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
+        setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
+        setIsComparison: (value) => set({ isComparison: value }),
 
-          addScoreName: (name) => {
-            const { scoreNames } = get();
-            if (scoreNames.includes(name)) return;
-            const next = [...scoreNames, name];
-            set({
-              scoreNames: next,
-              columnDefs: buildColumnDefs({ ...get(), scoreNames: next }),
-            });
-          },
+        addScoreName: (name) => {
+          const { scoreNames } = get();
+          if (scoreNames.includes(name)) return;
+          set({ scoreNames: [...scoreNames, name] });
+        },
 
-          addCustomColumn: (column) => {
-            const { customColumns } = get();
-            if (customColumns.some((cc) => cc.name === column.name)) return;
-            const next = [...customColumns, column];
-            set({
-              customColumns: next,
-              columnDefs: buildColumnDefs({ ...get(), customColumns: next }),
-            });
-          },
+        addCustomColumn: (column) => {
+          const { customColumns } = get();
+          if (customColumns.some((cc) => cc.name === column.name)) return;
+          set({ customColumns: [...customColumns, column] });
+        },
 
-          updateCustomColumn: (oldName, column) => {
-            const next = get().customColumns.map((cc) => (cc.name === oldName ? column : cc));
-            set({
-              customColumns: next,
-              columnDefs: buildColumnDefs({ ...get(), customColumns: next }),
-            });
-          },
+        updateCustomColumn: (oldName, column) => {
+          set({
+            customColumns: get().customColumns.map((cc) => (cc.name === oldName ? column : cc)),
+          });
+        },
 
-          removeCustomColumn: (name) => {
-            const next = get().customColumns.filter((cc) => cc.name !== name);
-            set({
-              customColumns: next,
-              columnDefs: buildColumnDefs({ ...get(), customColumns: next }),
-            });
-          },
-
-          buildStatsParams: (raw) => {
-            const { columnDefs, scoreNames } = get();
-            const urlParams = new URLSearchParams();
-            if (raw.search) urlParams.set("search", raw.search);
-            raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
-            raw.filter.forEach((f) => urlParams.append("filter", f));
-
-            // Only send columns referenced by active filters (optimization for URL length)
-            const parsedFilters = raw.filter
-              .map((f) => {
-                try {
-                  return JSON.parse(f);
-                } catch {
-                  return null;
-                }
-              })
-              .filter(Boolean) as { column: string }[];
-            if (parsedFilters.length > 0) {
-              const filterIds = new Set(parsedFilters.map((f) => f.column));
-              const filterColPayload: EvalQueryColumn[] = [];
-              filterIds.forEach((id) => {
-                if (id.startsWith("score:")) {
-                  const name = id.slice("score:".length);
-                  if (!scoreNames.includes(name)) return;
-                  filterColPayload.push({
-                    id,
-                    sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
-                    comparable: true,
-                    dbType: "Float64",
-                  });
-                  return;
-                }
-                const col = columnDefs.find((c) => c.id === id);
-                if (col?.meta?.sql) {
-                  filterColPayload.push({
-                    id: col.id!,
-                    sql: col.meta.sql,
-                    comparable: col.meta.comparable ?? false,
-                    ...(col.meta.filterSql && { filterSql: col.meta.filterSql }),
-                    ...(col.meta.dbType && { dbType: col.meta.dbType }),
-                  });
-                }
-              });
-              urlParams.set("columns", JSON.stringify(filterColPayload));
-            }
-
-            return urlParams;
-          },
-
-          buildFetchParams: (raw) => {
-            const { columnDefs } = get();
-            const urlParams = new URLSearchParams();
-            urlParams.set("pageNumber", raw.pageNumber.toString());
-            urlParams.set("pageSize", raw.pageSize.toString());
-            if (raw.search) urlParams.set("search", raw.search);
-            raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
-            raw.filter.forEach((f) => urlParams.append("filter", f));
-
-            urlParams.set("columns", JSON.stringify(toColumnsPayload(columnDefs)));
-
-            // Sort — resolve SQL from column meta
-            if (raw.sortBy) {
-              urlParams.set("sortBy", raw.sortBy);
-              const col = columnDefs.find((c) => c.id === raw.sortBy);
-              if (col?.meta?.sql) urlParams.set("sortSql", col.meta.sql);
-            }
-            if (raw.sortDirection) urlParams.set("sortDirection", raw.sortDirection);
-            if (raw.targetId) urlParams.set("targetId", raw.targetId);
-
-            return urlParams;
-          },
-        };
-      },
+        removeCustomColumn: (name) => {
+          set({ customColumns: get().customColumns.filter((cc) => cc.name !== name) });
+        },
+      }),
       {
         name: "evaluation-store",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
           customColumns: state.customColumns,
         }),
-        merge: (persisted, current) => {
-          const merged = { ...current, ...(persisted as Partial<EvalStoreState>) };
-          return {
-            ...merged,
-            columnDefs: buildColumnDefs(merged),
-          };
-        },
       }
     )
   );
@@ -255,11 +237,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
 
 const EvalStoreContext = createContext<EvalStoreApi | null>(null);
 
-interface EvalStoreProviderProps extends EvalStoreInit {
-  children: ReactNode;
-}
-
-export function EvalStoreProvider({ children, initialScoreNames, isShared }: EvalStoreProviderProps) {
+export function EvalStoreProvider({ children, initialScoreNames, isShared }: PropsWithChildren<EvalStoreInit>) {
   const [store] = useState(() => createEvalStore({ initialScoreNames, isShared }));
   return <EvalStoreContext.Provider value={store}>{children}</EvalStoreContext.Provider>;
 }
@@ -269,13 +247,5 @@ export function useEvalStore<T>(selector: (state: EvalStoreState) => T): T {
   if (!store) {
     throw new Error("useEvalStore must be used within EvalStoreProvider");
   }
-  return useStoreWithEqualityFn(store, selector);
-}
-
-export function useEvalStoreApi(): EvalStoreApi {
-  const store = useContext(EvalStoreContext);
-  if (!store) {
-    throw new Error("useEvalStoreApi must be used within EvalStoreProvider");
-  }
-  return store;
+  return useStoreWithEqualityFn(store, selector, shallow);
 }

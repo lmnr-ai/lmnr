@@ -11,7 +11,13 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import { EvalStoreProvider, useEvalStore } from "@/components/evaluation/store";
+import {
+  buildColumnDefs,
+  buildFetchParams,
+  buildStatsParams,
+  EvalStoreProvider,
+  useEvalStore,
+} from "@/components/evaluation/store";
 import {
   type EvaluationStatsPayload,
   flattenScores,
@@ -58,17 +64,21 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 
   const addScoreName = useEvalStore((s) => s.addScoreName);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
   const scoreNames = useEvalStore((s) => s.scoreNames);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
+  const customColumns = useEvalStore((s) => s.customColumns);
+  const isShared = useEvalStore((s) => s.isShared);
+
+  const columnDefs = useMemo(
+    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
+    [scoreNames, customColumns, isShared]
+  );
 
   const statsUrl = useMemo(() => {
-    const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [params.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const {
     data: statsData,
@@ -81,11 +91,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
   // Target statistics URL (if comparing)
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
-    const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const base = `/api/projects/${params.projectId}/evaluations/${targetId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
     revalidateOnFocus: false,
@@ -112,18 +122,21 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
   // Fetch function for datapoints — single query handles comparison via targetId
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
-        search,
-        searchIn,
-        filter,
-        sortBy,
-        sortDirection,
-        targetId,
-        pageNumber,
-        pageSize,
-      });
+      const urlParams = buildFetchParams(
+        {
+          search,
+          searchIn,
+          filter,
+          sortBy,
+          sortDirection,
+          targetId,
+          pageNumber,
+          pageSize,
+        },
+        columnDefs
+      );
 
-      const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
+      const url = `/api/projects/${params.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch datapoints.");
@@ -132,18 +145,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 
       return { items: data.results, count: 0 };
     },
-    [
-      search,
-      searchIn,
-      filter,
-      params.projectId,
-      evaluationId,
-      pageSize,
-      sortBy,
-      sortDirection,
-      targetId,
-      buildFetchParams,
-    ]
+    [search, searchIn, filter, params.projectId, evaluationId, sortBy, sortDirection, targetId, columnDefs]
   );
 
   // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
@@ -306,6 +308,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
             datapointId={datapointId}
             data={allDatapoints}
             scores={scoreNames}
+            columnDefs={columnDefs}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
             hasMore={hasMorePages}

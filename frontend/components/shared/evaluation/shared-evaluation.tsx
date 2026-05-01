@@ -12,7 +12,13 @@ import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import { EvalStoreProvider, useEvalStore } from "@/components/evaluation/store";
+import {
+  buildColumnDefs,
+  buildFetchParams,
+  buildStatsParams,
+  EvalStoreProvider,
+  useEvalStore,
+} from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -44,11 +50,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
   const sortDirection = searchParams.get("sortDirection");
 
   // Store — seeded with `initialScoreNames` and `isShared: true` at
-  // provider creation, so `columnDefs` is correct on the first render.
-  const columnDefs = useEvalStore((s) => s.columnDefs);
+  // provider creation. `columnDefs` is derived in-render via useMemo.
   const scoreNames = useEvalStore((s) => s.scoreNames);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
+  const customColumns = useEvalStore((s) => s.customColumns);
+  const isShared = useEvalStore((s) => s.isShared);
+
+  const columnDefs = useMemo(
+    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
+    [scoreNames, customColumns, isShared]
+  );
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
@@ -60,10 +70,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -86,15 +96,18 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
-        search,
-        searchIn,
-        filter,
-        sortBy,
-        sortDirection,
-        pageNumber,
-        pageSize,
-      });
+      const urlParams = buildFetchParams(
+        {
+          search,
+          searchIn,
+          filter,
+          sortBy,
+          sortDirection,
+          pageNumber,
+          pageSize,
+        },
+        columnDefs
+      );
 
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
@@ -105,7 +118,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams]
+    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, columnDefs]
   );
 
   const {
@@ -200,6 +213,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
           datapointId={datapointId}
           data={allDatapoints}
           scores={scoreNames}
+          columnDefs={columnDefs}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
           hasMore={hasMorePages}
