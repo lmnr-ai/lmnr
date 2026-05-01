@@ -32,7 +32,7 @@ export default function SignalFormFields({
     control,
     setValue,
     getValues,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
   } = useFormContext<ManageSignalForm>();
 
   const applyTemplate = useCallback(
@@ -125,7 +125,7 @@ export default function SignalFormFields({
       {/*<TestSection />*/}
 
       {!showTemplates && (
-        <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid}>
+        <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
           <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
           Save
         </Button>
