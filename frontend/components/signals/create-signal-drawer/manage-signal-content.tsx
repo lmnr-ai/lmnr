@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -14,21 +14,6 @@ import { cn } from "@/lib/utils";
 import SignalFormFields from "./signal-form-fields";
 import { type ManageSignalForm } from "./types";
 import useSubmitHandler from "./use-submit-handler";
-
-function SubmitButton({ isLoading }: { isLoading: boolean }) {
-  const {
-    watch,
-    formState: { isValid },
-  } = useFormContext<ManageSignalForm>();
-  const id = watch("id");
-
-  return (
-    <Button type="submit" size="md" disabled={isLoading || !isValid}>
-      <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-      {id ? "Save" : "Create"}
-    </Button>
-  );
-}
 
 export type ManageSignalContentVariant = "sheet" | "panel";
 
