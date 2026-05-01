@@ -69,7 +69,7 @@ export default async function SharedTracePage(props: {
 
   const [spans, session] = await Promise.all([
     getSharedSpans({ traceId }).catch(() => []),
-    getServerSession(authOptions),
+    getServerSession(authOptions).catch(() => null),
   ]);
 
   return (
