@@ -20,8 +20,6 @@ export const PANELS: Readonly<Record<ResizablePanel, { min: number; default: num
   chat: { min: 375, default: 385 },
 };
 
-const ORDER: readonly ResizablePanel[] = ["trace", "span", "chat"];
-
 export const DEFAULT_TARGETS: Targets = {
   trace: PANELS.trace.default,
   span: PANELS.span.default,
@@ -111,7 +109,10 @@ export function computeLayout(targets: Targets, visible: Visible, maxWidth: numb
  * - delta < 0 (shrink): clamp target to its min; propagate any leftover shrink RIGHTWARD,
  *   each panel clamping at its min.
  *
- * Only visible panels participate; hidden panels' targets are unchanged.
+ * Operates on the *currently rendered* widths, not raw targets — otherwise after a fit
+ * (container resize / panel becoming visible) targets can exceed maxWidth and the drag
+ * delta desynchronises from cursor movement. Only visible panels participate; hidden
+ * panels' targets are unchanged.
  */
 export function applyDrag(
   targets: Targets,
@@ -124,10 +125,11 @@ export function applyDrag(
   const idx = order.indexOf(panel);
   if (idx === -1 || delta === 0) return targets;
 
-  const next: Record<ResizablePanel, number> = { ...targets };
+  const start = computeLayout(targets, visible, maxWidth);
+  const next: Record<ResizablePanel, number> = { ...start };
 
   if (delta > 0) {
-    next[panel] = targets[panel] + delta;
+    next[panel] = start[panel] + delta;
 
     if (Number.isFinite(maxWidth)) {
       const total = order.reduce((s, k) => s + next[k], 0);
