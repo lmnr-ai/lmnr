@@ -132,7 +132,7 @@ export default function SignalFormFields({
 
       <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid}>
         <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-        {showTemplates ? "Save" : "Create"}
+        {!showTemplates ? "Save" : "Create"}
       </Button>
     </div>
   );
