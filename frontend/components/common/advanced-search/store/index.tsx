@@ -500,6 +500,7 @@ export const AdvancedSearchStoreProvider = ({
   const [storeState] = useState(() =>
     createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions, storageKey, resource)
   );
+
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
 
@@ -559,18 +560,5 @@ export const useAdvancedSearchNavigation = () => {
       },
     }),
     [tags, tagFocusStates, tagHandlesRef, mainInputRef]
-  );
-};
-
-export const useAdvancedSearchFilters = () => {
-  const tags = useAdvancedSearchContext((state) => state.tags);
-  const inputValue = useAdvancedSearchContext((state) => state.inputValue);
-
-  return useMemo(
-    () => ({
-      filters: tags.map(createFilterFromTag),
-      search: inputValue.trim(),
-    }),
-    [tags, inputValue]
   );
 };

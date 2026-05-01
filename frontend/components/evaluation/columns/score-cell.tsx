@@ -1,6 +1,6 @@
+import { type CellContext } from "@tanstack/react-table";
 import { ArrowRight } from "lucide-react";
 
-import { useEvalStore } from "@/components/evaluation/store";
 import {
   calculatePercentageChange,
   createHeatmapStyle,
@@ -127,10 +127,8 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 // -- Main cell factory --
 
 export const createScoreColumnCell = (scoreName: string) => {
-  const ScoreColumnCell = ({ row }: { row: { original: EvalRow } }) => {
-    const isComparison = useEvalStore((s) => s.isComparison);
-    const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
-    const scoreRanges = useEvalStore((s) => s.scoreRanges);
+  const ScoreColumnCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
+    const { isComparison = false, heatmapEnabled = false, scoreRanges = {} } = table.options.meta?.evalCellMeta ?? {};
     const value = row.original[`score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
 
