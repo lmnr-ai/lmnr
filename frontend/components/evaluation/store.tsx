@@ -163,7 +163,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
           },
 
           buildStatsParams: (raw) => {
-            const { columnDefs } = get();
+            const { columnDefs, scoreNames } = get();
             const urlParams = new URLSearchParams();
             if (raw.search) urlParams.set("search", raw.search);
             raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
@@ -181,17 +181,14 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
               .filter(Boolean) as { column: string }[];
             if (parsedFilters.length > 0) {
               const filterIds = new Set(parsedFilters.map((f) => f.column));
-              // Score columns: synthesize SQL directly from the filter key.
-              // Doesn't depend on columnDefs being populated — also keeps
-              // `buildStatsParams` consumers free to skip `columnDefs` from
-              // their dep arrays.
               const filterColPayload: EvalQueryColumn[] = [];
               filterIds.forEach((id) => {
                 if (id.startsWith("score:")) {
                   const name = id.slice("score:".length);
+                  if (!scoreNames.includes(name)) return;
                   filterColPayload.push({
                     id,
-                    sql: `simpleJSONExtractFloat(scores, '${name.replace(/'/g, "\\'")}')`,
+                    sql: `simpleJSONExtractFloat(scores, '${name.replace(/[\\']/g, "\\$&")}')`,
                     comparable: true,
                     dbType: "Float64",
                   });
@@ -244,11 +241,12 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
           heatmapEnabled: state.heatmapEnabled,
           customColumns: state.customColumns,
         }),
-        // After hydration, refresh `columnDefs` so persisted `customColumns`
-        // are reflected in the rendered column set.
-        onRehydrateStorage: () => (state) => {
-          if (!state) return;
-          state.columnDefs = buildColumnDefs(state);
+        merge: (persisted, current) => {
+          const merged = { ...current, ...(persisted as Partial<EvalStoreState>) };
+          return {
+            ...merged,
+            columnDefs: buildColumnDefs(merged),
+          };
         },
       }
     )

@@ -1,6 +1,7 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
+import { debounce } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
@@ -12,11 +13,8 @@ import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import { EvalStoreProvider, useEvalStore } from "@/components/evaluation/store";
 import {
-  applyScoresToStats,
   type EvaluationStatsPayload,
-  extractFlattenedScores,
   flattenScores,
-  hasOutOfRangeScore,
   mergeDatapointUpsertIntoRows,
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
@@ -87,7 +85,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [params?.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
     revalidateOnFocus: false,
@@ -193,37 +191,23 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
     setSelectedScore(scoreNames[0]);
   }
 
-  // Realtime merge by datapoint id. `targetId` (comparison view) disables
+  const debouncedRevalidateStats = useMemo(
+    () => debounce(() => mutateStats(), 1000, { leading: false, trailing: true }),
+    [mutateStats]
+  );
+  useEffect(() => () => debouncedRevalidateStats.cancel(), [debouncedRevalidateStats]);
+
   const mergeDatapointUpsert = useCallback(
     (incoming: EvalRow & { id: string }) => {
       if (targetId) return;
       const flattened = flattenScores(incoming["scores"]);
-      let previous: Record<string, number> = {};
-      updateData((rows) => {
-        const existing = rows.find((r) => r["id"] === incoming.id);
-        previous = extractFlattenedScores(existing);
-        return mergeDatapointUpsertIntoRows(rows, incoming, flattened);
-      });
+      updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
       if (Object.keys(flattened).length === 0) return;
 
       Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
-
-      let needsRevalidate = false;
-      mutateStats(
-        (current) => {
-          if (hasOutOfRangeScore(current, flattened)) {
-            needsRevalidate = true;
-            return current;
-          }
-          return applyScoresToStats(current, flattened, previous);
-        },
-        { revalidate: false }
-      );
-      if (needsRevalidate) {
-        mutateStats();
-      }
+      debouncedRevalidateStats();
     },
-    [updateData, targetId, mutateStats, addScoreName]
+    [updateData, targetId, addScoreName, debouncedRevalidateStats]
   );
 
   // Realtime merge of trace stats (cost/duration/status/tokens) onto the row
