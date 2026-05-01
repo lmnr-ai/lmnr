@@ -137,9 +137,9 @@ conversation = Conversation(agent=agent, workspace=os.getcwd())
 conversation.send_message("Build a simple todo app")`,
   },
   langchain: {
-    name: "LangChain",
+    name: "LangChain Deep Agents",
     logoSrc: langchain,
-    alt: "LangChain",
+    alt: "LangChain Deep Agents",
     highlightedLines: [3, 5],
     screenshot: "/assets/landing/snippet-screenshots/lang-chain.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/deepagents",
