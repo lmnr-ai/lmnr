@@ -13,6 +13,7 @@ interface ClusterStackedChartProps {
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
+  showTooltip?: boolean;
 }
 
 export default function ClusterStackedChart({
@@ -20,6 +21,7 @@ export default function ClusterStackedChart({
   statsData,
   containerWidth,
   colorMap,
+  showTooltip,
 }: ClusterStackedChartProps) {
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
@@ -76,6 +78,7 @@ export default function ClusterStackedChart({
       fields={fields}
       containerWidth={containerWidth}
       showTotal={false}
+      showTooltip={showTooltip}
       className="!h-full"
     />
   );

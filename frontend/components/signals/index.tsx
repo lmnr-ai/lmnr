@@ -4,7 +4,7 @@ import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
+import CreateSignalDrawer from "@/components/signals/create-signal-drawer";
 import SignalCards from "@/components/signals/signal-cards";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
 import { Button } from "@/components/ui/button";
@@ -219,13 +219,6 @@ function SignalsContent() {
       </div>
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
         <div className="flex items-center gap-2 pt-1">
-          {selectedRowIds.length > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
-              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-            </>
-          )}
-          <div className="flex-1" />
           <DateRangeFilter
             mode="state"
             value={dateRange}
@@ -233,11 +226,18 @@ function SignalsContent() {
             quickRanges={SIGNAL_QUICK_RANGES}
             hideAbsoluteDate
           />
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+          <CreateSignalDrawer open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
             <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
               Signal
             </Button>
-          </ManageSignalSheet>
+          </CreateSignalDrawer>
+          <div className="flex-1" />
+          {selectedRowIds.length > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
+              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
+            </>
+          )}
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">

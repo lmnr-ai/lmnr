@@ -4,7 +4,7 @@ import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
 import { type useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
-import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
+import { type ManageSignalForm, type TriggerFormItem } from "./types";
 
 /**
  * Sync triggers for a signal by creating new, updating existing, and deleting removed triggers.
@@ -118,25 +118,21 @@ class SyncError extends Error {
 export default function useSubmitHandler({
   projectId,
   toast,
-  setOpen,
-  reset,
+  onSubmitComplete,
   onSuccess,
   setIsLoading,
   previousTriggerIds,
   setFormId,
   setFormTriggers,
-  defaultMode,
 }: {
   projectId: string;
   toast: ReturnType<typeof useToast>["toast"];
-  setOpen: (open: boolean) => void;
-  reset: (values: ManageSignalForm) => void;
+  onSubmitComplete: (data: ManageSignalForm) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   setIsLoading: (loading: boolean) => void;
   previousTriggerIds: string[];
   setFormId: (id: string) => void;
   setFormTriggers: (triggers: TriggerFormItem[]) => void;
-  defaultMode: number;
 }) {
   return useCallback(
     async (data: ManageSignalForm) => {
@@ -195,10 +191,10 @@ export default function useSubmitHandler({
         } else {
           track("signals", "created", { filter_count: syncedTriggers.reduce((sum, t) => sum + t.filters.length, 0) });
         }
-        if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
+        const savedData: ManageSignalForm = { ...data, id: signalId, triggers: syncedTriggers };
+        if (onSuccess) await onSuccess(savedData);
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
-        setOpen(false);
-        reset(getDefaultValues(projectId, defaultMode));
+        onSubmitComplete(savedData);
       } catch (e) {
         // On partial trigger sync failure, write successfully created trigger IDs back to form
         // so retries don't re-create triggers that already exist
@@ -215,17 +211,6 @@ export default function useSubmitHandler({
         setIsLoading(false);
       }
     },
-    [
-      projectId,
-      toast,
-      setOpen,
-      reset,
-      onSuccess,
-      setIsLoading,
-      previousTriggerIds,
-      setFormId,
-      setFormTriggers,
-      defaultMode,
-    ]
+    [projectId, toast, onSubmitComplete, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
   );
 }

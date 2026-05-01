@@ -21,7 +21,7 @@ export default function TestResultsView({
 }) {
   if (isExecuting) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 gap-2">
+      <div className="flex flex-col items-center justify-center flex-1 gap-2 py-8">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Testing signal... this may take some time.</span>
       </div>
@@ -40,7 +40,7 @@ export default function TestResultsView({
 
   if (parsed && typeof parsed === "object" && validFields.length > 0) {
     return (
-      <div className="flex-1 overflow-y-auto px-3 space-y-2">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {validFields.map((field) => (
           <div key={field.name} className="rounded-md border bg-secondary/50 px-3 py-2">
             <div className="text-xs text-muted-foreground mb-1">{field.name}</div>
@@ -54,16 +54,9 @@ export default function TestResultsView({
   }
 
   return (
-    <div className="flex-1 overflow-hidden p-3">
-      <div className="border rounded-md bg-muted/50 overflow-auto h-full">
-        <CodeMirror
-          height="100%"
-          className="h-full"
-          readOnly
-          value={output}
-          extensions={[json(), EditorView.lineWrapping]}
-          theme={theme}
-        />
+    <div className="flex-1 min-h-0 overflow-auto p-3">
+      <div className="border rounded-md bg-muted/50 overflow-hidden">
+        <CodeMirror readOnly value={output} extensions={[json(), EditorView.lineWrapping]} theme={theme} />
       </div>
     </div>
   );
