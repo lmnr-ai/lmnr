@@ -22,7 +22,8 @@ export default function TracesPagePlaceholder() {
 
   useEffect(() => {
     track("onboarding", "traces_placeholder_viewed", { from_onboarding: isFromOnboarding });
-  }, [isFromOnboarding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const eventHandlers = useMemo(
     () => ({

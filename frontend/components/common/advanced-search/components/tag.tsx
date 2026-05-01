@@ -32,7 +32,7 @@ import FilterSelect from "./select";
 
 interface FilterTagProps {
   tag: FilterTagType;
-  resource?: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   isSelected?: boolean;
   ref?: Ref<FilterTagRef>;
 }

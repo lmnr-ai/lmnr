@@ -12,6 +12,7 @@ import TraceViewNavigationProvider from "@/components/traces/trace-view/navigati
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
+import { track } from "@/lib/posthog";
 
 function SignalContent() {
   const pathName = usePathname();
@@ -52,11 +53,12 @@ function SignalContent() {
 
   const handleTabChange = useCallback(
     (tab: string) => {
+      track("signals", "tab_viewed", { signalId: signal.id, tab });
       const params = new URLSearchParams(searchParams);
       params.set("tab", tab);
       push(`${pathName}?${params.toString()}`);
     },
-    [pathName, push, searchParams]
+    [pathName, push, searchParams, signal.id]
   );
 
   return (

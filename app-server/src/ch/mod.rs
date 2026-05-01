@@ -10,7 +10,6 @@ pub mod notifications;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;
-pub mod signal_runs;
 pub mod spans;
 pub mod traces;
 pub mod utils;

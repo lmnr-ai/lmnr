@@ -23,6 +23,7 @@ pub enum ProviderError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
     #[error("Not supported: {0}")]
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     NotSupported(String),
     #[error("API error ({status_code}): {message}")]
     ApiError {
@@ -34,6 +35,7 @@ pub enum ProviderError {
 }
 
 impl ProviderError {
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn is_retryable(&self) -> bool {
         match self {
             ProviderError::ApiError { retryable, .. } => *retryable,
@@ -42,6 +44,7 @@ impl ProviderError {
         }
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn is_resource_exhausted(&self) -> bool {
         match self {
             ProviderError::ApiError {
@@ -66,6 +69,7 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse>;
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     async fn create_batch(
         &self,
         _model: &str,
@@ -77,6 +81,7 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         ))
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     async fn get_batch(&self, _batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
         Err(ProviderError::NotSupported(
             "Batch operations are not supported by this provider".to_string(),
@@ -94,6 +99,7 @@ pub(crate) enum ProviderClient {
 
 static ALWAYS_USE_REALTIME: OnceLock<bool> = OnceLock::new();
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn always_use_realtime() -> bool {
     *ALWAYS_USE_REALTIME.get().unwrap_or(&false)
 }
@@ -270,6 +276,7 @@ impl LlmClient {
         client.generate_content(&model, request).await
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub async fn create_batch(
         &self,
         requests: Vec<ProviderRequestItem>,
@@ -288,6 +295,7 @@ impl LlmClient {
         client.create_batch(&model, requests, display_name).await
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
         // TODO: Implement batch retrieval for all providers
         let client = self.providers.get(&self.default_provider).unwrap();

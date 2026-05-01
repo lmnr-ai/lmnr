@@ -16,11 +16,12 @@ const bodySchema = z.object({
 
 const TOP_PATH_QUERY = `
     SELECT
-      path,
+      parent_path AS path,
       prompt_hash AS promptHash
     FROM (
       SELECT
         path,
+        arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.') AS parent_path,
         input_tokens,
         start_time,
         simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') AS prompt_hash
@@ -30,9 +31,9 @@ const TOP_PATH_QUERY = `
       ORDER BY start_time ASC
       LIMIT ${MAIN_AGENT_SEARCH_WINDOW}
     )
-    GROUP BY path, prompt_hash
+    GROUP BY parent_path, prompt_hash
     ORDER BY
-      length(splitByChar('.', path)) ASC,
+      min(length(splitByChar('.', path))) ASC,
       max(input_tokens) DESC
     LIMIT 1
 `;
@@ -49,7 +50,7 @@ const INPUT_QUERY = `
     FROM spans
     WHERE trace_id = {traceId: UUID}
       AND span_type = 'LLM'
-      AND path = {path: String}
+      AND arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.') = {path: String}
       AND simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') = {promptHash: String}
     ORDER BY start_time ASC
     LIMIT 1
@@ -61,7 +62,7 @@ const OUTPUT_QUERY = `
   FROM spans
   WHERE trace_id = {traceId: UUID}
     AND span_type = 'LLM'
-    AND path = {path: String}
+    AND arrayStringConcat(arrayPopBack(splitByChar('.', path)), '.') = {path: String}
     AND simpleJSONExtractString(attributes, 'lmnr.span.prompt_hash') = {promptHash: String}
   ORDER BY start_time DESC
   LIMIT 1

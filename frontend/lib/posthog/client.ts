@@ -31,7 +31,9 @@ export type Feature =
   | "deployment"
   | "blog"
   | "shared"
-  | "invitations";
+  | "invitations"
+  | "notifications"
+  | "advanced_search";
 
 // Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
 // so there is no concurrent-write race condition. The flag prevents calling posthog.init()
@@ -67,9 +69,21 @@ export const reset = () => {
   posthog.reset();
 };
 
-export const track = (feature: Feature, action: string, properties?: Record<string, unknown>) => {
+interface TrackOptions {
+  // Bypass posthog-js's batching queue and send the event immediately.
+  sendInstantly?: boolean;
+}
+
+export const track = (
+  feature: Feature,
+  action: string,
+  properties?: Record<string, unknown>,
+  options?: TrackOptions
+) => {
   if (!initialized) return;
-  posthog.capture(`${feature}:${action}`, properties);
+  posthog.capture(`${feature}:${action}`, properties, {
+    send_instantly: options?.sendInstantly,
+  });
 };
 
 export { posthog };

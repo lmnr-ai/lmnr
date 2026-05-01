@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 pub mod client;
 pub mod conversions;
 

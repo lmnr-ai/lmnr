@@ -8,6 +8,7 @@ import Header from "@/components/ui/header";
 
 const Session = ({ sessionId }: { sessionId: string }) => {
   const { projectId } = useParams<{ projectId: string }>();
+
   return (
     <>
       <Header

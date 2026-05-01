@@ -85,6 +85,9 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.SIGNALS) {
+    if (process.env.SIGNALS_ENABLED !== "true") {
+      return false;
+    }
     return (
       !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
       (process.env.BEDROCK_ENABLED === "true" &&

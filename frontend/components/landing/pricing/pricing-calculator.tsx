@@ -159,7 +159,8 @@ function TierColumn({
             <span>${formatDollars(estimate.basePrice)}</span>
           </div>
           <div className="text-xs text-landing-text-400">
-            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} runs included
+            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} Signals steps
+            included
           </div>
         </div>
 
@@ -180,13 +181,13 @@ function TierColumn({
         {estimate.signalOverageCost > 0 ? (
           <div className="flex justify-between text-landing-text-300">
             <span>
-              {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/run
+              {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/step
             </span>
             <span>+${formatDollars(estimate.signalOverageCost)}</span>
           </div>
         ) : (
           <div className="flex justify-between text-landing-text-300">
-            <span>Agent steps processed in Signals ({formatNumber(signalStepsProcessed)})</span>
+            <span>Signals steps processed ({formatNumber(signalStepsProcessed)})</span>
             <span>Included</span>
           </div>
         )}
@@ -242,7 +243,7 @@ function EnterpriseTierColumn({
           <span>Custom</span>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Additional Signal steps processing</span>
+          <span>Additional Signals steps processing</span>
           <span>Custom</span>
         </div>
       </div>
@@ -320,7 +321,7 @@ export default function PricingCalculator() {
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Agent steps per month</span>
+              <span className="font-medium text-landing-text-100">Signals steps per month</span>
               <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
             </div>
             <Slider

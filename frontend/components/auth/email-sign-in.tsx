@@ -37,7 +37,7 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted" }:
         className="p-4"
         variant={"light"}
         onClick={() => {
-          track("auth", action, { provider: "email" });
+          track("auth", action, { provider: "email" }, { sendInstantly: true });
           signIn("email", {
             callbackUrl,
             email,

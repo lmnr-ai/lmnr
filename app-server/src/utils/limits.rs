@@ -44,6 +44,7 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 }
 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if project_info.tier_name.is_free() {
         return Some(project_info.signal_steps_limit);
@@ -128,6 +129,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     Ok(bytes_ingested >= effective_limit)
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_runs_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -300,6 +302,7 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn update_workspace_signal_steps_processed(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,

@@ -112,8 +112,11 @@ pub enum WorkerType {
     Notifications,
     NotificationDeliveries,
     Clustering,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobSubmissionBatch,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobPendingBatch,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
     Logs,
     Reports,

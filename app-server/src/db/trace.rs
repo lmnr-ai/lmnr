@@ -134,6 +134,8 @@ impl Trace {
             .map(|obj| obj.keys().cloned().collect())
             .unwrap_or_default()
     }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {
             return false;
@@ -144,6 +146,7 @@ impl Trace {
             .all(|filter| self.evaluate_single_filter(spans, filter))
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     fn evaluate_single_filter(&self, spans: &[Span], filter: &Filter) -> bool {
         match filter.column.as_str() {
             "input_token_count" => evaluate_number_filter(
