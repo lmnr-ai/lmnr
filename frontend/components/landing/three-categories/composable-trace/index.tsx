@@ -14,7 +14,7 @@ interface Props {
 }
 
 const TRACE_ID = "3603700e-d02b-0c39-0f34-cfd20842c5ae";
-const INITIAL_SPAN_ID = "00000000-0000-0000-edcc-7f0be2fb4397";
+const INITIAL_SPAN_ID = "00000000-0000-0000-474f-b096d3055674";
 
 const DESKTOP_QUERY = "(min-width: 768px)";
 

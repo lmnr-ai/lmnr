@@ -1,9 +1,13 @@
 "use client";
 
-import { motion, type MotionValue, useTransform } from "framer-motion";
+import { motion, type Transition, type Variants } from "framer-motion";
 import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+
+export type StageVariant = "timeline" | "transcript" | "span" | "ai" | "full";
+
+export const STAGES: StageVariant[] = ["timeline", "transcript", "span", "ai", "full"];
 
 interface KeepCorners {
   tl?: boolean;
@@ -13,54 +17,58 @@ interface KeepCorners {
 }
 
 interface Props {
-  label: string;
-  progress: MotionValue<number>;
-  fromX?: number;
-  fromY?: number;
+  activeIn: StageVariant[];
+  connectedIn: StageVariant[];
   keepCorners?: KeepCorners;
+  offsetX?: number;
+  offsetY?: number;
   className?: string;
   children?: ReactNode;
 }
 
 const RADIUS = 8;
 
-const TraceSection = ({ label, progress, fromX = 0, fromY = 0, keepCorners = {}, className, children }: Props) => {
-  const coverOpacity = useTransform(progress, [0, 1], [1, 0]);
-  const x = useTransform(progress, [0, 1], [fromX, 0]);
-  const y = useTransform(progress, [0, 1], [fromY, 0]);
+const TWEEN: Transition = { type: "tween", duration: 0.2, ease: "easeInOut" };
 
-  const tl = useTransform(progress, [0, 1], [RADIUS, keepCorners.tl ? RADIUS : 0]);
-  const tr = useTransform(progress, [0, 1], [RADIUS, keepCorners.tr ? RADIUS : 0]);
-  const bl = useTransform(progress, [0, 1], [RADIUS, keepCorners.bl ? RADIUS : 0]);
-  const br = useTransform(progress, [0, 1], [RADIUS, keepCorners.br ? RADIUS : 0]);
-  const borderTopLeftRadius = useTransform(tl, (v) => `${v}px`);
-  const borderTopRightRadius = useTransform(tr, (v) => `${v}px`);
-  const borderBottomLeftRadius = useTransform(bl, (v) => `${v}px`);
-  const borderBottomRightRadius = useTransform(br, (v) => `${v}px`);
+const TraceSection = ({
+  activeIn,
+  connectedIn,
+  keepCorners = {},
+  offsetX = 0,
+  offsetY = 0,
+  className,
+  children,
+}: Props) => {
+  const wrapperVariants: Variants = {};
+  const coverVariants: Variants = {};
 
-  const borderAlpha = useTransform(progress, [0, 1], [1, 0]);
-  const borderColor = useTransform(borderAlpha, (v) => `rgba(37, 37, 38, ${v})`);
+  for (const stage of STAGES) {
+    const active = activeIn.includes(stage);
+    const connected = connectedIn.includes(stage);
+    wrapperVariants[stage] = {
+      x: connected ? 0 : offsetX,
+      y: connected ? 0 : offsetY,
+      outlineColor: active ? "var(--color-landing-surface-400)" : "var(--color-landing-surface-500)",
+      borderTopLeftRadius: connected && !keepCorners.tl ? 0 : RADIUS,
+      borderTopRightRadius: connected && !keepCorners.tr ? 0 : RADIUS,
+      borderBottomLeftRadius: connected && !keepCorners.bl ? 0 : RADIUS,
+      borderBottomRightRadius: connected && !keepCorners.br ? 0 : RADIUS,
+      transition: TWEEN,
+    };
+    coverVariants[stage] = {
+      opacity: active ? 0 : 1,
+      pointerEvents: active ? "none" : "auto",
+      transition: TWEEN,
+    };
+  }
 
   return (
     <motion.div
-      style={{
-        x,
-        y,
-        borderColor,
-        borderTopLeftRadius,
-        borderTopRightRadius,
-        borderBottomLeftRadius,
-        borderBottomRightRadius,
-      }}
-      className={cn("relative overflow-hidden border border-solid", className)}
+      variants={wrapperVariants}
+      className={cn("relative overflow-hidden outline outline-solid -outline-offset-1", className)}
     >
       <div className="relative w-full h-full overflow-hidden isolate">{children}</div>
-      <motion.div
-        style={{ opacity: coverOpacity }}
-        className="absolute inset-0 flex items-start px-5 py-4 bg-landing-surface-700/90 backdrop-blur-md z-10 pointer-events-none"
-      >
-        <p className="font-space-grotesk text-xl text-landing-text-200 leading-8">{label}</p>
-      </motion.div>
+      <motion.div variants={coverVariants} className="absolute inset-0 bg-landing-surface-700/90 z-10" />
     </motion.div>
   );
 };

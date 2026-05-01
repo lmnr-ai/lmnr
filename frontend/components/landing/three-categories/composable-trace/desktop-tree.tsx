@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useSpring, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import useSWR from "swr";
 
@@ -24,19 +24,17 @@ const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
     offset: ["start start", "end end"],
   });
 
-  const rawBufferHeight = useTransform(scrollYProgress, [0, 1], [10, 0]);
-  const springBufferHeight = useSpring(rawBufferHeight, { stiffness: 100, damping: 30, mass: 1 });
-  const bufferHeight = useTransform(springBufferHeight, (v) => `${v}vh`);
+  const bufferHeight = useTransform(scrollYProgress, [0, 1], ["10vh", "0vh"]);
 
   const { data: trace } = useSWR<TraceViewTrace>(`/api/shared/traces/${traceId}`, swrFetcher);
   const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${traceId}/spans`, swrFetcher);
 
   return (
-    <div ref={ref} className={cn("h-[2500px] w-full", className)}>
+    <div ref={ref} className={cn("h-[3000px] w-full", className)}>
       <div className="sticky top-[calc(50%-470px)] flex flex-col gap-[54px] items-start w-full">
         <div className="flex flex-col gap-1 items-start w-full">
           <motion.div className="w-full" style={{ height: bufferHeight }} />
-          <h2 className={subsectionTitle}>Full context at a glance</h2>
+          <h2 className={subsectionTitle}>Full trace context at a glance</h2>
           <p className={bodyLarge}>This is a real Laminar trace</p>
         </div>
 
