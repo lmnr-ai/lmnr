@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, type MotionValue, type Transition, useMotionValueEvent, type Variants } from "framer-motion";
-import { ArrowRight, Bolt, Bot, CirclePlay, type LucideIcon,MessageCircle } from "lucide-react";
+import { ArrowRight, Bolt, Bot, CirclePlay, type LucideIcon, MessageCircle } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -20,6 +20,7 @@ import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { bodySQL } from "../../class-names";
+import DocsButton from "../../docs-button";
 import AskAi from "./ask-ai";
 import TraceSection, { STAGES, type StageVariant } from "./trace-section";
 
@@ -278,19 +279,22 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
             Timeline
           </motion.p>
           <motion.div variants={TIMELINE_SUBTITLE_VARIANTS} className="overflow-hidden">
-            <ul className="pt-4 flex flex-col gap-1">
-              <DotItem className="bg-llm">LLM calls</DotItem>
-              <DotItem className="bg-tool">Tool calls</DotItem>
-              <DotItem className="bg-subagent/40 border border-subagent">Sub-agents</DotItem>
-              <DotItem className="bg-blue-400">Default (container)</DotItem>
-            </ul>
+            <div className="pt-4 flex flex-col gap-4">
+              <ul className="flex flex-col gap-1">
+                <DotItem className="bg-llm">LLM calls</DotItem>
+                <DotItem className="bg-tool">Tool calls</DotItem>
+                <DotItem className="bg-subagent/40 border border-subagent">Sub-agents</DotItem>
+                <DotItem className="bg-blue-400">Default (container)</DotItem>
+              </ul>
+              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#timeline" />
+            </div>
           </motion.div>
         </div>
 
         <div
           className={cn(
             "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "transcript" ? "py-6" : "py-0"
+            stage === "transcript" ? "py-8" : "py-0"
           )}
         >
           <motion.p variants={TRANSCRIPT_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
@@ -298,7 +302,9 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </motion.p>
           <motion.div variants={TRANSCRIPT_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>Clear, concise view of actions and decisions.</p>
+              <p className={cn("text-landing-text-300", bodySQL)}>
+                Clear, concise view of your agent's decisions and behavior.
+              </p>
               <ul className="flex flex-col gap-1">
                 <IconItem icon={ArrowRight} className="bg-blue-400">
                   Extracted trace input
@@ -313,6 +319,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                   Sub-agent summary
                 </IconItem>
               </ul>
+              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#transcript-view" />
             </div>
           </motion.div>
         </div>
@@ -324,11 +331,13 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           )}
         >
           <motion.p variants={SPAN_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
-            Selected Span
+            Select an LLM call
           </motion.p>
           <motion.div variants={SPAN_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>Dive deep into an LLM or Tool call.</p>
+              <p className={cn("text-landing-text-300", bodySQL)}>
+                Select an individual span to dive deep into a LLM or Tool call.
+              </p>
               <ul className={cn("flex flex-col gap-1 text-landing-text-300", bodySQL)}>
                 <li>System prompts</li>
                 <li>User messages</li>
@@ -358,6 +367,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                 <li>Analyze</li>
                 <li>Debug</li>
               </ul>
+              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#chat-with-trace" />
             </div>
           </motion.div>
         </div>

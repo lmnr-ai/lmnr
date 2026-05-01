@@ -183,6 +183,17 @@
   }
 }
 
+@keyframes landing-caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

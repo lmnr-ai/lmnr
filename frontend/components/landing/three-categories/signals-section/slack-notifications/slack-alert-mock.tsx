@@ -9,6 +9,7 @@ const SlackAlertMock = ({ className }: Props) => (
     <div
       className={cn(
         "flex gap-3 items-start overflow-hidden rounded border border-landing-surface-500 px-4 py-3 bg-landing-surface-600",
+        "w-[600px]",
         className
       )}
     >
@@ -23,28 +24,50 @@ const SlackAlertMock = ({ className }: Props) => (
         </svg>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 items-start justify-center min-w-0">
+      <div className="flex flex-1 flex-col gap-2 items-start justify-center min-w-0">
         <div className="flex items-start justify-between w-full whitespace-nowrap font-sans text-xs">
           <p className="text-landing-text-200">Laminar</p>
           <p className="text-landing-text-300">3:18 pm</p>
         </div>
-        <div className="flex gap-1 items-start w-full">
-          <p className="font-sans text-xs text-landing-text-400 whitespace-nowrap">Event:</p>
-          <div className="bg-landing-surface-500 flex items-center justify-center px-2 rounded shrink-0">
-            <p className="font-sans text-xs text-[rgba(208,117,78,0.6)] whitespace-nowrap">Agent failure</p>
+
+        <div className="flex gap-1.5 items-center font-sans text-xs">
+          <div className="border border-[rgba(208,117,78,0.6)] rounded px-1.5 py-px">
+            <p className="text-[rgba(208,117,78,0.6)] whitespace-nowrap">Failure</p>
           </div>
+          <p className="text-landing-text-200 whitespace-nowrap">: New Event</p>
         </div>
-        <div className="flex gap-1 items-start w-full">
-          <p className="font-sans text-xs text-landing-text-400 whitespace-nowrap">Category:</p>
-          <div className="bg-landing-surface-500 flex items-center justify-center px-2 rounded shrink-0">
-            <p className="font-sans text-xs text-[rgba(208,117,78,0.6)] whitespace-nowrap">logic_error</p>
-          </div>
+
+        <div className="flex flex-col gap-0.5 w-full font-sans text-xs">
+          <p className="italic text-landing-text-300">category:</p>
+          <p className="text-landing-text-200">logic_error</p>
         </div>
-        <p className="font-sans text-xs text-landing-text-400 w-full">
-          Description:
-          <br />
-          {`The LLM in the 'refine_report' task failed to follow the instruction to keep the summary to 3-4 sentences.`}
-        </p>
+
+        <div className="flex flex-col gap-0.5 w-full font-sans text-xs">
+          <p className="italic text-landing-text-300">description:</p>
+          <p className="text-landing-text-200">
+            {`The LLM in the 'refine_report' task failed to follow the instruction to keep the summary to 3-4 sentences.`}
+          </p>
+        </div>
+
+        <div className="bg-landing-surface-500 px-2 py-1 rounded">
+          <p className="font-sans text-xs text-landing-text-200">View Trace</p>
+        </div>
+
+        <div className="flex flex-wrap gap-x-3 gap-y-1 w-full font-sans text-xs text-landing-text-400 pt-1">
+          <p>
+            Severity: <span className="text-[rgba(208,117,78,0.8)]">●</span>{" "}
+            <span className="text-landing-text-300">Critical</span>
+          </p>
+          <p>
+            Signal: <span className="text-landing-text-300 underline">Failure</span>
+          </p>
+          <p>
+            Alert: <span className="text-landing-text-300 underline">asd</span>
+          </p>
+          <p>
+            Similar Events: <span className="text-landing-text-300 underline">View</span>
+          </p>
+        </div>
       </div>
     </div>
   </div>

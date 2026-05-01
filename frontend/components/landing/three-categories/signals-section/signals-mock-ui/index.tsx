@@ -19,9 +19,16 @@ interface Props {
   className?: string;
   clustersHighlighted?: boolean;
   eventsHighlighted?: boolean;
+  eventsTextHighlighted?: boolean;
 }
 
-const SignalsMockUI = ({ tabKey, className, clustersHighlighted = false, eventsHighlighted = false }: Props) => {
+const SignalsMockUI = ({
+  tabKey,
+  className,
+  clustersHighlighted = false,
+  eventsHighlighted = false,
+  eventsTextHighlighted = false,
+}: Props) => {
   const dataset = MOCK_DATASETS[tabKey];
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
@@ -154,7 +161,7 @@ const SignalsMockUI = ({ tabKey, className, clustersHighlighted = false, eventsH
         />
         <div
           className={cn("flex h-[280px] shrink-0 border rounded-md bg-secondary transition-all duration-200", {
-            "bg-muted/70": clustersHighlighted,
+            "bg-muted/70 border-muted-foreground/40": clustersHighlighted,
           })}
         >
           <div className="w-[280px] shrink-0 border-r overflow-hidden">
@@ -180,8 +187,10 @@ const SignalsMockUI = ({ tabKey, className, clustersHighlighted = false, eventsH
         </div>
         <MockEventsTable
           events={visibleEvents}
+          textHighlighted={eventsTextHighlighted}
           className={cn("flex-1 min-h-0 transition-all duration-200", {
-            "bg-muted/70": eventsHighlighted,
+            "bg-muted/40": eventsTextHighlighted,
+            "bg-muted/70 border-muted-foreground/40": eventsHighlighted,
           })}
         />
       </div>

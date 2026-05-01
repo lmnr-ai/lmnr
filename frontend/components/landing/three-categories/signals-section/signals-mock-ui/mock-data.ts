@@ -8,6 +8,7 @@ export type MockEvent = {
   severity: "warning" | "critical";
   category: string;
   description: string;
+  traceId: string;
 };
 
 export type MockDataset = {
@@ -32,6 +33,17 @@ function hashToMinutes(id: string, max: number): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
   return (h >>> 0) % max;
+}
+
+function generateTraceId(id: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
+  const segments: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    h = Math.imul(h ^ i, 0x01000193);
+    segments.push((h >>> 0).toString(16).padStart(8, "0"));
+  }
+  return segments.join("");
 }
 
 const STATS_HOURS = 48;
@@ -64,6 +76,7 @@ function makeEvents(
       severity: i % 4 === 0 ? "critical" : baseSeverity,
       category,
       description,
+      traceId: generateTraceId(id),
     };
   });
 }

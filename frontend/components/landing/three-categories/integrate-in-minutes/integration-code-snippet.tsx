@@ -75,7 +75,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration, integrationOrder }: Props
                   alt={`${integration} screenshot`}
                   fill
                   priority
-                  className="object-cover object-top-left rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
+                  className="object-cover object-top-left rounded-sm outline outline-landing-surface-500"
                 />
               </div>
             </div>

@@ -37,7 +37,7 @@ const logos: { src: string; alt: string; name: string; integration?: Integration
   { src: claude, alt: "Claude Agent SDK", name: "claude", integration: "claude" },
   { src: vercel, alt: "Vercel AI SDK", name: "vercel", integration: "vercel" },
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
-  { src: langchain, alt: "LangChain", name: "langchain", integration: "langchain" },
+  { src: langchain, alt: "LangChain Deep Agents", name: "langchain", integration: "langchain" },
   { src: lightLlm, alt: "LiteLLM", name: "light-llm", integration: "light-llm" },
   { src: mastra, alt: "Mastra", name: "mastra", integration: "mastra" },
   { src: openaiAgents, alt: "OpenAI Agents SDK", name: "openai-agents-sdk", integration: "openai-agents-sdk" },
@@ -74,6 +74,7 @@ const integrations = logos.filter((logo) => logo.integration).map((logo) => logo
 
 const IntegrateInMinutes = ({ className }: Props) => {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration>("browser-use");
+  const [showAll, setShowAll] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const startInterval = useCallback((interval: number = ROTATE_INTERVAL) => {
@@ -122,21 +123,25 @@ const IntegrateInMinutes = ({ className }: Props) => {
               key={logo.name}
               logoSrc={logo.src}
               alt={logo.alt}
-              tooltipLabel={logo.alt}
+              label={logo.alt}
               isActive={logo.integration === selectedIntegration}
               onClick={() => handleSelectIntegration(logo.integration!)}
             />
           ))}
-        {/* Divider */}
-        <div className={cn("md:px-[12px]", "px-[8px]")}>
-          <div className={cn("md:h-[40px] w-0 border-l border-landing-text-600", "h-[32px]")} />
-        </div>
-        {/* Logo buttons that link to docs */}
-        {logos
-          .filter((logo) => !logo.integration)
-          .map((logo) => (
-            <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} tooltipLabel={logo.alt} href={logo.docsUrl} />
-          ))}
+        {/* Docs-link logos hidden behind a "..." toggle until expanded */}
+        {showAll ? (
+          <>
+            <div className="h-[28px] bg-landing-surface-500 border-r border-landing-surface-400" />
+            {logos
+              .filter((logo) => !logo.integration)
+              .map((logo) => (
+                <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} label={logo.alt} href={logo.docsUrl} />
+              ))}
+            <LogoButton className="md:px-3 px-2" label="Less" onClick={() => setShowAll(false)} />
+          </>
+        ) : (
+          <LogoButton className="md:px-3 px-2" label="More..." onClick={() => setShowAll(true)} />
+        )}
       </div>
       <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />
       <DocsButton href={integrationData[selectedIntegration].docsUrl} />

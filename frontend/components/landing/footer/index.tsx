@@ -23,7 +23,7 @@ interface FooterLink {
 }
 
 const ELSEWHERE_LINKS: FooterLink[] = [
-  { label: "Contact", href: "mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry" },
+  { label: "Contact", href: "mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry", external: true },
   { label: "Github", href: "https://github.com/lmnr-ai/lmnr", external: true },
   { label: "Join Discord", href: "https://discord.gg/nNFUUDAKub", external: true },
   { label: "LinkedIn", href: "https://www.linkedin.com/company/lmnr-ai", external: true },
@@ -106,7 +106,7 @@ const Footer = ({ className }: Props) => {
         )}
       >
         {/* Desktop: heading + buttons (left) | 4 columns (right) */}
-        <div className="hidden md:flex items-start w-full md:gap-[60px] lg:gap-[100px]">
+        <div className="hidden xl:flex items-start w-full xl:gap-[60px] 2xl:gap-[240px]">
           <div className="flex flex-col gap-8 items-start shrink-0">
             <div className={cn("text-left leading-normal", subsectionTitle)}>
               Understand why your agent failed.
@@ -135,7 +135,7 @@ const Footer = ({ className }: Props) => {
         </div>
 
         {/* Mobile: heading + buttons (centered), then 2-col Elsewhere/More, then full-width Integrations */}
-        <div className="md:hidden flex flex-col gap-24 items-center w-full">
+        <div className="xl:hidden flex flex-col gap-24 items-center w-full">
           <div className="flex flex-col gap-8 items-center w-full">
             <div className={cn("text-center leading-12", subsectionTitle)}>
               Understand

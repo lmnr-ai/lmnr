@@ -30,12 +30,12 @@ const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
   const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${traceId}/spans`, swrFetcher);
 
   return (
-    <div ref={ref} className={cn("h-[3000px] w-full", className)}>
+    <div ref={ref} className={cn("h-[1600px] w-full", className)}>
       <div className="sticky top-[calc(50%-470px)] flex flex-col gap-[54px] items-start w-full">
         <div className="flex flex-col gap-1 items-start w-full">
           <motion.div className="w-full" style={{ height: bufferHeight }} />
-          <h2 className={subsectionTitle}>Full trace context at a glance</h2>
-          <p className={bodyLarge}>This is a real Laminar trace</p>
+          <h2 className={subsectionTitle}>See what your agent is doing, at a glance</h2>
+          <p className={bodyLarge}>This is what an agent run looks like on Laminar</p>
         </div>
 
         <TraceViewStoreProvider storeKey="landing-composable-trace" initialTrace={trace}>

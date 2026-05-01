@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useInView } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -15,10 +15,22 @@ interface Props {
 
 type StepKey = "receive-alerts" | "get-context" | "fix";
 
-const STEPS: { key: StepKey; label: string }[] = [
-  { key: "receive-alerts", label: "Receive alerts" },
-  { key: "get-context", label: "Get context" },
-  { key: "fix", label: "Fix with confidence" },
+const STEPS: { key: StepKey; label: string; subtitle: string }[] = [
+  {
+    key: "receive-alerts",
+    label: "Receive alerts",
+    subtitle: "Slack and email alerts about critical issues and weekly summaries of your Signal events.",
+  },
+  {
+    key: "get-context",
+    label: "Get context",
+    subtitle: "See when, why, and how things went wrong. Quickly dive into related traces.",
+  },
+  {
+    key: "fix",
+    label: "Fix with confidence",
+    subtitle: "Ship a fix based on the full picture, not a guess.",
+  },
 ];
 
 const ROTATE_MS = 4000;
@@ -41,24 +53,25 @@ const SlackNotifications = ({ className }: Props) => {
       ref={ref}
       className={cn(
         "bg-landing-surface-700 overflow-hidden relative rounded-lg w-full",
-        "md:h-[200px] md:flex md:flex-row md:items-stretch md:px-8 md:py-7 md:justify-start md:gap-20",
-        "flex flex-col gap-12 p-5 h-[400px]",
+        "md:flex md:flex-row md:items-center md:gap-[60px] md:px-8 md:pt-8 md:pb-10 md:h-[500px]",
+        "flex flex-col gap-8 p-5 h-[680px]",
         className
       )}
     >
-      {/* Left column: title + stepper. Sizes to its content on desktop so the step row never overflows its column;
-          combined with shrink-0 on the mock, this pushes the mock past the container's right edge when needed. */}
-      <div className={cn("shrink-0 z-10", "md:flex md:flex-col md:justify-between md:h-full", "flex flex-col gap-5")}>
-        <div className="flex flex-col gap-1 items-start md:w-[381px] w-full">
-          <p className="font-space-grotesk md:text-2xl md:leading-8 text-xl text-landing-text-100 w-full">
-            Slack and email alerts
-          </p>
-          <p className="font-sans md:text-base text-sm text-landing-text-300 leading-5 w-full">
-            Receive alerts about critical issues and weekly summaries of your Signal events.
-          </p>
-        </div>
+      <div className={cn("shrink-0 z-10 flex flex-col items-start", "md:gap-10 md:w-[433px]", "gap-6 w-full")}>
+        <p
+          className={cn(
+            "font-space-grotesk text-landing-text-100 w-full",
+            "md:text-2xl md:leading-8",
+            "text-xl leading-7"
+          )}
+        >
+          Be notified when your
+          <br />
+          agent fails.
+        </p>
 
-        <div className="flex md:flex-row md:gap-8 flex-col gap-3 items-start">
+        <div className={cn("flex flex-col items-start w-full", "md:gap-8", "gap-5")}>
           {STEPS.map((step, i) => {
             const isActive = i === stepIndex;
             return (
@@ -66,58 +79,73 @@ const SlackNotifications = ({ className }: Props) => {
                 key={step.key}
                 type="button"
                 onClick={() => setStepIndex(i)}
-                className="flex md:gap-3 gap-3 items-center cursor-pointer"
+                className="flex md:gap-5 gap-3 items-start cursor-pointer text-left"
               >
                 <div
                   className={cn(
-                    "flex items-center justify-center rounded border border-landing-surface-400 transition-colors",
-                    "md:size-7 size-5",
+                    "flex items-center justify-center rounded border border-landing-surface-400 transition-colors shrink-0",
+                    "md:size-8 size-7",
                     isActive ? "bg-landing-surface-500" : "bg-landing-surface-600"
                   )}
                 >
                   <span
                     className={cn(
-                      "font-sans md:text-base text-xs md:leading-5 leading-4",
+                      "font-sans transition-colors",
+                      "md:text-base md:leading-5",
+                      "text-sm leading-5",
                       isActive ? "text-landing-text-100" : "text-landing-text-300"
                     )}
                   >
                     {i + 1}
                   </span>
                 </div>
-                <span
-                  className={cn(
-                    "md:text-base md:leading-5 text-sm leading-5 whitespace-nowrap transition-colors",
-                    isActive ? "text-landing-text-100" : "text-landing-text-300"
-                  )}
-                >
-                  {step.label}
-                </span>
+                <div className="flex flex-col gap-1 items-start justify-center min-w-0">
+                  <p
+                    className={cn(
+                      "font-space-grotesk transition-colors whitespace-nowrap",
+                      "md:text-xl md:leading-8",
+                      "text-base leading-6",
+                      isActive ? "text-landing-text-100" : "text-landing-text-300"
+                    )}
+                  >
+                    {step.label}
+                  </p>
+                  <p
+                    className={cn(
+                      "font-sans text-landing-text-300",
+                      "md:text-base md:leading-5 md:w-[381px]",
+                      "text-sm leading-5"
+                    )}
+                  >
+                    {step.subtitle}
+                  </p>
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Right mock — top-anchored. When the left column grows past its allocated space, the row overflows
-          past the container's right edge (clipped by overflow-hidden). */}
-      <div className={cn("md:w-[494px] md:shrink-0 md:self-start", "w-full")}>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeKey}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="md:w-[540px] w-[400px]"
-          >
-            {activeKey === "receive-alerts" && <SlackAlertMock />}
-            {activeKey === "get-context" && <GetContextMock />}
-            {activeKey === "fix" && <FixMock />}
-          </motion.div>
-        </AnimatePresence>
+      <div
+        className={cn(
+          "flex items-center min-w-0",
+          "md:flex-1 md:self-stretch md:justify-center",
+          "w-full justify-start"
+        )}
+      >
+        <motion.div
+          key={activeKey}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          className="md:w-[540px] w-[400px]"
+        >
+          {activeKey === "receive-alerts" && <SlackAlertMock />}
+          {activeKey === "get-context" && <GetContextMock />}
+          {activeKey === "fix" && <FixMock />}
+        </motion.div>
       </div>
 
-      {/* Bottom gradient — fades the overflowed mock */}
       <div className="absolute bottom-0 left-0 right-0 md:h-[73px] h-[60px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
     </div>
   );
