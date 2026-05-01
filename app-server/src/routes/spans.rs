@@ -13,8 +13,10 @@ use crate::{
     quickwit::client::QuickwitClient,
     routes::ResponseResult,
     search::snippets::SearchSpanHit,
-    signals::utils::structural_skeleton_hash,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
+    traces::{
+        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, prompt_hash::structural_skeleton_hash,
+        spans::SpanAttributes,
+    },
 };
 
 #[derive(Deserialize)]

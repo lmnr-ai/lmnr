@@ -1,5 +1,7 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use super::*;
-use crate::signals::provider::models::*;
+use crate::llm::models::*;
 
 impl From<GenerateContentResponse> for ProviderResponse {
     fn from(resp: GenerateContentResponse) -> Self {
