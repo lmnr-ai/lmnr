@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { fetcherJSON } from "@/lib/utils.ts";
+
 const ExecuteSignalSchema = z.object({
   projectId: z.guid(),
   traceId: z.guid(),
@@ -18,22 +20,17 @@ const SignalResponseSchema = z.object({
 export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) => {
   const { projectId, traceId, signal } = ExecuteSignalSchema.parse(input);
 
-  const response = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/signals/execute`, {
+  const response = await fetcherJSON(`/projects/${projectId}/signals/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ traceId, signal }),
   });
 
-  if (!response.ok) {
-    const errorResponse = await response.json().catch(() => ({ error: "Unexpected response body" }));
-    throw new Error(errorResponse.error || JSON.stringify(errorResponse));
-  }
-
-  const signalResponse = SignalResponseSchema.parse(await response.json());
+  const signalResponse = SignalResponseSchema.parse(response);
 
   if (signalResponse.error && !signalResponse.attributes) {
     throw new Error(signalResponse.error);
   }
 
-  return signalResponse?.attributes || "Event was not identified in trace.";
+  return signalResponse.attributes || "Event was not identified in trace.";
 };

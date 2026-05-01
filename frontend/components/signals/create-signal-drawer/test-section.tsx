@@ -20,15 +20,15 @@ function TraceChip({ trace, onClear, disabled }: { trace: TraceRow; onClear: () 
   const label = trace.topSpanName || trace.id;
   return (
     <div
-      className={`flex items-center gap-2 min-w-0 rounded-md border bg-secondary/50 pl-2 pr-1 h-7 ${
+      className={`flex items-center gap-2 min-w-0 max-w-full rounded-md border bg-secondary/50 pl-2 pr-1 h-7 ${
         disabled ? "opacity-60" : ""
       }`}
     >
-      <span className="text-xs text-muted-foreground">Trace</span>
-      <span className="text-xs font-medium truncate" title={label}>
+      <span className="text-xs text-muted-foreground shrink-0">Trace</span>
+      <span className="text-xs font-medium truncate min-w-0" title={label}>
         {label}
       </span>
-      <span className="text-xs text-muted-foreground font-mono truncate" title={trace.id}>
+      <span className="text-xs text-muted-foreground font-mono shrink-0" title={trace.id}>
         {trace.id.slice(0, 8)}
       </span>
       <Button
@@ -97,7 +97,7 @@ export default function TestSection() {
         </div>
       </TooltipProvider>
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 min-w-0">
         {selectedTrace ? (
           <TraceChip trace={selectedTrace} onClear={() => setSelectedTrace(null)} disabled={isExecuting} />
         ) : (
