@@ -57,6 +57,10 @@ export const useTracesTableStore = create<TracesTableStoreState>()(
           enableSorting: true,
           meta: {
             sql: cc.sql,
+            // Filters run the expression inside WHERE, which cannot reference a SELECT alias
+            // in ClickHouse — so use the raw SQL as the filter expression too.
+            filterSql: cc.sql,
+            dbType: cc.dataType === "number" ? "Float64" : "String",
             dataType: cc.dataType,
             isCustom: true,
           },

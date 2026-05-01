@@ -101,6 +101,30 @@ function TracesTableContent() {
   // produce the same string → no spurious re-fetch.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
+  // Custom-column JSON payload sent to the stats endpoint so filters on custom
+  // SQL columns apply to the histogram too.
+  const customColumnsParam = useMemo(() => {
+    const cols = columnDefs
+      .filter((c) => c.meta?.isCustom && c.meta?.sql)
+      .map((c) => ({
+        id: c.id!,
+        sql: c.meta!.sql!,
+        ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
+        ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
+      }));
+    return cols.length > 0 ? JSON.stringify(cols) : undefined;
+  }, [columnDefs]);
+
+  // Merge static filters with dynamic custom-column filters so users can pick them in the UI.
+  const allFilters = useMemo(() => {
+    const customFilters = customColumns.map((cc) => ({
+      name: cc.name,
+      key: `custom:${cc.name}`,
+      dataType: cc.dataType,
+    }));
+    return [...filters, ...customFilters];
+  }, [customColumns]);
+
   const isSearchActive = typeof textSearchFilter === "string" && textSearchFilter.length > 0;
 
   const effectiveColumns = useMemo(() => {
@@ -162,6 +186,7 @@ function TracesTableContent() {
     additionalParams: {
       ...(textSearchFilter && { search: textSearchFilter }),
       ...(searchIn.length > 0 && { searchIn }),
+      ...(customColumnsParam && { customColumns: customColumnsParam }),
     },
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
@@ -422,7 +447,7 @@ function TracesTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={allFilters} />
           <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
@@ -434,7 +459,7 @@ function TracesTableContent() {
         <div className="w-full px-px">
           <AdvancedSearch
             storageKey="traces"
-            filters={filters}
+            filters={allFilters}
             resource="traces"
             placeholder="Search by root span name, tokens, tags, full text and more..."
             className="w-full flex-1"

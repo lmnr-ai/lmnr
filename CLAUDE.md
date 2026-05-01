@@ -211,6 +211,14 @@ The frontend uses Husky with lint-staged. Before commits:
 - Responses schemas in `lib/spans/types/openai-responses.ts` deliberately do NOT use `.loose()` — every known field must be listed explicitly. Strict schemas are the detection mechanism: a Chat Completions or LangChain payload must fail to parse here so it can fall through to the right parser. When OpenAI adds a new field, add it to the schema rather than reintroducing `.loose()`.
 - When adding a new provider format, update `ProcessedMessages`, `processMessages`, `buildToolNameMap`, and `renderMessageContent` in `messages.tsx`, and add a renderer component. Tool-call IDs are mapped to tool names via `buildToolNameMap` so tool-result items can show their originating tool name even when the output item only carries `call_id`. Note: `local_shell_call_output` has no `call_id` in the API — key it by `id`.
 
+## Traces Table Custom SQL Columns
+
+- User-defined custom columns (defined via `traces-table-store.ts` → `customColumns`) are sent to the server on every traces/count/stats fetch as a JSON payload (query param `customColumns`) built by the `customColumnsParam` memo in `components/traces/traces-table/index.tsx`. Parse server-side with `parseCustomColumns` in `lib/actions/traces/utils.ts` (Zod-validated; returns `undefined` on malformed input).
+- To make a custom column filterable: populate `meta.filterSql` + `meta.dbType` on its `ColumnDef` (the store's `rebuildColumns` does this) AND merge a `{name, key: 'custom:<name>', dataType}` entry into the filter list passed to `DataTableFilter` + `AdvancedSearch` (the `allFilters` memo in `traces-table/index.tsx`). Without the merged filter entry, the column never shows up in the filter dropdown even if the server would accept it.
+- Server-side filter resolution: `buildTracesFilterConfig(customColumns)` extends the static `tracesColumnFilterConfig.processors` Map with one processor per custom column keyed by `custom:<name>`. Each processor inlines `col.filterSql ?? col.sql` **directly into WHERE** — ClickHouse rejects SELECT aliases in WHERE, so you cannot reference the column alias. Wrap the expression in parens: `` `(${expr}) ${opSymbol} {${paramKey}:${dbType}}` ``.
+- Numeric coercion is processor-side: if `dbType` is `Int64`/`Float64`, parse the string value with `parseInt`/`parseFloat`. Return `{ condition: null, params: {} }` on `NaN` so an empty/garbage input is dropped instead of crashing the query.
+- All three query builders (`buildTracesQueryWithParams`, `buildTracesCountQueryWithParams`, `buildTracesIdsQueryWithParams`) AND `buildTracesStatsWhereConditions` must be threaded with the parsed `customColumns`. Skipping stats means the histogram above the table won't reflect filter-by-custom-column and its counts will disagree with the paginated rows.
+
 ## Frontend Best Practices
 
 ### One component per file

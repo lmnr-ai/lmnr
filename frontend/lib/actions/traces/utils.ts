@@ -1,4 +1,5 @@
 import { scaleUtc } from "d3-scale";
+import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -6,6 +7,7 @@ import {
   backtickEscape,
   buildSelectQuery,
   type ColumnFilterConfig,
+  type ColumnFilterProcessor,
   createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
@@ -136,6 +138,63 @@ export interface CustomColumn {
   dbType?: string;
 }
 
+const CustomColumnSchema = z.array(
+  z.object({
+    id: z.string().min(1),
+    sql: z.string().min(1),
+    filterSql: z.string().optional(),
+    dbType: z.string().optional(),
+  })
+);
+
+export const parseCustomColumns = (json: string | undefined | null): CustomColumn[] | undefined => {
+  if (!json) return undefined;
+  try {
+    return CustomColumnSchema.parse(JSON.parse(json));
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Build a filter-config that extends the built-in traces processors with one processor
+ * per custom SQL-defined column. Custom columns resolve to `col.filterSql ?? col.sql`
+ * with a ClickHouse type from `col.dbType` (String/Int64/Float64). The SELECT alias can't
+ * be referenced in WHERE in ClickHouse, so we inline the raw expression here.
+ */
+const buildCustomColumnProcessor = (col: CustomColumn): ColumnFilterProcessor => {
+  const expr = col.filterSql ?? col.sql;
+  const dbType = col.dbType ?? "String";
+  return (filter, paramKey) => {
+    const { operator, value } = filter;
+    const opSymbol = OperatorLabelMap[operator];
+    const isNumeric = dbType === "Int64" || dbType === "Float64";
+    const parsed = isNumeric
+      ? dbType === "Int64"
+        ? parseInt(String(value))
+        : parseFloat(String(value))
+      : String(value);
+    if (isNumeric && Number.isNaN(parsed as number)) {
+      return { condition: null, params: {} };
+    }
+    return {
+      condition: `(${expr}) ${opSymbol} {${paramKey}:${dbType}}`,
+      params: { [paramKey]: parsed },
+    };
+  };
+};
+
+const buildTracesFilterConfig = (customColumns?: CustomColumn[]): ColumnFilterConfig => {
+  if (!customColumns || customColumns.length === 0) {
+    return tracesColumnFilterConfig;
+  }
+  const processors = new Map(tracesColumnFilterConfig.processors);
+  for (const col of customColumns) {
+    processors.set(col.id, buildCustomColumnProcessor(col));
+  }
+  return { ...tracesColumnFilterConfig, processors };
+};
+
 export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
@@ -213,7 +272,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildTracesFilterConfig(customColumns),
     orderBy,
     customConditions,
     pagination: {
@@ -233,10 +292,11 @@ export interface BuildTracesCountQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customColumns?: CustomColumn[];
 }
 
 export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
-  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+  const { traceType, traceIds, filters, startTime, endTime, pastHours, customColumns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -267,7 +327,7 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildTracesFilterConfig(customColumns),
     customConditions,
   };
 
@@ -282,10 +342,11 @@ export interface BuildTracesIdsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customColumns?: CustomColumn[];
 }
 
 export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOptions): QueryResult => {
-  const { traceType, filters, limit, traceIds, startTime, endTime, pastHours } = options;
+  const { traceType, filters, limit, traceIds, startTime, endTime, pastHours, customColumns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -316,7 +377,7 @@ export const buildTracesIdsQueryWithParams = (options: BuildTracesIdsQueryOption
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildTracesFilterConfig(customColumns),
     orderBy: [
       {
         column: "start_time",
@@ -339,6 +400,7 @@ export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
   filters: Filter[];
+  customColumns?: CustomColumn[];
 }): { conditions: [string, ...string[]]; params: Record<string, any> } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };
@@ -348,9 +410,12 @@ export const buildTracesStatsWhereConditions = (options: {
     params.traceIds = options.traceIds;
   }
 
+  const filterConfig = buildTracesFilterConfig(options.customColumns);
+
   options.filters.forEach((filter, index) => {
-    const paramKey = `${filter.column}_${index}`;
-    const processor = tracesColumnFilterConfig.processors.get(filter.column);
+    const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
+    const paramKey = `${safeColumn}_${index}`;
+    const processor = filterConfig.processors.get(filter.column);
 
     if (processor) {
       const result = processor(filter, paramKey);
