@@ -40,8 +40,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
 
   const posthog = PostHogClient();
 
-  if (posthog) {
-    posthog.identify({ distinctId: user.email ?? "" });
+  if (isFeatureEnabled(Feature.POSTHOG) && posthog && user.email) {
+    posthog.identify({ distinctId: user.email });
   }
 
   const cookieStore = await cookies();
