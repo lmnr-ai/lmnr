@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +18,7 @@ interface ClusterListProps {
   selectedClusterId: string | null;
   onNavigateToCluster: (clusterId: string) => void;
   className?: string;
+  isPaywall?: boolean;
 }
 
 export default function ClusterList({
@@ -27,8 +30,23 @@ export default function ClusterList({
   selectedClusterId,
   onNavigateToCluster,
   className,
+  isPaywall,
 }: ClusterListProps) {
   const showUnclustered = drillDownDepth === 0;
+
+  // Sort clusters so empty ones (0 items in selected range) sink to the bottom.
+  // Keep the source-array index attached so colors stay tied to a cluster's original position.
+  const orderedClusters = useMemo(
+    () =>
+      visibleClusters
+        .map((cluster, originalIndex) => ({ cluster, originalIndex }))
+        .sort((a, b) => {
+          const aEmpty = (filteredCountByCluster.get(a.cluster.id) ?? 0) > 0 ? 0 : 1;
+          const bEmpty = (filteredCountByCluster.get(b.cluster.id) ?? 0) > 0 ? 0 : 1;
+          return aEmpty - bEmpty;
+        }),
+    [visibleClusters, filteredCountByCluster]
+  );
 
   return (
     <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden min-w-0", className)}>
@@ -37,19 +55,20 @@ export default function ClusterList({
           <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
         ) : (
           <>
-            {visibleClusters.map((cluster, index) => {
+            {orderedClusters.map(({ cluster, originalIndex }) => {
               const hasChildren = cluster.children.length > 0;
               const filteredCount = filteredCountByCluster.get(cluster.id);
-              const iconVariant: IconVariant = hasChildren ? "folder" : "circle";
+              const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
               return (
                 <ClusterItem
                   key={cluster.id}
                   cluster={cluster}
                   iconVariant={iconVariant}
-                  color={getClusterColor(index, drillDownDepth)}
+                  color={getClusterColor(originalIndex, drillDownDepth)}
                   isSelected={selectedClusterId === cluster.id}
                   filteredCount={filteredCount}
                   onClick={() => onNavigateToCluster(cluster.id)}
+                  isPaywall={isPaywall}
                 />
               );
             })}
@@ -64,6 +83,7 @@ export default function ClusterList({
                   isSelected={selectedClusterId === UNCLUSTERED_ID}
                   filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
                   onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
+                  isPaywall={isPaywall}
                 />
               </>
             )}

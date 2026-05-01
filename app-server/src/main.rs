@@ -51,7 +51,8 @@ use query_engine::{
 };
 use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_ROUTING_KEY};
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
-use signals::{
+#[cfg(feature = "signals")]
+use signals::private::{
     SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
@@ -116,6 +117,7 @@ mod evaluations;
 mod features;
 mod instrumentation;
 mod language_model;
+mod llm;
 mod logs;
 mod mq;
 mod names;
@@ -407,30 +409,33 @@ fn main() -> anyhow::Result<()> {
                 .unwrap();
 
             // ==== 3.5 Signals message queue ====
-            channel
-                .exchange_declare(
-                    SIGNALS_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+            #[cfg(feature = "signals")]
+            {
+                channel
+                    .exchange_declare(
+                        SIGNALS_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    SIGNALS_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        SIGNALS_QUEUE,
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+            }
 
             // ==== 3.6 Notifications message queue ====
             channel
@@ -537,125 +542,128 @@ fn main() -> anyhow::Result<()> {
                 .unwrap();
 
             // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
-            channel
-                .exchange_declare(
-                    SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+            #[cfg(feature = "signals")]
+            {
+                channel
+                    .exchange_declare(
+                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
 
-            // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
-            channel
-                .exchange_declare(
-                    SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
+                channel
+                    .exchange_declare(
+                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    SIGNAL_JOB_PENDING_BATCH_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
 
-            // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
-            channel
-                .exchange_declare(
-                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
+                channel
+                    .exchange_declare(
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            let mut waiting_queue_args = quorum_queue_args.clone();
-            waiting_queue_args.insert(
-                "x-dead-letter-exchange".into(),
-                lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
-            );
+                let mut waiting_queue_args = quorum_queue_args.clone();
+                waiting_queue_args.insert(
+                    "x-dead-letter-exchange".into(),
+                    lapin::types::AMQPValue::LongString(SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into()),
+                );
 
-            channel
-                .queue_declare(
-                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    waiting_queue_args,
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        waiting_queue_args,
+                    )
+                    .await
+                    .unwrap();
 
-            // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
-            channel
-                .queue_bind(
-                    SIGNAL_JOB_WAITING_BATCH_QUEUE,
-                    SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
-                    lapin::options::QueueBindOptions::default(),
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
+                channel
+                    .queue_bind(
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
+                        lapin::options::QueueBindOptions::default(),
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .exchange_declare(
-                    SIGNALS_REALTIME_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .exchange_declare(
+                        SIGNALS_REALTIME_EXCHANGE,
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
 
-            channel
-                .queue_declare(
-                    SIGNALS_REALTIME_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
+                channel
+                    .queue_declare(
+                        SIGNALS_REALTIME_QUEUE,
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+            }
 
             // ==== 3.11 Logs message queue ====
             channel
@@ -735,6 +743,7 @@ fn main() -> anyhow::Result<()> {
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
         // ==== 3.5 Signals event message queue ====
+        #[cfg(feature = "signals")]
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
@@ -751,22 +760,25 @@ fn main() -> anyhow::Result<()> {
             EVENT_CLUSTERING_BATCH_QUEUE,
         );
         // ==== 3.8 Signal Job Submission Batch message queue ====
-        queue.register_queue(
-            SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-            SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-        );
-        // ==== 3.9 Signal Job Pending Batch message queue ====
-        queue.register_queue(
-            SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-            SIGNAL_JOB_PENDING_BATCH_QUEUE,
-        );
-        // ==== 3.10 Signal Job Waiting Batch message queue ====
-        queue.register_queue(
-            SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-            SIGNAL_JOB_WAITING_BATCH_QUEUE,
-        );
-        // ==== 3.10b Signals Realtime message queue ====
-        queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
+        #[cfg(feature = "signals")]
+        {
+            queue.register_queue(
+                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+            );
+            // ==== 3.9 Signal Job Pending Batch message queue ====
+            queue.register_queue(
+                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                SIGNAL_JOB_PENDING_BATCH_QUEUE,
+            );
+            // ==== 3.10 Signal Job Waiting Batch message queue ====
+            queue.register_queue(
+                SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                SIGNAL_JOB_WAITING_BATCH_QUEUE,
+            );
+            // ==== 3.10b Signals Realtime message queue ====
+            queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
+        }
         // ==== 3.11 Logs message queue ====
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         // ==== 3.12 Reports message queue ====
@@ -950,10 +962,10 @@ fn main() -> anyhow::Result<()> {
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
         // == LLM Client ==
-        let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
+        let llm_provider_client: Option<Arc<llm::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
                 log::info!("Initializing LLM client");
-                match runtime_handle.block_on(signals::provider::LlmClient::new()) {
+                match runtime_handle.block_on(llm::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
                         log::warn!(
@@ -1206,11 +1218,12 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn signals workers using new worker pool
+                    #[cfg(feature = "signals")]
                     if llm_provider_client.is_some() {
                         // Spawn clustering batching workers
                         let batch_size: usize = get_unsigned_env_with_default(
                             "SIGNALS_BATCH_SIZE",
-                            crate::signals::queue::DEFAULT_BATCH_SIZE,
+                            crate::signals::private::queue::DEFAULT_BATCH_SIZE,
                         );
                         let batch_flush_interval_sec =
                             get_unsigned_env_with_default("SIGNALS_BATCH_FLUSH_INTERVAL_SEC", 300);
@@ -1358,6 +1371,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM batch submissions workers
+                    #[cfg(feature = "signals")]
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
@@ -1391,6 +1405,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM batch pending workers
+                    #[cfg(feature = "signals")]
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
@@ -1422,6 +1437,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM realtime workers
+                    #[cfg(feature = "signals")]
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
@@ -1682,9 +1698,9 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::rollouts::send_span_update)
                                     .service(api::v1::rollouts::delete),
                             )
-                            .service(
+                            .service({
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
-                                web::scope("/api/v1/projects/{project_id}")
+                                let scope = web::scope("/api/v1/projects/{project_id}")
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
@@ -1693,9 +1709,12 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
-                                    .service(routes::signals::submit_signal_job)
-                                    .service(routes::spans::get_skeleton_hashes),
-                            )
+                                    .service(routes::spans::get_skeleton_hashes);
+                                #[cfg(feature = "signals")]
+                                let scope = scope
+                                    .service(crate::signals::private::routes::submit_signal_job);
+                                scope
+                            })
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
                     })

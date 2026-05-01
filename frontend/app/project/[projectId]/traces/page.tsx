@@ -1,5 +1,6 @@
 import { type Metadata } from "next";
 
+import PageViewTracker from "@/components/common/page-view-tracker";
 import TracesPagePlaceholder from "@/components/traces/placeholder";
 import TracesDashboard from "@/components/traces/traces";
 import Header from "@/components/ui/header";
@@ -35,6 +36,7 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
 
   return (
     <>
+      <PageViewTracker feature="traces" />
       <Header path="traces" className="border-b-0" />
       <TracesDashboard />
     </>

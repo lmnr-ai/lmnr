@@ -23,14 +23,3 @@ export function PostHogProvider({ children, telemetryEnabled, email }: PropsWith
 
   return <PHProvider client={posthog}>{children}</PHProvider>;
 }
-
-/** Lightweight component that only identifies the user without adding another PHProvider layer. */
-export function PostHogIdentifier({ email }: { email?: string }) {
-  useEffect(() => {
-    if (email) {
-      identify(email, { email });
-    }
-  }, [email]);
-
-  return null;
-}

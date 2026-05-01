@@ -146,6 +146,7 @@ function SessionsTableContent() {
             placeholder="Search by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"
             storageKey="sessions"
+            resource="sessions"
           />
         </div>
       </InfiniteDataTable>

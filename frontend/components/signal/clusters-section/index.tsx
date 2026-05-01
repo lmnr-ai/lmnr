@@ -2,6 +2,7 @@
 
 import { isEmpty } from "lodash";
 import { Circle } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -20,15 +21,22 @@ import {
   selectUnclusteredCount,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
+import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useProjectContext } from "@/contexts/project-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getHasClusteringAccess } from "@/lib/features/clustering";
+import { track } from "@/lib/posthog";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { getClusterColor, UNCLUSTERED_COLOR } from "./colors";
 
 export default function ClustersSection() {
+  const { workspace } = useProjectContext();
+  const isPaywall = !getHasClusteringAccess(workspace?.tierName);
+  const billingHref = workspace ? `/workspace/${workspace.id}?tab=billing` : "/";
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
   const [, setEmergingClusterId] = useEmergingClusterId();
@@ -112,9 +120,13 @@ export default function ClustersSection() {
     };
   }, [statsUrl, fetchClusterStats, rawClusters]);
 
-  // Navigation callbacks
+  // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
   const navigateToCluster = useCallback(
     (id: string) => {
+      if (isPaywall) return;
+      track("signals", "cluster_clicked", {
+        clusterId: id === UNCLUSTERED_ID ? "-" : id,
+      });
       // Picking anything in the cluster tree exits the emerging-cluster view —
       // otherwise the events fetcher would keep filtering to the L0 cluster
       // (it prioritizes emergingClusterId over clusterId/unclustered).
@@ -126,7 +138,7 @@ export default function ClustersSection() {
         setClusterId(id);
       }
     },
-    [setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
+    [isPaywall, setClusterId, setEmergingClusterId, clusterId, isLeaf, displayId]
   );
 
   if (isClustersLoading) {
@@ -158,16 +170,29 @@ export default function ClustersSection() {
         className="border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]"
       >
         <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
-          <ClusterList
-            className="h-full w-full"
-            drillDownDepth={drillDownDepth}
-            filteredCountByCluster={filteredCountByCluster}
-            visibleClusters={visibleClusters}
-            unclusteredCount={unclusteredCount}
-            unclusteredVirtualCluster={unclusteredVirtualCluster}
-            selectedClusterId={clusterId}
-            onNavigateToCluster={navigateToCluster}
-          />
+          <div className="relative h-full w-full">
+            <ClusterList
+              className="h-full w-full"
+              drillDownDepth={drillDownDepth}
+              filteredCountByCluster={filteredCountByCluster}
+              visibleClusters={visibleClusters}
+              unclusteredCount={unclusteredCount}
+              unclusteredVirtualCluster={unclusteredVirtualCluster}
+              selectedClusterId={clusterId}
+              onNavigateToCluster={navigateToCluster}
+              isPaywall={isPaywall}
+            />
+            {isPaywall && (
+              <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 px-3 py-2 rounded-md border bg-background">
+                <span className="text-xs text-muted-foreground flex-1 min-w-0">
+                  Event clusters for high-level insights
+                </span>
+                <Link href={billingHref}>
+                  <Button size="sm">Upgrade to Pro</Button>
+                </Link>
+              </div>
+            )}
+          </div>
         </ResizablePanel>
 
         <ResizableHandle />
@@ -184,6 +209,7 @@ export default function ClustersSection() {
                 statsData={clusterStatsData}
                 containerWidth={localChartWidth}
                 colorMap={colorMap}
+                showTooltip={!isPaywall}
               />
             )}
           </div>

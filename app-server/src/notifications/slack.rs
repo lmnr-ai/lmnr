@@ -12,7 +12,9 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use super::utils::{build_report_data_from_batch, frontend_url_slack, inject_utm_into_links, with_utm};
+use super::utils::{
+    build_report_data_from_batch, frontend_url_slack, inject_utm_into_links, with_utm,
+};
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
@@ -126,6 +128,23 @@ fn md_links_to_slack(text: &str) -> String {
     RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
+/// Slack section block `text` fields are capped at 3000 chars. If the input
+/// exceeds the limit, truncate at a char boundary and append `...` so the
+/// block stays under the limit while signalling the truncation to the reader.
+fn truncate_to_slack_section_limit(text: &str) -> String {
+    const SLACK_SECTION_TEXT_LIMIT: usize = 3000;
+    const ELLIPSIS: &str = "...";
+
+    if text.chars().count() <= SLACK_SECTION_TEXT_LIMIT {
+        return text.to_string();
+    }
+
+    let keep = SLACK_SECTION_TEXT_LIMIT - ELLIPSIS.chars().count();
+    let mut out: String = text.chars().take(keep).collect();
+    out.push_str(ELLIPSIS);
+    out
+}
+
 // Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
@@ -139,7 +158,10 @@ fn format_event_identification_blocks(
 ) -> serde_json::Value {
     let base = frontend_url_slack();
     let trace_link = with_utm(
-        &format!("{}/project/{}/traces/{}?chat=true", base, project_id, trace_id),
+        &format!(
+            "{}/project/{}/traces/{}?chat=true",
+            base, project_id, trace_id
+        ),
         "slack",
         "signal_alert",
         "view_trace",
@@ -192,20 +214,11 @@ fn format_event_identification_blocks(
     })];
 
     if !info_entries.is_empty() {
-        const MAX_SECTION_TEXT_LEN: usize = 3000;
-        let mut combined = String::new();
-        for entry in &info_entries {
-            if combined.len() + entry.len() + 2 > MAX_SECTION_TEXT_LEN {
-                break;
-            }
-            if !combined.is_empty() {
-                combined.push_str("\n\n");
-            }
-            combined.push_str(entry);
-        }
+        let combined = info_entries.join("\n\n");
+        let truncated = truncate_to_slack_section_limit(&combined);
         blocks.push(json!({
             "type": "section",
-            "text": { "type": "mrkdwn", "text": combined }
+            "text": { "type": "mrkdwn", "text": truncated }
         }));
     }
 
@@ -510,4 +523,39 @@ pub async fn send_message(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_preserves_short_text() {
+        let input = "hello world";
+        assert_eq!(truncate_to_slack_section_limit(input), input);
+    }
+
+    #[test]
+    fn truncate_preserves_text_at_limit() {
+        let input: String = "a".repeat(3000);
+        assert_eq!(truncate_to_slack_section_limit(&input), input);
+    }
+
+    #[test]
+    fn truncate_appends_ellipsis_past_limit() {
+        let input: String = "a".repeat(3500);
+        let out = truncate_to_slack_section_limit(&input);
+        assert_eq!(out.chars().count(), 3000);
+        assert!(out.ends_with("..."));
+        assert!(out.starts_with("aaa"));
+    }
+
+    #[test]
+    fn truncate_respects_char_boundaries() {
+        // Multi-byte chars would panic on byte-index slicing.
+        let input: String = "é".repeat(3500);
+        let out = truncate_to_slack_section_limit(&input);
+        assert_eq!(out.chars().count(), 3000);
+        assert!(out.ends_with("..."));
+    }
 }

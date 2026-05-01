@@ -130,7 +130,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 ## Signals and Alerts
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
-- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
+- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `SIGNALS_ENABLED=true` AND either `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
 - Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to CRITICAL (2) when metadata is absent (historical alerts default to the most restrictive level). The frontend edit form also defaults to CRITICAL for alerts without metadata.
 - Creating a signal auto-creates a CRITICAL-severity alert and subscribes all workspace member emails as alert targets.
 - The `NEW_CLUSTER` alert type and the `skipSimilar` metadata option depend on the clustering service. Gate both the auto-creation of `NEW_CLUSTER` alerts in `createSignal` and UI affordances in `manage-alert-sheet.tsx` behind `isFeatureEnabled(Feature.CLUSTERING)` / `useFeatureFlags()[Feature.CLUSTERING]`. When clustering is disabled, force `skipSimilar: false` on submit so the backend doesn't silently drop notifications.
@@ -138,6 +138,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Alert Slack targets persist a channel `id` in `alertTargets.channelId` and the display name in `alertTargets.channelName`. Both columns are populated for every row written by the form, so `resetFormFromSignals` in `manage-alert-sheet.tsx` filters to rows where both are present and uses them directly — no name-as-id healing needed.
 - `getSlackChannels` in `frontend/lib/actions/slack/index.ts` paginates through Slack `conversations.list` via `response_metadata.next_cursor` (limit=500/page) and returns `{ channels, rateLimited }`. On rate-limit (HTTP 429 OR a 200 OK with `{ok:false, error:"ratelimited"}`) it does NOT retry — it returns whatever was collected so far with `rateLimited: true`. The consumer (`manage-alert-sheet.tsx`) toasts when `rateLimited` is true so the user knows the list may be incomplete. We don't cache — each request fetches fresh so new/renamed channels appear immediately. The picker (`slack-channel-picker.tsx`) leverages cmdk's `Command` for filtering with a custom `filter` that scores against the channel name (passed via `keywords`); `value` holds the channel id so duplicate names aren't possible.
 - The `types` query parameter on `conversations.list` must include both `public_channel,private_channel` — dropping `private_channel` silently breaks existing alert targets that point at private channels (they disappear from the picker and can't be re-selected).
+- Slack section block `text` fields are hard-capped at 3000 chars — Slack rejects the whole `chat.postMessage` call if any block exceeds this. When building alert payloads in `app-server/src/notifications/slack.rs`, feed any user-sourced text (extracted event info, report summaries) through `truncate_to_slack_section_limit` rather than dropping overflowing entries. Count chars, not bytes, and slice on `chars()` to stay on char boundaries (multi-byte payloads will panic on byte-indexed slicing).
 
 ## Signal Triggers
 
@@ -156,7 +157,8 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - `PageViewTracker` deliberately uses an empty `useEffect` dependency array so it fires exactly once on mount. Callers pass inline `properties` object literals (`{ slug }`, `{ traceId }`), which would otherwise create a new reference on every render and re-fire the event.
 - Auth flows (sign-in/sign-up) track `*_attempted` before the provider redirect, not on success — the OAuth/email flows navigate away before any success callback runs, so the attempt is the last reliable hook. `EmailSignInButton` takes an `action` prop (`sign_in_attempted` | `sign_up_attempted`) because the same component is rendered on both `/sign-in` and `/sign-up`.
 - Tracking calls must be guarded by success (`res.ok`). Firing `track(...)` after an unchecked `await res.text()` records events for failed requests and corrupts metrics.
-
+- `AdvancedSearch` submit tracking lives in a single place: the store's `submit` function (`components/common/advanced-search/store/index.tsx`). `removeTag` and `applyRecentSearch` funnel through `submit`, so they are covered automatically; do not instrument them separately. `addCompleteTag` and `clearAll` do NOT funnel through `submit` — we intentionally accept under-counting there in exchange for one consistent metric definition (same `filterCount`/`hasSearch` logic everywhere). The `resource` prop is threaded into the store so the event can label its origin (`traces` / `spans` / `unknown`).
+- `AdvancedSearch` autocomplete fetching is gated in `components/common/advanced-search/index.tsx`: SWR only hits `/api/projects/<id>/<resource>/autocomplete` when `resource === "traces" | "spans"` AND no `suggestions` map was passed. Omit the `resource` prop (or pass anything else) on pages that have no autocomplete endpoint (e.g. evaluations) to suppress the request. Tag-level suggestions in `components/common/advanced-search/components/tag.tsx` also silently degrade to `[]` when `AUTOCOMPLETE_FIELDS[resource]` is undefined, so no backend endpoint is required for non-traces/spans consumers.
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)
@@ -173,6 +175,10 @@ The frontend uses Husky with lint-staged. Before commits:
 - TypeScript type-check runs
 
 **Known issue**: `tsc --noEmit` may fail with pre-existing errors for SVG/PNG asset imports (missing module declarations in `assets/`). These are unrelated to your changes — verify your file has no errors with `npx tsc --noEmit 2>&1 | grep "your-file"` before using `--no-verify`.
+
+## Next.js Catch-all Route Params
+
+- In Next.js 16 App Router, **catch-all** (`[...slug]`) dynamic params are NOT auto-decoded — `await props.params` returns the raw URL-encoded segments. Single-segment dynamic params (`[slug]`) ARE auto-decoded. If a caller uses `encodeURIComponent` on an id containing URL-unsafe chars (e.g. Slack ids `slack:C0ATXMVNUH1:...`) and the target route is catch-all, the page must `decodeURIComponent` each segment or the encoded `%3A`s flow into downstream filters and the API double-encodes them (`%253A`) yielding zero results. See `app/project/[projectId]/sessions/[...sessionId]/page.tsx`.
 
 ## Dashboard Time Grouping
 
