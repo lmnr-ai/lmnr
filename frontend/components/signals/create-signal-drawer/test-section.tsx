@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, Info, Loader2, PlayIcon, X } from "lucide-react";
+import { Info, Loader2, PlayIcon, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -16,10 +16,14 @@ import TestResultsView from "./test-panel/test-results-view";
 import { type ManageSignalForm } from "./types";
 import useTestExecution from "./use-test-execution";
 
-function TraceChip({ trace, onClear }: { trace: TraceRow; onClear: () => void }) {
+function TraceChip({ trace, onClear, disabled }: { trace: TraceRow; onClear: () => void; disabled?: boolean }) {
   const label = trace.topSpanName || trace.id;
   return (
-    <div className="flex items-center gap-2 min-w-0 rounded-md border bg-secondary/50 pl-2 pr-1">
+    <div
+      className={`flex items-center gap-2 min-w-0 rounded-md border bg-secondary/50 pl-2 pr-1 h-7 ${
+        disabled ? "opacity-60" : ""
+      }`}
+    >
       <span className="text-xs text-muted-foreground">Trace</span>
       <span className="text-xs font-medium truncate" title={label}>
         {label}
@@ -33,6 +37,7 @@ function TraceChip({ trace, onClear }: { trace: TraceRow; onClear: () => void })
         size="icon"
         className="h-6 w-6 shrink-0"
         onClick={onClear}
+        disabled={disabled}
         aria-label="Clear selected trace"
       >
         <X className="w-3.5 h-3.5" />
@@ -52,7 +57,7 @@ export default function TestSection() {
   const prompt = watch("prompt");
   const hasValidFields = schemaFields?.some((f) => f.name.trim());
 
-  const { isExecuting, testOutput, execute } = useTestExecution({
+  const { isExecuting, testOutput, execute, clear } = useTestExecution({
     getValues,
     projectId: String(projectId),
     selectedTrace,
@@ -94,20 +99,13 @@ export default function TestSection() {
 
       <div className="flex items-center gap-2 flex-wrap">
         {selectedTrace ? (
-          <TraceChip trace={selectedTrace} onClear={() => setSelectedTrace(null)} />
+          <TraceChip trace={selectedTrace} onClear={() => setSelectedTrace(null)} disabled={isExecuting} />
         ) : (
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className={!canSelectTrace ? "cursor-not-allowed" : undefined}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2"
-                    onClick={handleOpenPicker}
-                    disabled={!canSelectTrace}
-                  >
-                    <FlaskConical className="w-3.5 h-3.5" />
+                  <Button type="button" variant="outline" onClick={handleOpenPicker} disabled={!canSelectTrace}>
                     Select trace
                   </Button>
                 </span>
@@ -120,7 +118,13 @@ export default function TestSection() {
             </Tooltip>
           </TooltipProvider>
         )}
-        <Button type="button" variant="secondary" className="gap-2" onClick={execute} disabled={!canRun}>
+        <Button
+          type="button"
+          variant="secondary"
+          className="gap-2 border-border bg-secondary/50"
+          onClick={execute}
+          disabled={!canRun}
+        >
           {isExecuting ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -139,8 +143,19 @@ export default function TestSection() {
         <div className="mt-2 rounded-md border overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b bg-secondary/30">
             <span className="text-xs font-medium text-secondary-foreground">Test result</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 -mr-1"
+              onClick={clear}
+              disabled={isExecuting}
+              aria-label="Dismiss test result"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
-          <div className="flex flex-col h-80 overflow-hidden">
+          <div className="flex flex-col max-h-96 overflow-hidden">
             <TestResultsView output={testOutput} isExecuting={isExecuting} schemaFields={schemaFields ?? []} />
           </div>
         </div>
