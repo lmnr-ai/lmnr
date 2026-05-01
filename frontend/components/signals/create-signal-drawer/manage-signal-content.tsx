@@ -73,13 +73,18 @@ export default function ManageSignalContent({
         </div>
       )}
       <ScrollArea className={cn("flex-1 px-5 flex flex-col items-center w-full")}>
-        <SignalFormFields isLoading={isLoading} showTemplates={!id} className={cn("", scrollAreaClassName)} />
+        <SignalFormFields
+          variant={variant}
+          isLoading={isLoading}
+          showTemplates={!id}
+          className={cn("", scrollAreaClassName)}
+        />
       </ScrollArea>
-      {!id && (
+      {(variant === "sheet" || !id) && (
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
-          <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+          <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
             <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-            Create
+            {id ? "Save" : "Create"}
           </Button>
         </div>
       )}

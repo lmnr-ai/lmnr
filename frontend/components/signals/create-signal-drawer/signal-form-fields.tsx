@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, tryParseJson } from "@/lib/utils";
 
+import { type ManageSignalContentVariant } from "./manage-signal-content";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
@@ -20,10 +21,12 @@ import TriggersSection from "./triggers-section";
 import { type ManageSignalForm } from "./types";
 
 export default function SignalFormFields({
+  variant,
   showTemplates,
   isLoading,
   className,
 }: {
+  variant: ManageSignalContentVariant;
   showTemplates: boolean;
   isLoading: boolean;
   className?: string;
@@ -124,8 +127,8 @@ export default function SignalFormFields({
       {/*  Temporarily hide test section */}
       {/*<TestSection />*/}
 
-      {!showTemplates && (
-        <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+      {variant === "panel" && !showTemplates && (
+        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
           <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
           Save
         </Button>
