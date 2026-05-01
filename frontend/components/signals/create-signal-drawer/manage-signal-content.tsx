@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
@@ -40,7 +40,12 @@ export default function ManageSignalContent({
 
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { handleSubmit, watch, setValue } = useFormContext<ManageSignalForm>();
+  const {
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { isValid, isDirty },
+  } = useFormContext<ManageSignalForm>();
   const id = watch("id");
 
   const setFormId = (newId: string) => setValue("id", newId);
@@ -70,6 +75,14 @@ export default function ManageSignalContent({
       <ScrollArea className={cn("flex-1 px-5 flex flex-col items-center w-full")}>
         <SignalFormFields isLoading={isLoading} showTemplates={!id} className={cn("", scrollAreaClassName)} />
       </ScrollArea>
+      {!id && (
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
+          <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+            <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
+            Create
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

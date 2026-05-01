@@ -16,7 +16,6 @@ import { cn, tryParseJson } from "@/lib/utils";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
-import TestSection from "./test-section";
 import TriggersSection from "./triggers-section";
 import { type ManageSignalForm } from "./types";
 
@@ -85,9 +84,7 @@ export default function SignalFormFields({
         />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
-
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}
-
       <div className="grid gap-1.5">
         <TooltipProvider delayDuration={200}>
           <div className="flex items-center gap-1.5">
@@ -121,19 +118,18 @@ export default function SignalFormFields({
         />
         {errors.prompt && <p className="text-xs text-destructive">{errors.prompt.message}</p>}
       </div>
-
       <SchemaFieldsBuilder />
-
       <TriggersSection />
-
       <SamplingSection />
+      {/*  Temporarily hide test section */}
+      {/*<TestSection />*/}
 
-      <TestSection />
-
-      <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid}>
-        <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-        {!showTemplates ? "Save" : "Create"}
-      </Button>
+      {!showTemplates && (
+        <Button className="ml-auto w-fit" type="submit" size="md" disabled={isLoading || !isValid}>
+          <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
+          Save
+        </Button>
+      )}
     </div>
   );
 }
