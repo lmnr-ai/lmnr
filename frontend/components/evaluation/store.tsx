@@ -17,7 +17,6 @@ import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
 
 interface RawUrlParams {
   search: string | null;
-  searchIn: string[];
   filter: string[];
   sortBy: string | null;
   sortDirection: string | null;
@@ -110,7 +109,6 @@ export function buildStatsParams(
 ): URLSearchParams {
   const urlParams = new URLSearchParams();
   if (raw.search) urlParams.set("search", raw.search);
-  raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
   raw.filter.forEach((f) => urlParams.append("filter", f));
 
   // Only send columns referenced by active filters (optimization for URL length)
@@ -163,7 +161,6 @@ export function buildFetchParams(
   urlParams.set("pageNumber", raw.pageNumber.toString());
   urlParams.set("pageSize", raw.pageSize.toString());
   if (raw.search) urlParams.set("search", raw.search);
-  raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
   raw.filter.forEach((f) => urlParams.append("filter", f));
 
   urlParams.set("columns", JSON.stringify(toColumnsPayload(columnDefs)));

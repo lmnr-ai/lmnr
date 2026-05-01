@@ -45,7 +45,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
   const pathName = usePathname();
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
-  const searchIn = searchParams.getAll("searchIn");
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
@@ -70,10 +69,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
+    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
+  }, [evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -99,7 +98,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
       const urlParams = buildFetchParams(
         {
           search,
-          searchIn,
           filter,
           sortBy,
           sortDirection,
@@ -118,7 +116,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, columnDefs]
+    [search, filter, evaluationId, pageSize, sortBy, sortDirection, columnDefs]
   );
 
   const {
@@ -130,7 +128,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
     enabled: !isStatsLoading,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls],
+    deps: [search, filter, evaluationId, sortBy, sortDirection, columnSqls],
   });
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {

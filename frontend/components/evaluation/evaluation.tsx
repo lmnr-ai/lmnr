@@ -52,7 +52,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
   const targetId = searchParams.get("targetId");
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
-  const searchIn = searchParams.getAll("searchIn");
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
@@ -75,10 +74,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
+    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
+  }, [params.projectId, evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const {
     data: statsData,
@@ -92,10 +91,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, columnDefs, scoreNames);
+    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, columnDefs, scoreNames]);
+  }, [params.projectId, targetId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
   const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
     revalidateOnFocus: false,
@@ -125,7 +124,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
       const urlParams = buildFetchParams(
         {
           search,
-          searchIn,
           filter,
           sortBy,
           sortDirection,
@@ -145,7 +143,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params.projectId, evaluationId, sortBy, sortDirection, targetId, columnDefs]
+    [search, filter, params.projectId, evaluationId, sortBy, sortDirection, targetId, columnDefs]
   );
 
   // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
@@ -159,7 +157,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
     enabled: !isStatsLoading,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls],
+    deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
   const selectedRow = useMemo<EvalRow | undefined>(
