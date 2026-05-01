@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { bodyLarge, subsectionTitle } from "../../class-names";
 import DocsButton from "../../docs-button";
 import DesktopTree from "./desktop-tree";
+import ComposableTraceErrorBoundary from "./error-boundary";
 import MobileBento from "./mobile-bento";
 
 interface Props {
@@ -32,19 +33,21 @@ const ComposableTrace = ({ className }: Props) => {
 
   if (isDesktop === undefined) return null;
 
-  if (isDesktop) {
-    return <DesktopTree className={className} traceId={TRACE_ID} initialSpanId={INITIAL_SPAN_ID} />;
-  }
-
   return (
-    <div className={cn("flex flex-col gap-8 items-start w-full", className)}>
-      <div className="flex flex-col gap-1 items-start w-full">
-        <h2 className={subsectionTitle}>Full context at a glance</h2>
-        <p className={bodyLarge}>Tools to understand what your agent was doing and where it went wrong</p>
-      </div>
-      <MobileBento />
-      <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
-    </div>
+    <ComposableTraceErrorBoundary>
+      {isDesktop ? (
+        <DesktopTree className={className} traceId={TRACE_ID} initialSpanId={INITIAL_SPAN_ID} />
+      ) : (
+        <div className={cn("flex flex-col gap-8 items-start w-full", className)}>
+          <div className="flex flex-col gap-1 items-start w-full">
+            <h2 className={subsectionTitle}>Full context at a glance</h2>
+            <p className={bodyLarge}>Tools to understand what your agent was doing and where it went wrong</p>
+          </div>
+          <MobileBento />
+          <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
+        </div>
+      )}
+    </ComposableTraceErrorBoundary>
   );
 };
 

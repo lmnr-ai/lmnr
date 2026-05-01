@@ -140,31 +140,32 @@ conversation.send_message("Build a simple todo app")`,
     name: "LangChain",
     logoSrc: langchain,
     alt: "LangChain",
-    highlightedLines: [0, 12],
+    highlightedLines: [3, 5],
     screenshot: "/assets/landing/snippet-screenshots/lang-chain.png",
-    docsUrl: "https://laminar.sh/docs/tracing/integrations/langchain",
-    python: `from lmnr import Laminar
-from dotenv import load_dotenv
-import os
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import HumanMessage
-from langgraph.graph import StateGraph, END
-from typing import TypedDict, Annotated, Sequence
-import operator
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/deepagents",
+    python: `from deepagents import create_deep_agent
+from langchain_anthropic import ChatAnthropic
 
-load_dotenv()
+from lmnr import Laminar
+
 Laminar.initialize()
 
-model = ChatOpenAI()
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant."),
-    ("human", "{question}")
-])
-output_parser = StrOutputParser()
 
-chain = prompt | model | output_parser`,
+def internet_search(query: str) -> str:
+    """Search the internet and return a short snippet."""
+    return f"Top result for '{query}': ..."
+
+
+agent = create_deep_agent(
+    model=ChatAnthropic(model="claude-sonnet-4-5"),
+    tools=[internet_search],
+    system_prompt="You are an expert researcher. Cite sources.",
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What is deepagents?"}]}
+)
+print(result["messages"][-1].content)`,
   },
   "light-llm": {
     name: "LiteLLM",
@@ -228,7 +229,7 @@ console.log(result.text);`,
     name: "OpenAI Agents SDK",
     logoSrc: openaiAgents,
     alt: "OpenAI Agents SDK",
-    highlightedLines: [3, 5, 7],
+    highlightedLines: [3, 5],
     screenshot: "/assets/landing/snippet-screenshots/openai-agents-sdk.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/openai-agents-sdk",
     python: `import asyncio
@@ -238,7 +239,6 @@ from lmnr import Laminar, observe
 
 Laminar.initialize()
 
-@observe(name="math-homework")
 async def main():
     agent = Agent(
         name="MathHelper",
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     name: "Pydantic AI",
     logoSrc: pydanticAi,
     alt: "Pydantic AI",
-    highlightedLines: [3, 5, 12],
+    highlightedLines: [3, 5],
     screenshot: "/assets/landing/snippet-screenshots/pydantic-ai.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/pydantic-ai",
     python: `import asyncio
@@ -270,7 +270,6 @@ agent = Agent(
     system_prompt="You are a concise assistant. Answer in one sentence.",
 )
 
-@observe(name="capital-lookup")
 async def main():
     result = await agent.run("What is the capital of France?")
     print(result.output)
@@ -282,7 +281,7 @@ if __name__ == "__main__":
     name: "OpenCode SDK",
     logoSrc: opencodeSdk,
     alt: "OpenCode SDK",
-    highlightedLines: [1, 3, 4, 5, 6, 7, 14, 25],
+    highlightedLines: [1, 3, 4, 5, 6, 7, 24],
     screenshot: "/assets/landing/snippet-screenshots/opencode-sdk.png",
     docsUrl: "https://laminar.sh/docs/tracing/integrations/opencode",
     typescript: `import * as opencode from "@opencode-ai/sdk";
@@ -299,7 +298,7 @@ const { client, server } = await opencode.createOpencode();
 try {
   const sessionRes = await client.session.create({ body: { title: "agent run" } });
 
-  await observe({ name: "my-agent-step" }, async () => {
+async () => {
     await client.session.prompt({
       path: { id: sessionRes.data.id },
       body: {
@@ -307,7 +306,7 @@ try {
         parts: [{ type: "text", text: "Create a Python factorial function and test it." }],
       },
     });
-  });
+  };
 } finally {
   server.close();
   await Laminar.shutdown();
