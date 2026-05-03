@@ -1,6 +1,6 @@
 "use client";
 
-import { intersection, pick, uniqBy } from "lodash";
+import { pick, uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
@@ -173,11 +173,19 @@ function createDataTableStore<TData>(
           const persisted = persistedState as Partial<
             Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
           >;
-          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
-          const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
-          const mergedColumnOrder = [...validColumns, ...newColumns];
-          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
-          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, defaultColumnOrder);
+          const persistedOrder = persisted?.columnOrder ?? [];
+          const persistedSet = new Set(persistedOrder);
+
+          // Keep persisted order intact, then append any new default columns
+          // that weren't persisted yet. Persisted columns not in
+          // defaultColumnOrder are preserved — they may be custom columns
+          // whose source store hasn't hydrated yet.
+          const newColumns = defaultColumnOrder.filter((col) => !persistedSet.has(col));
+          const mergedColumnOrder = [...persistedOrder, ...newColumns];
+
+          const allKnown = new Set(mergedColumnOrder);
+          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, [...allKnown]);
+          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, [...allKnown]);
 
           return {
             ...currentState,

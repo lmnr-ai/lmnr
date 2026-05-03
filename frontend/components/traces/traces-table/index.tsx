@@ -17,7 +17,12 @@ import {
   PREVIEW_COLUMN,
 } from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
-import { toColumnsPayload, useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
+import {
+  buildColumnDefs,
+  buildFetchParams,
+  toColumnsPayload,
+  useTracesTableStore,
+} from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -89,17 +94,10 @@ function TracesTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  // Initialize column defs (rebuild when store hydrates custom columns)
-  const rebuildColumns = useTracesTableStore((s) => s.rebuildColumns);
-  const columnDefs = useTracesTableStore((s) => s.columnDefs);
   const removeCustomColumn = useTracesTableStore((s) => s.removeCustomColumn);
-  const buildFetchParams = useTracesTableStore((s) => s.buildFetchParams);
-
   const customColumns = useTracesTableStore((s) => s.customColumns);
 
-  useEffect(() => {
-    rebuildColumns();
-  }, [customColumns, rebuildColumns]);
+  const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
 
   // Merge static filter definitions with custom column filters
   const allFilters = useMemo<ColumnFilter[]>(() => {
@@ -197,13 +195,16 @@ function TracesTableContent() {
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
       try {
-        const urlParams = buildFetchParams({
-          pageNumber,
-          pageSize: FETCH_SIZE,
-          filter,
-          sortBy: sortBy ?? null,
-          sortDirection: sortDirection?.toUpperCase() as string | null,
-        });
+        const urlParams = buildFetchParams(
+          {
+            pageNumber,
+            pageSize: FETCH_SIZE,
+            filter,
+            sortBy: sortBy ?? null,
+            sortDirection: sortDirection?.toUpperCase() as string | null,
+          },
+          columnDefs
+        );
 
         if (pastHours != null) urlParams.set("pastHours", pastHours);
         if (startDate != null) urlParams.set("startDate", startDate);
@@ -254,7 +255,7 @@ function TracesTableContent() {
       }
     },
     [
-      buildFetchParams,
+      columnDefs,
       endDate,
       filter,
       pastHours,
@@ -451,7 +452,11 @@ function TracesTableContent() {
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={allFilters} />
-          <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
+          <TracesColumnsMenu
+            lockedColumns={["status", "preview"]}
+            columnLabels={columnLabels}
+            columnDefs={columnDefs}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
