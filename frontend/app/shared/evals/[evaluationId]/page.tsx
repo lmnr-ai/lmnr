@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import PageViewTracker from "@/components/common/page-view-tracker";
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
+import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
 
 const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
@@ -47,5 +49,16 @@ export default async function SharedEvaluationPage(props: { params: Promise<{ ev
     return notFound();
   }
 
-  return <SharedEvaluation evaluationId={evaluationId} evaluationName={shared.evaluation.name} />;
+  const scoreNames = await getEvaluationScoreNames({ projectId: shared.projectId, evaluationId });
+
+  return (
+    <>
+      <PageViewTracker feature="shared" action="evaluation_viewed" properties={{ evaluationId }} />
+      <SharedEvaluation
+        evaluationId={evaluationId}
+        evaluationName={shared.evaluation.name}
+        initialScoreNames={scoreNames}
+      />
+    </>
+  );
 }

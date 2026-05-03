@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export default function CreateDatasetDialog({
@@ -48,6 +49,7 @@ export default function CreateDatasetDialog({
         onUpdate(newDatasetWithCount);
       }
 
+      track("datasets", "created");
       toast({ title: "Successfully created dataset" });
       setIsDialogOpen(false);
     } catch (e) {

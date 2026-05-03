@@ -134,6 +134,8 @@ impl Trace {
             .map(|obj| obj.keys().cloned().collect())
             .unwrap_or_default()
     }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {
             return false;
@@ -144,6 +146,7 @@ impl Trace {
             .all(|filter| self.evaluate_single_filter(spans, filter))
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     fn evaluate_single_filter(&self, spans: &[Span], filter: &Filter) -> bool {
         match filter.column.as_str() {
             "input_token_count" => evaluate_number_filter(
@@ -189,10 +192,15 @@ impl Trace {
             "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
             "span_name" => {
                 let target_name = filter.value.as_str().unwrap_or("");
-                let has_span = spans
-                    .iter()
-                    .filter(|s| s.trace_id == self.id)
-                    .any(|s| s.name == target_name);
+                // Check both the accumulated span_names from the database (which includes
+                // span names from all previous batches) and the current batch of spans.
+                // This ensures the filter works correctly when spans arrive in different
+                // processing batches (e.g., child span "GitHub" arrives before root span).
+                let has_span = self.span_names().iter().any(|n| n == target_name)
+                    || spans
+                        .iter()
+                        .filter(|s| s.trace_id == self.id)
+                        .any(|s| s.name == target_name);
                 match filter.operator {
                     FilterOperator::Eq => has_span,
                     FilterOperator::Ne => !has_span,
@@ -395,4 +403,168 @@ pub async fn delete_shared_traces(
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{
+        spans::{Span, SpanType},
+        utils::{Filter, FilterOperator},
+    };
+    use chrono::Utc;
+    use serde_json::json;
+
+    fn make_trace(
+        id: Uuid,
+        project_id: Uuid,
+        top_span_id: Option<Uuid>,
+        span_names: Option<Value>,
+    ) -> Trace {
+        Trace {
+            id,
+            start_time: Some(Utc::now()),
+            end_time: Some(Utc::now()),
+            trace_type: 0,
+            top_span_id,
+            top_span_name: Some("root".to_string()),
+            top_span_type: Some(0),
+            session_id: None,
+            metadata: None,
+            user_id: None,
+            input_token_count: 0,
+            output_token_count: 0,
+            total_token_count: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cost: 0.0,
+            project_id,
+            status: None,
+            tags: vec![],
+            num_spans: 1,
+            has_browser_session: None,
+            span_names,
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
+    fn make_span(trace_id: Uuid, project_id: Uuid, name: &str) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id,
+            trace_id,
+            parent_span_id: None,
+            name: name.to_string(),
+            attributes: Default::default(),
+            input: None,
+            output: None,
+            span_type: SpanType::Default,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    /// Simulates the bug scenario: child span "GitHub" arrives in batch 1 (no root span yet),
+    /// then root span arrives in batch 2 (without "GitHub" in the batch).
+    /// The trigger should fire because the DB trace has accumulated span_names from both batches.
+    #[test]
+    fn test_span_name_filter_uses_accumulated_db_span_names() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let top_span_id = Uuid::new_v4();
+
+        // After batch 2 (root span), the DB trace has top_span_id set and
+        // span_names accumulated from both batches (including "GitHub" from batch 1).
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(top_span_id),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        // Batch 2 only contains the root span (no "GitHub" span in this batch)
+        let current_batch_spans = vec![make_span(trace_id, project_id, "root")];
+
+        let filters = vec![
+            Filter {
+                column: "root_span_finished".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("true"),
+            },
+            Filter {
+                column: "span_name".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("GitHub"),
+            },
+        ];
+
+        // This should match because "GitHub" is in the DB's accumulated span_names
+        assert!(
+            trace.matches_filters(&current_batch_spans, &filters),
+            "Trigger should fire: 'GitHub' is in accumulated span_names even though not in current batch"
+        );
+    }
+
+    /// When the span IS in the current batch, it should still match.
+    #[test]
+    fn test_span_name_filter_matches_current_batch() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let top_span_id = Uuid::new_v4();
+
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(top_span_id),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        let current_batch_spans = vec![
+            make_span(trace_id, project_id, "root"),
+            make_span(trace_id, project_id, "GitHub"),
+        ];
+
+        let filters = vec![Filter {
+            column: "span_name".to_string(),
+            operator: FilterOperator::Eq,
+            value: json!("GitHub"),
+        }];
+
+        assert!(trace.matches_filters(&current_batch_spans, &filters));
+    }
+
+    /// Ne operator: span_name != "GitHub" should return false when "GitHub" is in accumulated names.
+    #[test]
+    fn test_span_name_ne_filter_with_accumulated_names() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(Uuid::new_v4()),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        // "GitHub" not in current batch, but IS in accumulated span_names
+        let current_batch_spans = vec![make_span(trace_id, project_id, "root")];
+
+        let filters = vec![Filter {
+            column: "span_name".to_string(),
+            operator: FilterOperator::Ne,
+            value: json!("GitHub"),
+        }];
+
+        assert!(
+            !trace.matches_filters(&current_batch_spans, &filters),
+            "Ne filter should return false when span name exists in accumulated names"
+        );
+    }
 }

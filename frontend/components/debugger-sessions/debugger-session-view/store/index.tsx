@@ -88,10 +88,6 @@ const createDebuggerSessionStore = ({
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
             set({ selectedSpan: span });
-            const spanPath = span.attributes?.["lmnr.span.path"];
-            if (spanPath && Array.isArray(spanPath)) {
-              set({ spanPath });
-            }
           }
         },
 
@@ -473,12 +469,11 @@ const createDebuggerSessionStore = ({
       {
         name: storeKey,
         partialize: (state) => {
-          const persistentTabs = ["tree", "reader"] as const;
+          const persistentTabs = ["tree", "transcript"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
             sidebarWidth: state.sidebarWidth,
-            spanPath: state.spanPath,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
@@ -487,8 +482,8 @@ const createDebuggerSessionStore = ({
         },
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<DebuggerSessionStore>;
-          const validTabs = ["tree", "reader"] as const;
-          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+          const validTabs = ["tree", "transcript"] as const;
+          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : "transcript";
 
           return {
             ...currentState,

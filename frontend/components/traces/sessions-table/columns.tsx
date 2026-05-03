@@ -1,13 +1,11 @@
-import { ChevronDownIcon } from "@radix-ui/react-icons";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
-import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import TagsCell from "@/components/tags/tags-cell";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SessionRow } from "@/lib/traces/types";
-import { getDurationString } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -15,6 +13,16 @@ const format = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 5,
   minimumFractionDigits: 1,
 });
+
+const detailedFormat = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 8,
+});
+
+const numberFormat = new Intl.NumberFormat("en-US");
+
+const formatTokens = (value: number | null | undefined) => (value == null ? "-" : numberFormat.format(value));
 
 export const filters: ColumnFilter[] = [
   {
@@ -43,156 +51,113 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
-    key: "input_tokens",
-    name: "Input Tokens",
-    dataType: "number",
-  },
-  {
-    key: "output_tokens",
-    name: "Output Tokens",
-    dataType: "number",
-  },
-  {
     key: "total_cost",
     name: "Total Cost",
     dataType: "number",
-  },
-  {
-    key: "input_cost",
-    name: "Input Cost",
-    dataType: "number",
-  },
-  {
-    key: "output_cost",
-    name: "Output Cost",
-    dataType: "number",
-  },
-  {
-    key: "tags",
-    name: "Span tags",
-    dataType: "string",
   },
 ];
 
 export const columns: ColumnDef<SessionRow, any>[] = [
   {
-    header: "Type",
-    cell: ({ row }) =>
-      row.original?.subRows ? (
-        <div className="flex items-center gap-2">
-          <span className="">Session</span>
-          {row.getIsExpanded() ? (
-            <ChevronDownIcon className="w-4 text-secondary-foreground" />
-          ) : (
-            <ChevronRightIcon className="w-4 text-secondary-foreground" />
-          )}
-        </div>
-      ) : (
-        <div>
-          <span className="text-gray-500">Trace</span>
-        </div>
-      ),
-    id: "type",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => row.id || row.sessionId,
+    accessorFn: (row) => row.sessionId,
     header: "ID",
     id: "id",
-    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    cell: (row) => (
+      <div className="min-h-6 flex items-center">
+        <Mono className="text-xs truncate">{row.getValue()}</Mono>
+      </div>
+    ),
+    size: 200,
+    meta: { sql: "session_id" },
   },
   {
     accessorFn: (row) => row.startTime,
-    header: "Start time",
+    header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
+    meta: { sql: "start_time" },
   },
   {
-    accessorFn: (row) => {
-      if (!row?.subRows) {
-        return getDurationString(row.startTime, row.endTime);
-      }
-
-      return row.duration.toFixed(2) + "s";
-    },
+    accessorFn: (row) => (row.duration ?? 0).toFixed(2) + "s",
     header: "Duration",
     id: "duration",
     size: 100,
+    meta: { sql: "duration" },
   },
   {
-    accessorFn: (row) => format.format(row.inputCost),
-    header: "Input cost",
-    id: "input_cost",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => format.format(row.outputCost),
-    header: "Output cost",
-    id: "output_cost",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => format.format(row.totalCost),
-    header: "Total cost",
+    accessorFn: (row) => row.totalCost,
+    header: "Cost",
     id: "total_cost",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => row.inputTokens,
-    header: "Input tokens",
-    id: "input_tokens",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => row.outputTokens,
-    header: "Output tokens",
-    id: "output_tokens",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => row.totalTokens,
-    header: "Total tokens",
-    id: "total_tokens",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => (row?.subRows ? row.traceCount || 0 : "-"),
-    header: "Trace Count",
-    id: "trace_count",
-    size: 120,
-  },
-  {
-    accessorFn: (row) => (row?.subRows ? "-" : row.userId),
-    header: "User ID",
-    id: "user_id",
-    cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
-  },
-  {
-    accessorFn: (row) => ("spanTags" in row ? row.spanTags : "-"),
+    meta: { sql: "total_cost" },
     cell: (row) => {
-      const tags = row.getValue() as string[];
-      if (Array.isArray(tags) && tags?.length > 0) return <TagsCell tags={tags} />;
+      if (row.getValue() > 0) {
+        return (
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild className="relative p-0">
+                <div className="truncate">{format.format(row.getValue())}</div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border">
+                  <div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Input cost</span>
+                      <span>{detailedFormat.format(row.row.original.inputCost)}</span>
+                    </div>
+                    <div className="flex justify-between space-x-2">
+                      <span>Output cost</span>
+                      <span>{detailedFormat.format(row.row.original.outputCost)}</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+
       return "-";
     },
-    header: "Span tags",
-    accessorKey: "spanTags",
-    id: "span_tags",
+    size: 120,
+  },
+  {
+    accessorFn: (row) => row.totalTokens ?? "-",
+    header: "Tokens",
+    id: "total_tokens",
+    meta: { sql: "total_tokens" },
+    cell: (row) => (
+      <div className="truncate">
+        {formatTokens(row.row.original.inputTokens)}
+        {" → "}
+        {formatTokens(row.row.original.outputTokens)}
+        {` (${formatTokens(row.row.original.totalTokens)})`}
+      </div>
+    ),
+    size: 180,
+  },
+  {
+    accessorFn: (row) => row.traceCount ?? 0,
+    header: "Traces",
+    id: "trace_count",
+    size: 100,
+    meta: { sql: "trace_count" },
+  },
+  {
+    cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
+    accessorFn: (row) => row.userId ?? "-",
+    header: "User ID",
+    id: "user_id",
+    meta: { sql: "user_id" },
   },
 ];
 
 export const defaultSessionsColumnOrder = [
-  "type",
   "id",
   "start_time",
   "duration",
-  "input_cost",
-  "output_cost",
   "total_cost",
-  "input_tokens",
-  "output_tokens",
   "total_tokens",
   "trace_count",
   "user_id",
-  "span_tags",
 ];

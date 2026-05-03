@@ -3,6 +3,8 @@ import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -13,20 +15,36 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   const createNewWorkspace = async () => {
     setIsLoading(true);
-    const res = await fetch("/api/workspaces", {
-      method: "POST",
-      body: JSON.stringify({
-        name: newWorkspaceName,
-      }),
-    });
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newWorkspaceName,
+        }),
+      });
 
-    const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+      if (!res.ok) {
+        const error = (await res.json().catch(() => ({ error: "Failed to create workspace" }))) as { error: string };
+        throw new Error(error?.error ?? "Failed to create workspace");
+      }
 
-    router.push(`/workspace/${newWorkspace.id}`);
-    setIsLoading(false);
+      const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+
+      track("workspace", "created");
+      router.push(`/workspace/${newWorkspace.id}`);
+    } catch (e) {
+      toast({
+        title: "Error creating workspace",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "Failed to create workspace",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

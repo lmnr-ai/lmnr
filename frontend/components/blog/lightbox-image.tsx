@@ -5,15 +5,7 @@ import { createPortal } from "react-dom";
 
 type LightboxImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
 
-const Overlay = ({
-  src,
-  alt,
-  onClose,
-}: {
-  src?: string;
-  alt?: string;
-  onClose: () => void;
-}) => {
+const Overlay = ({ src, alt, onClose }: { src?: string; alt?: string; onClose: () => void }) => {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

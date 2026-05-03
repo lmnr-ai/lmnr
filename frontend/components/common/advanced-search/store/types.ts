@@ -30,6 +30,7 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   tagFocusStates: Map<string, FilterTagFocusState>;
   filters: ColumnFilter[];
   mode: AdvancedSearchMode;
+  resource?: string;
   onSubmit?: (filters: Filter[], search: string) => void;
 
   getActiveTagId: () => string | null;

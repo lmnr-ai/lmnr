@@ -141,7 +141,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
               <SpanStatsShield
                 startTime={span.startTime}
                 endTime={span.endTime}
-                tokens={llmMetrics?.tokens}
+                inputTokens={llmMetrics?.inputTokens}
+                outputTokens={llmMetrics?.outputTokens}
                 cost={llmMetrics?.cost}
                 cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
               />

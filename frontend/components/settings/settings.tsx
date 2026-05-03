@@ -3,9 +3,10 @@
 import { Bell, DollarSign, Key, Settings2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { track } from "@/lib/posthog";
 
 import Header from "../ui/header";
 import {
@@ -49,6 +50,10 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
   const pathName = usePathname();
+
+  useEffect(() => {
+    track("settings", "page_viewed", { tab: activeTab });
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -110,7 +115,7 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
             </SidebarContent>
           </Sidebar>
           <div className="flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4">{renderContent()}</div>
+            <div className="flex flex-col gap-8 max-w-6xl mx-auto px-4">{renderContent()}</div>
           </div>
         </div>
       </SidebarProvider>

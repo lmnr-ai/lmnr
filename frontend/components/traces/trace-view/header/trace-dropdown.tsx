@@ -34,6 +34,18 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
     }
   }, [trace?.id, toast]);
 
+  const sessionId = trace?.sessionId;
+  const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+
+  const handleCopySessionId = useCallback(async () => {
+    if (sessionId) {
+      await navigator.clipboard.writeText(sessionId);
+      toast({ title: "Copied session ID", duration: 1000 });
+    }
+  }, [sessionId, toast]);
+
+  // TODO: add userId to TraceViewTrace to enable "Copy user ID"
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -46,6 +58,13 @@ export default function TraceDropdown({ traceId }: TraceDropdownProps) {
           <Copy size={14} />
           Copy trace ID
         </DropdownMenuItem>
+        {hasSession && (
+          <DropdownMenuItem onClick={handleCopySessionId}>
+            <Copy size={14} />
+            Copy session ID
+          </DropdownMenuItem>
+        )}
+        {/* TODO: add userId to TraceViewTrace to enable "Copy user ID" */}
         <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
           {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
           Open in SQL editor

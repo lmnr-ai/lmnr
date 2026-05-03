@@ -3,7 +3,7 @@
 import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
+import { type ManageSignalForm } from "@/components/signals/create-signal-drawer";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";

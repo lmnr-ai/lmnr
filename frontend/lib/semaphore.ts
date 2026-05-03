@@ -27,7 +27,7 @@ export class Semaphore {
     }
 
     // Create a promise that will be resolved when a permit becomes available
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       this._waiters.push(resolve);
     });
   }

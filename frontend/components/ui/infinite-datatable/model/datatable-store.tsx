@@ -1,7 +1,7 @@
 "use client";
 
 import { intersection, pick, uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -59,7 +59,8 @@ function createDataTableStore<TData>(
   uniqueKey: string = "id",
   storageKey?: string,
   defaultColumnOrder: string[] = [],
-  pageSize: number = 50
+  pageSize: number = 50,
+  initialColumnConfig?: ColumnConfig
 ): StoreApi<DataTableStore<TData>> {
   const storeConfig = (
     set: StoreApi<DataTableStore<TData>>["setState"],
@@ -73,9 +74,9 @@ function createDataTableStore<TData>(
     uniqueKey,
     hasMore: true,
     pageSize,
-    columnVisibility: {},
-    columnOrder: defaultColumnOrder,
-    columnSizing: {},
+    columnVisibility: initialColumnConfig?.columnVisibility ?? {},
+    columnOrder: initialColumnConfig?.columnOrder ?? defaultColumnOrder,
+    columnSizing: initialColumnConfig?.columnSizing ?? {},
     draggingColumnId: null,
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
@@ -196,12 +197,20 @@ type DataTableStoreApi<TData> = ReturnType<typeof createDataTableStore<TData>>;
 
 const DataTableContext = createContext<DataTableStoreApi<any> | undefined>(undefined);
 
+export interface ColumnConfig {
+  columnOrder?: string[];
+  columnSizing?: Record<string, number>;
+  columnVisibility?: Record<string, boolean>;
+}
+
 export interface DataTableStateProviderProps {
   children: ReactNode;
   uniqueKey?: string;
   pageSize?: number;
   storageKey?: string;
   defaultColumnOrder?: string[];
+  initialColumnConfig?: ColumnConfig;
+  onColumnConfigChange?: (config: ColumnConfig) => void;
 }
 
 export function DataTableStateProvider<TData>({
@@ -210,8 +219,33 @@ export function DataTableStateProvider<TData>({
   uniqueKey = "id",
   pageSize = 50,
   defaultColumnOrder = [],
+  initialColumnConfig,
+  onColumnConfigChange,
 }: DataTableStateProviderProps) {
-  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize));
+  const [store] = useState(() =>
+    createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize, initialColumnConfig)
+  );
+  const onChangeRef = useRef(onColumnConfigChange);
+  useEffect(() => {
+    onChangeRef.current = onColumnConfigChange;
+  }, [onColumnConfigChange]);
+
+  useEffect(() => {
+    if (!onColumnConfigChange) return;
+    return store.subscribe((state, prev) => {
+      if (
+        state.columnOrder !== prev.columnOrder ||
+        state.columnSizing !== prev.columnSizing ||
+        state.columnVisibility !== prev.columnVisibility
+      ) {
+        onChangeRef.current?.({
+          columnOrder: state.columnOrder,
+          columnSizing: state.columnSizing,
+          columnVisibility: state.columnVisibility,
+        });
+      }
+    });
+  }, [store, onColumnConfigChange]);
 
   return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
 }

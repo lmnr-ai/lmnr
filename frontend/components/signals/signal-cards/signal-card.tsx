@@ -2,21 +2,15 @@
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { MoreHorizontal } from "lucide-react";
 import Link from "next/link";
 
 import SignalSparkline from "@/components/signals/signal-sparkline.tsx";
-import { DEFAULT_SIGNAL_COLOR } from "@/components/signals/utils";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
+import { track } from "@/lib/posthog";
 import { formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
 
 export default function SignalCard({
@@ -24,67 +18,41 @@ export default function SignalCard({
   projectId,
   sparklineData,
   sparklineMaxCount,
-  onEdit,
-  onDelete,
+  isSelected,
+  onToggleSelect,
 }: {
   signal: SignalRow;
   projectId: string;
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
-  onEdit: () => void;
-  onDelete: () => void;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const data = sparklineData[signal.id];
   const isSparklineLoading = isNil(data);
   const signalUrl = `/project/${projectId}/signals/${signal.id}`;
 
   return (
-    <Link href={signalUrl} className="block h-full">
+    <Link
+      href={signalUrl}
+      className="block h-full"
+      onClick={() => track("signals", "events_viewed", { event_count: signal.eventsCount })}
+    >
       <Card className="hover:border-primary/40 transition-colors h-full">
         <CardHeader className="px-3 pt-3 pb-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
               <div
-                className="size-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: signal.color ?? DEFAULT_SIGNAL_COLOR }}
-              />
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onToggleSelect();
+                }}
+              >
+                <Checkbox checked={isSelected} aria-label={`Select ${signal.name}`} />
+              </div>
               <h3 className="font-medium text-sm truncate">{signal.name}</h3>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="h-6 w-6 flex items-center justify-center rounded-md hover:bg-secondary flex-shrink-0"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  aria-label={`Actions for ${signal.name}`}
-                >
-                  <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onEdit();
-                  }}
-                >
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </CardHeader>
         <CardContent className="px-3 pt-0 pb-2 space-y-2">

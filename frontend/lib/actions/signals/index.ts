@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
@@ -8,7 +9,8 @@ import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export type SignalRow = {
   id: string;
@@ -227,17 +229,50 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
   const { projectId, name, prompt, structuredOutput, sampleRate, color } = CreateSignalSchema.parse(input);
 
-  const [result] = await db
-    .insert(signals)
-    .values({
-      projectId,
-      name,
-      prompt,
-      structuredOutputSchema: structuredOutput,
-      sampleRate: sampleRate ?? null,
-      color: color ?? null,
-    })
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const [signal] = await tx
+      .insert(signals)
+      .values({
+        projectId,
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        sampleRate: sampleRate ?? null,
+        color: color ?? null,
+      })
+      .returning();
+
+    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
+
+    const alertsToInsert: (typeof alerts.$inferInsert)[] = [
+      {
+        projectId,
+        name: `${name} alert`,
+        type: "SIGNAL_EVENT",
+        sourceId: signal.id,
+        metadata: {
+          severities: [SEVERITY_LEVEL.CRITICAL],
+          // skipSimilar depends on the clustering service; default to false when
+          // clustering is disabled so the backend doesn't silently drop notifications.
+          skipSimilar: clusteringEnabled,
+        },
+      },
+    ];
+
+    if (clusteringEnabled) {
+      alertsToInsert.push({
+        projectId,
+        name: `${name} cluster alert`,
+        type: "NEW_CLUSTER",
+        sourceId: signal.id,
+        metadata: {},
+      });
+    }
+
+    await tx.insert(alerts).values(alertsToInsert);
+
+    return signal;
+  });
 
   return result;
 }
@@ -259,10 +294,22 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
-  const [result] = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-    .returning();
+  const [result] = await db.transaction(async (tx) => {
+    await tx
+      .delete(alerts)
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          eq(alerts.sourceId, id),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+      .returning();
+  });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -272,10 +319,22 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
-  const events = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
-    .returning();
+  const events = await db.transaction(async (tx) => {
+    await tx
+      .delete(alerts)
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          inArray(alerts.sourceId, ids),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
+      .returning();
+  });
 
   if (events.length > 0) {
     try {

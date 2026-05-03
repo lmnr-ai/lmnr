@@ -32,13 +32,27 @@ use crate::{
 
 use super::{
     span_attributes::{
-        ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
-        GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
-        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-        SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_AGENT_NAME,
+        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_MESSAGES, GEN_AI_INPUT_TOKENS,
+        GEN_AI_OPERATION_NAME, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_MESSAGES, GEN_AI_OUTPUT_TOKENS,
+        GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM,
+        GEN_AI_SYSTEM_INSTRUCTIONS, GEN_AI_TOOL_CALL_ARGUMENTS, GEN_AI_TOOL_CALL_RESULT,
+        GEN_AI_TOOL_NAME, GEN_AI_TOTAL_COST, GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED, GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+        GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::skip_span_name,
 };
+
+/// Known operation prefixes used to namespace AI SDK span attributes.
+const AISDK_OPERATION_PREFIXES: &[&str] = &[
+    // Mastra prefixes with operation name instead of `ai`
+    "stream",
+    "generateText",
+    "streamText",
+    "generateObject",
+    "streamObject",
+];
 
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
 const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
@@ -170,6 +184,127 @@ impl SpanAttributes {
             .and_then(|s| serde_json::from_value(s.clone()).ok())
     }
 
+    /// Normalize newer operation-prefixed attributes to standard `gen_ai.*` and `ai.*` keys so the existing extraction pipeline picks them up.
+    pub fn normalize_aisdk_attributes(&mut self) {
+        if let Some(model_id) = self.raw_attributes.get(AISDK_MODEL_ID).cloned() {
+            self.insert_if_absent(GEN_AI_REQUEST_MODEL, model_id.clone());
+            self.insert_if_absent("ai.model.id", model_id);
+        }
+
+        if let Some(provider) = self.raw_attributes.get(AISDK_MODEL_PROVIDER).cloned() {
+            self.insert_if_absent("ai.model.provider", provider.clone());
+        }
+        // first normalize cached tokens for AI SDK
+        self.normalize_if_absent("ai.usage.cachedInputTokens", GEN_AI_CACHE_READ_INPUT_TOKENS);
+        self.normalize_if_absent(
+            "ai.usage.inputTokenDetails.cacheReadTokens",
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            "ai.usage.inputTokenDetails.cacheWriteTokens",
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent("ai.usage.inputTokens", GEN_AI_INPUT_TOKENS);
+        self.normalize_if_absent("ai.usage.outputTokens", GEN_AI_OUTPUT_TOKENS);
+
+        //
+        // Normalize spec-aligned OTel GenAI dotted form and pydantic_ai's
+        // `gen_ai.usage.details.*` form into the legacy underscore keys. The
+        // frontend (and ClickHouse aggregations) query the legacy keys directly
+        // off the stored attributes, so this rewrite is what makes cache tokens
+        // from these instrumentations show up in the UI.
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS_DOTTED,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_READ_TOKENS,
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            GEN_AI_USAGE_DETAILS_CACHE_WRITE_TOKENS,
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+
+        let Some(prefix) = self.detect_aisdk_operation_prefix() else {
+            return;
+        };
+
+        // Usage attributes
+        self.normalize_if_absent(&format!("{prefix}.usage.inputTokens"), GEN_AI_INPUT_TOKENS);
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.outputTokens"),
+            GEN_AI_OUTPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.cachedInputTokens"),
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.inputTokenDetails.cacheReadTokens"),
+            GEN_AI_CACHE_READ_INPUT_TOKENS,
+        );
+        self.normalize_if_absent(
+            &format!("{prefix}.usage.inputTokenDetails.cacheWriteTokens"),
+            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+        );
+
+        self.normalize_if_absent(&format!("{prefix}.prompt.messages"), "ai.prompt.messages");
+        self.normalize_if_absent(&format!("{prefix}.response.text"), "ai.response.text");
+        self.normalize_if_absent(
+            &format!("{prefix}.response.toolCalls"),
+            "ai.response.toolCalls",
+        );
+        self.normalize_if_absent(&format!("{prefix}.response.object"), "ai.response.object");
+    }
+
+    fn detect_aisdk_operation_prefix(&self) -> Option<&'static str> {
+        for prefix in AISDK_OPERATION_PREFIXES {
+            if self
+                .raw_attributes
+                .contains_key(&format!("{prefix}.usage.inputTokens"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.usage.outputTokens"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.prompt.messages"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.response.text"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.response.toolCalls"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.response.object"))
+            {
+                return Some(prefix);
+            }
+        }
+        None
+    }
+
+    /// Copy a value from `source_key` to `target_key` if source exists and target does not.
+    fn normalize_if_absent(&mut self, source_key: &str, target_key: &str) {
+        if !self.raw_attributes.contains_key(target_key) {
+            if let Some(value) = self.raw_attributes.get(source_key).cloned() {
+                self.raw_attributes.insert(target_key.to_string(), value);
+            }
+        }
+    }
+
+    /// Insert a value only if the key does not already exist.
+    fn insert_if_absent(&mut self, key: &str, value: Value) {
+        if !self.raw_attributes.contains_key(key) {
+            self.raw_attributes.insert(key.to_string(), value);
+        }
+    }
+
     pub fn input_tokens(&mut self) -> InputTokens {
         let total_input_tokens =
             if let Some(Value::Number(n)) = self.raw_attributes.get(GEN_AI_INPUT_TOKENS) {
@@ -184,16 +319,12 @@ impl SpanAttributes {
                 0
             };
 
-        let cache_write_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        let cache_read_tokens = self
-            .raw_attributes
-            .get(GEN_AI_CACHE_READ_INPUT_TOKENS)
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        // Cache token aliases (OTel dotted form, pydantic_ai `details.*` form,
+        // AI SDK variants) are rewritten into these legacy keys by
+        // `normalize_aisdk_attributes`, which runs in `parse_and_enrich_attributes`
+        // before any caller reaches this function. Keep this read simple.
+        let cache_write_tokens = self.int_attr(GEN_AI_CACHE_WRITE_INPUT_TOKENS).unwrap_or(0);
+        let cache_read_tokens = self.int_attr(GEN_AI_CACHE_READ_INPUT_TOKENS).unwrap_or(0);
 
         let regular_input_tokens =
             (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
@@ -303,19 +434,40 @@ impl SpanAttributes {
 
     pub fn span_type(&self) -> SpanType {
         if let Some(span_type) = self.raw_attributes.get(SPAN_TYPE) {
-            serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default()
-        } else {
-            // quick hack until we figure how to set span type on auto-instrumentation
-            if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
-                || self
-                    .raw_attributes
-                    .iter()
-                    .any(|(k, _)| k.starts_with("gen_ai.") || k.starts_with("llm."))
-            {
-                SpanType::LLM
-            } else {
-                SpanType::Default
+            return serde_json::from_value::<SpanType>(span_type.clone()).unwrap_or_default();
+        }
+
+        // OTel GenAI semantic conventions — use `gen_ai.operation.name` as the authoritative
+        // signal when present (emitted by pydantic_ai v5 and other spec-compliant libraries).
+        if let Some(Value::String(op)) = self.raw_attributes.get(GEN_AI_OPERATION_NAME) {
+            match op.as_str() {
+                "chat" | "text_completion" | "embeddings" | "generate_content" => {
+                    return SpanType::LLM;
+                }
+                "execute_tool" => return SpanType::Tool,
+                // `invoke_agent` stays Default — agent runs are containers whose children carry
+                // the LLM/tool content.
+                "invoke_agent" => return SpanType::Default,
+                _ => {}
             }
+        }
+
+        // Some OTel GenAI emitters (e.g. pydantic_ai's tool spans) omit `gen_ai.operation.name`
+        // but include `gen_ai.tool.call.*` attributes. Infer Tool type from those.
+        if self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_ARGUMENTS)
+            || self.raw_attributes.contains_key(GEN_AI_TOOL_CALL_RESULT)
+        {
+            return SpanType::Tool;
+        }
+
+        // quick hack until we figure how to set span type on auto-instrumentation
+        if self.raw_attributes.contains_key(GEN_AI_SYSTEM)
+            || self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL)
+            || self.raw_attributes.contains_key(GEN_AI_RESPONSE_MODEL)
+        {
+            SpanType::LLM
+        } else {
+            SpanType::Default
         }
     }
 
@@ -375,6 +527,10 @@ impl SpanAttributes {
             .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
         self.raw_attributes
             .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
+        self.raw_attributes.insert(
+            "llm.usage.total_tokens".to_string(),
+            json!(usage.total_tokens),
+        );
         self.raw_attributes
             .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
         self.raw_attributes
@@ -598,6 +754,8 @@ impl Span {
             return;
         }
 
+        self.attributes.normalize_aisdk_attributes();
+
         if self.is_llm_span() {
             if self
                 .attributes
@@ -636,35 +794,93 @@ impl Span {
                 convert_ai_sdk_tool_calls(&mut self.attributes.raw_attributes);
             }
 
-            // New format `gen_ai.input.messages` and `gen_ai.output.messages` overrides the old format `gen_ai.prompt/completion`
-            if let Some(input) = self
+            // OTel GenAI semantic conventions — `gen_ai.input.messages` /
+            // `gen_ai.output.messages` carry a JSON array of `{role, parts: [...]}`
+            // objects. Preserve the native format end-to-end (the frontend parses it);
+            // we only (a) parse the attribute if it's still a serialised string and
+            // (b) prepend `gen_ai.system_instructions` as a synthetic `role: "system"`
+            // message so the system prompt threads into the same message array.
+            let system_instructions = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.input.messages")
-            {
-                if let Value::String(s) = input {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.input = Some(parsed);
-                    } else {
-                        self.input = Some(serde_json::Value::String(s));
-                    }
-                } else {
-                    self.input = Some(input);
+                .remove(GEN_AI_SYSTEM_INSTRUCTIONS)
+                .map(|v| parse_genai_messages_attribute(&v));
+            if let Some(input) = self.attributes.raw_attributes.remove(GEN_AI_INPUT_MESSAGES) {
+                let mut parsed = parse_genai_messages_attribute(&input);
+                if let Some(sys) = system_instructions {
+                    parsed = prepend_system_instructions(parsed, sys);
+                }
+                self.input = Some(parsed);
+            } else if let Some(sys) = system_instructions {
+                // `system_instructions` present but no `gen_ai.input.messages`. Only
+                // surface it as a standalone system message when `self.input` is still
+                // empty — otherwise we'd clobber whatever the old-format handlers
+                // (`gen_ai.prompt.0.*` / `ai.prompt.messages`) already extracted.
+                if self.input.is_none() {
+                    self.input = Some(prepend_system_instructions(Value::Array(vec![]), sys));
                 }
             }
             if let Some(output) = self
                 .attributes
                 .raw_attributes
-                .remove("gen_ai.output.messages")
+                .remove(GEN_AI_OUTPUT_MESSAGES)
             {
-                if let Value::String(s) = output {
-                    if let Ok(parsed) = serde_json::from_str::<Value>(&s) {
-                        self.output = Some(parsed);
-                    } else {
-                        self.output = Some(serde_json::Value::String(s));
-                    }
-                } else {
-                    self.output = Some(output);
+                self.output = Some(parse_genai_messages_attribute(&output));
+            }
+        }
+
+        // OTel GenAI tool spans (pydantic_ai's `execute_tool {name}`). These aren't LLM spans,
+        // so they don't go through the LLM path — handle them separately. Gate on
+        // `span_type == Tool` (which `span_type()` already infers from `gen_ai.operation.name`
+        // or the `gen_ai.tool.call.*` fallback) so we don't clobber LLM-span input/output if a
+        // spec-violating emitter mixes LLM message attrs with tool-call attrs on the same span.
+        if self.span_type == SpanType::Tool {
+            if let Some(args) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_ARGUMENTS)
+            {
+                self.input = Some(parse_genai_messages_attribute(&args));
+            }
+            if let Some(result) = self
+                .attributes
+                .raw_attributes
+                .remove(GEN_AI_TOOL_CALL_RESULT)
+            {
+                self.output = Some(parse_genai_messages_attribute(&result));
+            }
+        }
+
+        // OTel GenAI: rename spans to the user-supplied tool/agent name when present.
+        // pydantic_ai (and other spec-compliant emitters) use names like
+        // "execute_tool get_weather" / "invoke_agent my_agent", which duplicate the
+        // operation prefix already exposed via `gen_ai.operation.name`. Strip it so the
+        // transcript shows the bare tool/agent name. Path's last segment is updated in
+        // lockstep so `lmnr.span.path` stays consistent.
+        let op = self
+            .attributes
+            .raw_attributes
+            .get(GEN_AI_OPERATION_NAME)
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        if let Some(op) = op {
+            let new_name = match op.as_str() {
+                "execute_tool" => self.attributes.raw_attributes.get(GEN_AI_TOOL_NAME),
+                "invoke_agent" => self.attributes.raw_attributes.get(GEN_AI_AGENT_NAME),
+                _ => None,
+            }
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+
+            if let Some(new_name) = new_name {
+                if new_name != self.name {
+                    rename_last_span_in_path(
+                        &mut self.attributes.raw_attributes,
+                        &self.name,
+                        &new_name,
+                    );
+                    self.name = new_name;
                 }
             }
         }
@@ -923,10 +1139,15 @@ impl Span {
             }
             // For older versions of our proxy, apply similar heuristics here directly
             if self.attributes.is_claude_code_span()
-                && self
+                && (self
                     .attributes
                     .request_model()
                     .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                || self
+                    .attributes
+                    .response_model()
+                    .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                )
                 // input check is relatively heavy, so perform it after simpler checks
                 && self.is_input_cc_bash_check()
             {
@@ -1006,6 +1227,26 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
     // AI SDK
     // remove ai.prompt.messages as it is stored in AI SDK span inputs
     if attribute == "ai.prompt.messages" || attribute == "ai.prompt" {
+        return false;
+    }
+
+    // Newer AI SDK operation-prefixed attributes that have been normalized to
+    // standard `ai.*` / `gen_ai.*` keys. Remove the originals to save storage.
+    const AISDK_NORMALIZED_SUFFIXES: &[&str] = &[
+        ".prompt.messages",
+        ".response.text",
+        ".response.object",
+        ".usage.inputTokens",
+        ".usage.outputTokens",
+        ".usage.cachedInputTokens",
+    ];
+    if AISDK_OPERATION_PREFIXES
+        .iter()
+        .any(|p| attribute.starts_with(&format!("{p}.")))
+        && AISDK_NORMALIZED_SUFFIXES
+            .iter()
+            .any(|s| attribute.ends_with(s))
+    {
         return false;
     }
 
@@ -1151,6 +1392,40 @@ fn input_chat_messages_from_json(input: &serde_json::Value) -> Result<Vec<ChatMe
             .collect()
     } else {
         Err(anyhow::anyhow!("Input is not a list"))
+    }
+}
+
+/// Parse a `gen_ai.*` attribute that is either a JSON string (the common case
+/// when the SDK serialises a message array) or an already-structured Value.
+fn parse_genai_messages_attribute(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            serde_json::from_str::<Value>(s).unwrap_or_else(|_| Value::String(s.clone()))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Prepend `gen_ai.system_instructions` to an already-parsed
+/// `gen_ai.input.messages` value as a synthetic `{role: "system", parts: [...]}`
+/// entry. The native GenAI shape is preserved end-to-end; the frontend handles
+/// rendering of the message array. `system_instructions` may itself be an array
+/// of parts (the common case) or a bare string, which we wrap in a text part.
+fn prepend_system_instructions(messages: Value, system: Value) -> Value {
+    let parts = match system {
+        Value::Array(parts) => parts,
+        Value::String(s) if !s.is_empty() => vec![json!({"type": "text", "content": s})],
+        other => vec![other],
+    };
+    let system_msg = json!({ "role": "system", "parts": parts });
+    match messages {
+        Value::Array(mut arr) => {
+            arr.insert(0, system_msg);
+            Value::Array(arr)
+        }
+        // `input.messages` wasn't an array (malformed payload). Wrap both in an
+        // array so the system prompt is still visible alongside the raw value.
+        other => Value::Array(vec![system_msg, other]),
     }
 }
 
@@ -3317,5 +3592,868 @@ mod tests {
             span.attributes.raw_attributes.get("llm.usage.total_tokens"),
             Some(&json!(105))
         );
+    }
+
+    #[test]
+    fn test_normalize_aisdk_stream_attributes() {
+        // Simulates a span with newer AI SDK stream.* / aisdk.* attributes.
+        // Verifies that tokens, model, provider, and input/output are all extracted correctly.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("glm-4.5-flash")),
+            ("aisdk.model.provider".to_string(), json!("openai.chat")),
+            ("stream.usage.inputTokens".to_string(), json!(14)),
+            ("stream.usage.outputTokens".to_string(), json!(87)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(12)),
+            (
+                "stream.prompt.messages".to_string(),
+                json!("[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}]"),
+            ),
+            ("stream.response.text".to_string(), json!("Hi there!")),
+            ("stream.response.toolCalls".to_string(), json!("[]")),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "mastra.stream".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        span.parse_and_enrich_attributes();
+
+        // Token counts should be extracted via gen_ai.usage.* normalization
+        let input_tokens = span.attributes.input_tokens();
+        assert_eq!(input_tokens.total(), 14);
+        assert_eq!(input_tokens.cache_read_tokens, 12);
+        assert_eq!(input_tokens.regular_input_tokens, 2);
+        assert_eq!(span.attributes.output_tokens(), 87);
+
+        // Model from aisdk.model.id
+        assert_eq!(
+            span.attributes.request_model(),
+            Some("glm-4.5-flash".to_string())
+        );
+
+        assert!(span.input.is_some(), "span input should be parsed");
+
+        assert!(span.output.is_some(), "span output should be parsed");
+
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("stream.usage.inputTokens"),
+            Some(&json!(14))
+        );
+        assert_eq!(
+            span.attributes.raw_attributes.get("aisdk.model.provider"),
+            Some(&json!("openai.chat"))
+        );
+    }
+
+    #[test]
+    fn test_normalize_aisdk_generate_text_attributes() {
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("generateText.usage.inputTokens".to_string(), json!(50)),
+            ("generateText.usage.outputTokens".to_string(), json!(100)),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "ai.generateText".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.attributes.input_tokens().total(), 50);
+        assert_eq!(span.attributes.output_tokens(), 100);
+        assert_eq!(span.attributes.request_model(), Some("gpt-4o".to_string()));
+    }
+
+    #[test]
+    fn test_normalize_aisdk_does_not_overwrite_existing() {
+        // If standard gen_ai.* keys already exist, normalization should NOT overwrite them.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(50)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(200)),
+            ("gen_ai.request.model".to_string(), json!("existing-model")),
+            ("gen_ai.system".to_string(), json!("existing-provider")),
+            // These should be ignored since standard keys already exist
+            ("aisdk.model.id".to_string(), json!("overwrite-model")),
+            (
+                "aisdk.model.provider".to_string(),
+                json!("overwrite.provider"),
+            ),
+            ("stream.usage.inputTokens".to_string(), json!(999)),
+            ("stream.usage.outputTokens".to_string(), json!(888)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(50))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_OUTPUT_TOKENS),
+            Some(&json!(200))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_REQUEST_MODEL),
+            Some(&json!("existing-model"))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_SYSTEM),
+            Some(&json!("existing-provider"))
+        );
+    }
+
+    #[test]
+    fn test_normalize_aisdk_no_op_without_aisdk_attributes() {
+        // Normalization should be a no-op for spans without any aisdk/stream attributes.
+        let attributes = HashMap::from([
+            ("gen_ai.system".to_string(), json!("openai")),
+            ("gen_ai.usage.input_tokens".to_string(), json!(10)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(20)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes.clone());
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(attrs.raw_attributes.len(), attributes.len());
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(10))
+        );
+    }
+
+    #[test]
+    fn test_normalize_aisdk_stream_object_prefix() {
+        // Verify that streamObject prefix is also detected and normalized.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("streamObject.usage.inputTokens".to_string(), json!(30)),
+            ("streamObject.usage.outputTokens".to_string(), json!(60)),
+            (
+                "streamObject.prompt.messages".to_string(),
+                json!(
+                    "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"extract data\"}]}]"
+                ),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(30))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_OUTPUT_TOKENS),
+            Some(&json!(60))
+        );
+        assert!(attrs.raw_attributes.contains_key("ai.prompt.messages"));
+    }
+
+    #[test]
+    fn test_otel_dotted_cache_tokens_normalize_to_legacy_key() {
+        // The frontend reads cache tokens directly off the persisted raw
+        // attributes under the legacy key `gen_ai.usage.cache_read_input_tokens`
+        // (see `frontend/lib/actions/shared/trace/index.ts`). So for UI display
+        // it is not enough that `input_tokens()` falls back — we must also copy
+        // the OTel-spec dotted form into the legacy key during normalization.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(100)),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(40),
+            ),
+            (
+                "gen_ai.usage.cache_creation.input_tokens".to_string(),
+                json!(10),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(10))
+        );
+    }
+
+    #[test]
+    fn test_pydantic_details_cache_tokens_normalize_to_legacy_key() {
+        // Same as above, but for pydantic_ai's `gen_ai.usage.details.cache_*_tokens`
+        // form. Without this normalization, spans from pydantic-ai instrumentation
+        // would show cache tokens = 0 in the UI.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(130213)),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(128955),
+            ),
+            (
+                "gen_ai.usage.details.cache_write_tokens".to_string(),
+                json!(1253),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(128955))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(1253))
+        );
+
+        // Downstream `input_tokens()` reads the canonical legacy keys — verify
+        // the computed breakdown matches a realistic Anthropic prompt-cache hit.
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_read_tokens, 128955);
+        assert_eq!(input_tokens.cache_write_tokens, 1253);
+        assert_eq!(input_tokens.regular_input_tokens, 5);
+        assert_eq!(input_tokens.total(), 130213);
+    }
+
+    #[test]
+    fn test_legacy_cache_tokens_not_overwritten_by_fallback_keys() {
+        // If both legacy and fallback forms are present, legacy wins and is
+        // preserved — `normalize_if_absent` must not clobber an existing value.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(500)),
+            (
+                "gen_ai.usage.cache_read_input_tokens".to_string(),
+                json!(100),
+            ),
+            (
+                "gen_ai.usage.cache_read.input_tokens".to_string(),
+                json!(200),
+            ),
+            (
+                "gen_ai.usage.details.cache_read_tokens".to_string(),
+                json!(300),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(100))
+        );
+    }
+
+    #[test]
+    fn test_cache_tokens_exceed_total_clips_to_zero() {
+        // When cache tokens > total (inconsistent instrumentation), regular_input_tokens
+        // should clip to 0 rather than go negative.
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(100)),
+            (
+                "gen_ai.usage.cache_read_input_tokens".to_string(),
+                json!(150),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        let input_tokens = attrs.input_tokens();
+
+        assert_eq!(input_tokens.regular_input_tokens, 0);
+        assert_eq!(input_tokens.cache_read_tokens, 150);
+        assert_eq!(input_tokens.total(), 150);
+    }
+
+    #[test]
+    fn test_cache_write_tokens_from_input_token_details() {
+        // inputTokenDetails.cacheWriteTokens should map to gen_ai.usage.cache_creation_input_tokens
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            (
+                "stream.usage.inputTokenDetails.cacheWriteTokens".to_string(),
+                json!(30),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(30))
+        );
+        // cache read should not be set
+        assert!(
+            !attrs
+                .raw_attributes
+                .contains_key(GEN_AI_CACHE_READ_INPUT_TOKENS)
+        );
+    }
+
+    #[test]
+    fn test_cached_input_tokens_maps_to_cache_read() {
+        // cachedInputTokens should map to gen_ai.usage.cache_read_input_tokens
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(40)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+    }
+
+    #[test]
+    fn test_cache_read_tokens_from_input_token_details() {
+        // inputTokenDetails.cacheReadTokens should map to gen_ai.usage.cache_read_input_tokens
+        // when cachedInputTokens is absent
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            (
+                "stream.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(25),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(25))
+        );
+    }
+
+    #[test]
+    fn test_cached_input_tokens_has_precedence_over_cache_read_token_details() {
+        // When both cachedInputTokens and inputTokenDetails.cacheReadTokens are present,
+        // cachedInputTokens should take precedence because it is normalized first.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("gpt-4o")),
+            ("aisdk.model.provider".to_string(), json!("openai")),
+            ("stream.usage.inputTokens".to_string(), json!(100)),
+            ("stream.usage.outputTokens".to_string(), json!(50)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(40)),
+            (
+                "stream.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(25),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        // cachedInputTokens (40) wins over inputTokenDetails.cacheReadTokens (25)
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(40))
+        );
+    }
+
+    #[test]
+    fn test_all_cache_token_attributes_together() {
+        // All three cache token attributes present: cacheWriteTokens, cachedInputTokens,
+        // and cacheReadTokens. Verify they all resolve correctly with proper precedence.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("claude-3-opus")),
+            (
+                "aisdk.model.provider".to_string(),
+                json!("anthropic.messages"),
+            ),
+            ("generateText.usage.inputTokens".to_string(), json!(200)),
+            ("generateText.usage.outputTokens".to_string(), json!(80)),
+            (
+                "generateText.usage.cachedInputTokens".to_string(),
+                json!(60),
+            ),
+            (
+                "generateText.usage.inputTokenDetails.cacheReadTokens".to_string(),
+                json!(45),
+            ),
+            (
+                "generateText.usage.inputTokenDetails.cacheWriteTokens".to_string(),
+                json!(30),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        // cacheWriteTokens -> gen_ai.usage.cache_creation_input_tokens
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(30))
+        );
+        // cachedInputTokens (60) takes precedence over inputTokenDetails.cacheReadTokens (45)
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(60))
+        );
+
+        // Verify input_tokens() computation uses the normalized values
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.cache_write_tokens, 30);
+        assert_eq!(input_tokens.cache_read_tokens, 60);
+        // regular = total - cache_write - cache_read = 200 - 30 - 60 = 110
+        assert_eq!(input_tokens.regular_input_tokens, 110);
+        assert_eq!(input_tokens.total(), 200);
+    }
+
+    #[test]
+    fn test_normalize_aisdk_only_model_no_prefix() {
+        // Span has aisdk.model.* but no operation-prefixed attributes.
+        // Model/provider should still be normalized.
+        let attributes = HashMap::from([
+            ("aisdk.model.id".to_string(), json!("claude-3-opus")),
+            (
+                "aisdk.model.provider".to_string(),
+                json!("anthropic.messages"),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_REQUEST_MODEL),
+            Some(&json!("claude-3-opus"))
+        );
+        assert!(!attrs.raw_attributes.contains_key(GEN_AI_INPUT_TOKENS));
+        assert!(!attrs.raw_attributes.contains_key(GEN_AI_OUTPUT_TOKENS));
+    }
+
+    fn make_llm_span(attributes: HashMap<String, Value>) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "chat gpt-4o".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_chat_span() {
+        // Mirrors pydantic_ai v5 InstrumentationSettings output for a chat-model call.
+        // The native `{role, parts: [...]}` shape is preserved end-to-end; the
+        // frontend parses it for rendering.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "content": "What's the weather in SF?"}
+                ]
+            }
+        ]);
+        let output_messages = json!([
+            {
+                "role": "assistant",
+                "parts": [
+                    {"type": "text", "content": "Let me check that."},
+                    {
+                        "type": "tool_call",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "arguments": {"location": "SF"}
+                    }
+                ],
+                "finish_reason": "tool_calls"
+            }
+        ]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            ("gen_ai.provider.name".to_string(), json!("openai")),
+            ("gen_ai.request.model".to_string(), json!("gpt-4o")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.output.messages".to_string(),
+                json!(output_messages.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        // input/output preserve the original GenAI shape verbatim (the
+        // serialised JSON string is deserialised, nothing else is reshaped).
+        assert_eq!(span.input, Some(input_messages));
+        assert_eq!(span.output, Some(output_messages));
+
+        // Raw attributes are consumed so they don't leak into the Attributes tab.
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.input.messages")
+        );
+        assert!(
+            !span
+                .attributes
+                .raw_attributes
+                .contains_key("gen_ai.output.messages")
+        );
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_span() {
+        // Mirrors pydantic_ai v5 ToolManager output for `execute_tool {name}`.
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("execute_tool")),
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            (
+                "gen_ai.tool.call.result".to_string(),
+                json!(r#"{"temp_f": 65, "description": "Sunny"}"#),
+            ),
+        ]);
+
+        // Tool spans arrive with SpanType::Tool inferred from gen_ai.operation.name.
+        let attrs_for_type = SpanAttributes::new(attributes.clone());
+        assert_eq!(attrs_for_type.span_type(), SpanType::Tool);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "execute_tool get_weather".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Tool,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(json!({"location": "SF"})));
+        assert_eq!(
+            span.output,
+            Some(json!({"temp_f": 65, "description": "Sunny"}))
+        );
+
+        // Span name is stripped from `execute_tool {name}` to just the tool name.
+        assert_eq!(span.name, "get_weather");
+
+        // `gen_ai.operation.name == "execute_tool"` survives enrichment, so
+        // `attributes.span_type()` keeps returning Tool and `is_llm_span()` is false.
+        assert!(!span.is_llm_span());
+    }
+
+    #[test]
+    fn test_gen_ai_invoke_agent_span_renamed_to_agent_name() {
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("invoke_agent")),
+            ("gen_ai.agent.name".to_string(), json!("triage_agent")),
+            (
+                "lmnr.span.path".to_string(),
+                json!(["root", "invoke_agent triage_agent"]),
+            ),
+        ]);
+
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "invoke_agent triage_agent".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.name, "triage_agent");
+        // Path's last segment is updated in lockstep with the rename.
+        assert_eq!(
+            span.attributes.raw_attributes.get("lmnr.span.path"),
+            Some(&json!(["root", "triage_agent"]))
+        );
+    }
+
+    #[test]
+    fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
+        // No tool name attribute → name unchanged.
+        let mut attributes = HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("execute_tool"),
+        )]);
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "execute_tool".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Tool,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+        assert_eq!(span.name, "execute_tool");
+
+        // Empty agent name → name unchanged.
+        let mut attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("invoke_agent")),
+            ("gen_ai.agent.name".to_string(), json!("")),
+        ]);
+        let mut span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "invoke_agent".to_string(),
+            attributes: SpanAttributes::new(std::mem::take(&mut attributes)),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        span.parse_and_enrich_attributes();
+        assert_eq!(span.name, "invoke_agent");
+    }
+
+    #[test]
+    fn test_span_type_tool_without_operation_name() {
+        // Real-world pydantic_ai tool spans omit gen_ai.operation.name but still carry
+        // gen_ai.tool.call.* attributes. Make sure we still recognize them as Tool.
+        let attrs = SpanAttributes::new(HashMap::from([
+            ("gen_ai.tool.name".to_string(), json!("get_weather")),
+            ("gen_ai.tool.call.id".to_string(), json!("call_abc")),
+            (
+                "gen_ai.tool.call.arguments".to_string(),
+                json!(r#"{"location": "SF"}"#),
+            ),
+            ("gen_ai.tool.call.result".to_string(), json!("Sunny")),
+        ]));
+        assert_eq!(attrs.span_type(), SpanType::Tool);
+    }
+
+    #[test]
+    fn test_span_type_from_gen_ai_operation_name() {
+        let chat = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("chat"),
+        )]));
+        assert_eq!(chat.span_type(), SpanType::LLM);
+
+        let tool = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("execute_tool"),
+        )]));
+        assert_eq!(tool.span_type(), SpanType::Tool);
+
+        let agent = SpanAttributes::new(HashMap::from([(
+            "gen_ai.operation.name".to_string(),
+            json!("invoke_agent"),
+        )]));
+        // Agent runs stay Default so they render as container spans.
+        assert_eq!(agent.span_type(), SpanType::Default);
+    }
+
+    #[test]
+    fn test_parse_gen_ai_semconv_tool_response_message() {
+        // Tool-response messages in pydantic_ai come through gen_ai.input.messages as
+        // role=user (or role=tool for some providers) with a single tool_call_response
+        // part. The native shape is preserved; the frontend owns rendering.
+        let input_messages = json!([
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "type": "tool_call_response",
+                        "id": "call_abc",
+                        "name": "get_weather",
+                        "result": {"temp_f": 65}
+                    }
+                ]
+            }
+        ]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        assert_eq!(span.input, Some(input_messages));
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_prepended_as_system_message() {
+        // `gen_ai.system_instructions` is prepended to `gen_ai.input.messages` as a
+        // synthetic `{role: "system", parts: [...]}` entry while preserving the
+        // native GenAI shape (no ChatMessage conversion).
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!([{"type": "text", "content": "Be helpful"}, {"type": "text", "content": "Answer concisely"}]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        assert_eq!(arr[0]["parts"], system_instructions);
+        assert_eq!(arr[1], input_messages[0]);
+    }
+
+    #[test]
+    fn test_gen_ai_system_instructions_as_bare_string_array() {
+        // Some emitters ship `gen_ai.system_instructions` as a bare string array
+        // (`["Be helpful"]`). The raw payload is preserved as-is inside the
+        // synthetic system message's `parts` — we don't reshape it.
+        let input_messages = json!([{
+            "role": "user",
+            "parts": [{"type": "text", "content": "Hi"}]
+        }]);
+        let system_instructions = json!(["Be helpful", "Answer concisely"]);
+
+        let attributes = HashMap::from([
+            ("gen_ai.operation.name".to_string(), json!("chat")),
+            (
+                "gen_ai.input.messages".to_string(),
+                json!(input_messages.to_string()),
+            ),
+            (
+                "gen_ai.system_instructions".to_string(),
+                json!(system_instructions.to_string()),
+            ),
+        ]);
+
+        let mut span = make_llm_span(attributes);
+        span.parse_and_enrich_attributes();
+
+        let input = span.input.clone().unwrap();
+        let arr = input.as_array().expect("input should be an array");
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0]["role"], "system");
+        // Bare strings are preserved verbatim in `parts`.
+        assert_eq!(arr[0]["parts"], system_instructions);
     }
 }

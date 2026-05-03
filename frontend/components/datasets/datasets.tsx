@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
@@ -16,6 +16,7 @@ import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -83,7 +84,7 @@ const EmptyRow = (
             one.
           </p>
           <a
-            href="https://docs.laminar.sh/datasets/introduction"
+            href="https://laminar.sh/docs/datasets/introduction"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
@@ -103,6 +104,10 @@ function DatasetsContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    track("datasets", "page_viewed");
+  }, []);
 
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -180,6 +185,7 @@ function DatasetsContent() {
         updateData((currentData) => currentData.filter((dataset) => !datasetIds.includes(dataset.id)));
 
         setRowSelection({});
+        track("datasets", "deleted", { count: datasetIds.length });
         toast({
           title: "Datasets deleted",
           description: `Successfully deleted ${datasetIds.length} dataset(s).`,

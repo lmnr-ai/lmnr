@@ -73,7 +73,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -234,7 +233,6 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],

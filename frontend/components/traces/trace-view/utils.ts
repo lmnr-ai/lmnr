@@ -243,35 +243,17 @@ export const onRealtimeUpdateSpans =
     });
   };
 
-const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
-  if (!path1 || !path2) return false;
-  if (path1.length !== path2.length) return false;
-  return path1.every((item, index) => item === path2[index]);
-};
-
 export const findSpanToSelect = (
   spans: TraceViewSpan[],
   spanId: string | undefined,
-  searchParams: URLSearchParams,
-  spanPath: string[] | null
+  searchParams: URLSearchParams
 ): TraceViewSpan | undefined => {
-  // Priority 1: Span from URL (either prop or search params)
   const urlSpanId = spanId || searchParams.get("spanId");
   if (urlSpanId) {
     const spanFromUrl = spans.find((span) => span.spanId === urlSpanId);
     if (spanFromUrl) return spanFromUrl;
   }
 
-  // Priority 2: Span matching saved path from local storage
-  if (spanPath) {
-    const spanFromPath = spans.find((span) => {
-      const attributePath = span.attributes?.["lmnr.span.path"];
-      return Array.isArray(attributePath) && isSpanPathsEqual(attributePath, spanPath);
-    });
-    if (spanFromPath) return spanFromPath;
-  }
-
-  // Priority 3: First span as fallback
   return spans?.[0];
 };
 
@@ -283,8 +265,9 @@ export const getSpanDisplayName = (span: TraceViewSpan | TraceViewListSpan) => {
 export const getLLMMetrics = (span: TraceViewSpan) => {
   if (span.aggregatedMetrics?.hasLLMDescendants) {
     return {
+      inputTokens: span.aggregatedMetrics.inputTokens,
+      outputTokens: span.aggregatedMetrics.outputTokens,
       cost: span.aggregatedMetrics.totalCost,
-      tokens: span.aggregatedMetrics.totalTokens,
       cacheReadInputTokens: span.aggregatedMetrics.cacheReadInputTokens,
       reasoningTokens: span.aggregatedMetrics.reasoningTokens,
     };
@@ -292,16 +275,18 @@ export const getLLMMetrics = (span: TraceViewSpan) => {
 
   if (span.spanType !== "LLM") return null;
 
+  const inputTokensValue = span.inputTokens ?? 0;
+  const outputTokensValue = span.outputTokens ?? 0;
   const costValue = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-  const tokensValue = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
   const cacheTokensValue = span.cacheReadInputTokens ?? 0;
   const reasoningTokensValue = span.reasoningTokens ?? 0;
 
-  if (costValue === 0 && tokensValue === 0) return null;
+  if (costValue === 0 && inputTokensValue === 0 && outputTokensValue === 0) return null;
 
   return {
+    inputTokens: inputTokensValue,
+    outputTokens: outputTokensValue,
     cost: costValue,
-    tokens: tokensValue,
     cacheReadInputTokens: cacheTokensValue,
     reasoningTokens: reasoningTokensValue,
   };

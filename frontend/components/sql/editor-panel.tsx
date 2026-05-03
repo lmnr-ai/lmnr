@@ -30,6 +30,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 export default function EditorPanel() {
   const { projectId } = useParams();
@@ -130,6 +131,7 @@ export default function EditorPanel() {
       const data = await response.json();
 
       setResults(Array.isArray(data) ? data : []);
+      track("sql_editor", "query_executed");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         return;

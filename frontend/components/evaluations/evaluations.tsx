@@ -2,21 +2,22 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
-import SearchInput from "@/components/common/search-input";
+import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -108,6 +109,10 @@ function EvaluationsContent() {
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
+
+  useEffect(() => {
+    track("evaluations", "page_viewed");
+  }, []);
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
 
@@ -268,9 +273,15 @@ function EvaluationsContent() {
                       label: typeof column.header === "string" ? column.header : column.id!,
                     }))}
                   />
-                  <SearchInput placeholder="Search evaluations by name..." />
                 </div>
-                <DataTableFilterList />
+                <div className="w-full">
+                  <AdvancedSearch
+                    storageKey="evaluations"
+                    filters={filters}
+                    placeholder="Search evaluations..."
+                    className="w-full flex-1"
+                  />
+                </div>
               </InfiniteDataTable>
             </ResizablePanel>
           </ResizablePanelGroup>

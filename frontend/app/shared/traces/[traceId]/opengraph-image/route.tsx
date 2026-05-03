@@ -50,93 +50,91 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   return new ImageResponse(
-    (
-      <OgContainer>
-        <OgHeader label="Shared Trace" />
+    <OgContainer>
+      <OgHeader label="Shared Trace" />
 
-        {/* Center content */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px", flex: 1, justifyContent: "center" }}>
-          {/* Status and type */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+      {/* Center content */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "32px", flex: 1, justifyContent: "center" }}>
+        {/* Status and type */}
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: "#1a1a1a",
+              borderRadius: "9999px",
+              padding: "8px 20px",
+              border: `1px solid ${statusColor}40`,
+            }}
+          >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                backgroundColor: statusColor,
+              }}
+            />
+            <span style={{ color: statusColor, fontSize: "18px", fontWeight: 600, textTransform: "uppercase" }}>
+              {status}
+            </span>
+          </div>
+          {traceType && (
+            <span
+              style={{
+                color: "#a3a3a3",
+                fontSize: "18px",
                 backgroundColor: "#1a1a1a",
                 borderRadius: "9999px",
                 padding: "8px 20px",
-                border: `1px solid ${statusColor}40`,
+                border: "1px solid #333333",
               }}
             >
-              <div
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  backgroundColor: statusColor,
-                }}
-              />
-              <span style={{ color: statusColor, fontSize: "18px", fontWeight: 600, textTransform: "uppercase" }}>
-                {status}
+              {traceType}
+            </span>
+          )}
+        </div>
+
+        {/* Metrics */}
+        <div style={{ display: "flex", gap: "48px" }}>
+          {totalTokens > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                Tokens
+              </span>
+              <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
+                {totalTokens.toLocaleString()}
               </span>
             </div>
-            {traceType && (
-              <span
-                style={{
-                  color: "#a3a3a3",
-                  fontSize: "18px",
-                  backgroundColor: "#1a1a1a",
-                  borderRadius: "9999px",
-                  padding: "8px 20px",
-                  border: "1px solid #333333",
-                }}
-              >
-                {traceType}
+          )}
+          {totalCost > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                Cost
               </span>
-            )}
-          </div>
-
-          {/* Metrics */}
-          <div style={{ display: "flex", gap: "48px" }}>
-            {totalTokens > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Tokens
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
-                  {totalTokens.toLocaleString()}
-                </span>
-              </div>
-            )}
-            {totalCost > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Cost
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
-                  ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
-                </span>
-              </div>
-            )}
-            {duration && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Duration
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>{duration}</span>
-              </div>
-            )}
-          </div>
+              <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
+                ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
+              </span>
+            </div>
+          )}
+          {duration && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
+                Duration
+              </span>
+              <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>{duration}</span>
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Bottom section */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {startTime && <span style={{ color: "#737373", fontSize: "18px" }}>{startTime}</span>}
-          <span style={{ color: "#525252", fontSize: "16px" }}>laminar.sh</span>
-        </div>
-      </OgContainer>
-    ),
+      {/* Bottom section */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {startTime && <span style={{ color: "#737373", fontSize: "18px" }}>{startTime}</span>}
+        <span style={{ color: "#525252", fontSize: "16px" }}>laminar.sh</span>
+      </div>
+    </OgContainer>,
     {
       width: 1200,
       height: 630,

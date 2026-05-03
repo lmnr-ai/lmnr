@@ -3,12 +3,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
-import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
-import SpanTagsButton from "@/components/tags/span-tags-button";
+import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
-import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,12 +27,12 @@ import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
-export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
-  const setSelectedSpan = useTraceViewBaseStore((state) => state.setSelectedSpan);
-  const isAlwaysSelectSpan = useTraceViewBaseStore((state) => state.isAlwaysSelectSpan);
 
   const errorEventAttributes = useMemo(
     () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -44,7 +42,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
   const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
     projectId: projectId as string,
-    params: { type: "span", spanId: span.spanId },
+    params: { type: "span", spanId: span.spanId, traceId: span.traceId },
   });
 
   const handleCopySpanId = useCallback(async () => {
@@ -91,11 +89,12 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               </Button>
             </Link>
           )}
-          {!isAlwaysSelectSpan && (
+          {!isAlwaysSelectSpan && onClose && (
             <Button
               variant="ghost"
               className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
-              onClick={() => setSelectedSpan(undefined)}
+              onClick={onClose}
+              aria-label="Close span panel"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -115,12 +114,12 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />
           </div>
+
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
             <ExportSpansPopover span={span} />
-            <SpanTagsButton spanId={span.spanId} />
+            <SpanTagsList spanId={span.spanId} />
           </div>
-          <EvaluatorScoresList spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

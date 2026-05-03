@@ -2,16 +2,17 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
+import { getServerSession } from "next-auth";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
+import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
+import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
-
-import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
@@ -74,21 +75,33 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: PropsWithChildren) {
   const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
+  const posthogEnabled = featureFlags[Feature.POSTHOG];
+  const session = posthogEnabled ? await getServerSession(authOptions).catch(() => null) : null;
+  const email = session?.user?.email ?? undefined;
+
+  const body = (
+    <body className="flex flex-col h-full">
+      <NuqsAdapter>
+        <div className="flex">
+          <div className="flex flex-col grow max-w-full min-h-screen">
+            <main className="z-10 flex flex-col grow">{children}</main>
+            <Toaster />
+          </div>
+        </div>
+      </NuqsAdapter>
+    </body>
+  );
+
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
-          <body className="flex flex-col h-full">
-            <NuqsAdapter>
-              <div className="flex">
-                <div className="flex flex-col grow max-w-full min-h-screen">
-                  <main className="z-10 flex flex-col grow">{children}</main>
-                  <Toaster />
-                </div>
-              </div>
-            </NuqsAdapter>
-          </body>
-        </PostHogProvider>
+        {posthogEnabled ? (
+          <PostHogProvider telemetryEnabled email={email}>
+            {body}
+          </PostHogProvider>
+        ) : (
+          body
+        )}
       </FeatureFlagsProvider>
     </html>
   );

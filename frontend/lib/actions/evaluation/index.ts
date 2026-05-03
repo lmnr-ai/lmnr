@@ -76,6 +76,27 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
+export const getEvaluationScoreNames = async ({
+  projectId,
+  evaluationId,
+}: {
+  projectId: string;
+  evaluationId: string;
+}): Promise<string[]> => {
+  const rows = await executeQuery<{ name: string }>({
+    query: `
+      SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
+      FROM evaluation_datapoints
+      WHERE evaluation_id = {evaluationId:UUID}
+        AND length(scores) > 0
+      ORDER BY name
+    `,
+    parameters: { evaluationId },
+    projectId,
+  });
+  return rows.map((r) => r.name).filter(Boolean);
+};
+
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
 ): Promise<EvaluationResultsInfo> => {
@@ -166,7 +187,6 @@ export const getEvaluationStatistics = async (
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-  scores: string[];
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
@@ -196,11 +216,14 @@ export const getEvaluationStatistics = async (
       evaluation: evaluation as Evaluation,
       allStatistics: {},
       allDistributions: {},
-      scores: [],
     };
   }
 
-  // Step 2: Build and execute stats query (single JOIN, returns only scores)
+  // Build statistics from the filtered row set. The canonical list of
+  // score names is owned by the page (`getEvaluationScoreNames`) and the
+  // FE store — this endpoint only reports per-name distributions/stats
+  // for the current filter. Names with zero matching rows are simply
+  // absent from the response; the FE renders neutral values for them.
   const { query: statsQuery, parameters: statsParams } = buildEvalStatsQuery({
     evaluationId,
     traceIds: searchTraceIds,
@@ -214,7 +237,6 @@ export const getEvaluationStatistics = async (
     projectId,
   });
 
-  // Step 3: Parse scores and calculate statistics
   const parsedResults = rawResults.map((row) => {
     let scores: Record<string, unknown> | undefined;
     try {
@@ -226,14 +248,12 @@ export const getEvaluationStatistics = async (
     return { scores };
   });
 
-  const allScoreNames = [
-    ...new Set(parsedResults.flatMap((result) => (result.scores ? Object.keys(result.scores) : []))),
-  ];
+  const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
 
-  allScoreNames.forEach((scoreName) => {
+  scoreNamesInRows.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
   });
@@ -242,7 +262,6 @@ export const getEvaluationStatistics = async (
     evaluation: evaluation as Evaluation,
     allStatistics,
     allDistributions,
-    scores: allScoreNames,
   };
 };
 

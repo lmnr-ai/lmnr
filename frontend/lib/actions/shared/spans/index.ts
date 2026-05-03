@@ -3,7 +3,7 @@ import type z from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
-import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
+import { aggregateSpanMetrics, buildTraceViewAttributesExpression } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
@@ -27,7 +27,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     }
   >({
     query: `
-      SELECT 
+      SELECT
         span_id as spanId,
         parent_span_id as parentSpanId,
         name,
@@ -42,7 +42,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
         trace_id as traceId,
         status,
-        attributes,
+        ${buildTraceViewAttributesExpression()},
         path,
         model,
         events
@@ -80,5 +80,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     };
   });
 
-  return aggregateSpanMetrics(transformedSpans);
+  const result = aggregateSpanMetrics(transformedSpans);
+
+  return result;
 };

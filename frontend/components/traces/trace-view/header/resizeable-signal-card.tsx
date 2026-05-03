@@ -1,36 +1,25 @@
 import { motion } from "framer-motion";
-import { Loader2, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_SIGNAL_COLOR } from "@/components/signals/utils";
-import SignalTab from "@/components/traces/trace-view/signal-events-panel/signal-tab";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal } from "@/components/traces/trace-view/store/base";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type EventRow } from "@/lib/events/types";
 import { cn } from "@/lib/utils";
+
+import SignalEventsPanel from "../signal-events-panel";
 
 const DEFAULT_SIGNAL_CARD_HEIGHT = 300;
 const MIN_SIGNAL_CARD_HEIGHT = 80;
 const MAX_SIGNAL_CARD_HEIGHT = 500;
 
-export default function ResizableSignalCard({
-  traceId,
-  traceSignals,
-  isTraceSignalsLoading,
-  onClose,
-  className,
-}: {
+interface Props {
   traceId: string;
-  traceSignals: TraceSignal[];
-  isTraceSignalsLoading: boolean;
   onClose: () => void;
   className?: string;
-}) {
+}
+
+export default function ResizableSignalCard({ traceId, onClose, className }: Props) {
+  const traceSignals = useTraceViewStore((state) => state.traceSignals);
   const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
-  const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
 
   const activeColor = useMemo(() => {
     const active = traceSignals.find((s) => s.signalId === activeSignalTabId);
@@ -88,8 +77,6 @@ export default function ResizableSignalCard({
     [height]
   );
 
-  const effectiveTabId = activeSignalTabId ?? traceSignals[0]?.signalId ?? "";
-
   return (
     <motion.div
       className={cn("flex flex-col rounded-lg border bg-secondary/50 overflow-hidden relative", className)}
@@ -104,82 +91,7 @@ export default function ResizableSignalCard({
       exit="closed"
     >
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-2 pt-1.5">
-        {isTraceSignalsLoading ? (
-          <div className="flex items-center justify-center py-3 text-xs text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-          </div>
-        ) : traceSignals.length === 0 ? (
-          <div className="flex items-center justify-center py-3 text-xs text-muted-foreground">
-            No signals associated with this trace
-          </div>
-        ) : (
-          <Tabs
-            value={effectiveTabId}
-            onValueChange={setActiveSignalTabId}
-            className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
-          >
-            <motion.div className="flex items-center gap-1 overflow-hidden" layout layoutId="signals-panel-layout">
-              <TabsList
-                className="flex-1 h-8 overflow-hidden"
-                style={{ background: `linear-gradient(${activeColor}20, ${activeColor}20), var(--color-muted)` }}
-              >
-                {traceSignals.map((signal) => (
-                  <TooltipProvider key={signal.signalId} delayDuration={500}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex-1 basis-0 min-w-0">
-                          <TabsTrigger value={signal.signalId} className="w-full text-xs overflow-hidden gap-1.5">
-                            <motion.div
-                              layout
-                              layoutId={`trace-signals-layout-${signal.signalId}`}
-                              className="size-2.5 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: signal.color ?? DEFAULT_SIGNAL_COLOR }}
-                              transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
-                            />
-                            <span className="block truncate">{signal.signalName}</span>
-                          </TabsTrigger>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p>{signal.signalName}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </TabsList>
-              <Button variant="ghost" className="h-6 w-6 p-0 flex-shrink-0" onClick={onClose}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </motion.div>
-            {traceSignals.map((signal) => (
-              <TabsContent
-                key={signal.signalId}
-                value={signal.signalId}
-                className="flex-1 min-h-0 overflow-y-auto styled-scrollbar m-0"
-              >
-                <SignalTab
-                  signalId={signal.signalId}
-                  signalName={signal.signalName}
-                  traceId={traceId}
-                  prompt={signal.prompt}
-                  structuredOutput={signal.schemaFields.reduce(
-                    (acc, f) => {
-                      if (f.name.trim()) {
-                        acc.properties[f.name] = { type: f.type, description: f.description ?? "" };
-                      }
-                      return acc;
-                    },
-                    { type: "object", properties: {} } as {
-                      type: string;
-                      properties: Record<string, { type: string; description: string }>;
-                    }
-                  )}
-                  events={(signal.events as EventRow[]) ?? []}
-                />
-              </TabsContent>
-            ))}
-          </Tabs>
-        )}
+        <SignalEventsPanel traceId={traceId} onClose={onClose} activeColor={activeColor} />
       </div>
       <div
         onMouseDown={handleMouseDown}

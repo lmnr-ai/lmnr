@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import Markdown from "./list/markdown";
+import Markdown from "./transcript/markdown";
 
 interface ContentPreviewProps {
   output: any;
