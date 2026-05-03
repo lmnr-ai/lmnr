@@ -119,7 +119,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   };
 
   return (
-    <div className="py-1.5 space-y-1.5">
+    <div className="py-1.5 space-y-4">
       {/* Action buttons */}
       <div className="flex items-center justify-start">
         <div className="flex items-center gap-1">
@@ -141,6 +141,18 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
               Open in Signals
             </Link>
           </Button>
+          {latestEvent && (
+            <Button
+              variant="outline"
+              className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
+              asChild
+            >
+              <Link href={`/project/${projectId}/signals/${signalId}?eventCluster=${latestEvent.id}`} target="_blank">
+                <ExternalLink className="size-3.5 mr-1" />
+                View similar events
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -150,7 +162,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
       ) : (
         <>
           {validFields.map((field) => (
-            <div key={field.name} className="rounded-md border border-border bg-muted/50 px-2 py-1.5">
+            <div key={field.name} className="px-1.5">
               <div className="text-xs text-muted-foreground mb-0.5">{field.name}</div>
               <div className="text-sm">
                 <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />

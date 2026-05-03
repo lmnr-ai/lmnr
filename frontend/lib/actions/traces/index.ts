@@ -175,12 +175,13 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       if (signalEvents.length > 0) {
         const allSignalIds = [...new Set(signalEvents.map((e) => e.signalId))];
 
+        // TODO: re-add `color: signals.color` once migration 0085 is applied.
         const signalRows = await db
-          .select({ id: signals.id, name: signals.name, color: signals.color })
+          .select({ id: signals.id, name: signals.name })
           .from(signals)
           .where(and(eq(signals.projectId, projectId), inArray(signals.id, allSignalIds)));
 
-        const signalInfoMap = new Map(signalRows.map((s) => [s.id, { name: s.name, color: s.color }]));
+        const signalInfoMap = new Map(signalRows.map((s) => [s.id, { name: s.name, color: null as string | null }]));
 
         const traceSignalNames = new Map<string, string[]>();
         const traceSignals = new Map<string, { name: string; color: string | null }[]>();

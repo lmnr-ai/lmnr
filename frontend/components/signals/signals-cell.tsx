@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 
-import { DEFAULT_SIGNAL_COLOR } from "@/components/signals/utils";
+import { getSignalColor } from "@/components/signals/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SignalsCellProps {
@@ -20,7 +20,7 @@ const SignalsCell = ({ signals }: SignalsCellProps) => {
                 <div
                   key={signal.name}
                   className="size-4 rounded-full border-2 border-secondary"
-                  style={{ backgroundColor: signal.color ?? DEFAULT_SIGNAL_COLOR }}
+                  style={{ backgroundColor: getSignalColor(signal.name, signal.color) }}
                 />
               ))}
             </div>
@@ -36,7 +36,7 @@ const SignalsCell = ({ signals }: SignalsCellProps) => {
                 <div key={signal.name} className="flex flex-row items-center gap-2">
                   <div
                     className="size-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: signal.color ?? DEFAULT_SIGNAL_COLOR }}
+                    style={{ backgroundColor: getSignalColor(signal.name, signal.color) }}
                   />
                   <span className="text-xs">{signal.name}</span>
                 </div>

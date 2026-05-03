@@ -47,13 +47,13 @@ export async function GET(
     const signalIds = [...eventsBySignal.keys()];
 
     // Step 2: Get signal metadata from PostgreSQL
+    // TODO: re-add `color: signals.color` once migration 0085 is applied.
     const signalRows = await db
       .select({
         id: signals.id,
         name: signals.name,
         prompt: signals.prompt,
         structuredOutputSchema: signals.structuredOutputSchema,
-        color: signals.color,
       })
       .from(signals)
       .where(and(eq(signals.projectId, projectId), inArray(signals.id, signalIds)));
@@ -63,7 +63,7 @@ export async function GET(
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema,
-      color: signal.color,
+      color: null,
       events: eventsBySignal.get(signal.id) ?? [],
     }));
 

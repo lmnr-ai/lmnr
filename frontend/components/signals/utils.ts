@@ -116,3 +116,25 @@ export const SIGNAL_COLOR_PALETTE = [
 ];
 
 export const DEFAULT_SIGNAL_COLOR = "#3b82f6"; // blue-500
+
+// FNV-1a hash. Stable across machines so the same signal id always gets the
+// same palette color.
+function hashSeed(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Resolve a signal's display color: an explicit color if set, otherwise a
+ * deterministic palette pick from `seed` (typically the signal id or name).
+ * Falls back to DEFAULT_SIGNAL_COLOR only if no seed is available.
+ */
+export function getSignalColor(seed: string | null | undefined, explicitColor?: string | null): string {
+  if (explicitColor) return explicitColor;
+  if (!seed) return DEFAULT_SIGNAL_COLOR;
+  return SIGNAL_COLOR_PALETTE[hashSeed(seed) % SIGNAL_COLOR_PALETTE.length];
+}

@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
-import { DEFAULT_SIGNAL_COLOR, jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import { getSignalColor, jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -18,7 +18,7 @@ import { type EventRow } from "@/lib/events/types";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
-import ResizableSignalCard from "./resizeable-signal-card";
+import SignalEventsPanel from "../signal-events-panel";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
@@ -206,7 +206,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                       layout
                       layoutId={`trace-signals-layout-${signal.signalId}`}
                       className="size-3.5 rounded-full border border-background"
-                      style={{ background: signal.color ?? DEFAULT_SIGNAL_COLOR }}
+                      style={{ background: getSignalColor(signal.signalId, signal.color) }}
                       transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
                     />
                   ))}
@@ -278,7 +278,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       )}
       <AnimatePresence>
         {signalsPanelOpen && (
-          <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
+          <SignalEventsPanel traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
         )}
       </AnimatePresence>
       <div className="flex items-center gap-2 mt-2">

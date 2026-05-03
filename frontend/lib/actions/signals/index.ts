@@ -114,6 +114,9 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   whereConditions.push(...filterConditions);
 
+  // TODO: re-add `color: signals.color` once the 0085_add_signal_color migration
+  // has been applied to the target DB. Until then we synthesize null below so this
+  // works against environments that don't have the column yet.
   const results = await db
     .select({
       id: signals.id,
@@ -121,7 +124,6 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       name: signals.name,
       prompt: signals.prompt,
       projectId: signals.projectId,
-      color: signals.color,
     })
     .from(signals)
     .where(and(...whereConditions))
@@ -176,6 +178,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   const items: SignalRow[] = results.map((signal) => ({
     ...signal,
+    color: null, // TODO: read from signals.color once migration 0085 is applied
     eventsCount: eventCountBySignal[signal.id] || 0,
     clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
@@ -189,8 +192,19 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
   const { id, projectId } = GetSignalSchema.parse(input);
 
+  // TODO: switch back to `.select()` (all columns) once migration 0085 is applied.
+  // Explicit columns avoid pulling `signals.color` against environments that
+  // don't have the column yet.
   const [result] = await db
-    .select()
+    .select({
+      id: signals.id,
+      projectId: signals.projectId,
+      name: signals.name,
+      prompt: signals.prompt,
+      structuredOutputSchema: signals.structuredOutputSchema,
+      createdAt: signals.createdAt,
+      sampleRate: signals.sampleRate,
+    })
     .from(signals)
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .limit(1);
@@ -227,7 +241,10 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate, color } = CreateSignalSchema.parse(input);
+  // TODO: also persist `color` once migration 0085 is applied to the target DB.
+  // For now we accept it from the client but silently drop it before insert so
+  // environments without the column don't error.
+  const { projectId, name, prompt, structuredOutput, sampleRate } = CreateSignalSchema.parse(input);
 
   const result = await db.transaction(async (tx) => {
     const [signal] = await tx
@@ -238,7 +255,6 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
         prompt,
         structuredOutputSchema: structuredOutput,
         sampleRate: sampleRate ?? null,
-        color: color ?? null,
       })
       .returning();
 
@@ -278,11 +294,13 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate, color } = UpdateSignalSchema.parse(input);
+  // TODO: also persist `color` once migration 0085 is applied to the target DB.
+  // See createSignal for the same TODO.
+  const { projectId, id, prompt, structuredOutput, sampleRate } = UpdateSignalSchema.parse(input);
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null, color: color ?? null })
+    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
