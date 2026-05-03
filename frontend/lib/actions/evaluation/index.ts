@@ -10,13 +10,14 @@ import {
   type EvalQueryColumn,
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
-import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
+import { analyzeScore, calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
+  type EvaluationScoreAnalysis,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
@@ -187,6 +188,7 @@ export const getEvaluationStatistics = async (
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  allScoreAnalyses: Record<string, EvaluationScoreAnalysis>;
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
@@ -216,6 +218,7 @@ export const getEvaluationStatistics = async (
       evaluation: evaluation as Evaluation,
       allStatistics: {},
       allDistributions: {},
+      allScoreAnalyses: {},
     };
   }
 
@@ -252,16 +255,27 @@ export const getEvaluationStatistics = async (
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
+  const allScoreAnalyses: Record<string, EvaluationScoreAnalysis> = {};
+
+  // Per-score pass thresholds. Storage will land in a follow-up task (see
+  // LAM-1541 description). Today there is nowhere to persist this; we pass
+  // an empty map so the chart falls back to its neutral rendering
+  // (no pass/fail colors, no threshold line) for discrete/continuous
+  // scores. Binary scores keep their implicit threshold of 1 via
+  // `analyzeScore` → `binaryBins`.
+  const passThresholds: Record<string, number | null> = {};
 
   scoreNamesInRows.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
+    allScoreAnalyses[scoreName] = analyzeScore(parsedResults as any, scoreName, passThresholds);
   });
 
   return {
     evaluation: evaluation as Evaluation,
     allStatistics,
     allDistributions,
+    allScoreAnalyses,
   };
 };
 

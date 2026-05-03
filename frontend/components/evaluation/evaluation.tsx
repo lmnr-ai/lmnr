@@ -6,8 +6,8 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
+import DistributionChart from "@/components/evaluation/distribution-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
@@ -261,28 +261,28 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
-            {isStatsLoading ? (
-              <>
-                <Skeleton className="w-72 h-48" />
-                <Skeleton className="w-full h-48" />
-              </>
-            ) : (
-              <>
-                <div className="flex-none w-72">
-                  <ScoreCard
-                    scores={scoreNames}
-                    selectedScore={selectedScore}
-                    setSelectedScore={setSelectedScore}
-                    statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
-                    comparedStatistics={
-                      selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null
-                    }
-                    isLoading={isStatsLoading}
-                  />
-                </div>
-                <div className="grow">
-                  {targetId ? (
+          {targetId ? (
+            <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
+              {isStatsLoading ? (
+                <>
+                  <Skeleton className="w-72 h-48" />
+                  <Skeleton className="w-full h-48" />
+                </>
+              ) : (
+                <>
+                  <div className="flex-none w-72">
+                    <ScoreCard
+                      scores={scoreNames}
+                      selectedScore={selectedScore}
+                      setSelectedScore={setSelectedScore}
+                      statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
+                      comparedStatistics={
+                        selectedScore ? (targetStatsData?.allStatistics?.[selectedScore] ?? null) : null
+                      }
+                      isLoading={isStatsLoading}
+                    />
+                  </div>
+                  <div className="grow">
                     <CompareChart
                       distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
                       comparedDistribution={
@@ -290,17 +290,18 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
                       }
                       isLoading={isStatsLoading}
                     />
-                  ) : (
-                    <Chart
-                      scoreName={selectedScore}
-                      distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                      isLoading={isStatsLoading}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <DistributionChart
+              scoreNames={scoreNames}
+              analyses={statsData?.allScoreAnalyses ?? {}}
+              isLoading={isStatsLoading}
+              persistKey={`eval:${evaluationId}`}
+            />
+          )}
           <EvaluationDatapointsTable
             isLoading={isStatsLoading || isLoadingDatapoints}
             datapointId={datapointId}
