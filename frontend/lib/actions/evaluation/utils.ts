@@ -192,18 +192,37 @@ function discreteBins(scores: number[], passThreshold: number | null): Evaluatio
 }
 
 function continuousBins(scores: number[], passThreshold: number | null): EvaluationScoreBin[] {
-  const step = (CONTINUOUS_UPPER - CONTINUOUS_LOWER) / CONTINUOUS_BINS;
+  // Default range is [0, 1], but expand it to include any out-of-range
+  // scores so no datapoints are silently dropped from the histogram.
+  // Without this expansion, `stats.count` would include values that have
+  // no corresponding bin, causing the MetaLine total to exceed the sum of
+  // the bar heights.
+  let lower = CONTINUOUS_LOWER;
+  let upper = CONTINUOUS_UPPER;
+  for (const s of scores) {
+    if (s < lower) lower = s;
+    if (s > upper) upper = s;
+  }
+  // Guard against a degenerate zero-width range (shouldn't happen with
+  // the defaults, but keeps the math safe if constants ever change).
+  if (lower === upper) upper = lower + 1;
+
+  const step = (upper - lower) / CONTINUOUS_BINS;
+  // Pick enough decimals so adjacent bin edges don't collapse to the same
+  // label string (e.g. a step of 1.5 needs 1 decimal, a step of 0.1 needs
+  // 1 decimal, and a step of 10 can stay at 0).
+  const decimals = step >= 1 && Number.isInteger(step) ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3;
   const bins: EvaluationScoreBin[] = [];
   for (let i = 0; i < CONTINUOUS_BINS; i++) {
-    const lo = CONTINUOUS_LOWER + i * step;
-    const hi = i === CONTINUOUS_BINS - 1 ? CONTINUOUS_UPPER : CONTINUOUS_LOWER + (i + 1) * step;
+    const lo = lower + i * step;
+    const hi = i === CONTINUOUS_BINS - 1 ? upper : lower + (i + 1) * step;
     const mid = (lo + hi) / 2;
     const count = scores.filter((s) => {
       if (i === CONTINUOUS_BINS - 1) return s >= lo && s <= hi;
       return s >= lo && s < hi;
     }).length;
     bins.push({
-      label: `${lo.toFixed(1)}–${hi.toFixed(1)}`,
+      label: `${lo.toFixed(decimals)}–${hi.toFixed(decimals)}`,
       count,
       lowerBound: lo,
       upperBound: hi,

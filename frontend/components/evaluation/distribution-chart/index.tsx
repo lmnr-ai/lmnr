@@ -24,8 +24,12 @@ interface DistributionChartProps {
    */
   persistKey?: string;
   /**
-   * Controls whether clicking a bar updates URL filters. Shared-evals
-   * routes have their own URL shape and may want to disable this.
+   * Controls whether clicking a bar updates URL filters. Defaults to true;
+   * both single and shared evaluation routes read `filter` params from the
+   * URL and round-trip through the same query schema, so bin click works
+   * identically on both. Set to false only when a consumer renders the
+   * chart outside an evaluation route (where the `score:<name>` column
+   * wouldn't resolve).
    */
   enableBinClick?: boolean;
 }

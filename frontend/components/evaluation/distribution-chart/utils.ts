@@ -11,12 +11,8 @@ export type BinFilter = { column: string; operator: Operator; value: number };
  *   → emit `= value` as a single filter.
  * - Continuous bins cover a range → emit `>= lowerBound` AND (for all bins
  *   except the top one) `< upperBound`. The top bin is inclusive on both
- *   ends so values exactly equal to the upper bound are still captured.
- *   Note: the backend's numeric filter operators are `lt / gt / lte / gte`
- *   — there's no strict `<` upper in the eval filter API, so we use `lte`
- *   on the exclusive upper and rely on bin widths being coarse enough that
- *   the half-step overlap with the next bin is invisible (a real value
- *   exactly on the boundary belongs to the upper bin).
+ *   ends (`<= upperBound`) so values exactly equal to the max are still
+ *   captured.
  */
 export function filtersForBin(
   scoreName: string,
@@ -30,10 +26,6 @@ export function filtersForBin(
   }
   const isLast = binIndex === analysis.bins.length - 1;
   const filters: BinFilter[] = [{ column, operator: Operator.Gte, value: bin.lowerBound }];
-  // All continuous bins except the last one exclude the upper bound; we
-  // approximate with `lt` (which isn't a standard eval operator) using
-  // `lte` and accepting a one-value-wide overlap at the seam — see note
-  // above. If the eval filter API gains a strict `lt`, switch to that.
   filters.push({
     column,
     operator: isLast ? Operator.Lte : Operator.Lt,
