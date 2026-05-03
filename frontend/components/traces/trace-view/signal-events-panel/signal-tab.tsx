@@ -1,20 +1,14 @@
 "use client";
 
-import { ExternalLink, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
 
 interface SignalTabProps {
-  signalId: string;
-  signalName: string;
-  prompt: string;
   structuredOutput: Record<string, unknown>;
   events: EventRow[];
   traceId: string;
@@ -73,9 +67,8 @@ function PayloadValue({
   }
 }
 
-export default function SignalTab({ signalId, signalName, prompt, structuredOutput, events, traceId }: SignalTabProps) {
+export default function SignalTab({ structuredOutput, events, traceId }: SignalTabProps) {
   const { projectId } = useParams();
-  const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
   const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
 
   const schemaFields = useMemo(() => jsonSchemaToSchemaFields(structuredOutput), [structuredOutput]);
@@ -112,50 +105,8 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   const latestEvent = safeEvents[0];
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
 
-  const handleOpenInChat = () => {
-    const signalDefinition = `### ${signalName}\n${prompt}`;
-    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
-  };
-
   return (
     <div className="py-1.5 space-y-4">
-      {/* Action buttons */}
-      <div className="flex items-center justify-start">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
-            onClick={handleOpenInChat}
-          >
-            <Sparkles className="size-3.5 mr-1" />
-            Open in AI Chat
-          </Button>
-          <Button
-            variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
-            asChild
-          >
-            <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} target="_blank">
-              <ExternalLink className="size-3.5 mr-1" />
-              Open in Signals
-            </Link>
-          </Button>
-          {latestEvent && (
-            <Button
-              variant="outline"
-              className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
-              asChild
-            >
-              <Link href={`/project/${projectId}/signals/${signalId}?eventCluster=${latestEvent.id}`} target="_blank">
-                <ExternalLink className="size-3.5 mr-1" />
-                View similar events
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
-
       {/* Event payload */}
       {!latestEvent ? (
         <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">No events found</div>

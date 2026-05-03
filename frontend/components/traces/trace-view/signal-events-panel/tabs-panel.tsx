@@ -1,5 +1,6 @@
 "use client";
 
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -11,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { type EventRow } from "@/lib/events/types";
 
 import SignalTab from "./signal-tab";
+import Toolbar from "./toolbar";
 import { schemaFieldsToStructuredOutput } from "./utils";
 
 interface Props {
@@ -19,10 +21,21 @@ interface Props {
   activeSignalTabId: string | null;
   setActiveSignalTabId: (id: string | null) => void;
   onClose: () => void;
+  /** Suppress shared-layout (`layoutId`) animation. Used for the portal copy so
+      framer-motion isn't trying to morph between two instances of the same id. */
+  noSharedLayout?: boolean;
 }
 
-export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, setActiveSignalTabId, onClose }: Props) {
+export default function TabsPanel({
+  traceId,
+  traceSignals,
+  activeSignalTabId,
+  setActiveSignalTabId,
+  onClose,
+  noSharedLayout,
+}: Props) {
   const effectiveTabId = activeSignalTabId ?? traceSignals[0]?.signalId ?? "";
+  const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId) ?? traceSignals[0];
 
   return (
     <Tabs
@@ -30,7 +43,10 @@ export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, se
       onValueChange={setActiveSignalTabId}
       className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
     >
-      <motion.div className="flex items-center gap-1 overflow-hidden" layout layoutId="signals-panel-layout">
+      <motion.div
+        className="flex items-center gap-1 overflow-hidden shrink-0"
+        {...(noSharedLayout ? {} : { layout: true, layoutId: "signals-panel-layout" })}
+      >
         <TabsList className="flex-1 h-8 overflow-hidden bg-transparent p-0">
           {traceSignals.map((signal) => (
             <TooltipProvider key={signal.signalId} delayDuration={500}>
@@ -42,8 +58,9 @@ export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, se
                       className="w-full text-xs overflow-hidden gap-1.5 data-[state=active]:bg-background"
                     >
                       <motion.div
-                        layout
-                        layoutId={`trace-signals-layout-${signal.signalId}`}
+                        {...(noSharedLayout
+                          ? {}
+                          : { layout: true, layoutId: `trace-signals-layout-${signal.signalId}` })}
                         className="size-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: getSignalColor(signal.signalId, signal.color) }}
                         transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
@@ -52,9 +69,11 @@ export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, se
                     </TabsTrigger>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p>{signal.signalName}</p>
-                </TooltipContent>
+                <TooltipPortal>
+                  <TooltipContent side="top">
+                    <p>{signal.signalName}</p>
+                  </TooltipContent>
+                </TooltipPortal>
               </Tooltip>
             </TooltipProvider>
           ))}
@@ -63,6 +82,7 @@ export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, se
           <X className="h-3.5 w-3.5" />
         </Button>
       </motion.div>
+      {activeSignal && <Toolbar signal={activeSignal} />}
       {traceSignals.map((signal) => (
         <TabsContent
           key={signal.signalId}
@@ -70,10 +90,7 @@ export default function TabsPanel({ traceId, traceSignals, activeSignalTabId, se
           className="flex-1 min-h-0 overflow-y-auto styled-scrollbar m-0"
         >
           <SignalTab
-            signalId={signal.signalId}
-            signalName={signal.signalName}
             traceId={traceId}
-            prompt={signal.prompt}
             structuredOutput={schemaFieldsToStructuredOutput(signal.schemaFields)}
             events={(signal.events as EventRow[]) ?? []}
           />
