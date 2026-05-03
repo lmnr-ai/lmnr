@@ -1,6 +1,4 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type TraceRow } from "@/lib/traces/types";
@@ -70,39 +68,3 @@ export function buildFetchParams(
 
   return urlParams;
 }
-
-interface TracesTableStoreState {
-  customColumns: CustomColumn[];
-
-  addCustomColumn: (column: CustomColumn) => void;
-  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
-  removeCustomColumn: (name: string) => void;
-}
-
-export const useTracesTableStore = create<TracesTableStoreState>()(
-  persist(
-    (set, get) => ({
-      customColumns: [],
-
-      addCustomColumn: (column) => {
-        const { customColumns } = get();
-        if (customColumns.some((cc) => cc.name === column.name)) return;
-        set({ customColumns: [...customColumns, column] });
-      },
-
-      updateCustomColumn: (oldName, column) => {
-        const { customColumns } = get();
-        set({ customColumns: customColumns.map((cc) => (cc.name === oldName ? column : cc)) });
-      },
-
-      removeCustomColumn: (name) => {
-        const { customColumns } = get();
-        set({ customColumns: customColumns.filter((cc) => cc.name !== name) });
-      },
-    }),
-    {
-      name: "traces-table-custom-columns",
-      partialize: (state) => ({ customColumns: state.customColumns }),
-    }
-  )
-);

@@ -21,7 +21,6 @@ import {
   buildColumnDefs,
   buildFetchParams,
   toColumnsPayload,
-  useTracesTableStore,
 } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -40,14 +39,10 @@ const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
-  const customColumns = useTracesTableStore((s) => s.customColumns);
-  const defaultColumnOrder = useMemo(
-    () => [...defaultTracesColumnOrder, ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [customColumns]
-  );
+  const { projectId } = useParams();
 
   return (
-    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultColumnOrder}>
+    <DataTableStateProvider storageKey={`traces-table-${projectId}`} defaultColumnOrder={defaultTracesColumnOrder}>
       <TracesTableContent />
     </DataTableStateProvider>
   );
@@ -94,8 +89,13 @@ function TracesTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const removeCustomColumn = useTracesTableStore((s) => s.removeCustomColumn);
-  const customColumns = useTracesTableStore((s) => s.customColumns);
+  const datatableStore = useDataTableStore();
+  const { customColumns, removeCustomColumn, columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
+    customColumns: s.customColumns,
+    removeCustomColumn: s.removeCustomColumn,
+    columnOrder: s.columnOrder,
+    setColumnOrder: s.setColumnOrder,
+  }));
 
   const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
 
@@ -128,13 +128,6 @@ function TracesTableContent() {
     cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
     return cols;
   }, [columnDefs, isSearchActive]);
-
-  // Sync datatable columnOrder with traces store columnDefs
-  const datatableStore = useDataTableStore();
-  const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
 
   useEffect(() => {
     if (effectiveColumns.length === 0) return;
