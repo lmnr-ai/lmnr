@@ -111,6 +111,11 @@ function TracesTableContent() {
     return [...staticFilters, ...customColumnFilters];
   }, [customColumns]);
 
+  const advancedSearchKey = useMemo(
+    () => customColumns.map((cc) => `${cc.name}:${cc.dataType}`).join("|"),
+    [customColumns]
+  );
+
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
   // produce the same string → no spurious re-fetch.
@@ -456,8 +461,9 @@ function TracesTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
+            key={advancedSearchKey}
             filters={allFilters}
-            storageKey="traces"
+            storageKey={`traces-${projectId}`}
             resource="traces"
             placeholder="Search by root span name, tokens, tags, full text and more..."
             className="w-full flex-1"

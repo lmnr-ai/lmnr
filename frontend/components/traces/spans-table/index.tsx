@@ -172,7 +172,7 @@ function SpansTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
-            storageKey="spans"
+            storageKey={`spans-${projectId}`}
             filters={filters}
             resource="spans"
             placeholder="Search by span name, tokens, tags, full text and more..."
