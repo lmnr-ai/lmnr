@@ -561,6 +561,41 @@
       "when": 1774978896688,
       "tag": "0079_abandoned_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1775557271129,
+      "tag": "0080_third_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1776097866364,
+      "tag": "0081_slim_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1776118063000,
+      "tag": "0082_fix_alert_targets_integration_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1776176186569,
+      "tag": "0083_futuristic_captain_flint",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1776626433476,
+      "tag": "0084_red_master_chief",
+      "breakpoints": true
     }
   ]
 }

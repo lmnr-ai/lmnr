@@ -13,6 +13,7 @@ export const GetEventStatsSchema = z.object({
   signalId: z.string(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+  severities: z.array(z.coerce.number().int().min(0).max(2)).optional(),
 });
 
 export interface EventsStatsDataPoint {
@@ -32,6 +33,7 @@ export async function getEventStats(
     intervalValue,
     intervalUnit,
     filter,
+    severities,
   } = input;
 
   const filters = compact(filter);
@@ -45,6 +47,14 @@ export async function getEventStats(
       params: { signalId },
     },
   ];
+
+  if (severities && severities.length > 0) {
+    const dedupedSeverities = Array.from(new Set(severities));
+    customConditions.push({
+      condition: "severity IN ({severities:Array(UInt8)})",
+      params: { severities: dedupedSeverities },
+    });
+  }
 
   const whereResult = buildWhereClause({
     timeRange: {

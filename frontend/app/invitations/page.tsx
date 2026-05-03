@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
-import { Button } from "@/components/ui/button";
+import InvitationActions from "@/components/invitations/invitation-actions";
 import { LaminarLogo } from "@/components/ui/icons";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
@@ -118,16 +118,11 @@ export default async function InvitationsPage(props: {
             <h2 className="font-medium">
               You are invited to join <span className="font-semibold">{workspace.name}</span>
             </h2>
-            <div className="flex gap-4 w-full justify-center mt-6">
-              <form action={acceptInvitation}>
-                <Button type="submit">Accept</Button>
-              </form>
-              <form action={declineInvitation}>
-                <Button type="submit" variant="outline">
-                  Decline
-                </Button>
-              </form>
-            </div>
+            <InvitationActions
+              workspaceId={decoded.workspaceId}
+              acceptInvitation={acceptInvitation}
+              declineInvitation={declineInvitation}
+            />
           </div>
         </div>
       )}

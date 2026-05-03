@@ -4,7 +4,6 @@ use std::sync::{Arc, LazyLock};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
@@ -15,14 +14,16 @@ use crate::{
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
+    traces::prompt_hash::{extract_system_message, structural_skeleton_hash},
 };
 
 use super::span_attributes::{
     ANTHROPIC_REQUEST_SERVICE_TIER, ANTHROPIC_RESPONSE_SERVICE_TIER, GEN_AI_REQUEST_BATCH,
-    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
-    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_SYSTEM,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
-    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
+    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER, SPAN_PROMPT_HASH,
 };
 use super::spans::{SpanAttributes, SpanUsage};
 
@@ -30,7 +31,6 @@ static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
 /// Calculate usage for both default and LLM spans
-#[instrument(skip(attributes, db, cache, span_name))]
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,
@@ -98,6 +98,18 @@ pub async fn get_llm_usage_for_span(
             input_cost = cost_entry.input_cost;
             output_cost = cost_entry.output_cost;
             total_cost = input_cost + output_cost;
+        }
+    } else if let Some(provider) = attributes
+        .raw_attributes
+        .get(GEN_AI_SYSTEM)
+        .and_then(|v| v.as_str())
+    {
+        // Span has gen_ai.system but no model name.
+        if total_tokens > 0 {
+            log::warn!(
+                "LLM span has tokens but no model name. Cost cannot be calculated. Provider: [{}].",
+                provider,
+            );
         }
     }
 
@@ -214,7 +226,20 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
         span.parent_span_id = None;
     }
 
+    if span.is_llm_span() {
+        if let Some(hash) = compute_prompt_hash(&span.input) {
+            span.attributes
+                .raw_attributes
+                .insert(SPAN_PROMPT_HASH.to_string(), Value::String(hash));
+        }
+    }
+
     span.attributes.update_path();
+}
+
+fn compute_prompt_hash(input: &Option<Value>) -> Option<String> {
+    let (system_text, _) = extract_system_message(input.as_ref()?)?;
+    Some(structural_skeleton_hash(&system_text))
 }
 
 pub fn serialize_indexmap<T>(index_map: IndexMap<String, T>) -> Option<Value>
@@ -281,6 +306,7 @@ pub fn convert_any_value_to_json_value(
 }
 
 /// Groups traces by their project_id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
     let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
     for trace in traces {
@@ -340,5 +366,63 @@ fn tranform_model_and_provider(
         // LiteLLM stores "gateway" as "vercel_ai_gateway"
         Some("gateway") => (model_name, Some("vercel_ai_gateway".to_string())),
         _ => (model_name, provider_name),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompt_hash_stable_across_cc_versions() {
+        let input_v1 = json!([
+            {
+                "role": "system",
+                "content": [
+                    {"text": "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts;", "type": "text"},
+                    {"text": "You are Claude Code.", "type": "text"}
+                ]
+            }
+        ]);
+        let input_v2 = json!([
+            {
+                "role": "system",
+                "content": [
+                    {"text": "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli;", "type": "text"},
+                    {"text": "You are Claude Code.", "type": "text"}
+                ]
+            }
+        ]);
+        let h1 = compute_prompt_hash(&Some(input_v1)).unwrap();
+        let h2 = compute_prompt_hash(&Some(input_v2)).unwrap();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn prompt_hash_differs_when_body_differs() {
+        let a = json!([{"role": "system", "content": "You are assistant A."}]);
+        let b = json!([{"role": "system", "content": "You are assistant B completely different."}]);
+        let ha = compute_prompt_hash(&Some(a)).unwrap();
+        let hb = compute_prompt_hash(&Some(b)).unwrap();
+        assert_ne!(ha, hb);
+    }
+
+    #[test]
+    fn prompt_hash_stable_for_real_claude_agent_payload() {
+        let make_input = |version: &str, cch: &str| {
+            json!([
+                {
+                    "role": "system",
+                    "content": [
+                        {"text": format!("x-anthropic-billing-header: cc_version={version}; cc_entrypoint=sdk-ts; cch={cch};"), "type": "text"},
+                        {"cache_control": {"type": "ephemeral"}, "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK.", "type": "text"},
+                        {"cache_control": {"type": "ephemeral"}, "text": "<role>\nYou are a senior portfolio manager orchestrating a research workflow.\n</role>", "type": "text"}
+                    ]
+                }
+            ])
+        };
+        let h1 = compute_prompt_hash(&Some(make_input("2.1.104.8ec", "00000"))).unwrap();
+        let h2 = compute_prompt_hash(&Some(make_input("2.2.0.abc", "ffffff"))).unwrap();
+        assert_eq!(h1, h2);
     }
 }

@@ -7,6 +7,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::CLUSTERING_LOCK_CACHE_KEY};
+use crate::ch::signal_events;
+use crate::db;
+use crate::db::DB;
+use crate::db::alert_targets::DEFAULT_SEVERITY;
+use crate::mq::MessageQueue;
+use crate::mq::utils::mq_max_payload;
+use crate::notifications::{self, AlertType, NotificationDefinitionType, NotificationKind};
 use crate::utils::{call_service_with_retry, get_unsigned_env_with_default};
 use crate::worker::{HandlerError, MessageHandler};
 
@@ -16,19 +23,55 @@ const DEFAULT_LOCK_TTL_SECONDS: usize = 300;
 const DEFAULT_LOCK_MAX_WAIT_SECONDS: usize = 300;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+struct ClusterEventResult {
+    signal_event_id: Uuid,
+    cluster_id: Uuid,
+    cluster_name: String,
+    cluster_level: u32,
+    is_new_cluster: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct NewClusterResult {
+    cluster_id: Uuid,
+    cluster_name: String,
+    level: u32,
+    #[serde(default)]
+    child_cluster_ids: Vec<Uuid>,
+    num_signal_events: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct ClusterResponse {
     success: bool,
+    events: Vec<ClusterEventResult>,
+    new_clusters: Vec<NewClusterResult>,
 }
 
 /// Handler for clustering messages
 pub struct ClusteringHandler {
     cache: Arc<Cache>,
     client: reqwest::Client,
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
 }
 
 impl ClusteringHandler {
-    pub fn new(cache: Arc<Cache>, client: reqwest::Client) -> Self {
-        Self { cache, client }
+    pub fn new(
+        cache: Arc<Cache>,
+        client: reqwest::Client,
+        db: Arc<DB>,
+        clickhouse: clickhouse::Client,
+        queue: Arc<MessageQueue>,
+    ) -> Self {
+        Self {
+            cache,
+            client,
+            db,
+            clickhouse,
+            queue,
+        }
     }
 }
 
@@ -37,7 +80,15 @@ impl MessageHandler for ClusteringHandler {
     type Message = ClusteringBatchMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        process_clustering_logic(message, self.cache.clone(), self.client.clone()).await
+        process_clustering_logic(
+            message,
+            self.cache.clone(),
+            self.client.clone(),
+            self.db.clone(),
+            self.clickhouse.clone(),
+            self.queue.clone(),
+        )
+        .await
     }
 }
 
@@ -45,6 +96,9 @@ async fn process_clustering_logic(
     message: ClusteringBatchMessage,
     cache: Arc<Cache>,
     client: reqwest::Client,
+    db: Arc<DB>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     // All events in the batch have the same project_id and signal_id
     let first = match message.events.first() {
@@ -112,9 +166,9 @@ async fn process_clustering_logic(
         );
     }
 
-    match result {
-        Ok(success) => {
-            if success {
+    let response = match result {
+        Ok(response) => {
+            if response.success {
                 log::info!(
                     "Successfully clustered events for project_id={}, signal_id={}",
                     project_id,
@@ -126,8 +180,9 @@ async fn process_clustering_logic(
                     project_id,
                     signal_id,
                 );
+                return Ok(());
             }
-            Ok(())
+            response
         }
         Err(e) => {
             log::error!(
@@ -136,9 +191,15 @@ async fn process_clustering_logic(
                 signal_id,
                 e
             );
-            Err(e.into())
+            return Err(e.into());
         }
-    }
+    };
+
+    // Process new cluster notifications
+    process_new_cluster_notifications(&db, &clickhouse, &queue, project_id, signal_id, &response)
+        .await;
+
+    Ok(())
 }
 
 async fn call_clustering_endpoint(
@@ -146,7 +207,7 @@ async fn call_clustering_endpoint(
     project_id: Uuid,
     signal_id: Uuid,
     message: &ClusteringBatchMessage,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<ClusterResponse> {
     let cluster_endpoint = env::var("CLUSTERING_SERVICE_URL")
         .map_err(|_| anyhow::anyhow!("CLUSTERING_SERVICE_URL environment variable not set"))?;
 
@@ -177,5 +238,244 @@ async fn call_clustering_endpoint(
     )
     .await?;
 
-    Ok(cluster_response.success)
+    Ok(cluster_response)
+}
+
+async fn process_new_cluster_notifications(
+    db: &Arc<DB>,
+    clickhouse: &clickhouse::Client,
+    queue: &Arc<MessageQueue>,
+    project_id: Uuid,
+    signal_id: Uuid,
+    response: &ClusterResponse,
+) {
+    // First, notify about new L0 clusters for event alerts with skip_similar enabled.
+    notify_new_l0_clusters(db, clickhouse, queue, project_id, signal_id, response).await;
+
+    // Second, notify about new L1+ clusters for NEW_CLUSTER alerts.
+    notify_new_l1_clusters(db, queue, project_id, signal_id, response).await;
+}
+
+async fn notify_new_l0_clusters(
+    db: &Arc<DB>,
+    clickhouse: &clickhouse::Client,
+    queue: &Arc<MessageQueue>,
+    project_id: Uuid,
+    signal_id: Uuid,
+    response: &ClusterResponse,
+) {
+    let alerts = match db::alert_targets::get_alerts_for_signal(
+        &db.pool,
+        project_id,
+        signal_id,
+        Some(AlertType::SignalEvent),
+    )
+    .await
+    {
+        Ok(alerts) => alerts,
+        Err(e) => {
+            log::error!(
+                "Failed to fetch SIGNAL_EVENT alerts for signal_id={}: {:?}",
+                signal_id,
+                e
+            );
+            return;
+        }
+    };
+
+    let signal_event_alerts: Vec<&db::alert_targets::AlertInfo> = alerts
+        .iter()
+        .filter(|a| a.metadata.skip_similar())
+        .collect();
+
+    if signal_event_alerts.is_empty() {
+        return;
+    }
+
+    let event_ids: Vec<Uuid> = response
+        .events
+        .iter()
+        .filter(|e| e.is_new_cluster && e.cluster_level == 0)
+        .map(|e| e.signal_event_id)
+        .collect();
+
+    if event_ids.is_empty() {
+        return;
+    }
+
+    let ch_events = match signal_events::get_signal_events_by_ids(
+        clickhouse,
+        &project_id,
+        &signal_id,
+        &event_ids,
+    )
+    .await
+    {
+        Ok(events) => events,
+        Err(e) => {
+            log::error!(
+                "Failed to fetch signal events from ClickHouse for notification: {:?}",
+                e
+            );
+            return;
+        }
+    };
+
+    for ch_event in &ch_events {
+        let attributes = ch_event.payload_value().unwrap_or_default();
+
+        for alert in &signal_event_alerts {
+            // Match severity
+            match alert.metadata.severities.as_deref() {
+                Some([]) => {
+                    log::warn!(
+                        "Alert {} has empty severities array, skipping notification",
+                        alert.id
+                    );
+                    continue;
+                }
+                Some(sevs) if !sevs.contains(&ch_event.severity) => continue,
+                None if ch_event.severity != DEFAULT_SEVERITY => continue,
+                _ => {}
+            }
+
+            let notification_message = notifications::NotificationMessage {
+                definition_type: NotificationDefinitionType::Alert,
+                definition_id: alert.id,
+                workspace_id: alert.workspace_id,
+                project_id: Some(project_id),
+                notifications: vec![NotificationKind::EventIdentification {
+                    project_id,
+                    signal_id,
+                    trace_id: ch_event.trace_id,
+                    event_id: Some(ch_event.id),
+                    event_name: ch_event.name.clone(),
+                    severity: ch_event.severity,
+                    extracted_information: Some(attributes.clone()),
+                    alert_name: alert.name.clone(),
+                }],
+            };
+
+            let serialized_size = serde_json::to_vec(&notification_message)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            if serialized_size >= mq_max_payload() {
+                log::error!(
+                    "MQ payload limit exceeded for new cluster event {}: payload size [{}]",
+                    ch_event.name,
+                    serialized_size,
+                );
+            } else if let Err(e) =
+                notifications::push_to_notification_queue(notification_message, queue.clone()).await
+            {
+                log::error!(
+                    "Failed to push notification for new cluster event {}: {:?}",
+                    ch_event.name,
+                    e
+                );
+            }
+        }
+    }
+}
+
+async fn notify_new_l1_clusters(
+    db: &Arc<DB>,
+    queue: &Arc<MessageQueue>,
+    project_id: Uuid,
+    signal_id: Uuid,
+    response: &ClusterResponse,
+) {
+    let new_l1_clusters: Vec<&NewClusterResult> = response
+        .new_clusters
+        .iter()
+        .filter(|c| c.level >= 1)
+        .collect();
+
+    if new_l1_clusters.is_empty() {
+        return;
+    }
+
+    let cluster_alerts = match db::alert_targets::get_alerts_for_signal(
+        &db.pool,
+        project_id,
+        signal_id,
+        Some(AlertType::NewCluster),
+    )
+    .await
+    {
+        Ok(alerts) => alerts,
+        Err(e) => {
+            log::error!(
+                "Failed to fetch NEW_CLUSTER alerts for signal_id={}: {:?}",
+                signal_id,
+                e
+            );
+            return;
+        }
+    };
+
+    if cluster_alerts.is_empty() {
+        return;
+    }
+
+    let signal_name = match db::signals::get_signal(&db.pool, signal_id, project_id).await {
+        Ok(Some(signal)) => signal.name,
+        Ok(None) => {
+            log::warn!(
+                "Signal not found for project_id={}, signal_id={}, skipping new cluster notifications",
+                project_id,
+                signal_id,
+            );
+            return;
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to fetch signal name for project_id={}, signal_id={}: {:?}",
+                project_id,
+                signal_id,
+                e,
+            );
+            return;
+        }
+    };
+
+    for cluster in new_l1_clusters {
+        for alert in &cluster_alerts {
+            let notification_message = notifications::NotificationMessage {
+                definition_type: NotificationDefinitionType::Alert,
+                definition_id: alert.id,
+                workspace_id: alert.workspace_id,
+                project_id: Some(project_id),
+                notifications: vec![NotificationKind::NewCluster {
+                    project_id,
+                    signal_id,
+                    signal_name: signal_name.clone(),
+                    cluster_id: cluster.cluster_id,
+                    cluster_name: cluster.cluster_name.clone(),
+                    num_signal_events: cluster.num_signal_events,
+                    num_child_clusters: cluster.child_cluster_ids.len(),
+                    alert_name: alert.name.clone(),
+                }],
+            };
+
+            let serialized_size = serde_json::to_vec(&notification_message)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            if serialized_size >= mq_max_payload() {
+                log::error!(
+                    "MQ payload limit exceeded for new cluster {}: payload size [{}]",
+                    cluster.cluster_name,
+                    serialized_size,
+                );
+            } else if let Err(e) =
+                notifications::push_to_notification_queue(notification_message, queue.clone()).await
+            {
+                log::error!(
+                    "Failed to push notification for new cluster {}: {:?}",
+                    cluster.cluster_name,
+                    e
+                );
+            }
+        }
+    }
 }

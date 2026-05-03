@@ -70,7 +70,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -122,7 +121,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     const snippetsCountMap = new Map<string, number>();
     for (const hit of spanHits) {
       snippetsCountMap.set(hit.trace_id, (snippetsCountMap.get(hit.trace_id) ?? 0) + 1);
-      if (!snippetMap.has(hit.trace_id) && (hit.input_snippet || hit.output_snippet)) {
+      if (!snippetMap.has(hit.trace_id) && (hit.input_snippet || hit.output_snippet || hit.attributes_snippet)) {
         snippetMap.set(hit.trace_id, hit);
       }
     }
@@ -131,6 +130,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       if (hit) {
         item.inputSnippet = hit.input_snippet;
         item.outputSnippet = hit.output_snippet;
+        item.attributesSnippet = hit.attributes_snippet;
       }
       item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
     }
@@ -161,7 +161,6 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],

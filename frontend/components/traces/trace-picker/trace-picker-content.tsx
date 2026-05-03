@@ -129,6 +129,7 @@ const TracePickerContent = ({
             mode="state"
             filters={traceFilters}
             resource="traces"
+            storageKey="traces"
             value={filters}
             onSubmit={(f, search) => setFilters({ filters: f, search })}
             placeholder="Search traces..."

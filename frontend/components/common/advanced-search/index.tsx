@@ -21,7 +21,7 @@ import {
 
 interface AdvancedSearchInnerProps {
   filters: ColumnFilter[];
-  resource: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -104,8 +104,9 @@ const AdvancedSearchInner = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTags, setTags, updateLastSubmitted, mode]);
 
+  const autocompleteResource = resource === "traces" || resource === "spans" ? resource : null;
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(
-    suggestions ? null : `/api/projects/${projectId}/${resource}/autocomplete`,
+    suggestions || !autocompleteResource ? null : `/api/projects/${projectId}/${autocompleteResource}/autocomplete`,
     swrFetcher,
     {
       onSuccess: (data) => {
@@ -146,13 +147,14 @@ AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
   mode?: AdvancedSearchMode;
   value?: { filters: Filter[]; search: string };
   onSubmit?: (filters: Filter[], search: string) => void;
+  storageKey?: string;
   options?: {
     // If provided autocomplete won't fetch suggestions
     suggestions?: Map<string, string[]>;
@@ -169,6 +171,7 @@ const AdvancedSearch = ({
   mode = "url",
   value,
   onSubmit,
+  storageKey,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
@@ -178,6 +181,8 @@ const AdvancedSearch = ({
     initialSearch={value?.search}
     onSubmit={onSubmit}
     suggestions={suggestions}
+    storageKey={storageKey}
+    resource={resource}
   >
     <AdvancedSearchInner
       filters={filters}

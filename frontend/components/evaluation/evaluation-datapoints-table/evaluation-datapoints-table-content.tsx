@@ -2,11 +2,10 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useStore } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
-import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
-import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
+import { selectVisibleColumnDefs, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -26,6 +25,7 @@ import { type EvaluationDatapointsTableProps } from ".";
 const EvaluationDatapointsTableContent = ({
   data,
   scores,
+  columnDefs: columns,
   handleRowClick,
   getRowHref,
   datapointId,
@@ -43,8 +43,10 @@ const EvaluationDatapointsTableContent = ({
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
 
   // Store state
-  const columns = useEvalStore((s) => s.columnDefs);
+  const isComparison = useEvalStore((s) => s.isComparison);
+  const isShared = useEvalStore((s) => s.isShared);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
+  const scoreRanges = useEvalStore((s) => s.scoreRanges);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
   const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
@@ -56,15 +58,7 @@ const EvaluationDatapointsTableContent = ({
     setColumnOrder: s.setColumnOrder,
   }));
 
-  // Sync datatable columnOrder with eval store columnDefs.
-  // Guard: skip syncing until columnDefs have been rebuilt with score columns,
-  // otherwise the effect would purge user-ordered score columns from localStorage
-  // before rebuildColumns has had a chance to run.
-  const columnsReady = columns.length > 0 && (scores.length === 0 || columns.some((c) => c.id?.startsWith("score:")));
-
   useEffect(() => {
-    if (!columnsReady) return;
-
     const visibleIds = columns.filter((c) => !c.meta?.hidden).map((c) => c.id!);
     const currentSet = new Set(columnOrder);
     const defSet = new Set(visibleIds);
@@ -76,7 +70,7 @@ const EvaluationDatapointsTableContent = ({
       const filtered = columnOrder.filter((id) => defSet.has(id));
       setColumnOrder([...filtered, ...toAdd]);
     }
-  }, [columns, columnOrder, setColumnOrder, columnsReady]);
+  }, [columns, columnOrder, setColumnOrder]);
 
   // Compute and set score ranges from data
   useEffect(() => {
@@ -127,8 +121,11 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  // Visible columns (hidden + output-in-comparison filtered out)
-  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
+  const visibleColumns = useMemo(() => selectVisibleColumnDefs(columns, isComparison), [columns, isComparison]);
+  const tableMeta = useMemo(
+    () => ({ evalCellMeta: { isComparison, isShared, heatmapEnabled, scoreRanges } }),
+    [isComparison, isShared, heatmapEnabled, scoreRanges]
+  );
 
   // Derive filter definitions from column defs in the store
   const columnFilters = useMemo(
@@ -153,6 +150,7 @@ const EvaluationDatapointsTableContent = ({
       <InfiniteDataTable
         columns={visibleColumns}
         data={data ?? []}
+        meta={tableMeta}
         hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
@@ -169,6 +167,7 @@ const EvaluationDatapointsTableContent = ({
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
           <EvalColumnsMenu
+            columnDefs={columns}
             columnLabels={visibleColumns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
@@ -195,9 +194,15 @@ const EvaluationDatapointsTableContent = ({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
-          <SearchEvaluationInput />
         </div>
-        <DataTableFilterList />
+        <div className="w-full">
+          <AdvancedSearch
+            storageKey="evaluation-datapoints"
+            filters={columnFilters}
+            placeholder="Search in data, targets, scores and spans..."
+            className="w-full flex-1"
+          />
+        </div>
       </InfiniteDataTable>
     </div>
   );

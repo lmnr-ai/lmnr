@@ -7,6 +7,7 @@ import {
   type ProcessedMessages,
   processMessages,
   renderMessageContent,
+  responsesItemRole,
 } from "@/components/traces/span-view/messages";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,16 +44,19 @@ const fetchPayload = async (raw: unknown): Promise<unknown> => {
 
 function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; presetKey: string }) {
   const toolNameMap = useMemo(() => buildToolNameMap(result), [result]);
-  return result.messages.map((message: any, i: number) => (
-    <MessageWrapper
-      key={`overview-${presetKey}-${i}`}
-      role={message.role}
-      presetKey={`collapse-${i}-${presetKey}`}
-      maxHeight={560}
-    >
-      {renderMessageContent(result, i, presetKey, toolNameMap)}
-    </MessageWrapper>
-  ));
+  return result.messages.map((message: any, i: number) => {
+    const role = result.type === "openai-responses" ? responsesItemRole(message) : message?.role;
+    return (
+      <MessageWrapper
+        key={`overview-${presetKey}-${i}`}
+        role={role}
+        presetKey={`collapse-${i}-${presetKey}`}
+        maxHeight={560}
+      >
+        {renderMessageContent(result, i, presetKey, toolNameMap)}
+      </MessageWrapper>
+    );
+  });
 }
 
 const SCROLL_THRESHOLD = 100;
@@ -153,7 +157,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
         <Button
           aria-label="Scroll to bottom"
           size="icon"
-          className="absolute bottom-3 right-3 rounded-full"
+          className="absolute bottom-3 right-3 rounded-full z-40"
           onClick={scrollToBottom}
         >
           <ChevronDown className="w-4 h-4" />

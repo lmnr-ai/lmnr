@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import {
   DeploymentType,
@@ -131,6 +132,7 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
         return;
       }
 
+      track("deployment", "mode_saved", { mode });
       toast({ title: "Configuration saved" });
       mutate();
     } catch (e) {

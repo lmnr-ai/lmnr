@@ -29,6 +29,7 @@ export interface SlackIntegration {
 export interface SlackChannel {
   id: string;
   name: string;
+  isMember: boolean;
 }
 
 export async function getSlackIntegration(workspaceId: string): Promise<SlackIntegration | null> {
@@ -153,28 +154,61 @@ async function getIntegrationWithToken(workspaceId: string) {
   return { ...integration, decryptedToken: token };
 }
 
-export async function getSlackChannels(workspaceId: string): Promise<SlackChannel[]> {
+const SLACK_CONVERSATIONS_PAGE_LIMIT = 500;
+
+interface SlackConversationsListResponse {
+  ok: boolean;
+  error?: string;
+  channels?: { id: string; name: string; is_member?: boolean }[];
+  response_metadata?: { next_cursor?: string };
+}
+
+function buildConversationsUrl(cursor: string): string {
+  const url = new URL("https://slack.com/api/conversations.list");
+  url.searchParams.set("exclude_archived", "true");
+  url.searchParams.set("types", "public_channel,private_channel");
+  url.searchParams.set("limit", String(SLACK_CONVERSATIONS_PAGE_LIMIT));
+  if (cursor) url.searchParams.set("cursor", cursor);
+  return url.toString();
+}
+
+export interface GetSlackChannelsResult {
+  channels: SlackChannel[];
+  // True when Slack rate-limited us mid-pagination and the list is incomplete.
+  rateLimited: boolean;
+}
+
+export async function getSlackChannels(workspaceId: string): Promise<GetSlackChannelsResult> {
   const integration = await getIntegrationWithToken(workspaceId);
 
-  const response = await fetch(
-    "https://slack.com/api/conversations.list?exclude_archived=true&types=public_channel,private_channel&limit=200",
-    {
-      headers: {
-        Authorization: `Bearer ${integration.decryptedToken}`,
-      },
+  const channels: SlackChannel[] = [];
+  let cursor = "";
+
+  do {
+    const response = await fetch(buildConversationsUrl(cursor), {
+      headers: { Authorization: `Bearer ${integration.decryptedToken}` },
+    });
+
+    if (response.status === 429) {
+      return { channels, rateLimited: true };
     }
-  );
 
-  const data = await response.json();
+    const data = (await response.json()) as SlackConversationsListResponse;
+    if (data.error === "ratelimited") {
+      return { channels, rateLimited: true };
+    }
+    if (!data.ok) {
+      throw new Error(`Slack API error: ${data.error}`);
+    }
 
-  if (!data.ok) {
-    throw new Error(`Slack API error: ${data.error}`);
-  }
+    for (const ch of data.channels ?? []) {
+      channels.push({ id: ch.id, name: ch.name, isMember: !!ch.is_member });
+    }
 
-  return (data.channels || []).map((ch: { id: string; name: string }) => ({
-    id: ch.id,
-    name: ch.name,
-  }));
+    cursor = data.response_metadata?.next_cursor ?? "";
+  } while (cursor);
+
+  return { channels, rateLimited: false };
 }
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {

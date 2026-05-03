@@ -4,9 +4,9 @@ import { Clock, Loader2, Mail } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
+import SlackChannelPicker, { type SlackChannelSelection } from "@/components/settings/alerts/slack-channel-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { formatSchedule } from "./utils";
@@ -48,39 +49,48 @@ export default function ManageReportSheet({
     [report, userEmail]
   );
 
-  const currentSlackTarget = useMemo(
-    () => report?.targets.find((t) => t.type === REPORT_TARGET_TYPE.SLACK) ?? null,
+  const currentSlackChannels = useMemo<SlackChannelSelection[]>(
+    () =>
+      (report?.targets ?? [])
+        .filter((t) => t.type === REPORT_TARGET_TYPE.SLACK && t.channelId && t.channelName)
+        .map((t) => ({ id: t.channelId!, name: t.channelName! })),
     [report]
   );
 
   const [emailEnabled, setEmailEnabled] = useState(false);
-  const [channelId, setChannelId] = useState("");
+  const [slackChannels, setSlackChannels] = useState<SlackChannelSelection[]>([]);
 
-  // Reset local state when report changes
   useEffect(() => {
     if (!open || !report) return;
     setEmailEnabled(currentEmailSubscribed);
-    setChannelId(currentSlackTarget?.channelId ?? "");
-  }, [open, report, currentEmailSubscribed, currentSlackTarget]);
+    setSlackChannels(currentSlackChannels);
+  }, [open, report, currentEmailSubscribed, currentSlackChannels]);
 
-  const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
-    swrFetcher
-  );
+  const { data: channelsResult, isLoading: isLoadingChannels } = useSWR<{
+    channels: SlackChannel[];
+    rateLimited: boolean;
+  }>(open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null, swrFetcher);
+  const channels = channelsResult?.channels;
 
-  const selectedChannel = useMemo(() => channels?.find((ch) => ch.id === channelId), [channels, channelId]);
+  useEffect(() => {
+    if (channelsResult?.rateLimited) {
+      toast({
+        title: "Slack channel list may be incomplete",
+        description: "Slack rate-limited the request. Some channels may not appear in the picker.",
+      });
+    }
+  }, [channelsResult, toast]);
 
-  const channelItems = useMemo(
-    () => (channels ?? []).map((ch) => ({ value: ch.id, label: `#${ch.name}` })),
-    [channels]
-  );
+  const slackChanged = useMemo(() => {
+    if (slackChannels.length !== currentSlackChannels.length) return true;
+    const current = new Set(currentSlackChannels.map((c) => c.id));
+    return slackChannels.some((c) => !current.has(c.id));
+  }, [slackChannels, currentSlackChannels]);
 
   const hasChanges = useMemo(() => {
     if (!report) return false;
-    const emailChanged = emailEnabled !== currentEmailSubscribed;
-    const slackChanged = channelId !== (currentSlackTarget?.channelId ?? "");
-    return emailChanged || slackChanged;
-  }, [report, emailEnabled, currentEmailSubscribed, channelId, currentSlackTarget]);
+    return emailEnabled !== currentEmailSubscribed || slackChanged;
+  }, [report, emailEnabled, currentEmailSubscribed, slackChanged]);
 
   const handleSave = useCallback(async () => {
     if (!report) return;
@@ -89,7 +99,6 @@ export default function ManageReportSheet({
     let anyChangeCommitted = false;
     try {
       const emailChanged = emailEnabled !== currentEmailSubscribed;
-      const slackChanged = channelId !== (currentSlackTarget?.channelId ?? "");
 
       if (emailChanged) {
         const res = await fetch(`/api/workspaces/${workspaceId}/reports`, {
@@ -106,36 +115,21 @@ export default function ManageReportSheet({
         anyChangeCommitted = true;
       }
 
-      if (slackChanged && hasSlackIntegration) {
-        if (channelId && integrationId) {
-          const res = await fetch(`/api/workspaces/${workspaceId}/reports/slack-target`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reportId: report.id,
-              integrationId,
-              channelId,
-              channelName: selectedChannel?.name ?? "",
-            }),
-          });
-          if (!res.ok) {
-            const error = (await res.json().catch(() => ({ error: "Failed to set Slack channel" }))) as {
-              error: string;
-            };
-            throw new Error(error?.error ?? "Failed to set Slack channel");
-          }
-        } else {
-          const res = await fetch(`/api/workspaces/${workspaceId}/reports/slack-target`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reportId: report.id }),
-          });
-          if (!res.ok) {
-            const error = (await res.json().catch(() => ({ error: "Failed to remove Slack channel" }))) as {
-              error: string;
-            };
-            throw new Error(error?.error ?? "Failed to remove Slack channel");
-          }
+      if (slackChanged && hasSlackIntegration && integrationId) {
+        const res = await fetch(`/api/workspaces/${workspaceId}/reports/slack-target`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportId: report.id,
+            integrationId,
+            channels: slackChannels,
+          }),
+        });
+        if (!res.ok) {
+          const error = (await res.json().catch(() => ({ error: "Failed to set Slack channels" }))) as {
+            error: string;
+          };
+          throw new Error(error?.error ?? "Failed to set Slack channels");
         }
         anyChangeCommitted = true;
       }
@@ -143,6 +137,11 @@ export default function ManageReportSheet({
       toast({
         title: "Report updated",
         description: "Notification targets have been updated.",
+      });
+      track("reports", "edited", {
+        has_slack: slackChannels.length > 0,
+        slack_channel_count: slackChannels.length,
+        has_email: emailEnabled,
       });
       onSaved();
       onOpenChange(false);
@@ -162,11 +161,10 @@ export default function ManageReportSheet({
     report,
     emailEnabled,
     currentEmailSubscribed,
-    channelId,
-    currentSlackTarget,
+    slackChannels,
+    slackChanged,
     hasSlackIntegration,
     integrationId,
-    selectedChannel,
     workspaceId,
     userEmail,
     onSaved,
@@ -204,19 +202,14 @@ export default function ManageReportSheet({
 
                   {hasSlackIntegration && (
                     <div className="grid gap-2">
-                      <Label className="text-xs font-normal text-muted-foreground">Slack Channel</Label>
-                      {isLoadingChannels ? (
-                        <div className="h-7 w-full bg-muted animate-pulse rounded" />
-                      ) : (
-                        <Combobox
-                          items={channelItems}
-                          value={channelId || null}
-                          setValue={(v) => setChannelId(v ?? "")}
-                          placeholder="Select a channel (optional)"
-                          noMatchText="No channels found."
-                          triggerClassName="h-7 text-xs"
-                        />
-                      )}
+                      <Label className="text-xs font-normal text-muted-foreground">Slack channels</Label>
+                      <SlackChannelPicker
+                        channels={channels}
+                        isLoading={isLoadingChannels}
+                        value={slackChannels}
+                        onChange={setSlackChannels}
+                        placeholder="Search for channels..."
+                      />
                     </div>
                   )}
 

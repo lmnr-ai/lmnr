@@ -6,17 +6,15 @@ import { shallow } from "zustand/shallow";
 import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { useTraceViewBaseStoreRaw } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
-import { SpanView } from "../span-view";
+import { SpanView, type SpanViewTab } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
-import { ScrollContextProvider } from "./scroll-context";
 import TracePanel from "./trace-panel";
 
 export interface TraceViewPanels {
@@ -33,6 +31,7 @@ export interface TraceViewContentProps {
   propsTrace?: TraceViewTrace;
   onClose: () => void;
   isAlwaysSelectSpan?: boolean;
+  showChatInitial?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -43,13 +42,13 @@ export default function TraceViewContent({
   onClose,
   propsTrace,
   isAlwaysSelectSpan,
+  showChatInitial,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const baseStore = useTraceViewBaseStoreRaw();
 
   // Panel visibility states
   const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
@@ -103,15 +102,6 @@ export default function TraceViewContent({
     shallow
   );
 
-  // Local storage states
-  const { spanPath, setSpanPath } = useTraceViewStore(
-    (state) => ({
-      spanPath: state.spanPath,
-      setSpanPath: state.setSpanPath,
-    }),
-    shallow
-  );
-
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
       return;
@@ -161,11 +151,6 @@ export default function TraceViewContent({
 
       setSelectedSpan(span);
 
-      const spanPath = span.attributes?.["lmnr.span.path"];
-      if (spanPath && Array.isArray(spanPath)) {
-        setSpanPath(spanPath);
-      }
-
       const currentSpanId = searchParams.get("spanId");
       if (currentSpanId !== span.spanId) {
         const params = new URLSearchParams(searchParams);
@@ -173,7 +158,7 @@ export default function TraceViewContent({
         router.replace(`${pathName}?${params.toString()}`);
       }
     },
-    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
+    [setSelectedSpan, searchParams, router, pathName]
   );
 
   const [traceSearchTerm, setTraceSearchTerm] = useState("");
@@ -224,10 +209,11 @@ export default function TraceViewContent({
 
         const urlSpanId = spanId || searchParams.get("spanId");
         if (urlSpanId && spans.length > 0) {
-          const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
+          const selectedSpan = findSpanToSelect(spans, spanId, searchParams);
           setSelectedSpan(selectedSpan);
-        } else if ((baseStore.getState().spanPanelOpen || isAlwaysSelectSpan) && spans.length > 0) {
-          // Auto-select first span if the span panel is open or always-select mode is on
+        } else if (isAlwaysSelectSpan && spans.length > 0) {
+          // Auto-select first span only in the dedicated trace page (always-select mode).
+          // In drawer layouts we leave the selection empty unless the user explicitly opens a span.
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -252,11 +238,9 @@ export default function TraceViewContent({
       setHasBrowserSession,
       setBrowserSession,
       setSelectedSpan,
-      baseStore,
       isAlwaysSelectSpan,
       spanId,
       searchParams,
-      spanPath,
     ]
   );
 
@@ -266,6 +250,15 @@ export default function TraceViewContent({
     router.push(`${pathName}?${params.toString()}`);
     onClose();
   }, [onClose, pathName, router, searchParams]);
+
+  const handleSpanPanelClose = useCallback(() => {
+    setSelectedSpan(undefined);
+    if (searchParams.get("spanId")) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("spanId");
+      router.replace(`${pathName}?${params.toString()}`);
+    }
+  }, [setSelectedSpan, searchParams, router, pathName]);
 
   const isLoading = isTraceLoading && !trace;
 
@@ -291,6 +284,15 @@ export default function TraceViewContent({
       }
     }
   }, [isSpansLoading, setSelectedSpan, spanId, spans]);
+
+  // The store is created once with `initialChatOpen` from whatever URL state
+  // exists when the provider mounts, but `router.push` is a transition so the
+  // `chat` param can arrive late — or be stale from a previous trace. Keep the
+  // panel in sync with the URL both ways so a late-arriving `chat=true` opens
+  // the panel and a late-arriving `chat=false` closes it.
+  useEffect(() => {
+    setTracesAgentOpen(!!showChatInitial);
+  }, [showChatInitial, setTracesAgentOpen]);
 
   useEffect(() => {
     handleFetchTrace();
@@ -327,18 +329,35 @@ export default function TraceViewContent({
     />
   );
 
+  const snippetTab: SpanViewTab | undefined = selectedSpan?.inputSnippet
+    ? "span-input"
+    : selectedSpan?.outputSnippet
+      ? "span-output"
+      : selectedSpan?.attributesSnippet
+        ? "attributes"
+        : undefined;
+
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {!selectedSpan ? (
         <SpanViewSkeleton />
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-        <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
+        <HumanEvaluatorSpanView
+          traceId={selectedSpan.traceId}
+          spanId={selectedSpan.spanId}
+          key={selectedSpan.spanId}
+          onClose={handleSpanPanelClose}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
+        />
       ) : (
         <SpanView
           key={selectedSpan.spanId}
           spanId={selectedSpan.spanId}
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
+          initialTab={snippetTab}
+          onClose={handleSpanPanelClose}
+          isAlwaysSelectSpan={isAlwaysSelectSpan}
         />
       )}
     </div>
@@ -361,13 +380,9 @@ export default function TraceViewContent({
     showChat,
   };
 
-  return (
-    <ScrollContextProvider>
-      {isNil(sidePanelRef) ? (
-        <FillWidthLayout panels={panels} />
-      ) : (
-        <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
-      )}
-    </ScrollContextProvider>
+  return isNil(sidePanelRef) ? (
+    <FillWidthLayout panels={panels} />
+  ) : (
+    <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
   );
 }

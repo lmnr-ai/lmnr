@@ -8,12 +8,15 @@ export interface LoadMoreButtonProps {
   hasMore: boolean;
 }
 
-export interface InfiniteDataTableProps<TData extends RowData>
-  extends Omit<Partial<TableOptions<TData>>, "data" | "columns"> {
+export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
+  Partial<TableOptions<TData>>,
+  "data" | "columns"
+> {
   data: TData[];
   columns: TableOptions<TData>["columns"];
 
   lockedColumns?: string[];
+  disableHideColumn?: boolean;
   hasMore: boolean;
   isFetching: boolean;
   isLoading: boolean;
@@ -47,7 +50,7 @@ export interface InfiniteDataTableProps<TData extends RowData>
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
   table: Table<TData>;
   columnOrder: string[];
-  onHideColumn: (columnId: string) => void;
+  onHideColumn?: (columnId: string) => void;
 
   lockedColumns?: string[];
 }

@@ -31,13 +31,14 @@ function TracesContent() {
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const { traceId, spanId, showChatInitial, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
+  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
     spanId: state.spanId,
     traceId: state.traceId,
-    showChatInitial: state.showChatInitial,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
+
+  const showChatInitial = searchParams.get("chat") === "true";
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -45,6 +46,7 @@ function TracesContent() {
     params.delete("textSearch");
     params.delete("traceId");
     params.delete("spanId");
+    params.delete("chat");
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
@@ -100,6 +102,7 @@ function TracesContent() {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");
             params.delete("spanId");
+            params.delete("chat");
             router.push(`${pathName}?${params.toString()}`);
             setTraceId(null);
           }}

@@ -3,7 +3,12 @@ edition = "2024"
 name = "app-server"
 version = "0.1.0"
 
+[features]
+default = []
+signals = []
+
 [dependencies]
+actix-limitation = {version = "0.5.1", default-features = false}
 actix-web = "4.13"
 actix-web-httpauth = "0.8.2"
 anyhow = "1"
@@ -43,7 +48,7 @@ resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
-sentry = {version = "0.46.0", features = ["opentelemetry"]}
+sentry = {version = "0.47.0", features = ["opentelemetry", "tracing"]}
 schemars = {version = "1", features = ["uuid1"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
@@ -58,6 +63,7 @@ tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
 tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
+# Mappings usually updated on major releases: https://github.com/tokio-rs/tracing-opentelemetry/releases
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"

@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { type GenerateProjectApiKeyResponse, type ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
@@ -57,6 +58,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       });
       await res.text();
 
+      if (res.ok) {
+        track("api_keys", "revoked");
+      }
       getProjectApiKeys();
     },
     [projectId, getProjectApiKeys]
@@ -67,6 +71,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       setIsLoading(true);
       await generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
       setIsGenerated(true);
+      track("api_keys", "generated", { key_type: keyType });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to generate API key" });
     } finally {
@@ -122,12 +127,21 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           )}
         </DialogContent>
       </Dialog>
-      <SettingsTable emptyMessage="No project api keys found." isEmpty={isEmpty(projectApiKeys)}>
+      <SettingsTable
+        emptyMessage="No project api keys found."
+        isEmpty={isEmpty(projectApiKeys)}
+        headers={["Name", "Key", "Type", ""]}
+        colSpan={4}
+      >
         {projectApiKeys.map((apiKey, id) => (
           <SettingsTableRow key={id}>
             <td className="px-4 text-sm font-medium">{apiKey.name}</td>
             <td className="px-4 text-sm font-mono text-muted-foreground">{apiKey.shorthand}</td>
-            <td className="px-4">{apiKey.isIngestOnly && <Badge variant="outline">Ingest Only</Badge>}</td>
+            <td className="px-4">
+              <Badge variant="outline" className="font-normal whitespace-nowrap">
+                {apiKey.isIngestOnly ? "Ingest Only" : "Default"}
+              </Badge>
+            </td>
             <td className="px-4">
               <div className="flex justify-end">
                 <RevokeDialog apiKey={apiKey} onRevoke={deleteApiKey} entity="API key" />

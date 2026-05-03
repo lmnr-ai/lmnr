@@ -3,7 +3,7 @@
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -16,6 +16,7 @@ import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundInfo } from "@/lib/playground/types";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import {
@@ -80,7 +81,7 @@ const EmptyRow = (
             create one, or open one directly from a traced span.
           </p>
           <a
-            href="https://docs.laminar.sh/playground"
+            href="https://laminar.sh/docs/playground"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
@@ -103,6 +104,10 @@ const PlaygroundsContent = () => {
 
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
+
+  useEffect(() => {
+    track("playgrounds", "page_viewed");
+  }, []);
 
   const fetchPlaygrounds = useCallback(
     async (pageNumber: number) => {
@@ -169,6 +174,7 @@ const PlaygroundsContent = () => {
       if (res.ok) {
         updateData((currentData) => currentData.filter((playground) => !playgroundIds.includes(playground.id)));
         setRowSelection({});
+        track("playgrounds", "deleted", { count: playgroundIds.length });
         toast({
           title: "Playgrounds deleted",
           description: `Successfully deleted ${playgroundIds.length} playground(s).`,

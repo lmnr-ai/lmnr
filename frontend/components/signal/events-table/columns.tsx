@@ -1,13 +1,20 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { Check, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
+import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type EventRow } from "@/lib/events/types.ts";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+import { cn } from "@/lib/utils";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
   if (!description) {
@@ -67,6 +74,66 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
+function SpanLink({ label, traceId, spanId }: { label: string; traceId: string; spanId?: string }) {
+  const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
+  const { setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setTraceId(traceId);
+    setSpanId(spanId ?? null);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("traceId", traceId);
+    if (spanId) {
+      params.set("spanId", spanId);
+    } else {
+      params.delete("spanId");
+    }
+    router.replace(`${pathName}?${params.toString()}`);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="text-primary underline underline-offset-2 hover:text-primary/80"
+    >
+      {label}
+    </button>
+  );
+}
+
+function renderPayloadText(text: string): React.ReactNode {
+  const matches = parseSpanLinks(text);
+  if (matches.length === 0) {
+    return text;
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+
+  matches.forEach((m, i) => {
+    if (m.index > lastIndex) {
+      parts.push(text.slice(lastIndex, m.index));
+    }
+    parts.push(<SpanLink key={`span-link-${i}`} label={m.label} traceId={m.traceId} spanId={m.spanId} />);
+    lastIndex = m.index + m.length;
+  });
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+}
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -91,7 +158,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              {String(value)}
+              {renderPayloadText(String(value))}
             </span>
           );
       }
@@ -128,6 +195,22 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
+const SEVERITY_STYLES: Record<number, string> = {
+  0: "rounded-3xl mr-1 text-muted-foreground/60",
+  1: "rounded-3xl mr-1 text-orange-400/80",
+  2: "rounded-3xl mr-1 text-red-400/100",
+};
+
+function SeverityCell({ value }: { value: number }) {
+  const className = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  const label = SEVERITY_LABELS[value as keyof typeof SEVERITY_LABELS] ?? "Info";
+  return (
+    <Badge variant="outline" className={cn("rounded-full font-medium", className)}>
+      {label}
+    </Badge>
+  );
+}
+
 const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
   {
     accessorKey: "timestamp",
@@ -135,6 +218,13 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140,
     id: "timestamp",
+  },
+  {
+    accessorKey: "severity",
+    header: "Severity",
+    cell: (row) => <SeverityCell value={Number(row.getValue())} />,
+    size: 120,
+    id: "severity",
   },
 ];
 
@@ -182,6 +272,16 @@ const staticFilters: ColumnFilter[] = [
     key: "run_id",
     dataType: "string",
   },
+  {
+    name: "Severity",
+    key: "severity",
+    dataType: "enum",
+    options: [
+      { value: "0", label: "Info" },
+      { value: "1", label: "Warning" },
+      { value: "2", label: "Critical" },
+    ],
+  },
 ];
 
 export function buildEventsColumns(schemaFields: SchemaField[]): {
@@ -195,7 +295,7 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "traceId", ...validFields.map((f) => `payload:${f.name}`), "id"];
+  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
 
   const filters = [...staticFilters, ...payloadFilters];
 

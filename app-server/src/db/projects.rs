@@ -14,13 +14,13 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_runs_limit: i64,
+    pub signal_steps_limit: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_runs_limit: Option<i64>,
+    pub custom_signal_steps_limit: Option<i64>,
 }
 
 #[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone)]
@@ -60,13 +60,13 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
-    pub signal_runs_limit: i64,
+    pub signal_steps_limit: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
-    pub custom_signal_runs_limit: Option<i64>,
+    pub custom_signal_steps_limit: Option<i64>,
 }
 
 impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDbRow {
@@ -79,9 +79,9 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             reset_time: self.reset_time,
             workspace_project_ids: self.workspace_project_ids,
             bytes_limit: self.bytes_limit,
-            signal_runs_limit: self.signal_runs_limit,
+            signal_steps_limit: self.signal_steps_limit,
             custom_bytes_limit: self.custom_bytes_limit,
-            custom_signal_runs_limit: self.custom_signal_runs_limit,
+            custom_signal_steps_limit: self.custom_signal_steps_limit,
         }
     }
 }
@@ -108,7 +108,7 @@ pub async fn get_projects_for_workspace(
 pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,
-) -> Result<ProjectWithWorkspaceBillingInfo> {
+) -> Result<Option<ProjectWithWorkspaceBillingInfo>> {
     let result = sqlx::query_as::<_, ProjectWithWorkspaceBillingInfoDbRow>(
         "
         WITH workspace_project_ids AS (
@@ -125,9 +125,9 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_runs as signal_runs_limit,
+            subscription_tiers.signal_steps_processed as signal_steps_limit,
             wul_bytes.limit_value as custom_bytes_limit,
-            wul_signal_runs.limit_value as custom_signal_runs_limit
+            wul_signal_steps.limit_value as custom_signal_steps_limit
         FROM
             projects
             join workspaces on projects.workspace_id = workspaces.id
@@ -135,14 +135,14 @@ pub async fn get_project_and_workspace_billing_info(
             LEFT join workspace_project_ids on projects.workspace_id = workspace_project_ids.workspace_id
             LEFT join workspace_usage_limits wul_bytes
                 on wul_bytes.workspace_id = workspaces.id AND wul_bytes.limit_type = 'bytes'
-            LEFT join workspace_usage_limits wul_signal_runs
-                on wul_signal_runs.workspace_id = workspaces.id AND wul_signal_runs.limit_type = 'signal_runs'
+            LEFT join workspace_usage_limits wul_signal_steps
+                on wul_signal_steps.workspace_id = workspaces.id AND wul_signal_steps.limit_type = 'signal_steps_processed'
         WHERE
             projects.id = $1",
     )
     .bind(project_id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await?;
 
-    Ok(result.into())
+    Ok(result.map(|r| r.into()))
 }

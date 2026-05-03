@@ -2,19 +2,14 @@
 
 import React from "react";
 
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+
 /**
  * Matches XML-like span references in text:
  *   <span id='123' name='my-span' />
  *   <span id='123' name='my-span' reference_text='...' />
  */
 const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g;
-
-/**
- * Matches markdown-style span links in text:
- *   [Bash](https://www.laminar.sh/project/.../traces/...?spanId=UUID)
- * The spanId URL param contains the real span UUID.
- */
-const MD_SPAN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]*[?&]spanId=([0-9a-f-]+)[^)]*)\)/gi;
 
 export interface SpanReferenceCallbacks {
   resolveSpanId: (sequentialId: string) => Promise<string | null>;
@@ -111,17 +106,18 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
   }
 
   // Markdown-style: [Label](https://...?spanId=UUID)
-  MD_SPAN_LINK_REGEX.lastIndex = 0;
-  while ((match = MD_SPAN_LINK_REGEX.exec(text)) !== null) {
-    const [fullMatch, label, , spanUuid] = match;
+  // Only links with a spanId are actionable here — the trace-view already has
+  // a fixed traceId, so cross-trace links without spanId aren't useful as badges.
+  for (const link of parseSpanLinks(text)) {
+    if (!link.spanId) continue;
     matches.push({
-      index: match.index,
-      length: fullMatch.length,
+      index: link.index,
+      length: link.length,
       node: (
         <MarkdownSpanBadge
-          key={`md-ref-${match.index}`}
-          label={label}
-          spanUuid={spanUuid}
+          key={`md-ref-${link.index}`}
+          label={link.label}
+          spanUuid={link.spanId}
           onSelectSpan={callbacks.onSelectSpan}
         />
       ),

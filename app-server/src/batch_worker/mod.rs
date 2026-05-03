@@ -10,6 +10,7 @@ use serde::Serialize;
 pub enum BatchWorkerType {
     ClusteringBatching,
     BrowserEvents,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalsBatching,
     Spans,
     DataPlaneSpans,

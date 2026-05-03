@@ -65,6 +65,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["trace_type", createStringFilter],
     ["tags", createArrayColumnFilter("String")],
+    ["trace_tags", createArrayColumnFilter("String")],
     ["total_cost", createNumberFilter("Float64")],
     ["input_cost", createNumberFilter("Float64")],
     ["output_cost", createNumberFilter("Float64")],
@@ -110,7 +111,8 @@ const tracesSelectColumns = [
   "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
   "session_id as sessionId",
   "metadata",
-  "tags",
+  "tags as spanTags",
+  "ifNull(trace_tags, []) as traceTags",
   "input_tokens as inputTokens",
   "output_tokens as outputTokens",
   "top_span_id as topSpanId",
@@ -259,7 +261,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   if (sortBy && sortSql) {
     orderBy.push({ column: sortSql, direction: sortDirection ?? "DESC" });
   } else {
-    orderBy.push({ column: "start_time", direction: "DESC" });
+    orderBy.push({ column: "start_time", direction: sortDirection ?? "DESC" });
   }
 
   // Build filter config with custom column processors

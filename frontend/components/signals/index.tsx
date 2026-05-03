@@ -4,7 +4,7 @@ import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
+import CreateSignalDrawer from "@/components/signals/create-signal-drawer";
 import SignalCards from "@/components/signals/signal-cards";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 const SIGNAL_QUICK_RANGES: DateRange[] = [
   { name: "1 hour", value: "1" },
@@ -40,6 +41,7 @@ function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
+
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
@@ -162,6 +164,7 @@ function SignalsContent() {
 
         updateData((currentData) => currentData.filter((s) => !selectedRowIds.includes(s.id)));
         setRowSelection({});
+        track("signals", "deleted");
 
         toast({
           title: "Signals deleted",
@@ -216,13 +219,6 @@ function SignalsContent() {
       </div>
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
         <div className="flex items-center gap-2 pt-1">
-          {selectedRowIds.length > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
-              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-            </>
-          )}
-          <div className="flex-1" />
           <DateRangeFilter
             mode="state"
             value={dateRange}
@@ -230,11 +226,18 @@ function SignalsContent() {
             quickRanges={SIGNAL_QUICK_RANGES}
             hideAbsoluteDate
           />
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+          <CreateSignalDrawer open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
             <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
               Signal
             </Button>
-          </ManageSignalSheet>
+          </CreateSignalDrawer>
+          <div className="flex-1" />
+          {selectedRowIds.length > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
+              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
+            </>
+          )}
         </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
@@ -251,7 +254,7 @@ function SignalsContent() {
                   Click + Signal above to get started.
                 </p>
                 <a
-                  href="https://docs.laminar.sh/signals"
+                  href="https://laminar.sh/docs/signals"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

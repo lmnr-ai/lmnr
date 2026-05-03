@@ -83,6 +83,7 @@ class TableRegistry:
             "top_span_name",
             "top_span_type",
             "tags",
+            "trace_tags",
             "span_names",
             "root_span_input",
             "root_span_output",
@@ -153,6 +154,7 @@ class TableRegistry:
             "name",
             "payload",
             "timestamp",
+            "severity",
             "summary",
             "clusters",
         }
@@ -214,6 +216,7 @@ class TableRegistry:
             "trace_status",
             "trace_metadata",
             "trace_tags",
+            "top_span_id",
             "trace_spans",
         }
         self.tables["evaluation_datapoints"] = TableSchema(
@@ -243,6 +246,27 @@ class TableRegistry:
         }
         self.tables["clusters"] = TableSchema(
             "clusters", clusters_columns, "created_at"
+        )
+
+        # L0-inclusive variants
+        self.tables["signal_events_all"] = TableSchema(
+            "signal_events_all", signal_events_columns, "timestamp"
+        )
+
+        event_clusters_all_columns = {
+            "event_id",
+            "cluster_id",
+            "signal_id",
+            "level",
+            "cluster_name",
+            "parent_id",
+            "num_signal_events",
+            "num_children_clusters",
+            "created_at",
+            "updated_at",
+        }
+        self.tables["event_clusters_all"] = TableSchema(
+            "event_clusters_all", event_clusters_all_columns, "created_at"
         )
 
     def is_table_allowed(self, table_name: str) -> bool:

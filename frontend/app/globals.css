@@ -72,6 +72,8 @@
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
 
+  --color-subagent: hsl(var(--subagent));
+
   /*TODO: unify landing and platform colors*/
   --color-landing-primary-200: rgb(218 135 95);
   --color-landing-primary-300: rgb(213 126 87);
@@ -172,6 +174,7 @@
     --tool: 42 93% 46%;
     --llm: 262 83% 58%;
     --llm-foreground: 272 100% 74%;
+    --subagent: 187 94% 43%;
   }
 
   .dark {

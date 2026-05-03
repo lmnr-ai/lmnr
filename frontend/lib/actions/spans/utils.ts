@@ -53,7 +53,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-const spansSelectColumns = [
+export const spansSelectColumns = [
   "span_id as spanId",
   "trace_id as traceId",
   "parent_span_id as parentSpanId",
@@ -73,6 +73,43 @@ const spansSelectColumns = [
   "model",
   "duration",
 ];
+
+// Subset of attribute keys actually consumed by the trace-view transcript/tree.
+// Used to avoid pulling the full `attributes` JSON blob (which can be huge for
+// LLM spans) when rendering the spans list. The full attributes are still
+// fetched by the single-span endpoint (see getSpan) used by span-view.
+export const TRACE_VIEW_ATTRIBUTE_KEYS = [
+  "lmnr.span.path",
+  "lmnr.span.ids_path",
+  "lmnr.span.prompt_hash",
+  "lmnr.internal.has_browser_session",
+  "lmnr.association.properties.tags",
+  "lmnr.association.properties.langgraph.nodes",
+  "lmnr.association.properties.langgraph.edges",
+  "gen_ai.usage.cache_read_input_tokens",
+  "gen_ai.usage.reasoning_tokens",
+] as const;
+
+/**
+ * Builds a ClickHouse expression that extracts only the keys listed in
+ * TRACE_VIEW_ATTRIBUTE_KEYS from the `attributes` JSON column and assembles
+ * them into a compact JSON object string. Missing keys are omitted so the
+ * downstream `tryParseJson` + `get` access pattern keeps working unchanged.
+ *
+ * Uses the full JSONExtractRaw/JSONHas (rather than simpleJSON* variants) so
+ * array/nested values — e.g. `lmnr.span.ids_path` and `lmnr.span.path` — round
+ * trip correctly regardless of embedded commas or quoted characters.
+ */
+export const buildTraceViewAttributesExpression = (columnAlias = "attributes"): string => {
+  const escapeJsonKey = (k: string) => k.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const escapeSqlStr = (s: string) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const pairs = TRACE_VIEW_ATTRIBUTE_KEYS.map((key) => {
+    const sqlKey = escapeSqlStr(key);
+    const jsonLiteral = escapeSqlStr(`"${escapeJsonKey(key)}":`);
+    return `if(JSONHas(attributes, '${sqlKey}'), concat('${jsonLiteral}', JSONExtractRaw(attributes, '${sqlKey}')), '')`;
+  });
+  return `concat('{', arrayStringConcat(arrayFilter(x -> x != '', [${pairs.join(", ")}]), ','), '}') as ${columnAlias}`;
+};
 
 export interface BuildSpansQueryOptions {
   columns?: string[];
@@ -250,11 +287,13 @@ export const transformSpanWithEvents = (
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
   const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
+  const reasoningTokens = parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0;
 
   return {
     ...span,
     attributes: parsedAttributes,
     cacheReadInputTokens,
+    reasoningTokens,
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
     events: (span.events || []).map((event) => ({
@@ -267,9 +306,11 @@ export const transformSpanWithEvents = (
 };
 
 interface AggregatedMetrics {
+  inputTokens: number;
+  outputTokens: number;
   totalCost: number;
-  totalTokens: number;
   cacheReadInputTokens: number;
+  reasoningTokens: number;
   hasLLMDescendants: boolean;
 }
 
@@ -298,13 +339,15 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     if (children.length === 0) {
       if (span.spanType === "LLM") {
         const cost = span.totalCost || (span.inputCost ?? 0) + (span.outputCost ?? 0);
-        const tokens = span.totalTokens || (span.inputTokens ?? 0) + (span.outputTokens ?? 0);
         const cacheTokens = span.cacheReadInputTokens ?? 0;
+        const reasoningTkns = span.reasoningTokens ?? 0;
 
         const metrics = {
+          inputTokens: span.inputTokens ?? 0,
+          outputTokens: span.outputTokens ?? 0,
           totalCost: cost,
-          totalTokens: tokens,
           cacheReadInputTokens: cacheTokens,
+          reasoningTokens: reasoningTkns,
           hasLLMDescendants: true,
         };
         metricsCache.set(spanId, metrics);
@@ -314,26 +357,32 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
       return null;
     }
 
+    let inputTokens = 0;
+    let outputTokens = 0;
     let totalCost = 0;
-    let totalTokens = 0;
     let cacheReadInputTokens = 0;
+    let reasoningTokens = 0;
     let hasLLMDescendants = false;
 
     for (const childId of children) {
       const childMetrics = calculateMetrics(childId);
       if (childMetrics) {
+        inputTokens += childMetrics.inputTokens;
+        outputTokens += childMetrics.outputTokens;
         totalCost += childMetrics.totalCost;
-        totalTokens += childMetrics.totalTokens;
         cacheReadInputTokens += childMetrics.cacheReadInputTokens;
+        reasoningTokens += childMetrics.reasoningTokens;
         hasLLMDescendants = true;
       }
     }
 
     if (hasLLMDescendants) {
       const metrics = {
+        inputTokens,
+        outputTokens,
         totalCost,
-        totalTokens,
         cacheReadInputTokens,
+        reasoningTokens,
         hasLLMDescendants: true,
       };
       metricsCache.set(spanId, metrics);

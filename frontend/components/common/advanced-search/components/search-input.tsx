@@ -2,7 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback } from "react";
+import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
@@ -18,7 +18,7 @@ import FilterTag from "./tag";
 interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
-  resource?: "traces" | "spans";
+  resource?: "traces" | "spans" | "sessions";
   disableHotKey?: boolean;
   disabled?: boolean;
 }
@@ -38,16 +38,19 @@ const FilterSearchInput = ({
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
   const isOpen = useAdvancedSearchContext((state) => state.isOpen);
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
+  const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const selectedTagIds = useAdvancedSearchContext((state) => state.selectedTagIds);
   const openSelectId = useAdvancedSearchContext((state) => state.openSelectId);
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
+  const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
 
   const {
     setInputValue,
     setIsOpen,
     setActiveIndex,
+    setActiveRecentIndex,
     addTag,
     addCompleteTag,
     removeTag,
@@ -56,10 +59,14 @@ const FilterSearchInput = ({
     removeSelectedTags,
     submit,
     clearAll,
+    applyRecentSearch,
+    undo,
+    redo,
   } = useAdvancedSearchContext((state) => ({
     setInputValue: state.setInputValue,
     setIsOpen: state.setIsOpen,
     setActiveIndex: state.setActiveIndex,
+    setActiveRecentIndex: state.setActiveRecentIndex,
     addTag: state.addTag,
     addCompleteTag: state.addCompleteTag,
     removeTag: state.removeTag,
@@ -68,10 +75,14 @@ const FilterSearchInput = ({
     removeSelectedTags: state.removeSelectedTags,
     submit: state.submit,
     clearAll: state.clearAll,
+    applyRecentSearch: state.applyRecentSearch,
+    undo: state.undo,
+    redo: state.redo,
   }));
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
   const { navigateToTag, registerTagHandle } = useAdvancedSearchNavigation();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -84,18 +95,53 @@ const FilterSearchInput = ({
     [setInputValue, setIsOpen, selectedTagIds.size, removeSelectedTags, router, pathname, searchParams]
   );
 
+  const handleInputFocus = useCallback(
+    (e: FocusEvent<HTMLInputElement>) => {
+      const cameFromInside = containerRef.current?.contains(e.relatedTarget as Node);
+      if (!cameFromInside) {
+        setIsOpen(true);
+      }
+    },
+    [setIsOpen]
+  );
+
   const handleInputBlur = useCallback(() => {
-    // Don't close if there's an active tag (focus is transferring to it)
     if (activeTagId) return;
     if (openSelectId) return;
     setIsOpen(false);
     submit(router, pathname, searchParams);
   }, [activeTagId, openSelectId, setIsOpen, submit, router, pathname, searchParams]);
 
+  const handleRecentSelect = useCallback(
+    (index: number) => {
+      const rs = recentSearches[index];
+      if (!rs) return;
+      applyRecentSearch(rs, router, pathname, searchParams);
+    },
+    [recentSearches, applyRecentSearch, router, pathname, searchParams]
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
       const count = getSuggestionsCount(filters, inputValue, autocompleteData);
+      const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo(router, pathname, searchParams);
+        } else {
+          undo(router, pathname, searchParams);
+        }
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo(router, pathname, searchParams);
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         if (tags.length > 0) {
@@ -120,20 +166,67 @@ const FilterSearchInput = ({
         }
       }
 
+      // In recent row: left/right navigates chips, enter selects, down goes to suggestions, up goes to input
+      if (activeRecentIndex >= 0 && showRecent) {
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          setActiveRecentIndex(Math.min(activeRecentIndex + 1, recentSearches.length - 1));
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          setActiveRecentIndex(Math.max(activeRecentIndex - 1, 0));
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (count > 0) {
+            setActiveIndex(0);
+          }
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setActiveRecentIndex(-1);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleRecentSelect(activeRecentIndex);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setActiveRecentIndex(-1);
+          setIsOpen(false);
+          input?.blur();
+          return;
+        }
+        return;
+      }
+
       // Arrow down
       if (e.key === "ArrowDown") {
-        if (isOpen && count > 0) {
+        if (isOpen) {
           e.preventDefault();
-          setActiveIndex(Math.min(activeIndex + 1, count - 1));
+          if (activeIndex === -1 && showRecent) {
+            setActiveRecentIndex(0);
+          } else if (count > 0) {
+            setActiveIndex(Math.min(activeIndex + 1, count - 1));
+          }
         }
         return;
       }
 
       // Arrow up
       if (e.key === "ArrowUp") {
-        if (isOpen && count > 0) {
+        if (isOpen) {
           e.preventDefault();
-          setActiveIndex(Math.max(activeIndex - 1, 0));
+          if (activeIndex === 0 && showRecent) {
+            setActiveRecentIndex(0);
+          } else if (activeIndex > 0) {
+            setActiveIndex(activeIndex - 1);
+          }
         }
         return;
       }
@@ -147,7 +240,6 @@ const FilterSearchInput = ({
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              // Get the default operator for this field's dataType
               const columnFilter = filters.find((f) => f.key === suggestion.field);
               const defaultOperator = columnFilter
                 ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
@@ -202,17 +294,23 @@ const FilterSearchInput = ({
       selectedTagIds.size,
       isOpen,
       activeIndex,
+      activeRecentIndex,
       autocompleteData,
+      recentSearches,
       setInputValue,
       setIsOpen,
       setActiveIndex,
+      setActiveRecentIndex,
       selectAllTags,
       clearSelection,
       removeSelectedTags,
       removeTag,
       addTag,
       addCompleteTag,
+      undo,
+      redo,
       submit,
+      handleRecentSelect,
       navigateToTag,
       router,
       pathname,
@@ -242,6 +340,7 @@ const FilterSearchInput = ({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-input relative",
         "bg-muted/80 transition duration-250 py-0.75",
@@ -270,7 +369,8 @@ const FilterSearchInput = ({
           type="text"
           value={inputValue}
           onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
+          onFocus={handleInputFocus}
+          onClick={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
           disabled={disabled}

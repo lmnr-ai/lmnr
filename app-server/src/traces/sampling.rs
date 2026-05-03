@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

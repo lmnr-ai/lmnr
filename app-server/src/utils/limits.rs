@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -10,7 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{
             PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+            WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
@@ -23,10 +22,7 @@ use crate::{
         usage_warnings::{self, UsageItem},
     },
     mq::MessageQueue,
-    notifications::{
-        self, EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType,
-    },
-    reports::email_template::html_escape,
+    notifications::{self, NotificationDefinitionType, NotificationKind, NotificationMessage},
 };
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
@@ -35,8 +31,6 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// TTL for cached usage warnings per workspace. The cache is explicitly cleared
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
 const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
-
-const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
@@ -50,11 +44,12 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 }
 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if project_info.tier_name.is_free() {
-        return Some(project_info.signal_runs_limit);
+        return Some(project_info.signal_steps_limit);
     }
-    project_info.custom_signal_runs_limit
+    project_info.custom_signal_steps_limit
 }
 
 /// Compute the start of the current billing period from workspace reset_time.
@@ -77,7 +72,16 @@ pub async fn get_workspace_bytes_limit_exceeded(
     project_id: Uuid,
 ) -> Result<bool> {
     let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await? {
+            Some(info) => info,
+            None => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes limit check",
+                    project_id,
+                );
+                return Ok(false);
+            }
+        };
 
     let effective_limit = match get_effective_bytes_limit(&project_info) {
         Some(limit) => limit,
@@ -125,14 +129,29 @@ pub async fn get_workspace_bytes_limit_exceeded(
     Ok(bytes_ingested >= effective_limit)
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_runs_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     project_id: Uuid,
 ) -> Result<bool> {
-    let project_info =
-        get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await?
+    {
+        Some(info) => info,
+        None => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs limit check",
+                project_id,
+            );
+            return Ok(false);
+        }
+    };
 
     let effective_limit = match get_effective_signal_runs_limit(&project_info) {
         Some(limit) => limit,
@@ -140,7 +159,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let signal_runs = match cache.get::<i64>(&cache_key).await {
         Ok(Some(runs)) => runs,
@@ -185,7 +204,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     Ok(signal_runs >= effective_limit)
 }
 
-#[instrument(skip(db, clickhouse, cache, queue, project_id, bytes))]
 pub async fn update_workspace_bytes_ingested(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -196,7 +214,14 @@ pub async fn update_workspace_bytes_ingested(
 ) -> Result<()> {
     let project_info =
         match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
+            Ok(Some(info)) => info,
+            Ok(None) => {
+                log::warn!(
+                    "Project [{}] or its workspace no longer exists, skipping bytes usage update",
+                    project_id,
+                );
+                return Ok(());
+            }
             Err(e) => {
                 log::error!(
                     "Failed to get workspace info for project [{}]: {:?}",
@@ -277,8 +302,8 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-#[instrument(skip(db, clickhouse, cache, queue, project_id, runs))]
-pub async fn update_workspace_signal_runs_used(
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn update_workspace_signal_steps_processed(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -286,26 +311,38 @@ pub async fn update_workspace_signal_runs_used(
     project_id: Uuid,
     runs: usize,
 ) -> Result<()> {
-    let project_info =
-        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(info) => info,
-            Err(e) => {
-                log::error!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                );
-                return Err(anyhow::anyhow!(
-                    "Failed to get workspace info for project [{}]: {:?}",
-                    project_id,
-                    e
-                ));
-            }
-        };
+    let project_info = match get_workspace_info_for_project_id(
+        db.clone(),
+        cache.clone(),
+        project_id,
+    )
+    .await
+    {
+        Ok(Some(info)) => info,
+        Ok(None) => {
+            log::warn!(
+                "Project [{}] or its workspace no longer exists, skipping signal runs usage update",
+                project_id,
+            );
+            return Ok(());
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            );
+            return Err(anyhow::anyhow!(
+                "Failed to get workspace info for project [{}]: {:?}",
+                project_id,
+                e
+            ));
+        }
+    };
 
     let workspace_id = project_info.workspace_id;
 
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
@@ -357,7 +394,7 @@ pub async fn update_workspace_signal_runs_used(
         queue,
         workspace_id,
         project_info.reset_time,
-        UsageItem::SignalRuns,
+        UsageItem::SignalStepsProcessed,
         current_value,
     )
     .await;
@@ -425,30 +462,6 @@ async fn send_soft_limit_notification(
     usage_item: &UsageItem,
     limit_value: i64,
 ) {
-    let owner_emails =
-        match usage_warnings::get_workspace_owner_emails(&db.pool, workspace_id).await {
-            Ok(emails) => emails,
-            Err(e) => {
-                log::error!(
-                    "Failed to get owner emails for workspace [{}] for warning [{}]: {:?}",
-                    workspace_id,
-                    warning_id,
-                    e
-                );
-                return;
-            }
-        };
-
-    if owner_emails.is_empty() {
-        log::warn!(
-            "No owner emails found for workspace [{}], skipping soft limit notification \
-             for warning [{}].",
-            workspace_id,
-            warning_id
-        );
-        return;
-    }
-
     let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
         Ok(name) => name,
         Err(e) => {
@@ -462,45 +475,24 @@ async fn send_soft_limit_notification(
     };
 
     let (usage_label, formatted_limit) = format_usage_item(usage_item, limit_value);
-    let subject = format!(
-        "Usage warning: {} reached {} \u{2013} {}",
-        usage_label, formatted_limit, workspace_name
-    );
-    let html = render_usage_warning_email(
-        &workspace_name,
-        workspace_id,
-        usage_item,
-        &formatted_limit,
-        &usage_label,
-    );
 
-    let email_payload = EmailPayload {
-        from: USAGE_WARNING_FROM_EMAIL.to_string(),
-        to: owner_emails,
-        subject,
-        html,
-        inline_logo: true,
+    let usage_item_str = match usage_item {
+        UsageItem::Bytes => "bytes",
+        UsageItem::SignalRuns => "signal_runs",
+        UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
 
     let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        notification_type: NotificationType::Email,
-        payload: match serde_json::to_value(&email_payload) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!(
-                    "Failed to serialize email payload for warning [{}]: {:?}",
-                    warning_id,
-                    e
-                );
-                return;
-            }
-        },
-        workspace_id,
         definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
-        target_id: Uuid::nil(),
-        target_type: "EMAIL".to_string(),
+        workspace_id,
+        project_id: None,
+        notifications: vec![NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item: usage_item_str.to_string(),
+        }],
     };
 
     match notifications::push_to_notification_queue(notification_message, queue).await {
@@ -521,9 +513,7 @@ async fn send_soft_limit_notification(
             );
             // Message is now durably queued. Eagerly update DB and evict the warnings
             // cache so ingestion workers don't re-enqueue for the same billing cycle.
-            if let Err(e) =
-                usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await
-            {
+            if let Err(e) = usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await {
                 log::error!(
                     "Failed to update last_notified_at for warning [{}]: {:?}",
                     warning_id,
@@ -557,6 +547,10 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             let formatted = format_number_with_commas(limit_value);
             ("Signal runs".to_string(), formatted)
         }
+        UsageItem::SignalStepsProcessed => {
+            let formatted = format_number_with_commas(limit_value);
+            ("Signal steps processed".to_string(), formatted)
+        }
     }
 }
 
@@ -581,68 +575,6 @@ fn format_number_with_commas(n: i64) -> String {
 
     result
 }
-
-fn render_usage_warning_email(
-    workspace_name: &str,
-    workspace_id: Uuid,
-    usage_item: &UsageItem,
-    formatted_limit: &str,
-    usage_label: &str,
-) -> String {
-    let meter_description = match usage_item {
-        UsageItem::Bytes => "data ingested",
-        UsageItem::SignalRuns => "signal runs used",
-    };
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Usage Warning – {workspace_name}</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <!-- Header -->
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Warning</h1>
-    <p style="margin:0;font-size:16px;color:#D0754E;">{usage_label} threshold reached</p>
-  </div>
-
-  <!-- Content -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      Your workspace <strong>{workspace_name}</strong> has reached <strong>{formatted_limit}</strong> of {meter_description} in the current billing cycle.
-    </p>
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
-    </p>
-    <div style="text-align:center;padding-top:8px;">
-      <a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="color:#D0754E;text-decoration:none;">Manage warning thresholds</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        workspace_name = html_escape(workspace_name),
-        workspace_id = workspace_id,
-        usage_label = html_escape(usage_label),
-        formatted_limit = html_escape(formatted_limit),
-        meter_description = meter_description,
-    )
-}
-
 
 /// Fetch usage warnings for a workspace, using a short-lived cache to avoid
 /// hitting the database on every ingestion batch.
@@ -686,19 +618,24 @@ async fn get_workspace_info_for_project_id(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,
-) -> Result<ProjectWithWorkspaceBillingInfo> {
+) -> Result<Option<ProjectWithWorkspaceBillingInfo>> {
     let cache_key = format!("{PROJECT_CACHE_KEY}:{project_id}");
     let cache_res = cache
         .get::<ProjectWithWorkspaceBillingInfo>(&cache_key)
         .await;
     match cache_res {
-        Ok(Some(info)) => Ok(info),
+        Ok(Some(info)) => Ok(Some(info)),
         Ok(None) | Err(_) => {
             let info =
                 db::projects::get_project_and_workspace_billing_info(&db.pool, &project_id).await?;
-            cache
-                .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
-                .await?;
+            if let Some(ref info) = info {
+                if let Err(e) = cache
+                    .insert::<ProjectWithWorkspaceBillingInfo>(&cache_key, info.clone())
+                    .await
+                {
+                    log::error!("Failed to insert project info into cache: {:?}", e);
+                }
+            }
             Ok(info)
         }
     }

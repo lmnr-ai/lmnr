@@ -1,13 +1,16 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import {
+  filterToViewport,
+  useReportVisibleTimeRange,
+} from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useBatchedSpanPreviews } from "../list/use-batched-span-previews";
-import { useScrollContext } from "../scroll-context";
+import { useBatchedSpanPreviews } from "../transcript/use-batched-span-previews";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
@@ -17,16 +20,28 @@ interface TreeProps {
 
 const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
-    useTraceViewBaseStore((state) => ({
-      getTreeSpans: state.getTreeSpans,
-      spans: state.spans,
-      trace: state.trace,
-      isSpansLoading: state.isSpansLoading,
-      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-      selectedSpan: state.selectedSpan,
-    }));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const {
+    getTreeSpans,
+    spans,
+    trace,
+    isSpansLoading,
+    condensedTimelineVisibleSpanIds,
+    selectedSpan,
+    setScrollTimeRange,
+    scrollToGroupId,
+    consumeScrollToGroup,
+  } = useTraceViewBaseStore((state) => ({
+    getTreeSpans: state.getTreeSpans,
+    spans: state.spans,
+    trace: state.trace,
+    isSpansLoading: state.isSpansLoading,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    selectedSpan: state.selectedSpan,
+    setScrollTimeRange: state.setScrollTimeRange,
+    scrollToGroupId: state.scrollToGroupId,
+    consumeScrollToGroup: state.consumeScrollToGroup,
+  }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
@@ -54,6 +69,20 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     }
   }, [selectedSpanIndex, virtualizer, isSpansLoading]);
 
+  // Scroll the matching boundary span into view in response to a click on a
+  // subagent block in the condensed timeline. The condensed timeline shares
+  // group ids with the transcript (`group-<boundarySpanId>`), so we strip the
+  // prefix to find the boundary span row in the tree.
+  useEffect(() => {
+    if (!scrollToGroupId || isSpansLoading) return;
+    const boundarySpanId = scrollToGroupId.startsWith("group-") ? scrollToGroupId.slice("group-".length) : null;
+    if (boundarySpanId) {
+      const index = treeSpans.findIndex((item) => item.span.spanId === boundarySpanId);
+      if (index >= 0) virtualizer.scrollToIndex(index, { align: "start" });
+    }
+    consumeScrollToGroup();
+  }, [scrollToGroupId, treeSpans, virtualizer, isSpansLoading, consumeScrollToGroup]);
+
   const items = virtualizer?.getVirtualItems() || [];
 
   const visibleSpanIds = compact(
@@ -62,6 +91,29 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       return spanItem && !spanItem.pending ? spanItem.span.spanId : null;
     })
   ) as string[];
+
+  const scrollOffset = virtualizer.scrollOffset ?? 0;
+  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+
+  const { visibleStartTime, visibleEndTime } = useMemo(() => {
+    const inViewport = filterToViewport(items, scrollOffset, viewportHeight);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of inViewport) {
+      const spanItem = treeSpans[item.index];
+      if (!spanItem) continue;
+      const s = new Date(spanItem.span.startTime).getTime();
+      const e = new Date(spanItem.span.endTime).getTime();
+      if (s < min) min = s;
+      if (e > max) max = e;
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { visibleStartTime: undefined, visibleEndTime: undefined };
+    }
+    return { visibleStartTime: min, visibleEndTime: max };
+  }, [items, treeSpans, scrollOffset, viewportHeight]);
+
+  useReportVisibleTimeRange({ start: visibleStartTime, end: visibleEndTime, setTimeRange: setScrollTimeRange });
 
   const spanTypes = useMemo(() => {
     const types: Record<string, string> = {};
@@ -82,33 +134,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     { isShared },
     spanTypes
   );
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el || !virtualizer) return;
-
-    const newState = {
-      totalHeight: virtualizer.getTotalSize(),
-      viewportHeight: el.clientHeight,
-      scrollTop: el.scrollTop,
-    };
-
-    if (Object.values(newState).every((val) => isFinite(val) && val >= 0)) {
-      updateState(newState);
-    }
-  }, [scrollRef, updateState, virtualizer]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    el.addEventListener("scroll", handleScroll);
-    handleScroll();
-
-    return () => {
-      el.removeEventListener("scroll", handleScroll);
-    };
-  }, [handleScroll, scrollRef?.current]);
 
   if (isSpansLoading) {
     return (
