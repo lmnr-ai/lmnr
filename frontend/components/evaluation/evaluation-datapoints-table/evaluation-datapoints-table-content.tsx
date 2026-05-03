@@ -1,5 +1,5 @@
 import { Settings as SettingsIcon } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 
@@ -37,6 +37,7 @@ const EvaluationDatapointsTableContent = ({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { projectId } = useParams<{ projectId: string }>();
 
   const targetId = searchParams.get("targetId");
   const sortBy = searchParams.get("sortBy") ?? undefined;
@@ -197,7 +198,7 @@ const EvaluationDatapointsTableContent = ({
         </div>
         <div className="w-full">
           <AdvancedSearch
-            storageKey="evaluation-datapoints"
+            storageKey={`evaluation-datapoints-${projectId}`}
             filters={columnFilters}
             placeholder="Search in data, targets, scores and spans..."
             className="w-full flex-1"
