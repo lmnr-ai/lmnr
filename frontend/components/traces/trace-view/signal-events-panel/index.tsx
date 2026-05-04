@@ -5,13 +5,13 @@ import { Loader2, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import { getSignalColor } from "@/components/signals/utils";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import SignalRow from "./signal-row";
+import { getSignalDisplayColor } from "./utils";
 
 const DEFAULT_HEIGHT = 220;
 const MIN_HEIGHT = 80;
@@ -25,10 +25,11 @@ interface Props {
 }
 
 export default function SignalEventsPanel({ traceId, onClose, className }: Props) {
-  const { traceSignals, isTraceSignalsLoading } = useTraceViewStore(
+  const { traceSignals, isTraceSignalsLoading, initialSignalId } = useTraceViewStore(
     (state) => ({
       traceSignals: state.traceSignals,
       isTraceSignalsLoading: state.isTraceSignalsLoading,
+      initialSignalId: state.initialSignalId,
     }),
     shallow
   );
@@ -38,23 +39,30 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
   const startY = useRef(0);
   const startHeight = useRef(0);
 
-  // Single-select accordion. By default the first signal is expanded; once the
-  // user picks something (including "close all" via clicking the open row),
-  // we honor that explicit choice. `null` is "no user choice yet → use default".
+  // Single-select accordion. Default = `initialSignalId` (set from props/URL
+  // at store creation) if it matches a fetched signal, else the first signal.
+  // Once the user picks something — including closing the open row — we honor
+  // that explicit choice. `undefined` means "no user choice yet → use default".
   const [userExpandedId, setUserExpandedId] = useState<string | null | undefined>(undefined);
-  const expandedId = userExpandedId === undefined ? (traceSignals[0]?.signalId ?? null) : userExpandedId;
+  const expandedId = useMemo(() => {
+    if (userExpandedId !== undefined) return userExpandedId;
+    if (initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)) {
+      return initialSignalId;
+    }
+    return traceSignals[0]?.signalId ?? null;
+  }, [userExpandedId, initialSignalId, traceSignals]);
+
   const handleToggle = useCallback(
     (signalId: string) => setUserExpandedId(expandedId === signalId ? null : signalId),
     [expandedId]
   );
 
-  // Border tint follows the expanded row's leaf cluster color at 80% opacity.
-  // `cc` is hex for ~80% (204/255).
+  // Border shares the expanded row's display color at 80% opacity (`cc` hex).
+  // No row expanded → default border.
   const borderColor = useMemo(() => {
     const expanded = traceSignals.find((s) => s.signalId === expandedId);
-    const leaf = expanded?.clusterPath[expanded.clusterPath.length - 1];
-    if (!leaf) return FALLBACK_BORDER;
-    return `${getSignalColor(leaf.id)}cc`;
+    if (!expanded) return FALLBACK_BORDER;
+    return `${getSignalDisplayColor(expanded)}cc`;
   }, [traceSignals, expandedId]);
 
   const cardVariants = useMemo(

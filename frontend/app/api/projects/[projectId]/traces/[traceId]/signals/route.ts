@@ -64,23 +64,37 @@ export async function GET(
       console.error("Error fetching cluster metadata for trace signals:", err);
     }
 
-    // For an event, pick the deepest known cluster and walk up via parent_id.
+    // For an event, find the deepest cluster in the set — i.e. the one whose
+    // id is NOT used as parent_id by any other cluster in the same set —
+    // then walk up via parent_id to build the path from root to leaf.
+    //
+    // We don't sort by `level`: in this codebase higher level = bigger,
+    // more aggregated cluster (closer to root), not deeper. The parent_id
+    // chain is the unambiguous source of truth.
     const buildClusterPath = (eventClusterIds: string[] | null): ClusterNode[] => {
       if (!eventClusterIds?.length) return [];
       const known = eventClusterIds
         .map((id) => clusterMeta.get(id))
         .filter((n): n is ClusterNode => !!n && n.level > 0);
       if (known.length === 0) return [];
-      const leaf = known.reduce((a, b) => (b.level > a.level ? b : a));
-      const path: ClusterNode[] = [];
-      let cur: ClusterNode | undefined = leaf;
-      const seen = new Set<string>();
-      while (cur && !seen.has(cur.id)) {
-        seen.add(cur.id);
-        path.unshift(cur);
-        cur = cur.parentId ? clusterMeta.get(cur.parentId) : undefined;
+
+      const usedAsParent = new Set<string>();
+      for (const c of known) if (c.parentId) usedAsParent.add(c.parentId);
+      const leafCandidates = known.filter((c) => !usedAsParent.has(c.id));
+      // If multiple unrelated branches, pick the one with the longest path.
+      let bestPath: ClusterNode[] = [];
+      for (const start of leafCandidates) {
+        const path: ClusterNode[] = [];
+        let cur: ClusterNode | undefined = start;
+        const seen = new Set<string>();
+        while (cur && !seen.has(cur.id)) {
+          seen.add(cur.id);
+          path.unshift(cur);
+          cur = cur.parentId ? clusterMeta.get(cur.parentId) : undefined;
+        }
+        if (path.length > bestPath.length) bestPath = path;
       }
-      return path;
+      return bestPath;
     };
 
     type EnrichedEvent = EventRow & { clusterPath: ClusterNode[] };

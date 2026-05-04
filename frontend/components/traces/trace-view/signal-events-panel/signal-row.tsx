@@ -3,13 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 
-import { getSignalColor } from "@/components/signals/utils";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ExpandedContent from "./expanded-content";
+import { getSignalDisplayColor } from "./utils";
 
 interface Props {
   traceId: string;
@@ -19,11 +19,10 @@ interface Props {
 }
 
 export default function SignalRow({ traceId, signal, expanded, onToggle }: Props) {
-  // Tint follows the leaf cluster (same source as the outer border) so the
-  // row's background and the panel border read as the same color, just at
-  // different opacities. No leaf → no tint.
-  const leaf = signal.clusterPath[signal.clusterPath.length - 1];
-  const tintBg = leaf ? `${getSignalColor(leaf.id)}0d` : undefined;
+  // Tint shares the same hue as the outer panel border for the expanded row
+  // (just lower opacity) so they read as the same color family. Unclustered
+  // signals get blue-400 as a base hue rather than no color at all.
+  const tintBg = `${getSignalDisplayColor(signal)}0d`;
   const fullBreadcrumb = [signal.signalName, ...signal.clusterPath.map((n) => n.name)].join(" / ");
 
   return (
@@ -58,7 +57,7 @@ export default function SignalRow({ traceId, signal, expanded, onToggle }: Props
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
             className="overflow-hidden border-t border-border"
-            style={tintBg ? { backgroundColor: tintBg } : undefined}
+            style={{ backgroundColor: tintBg }}
           >
             <ExpandedContent traceId={traceId} signal={signal} />
           </motion.div>
