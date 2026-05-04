@@ -35,13 +35,29 @@ export type Feature =
   | "notifications"
   | "advanced_search";
 
-// Module-level singleton flag. posthog-js is browser-only and JS is single-threaded,
-// so there is no concurrent-write race condition. The flag prevents calling posthog.init()
-// more than once (React 18 strict mode double-invokes effects; the second call is a no-op).
-let initialized = false;
+// Module-level singleton status. posthog-js is browser-only and JS is single-threaded,
+// so there is no concurrent-write race condition. "pending" covers the window before
+// PostHogProvider's init effect runs — React fires child effects before parent effects,
+// so descendants (e.g. WorkspaceGroupTracker) may call group/identify/track before init.
+// We queue those calls and flush on init so they aren't silently dropped.
+let status: "pending" | "initialized" | "disabled" = "pending";
+const pendingCalls: Array<() => void> = [];
+
+const runOrQueue = (fn: () => void) => {
+  if (status === "initialized") {
+    fn();
+  } else if (status === "pending") {
+    pendingCalls.push(fn);
+  }
+};
 
 export const init = (telemetryEnabled: boolean) => {
-  if (!telemetryEnabled || initialized) return;
+  if (status !== "pending") return;
+  if (!telemetryEnabled) {
+    status = "disabled";
+    pendingCalls.length = 0;
+    return;
+  }
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only",
@@ -51,22 +67,21 @@ export const init = (telemetryEnabled: boolean) => {
       maskTextSelector: "*",
     },
   });
-  initialized = true;
+  status = "initialized";
+  const calls = pendingCalls.splice(0);
+  for (const fn of calls) fn();
 };
 
 export const identify = (userId: string, traits?: Record<string, unknown>) => {
-  if (!initialized) return;
-  posthog.identify(userId, traits);
+  runOrQueue(() => posthog.identify(userId, traits));
 };
 
 export const group = (type: string, id: string, traits?: Record<string, unknown>) => {
-  if (!initialized) return;
-  posthog.group(type, id, traits);
+  runOrQueue(() => posthog.group(type, id, traits));
 };
 
 export const reset = () => {
-  if (!initialized) return;
-  posthog.reset();
+  runOrQueue(() => posthog.reset());
 };
 
 interface TrackOptions {
@@ -80,10 +95,11 @@ export const track = (
   properties?: Record<string, unknown>,
   options?: TrackOptions
 ) => {
-  if (!initialized) return;
-  posthog.capture(`${feature}:${action}`, properties, {
-    send_instantly: options?.sendInstantly,
-  });
+  runOrQueue(() =>
+    posthog.capture(`${feature}:${action}`, properties, {
+      send_instantly: options?.sendInstantly,
+    })
+  );
 };
 
 export { posthog };

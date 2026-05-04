@@ -10,6 +10,7 @@ import OktaProvider from "next-auth/providers/okta";
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import PostHogClient from "@/lib/posthog/server";
 import { getEmailsConfig } from "@/lib/server-utils";
 
 import { sendWelcomeEmail } from "./emails/utils";
@@ -18,8 +19,9 @@ import { Feature, isFeatureEnabled } from "./features/features";
 /**
  * Process any pending workspace invitations for the given user.
  * Adds the user to all workspaces they've been invited to, then deletes the invitations.
+ * Returns the number of invitations that were processed.
  */
-const processPendingInvitations = async (userId: string, email: string): Promise<void> => {
+const processPendingInvitations = async (userId: string, email: string): Promise<number> => {
   const pendingInvitations = await db
     .select({
       id: workspaceInvitations.id,
@@ -29,7 +31,7 @@ const processPendingInvitations = async (userId: string, email: string): Promise
     .where(eq(workspaceInvitations.email, email));
 
   if (pendingInvitations.length === 0) {
-    return;
+    return 0;
   }
 
   await db.transaction(async (tx) => {
@@ -46,6 +48,35 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
+
+  return pendingInvitations.length;
+};
+
+const trackUserCreated = async (email: string, provider: string, hasPendingInvitations: boolean): Promise<void> => {
+  try {
+    const client = PostHogClient();
+    if (!client) return;
+
+    const createdAt = new Date().toISOString();
+    client.capture({
+      distinctId: email,
+      event: "auth:user_created",
+      properties: {
+        provider,
+        has_pending_invitations: hasPendingInvitations,
+        $set_once: {
+          created_at: createdAt,
+          signup_provider: provider,
+        },
+      },
+    });
+
+    // Cap shutdown at 2s — posthog-node's default is 30s, which would
+    // stall the login response if PostHog ingest is unreachable.
+    await client.shutdown(2000);
+  } catch {
+    // Analytics failures must never break login.
+  }
 };
 
 const getProviders = () => {
@@ -137,7 +168,7 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, profile, trigger }) {
+    async jwt({ token, account, profile, trigger }) {
       if (trigger === "signIn") {
         if (!token.name || !token.email) {
           throw new Error("Name and email are required");
@@ -145,6 +176,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const existingUser = await getUserByEmail(token.email);
+          let isNewUser = false;
           if (existingUser) {
             token.userId = existingUser.id;
             if (!existingUser?.avatarUrl && token?.picture) {
@@ -153,6 +185,7 @@ export const authOptions: NextAuthOptions = {
           } else {
             const user = await createUser(token.name, token.email, token.picture);
             token.userId = user.id;
+            isNewUser = true;
 
             if (isFeatureEnabled(Feature.SEND_EMAIL) && profile?.email) {
               await sendWelcomeEmail(profile?.email);
@@ -163,8 +196,13 @@ export const authOptions: NextAuthOptions = {
           // workspace invitations for this user. When SEND_EMAIL is enabled
           // (cloud), invitations go through the explicit email accept/decline
           // flow instead, so we must not auto-accept them here.
+          let processedInvitations = 0;
           if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
-            await processPendingInvitations(token.userId as string, token.email);
+            processedInvitations = await processPendingInvitations(token.userId as string, token.email);
+          }
+
+          if (isNewUser) {
+            await trackUserCreated(token.email, account?.provider ?? "unknown", processedInvitations > 0);
           }
         } catch (e) {
           throw new Error("Failed to authenticate user.");

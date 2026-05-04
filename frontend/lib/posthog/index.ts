@@ -1,2 +1,2 @@
-export { type Feature, identify, track } from "./client";
+export { type Feature, group, identify, track } from "./client";
 export { PostHogProvider } from "./provider";
