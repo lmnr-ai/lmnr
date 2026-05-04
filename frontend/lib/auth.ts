@@ -52,14 +52,14 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   return pendingInvitations.length;
 };
 
-const trackUserCreated = async (userId: string, provider: string, hasPendingInvitations: boolean): Promise<void> => {
+const trackUserCreated = async (email: string, provider: string, hasPendingInvitations: boolean): Promise<void> => {
   try {
     const client = PostHogClient();
     if (!client) return;
 
     const createdAt = new Date().toISOString();
     client.capture({
-      distinctId: userId,
+      distinctId: email,
       event: "auth:user_created",
       properties: {
         provider,
@@ -200,7 +200,7 @@ export const authOptions: NextAuthOptions = {
           }
 
           if (isNewUser) {
-            await trackUserCreated(token.userId as string, account?.provider ?? "unknown", processedInvitations > 0);
+            await trackUserCreated(token.email, account?.provider ?? "unknown", processedInvitations > 0);
           }
         } catch (e) {
           throw new Error("Failed to authenticate user.");
