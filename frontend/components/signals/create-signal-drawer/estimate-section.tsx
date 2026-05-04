@@ -38,9 +38,6 @@ export default function EstimateSection() {
     [triggers]
   );
   const runnableTriggerCount = runnableTriggers.length;
-  // Stable signature of the trigger set — so the refetch effect doesn't depend on
-  // JSON.stringify inside its deps array (anti-pattern: recomputed every render).
-  const triggersSignature = useMemo(() => JSON.stringify(runnableTriggers), [runnableTriggers]);
 
   const fetchEstimate = useCallback(
     async (nextWindow: SignalEstimateWindow) => {
@@ -97,6 +94,8 @@ export default function EstimateSection() {
   // Refetch whenever the user flips the window or changes the trigger set. Debounced so
   // typing in a filter value doesn't hammer the API on every keystroke. Cleanup also
   // aborts any in-flight fetch so it doesn't dangle after unmount or a deps change.
+  // fetchEstimate's identity already tracks runnableTriggers (via useMemo + useCallback),
+  // so depending on it here is equivalent to a deep-equal check without serializing.
   useEffect(() => {
     if (runnableTriggerCount === 0) {
       setState({ kind: "idle" });
@@ -110,8 +109,7 @@ export default function EstimateSection() {
       clearTimeout(handle);
       abortRef.current?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [window, triggersSignature, runnableTriggerCount]);
+  }, [window, fetchEstimate, runnableTriggerCount]);
 
   return (
     <div className="grid gap-1.5">
