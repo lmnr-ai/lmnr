@@ -162,7 +162,7 @@ const formatReportNotification = (notification: WebNotification): FormattedNotif
     return {
       kind: "report",
       title: `${titlePrefix} summary`,
-      summary: `${events} event${events !== 1 ? "s" : ""} · ${signalCount} signal${signalCount !== 1 ? "s" : ""}`,
+      summary: `${signalCount} signal${signalCount !== 1 ? "s" : ""} · ${events} event${events !== 1 ? "s" : ""}`,
       aiSummary: report.ai_summary || null,
       noteworthyEvents: report.noteworthy_events ?? [],
     };
