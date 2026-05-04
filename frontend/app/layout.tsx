@@ -95,13 +95,9 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        {posthogEnabled ? (
-          <PostHogProvider telemetryEnabled email={email}>
-            {body}
-          </PostHogProvider>
-        ) : (
-          body
-        )}
+        <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+          {body}
+        </PostHogProvider>
       </FeatureFlagsProvider>
     </html>
   );
