@@ -63,15 +63,23 @@ export default function SignalFormFields({
 
   const handleCopyPrompt = useCallback(async () => {
     const prompt = getValues("prompt") || "";
-    await navigator.clipboard.writeText(prompt);
-    toast({ title: "Copied prompt", duration: 1000 });
+    try {
+      await navigator.clipboard.writeText(prompt);
+      toast({ title: "Copied prompt", duration: 1000 });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to copy prompt" });
+    }
   }, [getValues, toast]);
 
   const handleCopySchema = useCallback(async () => {
     const fields = getValues("schemaFields") || [];
     const schema = schemaFieldsToJsonSchema(fields);
-    await navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
-    toast({ title: "Copied JSON schema", duration: 1000 });
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+      toast({ title: "Copied JSON schema", duration: 1000 });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to copy JSON schema" });
+    }
   }, [getValues, toast]);
 
   const canCopySchema = (schemaFields ?? []).some((f) => f.name.trim());

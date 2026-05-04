@@ -26,9 +26,12 @@ export default function SignalDropdown() {
   });
 
   const handleCopySignalId = useCallback(async () => {
-    if (signal.id) {
+    if (!signal.id) return;
+    try {
       await navigator.clipboard.writeText(signal.id);
       toast({ title: "Copied signal ID", duration: 1000 });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to copy signal ID" });
     }
   }, [signal.id, toast]);
 
