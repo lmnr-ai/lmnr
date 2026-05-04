@@ -47,17 +47,6 @@ const ThreeCategories = ({ className }: Props) => (
 
       <ComposableTrace />
 
-      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
-        <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>True Agent Debugger</h2>
-          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
-        </div>
-        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
-          <DebuggerVideo />
-        </div>
-        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
-      </div>
-
       {/* Capture what your agent sees */}
       <div className={cn("flex md:flex-row md:items-start md:justify-between w-full -mt-16", "flex-col gap-6")}>
         <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px] md:pt-[40px]", "w-full pt-0")}>
@@ -113,6 +102,17 @@ const ThreeCategories = ({ className }: Props) => (
           </div>
           <SQLImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
         </div>
+      </div>
+
+      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
+        <div className="flex flex-col gap-1 items-start w-full">
+          <h2 className={subsectionTitle}>True Agent Debugger</h2>
+          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
+        </div>
+        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
+          <DebuggerVideo />
+        </div>
+        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
       </div>
 
       {/* Custom dashboards */}
