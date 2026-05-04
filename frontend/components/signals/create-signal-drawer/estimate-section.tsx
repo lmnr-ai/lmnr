@@ -95,7 +95,8 @@ export default function EstimateSection() {
   );
 
   // Refetch whenever the user flips the window or changes the trigger set. Debounced so
-  // typing in a filter value doesn't hammer the API on every keystroke.
+  // typing in a filter value doesn't hammer the API on every keystroke. Cleanup also
+  // aborts any in-flight fetch so it doesn't dangle after unmount or a deps change.
   useEffect(() => {
     if (runnableTriggerCount === 0) {
       setState({ kind: "idle" });
@@ -105,17 +106,12 @@ export default function EstimateSection() {
     const handle = setTimeout(() => {
       void fetchEstimate(window);
     }, 400);
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      abortRef.current?.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [window, triggersSignature, runnableTriggerCount]);
-
-  // Abort any in-flight request on unmount so it doesn't dangle after the drawer closes.
-  useEffect(
-    () => () => {
-      abortRef.current?.abort();
-    },
-    []
-  );
 
   return (
     <div className="grid gap-1.5">
