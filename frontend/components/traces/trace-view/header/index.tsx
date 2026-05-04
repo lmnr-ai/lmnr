@@ -1,11 +1,11 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, ChevronsRight, Layers, Maximize, Sparkles, User } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
-import { getSignalColor, jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -84,6 +84,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           prompt: string;
           color?: string | null;
           structuredOutput: Record<string, unknown>;
+          clusterPath?: Array<{ id: string; name: string; level: number }>;
           events: EventRow[];
         }>;
         if (!Array.isArray(data)) return;
@@ -93,6 +94,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: s.signalName,
           prompt: s.prompt ?? "",
           color: s.color,
+          clusterPath: Array.isArray(s.clusterPath) ? s.clusterPath : [],
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,
@@ -192,34 +194,20 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          {signalCount > 0 && !signalsPanelOpen && (
-            <motion.span className={HEADER_ITEM_CLS} layout layoutId="signals-panel-layout">
+          {signalCount > 0 && (
+            <span className={HEADER_ITEM_CLS}>
               <Button
-                onClick={() => setSignalsPanelOpen(true)}
+                onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
                 variant="outline"
-                className="h-6 text-xs px-1.5 gap-1.5 hover:bg-secondary"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
               >
-                <div className="flex -space-x-[8px]">
-                  {traceSignals.map((signal) => (
-                    <motion.div
-                      key={signal.signalId}
-                      layout
-                      layoutId={`trace-signals-layout-${signal.signalId}`}
-                      className="size-3.5 rounded-full border border-background"
-                      style={{ background: getSignalColor(signal.signalId, signal.color) }}
-                      transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
-                    />
-                  ))}
-                </div>
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1, transition: { delay: 0.3 } }}
-                  exit={{ opacity: 0, transition: { duration: 0.1, delay: 0 } }}
-                >
-                  Signals
-                </motion.span>
+                <Radio size={14} className="mr-1" />
+                Signals ({signalCount})
               </Button>
-            </motion.span>
+            </span>
           )}
           <span className={HEADER_ITEM_CLS}>
             <Metadata metadata={trace?.metadata} />

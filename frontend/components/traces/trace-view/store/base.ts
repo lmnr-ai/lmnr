@@ -135,11 +135,18 @@ export type TraceViewTrace = {
   userId?: string;
 };
 
+export type TraceSignalClusterNode = {
+  id: string;
+  name: string;
+  level: number;
+};
+
 export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
   color?: string | null;
+  clusterPath: TraceSignalClusterNode[];
   schemaFields: Array<{ name: string; type: string; description?: string }>;
   events: Array<Record<string, any>>;
 };
