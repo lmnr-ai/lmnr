@@ -156,41 +156,40 @@ export async function getSignalRunEstimate(
   });
   const tracesChecked = Number(tracesCheckedResult[0]?.count ?? 0);
 
-  const perTrigger: SignalRunEstimate["perTrigger"] = [];
-  for (let i = 0; i < triggers.length; i++) {
-    const trigger = triggers[i];
-    const filterCount = trigger.filters.length;
-    if (filterCount === 0) {
-      perTrigger.push({ estimatedMatches: 0, filterCount: 0, mode: trigger.mode });
-      continue;
-    }
+  // Run trigger count() queries in parallel — each hits ClickHouse independently.
+  const perTrigger: SignalRunEstimate["perTrigger"] = await Promise.all(
+    triggers.map(async (trigger, i) => {
+      const filterCount = trigger.filters.length;
+      if (filterCount === 0) {
+        return { estimatedMatches: 0, filterCount: 0, mode: trigger.mode };
+      }
 
-    const { sql, params } = triggerToSql(trigger.filters, `t${i}`);
-    if (!sql) {
-      // Unsupported filter in this trigger — report zero but keep the count so
-      // the UI can still render the trigger. This matches the Rust behavior of
-      // returning `false` for unknown columns/operators.
-      perTrigger.push({ estimatedMatches: 0, filterCount, mode: trigger.mode });
-      continue;
-    }
+      const { sql, params } = triggerToSql(trigger.filters, `t${i}`);
+      if (!sql) {
+        // Unsupported filter in this trigger — report zero but keep the count so
+        // the UI can still render the trigger. This matches the Rust behavior of
+        // returning `false` for unknown columns/operators.
+        return { estimatedMatches: 0, filterCount, mode: trigger.mode };
+      }
 
-    const result = await executeQuery<{ count: string | number }>({
-      projectId,
-      query: `
-        SELECT count() as count
-        FROM traces
-        WHERE trace_type = 'DEFAULT'
-          AND start_time >= now() - INTERVAL {pastHours:UInt32} HOUR
-          AND ${sql}
-      `,
-      parameters: { pastHours: hours, ...params },
-    });
-    perTrigger.push({
-      estimatedMatches: Number(result[0]?.count ?? 0),
-      filterCount,
-      mode: trigger.mode,
-    });
-  }
+      const result = await executeQuery<{ count: string | number }>({
+        projectId,
+        query: `
+          SELECT count() as count
+          FROM traces
+          WHERE trace_type = 'DEFAULT'
+            AND start_time >= now() - INTERVAL {pastHours:UInt32} HOUR
+            AND ${sql}
+        `,
+        parameters: { pastHours: hours, ...params },
+      });
+      return {
+        estimatedMatches: Number(result[0]?.count ?? 0),
+        filterCount,
+        mode: trigger.mode,
+      };
+    })
+  );
 
   // Each trigger runs the signal once per matched trace. Realtime mode (1) is
   // billed as 2 runs; batch mode (0) as 1 (see triggers-section.tsx copy).

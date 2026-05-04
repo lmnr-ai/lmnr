@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Info, Loader2, RefreshCw } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,14 @@ export default function EstimateSection() {
   const { control } = useFormContext<ManageSignalForm>();
   const triggers = useWatch({ control, name: "triggers" }) ?? [];
 
-  const runnableTriggerCount = triggers.filter((t) => t.filters.length > 0).length;
+  const runnableTriggers = useMemo(
+    () => triggers.filter((t) => t.filters.length > 0).map((t) => ({ filters: t.filters, mode: t.mode ?? 0 })),
+    [triggers]
+  );
+  const runnableTriggerCount = runnableTriggers.length;
+  // Stable signature of the trigger set — so the refetch effect doesn't depend on
+  // JSON.stringify inside its deps array (anti-pattern: recomputed every render).
+  const triggersSignature = useMemo(() => JSON.stringify(runnableTriggers), [runnableTriggers]);
 
   const fetchEstimate = useCallback(
     async (nextWindow: SignalEstimateWindow) => {
@@ -51,9 +58,7 @@ export default function EstimateSection() {
           signal: controller.signal,
           body: JSON.stringify({
             window: nextWindow,
-            triggers: triggers
-              .filter((t) => t.filters.length > 0)
-              .map((t) => ({ filters: t.filters, mode: t.mode ?? 0 })),
+            triggers: runnableTriggers,
           }),
         });
 
@@ -86,7 +91,7 @@ export default function EstimateSection() {
         if (abortRef.current === controller) abortRef.current = null;
       }
     },
-    [projectId, triggers]
+    [projectId, runnableTriggers]
   );
 
   // Refetch whenever the user flips the window or changes the trigger set. Debounced so
@@ -102,7 +107,15 @@ export default function EstimateSection() {
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [window, JSON.stringify(triggers), runnableTriggerCount]);
+  }, [window, triggersSignature, runnableTriggerCount]);
+
+  // Abort any in-flight request on unmount so it doesn't dangle after the drawer closes.
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+    },
+    []
+  );
 
   return (
     <div className="grid gap-1.5">
