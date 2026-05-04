@@ -3,13 +3,12 @@ import { cn } from "@/lib/utils";
 import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names";
 import DocsButton from "../docs-button";
 import SectionName from "../section-name";
-import AskAIImage from "./ask-ai-image";
 import BrowserScreenRecordingImage from "./browser-screen-recording-image";
+import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";
 import DebuggerVideo from "./debugger-video";
 import EvalsImage from "./evals-image";
 import EvalsSDKImage from "./evals-sdk-image";
-import FullContextImage from "./full-context-image";
 import GranularEvalsImage from "./granular-evals-image";
 import IntegrateInMinutes from "./integrate-in-minutes";
 import SignalsSection from "./signals-section";
@@ -46,59 +45,7 @@ const ThreeCategories = ({ className }: Props) => (
 
       <IntegrateInMinutes />
 
-      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
-        <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>True Agent Debugger</h2>
-          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
-        </div>
-        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
-          <DebuggerVideo />
-        </div>
-        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
-      </div>
-
-      {/* Understand traces easily */}
-      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
-        <div
-          className={cn("flex md:flex-row md:gap-[30px] md:h-[481px] items-start w-full", "flex-col gap-4 h-[800px]")}
-        >
-          <div
-            className={cn(
-              "basis-0 bg-landing-surface-700 flex grow md:h-full items-end justify-center overflow-hidden md:p-8 rounded-lg shrink-0 relative",
-              "flex-1 basis-0 p-6"
-            )}
-          >
-            <FullContextImage className="absolute size-full inset-0" />
-            <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
-              <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Full trace context at a glance</p>
-                <p className={cn(bodyMedium, "w-full")}>
-                  Get full context of what your agent was doing and where it went wrong without digging through hundreds
-                  of spans.
-                </p>
-              </div>
-              <DocsButton href="https://laminar.sh/docs/tracing/introduction" />
-            </div>
-          </div>
-          <div
-            className={cn(
-              "bg-landing-surface-700 flex md:h-full items-end justify-center overflow-hidden md:p-8 rounded-lg shrink-0 md:w-[432px] relative",
-              "flex-1 basis-0 p-6 w-full"
-            )}
-          >
-            <AskAIImage className="absolute inset-0" />
-            <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
-              <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Convoluted trace? Ask AI</p>
-                <p className={cn(bodyMedium, "w-full")}>
-                  Ask our AI agent to summarize, analyze, and debug your trace no matter the complexity.
-                </p>
-              </div>
-              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#ask-ai" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <ComposableTrace />
 
       {/* Capture what your agent sees */}
       <div className={cn("flex md:flex-row md:items-start md:justify-between w-full -mt-16", "flex-col gap-6")}>
@@ -155,6 +102,17 @@ const ThreeCategories = ({ className }: Props) => (
           </div>
           <SQLImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
         </div>
+      </div>
+
+      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
+        <div className="flex flex-col gap-1 items-start w-full">
+          <h2 className={subsectionTitle}>True Agent Debugger</h2>
+          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
+        </div>
+        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
+          <DebuggerVideo />
+        </div>
+        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
       </div>
 
       {/* Custom dashboards */}

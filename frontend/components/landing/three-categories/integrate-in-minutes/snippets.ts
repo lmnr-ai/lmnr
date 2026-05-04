@@ -3,10 +3,24 @@ import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import mastra from "@/assets/landing/logos/mastra.svg";
 import openHands from "@/assets/landing/logos/open-hands.svg";
+import openaiAgents from "@/assets/landing/logos/openai-agents.svg";
+import opencodeSdk from "@/assets/landing/logos/opencode-sdk.svg";
+import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 
-export type Integration = "browser-use" | "claude" | "vercel" | "langchain" | "light-llm" | "open-hands";
+export type Integration =
+  | "browser-use"
+  | "claude"
+  | "vercel"
+  | "langchain"
+  | "light-llm"
+  | "open-hands"
+  | "mastra"
+  | "openai-agents-sdk"
+  | "pydantic-ai"
+  | "opencode-sdk";
 
 export interface IntegrationData {
   name: string;
@@ -123,34 +137,35 @@ conversation = Conversation(agent=agent, workspace=os.getcwd())
 conversation.send_message("Build a simple todo app")`,
   },
   langchain: {
-    name: "LangChain",
+    name: "LangChain Deep Agents",
     logoSrc: langchain,
-    alt: "LangChain",
-    highlightedLines: [0, 12],
+    alt: "LangChain Deep Agents",
+    highlightedLines: [3, 5],
     screenshot: "/assets/landing/snippet-screenshots/lang-chain.png",
-    docsUrl: "https://laminar.sh/docs/tracing/integrations/langchain",
-    python: `from lmnr import Laminar
-from dotenv import load_dotenv
-import os
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import HumanMessage
-from langgraph.graph import StateGraph, END
-from typing import TypedDict, Annotated, Sequence
-import operator
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/deepagents",
+    python: `from deepagents import create_deep_agent
+from langchain_anthropic import ChatAnthropic
 
-load_dotenv()
+from lmnr import Laminar
+
 Laminar.initialize()
 
-model = ChatOpenAI()
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant."),
-    ("human", "{question}")
-])
-output_parser = StrOutputParser()
 
-chain = prompt | model | output_parser`,
+def internet_search(query: str) -> str:
+    """Search the internet and return a short snippet."""
+    return f"Top result for '{query}': ..."
+
+
+agent = create_deep_agent(
+    model=ChatAnthropic(model="claude-sonnet-4-5"),
+    tools=[internet_search],
+    system_prompt="You are an expert researcher. Cite sources.",
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "What is deepagents?"}]}
+)
+print(result["messages"][-1].content)`,
   },
   "light-llm": {
     name: "LiteLLM",
@@ -171,5 +186,128 @@ response = litellm.completion(
     messages=[{"role": "user", "content": "What is the capital of France?"}],
 )
 print(response.choices[0].message.content)`,
+  },
+  mastra: {
+    name: "Mastra",
+    logoSrc: mastra,
+    alt: "Mastra",
+    highlightedLines: [4, 7, 19, 20, 21, 22],
+    screenshot: "/assets/landing/snippet-screenshots/mastra.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/mastra",
+    typescript: `import { openai } from '@ai-sdk/openai';
+import { Agent } from '@mastra/core/agent';
+import { Mastra } from '@mastra/core/mastra';
+import { Observability } from '@mastra/observability';
+import { Laminar, MastraExporter } from '@lmnr-ai/lmnr';
+import 'dotenv/config';
+
+Laminar.initialize();
+
+const agent = new Agent({
+  id: 'assistant',
+  name: 'assistant',
+  instructions: 'You are a concise, friendly assistant.',
+  model: openai('gpt-5-mini'),
+});
+
+const observability = new Observability({
+  default: { enabled: false },
+  configs: {
+    laminar: {
+      serviceName: 'my-mastra-app',
+      exporters: [new MastraExporter()],
+    },
+  },
+});
+
+new Mastra({ agents: { assistant: agent }, observability });
+
+const result = await agent.generate('Write a two-line haiku about tracing.');
+console.log(result.text);`,
+  },
+  "openai-agents-sdk": {
+    name: "OpenAI Agents SDK",
+    logoSrc: openaiAgents,
+    alt: "OpenAI Agents SDK",
+    highlightedLines: [3, 5],
+    screenshot: "/assets/landing/snippet-screenshots/openai-agents-sdk.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/openai-agents-sdk",
+    python: `import asyncio
+
+from agents import Agent, Runner
+from lmnr import Laminar, observe
+
+Laminar.initialize()
+
+async def main():
+    agent = Agent(
+        name="MathHelper",
+        instructions="You are a patient math tutor. Explain each step clearly.",
+        model="gpt-5-mini",
+    )
+    result = await Runner.run(agent, "A train leaves Boston at 9am at 60 mph...")
+    print(result.final_output)
+
+if __name__ == "__main__":
+    asyncio.run(main())`,
+  },
+  "pydantic-ai": {
+    name: "Pydantic AI",
+    logoSrc: pydanticAi,
+    alt: "Pydantic AI",
+    highlightedLines: [3, 5],
+    screenshot: "/assets/landing/snippet-screenshots/pydantic-ai.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/pydantic-ai",
+    python: `import asyncio
+
+from pydantic_ai import Agent
+from lmnr import Laminar, observe
+
+Laminar.initialize()
+
+agent = Agent(
+    "openai:gpt-5-mini",
+    system_prompt="You are a concise assistant. Answer in one sentence.",
+)
+
+async def main():
+    result = await agent.run("What is the capital of France?")
+    print(result.output)
+
+if __name__ == "__main__":
+    asyncio.run(main())`,
+  },
+  "opencode-sdk": {
+    name: "OpenCode SDK",
+    logoSrc: opencodeSdk,
+    alt: "OpenCode SDK",
+    highlightedLines: [1, 3, 4, 5, 6, 7, 23],
+    screenshot: "/assets/landing/snippet-screenshots/opencode-sdk.png",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/opencode",
+    typescript: `import * as opencode from "@opencode-ai/sdk";
+import { Laminar, observe } from "@lmnr-ai/lmnr";
+
+Laminar.initialize({
+  instrumentModules: {
+    opencode,
+  },
+});
+
+const { client, server } = await opencode.createOpencode();
+
+try {
+  const sessionRes = await client.session.create({ body: { title: "agent run" } });
+
+  await client.session.prompt({
+    path: { id: sessionRes.data.id },
+    body: {
+      model: { providerID: "anthropic", modelID: "claude-haiku-4-5" },
+      parts: [{ type: "text", text: "Create a Python factorial function and test it." }],
+    },
+  });
+} finally {
+  server.close();
+  await Laminar.shutdown();
+}`,
   },
 };

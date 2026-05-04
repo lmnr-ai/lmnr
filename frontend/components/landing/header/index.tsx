@@ -3,7 +3,7 @@
 import { ArrowRight, Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
 import { cn } from "@/lib/utils";
@@ -22,19 +22,32 @@ const NAV_LINKS = [
   { href: "/blog", label: "Blog", external: false },
   { href: "/pricing", label: "Pricing", external: false },
   { href: "https://discord.gg/nNFUUDAKub", label: "Discord", external: true },
+  { href: "https://cal.com/robert-lmnr/30min", label: "Book a demo", external: true },
   { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
 
 export default function LandingHeader({ hasSession, className, isIncludePadding = false }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Lock body scroll while the mobile menu is open. The overlay is fixed with
+  // pointer-events-auto, but wheel/touch events still bubble to <body> — without
+  // overflow:hidden you can scroll the page underneath.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen]);
+
   return (
     <>
-      <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
-        <span>Laminar raises $3M seed to build observability for long-running agents</span>
+      <div className="flex items-center justify-center gap-1 sm:gap-3 bg-primary px-4 py-1 text-xs sm:text-sm text-white">
+        <span className="leading-tight">Laminar raises $3M seed to build observability for long-running agents</span>
         <Link
           href="/blog/2026-03-16-laminar-launch"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10 shrink-0"
         >
           Read more
           <ArrowRight className="size-3" />
@@ -66,6 +79,13 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             </Link>
             <Link href="/pricing" className="no-underline text-landing-text-300 hover:text-landing-text-200">
               Pricing
+            </Link>
+            <Link
+              target="_blank"
+              href="https://cal.com/robert-lmnr/30min"
+              className="no-underline text-landing-text-300 hover:text-landing-text-200"
+            >
+              Book demo
             </Link>
             <Link
               target="_blank"
@@ -111,7 +131,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       {/* Mobile Menu Overlay - starts below header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[64px] z-40 bg-landing-surface-900 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-landing-surface-900 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >

@@ -6,6 +6,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import Image from "next/image";
 import { useMemo } from "react";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import { baseExtensions, createLineHighlightPlugin, darkTheme } from "./codemirror-config";
@@ -35,12 +36,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration, integrationOrder }: Props
     <div className={cn("flex gap-4 items-stretch w-full md:h-[400px] md:flex-row", "flex-col h-[750px]")}>
       <div className="flex flex-col flex-1 rounded-[8px] overflow-hidden h-full">
         {/* CodeMirror */}
-        <div
-          className={cn(
-            "bg-landing-surface-700 overflow-auto flex-1 min-h-0 border border-landing-surface-500",
-            "[&_.cm-editor]:md:text-sm [&_.cm-editor]:text-xs [&_.cm-content]:md:py-3 [&_.cm-content]:py-2 [&_.cm-line]:md:px-4 [&_.cm-line]:px-3"
-          )}
-        >
+        <ScrollArea className="bg-landing-surface-700 border border-landing-surface-500 h-full">
           <CodeMirror
             value={code || ""}
             theme={darkTheme}
@@ -49,7 +45,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration, integrationOrder }: Props
             basicSetup={false}
             className="h-full"
           />
-        </div>
+        </ScrollArea>
       </div>
 
       {/* Screenshot container */}
@@ -75,7 +71,7 @@ const IntegrationCodeSnippet = ({ selectedIntegration, integrationOrder }: Props
                   alt={`${integration} screenshot`}
                   fill
                   priority
-                  className="object-cover object-top-left rounded-sm outline outline-landing-surface-500 contrast-[0.84]"
+                  className="object-cover object-top-left rounded-sm outline outline-landing-surface-500"
                 />
               </div>
             </div>
