@@ -1,7 +1,7 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { motion, useMotionValueEvent, useScroll, useTransform } from "framer-motion";
+import { useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -33,18 +33,44 @@ const STEPS: { key: StepKey; label: string; subtitle: string }[] = [
   },
 ];
 
-const ROTATE_MS = 4000;
+// scrollYProgress thresholds (0 = section's top hits viewport bottom, 1 = section's bottom hits viewport top)
+const STEP_1_AT = 0.45;
+const STEP_2_AT = 0.6;
 
 const SlackNotifications = ({ className }: Props) => {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { amount: 0.3 });
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
   const [stepIndex, setStepIndex] = useState(0);
 
-  useEffect(() => {
-    if (!isInView) return;
-    const id = setTimeout(() => setStepIndex((i) => (i + 1) % STEPS.length), ROTATE_MS);
-    return () => clearTimeout(id);
-  }, [stepIndex, isInView]);
+  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    const next = latest >= STEP_2_AT ? 2 : latest >= STEP_1_AT ? 1 : 0;
+    setStepIndex((prev) => (prev === next ? prev : next));
+  });
+
+  // Master variable: 0 -> 1 across just the "Get context" section of the scroll.
+  const getContextProgress = useTransform(scrollYProgress, [STEP_1_AT, STEP_2_AT], [0, 1], {
+    clamp: true,
+  });
+
+  // Per-step fade: each step fades in over its first 5% (except step 1 which starts visible)
+  // and fades out over its last 5% (except step 3 which stays visible). Single mock at any time.
+  const wrapperOpacity = useTransform(scrollYProgress, (v) => {
+    if (v < STEP_1_AT) {
+      const internal = v / STEP_1_AT;
+      return internal < 0.95 ? 1 : 1 - (internal - 0.95) / 0.05;
+    }
+    if (v < STEP_2_AT) {
+      const internal = (v - STEP_1_AT) / (STEP_2_AT - STEP_1_AT);
+      if (internal < 0.05) return internal / 0.05;
+      if (internal > 0.95) return 1 - (internal - 0.95) / 0.05;
+      return 1;
+    }
+    const internal = (v - STEP_2_AT) / (1 - STEP_2_AT);
+    return internal < 0.05 ? internal / 0.05 : 1;
+  });
 
   const activeKey = STEPS[stepIndex].key;
 
@@ -53,7 +79,7 @@ const SlackNotifications = ({ className }: Props) => {
       ref={ref}
       className={cn(
         "bg-landing-surface-700 overflow-hidden relative rounded-lg w-full",
-        "md:flex md:flex-row md:items-center md:gap-[60px] md:px-8 md:pt-8 md:pb-10 md:h-[500px]",
+        "md:flex md:flex-row md:items-center md:gap-[60px] md:px-8 md:pt-8 md:pb-10 md:h-[450px]",
         "flex flex-col gap-8 p-5 h-[680px]",
         className
       )}
@@ -133,15 +159,9 @@ const SlackNotifications = ({ className }: Props) => {
           "w-full justify-start"
         )}
       >
-        <motion.div
-          key={activeKey}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.25 }}
-          className="md:w-[540px] w-[400px]"
-        >
+        <motion.div style={{ opacity: wrapperOpacity }} className="md:w-[540px] w-[400px]">
           {activeKey === "receive-alerts" && <SlackAlertMock />}
-          {activeKey === "get-context" && <GetContextMock />}
+          {activeKey === "get-context" && <GetContextMock progress={getContextProgress} />}
           {activeKey === "fix" && <FixMock />}
         </motion.div>
       </div>
