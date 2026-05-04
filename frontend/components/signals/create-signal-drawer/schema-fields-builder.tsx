@@ -1,6 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { type ReactNode } from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import SchemaFieldRow from "./schema-field-row";
 import { type ManageSignalForm } from "./types";
 
-export default function SchemaFieldsBuilder() {
+export default function SchemaFieldsBuilder({ headerAction }: { headerAction?: ReactNode }) {
   const { control } = useFormContext<ManageSignalForm>();
   const { fields, append, remove } = useFieldArray({
     control,
@@ -33,14 +34,17 @@ export default function SchemaFieldsBuilder() {
             </Tooltip>
           </div>
         </TooltipProvider>
-        <Button
-          type="button"
-          icon="plus"
-          variant="outline"
-          onClick={() => append({ name: "", description: "", type: "string" })}
-        >
-          Add Field
-        </Button>
+        <div className="flex items-center gap-2">
+          {headerAction}
+          <Button
+            type="button"
+            icon="plus"
+            variant="outline"
+            onClick={() => append({ name: "", description: "", type: "string" })}
+          >
+            Add Field
+          </Button>
+        </div>
       </div>
       <div className="space-y-2 border rounded-md p-3 bg-muted/30">
         <div className="flex gap-2 text-xs text-muted-foreground font-medium mb-1">
