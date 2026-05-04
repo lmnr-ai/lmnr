@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type MotionValue, useScroll, useTransform } from "framer-motion";
+import { useScroll } from "framer-motion";
 import { type ReactNode, type Ref, useRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ const StepCard = ({ number, label, subtitle, className, children, ref }: StepCar
     </div>
 
     <div className={cn("flex items-start min-w-0 self-stretch", "md:flex-1", "w-full justify-start")}>
-      <div className="md:w-[540px] w-[400px] h-full shrink-0">{children}</div>
+      <div className="w-full h-full shrink-0">{children}</div>
     </div>
 
     <div className="absolute right-0 top-0 bottom-0 md:w-[73px] w-[60px] bg-gradient-to-l from-landing-surface-700 to-transparent pointer-events-none" />
@@ -68,16 +68,6 @@ const StepCard = ({ number, label, subtitle, className, children, ref }: StepCar
     <div className="absolute bottom-0 left-0 right-0 md:h-[73px] h-[60px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
   </div>
 );
-
-const MockEntrance = ({ progress, children }: { progress: MotionValue<number>; children: ReactNode }) => {
-  const opacity = useTransform(progress, [0, 0.4], [0.6, 1], { clamp: true });
-  const x = useTransform(progress, [0, 0.4], [80, 0], { clamp: true });
-  return (
-    <motion.div style={{ opacity, x }} className="size-full">
-      {children}
-    </motion.div>
-  );
-};
 
 const SlackNotifications = ({ className }: Props) => {
   const slackRef = useRef<HTMLDivElement>(null);
@@ -107,9 +97,7 @@ const SlackNotifications = ({ className }: Props) => {
         className="md:h-[540px]"
         ref={slackRef}
       >
-        <MockEntrance progress={slackProgress}>
-          <SlackAlertMock />
-        </MockEntrance>
+        <SlackAlertMock progress={slackProgress} />
       </StepCard>
       <StepCard
         number={2}
@@ -127,9 +115,7 @@ const SlackNotifications = ({ className }: Props) => {
         className="md:h-[540px]"
         ref={fixRef}
       >
-        <MockEntrance progress={fixProgress}>
-          <FixMock />
-        </MockEntrance>
+        <FixMock progress={fixProgress} />
       </StepCard>
     </div>
   );
