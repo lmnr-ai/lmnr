@@ -123,9 +123,12 @@ export async function getSignalRunEstimate(
 
   const hours = WINDOW_HOURS[window];
 
-  // Verify we have enough history: find the oldest trace in this project,
-  // and bail out if it's newer than the requested window.
-  const oldest = await executeQuery<{ oldest: string | null }>({
+  // Fan out every ClickHouse round-trip in parallel: the history check, the
+  // total traces count, and one count() per trigger. The NotEnoughData guard
+  // is applied to the resolved `oldest` result after all queries settle — we
+  // accept doing a tiny bit of extra work in the rare NOT_ENOUGH_DATA path to
+  // save a full round-trip in the common case.
+  const oldestPromise = executeQuery<{ oldest: string | null }>({
     projectId,
     query: `
       SELECT formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as oldest
@@ -134,17 +137,8 @@ export async function getSignalRunEstimate(
     `,
     parameters: {},
   });
-  const oldestStr = oldest[0]?.oldest ?? null;
-  if (!oldestStr) {
-    throw new NotEnoughDataError(window, null);
-  }
-  const oldestMs = new Date(oldestStr).getTime();
-  const windowStartMs = Date.now() - hours * 60 * 60 * 1000;
-  if (Number.isNaN(oldestMs) || oldestMs > windowStartMs) {
-    throw new NotEnoughDataError(window, oldestStr);
-  }
 
-  const tracesCheckedResult = await executeQuery<{ count: string | number }>({
+  const tracesCheckedPromise = executeQuery<{ count: string | number }>({
     projectId,
     query: `
       SELECT count() as count
@@ -154,10 +148,8 @@ export async function getSignalRunEstimate(
     `,
     parameters: { pastHours: hours },
   });
-  const tracesChecked = Number(tracesCheckedResult[0]?.count ?? 0);
 
-  // Run trigger count() queries in parallel — each hits ClickHouse independently.
-  const perTrigger: SignalRunEstimate["perTrigger"] = await Promise.all(
+  const perTriggerPromise = Promise.all(
     triggers.map(async (trigger, i) => {
       const filterCount = trigger.filters.length;
       if (filterCount === 0) {
@@ -190,6 +182,24 @@ export async function getSignalRunEstimate(
       };
     })
   );
+
+  const [oldest, tracesCheckedResult, perTrigger] = await Promise.all([
+    oldestPromise,
+    tracesCheckedPromise,
+    perTriggerPromise,
+  ]);
+
+  const oldestStr = oldest[0]?.oldest ?? null;
+  if (!oldestStr) {
+    throw new NotEnoughDataError(window, null);
+  }
+  const oldestMs = new Date(oldestStr).getTime();
+  const windowStartMs = Date.now() - hours * 60 * 60 * 1000;
+  if (Number.isNaN(oldestMs) || oldestMs > windowStartMs) {
+    throw new NotEnoughDataError(window, oldestStr);
+  }
+
+  const tracesChecked = Number(tracesCheckedResult[0]?.count ?? 0);
 
   // Each trigger runs the signal once per matched trace. Realtime mode (1) is
   // billed as 2 runs; batch mode (0) as 1 (see triggers-section.tsx copy).
