@@ -71,7 +71,9 @@ const trackUserCreated = async (email: string, provider: string, hasPendingInvit
       },
     });
 
-    await client.shutdown();
+    // Cap shutdown at 2s — posthog-node's default is 30s, which would
+    // stall the login response if PostHog ingest is unreachable.
+    await client.shutdown(2000);
   } catch {
     // Analytics failures must never break login.
   }
