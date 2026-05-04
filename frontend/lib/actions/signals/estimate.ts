@@ -128,10 +128,13 @@ export async function getSignalRunEstimate(
   // is applied to the resolved `oldest` result after all queries settle — we
   // accept doing a tiny bit of extra work in the rare NOT_ENOUGH_DATA path to
   // save a full round-trip in the common case.
+  // minOrNull — plain min() on an empty DateTime64 column returns the epoch
+  // default (1970-01-01), which would silently pass the "no traces" null-check
+  // and surface as "0 runs based on 0 traces" instead of the NotEnoughData panel.
   const oldestPromise = executeQuery<{ oldest: string | null }>({
     projectId,
     query: `
-      SELECT formatDateTime(min(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as oldest
+      SELECT formatDateTime(minOrNull(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') as oldest
       FROM traces
       WHERE trace_type = 'DEFAULT'
     `,
