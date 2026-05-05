@@ -178,14 +178,16 @@ export default function PostContent({
                   }
                   return <p className="text-[17px] leading-[1.75] text-landing-text-200 mt-6" {...props} />;
                 },
-                a: (props) => (
-                  <a
-                    className="text-landing-text-100 underline underline-offset-4 decoration-landing-surface-400 hover:decoration-landing-text-200"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    {...props}
-                  />
-                ),
+                a: (props) => {
+                  const isExternal = typeof props.href === "string" && /^https?:\/\//.test(props.href);
+                  return (
+                    <a
+                      className="text-landing-text-100 underline underline-offset-4 decoration-landing-surface-400 hover:decoration-landing-text-200"
+                      {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      {...props}
+                    />
+                  );
+                },
                 blockquote: (props) => (
                   <blockquote
                     className="border-l-2 border-landing-surface-400 pl-4 italic text-landing-text-300 my-6"
