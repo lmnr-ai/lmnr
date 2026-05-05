@@ -135,7 +135,8 @@ const stripInlineMarkdown = (text: string): string =>
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/(?<!\w)__(.+?)__(?!\w)/g, "$1")
-    .replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1");
+    .replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1")
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "");
 
 export const parseHeadings = (content: string) => {
   const sansCodeBlocks = content.replace(/```[\s\S]*?```/g, "");
