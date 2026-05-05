@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { formatBlogDate, formatCategoryLabel } from "@/lib/blog/format";
+import { formatCategoryLabel } from "@/lib/blog/format";
 import { type BlogListItem } from "@/lib/blog/types";
-import { cn } from "@/lib/utils";
+import { cn, formatUTCDate } from "@/lib/utils";
 
 type Variant = "featured" | "default" | "compact";
 
@@ -28,7 +28,7 @@ export default function BlogCard({
 }: BlogCardProps) {
   const href = `/${routePrefix}/${post.slug}`;
   const categoryLabel = formatCategoryLabel(category ?? post.tags?.[0]);
-  const formattedDate = formatBlogDate(post.data.date);
+  const formattedDate = formatUTCDate(post.data.date);
 
   if (variant === "compact") {
     return (
