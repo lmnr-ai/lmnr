@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ interface OnThisPageProps {
 
 export default function OnThisPage({ headings, className, showHeader = true }: OnThisPageProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const suppressObserverUntilRef = useRef<number>(0);
 
   useEffect(() => {
     if (headings.length === 0) return;
@@ -27,6 +28,7 @@ export default function OnThisPage({ headings, className, showHeader = true }: O
 
     const observer = new IntersectionObserver(
       (entries) => {
+        if (performance.now() < suppressObserverUntilRef.current) return;
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -47,6 +49,7 @@ export default function OnThisPage({ headings, className, showHeader = true }: O
     const el = document.getElementById(id);
     if (!el) return;
     e.preventDefault();
+    suppressObserverUntilRef.current = performance.now() + 1000;
     el.scrollIntoView({ behavior: "smooth", block: "start" });
     history.replaceState(null, "", `#${id}`);
     setActiveId(id);
