@@ -83,7 +83,7 @@ export default function PostContent({
       <ReadingProgressBar />
       <ArticleJsonLd data={data} slug={slug} routePrefix={routePrefix} />
 
-      <div className="max-w-7xl mx-auto px-4 pt-8 md:pt-12">
+      <div className="max-w-6xl mx-auto px-4 pt-8 md:pt-12">
         <Link
           href={backHref}
           className="inline-flex items-center gap-1 text-sm text-landing-text-400 hover:text-landing-text-100"
@@ -93,7 +93,7 @@ export default function PostContent({
       </div>
 
       {data.image && (
-        <div className="max-w-7xl mx-auto px-4 pt-6">
+        <div className="max-w-6xl mx-auto px-4 pt-6">
           <div className="relative w-full aspect-[21/9] overflow-hidden rounded-xl bg-landing-surface-600">
             <Image
               src={data.image}
@@ -107,7 +107,7 @@ export default function PostContent({
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 pt-8 md:pt-12">
+      <div className="max-w-6xl mx-auto px-4 pt-8 md:pt-12">
         <div className="max-w-3xl flex flex-col gap-4">
           {category && (
             <span className="text-xs tracking-wider font-medium uppercase text-landing-text-300">
@@ -128,7 +128,7 @@ export default function PostContent({
         </div>
       </div>
 
-      <div className="lg:hidden max-w-7xl mx-auto px-4 pt-6">
+      <div className="lg:hidden max-w-6xl mx-auto px-4 pt-6">
         {headings.length > 0 && (
           <details className="border-y border-landing-surface-500 py-4 group">
             <summary className="text-xs uppercase tracking-wider text-landing-text-400 cursor-pointer list-none flex items-center justify-between">
@@ -142,9 +142,9 @@ export default function PostContent({
         )}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 pt-8 md:pt-12 pb-16 md:pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <article className={cn("lg:col-span-8", "prose-blog")}>
+      <div className="max-w-6xl mx-auto px-4 pt-8 md:pt-12 pb-16 md:pb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 xl:gap-12">
+          <article className={cn("lg:col-span-8 xl:col-span-9 max-w-3xl", "prose-blog")}>
             <MDXRemote
               source={content}
               options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
@@ -238,7 +238,7 @@ export default function PostContent({
             />
           </article>
 
-          <div className="hidden lg:block lg:col-span-4">
+          <div className="hidden lg:block lg:col-span-4 xl:col-span-3">
             <div className="sticky top-24 self-start">
               <PostMetadataRail headings={headings} />
             </div>

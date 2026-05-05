@@ -31,14 +31,15 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
     normalizedQuery === "" || post.data.title.toLowerCase().includes(normalizedQuery);
   const matches = (post: BlogListItem) => matchesCategory(post) && matchesQuery(post);
 
-  const isFiltering = category !== "all" || normalizedQuery !== "";
+  const isSearching = normalizedQuery !== "";
 
-  const visibleFeatured = !isFiltering && featured ? featured : undefined;
+  const visibleFeatured = !isSearching && featured && matchesCategory(featured) ? featured : undefined;
 
   const gridPosts = useMemo(() => {
-    if (!isFiltering) return [...recent, ...rest];
-    return [...(featured ? [featured] : []), ...recent, ...rest].filter(matches);
-  }, [featured, recent, rest, category, normalizedQuery]);
+    if (!isSearching && category === "all") return [...recent, ...rest];
+    const base = [...(featured && !visibleFeatured ? [featured] : []), ...recent, ...rest];
+    return base.filter(matches);
+  }, [featured, recent, rest, category, normalizedQuery, visibleFeatured]);
 
   const visible = gridPosts.slice(0, visibleCount);
   const hasMore = visible.length < gridPosts.length;
