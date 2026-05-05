@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import BlogCard from "@/components/blog/blog-card";
 import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
-import OnThisPage from "@/components/blog/on-this-page";
+import MobileToc from "@/components/blog/mobile-toc";
 import PostMetadataRail from "@/components/blog/post-metadata-rail";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import ReadingProgressBar from "@/components/blog/reading-progress-bar";
@@ -130,21 +130,7 @@ export default function PostContent({
         </div>
       </div>
 
-      <div className="lg:hidden max-w-6xl mx-auto px-4 pt-6">
-        <div className="max-w-3xl mx-auto">
-          {headings.length > 0 && (
-            <details className="border-y border-landing-surface-500 py-4 group">
-              <summary className="text-xs uppercase tracking-wider text-landing-text-400 cursor-pointer list-none flex items-center justify-between">
-                <span>On this page</span>
-                <span className="transition-transform group-open:rotate-90">›</span>
-              </summary>
-              <div className="mt-3">
-                <OnThisPage headings={headings} showHeader={false} />
-              </div>
-            </details>
-          )}
-        </div>
-      </div>
+      <MobileToc headings={headings} />
 
       <div className="max-w-6xl mx-auto px-4 pt-8 md:pt-12 pb-16 md:pb-24 lg:grid lg:grid-cols-[1fr_minmax(0,48rem)_1fr] lg:gap-x-8">
         <article className={cn("max-w-3xl mx-auto w-full lg:mx-0 lg:max-w-none lg:col-start-2", "prose-blog")}>
