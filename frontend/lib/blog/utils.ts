@@ -1,33 +1,32 @@
-import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type StrapiPost } from "./types";
+import fs from "fs";
+import matter from "gray-matter";
+import path from "path";
 
-const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
-const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
+import { type BlogListItem, type BlogMetadata, type MatterAndContent } from "./types";
 
-const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/]+\/uploads\//g, "/uploads/");
+const BLOG_DIR = path.join(process.cwd(), "assets/blog");
 
-const strapiHeaders = (): HeadersInit => {
-  const headers: HeadersInit = {};
-  if (STRAPI_API_TOKEN) {
-    headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
+const readPostFromDisk = (file: string): MatterAndContent | null => {
+  const filePath = path.join(BLOG_DIR, file);
+  let raw: string;
+  try {
+    raw = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return null;
   }
-  return headers;
+  const parsed = matter(raw);
+  const data = parsed.data as BlogMetadata;
+  return {
+    data,
+    content: parsed.content,
+  };
 };
 
-const mapStrapiPost = (post: StrapiPost): BlogListItem => {
-  const data = {
-    title: post.title,
-    description: post.description ?? "",
-    date: post.date,
-    author: {
-      name: post.author_name ?? "Laminar",
-      url: post.author_url ?? undefined,
-    },
-    image: post.image ? normalizeUploadUrls(post.image) : undefined,
-    excerpt: post.description ?? undefined,
-    tags: post.tags ?? undefined,
-  };
-  return { ...data, slug: post.slug, data };
-};
+const toListItem = (slug: string, data: BlogMetadata): BlogListItem => ({
+  ...data,
+  slug,
+  data,
+});
 
 export const getBlogPosts = async ({
   sortByDate = true,
@@ -36,53 +35,39 @@ export const getBlogPosts = async ({
   sortByDate?: boolean;
   category?: "blog" | "article";
 }): Promise<BlogListItem[]> => {
-  const params = new URLSearchParams({ "pagination[pageSize]": "100" });
-  if (sortByDate) params.set("sort", "date:desc");
-  if (category) params.set("filters[category][$eq]", category);
+  // Local mdx files only contain blog posts. Articles previously came from Strapi;
+  // until we restore that, asking for "article" yields nothing.
+  if (category === "article") return [];
 
+  let files: string[];
   try {
-    const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-      headers: strapiHeaders(),
-      next: { revalidate: 60 },
-    });
-
-    if (!res.ok) {
-      console.error(`Strapi API error: ${res.status} ${res.statusText}`);
-      return [];
-    }
-
-    const json: StrapiListResponse = await res.json();
-    return json.data.map(mapStrapiPost);
-  } catch (err) {
-    console.error("Failed to fetch blog posts from Strapi:", err);
+    files = fs.readdirSync(BLOG_DIR);
+  } catch {
     return [];
   }
+
+  const posts: BlogListItem[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".mdx")) continue;
+    const slug = file.replace(/\.mdx$/, "");
+    const post = readPostFromDisk(file);
+    if (!post) continue;
+    posts.push(toListItem(slug, post.data));
+  }
+
+  if (sortByDate) {
+    posts.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+  }
+  return posts;
 };
 
 export const getBlogPost = async (slug: string): Promise<MatterAndContent | null> => {
-  const params = new URLSearchParams({ "filters[slug][$eq]": slug });
+  const post = readPostFromDisk(`${slug}.mdx`);
+  if (!post) return null;
 
-  try {
-    const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-      headers: strapiHeaders(),
-      next: { revalidate: 60 },
-    });
-
-    if (!res.ok) {
-      console.error(`Strapi API error: ${res.status} ${res.statusText}`);
-      return null;
-    }
-
-    const json: StrapiListResponse = await res.json();
-    const post = json.data[0];
-    if (!post) return null;
-
-    const mapped = mapStrapiPost(post);
-    return { data: mapped.data, content: normalizeUploadUrls(post.content) };
-  } catch (err) {
-    console.error("Failed to fetch blog post from Strapi:", err);
-    return null;
-  }
+  const { data, content } = post;
+  const excerpt = data.excerpt && data.excerpt !== "" ? data.excerpt : content.slice(0, 160).replace(/\s+/g, " ");
+  return { data: { ...data, excerpt }, content };
 };
 
 export const getRelatedPosts = async (
