@@ -146,6 +146,13 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Trigger evaluation flow: `process_span_messages` → `upsert_trace_statistics_batch` (returns merged DB trace) → `check_and_push_signals` → `matches_filters`. All filters use AND logic.
 - Run targeted tests with `cargo test --bin app-server db::trace::tests -- --nocapture`.
 
+## Blog & Articles
+
+- Blog/article content is fetched from a headless Strapi at `STRAPI_URL` (default `http://localhost:1337`). The sandbox has no Strapi running, so `getBlogPosts`/`getBlogPost` in `frontend/lib/blog/utils.ts` swallow fetch errors and return `[]`/`null` — the blog index renders an empty state cleanly instead of 500'ing. When visually verifying blog UI locally, stand up a mock Strapi that serves `/api/blog-posts` in Strapi's shape (`{ data: StrapiPost[], meta }`).
+- The blog detail page (`/blog/[slug]`) uses `next-mdx-remote/rsc` to render Strapi content. On Next 16.2.3 + Turbopack dev, rendering MDXRemote inside this page can 500 with cryptic `Cannot read properties of undefined (reading 'stack')` / `ReadableStream is already closed` errors — this is pre-existing and reproduces on the original (unmodified) post-content component. Production build is unaffected.
+- Heading anchors for TOC scroll-spy use `headingToUrl(text)` (in `lib/blog/utils.ts`) which slugifies by lowercasing and stripping non-alphanumerics. The server-side `parseHeadings` result is passed to `<OnThisPage />` as a prop — do NOT scrape headings client-side from the DOM (breaks SSR and creates flicker).
+- All blog UI components live under `components/blog/*` and MUST consume existing tokens only (`landing-surface-*`, `landing-text-*`, `primary`, etc.). Do not introduce new colors, fonts, or radii — the design is token-driven and any new token will leak across the rest of the site.
+
 ## Analytics / PostHog
 
 - Client-side analytics is centralized in `frontend/lib/posthog/`. Feature code should import `track` from `@/lib/posthog` — never import `posthog-js` directly.

@@ -16,9 +16,7 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
         className="sm:border-none border-b border-b-landing-surface-500"
       />
       <main className="flex-1">{children}</main>
-      {/* Spacer */}
-      <div className="w-full h-[160px]" />
-      <Footer className="pt-[160px]" />
+      <Footer />
     </div>
   );
 }

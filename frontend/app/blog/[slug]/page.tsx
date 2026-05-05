@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import PostContent from "@/components/blog/post-content";
 import PageViewTracker from "@/components/common/page-view-tracker";
 import { generatePostMetadata } from "@/lib/blog/metadata";
-import { getBlogPost } from "@/lib/blog/utils";
+import { getBlogPost, getRelatedPosts } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const { slug } = await props.params;
@@ -13,7 +13,7 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
 
 export default async function BlogPostPage(props: { params: Promise<{ slug: string }> }) {
   const { slug } = await props.params;
-  const post = await getBlogPost(slug);
+  const [post, related] = await Promise.all([getBlogPost(slug), getRelatedPosts(slug, "blog", 3)]);
   if (!post) notFound();
 
   return (
@@ -26,6 +26,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
         backLabel="Blog"
         slug={slug}
         routePrefix="blog"
+        relatedPosts={related}
       />
     </>
   );

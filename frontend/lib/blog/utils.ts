@@ -40,39 +40,85 @@ export const getBlogPosts = async ({
   if (sortByDate) params.set("sort", "date:desc");
   if (category) params.set("filters[category][$eq]", category);
 
-  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-    headers: strapiHeaders(),
-    next: { revalidate: 60 },
-  });
+  try {
+    const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+      headers: strapiHeaders(),
+      next: { revalidate: 60 },
+    });
 
-  if (!res.ok) {
-    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+      return [];
+    }
+
+    const json: StrapiListResponse = await res.json();
+    return json.data.map(mapStrapiPost);
+  } catch (err) {
+    console.error("Failed to fetch blog posts from Strapi:", err);
     return [];
   }
-
-  const json: StrapiListResponse = await res.json();
-  return json.data.map(mapStrapiPost);
 };
 
 export const getBlogPost = async (slug: string): Promise<MatterAndContent | null> => {
   const params = new URLSearchParams({ "filters[slug][$eq]": slug });
 
-  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
-    headers: strapiHeaders(),
-    next: { revalidate: 60 },
-  });
+  try {
+    const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+      headers: strapiHeaders(),
+      next: { revalidate: 60 },
+    });
 
-  if (!res.ok) {
-    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const json: StrapiListResponse = await res.json();
+    const post = json.data[0];
+    if (!post) return null;
+
+    const mapped = mapStrapiPost(post);
+    return { data: mapped.data, content: normalizeUploadUrls(post.content) };
+  } catch (err) {
+    console.error("Failed to fetch blog post from Strapi:", err);
     return null;
   }
+};
 
-  const json: StrapiListResponse = await res.json();
-  const post = json.data[0];
-  if (!post) return null;
+export const getRelatedPosts = async (
+  slug: string,
+  category: "blog" | "article",
+  limit: number = 3
+): Promise<BlogListItem[]> => {
+  const all = await getBlogPosts({ sortByDate: true, category });
+  const current = all.find((p) => p.slug === slug);
+  const currentTags = new Set((current?.tags ?? []).map((t) => t.toLowerCase()));
+  const others = all.filter((p) => p.slug !== slug);
 
-  const mapped = mapStrapiPost(post);
-  return { data: mapped.data, content: normalizeUploadUrls(post.content) };
+  const withScore = others.map((p) => {
+    const tags = (p.tags ?? []).map((t) => t.toLowerCase());
+    const overlap = tags.filter((t) => currentTags.has(t)).length;
+    return { post: p, overlap };
+  });
+  withScore.sort((a, b) => b.overlap - a.overlap);
+  return withScore.slice(0, limit).map((r) => r.post);
+};
+
+export const deriveCategoriesFromPosts = (posts: BlogListItem[]): { value: string; label: string; count: number }[] => {
+  const counts = new Map<string, number>();
+  for (const post of posts) {
+    const primary = (post.tags?.[0] ?? "").toLowerCase();
+    if (!primary) continue;
+    counts.set(primary, (counts.get(primary) ?? 0) + 1);
+  }
+  const sorted = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([value, count]) => ({
+      value,
+      label: value.charAt(0).toUpperCase() + value.slice(1),
+      count,
+    }));
+  return [{ value: "all", label: "All", count: posts.length }, ...sorted];
 };
 
 export const headingToUrl = (heading: string) =>

@@ -1,12 +1,9 @@
 import { type Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
 
+import BlogIndex from "@/components/blog/blog-index";
+import BottomCTA from "@/components/blog/bottom-cta";
 import PageViewTracker from "@/components/common/page-view-tracker";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { getBlogPosts } from "@/lib/blog/utils";
-import { formatUTCDate } from "@/lib/utils";
+import { deriveCategoriesFromPosts, getBlogPosts } from "@/lib/blog/utils";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -26,32 +23,30 @@ export const metadata: Metadata = {
 
 export default async function BlogsPage() {
   const posts = await getBlogPosts({ sortByDate: true, category: "blog" });
+  const categories = deriveCategoriesFromPosts(posts);
+
+  const [featured, ...afterFeatured] = posts;
+  const recent = afterFeatured.slice(0, 3);
+  const rest = afterFeatured.slice(3);
 
   return (
-    <div className="px-4 mt-32 pb-16 grid grid-cols-1 gap-4 container w-full md:grid-cols-3">
+    <>
       <PageViewTracker feature="blog" action="list_viewed" />
-      {posts.map((post, index) => (
-        <Link href={`/blog/${post.slug}`} key={index}>
-          <Card className="overflow-hidden h-[300px] bg-background flex flex-col">
-            {post.data.image && (
-              <Image
-                src={post.data.image}
-                alt={post.data.title}
-                width={400}
-                height={200}
-                className="object-cover mx-auto"
-              />
-            )}
-            <CardHeader>
-              <CardTitle className="font-space-grotesk text-2xl text-white">{post.data.title}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex grow"></CardContent>
-            <CardFooter className="flex align-bottom">
-              <Label className="text-secondary-foreground">{formatUTCDate(post.data.date)}</Label>
-            </CardFooter>
-          </Card>
-        </Link>
-      ))}
-    </div>
+
+      <section className="pt-16 md:pt-24 pb-8">
+        <div className="max-w-6xl mx-auto px-4">
+          <h1 className="font-space-grotesk text-5xl md:text-6xl tracking-tight text-landing-text-100">Blog</h1>
+        </div>
+      </section>
+
+      <BlogIndex featured={featured} recent={recent} rest={rest} categories={categories} routePrefix="blog" />
+
+      <BottomCTA
+        title="Understand why your agent failed."
+        description="Get OpenTelemetry-native tracing, alerts on described failures, and readable transcripts."
+        primaryCta={{ label: "Start free", href: "/sign-up" }}
+        secondaryCta={{ label: "Read the docs", href: "https://laminar.sh/docs" }}
+      />
+    </>
   );
 }
