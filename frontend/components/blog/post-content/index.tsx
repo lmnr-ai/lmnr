@@ -137,7 +137,7 @@ export default function PostContent({
               <span className="transition-transform group-open:rotate-90">›</span>
             </summary>
             <div className="mt-3">
-              <OnThisPage headings={headings} />
+              <OnThisPage headings={headings} showHeader={false} />
             </div>
           </details>
         )}

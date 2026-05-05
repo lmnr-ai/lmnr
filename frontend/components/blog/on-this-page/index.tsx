@@ -13,9 +13,10 @@ export interface Heading {
 interface OnThisPageProps {
   headings: Heading[];
   className?: string;
+  showHeader?: boolean;
 }
 
-export default function OnThisPage({ headings, className }: OnThisPageProps) {
+export default function OnThisPage({ headings, className, showHeader = true }: OnThisPageProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export default function OnThisPage({ headings, className }: OnThisPageProps) {
 
   return (
     <nav aria-label="On this page" className={cn("max-h-[calc(100vh-8rem)] overflow-y-auto", className)}>
-      <div className="text-xs uppercase tracking-wider text-landing-text-400 mb-3">On this page</div>
+      {showHeader && <div className="text-xs uppercase tracking-wider text-landing-text-400 mb-3">On this page</div>}
       <ul className="flex flex-col gap-2 text-sm">
         {headings.map((h) => {
           const active = h.id === activeId;
