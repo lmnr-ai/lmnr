@@ -118,19 +118,19 @@ export default function PostContent({
             {data.title}
           </h1>
           {data.description && <p className="text-lg text-landing-text-300 leading-relaxed">{data.description}</p>}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-landing-text-400">
+            <span className="text-landing-text-200">By {data.author.name}</span>
+            <span aria-hidden>·</span>
+            <time dateTime={data.date}>{formatUTCDate(data.date)}</time>
+            <span aria-hidden>·</span>
+            <span>{readingTime} minutes read</span>
+          </div>
         </div>
       </div>
 
       <div className="lg:hidden max-w-7xl mx-auto px-4 pt-6">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-landing-text-400 border-y border-landing-surface-500 py-4">
-          <span className="text-landing-text-200">{data.author.name}</span>
-          <span aria-hidden>·</span>
-          <time dateTime={data.date}>{formatUTCDate(data.date)}</time>
-          <span aria-hidden>·</span>
-          <span>{readingTime} min read</span>
-        </div>
         {headings.length > 0 && (
-          <details className="mt-4 border-b border-landing-surface-500 pb-4 group">
+          <details className="border-y border-landing-surface-500 py-4 group">
             <summary className="text-xs uppercase tracking-wider text-landing-text-400 cursor-pointer list-none flex items-center justify-between">
               <span>On this page</span>
               <span className="transition-transform group-open:rotate-90">›</span>
@@ -240,13 +240,7 @@ export default function PostContent({
 
           <div className="hidden lg:block lg:col-span-4">
             <div className="sticky top-24 self-start">
-              <PostMetadataRail
-                data={data}
-                category={category}
-                readingTime={readingTime}
-                headings={headings}
-                routePrefix={routePrefix}
-              />
+              <PostMetadataRail headings={headings} />
             </div>
           </div>
         </div>

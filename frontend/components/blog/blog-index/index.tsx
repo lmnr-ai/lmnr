@@ -42,6 +42,8 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
 
   const visible = gridPosts.slice(0, visibleCount);
   const hasMore = visible.length < gridPosts.length;
+  const anyVisibleHasImage = visible.some((p) => Boolean(p.data.image));
+  const listVariant: "minimal" | "compact" = anyVisibleHasImage ? "minimal" : "compact";
 
   const handleCategoryChange = (next: string) => {
     setCategory(next);
@@ -109,6 +111,18 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
             <p className="text-landing-text-400 py-12 text-center">
               {normalizedQuery ? "No posts match your search." : "No posts in this category yet."}
             </p>
+          ) : listVariant === "compact" ? (
+            <div className="flex flex-col">
+              {visible.map((post) => (
+                <BlogCard
+                  key={post.slug}
+                  post={post}
+                  variant="compact"
+                  routePrefix={routePrefix}
+                  category={categoryOf(post)}
+                />
+              ))}
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-12">
               {visible.map((post) => (

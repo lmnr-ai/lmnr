@@ -33,7 +33,7 @@ export default function BlogCard({
   if (variant === "minimal") {
     return (
       <Link href={href} className={cn("group flex flex-col gap-4 no-underline", className)}>
-        {post.data.image ? (
+        {post.data.image && (
           <div className="relative w-full aspect-[3/2] overflow-hidden rounded-lg bg-landing-surface-600">
             <Image
               src={post.data.image}
@@ -43,14 +43,15 @@ export default function BlogCard({
               className="object-cover transition-opacity duration-200 group-hover:opacity-90"
             />
           </div>
-        ) : (
-          <div className="w-full aspect-[3/2] rounded-lg bg-landing-surface-600" />
         )}
         <div className="flex flex-col gap-2">
           <CategoryBadge label={categoryLabel} />
           <h3 className="font-space-grotesk text-lg md:text-xl tracking-tight text-landing-text-100 transition-colors group-hover:text-primary">
             {post.data.title}
           </h3>
+          {post.data.description && (
+            <p className="text-sm text-landing-text-300 leading-relaxed line-clamp-2">{post.data.description}</p>
+          )}
           <div className="flex items-center gap-2 text-xs text-landing-text-400">
             <span className="truncate">{post.data.author.name}</span>
             <span aria-hidden>·</span>
@@ -125,7 +126,7 @@ export default function BlogCard({
     <Link
       href={href}
       className={cn(
-        "group flex flex-col gap-4 overflow-hidden rounded-xl border border-landing-surface-500 bg-landing-surface-700 no-underline",
+        "group flex flex-col overflow-hidden rounded-xl border border-landing-surface-500 bg-landing-surface-700 no-underline",
         className
       )}
     >
@@ -140,8 +141,7 @@ export default function BlogCard({
           />
         </div>
       )}
-      <div className="flex flex-1 flex-col gap-3 px-5 pb-6">
-        <CategoryBadge label={categoryLabel} />
+      <div className="flex flex-1 flex-col gap-3 p-5">
         <h3 className="font-space-grotesk text-lg md:text-xl tracking-tight text-landing-text-100 transition-colors group-hover:text-primary line-clamp-2">
           {post.data.title}
         </h3>
