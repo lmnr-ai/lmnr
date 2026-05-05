@@ -134,8 +134,9 @@ const stripInlineMarkdown = (text: string): string =>
     .replace(/`([^`]*)`/g, "$1");
 
 export const parseHeadings = (content: string) => {
-  const tagHeadings = content.match(/(<h\d>)(.*)<\/h\d>/gm);
-  const mdHeadings = content.match(/^ *(#{1,4}) (.*)$/gm);
+  const sansCodeBlocks = content.replace(/```[\s\S]*?```/g, "");
+  const tagHeadings = sansCodeBlocks.match(/(<h\d>)(.*)<\/h\d>/gm);
+  const mdHeadings = sansCodeBlocks.match(/^ *(#{1,4}) (.*)$/gm);
   const headings = [...(tagHeadings ?? []), ...(mdHeadings ?? [])];
   return headings
     .map((heading) => {
