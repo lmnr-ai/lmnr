@@ -17,7 +17,9 @@ const childrenToText = (children: ReactNode): string => {
     if (typeof child === "string" || typeof child === "number") {
       text += String(child);
     } else if (isValidElement(child)) {
-      text += childrenToText((child.props as { children?: ReactNode }).children);
+      const childProps = child.props as { children?: ReactNode; alt?: string };
+      const nested = childrenToText(childProps.children);
+      text += nested || (typeof childProps.alt === "string" ? childProps.alt : "");
     }
   });
   return text;
