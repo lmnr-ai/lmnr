@@ -23,7 +23,7 @@ export default function PreHighlighter({ children, className }: PreHighlighterPr
     <CodeHighlighter
       code={code}
       language={language}
-      className={cn("bg-landing-surface-600 border border-landing-surface-500 rounded-md mt-4", className)}
+      className={cn("bg-landing-surface-600 border border-landing-surface-500 rounded-md mt-4 p-4", className)}
       copyable
     />
   );
