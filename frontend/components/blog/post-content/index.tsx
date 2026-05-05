@@ -5,7 +5,6 @@ import React from "react";
 import remarkGfm from "remark-gfm";
 
 import BlogCard from "@/components/blog/blog-card";
-import BottomCTA from "@/components/blog/bottom-cta";
 import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import OnThisPage from "@/components/blog/on-this-page";
@@ -276,13 +275,6 @@ export default function PostContent({
           </div>
         </section>
       )}
-
-      <BottomCTA
-        title="Understand why your agent failed."
-        description="Get OpenTelemetry-native tracing, alerts on described failures, and readable transcripts."
-        primaryCta={{ label: "Start free", href: "/sign-up" }}
-        secondaryCta={{ label: "Read the docs", href: "https://laminar.sh/docs" }}
-      />
     </>
   );
 }

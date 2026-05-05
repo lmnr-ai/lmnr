@@ -1,7 +1,6 @@
 import { type Metadata } from "next";
 
 import BlogIndex from "@/components/blog/blog-index";
-import BottomCTA from "@/components/blog/bottom-cta";
 import { deriveCategoriesFromPosts, getBlogPosts } from "@/lib/blog/utils";
 
 export const metadata: Metadata = {
@@ -37,13 +36,6 @@ export default async function ArticlesPage() {
       </section>
 
       <BlogIndex featured={featured} recent={recent} rest={rest} categories={categories} routePrefix="article" />
-
-      <BottomCTA
-        title="Understand why your agent failed."
-        description="Get OpenTelemetry-native tracing, alerts on described failures, and readable transcripts."
-        primaryCta={{ label: "Start free", href: "/sign-up" }}
-        secondaryCta={{ label: "Read the docs", href: "https://laminar.sh/docs" }}
-      />
     </>
   );
 }
