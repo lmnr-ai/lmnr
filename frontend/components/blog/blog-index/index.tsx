@@ -25,21 +25,18 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
 
   const categoryOf = (post: BlogListItem) => (post.tags?.[0] ?? "").toLowerCase();
   const normalizedQuery = query.trim().toLowerCase();
-
-  const matchesCategory = (post: BlogListItem) => category === "all" || categoryOf(post) === category;
-  const matchesQuery = (post: BlogListItem) =>
-    normalizedQuery === "" || post.data.title.toLowerCase().includes(normalizedQuery);
-  const matches = (post: BlogListItem) => matchesCategory(post) && matchesQuery(post);
-
   const isSearching = normalizedQuery !== "";
-
   const visibleFeatured = !isSearching && featured ? featured : undefined;
 
   const gridPosts = useMemo(() => {
     if (!isSearching && category === "all") return [...recent, ...rest];
-    const base = [...(featured && !visibleFeatured ? [featured] : []), ...recent, ...rest];
-    return base.filter(matches);
-  }, [featured, recent, rest, category, normalizedQuery, visibleFeatured]);
+    const base = [...(featured && isSearching ? [featured] : []), ...recent, ...rest];
+    return base.filter((post) => {
+      const matchesCategory = category === "all" || categoryOf(post) === category;
+      const matchesQuery = !isSearching || post.data.title.toLowerCase().includes(normalizedQuery);
+      return matchesCategory && matchesQuery;
+    });
+  }, [featured, recent, rest, category, normalizedQuery, isSearching]);
 
   const visible = gridPosts.slice(0, visibleCount);
   const hasMore = visible.length < gridPosts.length;
