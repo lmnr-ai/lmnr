@@ -14,8 +14,8 @@ interface Props {
   className?: string;
 }
 
-const TRACE_ID = "3603700e-d02b-0c39-0f34-cfd20842c5ae";
-const INITIAL_SPAN_ID = "00000000-0000-0000-474f-b096d3055674";
+const TRACE_ID = "62db18aa-daac-1757-932c-7befa874db79";
+const INITIAL_SPAN_ID = "00000000-0000-0000-c8fd-9348cd43d04a";
 
 const DESKTOP_QUERY = "(min-width: 768px)";
 

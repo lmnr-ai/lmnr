@@ -88,10 +88,8 @@ const SignalsSection = ({ className }: Props) => {
   return (
     <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8", className)}>
       <div className="flex flex-col gap-1 items-start w-full">
-        <h2 className={subsectionTitle}>Signals answer any question, from any trace, at scale</h2>
-        <p className={bodyLarge}>
-          Describe a Signal you&apos;re looking for, Laminar extracts it from past and future traces.
-        </p>
+        <h2 className={subsectionTitle}>One million agent runs, what went wrong?</h2>
+        <p className={bodyLarge}>Signals answer any question about your agents at scale </p>
       </div>
 
       <div className={cn("flex flex-col items-center w-full", "md:gap-8 gap-4")}>

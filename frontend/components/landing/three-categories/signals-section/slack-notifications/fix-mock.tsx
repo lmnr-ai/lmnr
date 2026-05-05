@@ -23,7 +23,7 @@ const LINES: Line[] = [
 ];
 
 const FixMock = ({ className, progress }: Props) => {
-  const opacity = useTransform(progress, [0, 0.4], [0.6, 1], { clamp: true });
+  const opacity = useTransform(progress, [0, 0.4], [0.2, 1], { clamp: true });
   const x = useTransform(progress, [0, 0.4], [80, 0], { clamp: true });
 
   return (

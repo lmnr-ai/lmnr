@@ -11,11 +11,11 @@ interface Props {
 }
 
 const SlackAlertMock = ({ className, progress }: Props) => {
-  const opacity = useTransform(progress, [0, 0.4], [0.6, 1], { clamp: true });
+  const opacity = useTransform(progress, [0, 0.4], [0.2, 1], { clamp: true });
   const x = useTransform(progress, [0, 0.4], [80, 0], { clamp: true });
 
   return (
-    <div className="w-full h-full flex flex-col items-start gap-6 justify-center">
+    <motion.div className="w-full h-full flex flex-col items-start gap-6 justify-center" style={{ opacity }}>
       <div className="w-full flex items-center justify-center gap-3">
         <div className="size-14 rounded-lg bg-landing-surface-600 border border-landing-surface-500 flex items-center justify-center shadow-lg">
           <Image src={slackLogo} alt="Slack" width={80} height={80} className="opacity-70" />
@@ -25,7 +25,7 @@ const SlackAlertMock = ({ className, progress }: Props) => {
         </div>
       </div>
       <motion.div
-        style={{ opacity, x }}
+        style={{ x }}
         className={cn(
           "flex gap-3 items-start overflow-hidden rounded border border-landing-surface-500 px-4 py-3 bg-landing-surface-600",
           "w-[600px]",
@@ -89,7 +89,7 @@ const SlackAlertMock = ({ className, progress }: Props) => {
           </div>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -52,9 +52,8 @@ const SpanPill = ({ label }: { label: string }) => (
   </span>
 );
 
-const GetContextMock = ({ className, progress: rawProgress }: Props) => {
+const GetContextMock = ({ className, progress }: Props) => {
   // Phase A: shrink description (gap, padding) over progress 0 -> 0.5.
-  const progress = useTransform(rawProgress, [0.3, 0.5], [0, 1], { clamp: true });
   const phaseA = useTransform(progress, [0, 0.5], [0, 1], { clamp: true });
   // Signal events card content / styling (header, tabs, buttons, category, card+desc bg/border, error color).
   // Finishes ahead of the screenshot so the card is fully formed before the trace fully fades in.
@@ -95,6 +94,8 @@ const GetContextMock = ({ className, progress: rawProgress }: Props) => {
   // Whole mock scales up from the left edge during the back half of the section.
   const wrapperScale = useTransform(progress, [0, 1], [1.1, 0.6], { clamp: true });
   const wrapperY = useTransform(progress, [0, 1], [-96, 0], { clamp: true });
+  // Hold the whole mock at 20% until its animation starts, then fade to full.
+  const wrapperOpacity = useTransform(progress, [0, 0.1], [0.2, 1], { clamp: true });
 
   // Track how many atoms are currently visible so we can render only those (the rest stay hidden).
   // Using a state synced from the motion value keeps re-renders coarse (one re-render per word).
@@ -109,7 +110,7 @@ const GetContextMock = ({ className, progress: rawProgress }: Props) => {
 
   return (
     <motion.div
-      style={{ scale: wrapperScale, transformOrigin: "left center", y: wrapperY }}
+      style={{ scale: wrapperScale, transformOrigin: "left center", y: wrapperY, opacity: wrapperOpacity }}
       className={cn("relative", className)}
     >
       <motion.div

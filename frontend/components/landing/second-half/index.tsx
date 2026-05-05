@@ -121,8 +121,8 @@ const SecondHalf = ({ className }: Props) => {
                 )}
               >
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  <span className="font-medium text-primary-foreground">HIPAA</span> compliant,{" "}
-                  <span className="font-medium text-primary-foreground">SOC2 Type 2</span> (in observation)
+                  <span className="font-medium text-primary-foreground">HIPAA</span>,{" "}
+                  <span className="font-medium text-primary-foreground">SOC2 Type 2</span> compliant
                 </p>
               </div>
             </div>

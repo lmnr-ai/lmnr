@@ -84,16 +84,42 @@ const ThreeCategories = ({ className }: Props) => (
               <h2 className={subsectionTitle}>Platform-wide SQL</h2>
               <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                    Query with{" "}
+                    <a
+                      href="https://laminar.sh/docs"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-1 underline-offset-4 hover:text-landing-text-100"
+                    >
+                      API
+                    </a>
+                    ,{" "}
+                    <a
+                      href="https://laminar.sh/docs/platform/mcp"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-1 underline-offset-4 hover:text-landing-text-100"
+                    >
+                      MCP
+                    </a>
+                    ,{" "}
+                    <a
+                      href="https://laminar.sh/docs/platform/cli"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-1 underline-offset-4 hover:text-landing-text-100"
+                    >
+                      CLI
+                    </a>
+                  </p>
+                </div>
+                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Query all platform data with SQL</p>
                 </div>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
                     Feed your Evals with Datasets straight from SQL queries
-                  </p>
-                </div>
-                <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                  <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                    SQL API to pull data into your application
                   </p>
                 </div>
               </div>

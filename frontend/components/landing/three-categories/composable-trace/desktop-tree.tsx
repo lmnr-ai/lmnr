@@ -30,7 +30,7 @@ const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
   const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${traceId}/spans`, swrFetcher);
 
   return (
-    <div ref={ref} className={cn("h-[1600px] w-full", className)}>
+    <div ref={ref} className={cn("h-[1800px] w-full", className)}>
       <div className="sticky top-[calc(50%-470px)] flex flex-col gap-[54px] items-start w-full">
         <div className="flex flex-col gap-1 items-start w-full">
           <motion.div className="w-full" style={{ height: bufferHeight }} />

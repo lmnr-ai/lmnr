@@ -1,10 +1,23 @@
 "use client";
 
-import { motion, type MotionValue, type Transition, useMotionValueEvent, type Variants } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  type MotionValue,
+  type Transition,
+  useMotionValueEvent,
+  type Variants,
+} from "framer-motion";
 import { ArrowRight, Bolt, Bot, CirclePlay, type LucideIcon, MessageCircle } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import Image, { type StaticImageData } from "next/image";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import browserUseLogo from "@/assets/landing/logos/browser-use.svg";
+import browserbaseLogo from "@/assets/landing/logos/browserbase.svg";
+import kernelLogo from "@/assets/landing/logos/kernel.svg";
+import playwrightLogo from "@/assets/landing/logos/playwright.svg";
+import stagehandLogo from "@/assets/landing/logos/stagehand.svg";
 import Header from "@/components/shared/traces/header";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
@@ -45,10 +58,11 @@ const DIMMED_COLOR = "#92949c";
 // stage centers so a halfway-scrolled position resolves to one stage or the
 // other rather than rendering a partially-animated frame.
 const computeStage = (p: number): StageVariant => {
-  if (p < 0.15) return "timeline";
-  if (p < 0.35) return "transcript";
-  if (p < 0.55) return "span";
-  if (p < 0.75) return "ai";
+  if (p < 0.13) return "timeline";
+  if (p < 0.3) return "transcript";
+  if (p < 0.47) return "recording";
+  if (p < 0.63) return "span";
+  if (p < 0.78) return "ai";
   return "full";
 };
 
@@ -68,6 +82,7 @@ const withTween = (target: Record<string, unknown>) => ({ ...target, transition:
 const bentoVariants: Variants = {
   timeline: withTween({ x: "45%" }),
   transcript: withTween({ x: "45%" }),
+  recording: withTween({ x: "45%" }),
   span: withTween({ x: "20%" }),
   ai: withTween({ x: "-5%" }),
   full: withTween({ x: 0 }),
@@ -76,6 +91,7 @@ const bentoVariants: Variants = {
 const textPanelVariants: Variants = {
   timeline: withTween({ x: 0 }),
   transcript: withTween({ x: 0 }),
+  recording: withTween({ x: 0 }),
   span: withTween({ x: 0 }),
   ai: withTween({ x: 0 }),
   full: withTween({ x: -TEXT_PANEL_WIDTH }),
@@ -87,6 +103,7 @@ const titleVariantsFor = (active: StageVariant): Variants =>
 
 const TIMELINE_TITLE_VARIANTS = titleVariantsFor("timeline");
 const TRANSCRIPT_TITLE_VARIANTS = titleVariantsFor("transcript");
+const RECORDING_TITLE_VARIANTS = titleVariantsFor("recording");
 const SPAN_TITLE_VARIANTS = titleVariantsFor("span");
 const AI_TITLE_VARIANTS = titleVariantsFor("ai");
 
@@ -101,6 +118,7 @@ const subtitleVariantsFor = (active: StageVariant): Variants =>
 
 const TIMELINE_SUBTITLE_VARIANTS = subtitleVariantsFor("timeline");
 const TRANSCRIPT_SUBTITLE_VARIANTS = subtitleVariantsFor("transcript");
+const RECORDING_SUBTITLE_VARIANTS = subtitleVariantsFor("recording");
 const SPAN_SUBTITLE_VARIANTS = subtitleVariantsFor("span");
 const AI_SUBTITLE_VARIANTS = subtitleVariantsFor("ai");
 
@@ -133,12 +151,17 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
   );
 
   const [stage, setStage] = useState<StageVariant>(() => computeStage(progress.get()));
+  const stageRef = useRef<StageVariant>(stage);
 
+  // Sync the session player to the scroll-driven stage on transitions only.
+  // Between transitions the user can freely toggle Media without scroll fighting them.
+  // The ref avoids putting a side effect inside a setState updater.
   useMotionValueEvent(progress, "change", (latest) => {
-    setStage((prev) => {
-      const next = computeStage(latest);
-      return prev === next ? prev : next;
-    });
+    const next = computeStage(latest);
+    if (next === stageRef.current) return;
+    stageRef.current = next;
+    setStage(next);
+    setBrowserSession(next === "recording");
   });
 
   useEffect(() => {
@@ -149,7 +172,6 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
     setSelectedSpan({ ...target, collapsed: false });
     if (trace.hasBrowserSession) {
       setHasBrowserSession(true);
-      setBrowserSession(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
@@ -185,7 +207,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
             </TraceSection>
 
             <TraceSection
-              activeIn={["transcript", "full"]}
+              activeIn={["transcript", "recording", "full"]}
               connectedIn={CONNECTED_STAGES}
               keepCorners={{ bl: true }}
               offsetX={-18}
@@ -201,13 +223,15 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
-                        className={cn("h-6 px-1.5 text-xs", { "border-primary text-primary": browserSession })}
+                        disabled={!trace}
+                        className={cn("h-6 px-1.5 text-xs overflow-hidden", {
+                          "border-primary text-primary": browserSession,
+                        })}
                         variant="outline"
                         onClick={() => setBrowserSession(!browserSession)}
-                        disabled={!hasBrowserSession}
                       >
-                        <CirclePlay size={14} className="mr-1" />
-                        Media
+                        <CirclePlay size={14} className="flex-shrink-0" />
+                        <span className="ml-1 truncate">Media</span>
                       </Button>
                     </div>
                   </div>
@@ -219,16 +243,29 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                     <Transcript onSpanSelect={handleSpanSelect} isShared />
                   )}
                 </div>
-                {browserSession && trace && (
-                  <div className="border-t shrink-0 h-[180px]">
-                    <SessionPlayer
-                      onClose={() => setBrowserSession(false)}
-                      hasBrowserSession={hasBrowserSession}
-                      traceId={trace.id}
-                      llmSpanIds={llmSpanIds}
-                    />
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {browserSession && trace && (
+                    <motion.div
+                      key="session-player"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 280, opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ type: "tween", duration: 0.25, ease: "easeInOut" }}
+                      className="border-t shrink-0 overflow-hidden"
+                    >
+                      {/* Inner fixed-height wrapper keeps SessionPlayer (rrweb) from
+                          re-laying out on every animated frame. */}
+                      <div className="h-[280px]">
+                        <SessionPlayer
+                          onClose={() => setBrowserSession(false)}
+                          hasBrowserSession={hasBrowserSession}
+                          traceId={trace.id}
+                          llmSpanIds={llmSpanIds}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </TraceSection>
           </div>
@@ -327,6 +364,40 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
         <div
           className={cn(
             "flex flex-col relative transition-[padding] duration-200 ease-in-out",
+            stage === "recording" ? "py-6" : "py-0"
+          )}
+        >
+          <motion.p variants={RECORDING_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
+            Browser screen recording
+          </motion.p>
+          <motion.div variants={RECORDING_SUBTITLE_VARIANTS} className="overflow-hidden">
+            <div className="pt-4 flex flex-col gap-4">
+              <p className={cn("text-landing-text-300", bodySQL)}>Session replay for browser agents.</p>
+              <ul className="flex flex-col gap-1">
+                <IntegrationItem logoSrc={browserUseLogo} alt="Browser Use">
+                  Browser Use
+                </IntegrationItem>
+                <IntegrationItem logoSrc={stagehandLogo} alt="Stagehand">
+                  Stagehand
+                </IntegrationItem>
+                <IntegrationItem logoSrc={playwrightLogo} alt="Playwright">
+                  Playwright
+                </IntegrationItem>
+                <IntegrationItem logoSrc={kernelLogo} alt="Kernel">
+                  Kernel
+                </IntegrationItem>
+                <IntegrationItem logoSrc={browserbaseLogo} alt="Browserbase">
+                  Browserbase
+                </IntegrationItem>
+              </ul>
+              <DocsButton href="https://laminar.sh/docs/tracing/browser-agent-observability" label="More" />
+            </div>
+          </motion.div>
+        </div>
+
+        <div
+          className={cn(
+            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
             stage === "span" ? "py-6" : "py-0"
           )}
         >
@@ -396,6 +467,25 @@ const IconItem = ({
     <span className={cn("size-5 rounded flex items-center justify-center shrink-0", className)}>
       <Icon className="size-4 text-white" />
     </span>
+    {children}
+  </li>
+);
+
+const IntegrationItem = ({
+  logoSrc,
+  alt,
+  children,
+}: {
+  logoSrc?: StaticImageData;
+  alt?: string;
+  children: ReactNode;
+}) => (
+  <li className={cn("flex items-center gap-3 text-landing-text-300", bodySQL)}>
+    {logoSrc ? (
+      <Image src={logoSrc} alt={alt ?? ""} width={20} height={20} className="size-5 object-contain shrink-0" />
+    ) : (
+      <span className="size-5 rounded shrink-0 bg-landing-surface-400" />
+    )}
     {children}
   </li>
 );

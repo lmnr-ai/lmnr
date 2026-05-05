@@ -1,6 +1,6 @@
 "use client";
 
-import { useScroll } from "framer-motion";
+import { useScroll, useTransform } from "framer-motion";
 import { type ReactNode, type Ref, useRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -70,32 +70,25 @@ const StepCard = ({ number, label, subtitle, className, children, ref }: StepCar
 );
 
 const SlackNotifications = ({ className }: Props) => {
-  const slackRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: slackProgress } = useScroll({
-    target: slackRef,
+  // Single global scroll across the whole signals section, then stagger each
+  // mock's local 0->1 progress over a different slice of it.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress: globalProgress } = useScroll({
+    target: sectionRef,
     offset: ["start end", "end start"],
   });
 
-  const getContextRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: getContextProgress } = useScroll({
-    target: getContextRef,
-    offset: ["start end", "end start"],
-  });
-
-  const fixRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: fixProgress } = useScroll({
-    target: fixRef,
-    offset: ["start end", "end start"],
-  });
+  const slackProgress = useTransform(globalProgress, [0.3, 0.45], [0, 1], { clamp: true });
+  const getContextProgress = useTransform(globalProgress, [0.38, 0.58], [0, 1], { clamp: true });
+  const fixProgress = useTransform(globalProgress, [0.52, 0.68], [0, 1], { clamp: true });
 
   return (
-    <div className={cn("flex w-full", "md:flex-row md:gap-2", "flex-col gap-5", className)}>
+    <div ref={sectionRef} className={cn("flex w-full", "md:flex-row md:gap-2", "flex-col gap-5", className)}>
       <StepCard
         number={1}
         label="Receive alerts"
         subtitle="Slack and email alerts about critical issues and weekly summaries of your Signal events."
         className="md:h-[540px]"
-        ref={slackRef}
       >
         <SlackAlertMock progress={slackProgress} />
       </StepCard>
@@ -104,7 +97,6 @@ const SlackNotifications = ({ className }: Props) => {
         label="Get context"
         subtitle="See when, why, and how things went wrong. Quickly dive into related traces."
         className="md:h-[540px]"
-        ref={getContextRef}
       >
         <GetContextMock progress={getContextProgress} />
       </StepCard>
@@ -113,7 +105,6 @@ const SlackNotifications = ({ className }: Props) => {
         label="Fix with confidence"
         subtitle="Ship a fix based on the full picture, not a guess."
         className="md:h-[540px]"
-        ref={fixRef}
       >
         <FixMock progress={fixProgress} />
       </StepCard>
