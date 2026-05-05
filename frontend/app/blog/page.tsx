@@ -23,11 +23,11 @@ export const metadata: Metadata = {
 
 export default async function BlogsPage() {
   const posts = await getBlogPosts({ sortByDate: true, category: "blog" });
-  const categories = deriveCategoriesFromPosts(posts);
 
   const [featured, ...afterFeatured] = posts;
   const recent = afterFeatured.slice(0, 3);
   const rest = afterFeatured.slice(3);
+  const categories = deriveCategoriesFromPosts(rest);
 
   return (
     <>
