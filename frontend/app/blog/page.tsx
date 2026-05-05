@@ -26,7 +26,7 @@ export default async function BlogsPage() {
   const [featured, ...afterFeatured] = posts;
   const recent = afterFeatured.slice(0, 3);
   const rest = afterFeatured.slice(3);
-  const categories = deriveCategoriesFromPosts(rest);
+  const categories = deriveCategoriesFromPosts(posts);
 
   return (
     <>

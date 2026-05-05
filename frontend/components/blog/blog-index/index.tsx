@@ -22,10 +22,11 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
 
   const categoryOf = (post: BlogListItem) => (post.tags?.[0] ?? "").toLowerCase();
 
-  const filteredRest = useMemo(() => {
-    if (category === "all") return rest;
-    return rest.filter((p) => categoryOf(p) === category);
-  }, [rest, category]);
+  const matchesCategory = (post: BlogListItem) => category === "all" || categoryOf(post) === category;
+
+  const visibleFeatured = featured && matchesCategory(featured) ? featured : undefined;
+  const filteredRecent = useMemo(() => recent.filter(matchesCategory), [recent, category]);
+  const filteredRest = useMemo(() => rest.filter(matchesCategory), [rest, category]);
 
   const visible = filteredRest.slice(0, visibleCount);
   const hasMore = visible.length < filteredRest.length;
@@ -37,19 +38,24 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
 
   return (
     <>
-      {featured && (
+      {visibleFeatured && (
         <section className="pt-8 pb-16 md:pb-24">
           <div className="max-w-6xl mx-auto px-4">
-            <BlogCard post={featured} variant="featured" routePrefix={routePrefix} category={categoryOf(featured)} />
+            <BlogCard
+              post={visibleFeatured}
+              variant="featured"
+              routePrefix={routePrefix}
+              category={categoryOf(visibleFeatured)}
+            />
           </div>
         </section>
       )}
 
-      {recent.length > 0 && (
+      {filteredRecent.length > 0 && (
         <section className="pb-16 md:pb-24">
           <div className="max-w-6xl mx-auto px-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {recent.map((post) => (
+              {filteredRecent.map((post) => (
                 <BlogCard
                   key={post.slug}
                   post={post}
