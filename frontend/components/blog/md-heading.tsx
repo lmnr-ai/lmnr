@@ -1,5 +1,6 @@
 import { Link2 } from "lucide-react";
 import Link from "next/link";
+import { Children, isValidElement, type ReactNode } from "react";
 
 import { headingToUrl } from "@/lib/blog/utils";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,19 @@ interface MDHeadingProps {
   props: any;
   level: number;
 }
+
+const childrenToText = (children: ReactNode): string => {
+  let text = "";
+  Children.forEach(children, (child) => {
+    if (child == null || typeof child === "boolean") return;
+    if (typeof child === "string" || typeof child === "number") {
+      text += String(child);
+    } else if (isValidElement(child)) {
+      text += childrenToText((child.props as { children?: ReactNode }).children);
+    }
+  });
+  return text;
+};
 
 const levelToClassName = (level: number) => {
   switch (level) {
@@ -40,7 +54,7 @@ const HeadingTag = ({ level, ...rest }: { level: number } & React.HTMLAttributes
 };
 
 export default function MDHeading({ props, level }: MDHeadingProps) {
-  const id = headingToUrl(String(props.children));
+  const id = headingToUrl(childrenToText(props.children));
   return (
     <HeadingTag level={level} id={id} className={cn("group relative flex items-center gap-2", levelToClassName(level))}>
       <span>{props.children}</span>
