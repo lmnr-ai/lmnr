@@ -10,8 +10,8 @@ export default function PostMetadataRail({ headings, className }: PostMetadataRa
   if (headings.length === 0) return null;
 
   return (
-    <aside className={cn("flex flex-col text-sm", className)}>
+    <div className={cn("flex flex-col text-sm", className)}>
       <OnThisPage headings={headings} />
-    </aside>
+    </div>
   );
 }
