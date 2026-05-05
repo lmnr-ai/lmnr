@@ -18,12 +18,13 @@ export async function GET() {
   const items = posts
     .map((post) => {
       const url = `${BASE_URL}/blog/${post.slug}`;
+      const escapedUrl = escapeXml(url);
       const pubDate = new Date(post.data.date).toUTCString();
       const desc = post.data.description ?? "";
       return `    <item>
       <title>${escapeXml(post.data.title)}</title>
-      <link>${url}</link>
-      <guid isPermaLink="true">${url}</guid>
+      <link>${escapedUrl}</link>
+      <guid isPermaLink="true">${escapedUrl}</guid>
       <pubDate>${pubDate}</pubDate>
       <description>${escapeXml(desc)}</description>
       <author>${escapeXml(post.data.author.name)}</author>
