@@ -33,7 +33,7 @@ export default function BlogIndex({ featured, recent, rest, categories, routePre
 
   const isSearching = normalizedQuery !== "";
 
-  const visibleFeatured = !isSearching && featured && matchesCategory(featured) ? featured : undefined;
+  const visibleFeatured = !isSearching && featured ? featured : undefined;
 
   const gridPosts = useMemo(() => {
     if (!isSearching && category === "all") return [...recent, ...rest];
