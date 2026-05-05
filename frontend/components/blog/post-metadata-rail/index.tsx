@@ -60,13 +60,7 @@ export default function PostMetadataRail({
         </section>
       )}
 
-      <section className="py-5 border-b border-landing-surface-500 flex flex-col gap-3">
-        <Link
-          href="/sign-up"
-          className="inline-flex items-center justify-center rounded-sm bg-landing-primary-400 px-4 py-2 text-sm font-medium text-white border border-white/40 transition-colors hover:bg-landing-primary-300"
-        >
-          Try Laminar for free
-        </Link>
+      <section className="py-5 border-b border-landing-surface-500">
         <Link href={`/${routePrefix}`} className="text-sm text-landing-text-300 hover:text-landing-text-100">
           More articles →
         </Link>

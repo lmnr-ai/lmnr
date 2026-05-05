@@ -5,7 +5,7 @@ import { formatCategoryLabel } from "@/lib/blog/format";
 import { type BlogListItem } from "@/lib/blog/types";
 import { cn, formatUTCDate } from "@/lib/utils";
 
-type Variant = "featured" | "default" | "compact";
+type Variant = "featured" | "default" | "compact" | "minimal";
 
 interface BlogCardProps {
   post: BlogListItem;
@@ -29,6 +29,37 @@ export default function BlogCard({
   const href = `/${routePrefix}/${post.slug}`;
   const categoryLabel = formatCategoryLabel(category ?? post.tags?.[0]);
   const formattedDate = formatUTCDate(post.data.date);
+
+  if (variant === "minimal") {
+    return (
+      <Link href={href} className={cn("group flex flex-col gap-4 no-underline", className)}>
+        {post.data.image ? (
+          <div className="relative w-full aspect-[3/2] overflow-hidden rounded-lg bg-landing-surface-600">
+            <Image
+              src={post.data.image}
+              alt={post.data.title}
+              fill
+              sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+              className="object-cover transition-opacity duration-200 group-hover:opacity-90"
+            />
+          </div>
+        ) : (
+          <div className="w-full aspect-[3/2] rounded-lg bg-landing-surface-600" />
+        )}
+        <div className="flex flex-col gap-2">
+          <CategoryBadge label={categoryLabel} />
+          <h3 className="font-space-grotesk text-lg md:text-xl tracking-tight text-landing-text-100 transition-colors group-hover:text-primary">
+            {post.data.title}
+          </h3>
+          <div className="flex items-center gap-2 text-xs text-landing-text-400">
+            <span className="truncate">{post.data.author.name}</span>
+            <span aria-hidden>·</span>
+            <time dateTime={post.data.date}>{formattedDate}</time>
+          </div>
+        </div>
+      </Link>
+    );
+  }
 
   if (variant === "compact") {
     return (
@@ -59,35 +90,26 @@ export default function BlogCard({
 
   if (variant === "featured") {
     return (
-      <Link
-        href={href}
-        className={cn(
-          "group flex flex-col overflow-hidden rounded-xl border border-landing-surface-500 bg-landing-surface-700 no-underline",
-          "md:flex-row",
-          className
-        )}
-      >
+      <Link href={href} className={cn("group grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-10 no-underline", className)}>
         {post.data.image && (
-          <div className="relative w-full md:w-1/2 aspect-[3/2] overflow-hidden bg-landing-surface-600">
+          <div className="relative w-full aspect-[3/2] overflow-hidden rounded-xl bg-landing-surface-600">
             <Image
               src={post.data.image}
               alt={post.data.title}
               fill
               sizes="(min-width: 768px) 50vw, 100vw"
-              className="object-cover transition-opacity duration-200 group-hover:opacity-95"
+              className="object-cover transition-opacity duration-200 group-hover:opacity-90"
               priority
             />
           </div>
         )}
-        <div className="flex flex-1 flex-col justify-center gap-4 p-6 md:p-10">
+        <div className="flex flex-col justify-center gap-4">
           <CategoryBadge label={categoryLabel} />
-          <h2 className="font-space-grotesk text-2xl md:text-3xl tracking-tight text-landing-text-100 transition-colors group-hover:text-primary">
+          <h2 className="font-space-grotesk text-3xl md:text-4xl leading-tight tracking-tight text-landing-text-100 transition-colors group-hover:text-primary">
             {post.data.title}
           </h2>
           {post.data.description && (
-            <p className="text-sm md:text-base text-landing-text-300 leading-relaxed line-clamp-3">
-              {post.data.description}
-            </p>
+            <p className="text-base text-landing-text-300 leading-relaxed line-clamp-3">{post.data.description}</p>
           )}
           <div className="flex items-center gap-2 text-xs text-landing-text-400">
             <span>{post.data.author.name}</span>
