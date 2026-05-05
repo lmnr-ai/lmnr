@@ -131,7 +131,11 @@ const stripInlineMarkdown = (text: string): string =>
   text
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/`([^`]*)`/g, "$1");
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/(?<!\w)__(.+?)__(?!\w)/g, "$1")
+    .replace(/(?<!\w)_(.+?)_(?!\w)/g, "$1");
 
 export const parseHeadings = (content: string) => {
   const sansCodeBlocks = content.replace(/```[\s\S]*?```/g, "");
