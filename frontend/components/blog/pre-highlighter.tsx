@@ -15,10 +15,14 @@ export default function PreHighlighter({ children, className }: PreHighlighterPr
     return null;
   }
   const code = (children.props as any).children;
-  const language = (children.props as any).className
-    .split(" ")
-    .find((c: string) => c.startsWith("language-"))
-    ?.split("-")[1];
+  const classNameProp = (children.props as any).className;
+  const language =
+    typeof classNameProp === "string"
+      ? classNameProp
+          .split(" ")
+          .find((c: string) => c.startsWith("language-"))
+          ?.split("-")[1]
+      : undefined;
   return (
     <CodeHighlighter
       code={code}
