@@ -127,6 +127,12 @@ export const headingToUrl = (heading: string) =>
     .replace(/[^a-zA-Z0-9-]/g, "")
     .toLowerCase();
 
+const stripInlineMarkdown = (text: string): string =>
+  text
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1");
+
 export const parseHeadings = (content: string) => {
   const tagHeadings = content.match(/(<h\d>)(.*)<\/h\d>/gm);
   const mdHeadings = content.match(/^ *(#{1,4}) (.*)$/gm);
@@ -135,11 +141,12 @@ export const parseHeadings = (content: string) => {
     .map((heading) => {
       const trimmed = heading.trim();
       const level = trimmed.match(/^ *(#{1,4}) /)?.[1].length ?? parseInt(trimmed.match(/^<h(\d)>/)?.[1] ?? "0") ?? 0;
-      const text = trimmed
+      const rawText = trimmed
         .replace(/^ *#{1,4} /, "")
         .replace(/<h\d>/, "")
         .replace(/<\/h\d>/, "")
         .trim();
+      const text = stripInlineMarkdown(rawText);
       return { level: level - 1, text, anchor: headingToUrl(text) };
     })
     .filter((heading) => heading.text !== "" && heading.level >= 0);
