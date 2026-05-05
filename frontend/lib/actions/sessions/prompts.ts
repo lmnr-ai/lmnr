@@ -4,124 +4,125 @@ import { z } from "zod";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
+import { buildUserMessage, computeLayoutHints } from "./layout-hints";
+import { captureLeaksWrapperTag, isStaticallyValid, patternBOnTrailingTag } from "./regex-guardrails";
+
 const SYSTEM_PROMPT = `<role>
-You write re2 regexes that strip scaffolding wrappers from AI agent conversation messages, leaving the instruction the agent was asked to act on. Agent harnesses wrap each turn's real instruction in XML-like tags (e.g. <system-reminder>, <context>, <env>, <tool_list>, <user-prompt-submit-hook>, <skills>, <reminder>, <metadata>, <session>, or similar). Remove the wrapper; keep everything else. The instruction's source (human, bot comment, PR body, parent agent, ticket) is irrelevant — if it is not the wrapper, it is the instruction.
+You write re2 regexes that strip scaffolding wrappers from a single AI agent
+input message, leaving the instruction the agent was asked to act on. Agent
+harnesses wrap the real instruction in XML-like tags (e.g. <system-reminder>,
+<context>, <env>, <tool_list>, <user-prompt-submit-hook>, <skills>,
+<reminder>, <metadata>, <session>, <EXTRA_INFO>, <issue_description>,
+<research_findings>, <user_request>, <USER_QUERY>, <signal_description>,
+or any similar tag a harness might invent). Remove the wrapper; keep the
+instruction.
 </role>
 
-<core_principle>
-DEFAULT IS PASSTHROUGH. You need POSITIVE evidence (a real harness wrapper tag) before choosing any non-passthrough pattern. When in any doubt, output (?s)(.*). Do NOT judge content by tone or imperative language — "Address this PR comment…" or "Your task is to fix X" IS the instruction, not scaffolding.
-</core_principle>
+<how_to_decide>
+You will be given the input text AND a <layout_hints> block computed from it.
+The hints tell you observable structural facts: which tag names appear, which
+balanced tag wraps the message, where prose sits relative to the tags. USE
+THE HINTS. They are not optional context; they are the basis of your decision.
 
-<decision_procedure>
-Follow these steps IN ORDER. Reveal only the final regex.
+Map the hints to ONE of these five outputs. Pick the one that fits — do not
+fall through to passthrough unless the hints say no wrapper is present.
 
-Step 1 — List every XML/HTML-like tag in the input.
+  A) WRAPPED — instruction lives INSIDE a request-shaped tag.
+     Hints: balanced tag whose name is request-shaped (user_request, task,
+     query, user_query, USER_QUERY, user_instructions, signal_description,
+     or similar — names that read like "this contains the request").
+     Output: (?s)<TAG>\\s*(.*?)\\s*</TAG>
 
-Step 2 — Classify each as HARNESS WRAPPER or CONTENT.
-  HARNESS WRAPPER (may anchor on these):
-    - Names: system-reminder, system_reminder, context, env, environment, tool, tools, tool_list, instructions, user-prompt-submit-hook, compaction, skill, skills, reminder, metadata, session, and close relatives.
-    - Wrap a structured, self-contained system-injected block (banners, tool/skill manifests, date stamps, permission notices).
-    - Sit at the top or bottom of the message, not mid-paragraph.
-  CONTENT (NEVER anchor on these, even if they repeat):
-    - HTML/markdown rendering tags: h1-h6, p, br, hr, a, div, span, strong, em, b, i, u, code, pre, blockquote, sub, sup, details, summary, table, thead, tbody, tr, td, th, img, ul, ol, li, dl, dt, dd, figure, figcaption.
-    - HTML/XML comments ("<!-- ... -->", "<!-- DESCRIPTION START -->", "<!-- LOCATIONS END -->", etc.). They are not tags at all — treat them as prose. NEVER anchor on a comment marker.
-    - Any tag inside a bot comment / PR review / issue body / markdown body.
-  If the input has "== SCAFFOLDING PARTS ==" / "== USER REQUEST ==" signposts: the anchor tag MUST appear inside SCAFFOLDING PARTS. A tag that only appears in USER REQUEST is payload — discard it. The "== ... ==" headers are stripped before the regex runs, so never reference them.
+  B) LEADING — scaffolding wrapper at the top, instruction is the prose
+     after the LAST closing tag.
+     Hints: input STARTS with <TAG>, AND there is non-trivial prose after
+     the last </TAG> in the input.
+     Output: (?s).*</TAG>\\s*(.*)
+     The leading ".*" is mandatory — it is greedy and forces the engine
+     to skip every earlier </TAG> and anchor on the last one.
 
-Step 3 — If zero HARNESS WRAPPER tags survive → (?s)(.*). Stop. Do NOT fall back to an <h3> or similar content tag.
+  C) NO_USER_REQUEST — entire input is scaffolding, no instruction present.
+     Hints: input STARTS with <TAG> AND </TAG> is the last non-whitespace
+     content (nothing meaningful after it). Or: input is a JSON schema /
+     format spec only.
+     Output: (?s)()
 
-Step 4 — Determine WHERE the scaffolding sits. Pick anchor tag T (a wrapper common to every sample). Classify the layout:
-  - LEADING_SCAFFOLDING:  sample starts with <T>; prose follows the LAST </T>.        → Pattern B
-  - TRAILING_SCAFFOLDING: sample starts with prose; the first <T> comes later.         → Pattern D
-  - WRAPPED:              instruction sits inside a request-like tag (<user_request>, <task>, <query>, …) present in every sample. → Pattern A
-  - ALL_SCAFFOLDING:      entire sample is balanced wrapper tags, whitespace only outside. → Pattern C
-  - MIXED / UNCLEAR:      scaffolding on BOTH sides, OR layout differs across samples, OR unclear. → PASSTHROUGH
+  D) TRAILING — instruction is prose at the top, scaffolding tag follows.
+     Hints: input does NOT start with a tag, AND there is meaningful prose
+     before the FIRST occurrence of the tag.
+     Output: (?s)^(.*?)<TAG>
+     The "^" pins to the start; lazy "(.*?)" stops at the first <TAG>.
+     Use the FIRST opening tag — even if the wrapper is unclosed, this
+     still strips correctly.
 
-  CRITICAL: if the sample starts with "<T>" (position 0), layout is LEADING → Pattern B, NEVER Pattern D. Pattern D on starts-with-tag returns an empty capture.
+  E) PASSTHROUGH — only when no wrapper is detectable.
+     Hints: no balanced harness wrapper, no leading wrapper, no trailing
+     wrapper. The input is conversational prose, a bot comment, an issue
+     body, or markdown rendered with HTML tags only (h1-h6, p, br, hr, a,
+     div, span, strong, em, b, i, u, code, pre, blockquote, sub, sup,
+     details, summary, table, img, ul, ol, li — these are CONTENT tags,
+     never anchors).
+     Output: (?s)(.*)
+</how_to_decide>
 
-Step 5 — Sanity-check: mentally run your regex. The capture MUST contain the instruction prose.
-  - Empty or missing prose → wrong pattern. Most common: picked D on leading scaffolding. Switch to B.
-  - Capture drops meaningful content (e.g. everything after an <h3> inside a PR body) → your anchor is a content tag. Back to Step 2.
-  - Regex contains "<!--" or "-->" → you anchored on a comment marker. Reset to (?s)(.*).
-</decision_procedure>
+<commit_to_a_choice>
+The hints make the choice mechanical. Run through A→B→C→D→E in order
+against the hints and stop at the first match. Do not deliberate beyond
+that. Passthrough is for the genuinely tagless case at the bottom of the
+list, not for "when in doubt."
 
-<failure_modes description="concrete wrong answers; do not repeat">
-- Anchoring on <h3>, <details>, <table>, <p>, <div>, <a>, <img>, etc. inside a PR-bot / issue / markdown body. Always content.
-- Anchoring on an HTML comment marker like "<!-- DESCRIPTION END -->" or "<!-- LOCATIONS START -->". These are metadata inside a bot-generated body, not scaffolding. If comments are the only repeating markers across samples, the answer is (?s)(.*).
-- Picking Pattern D because a tag happens to appear. D is only valid when the tag is a HARNESS WRAPPER in the scaffolding region.
-- Picking Pattern D on LEADING scaffolding. Example: "<system-reminder>…</system-reminder>\\nGood first draft. Now a couple of notes…" — starts with the tag, so D captures empty. Correct: Pattern B "(?s).*</system-reminder>\\s*(.*)". Rule: input begins with the opening anchor tag ⇒ never Pattern D.
-</failure_modes>
+If the hints say "starts_with_wrapper_tag: foo, ends_with_closing_tag: foo,
+non_whitespace_after_last_close: 0" — that is C. Output (?s)().
 
-<patterns>
-  <pattern id="A" name="Inside a request-like tag">
-    <template>(?s)<tag>\\s*(.*?)\\s*</tag></template>
-  </pattern>
+If the hints say "starts_with_wrapper_tag: foo, non_whitespace_after_last_close: 142" —
+that is B. Output (?s).*</foo>\\s*(.*).
 
-  <pattern id="B" name="After leading scaffolding">
-    Scaffolding tags appear at the top; instruction is the plain text AFTER the LAST closing tag.
-    <template>(?s).*</tag>\\s*(.*)</template>
-    <entry_condition>Correct whenever the sample STARTS with the opening wrapper tag, regardless of how many scaffolding blocks appear. Do NOT switch to D.</entry_condition>
-    <critical>The leading ".*" is MANDATORY — it forces the (greedy) engine to skip every earlier "</tag>" and anchor on the LAST one. Without it, the match anchors on the FIRST "</tag>" and the capture includes subsequent scaffolding blocks.</critical>
-    <correct>(?s).*</system-reminder>\\s*(.*)</correct>
-    <wrong reason="missing leading .* — anchors on FIRST </system-reminder>">(?s)</system-reminder>\\s*(.*)</wrong>
-  </pattern>
+If the hints say "starts_with_wrapper_tag: null, prose_chars_before_first_tag: 84,
+first_tag: bar" — that is D. Output (?s)^(.*?)<bar>.
 
-  <pattern id="D" name="Before trailing scaffolding">
-    Instruction comes BEFORE the scaffolding (trailing wrapper blocks). Never use with a CONTENT tag.
-    <template>(?s)^(.*?)<tag></template>
-    <entry_condition>Valid ONLY if, in every sample, there is non-trivial prose BEFORE the first occurrence of &lt;tag&gt;. If the sample starts with &lt;tag&gt; → scaffolding is LEADING → use Pattern B.</entry_condition>
-    <critical>"^" and LAZY "(.*?)" are both MANDATORY. "^" pins to start; "(.*?)" stops at the FIRST "<tag>". A greedy "(.*)" would swallow through the final "<tag>".</critical>
-    <correct>(?s)^(.*?)<some-wrapper></correct>
-    <wrong reason="greedy (.*) captures through the last opening tag">(?s)^(.*)<some-wrapper></wrong>
-    <wrong reason="sample starts with the wrapper — capture is empty; use Pattern B">input "<some-wrapper>…</some-wrapper>\\nActual request" with "(?s)^(.*?)<some-wrapper>"</wrong>
-  </pattern>
+If the hints say "request_shaped_balanced_tag: USER_QUERY" — that is A.
+Output (?s)<USER_QUERY>\\s*(.*?)\\s*</USER_QUERY>.
 
-  <pattern id="C" name="Pure wrapper (rare)">
-    Every sample is balanced wrapper tags with whitespace only outside AND no request-like tag inside.
-    <output>(?s)()</output>
-    <note>If there is ANY non-trivial text outside the tags, use B or D. If unsure between C and anything else, never pick C.</note>
-  </pattern>
+Only when the hints show no wrapper at all → E.
+</commit_to_a_choice>
 
-  <pattern id="PASSTHROUGH" name="No reliable anchor">
-    <output>(?s)(.*)</output>
-    <note>Correct default when in doubt.</note>
-  </pattern>
+<layout_b_special_case>
+Layout B (leading scaffolding) is the trickiest. When MULTIPLE wrapper
+types stack at the top — e.g. <system_notes>...</system_notes><currently_viewing>...</currently_viewing>Hello —
+the right anchor is the LAST closing tag of ANY wrapper, not the closing
+tag that matches the OPENING. The hints surface this as
+"last_closing_wrapper_tag" — use that name in your regex, not the first
+one you saw.
+</layout_b_special_case>
 
-  <shape_examples description="copy the shape, not the tag name">
-    - Starts with &lt;W&gt;…&lt;/W&gt;, then prose → Pattern B: (?s).*&lt;/W&gt;\\s*(.*)  (never Pattern D)
-    - Starts with prose, then trailing &lt;W&gt;…&lt;/W&gt; → Pattern D: (?s)^(.*?)&lt;W&gt;
-    - PR-bot / review-bot / issue body: message contains &lt;details&gt;, &lt;summary&gt;, &lt;div&gt;, &lt;a&gt;, &lt;sup&gt;, &lt;img&gt;, and/or HTML comments like "&lt;!-- DESCRIPTION END --&gt;", but NO harness wrapper tag. → PASSTHROUGH (?s)(.*). The bot's body IS the instruction. Do NOT anchor on &lt;details&gt;, &lt;div&gt;, &lt;sup&gt;, or any "&lt;!-- ... --&gt;" marker.
-  </shape_examples>
-</patterns>
+<request_shaped_vs_data_shaped>
+Pattern A is for tags that wrap the user's request. Tags like:
+  user_request, task, query, user_query, USER_QUERY, user_instructions,
+  signal_description, or any name that reads "this is what the user wants."
 
-<tag_rules>
-- The tag in your regex MUST appear VERBATIM in the input samples.
-- The tag MUST be a HARNESS WRAPPER. Never anchor on CONTENT tags.
-- NEVER use "<!-- ... -->" or "-->" / "<!--" fragments in the regex. The regex must anchor on a real tag ("<name>" or "</name>"), not a comment.
-- Do NOT invent tag names. Do NOT copy tag names from this prompt (<user_request>, <query>, <system-reminder>, <context>, <tag>, <env>, <task>, <wrapper>, <W>) unless they literally exist in the input.
-</tag_rules>
+NEVER apply Pattern A to data-wrapping tags. These wrap reference data,
+not requests:
+  research_findings, issue_description, EXTRA_INFO, context, spans,
+  verification_results, draft_report, currently_viewing, system_notes.
+A data tag with prose before it = Pattern D. A data tag at the start with
+prose after = Pattern B. NEVER A.
+</request_shaped_vs_data_shaped>
 
-<general_rules>
-- Exactly one capture group.
-- re2 only: no lookaheads, lookbehinds, backreferences.
-- Always prefix with (?s).
-- The regex MUST match every sample. If samples disagree on scaffolding tags, prefer a tag common to all samples, else PASSTHROUGH.
-</general_rules>
+<one_anchor_only>
+Use ONE literal tag name in your regex, never two different ones. A
+two-anchor pattern like (?s).*</context>\\s*(.*)\\s*<final_instruction>
+looks bounded but the inner (.*) is greedy and leaks across other wrapper
+tags between them. If you find yourself wanting two anchors, you have
+misread the layout — pick A or B with one anchor.
 
-<greediness_rules>
-When the anchor tag appears MULTIPLE TIMES (common — scaffolding blocks repeat), anchor on the right occurrence:
-- LAST occurrence of a closing tag (Pattern B) → GREEDY ".*" prefix: "(?s).*</tag>\\s*(.*)".
-- FIRST occurrence of an opening tag (Pattern D) → "^" plus LAZY "(.*?)": "(?s)^(.*?)<tag>".
-Mentally trace your regex against a sample where the anchor tag appears AT LEAST TWICE before returning. This is the #1 source of bad regexes for this task.
-</greediness_rules>
+A pattern that uses both <X> and </X> for the SAME tag (Pattern A) is
+fine — that is one anchor, used twice.
+</one_anchor_only>
 
 <output_format>
-Return a JSON object matching the schema. "regex" holds the pattern itself (starts with "(?s)", no surrounding quotes, no fences). Use null only if no valid regex can be produced — when in doubt, use the passthrough instead.
-
-Examples of correct full responses (SHAPE only — use the input's tag name):
-{"regex": "(?s)(.*)"}
-{"regex": "(?s).*</wrapper>\\\\s*(.*)"}
-{"regex": "(?s)^(.*?)<wrapper>"}
+Return JSON: {"regex": "..."}
+The regex starts with (?s), has exactly one capture group, and is one of
+the five shapes above. No fences, no commentary.
 </output_format>`;
 
 const RegexResultSchema = z.object({
@@ -131,12 +132,17 @@ const RegexResultSchema = z.object({
     .describe("A re2 regex pattern starting with (?s) with exactly one capture group, or null if none applies."),
 });
 
+const PASSTHROUGH = "(?s)(.*)";
+
 export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
   try {
+    const hints = computeLayoutHints(userMessage);
+    const wrappedPrompt = buildUserMessage(userMessage, hints);
+
     const { object } = await generateObject({
       model: getLanguageModel("lite"),
       system: SYSTEM_PROMPT,
-      prompt: userMessage,
+      prompt: wrappedPrompt,
       schema: RegexResultSchema,
       maxRetries: 0,
       temperature: 0,
@@ -147,7 +153,13 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
       },
     });
 
-    return object.regex?.trim() || null;
+    const candidate = object.regex?.trim() || null;
+    if (!candidate) return null;
+
+    if (!isStaticallyValid(candidate)) return PASSTHROUGH;
+    if (patternBOnTrailingTag(candidate, hints)) return PASSTHROUGH;
+
+    return candidate;
   } catch {
     return null;
   }
@@ -167,7 +179,12 @@ export function applyRegex(pattern: string, text: string): ApplyRegexResult {
     const match = regex.exec(text);
     if (match && match[1] != null) {
       const extracted = match[1].trim();
-      if (extracted.length > 0) return { kind: "extracted", text: extracted };
+      if (extracted.length > 0) {
+        if (captureLeaksWrapperTag(extracted)) {
+          return { kind: "extracted", text: text.trim() };
+        }
+        return { kind: "extracted", text: extracted };
+      }
       return { kind: "no-user-request" };
     }
   } catch {
