@@ -6,46 +6,17 @@ import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { type SignalTabKey } from "./signals-mock-ui/mock-data";
+import { ANYTHING_PROMPT, type TabKey, TABS } from "./tabs";
 
 interface Props {
   className?: string;
 }
-
-type TabKey = SignalTabKey | "anything";
-
-const ANYTHING_PROMPT = "Track literally anything you're looking for, in plain English";
 
 const MOBILE_IMAGE_BY_TAB: Record<SignalTabKey, string> = {
   "detect-failures": "/assets/landing/signals-mock-detect-failures.png",
   "identify-user-friction": "/assets/landing/signals-mock-identify-user-friction.png",
   "monitor-safety": "/assets/landing/signals-mock-monitor-safety.png",
 };
-
-const TABS: { key: TabKey; label: string; quote: string }[] = [
-  {
-    key: "detect-failures",
-    label: "Detect failures",
-    quote:
-      "Analyze this trace for concrete issues: tool call failures, API errors, loops or repeated calls, wrong tool selection, logic errors, and abnormally slow or expensive spans.",
-  },
-  {
-    key: "identify-user-friction",
-    label: "Identify user friction",
-    quote:
-      "Analyze this session for signs of user frustration or friction. Look for confusion, repeated attempts, or poor user experience.",
-  },
-  {
-    key: "monitor-safety",
-    label: "Monitor safety",
-    quote:
-      "Check if the agent did anything potentially unsafe, inappropriate, or outside its intended scope. Include policy violations and risky actions.",
-  },
-  {
-    key: "anything",
-    label: "Anything",
-    quote: "",
-  },
-];
 
 const SignalsSectionMobile = ({ className }: Props) => {
   const [activeTab, setActiveTab] = useState<TabKey>("detect-failures");
