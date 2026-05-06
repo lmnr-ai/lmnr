@@ -91,7 +91,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm">
+                  <LandingButton variant="primary" size="sm">
                     Sign up
                   </LandingButton>
                 </Link>

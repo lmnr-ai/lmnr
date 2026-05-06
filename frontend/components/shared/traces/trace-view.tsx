@@ -1,13 +1,10 @@
 "use client";
 
 import { CirclePlay } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import fullLogo from "@/assets/logo/logo.svg";
-import LandingButton from "@/components/landing/landing-button";
+import LandingHeader from "@/components/landing/header";
 import Header from "@/components/shared/traces/header";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
@@ -118,33 +115,11 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession }: TraceViewPr
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       {!onClose && (
-        <div className="flex flex-none items-center justify-between border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
-          </Link>
-          <div className="flex items-center gap-2">
-            {hasSession ? (
-              <Link href="/projects">
-                <LandingButton variant="outline" size="sm">
-                  Dashboard
-                </LandingButton>
-              </Link>
-            ) : (
-              <>
-                <Link href="/sign-in">
-                  <LandingButton variant="minimal" size="sm">
-                    Sign in
-                  </LandingButton>
-                </Link>
-                <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm">
-                    Sign up
-                  </LandingButton>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
+        <LandingHeader
+          hasSession={!!hasSession}
+          isIncludePadding
+          className="border-b border-b-landing-surface-500 bg-landing-surface-800"
+        />
       )}
       <ResizablePanelGroup
         id="shared-trace-horizontal"
