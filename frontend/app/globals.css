@@ -194,6 +194,10 @@
   }
 }
 
+.landing-caret-blink {
+  animation: landing-caret-blink 1s step-end infinite;
+}
+
 @layer base {
   * {
     @apply border-border;

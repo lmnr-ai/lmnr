@@ -120,23 +120,21 @@ const Hero = ({ className, hasSession }: Props) => {
               </Link>
               <h1
                 className={cn(
-                  "font-space-grotesk md:text-[56px] text-center text-white md:tracking-[-1.5px] md:leading-[72px]",
+                  "font-space-grotesk md:text-[60px] text-center text-white md:tracking-[-1.5px] md:leading-[72px] font-semibold",
                   "text-[32px] tracking-[-0.56px] leading-[38px]"
                 )}
               >
-                Understand why your agent failed.
-                <br />
-                Iterate fast to fix it.
+                Open-source Agent Monitoring
               </h1>
               <p
                 className={cn(
-                  "text-secondary-foreground text-center md:text-xl md:leading-8 xl:mt-8 lg:mt-6 font-base",
+                  "text-secondary-foreground text-center md:text-3xl md:leading-10 font-medium",
                   "text-sm leading-5 mt-4"
                 )}
               >
-                Open-source observability platform for long-running agents.
-                <br className="hidden md:block" />
-                Trace in one line, debug from any step, detect patterns at scale.
+                Get alerts when your agent breaks.
+                <br />
+                Understand why in seconds.
               </p>
             </div>
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>

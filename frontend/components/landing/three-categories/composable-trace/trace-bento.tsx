@@ -58,11 +58,10 @@ const DIMMED_COLOR = "#92949c";
 // stage centers so a halfway-scrolled position resolves to one stage or the
 // other rather than rendering a partially-animated frame.
 const computeStage = (p: number): StageVariant => {
-  if (p < 0.13) return "timeline";
-  if (p < 0.3) return "transcript";
-  if (p < 0.47) return "recording";
-  if (p < 0.63) return "span";
-  if (p < 0.78) return "ai";
+  if (p < 0.2) return "transcript";
+  if (p < 0.4) return "recording";
+  if (p < 0.6) return "span";
+  if (p < 0.8) return "ai";
   return "full";
 };
 
@@ -80,7 +79,6 @@ const CONNECTED_STAGES: StageVariant[] = ["full"];
 const withTween = (target: Record<string, unknown>) => ({ ...target, transition: TRANSITION });
 
 const bentoVariants: Variants = {
-  timeline: withTween({ x: "45%" }),
   transcript: withTween({ x: "45%" }),
   recording: withTween({ x: "45%" }),
   span: withTween({ x: "20%" }),
@@ -89,7 +87,6 @@ const bentoVariants: Variants = {
 };
 
 const textPanelVariants: Variants = {
-  timeline: withTween({ x: 0 }),
   transcript: withTween({ x: 0 }),
   recording: withTween({ x: 0 }),
   span: withTween({ x: 0 }),
@@ -101,7 +98,6 @@ const textPanelVariants: Variants = {
 const titleVariantsFor = (active: StageVariant): Variants =>
   Object.fromEntries(STAGES.map((s) => [s, withTween({ color: s === active ? HIGHLIGHT_COLOR : DIMMED_COLOR })]));
 
-const TIMELINE_TITLE_VARIANTS = titleVariantsFor("timeline");
 const TRANSCRIPT_TITLE_VARIANTS = titleVariantsFor("transcript");
 const RECORDING_TITLE_VARIANTS = titleVariantsFor("recording");
 const SPAN_TITLE_VARIANTS = titleVariantsFor("span");
@@ -116,7 +112,6 @@ const subtitleVariantsFor = (active: StageVariant): Variants =>
     STAGES.map((s) => [s, withTween(s === active ? { height: "auto", opacity: 1 } : { height: 0, opacity: 0 })])
   );
 
-const TIMELINE_SUBTITLE_VARIANTS = subtitleVariantsFor("timeline");
 const TRANSCRIPT_SUBTITLE_VARIANTS = subtitleVariantsFor("transcript");
 const RECORDING_SUBTITLE_VARIANTS = subtitleVariantsFor("recording");
 const SPAN_SUBTITLE_VARIANTS = subtitleVariantsFor("span");
@@ -183,7 +178,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
   return (
     <motion.div
       animate={stage}
-      initial="timeline"
+      initial="transcript"
       transition={TRANSITION}
       className="relative w-full h-[746px] overflow-hidden rounded-lg bg-landing-surface-700 border border-landing-surface-400"
     >
@@ -192,29 +187,19 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
         <motion.div variants={bentoVariants} className="flex shrink-0 w-full h-full">
           <div className="flex flex-col h-full shrink-0" style={{ width: LEFT_COL_WIDTH }}>
             <TraceSection
-              activeIn={["timeline", "full"]}
-              connectedIn={CONNECTED_STAGES}
-              keepCorners={{ tl: true }}
-              offsetX={-18}
-              className="w-full h-[200px]"
-            >
-              <div className="flex flex-col w-full h-full bg-background overflow-hidden">
-                <Header onClose={noop} isHideTimelineControls />
-                <div className="flex-1 min-h-0">
-                  <CondensedTimeline />
-                </div>
-              </div>
-            </TraceSection>
-
-            <TraceSection
               activeIn={["transcript", "recording", "full"]}
               connectedIn={CONNECTED_STAGES}
-              keepCorners={{ bl: true }}
+              keepCorners={{ tl: true, bl: true }}
               offsetX={-18}
-              offsetY={18}
-              className="w-full flex-1 min-h-0"
+              className="w-full h-full"
             >
               <div className="flex flex-col w-full h-full bg-background overflow-hidden">
+                <div className="shrink-0 h-[160px] flex flex-col overflow-hidden border-b">
+                  <Header onClose={noop} isHideTimelineControls />
+                  <div className="flex-1 min-h-0">
+                    <CondensedTimeline />
+                  </div>
+                </div>
                 <div className={cn("flex items-center gap-2 px-2 pt-2 pb-2 border-b box-border")}>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
@@ -309,29 +294,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
         <div
           className={cn(
             "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "timeline" ? "pb-6" : "pb-0"
-          )}
-        >
-          <motion.p variants={TIMELINE_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
-            Timeline
-          </motion.p>
-          <motion.div variants={TIMELINE_SUBTITLE_VARIANTS} className="overflow-hidden">
-            <div className="pt-4 flex flex-col gap-4">
-              <ul className="flex flex-col gap-1">
-                <DotItem className="bg-llm">LLM calls</DotItem>
-                <DotItem className="bg-tool">Tool calls</DotItem>
-                <DotItem className="bg-subagent/40 border border-subagent">Sub-agents</DotItem>
-                <DotItem className="bg-blue-400">Default (container)</DotItem>
-              </ul>
-              <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#timeline" />
-            </div>
-          </motion.div>
-        </div>
-
-        <div
-          className={cn(
-            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "transcript" ? "py-8" : "py-0"
+            stage === "transcript" ? "pb-8" : "pb-0"
           )}
         >
           <motion.p variants={TRANSCRIPT_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
@@ -402,7 +365,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           )}
         >
           <motion.p variants={SPAN_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
-            Select an LLM call
+            Dig deeper into single operations
           </motion.p>
           <motion.div variants={SPAN_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
@@ -426,7 +389,7 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           )}
         >
           <motion.p variants={AI_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
-            Ask AI
+            Chat with your trace
           </motion.p>
           <motion.div variants={AI_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
@@ -446,13 +409,6 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
     </motion.div>
   );
 };
-
-const DotItem = ({ className, children }: { className?: string; children: ReactNode }) => (
-  <li className={cn("flex items-center gap-3 text-landing-text-300", bodySQL)}>
-    <span className={cn("size-3 rounded-full shrink-0", className)} />
-    {children}
-  </li>
-);
 
 const IconItem = ({
   icon: Icon,

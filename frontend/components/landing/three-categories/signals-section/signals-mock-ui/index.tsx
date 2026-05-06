@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, type MotionValue, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
@@ -17,18 +18,11 @@ import MockEventsTable from "./mock-events-table";
 interface Props {
   tabKey: SignalTabKey;
   className?: string;
-  clustersHighlighted?: boolean;
-  eventsHighlighted?: boolean;
-  eventsTextHighlighted?: boolean;
+  eventsHeaderProgress?: MotionValue<number>;
+  clustersProgress?: MotionValue<number>;
 }
 
-const SignalsMockUI = ({
-  tabKey,
-  className,
-  clustersHighlighted = false,
-  eventsHighlighted = false,
-  eventsTextHighlighted = false,
-}: Props) => {
+const SignalsMockUI = ({ tabKey, className, eventsHeaderProgress, clustersProgress }: Props) => {
   const dataset = MOCK_DATASETS[tabKey];
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
@@ -44,9 +38,6 @@ const SignalsMockUI = ({
   );
 
   const visibleClusters: ClusterNode[] = displayNode ? displayNode.children : dataset.clusterTree;
-  // Breadcrumb (UI-facing) follows the user's selection; drill-down depth must
-  // follow the displayed level — selecting a root-level leaf doesn't change the
-  // visible list, so the colors must not shift either.
   const breadcrumb = useMemo(
     () => (selectedClusterId ? buildPath(dataset.clusterTree, selectedClusterId) : []),
     [dataset.clusterTree, selectedClusterId]
@@ -73,7 +64,6 @@ const SignalsMockUI = ({
     [unclusteredCount]
   );
 
-  // Filtered count map = numEvents per visible cluster
   const filteredCountByCluster = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of visibleClusters) map.set(c.id, c.numEvents);
@@ -81,7 +71,6 @@ const SignalsMockUI = ({
     return map;
   }, [visibleClusters, unclusteredCount]);
 
-  // Chart clusters: leaf → just self; root → siblings + unclustered; otherwise children
   const chartClusters: ClusterNode[] = useMemo(() => {
     if (selectedClusterId === UNCLUSTERED_ID) return [unclusteredVirtualCluster];
     if (currentNode && currentNode.children.length === 0) return [currentNode];
@@ -99,7 +88,6 @@ const SignalsMockUI = ({
     unclusteredVirtualCluster,
   ]);
 
-  // Color map keyed off the visible siblings so list and chart agree
   const colorMap = useMemo(() => {
     const m = new Map<string, string>();
     visibleClusters.forEach((c, i) => m.set(c.id, getClusterColor(i, drillDownDepth)));
@@ -126,7 +114,6 @@ const SignalsMockUI = ({
     [breadcrumb]
   );
 
-  // Filter visible events: when a cluster is selected (including drilled), show its descendants' events
   const visibleEvents = useMemo(() => {
     if (!selectedClusterId) return dataset.events;
     if (selectedClusterId === UNCLUSTERED_ID) return [];
@@ -151,48 +138,58 @@ const SignalsMockUI = ({
     return () => ro.disconnect();
   }, []);
 
+  // Default both panels to fully visible (1) when no MotionValue is passed,
+  // so this component still works in any non-orchestrated context.
+  const eventsFallback = useMotionValue(1);
+  const clustersFallback = useMotionValue(1);
+  const eventsSource = eventsHeaderProgress ?? eventsFallback;
+  const clustersSource = clustersProgress ?? clustersFallback;
+  // 28 px is enough room for the "Signal events" label (text-sm + gap).
+  const eventsHeaderHeight = useTransform(eventsSource, [0, 1], [0, 28], { clamp: true });
+  const eventsHeaderOpacity = useTransform(eventsSource, [0, 1], [0, 1], { clamp: true });
+  const clustersHeight = useTransform(clustersSource, [0, 1], [0, 312], { clamp: true });
+  const clustersOpacity = useTransform(clustersSource, [0, 1], [0, 1], { clamp: true });
+  const clustersMarginBottom = useTransform(clustersSource, [0, 1], [0, 8], { clamp: true });
+
+  const eventsHeaderStyle = { height: eventsHeaderHeight, opacity: eventsHeaderOpacity };
+  const clustersStyle = { height: clustersHeight, opacity: clustersOpacity, marginBottom: clustersMarginBottom };
+
   return (
     <TooltipProvider delayDuration={200}>
-      <div className={cn("flex flex-col w-full overflow-hidden border rounded-lg bg-background p-4 gap-2", className)}>
-        <ClusterBreadcrumb
-          breadcrumb={breadcrumb}
-          selectedClusterId={selectedClusterId}
-          onNavigateToBreadcrumb={navigateToBreadcrumb}
-        />
-        <div
-          className={cn("flex h-[280px] shrink-0 border rounded-md bg-secondary transition-all duration-200", {
-            "bg-muted/70 border-muted-foreground/40": clustersHighlighted,
-          })}
-        >
-          <div className="w-[280px] shrink-0 border-r overflow-hidden">
-            <ClusterList
-              className="h-full w-full bg-transparent"
-              drillDownDepth={drillDownDepth}
-              filteredCountByCluster={filteredCountByCluster}
-              visibleClusters={visibleClusters}
-              unclusteredCount={unclusteredCount}
-              unclusteredVirtualCluster={unclusteredVirtualCluster}
-              selectedClusterId={selectedClusterId}
-              onNavigateToCluster={navigateToCluster}
-            />
+      <div className={cn("flex flex-col w-full overflow-hidden border rounded-lg bg-background p-4 ", className)}>
+        <motion.div style={clustersStyle} className="flex flex-col gap-2 shrink-0 overflow-hidden">
+          <ClusterBreadcrumb
+            breadcrumb={breadcrumb}
+            selectedClusterId={selectedClusterId}
+            onNavigateToBreadcrumb={navigateToBreadcrumb}
+          />
+          <div className="flex h-[280px] shrink-0 border rounded-md bg-secondary overflow-hidden">
+            <div className="w-[280px] shrink-0 border-r overflow-hidden">
+              <ClusterList
+                className="h-full w-full bg-transparent"
+                drillDownDepth={drillDownDepth}
+                filteredCountByCluster={filteredCountByCluster}
+                visibleClusters={visibleClusters}
+                unclusteredCount={unclusteredCount}
+                unclusteredVirtualCluster={unclusteredVirtualCluster}
+                selectedClusterId={selectedClusterId}
+                onNavigateToCluster={navigateToCluster}
+              />
+            </div>
+            <div className="flex-1 min-w-0 py-2 pr-2" ref={chartContainerRef}>
+              <ClusterStackedChart
+                clusters={chartClusters}
+                statsData={dataset.stats}
+                containerWidth={chartWidth}
+                colorMap={colorMap}
+              />
+            </div>
           </div>
-          <div className="flex-1 min-w-0 py-2 pr-2" ref={chartContainerRef}>
-            <ClusterStackedChart
-              clusters={chartClusters}
-              statsData={dataset.stats}
-              containerWidth={chartWidth}
-              colorMap={colorMap}
-            />
-          </div>
-        </div>
-        <MockEventsTable
-          events={visibleEvents}
-          textHighlighted={eventsTextHighlighted}
-          className={cn("flex-1 min-h-0 transition-all duration-200", {
-            "bg-muted/40": eventsTextHighlighted,
-            "bg-muted/70 border-muted-foreground/40": eventsHighlighted,
-          })}
-        />
+        </motion.div>
+        <motion.div style={eventsHeaderStyle} className="flex items-end shrink-0 overflow-hidden pl-1 ">
+          <p className="text-sm text-secondary-foreground mb-2">Signal events</p>
+        </motion.div>
+        <MockEventsTable events={visibleEvents} className="flex-1 min-h-0 pointer-events-none" />
       </div>
     </TooltipProvider>
   );

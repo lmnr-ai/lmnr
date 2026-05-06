@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names";
 import DocsButton from "../docs-button";
 import SectionName from "../section-name";
-import BrowserScreenRecordingImage from "./browser-screen-recording-image";
 import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";
 import DebuggerVideo from "./debugger-video";
@@ -27,49 +26,12 @@ const ThreeCategories = ({ className }: Props) => (
     )}
   >
     <div className={cn("flex flex-col md:gap-[240px] items-start w-[1104px]", "max-w-full gap-[180px]")}>
-      {/* Header */}
-      <h2
-        className={
-          "font-space-grotesk tracking-[-1px] font-normal md:leading-[52px] md:text-[48px] text-white text-[28px] leading-[34px]"
-        }
-      >
-        Features for
-        <br />
-        every step of
-        <br />
-        agent development
-      </h2>
-
       {/* TRACING Section */}
       <SectionName label="Tracing" index={1} />
 
       <IntegrateInMinutes />
 
       <ComposableTrace />
-
-      {/* Capture what your agent sees */}
-      <div className={cn("flex md:flex-row md:items-start md:justify-between w-full -mt-16", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px] md:pt-[40px]", "w-full pt-0")}>
-          <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={subsectionTitle}>
-              Session replay
-              <br />
-              for browser agents
-            </h2>
-            <p className={bodyMedium}>
-              Laminar captures browser screen recordings and automatically syncs them with agent traces. Easily
-              integrates with{" "}
-              <span className="font-medium text-primary-foreground">
-                Browser Use, Stagehand, Playwright, Kernel, Browserbase, and more.
-              </span>
-            </p>
-          </div>
-          <DocsButton href="https://laminar.sh/docs/tracing/browser-agent-observability" />
-        </div>
-        <BrowserScreenRecordingImage
-          className={cn("relative shrink-0 md:w-[720px] md:h-[450px] ", "w-full h-[240px]")}
-        />
-      </div>
 
       {/* ANALYSIS Section */}
       <SectionName label="Analysis" index={2} />
@@ -81,11 +43,13 @@ const ThreeCategories = ({ className }: Props) => (
         <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
           <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
             <div className="flex flex-col gap-6 items-start w-full">
-              <h2 className={subsectionTitle}>Platform-wide SQL</h2>
+              <h2 className={subsectionTitle}>
+                Access all your data <br /> with SQL
+              </h2>
               <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
                 <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                   <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                    Query with{" "}
+                    Accessible via{" "}
                     <a
                       href="https://laminar.sh/docs"
                       target="_blank"
