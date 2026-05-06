@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
+import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
@@ -13,7 +14,6 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import PostHogClient from "@/lib/posthog/server";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
@@ -73,18 +73,9 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     }
   }
 
-  const posthog = PostHogClient();
-  if (posthog && user.email) {
-    posthog.groupIdentify({
-      groupType: "workspace",
-      groupKey: workspace.name,
-      properties: { name: workspace.name, id: workspace.id },
-      distinctId: user.email,
-    });
-  }
-
   return (
     <WorkspaceMenuProvider>
+      <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
           <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
