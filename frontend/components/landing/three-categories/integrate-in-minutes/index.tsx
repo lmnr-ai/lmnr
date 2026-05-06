@@ -32,19 +32,44 @@ interface Props {
   className?: string;
 }
 
-const logos: { src: string; alt: string; name: string; integration?: Integration; docsUrl?: string }[] = [
-  { src: browserUse, alt: "Browser Use", name: "browser-use", integration: "browser-use" },
+const logos: {
+  src: string;
+  alt: string;
+  name: string;
+  integration?: Integration;
+  docsUrl?: string;
+  iconClassName?: string;
+}[] = [
+  {
+    src: browserUse,
+    alt: "Browser Use",
+    name: "browser-use",
+    integration: "browser-use",
+    iconClassName: "md:size-5 size-4",
+  },
   { src: claude, alt: "Claude Agent SDK", name: "claude", integration: "claude" },
-  { src: vercel, alt: "Vercel AI SDK", name: "vercel", integration: "vercel" },
+  { src: vercel, alt: "Vercel AI SDK", name: "vercel", integration: "vercel", iconClassName: "md:size-4 size-3" },
   { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
   { src: langchain, alt: "LangChain Deep Agents", name: "langchain", integration: "langchain" },
   { src: lightLlm, alt: "LiteLLM", name: "light-llm", integration: "light-llm" },
   { src: mastra, alt: "Mastra", name: "mastra", integration: "mastra" },
-  { src: openaiAgents, alt: "OpenAI Agents SDK", name: "openai-agents-sdk", integration: "openai-agents-sdk" },
+  {
+    src: openaiAgents,
+    alt: "OpenAI Agents SDK",
+    name: "openai-agents-sdk",
+    integration: "openai-agents-sdk",
+    iconClassName: "md:size-5 size-4",
+  },
   { src: pydanticAi, alt: "Pydantic AI", name: "pydantic-ai", integration: "pydantic-ai" },
   { src: opencodeSdk, alt: "OpenCode SDK", name: "opencode-sdk", integration: "opencode-sdk" },
   { src: gemini, alt: "Gemini API", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
-  { src: openAi, alt: "OpenAI SDK", name: "open-ai", docsUrl: "https://laminar.sh/docs/tracing/integrations/openai" },
+  {
+    src: openAi,
+    alt: "OpenAI SDK",
+    name: "open-ai",
+    docsUrl: "https://laminar.sh/docs/tracing/integrations/openai",
+    iconClassName: "md:size-5 size-4",
+  },
   { src: groq, alt: "Groq", name: "groq", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
   { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
   {
@@ -124,6 +149,7 @@ const IntegrateInMinutes = ({ className }: Props) => {
               logoSrc={logo.src}
               alt={logo.alt}
               label={logo.alt}
+              logoClassName={logo.iconClassName}
               isActive={logo.integration === selectedIntegration}
               onClick={() => handleSelectIntegration(logo.integration!)}
             />
@@ -135,7 +161,14 @@ const IntegrateInMinutes = ({ className }: Props) => {
             {logos
               .filter((logo) => !logo.integration)
               .map((logo) => (
-                <LogoButton key={logo.name} logoSrc={logo.src} alt={logo.alt} label={logo.alt} href={logo.docsUrl} />
+                <LogoButton
+                  key={logo.name}
+                  logoSrc={logo.src}
+                  alt={logo.alt}
+                  label={logo.alt}
+                  logoClassName={logo.iconClassName}
+                  href={logo.docsUrl}
+                />
               ))}
             <LogoButton className="md:px-3 px-2" label="Less" onClick={() => setShowAll(false)} />
           </>

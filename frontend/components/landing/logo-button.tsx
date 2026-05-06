@@ -10,6 +10,7 @@ interface LogoButtonProps {
   alt?: string;
   label: string;
   className?: string;
+  logoClassName?: string;
   isActive?: boolean;
   href?: string;
   onClick?: () => void;
@@ -18,6 +19,7 @@ interface LogoButtonProps {
 
 const LogoButton = ({
   className,
+  logoClassName,
   logoSrc,
   alt,
   label,
@@ -53,7 +55,7 @@ const LogoButton = ({
             alt={alt ?? label}
             width={24}
             height={24}
-            className={cn("object-contain md:size-6 size-5 opacity-75", { "opacity-100": isActive })}
+            className={cn("object-contain md:size-6 size-5 opacity-75", { "opacity-100": isActive }, logoClassName)}
           />
         )}
         <span className={labelClassName}>{label}</span>
