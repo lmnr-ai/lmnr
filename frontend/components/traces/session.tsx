@@ -20,9 +20,7 @@ const Session = ({ sessionId }: { sessionId: string }) => {
       />
       <div className="flex-none border-t" />
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className="w-full h-full mx-auto flex max-w-[1600px] 2xl:max-w-[1800px]">
-          <SessionView sessionId={sessionId} />
-        </div>
+        <SessionView sessionId={sessionId} />
       </div>
     </>
   );
