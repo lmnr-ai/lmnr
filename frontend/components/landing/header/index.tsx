@@ -16,6 +16,7 @@ interface LandingHeaderProps {
   className?: string;
   isIncludePadding?: boolean;
   hideAnnouncement?: boolean;
+  primarySignUp?: boolean;
 }
 
 const NAV_LINKS = [
@@ -31,6 +32,7 @@ export default function LandingHeader({
   className,
   isIncludePadding = false,
   hideAnnouncement = false,
+  primarySignUp = false,
 }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -99,7 +101,7 @@ export default function LandingHeader({
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="primary" size="sm">
+                  <LandingButton variant={primarySignUp ? "primary" : "outline"} size="sm">
                     Sign up
                   </LandingButton>
                 </Link>
