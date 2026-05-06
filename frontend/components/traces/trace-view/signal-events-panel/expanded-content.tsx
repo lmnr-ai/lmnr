@@ -126,7 +126,7 @@ export default function ExpandedContent({ traceId, signal }: Props) {
   const buttonStyle = { borderColor: accentBorder };
 
   return (
-    <div className="px-4 pt-2 pb-3 flex flex-col gap-4">
+    <div className="px-4 pb-3 pt-1 flex flex-col gap-3">
       {signal.clusterPath.length > 0 && <ClusterBreadcrumb clusterPath={signal.clusterPath} />}
       {/* Toolbar is hidden in the trigger (base) variant and revealed in the
           hover variant. We render the wrapper only when hovered so it doesn't

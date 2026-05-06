@@ -59,7 +59,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
   return (
     <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col flex-1 min-h-0 gap-0">
       <div className="flex items-center gap-2 pl-2 pr-3 py-2 shrink-0">
-        <TabsList className="flex-1 h-auto bg-transparent p-0 gap-1 justify-start">
+        <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
           {traceSignals.map((signal) => {
             const isActive = signal.signalId === effectiveTabId;
             return (
@@ -68,12 +68,16 @@ export default function PanelBody({ traceId, onClose }: Props) {
                 value={signal.signalId}
                 style={isActive ? { backgroundColor: tabActiveBg } : undefined}
                 className={cn(
-                  "flex-1 min-w-0 h-auto px-2 py-0.5 text-xs rounded justify-center",
+                  "flex-1 min-w-0 h-auto px-2 py-0.5 text-xs rounded",
                   "data-[state=active]:shadow-none data-[state=active]:text-foreground",
                   "text-secondary-foreground hover:text-foreground"
                 )}
               >
-                <span className="truncate">{signal.signalName}</span>
+                {/* `block w-full truncate` — `truncate` only renders ellipsis
+                    on block-level boxes with constrained width. The default
+                    inline span lets text overflow visibly even after the
+                    trigger has shrunk via `flex-1 min-w-0`. */}
+                <span className="block w-full truncate text-center">{signal.signalName}</span>
               </TabsTrigger>
             );
           })}

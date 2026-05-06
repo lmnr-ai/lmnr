@@ -12,7 +12,7 @@ import { PanelHoverContext } from "./hover-context";
 import PanelBody from "./panel-body";
 import { deriveAccent, PanelAccentProvider } from "./utils";
 
-const PANEL_HEIGHT = 200;
+const PANEL_HEIGHT = 160;
 const HOVER_OPEN_DELAY_MS = 300;
 const HOVER_CLOSE_DELAY_MS = 100;
 const POPOVER_MAX_HEIGHT = 480;
