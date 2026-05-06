@@ -4,7 +4,10 @@ import { v4 } from "uuid";
 import { type SQLTemplate } from "@/components/sql/sql-editor-store.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
-type Params = { type: "span"; spanId: string; traceId: string } | { type: "trace"; traceId: string };
+type Params =
+  | { type: "span"; spanId: string; traceId: string }
+  | { type: "trace"; traceId: string }
+  | { type: "signal"; signalId: string; signalName?: string };
 
 function buildQuery(params: Params): { query: string; name: string } {
   switch (params.type) {
@@ -17,6 +20,11 @@ function buildQuery(params: Params): { query: string; name: string } {
       return {
         query: `SELECT *\nFROM spans\nWHERE trace_id = '${params.traceId}'\nORDER BY start_time ASC`,
         name: `Trace ${params.traceId}`,
+      };
+    case "signal":
+      return {
+        query: `SELECT payload, trace_id\nFROM signal_events\nWHERE signal_id = '${params.signalId}'\n  -- AND severity = 2 (0 - info, 1 - warning, 2 - critical)\n  AND timestamp > now() - interval 7 day`,
+        name: params.signalName ? `Signal ${params.signalName}` : `Signal ${params.signalId}`,
       };
   }
 }

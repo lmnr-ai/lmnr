@@ -4,6 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import EventsTable from "@/components/signal/events-table";
+import SignalDropdown from "@/components/signal/signal-dropdown";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
@@ -63,7 +64,9 @@ function SignalContent() {
 
   return (
     <>
-      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
+      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]}>
+        <SignalDropdown />
+      </Header>
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
         <div className="px-4">
           <TabsList className="h-8">
