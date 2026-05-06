@@ -13,6 +13,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import PostHogClient from "@/lib/posthog/server";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
@@ -70,6 +71,16 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     } catch (error) {
       console.error("Error fetching subscription details:", error);
     }
+  }
+
+  const posthog = PostHogClient();
+  if (posthog && user.email) {
+    posthog.groupIdentify({
+      groupType: "workspace",
+      groupKey: workspace.name,
+      properties: { name: workspace.name, id: workspace.id },
+      distinctId: user.email,
+    });
   }
 
   return (

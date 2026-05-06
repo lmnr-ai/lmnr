@@ -35,29 +35,8 @@ export type Feature =
   | "notifications"
   | "advanced_search";
 
-// Module-level singleton status. posthog-js is browser-only and JS is single-threaded,
-// so there is no concurrent-write race condition. "pending" covers the window before
-// PostHogProvider's init effect runs — React fires child effects before parent effects,
-// so descendants (e.g. WorkspaceGroupTracker) may call group/identify/track before init.
-// We queue those calls and flush on init so they aren't silently dropped.
-let status: "pending" | "initialized" | "disabled" = "pending";
-const pendingCalls: Array<() => void> = [];
-
-const runOrQueue = (fn: () => void) => {
-  if (status === "initialized") {
-    fn();
-  } else if (status === "pending") {
-    pendingCalls.push(fn);
-  }
-};
-
 export const init = (telemetryEnabled: boolean) => {
-  if (status !== "pending") return;
-  if (!telemetryEnabled) {
-    status = "disabled";
-    pendingCalls.length = 0;
-    return;
-  }
+  if (!telemetryEnabled) return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only",
@@ -67,21 +46,18 @@ export const init = (telemetryEnabled: boolean) => {
       maskTextSelector: "*",
     },
   });
-  status = "initialized";
-  const calls = pendingCalls.splice(0);
-  for (const fn of calls) fn();
 };
 
 export const identify = (userId: string, traits?: Record<string, unknown>) => {
-  runOrQueue(() => posthog.identify(userId, traits));
+  posthog.identify(userId, traits);
 };
 
 export const group = (type: string, id: string, traits?: Record<string, unknown>) => {
-  runOrQueue(() => posthog.group(type, id, traits));
+  posthog.group(type, id, traits);
 };
 
 export const reset = () => {
-  runOrQueue(() => posthog.reset());
+  posthog.reset();
 };
 
 interface TrackOptions {
@@ -95,11 +71,9 @@ export const track = (
   properties?: Record<string, unknown>,
   options?: TrackOptions
 ) => {
-  runOrQueue(() =>
-    posthog.capture(`${feature}:${action}`, properties, {
-      send_instantly: options?.sendInstantly,
-    })
-  );
+  posthog.capture(`${feature}:${action}`, properties, {
+    send_instantly: options?.sendInstantly,
+  });
 };
 
 export { posthog };

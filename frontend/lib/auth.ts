@@ -19,9 +19,8 @@ import { Feature, isFeatureEnabled } from "./features/features";
 /**
  * Process any pending workspace invitations for the given user.
  * Adds the user to all workspaces they've been invited to, then deletes the invitations.
- * Returns the number of invitations that were processed.
  */
-const processPendingInvitations = async (userId: string, email: string): Promise<number> => {
+const processPendingInvitations = async (userId: string, email: string): Promise<void> => {
   const pendingInvitations = await db
     .select({
       id: workspaceInvitations.id,
@@ -31,7 +30,7 @@ const processPendingInvitations = async (userId: string, email: string): Promise
     .where(eq(workspaceInvitations.email, email));
 
   if (pendingInvitations.length === 0) {
-    return 0;
+    return;
   }
 
   await db.transaction(async (tx) => {
@@ -48,11 +47,9 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
-
-  return pendingInvitations.length;
 };
 
-const trackUserCreated = async (email: string, provider: string, hasPendingInvitations: boolean): Promise<void> => {
+const trackUserCreated = async (email: string, provider: string): Promise<void> => {
   try {
     const client = PostHogClient();
     if (!client) return;
@@ -63,7 +60,6 @@ const trackUserCreated = async (email: string, provider: string, hasPendingInvit
       event: "auth:user_created",
       properties: {
         provider,
-        has_pending_invitations: hasPendingInvitations,
         $set_once: {
           created_at: createdAt,
           signup_provider: provider,
@@ -196,13 +192,12 @@ export const authOptions: NextAuthOptions = {
           // workspace invitations for this user. When SEND_EMAIL is enabled
           // (cloud), invitations go through the explicit email accept/decline
           // flow instead, so we must not auto-accept them here.
-          let processedInvitations = 0;
           if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
-            processedInvitations = await processPendingInvitations(token.userId as string, token.email);
+            await processPendingInvitations(token.userId as string, token.email);
           }
 
           if (isNewUser) {
-            await trackUserCreated(token.email, account?.provider ?? "unknown", processedInvitations > 0);
+            await trackUserCreated(token.email, account?.provider ?? "unknown");
           }
         } catch (e) {
           throw new Error("Failed to authenticate user.");
