@@ -116,10 +116,8 @@ export default function SessionPanel() {
               <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200 mb-2" />
             </>
           )}
-          <ResizablePanel className="flex flex-col items-center flex-1 h-full overflow-hidden">
-            <div className="flex h-full w-full max-w-4xl 2xl:max-w-6xl">
-              <SessionList />
-            </div>
+          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden">
+            <SessionList />
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
