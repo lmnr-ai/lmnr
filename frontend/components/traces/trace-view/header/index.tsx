@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
@@ -132,6 +133,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenSession = useCallback(() => {
     if (!hasSession) return;
+    track("sessions", "detail_opened", { source: "trace_header" });
     const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
     window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
   }, [hasSession, sessionId, projectId]);
@@ -261,7 +263,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         </div>
       )}
       {signalsPanelOpen && (
-        <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
+        <ResizableSignalCard
+          traceId={traceId}
+          onClose={() => {
+            track("traces", "signals_panel_closed");
+            setSignalsPanelOpen(false);
+          }}
+          className="mt-2"
+        />
       )}
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
