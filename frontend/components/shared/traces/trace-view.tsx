@@ -118,6 +118,7 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession }: TraceViewPr
         <LandingHeader
           hasSession={!!hasSession}
           isIncludePadding
+          hideAnnouncement
           className="border-b border-b-landing-surface-500 bg-landing-surface-800"
         />
       )}
