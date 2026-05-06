@@ -13,7 +13,7 @@ export default function SessionSpanPanel() {
 
   if (!selection) {
     return (
-      <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
+      <div className="flex flex-col h-full w-full overflow-hidden flex-1">
         <SpanViewSkeleton />
       </div>
     );
@@ -22,7 +22,7 @@ export default function SessionSpanPanel() {
   const snippetTab: SpanViewTab = "span-input";
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
+    <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       <SpanView
         key={selection.spanId}
         spanId={selection.spanId}

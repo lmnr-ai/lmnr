@@ -58,7 +58,7 @@ export default function SessionPanel() {
   const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
+    <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {/* Header */}
       <div className="flex flex-col gap-1.5 px-2 py-2 shrink-0">
         <div className="flex h-7 items-center justify-start gap-2">
@@ -116,8 +116,10 @@ export default function SessionPanel() {
               <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200 mb-2" />
             </>
           )}
-          <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden">
-            <SessionList />
+          <ResizablePanel className="flex flex-col items-center flex-1 h-full overflow-hidden">
+            <div className="flex h-full w-full max-w-4xl 2xl:max-w-6xl">
+              <SessionList />
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
