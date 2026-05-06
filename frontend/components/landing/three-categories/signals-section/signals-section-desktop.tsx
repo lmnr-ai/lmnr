@@ -17,7 +17,7 @@ interface Props {
 
 const DESCRIPTION_LINES = [
   "Laminar detects events from your traces based on your prompt",
-  "Clusters are automatically created in an organized hierarchy.",
+  "Clusters are automatically created in an organized hierarchy",
 ];
 
 // Master progress is mapped from the section's scrollYProgress through this
@@ -130,37 +130,23 @@ const SignalsSectionDesktop = ({ className, progress }: Props) => {
         <div className="absolute left-0 bottom-0 w-full bg-gradient-to-t from-landing-surface-700 to-transparent h-[140px] z-10 pointer-events-none" />
 
         <div className="flex flex-col font-normal h-full items-start justify-start shrink-0 w-[340px] gap-8 z-20">
-          <div className="flex flex-col items-start w-full">
+          <div className="flex flex-col gap-1 items-start w-full">
+            <p className="font-space-grotesk text-base leading-5 text-landing-text-300">Prompt</p>
             <p
               className={cn(
-                "font-space-grotesk text-landing-text-300 transition-all duration-300 ease-in-out",
-                lineStage === 0 ? "text-base leading-5" : "text-xl leading-6"
+                "font-space-grotesk text-2xl leading-8 w-full transition-colors",
+                lineStage === 0 ? "text-landing-text-100" : "text-landing-text-300"
               )}
             >
-              Prompt
+              {activeTab === "anything" ? (
+                <>
+                  <span className="inline-block w-[2px] h-[1em] bg-landing-primary-400 align-middle landing-caret-blink" />
+                  <span className="text-landing-text-400">{ANYTHING_PROMPT}</span>
+                </>
+              ) : (
+                promptValue
+              )}
             </p>
-            <motion.div
-              initial={false}
-              animate={lineStage === 0 ? { height: "auto", opacity: 1 } : { height: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="overflow-hidden w-full"
-            >
-              <p
-                className={cn(
-                  "font-space-grotesk text-2xl leading-8 w-full pt-1 transition-colors",
-                  lineStage === 0 ? "text-landing-text-100" : "text-landing-text-300"
-                )}
-              >
-                {activeTab === "anything" ? (
-                  <>
-                    <span className="inline-block w-[2px] h-[1em] bg-landing-primary-400 align-middle landing-caret-blink" />
-                    <span className="text-landing-text-400">{ANYTHING_PROMPT}</span>
-                  </>
-                ) : (
-                  promptValue
-                )}
-              </p>
-            </motion.div>
           </div>
           <div className="flex flex-col gap-8 items-start w-full pr-8">
             {DESCRIPTION_LINES.map((line, i) => (

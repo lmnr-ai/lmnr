@@ -32,7 +32,6 @@ import { Button } from "@/components/ui/button";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { bodySQL } from "../../class-names";
 import DocsButton from "../../docs-button";
 import AskAi from "./ask-ai";
 import TraceSection, { STAGES, type StageVariant } from "./trace-section";
@@ -52,6 +51,7 @@ const LEFT_COL_WIDTH = 420;
 
 const HIGHLIGHT_COLOR = "#ffffff";
 const DIMMED_COLOR = "#92949c";
+export const bodyClassName = "font-sans font-normal md:leading-7 md:text-lg text-landing-text-300 text-md leading-7";
 
 // Scroll progress thresholds — scroll only picks the discrete stage; Framer
 // variants animate smoothly between stages. Boundaries sit between adjacent
@@ -291,18 +291,13 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
             bento bleeds into the panel edge */}
         <div className="absolute inset-0 -z-10 pointer-events-none bg-gradient-to-l from-transparent to-landing-surface-700/80 to-[31.25%]" />
 
-        <div
-          className={cn(
-            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "transcript" ? "pb-8" : "pb-0"
-          )}
-        >
+        <div className={cn("flex flex-col relative transition-[padding] duration-200 ease-in-out")}>
           <motion.p variants={TRANSCRIPT_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
             Transcript
           </motion.p>
           <motion.div variants={TRANSCRIPT_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>
+              <p className={cn("text-landing-text-300", bodyClassName)}>
                 Clear, concise view of your agent's decisions and behavior.
               </p>
               <ul className="flex flex-col gap-1">
@@ -310,13 +305,13 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
                   Extracted trace input
                 </IconItem>
                 <IconItem icon={MessageCircle} className="bg-llm">
-                  LLM thinking
+                  LLM call
                 </IconItem>
                 <IconItem icon={Bolt} className="bg-tool">
-                  Tool input/output
+                  Tool call
                 </IconItem>
                 <IconItem icon={Bot} className="bg-subagent">
-                  Sub-agent summary
+                  Sub-agent
                 </IconItem>
               </ul>
               <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#transcript-view" />
@@ -324,18 +319,15 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </motion.div>
         </div>
 
-        <div
-          className={cn(
-            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "recording" ? "py-6" : "py-0"
-          )}
-        >
+        <div className="w-[80%] border border-b" />
+
+        <div className={cn("flex flex-col relative transition-[padding] duration-200 ease-in-out")}>
           <motion.p variants={RECORDING_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
             Browser screen recording
           </motion.p>
           <motion.div variants={RECORDING_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>Session replay for browser agents.</p>
+              <p className={cn("text-landing-text-300", bodyClassName)}>Session replay for browser agents.</p>
               <ul className="flex flex-col gap-1">
                 <IntegrationItem logoSrc={browserUseLogo} alt="Browser Use">
                   Browser Use
@@ -358,21 +350,18 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </motion.div>
         </div>
 
-        <div
-          className={cn(
-            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "span" ? "py-6" : "py-0"
-          )}
-        >
-          <motion.p variants={SPAN_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
+        <div className="w-[80%] border border-b" />
+
+        <div className={cn("flex flex-col relative transition-[padding] duration-200 ease-in-out")}>
+          <motion.p variants={SPAN_TITLE_VARIANTS} className="font-space-grotesk text-2xl leading-tight">
             Dig deeper into single operations
           </motion.p>
           <motion.div variants={SPAN_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>
+              <p className={cn("text-landing-text-300", bodyClassName)}>
                 Select an individual span to dive deep into a LLM or Tool call.
               </p>
-              <ul className={cn("flex flex-col gap-1 text-landing-text-300", bodySQL)}>
+              <ul className={cn("flex flex-col gap-1 text-landing-text-300", bodyClassName)}>
                 <li>System prompts</li>
                 <li>User messages</li>
                 <li>Duration, tokens, cost</li>
@@ -382,21 +371,18 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
           </motion.div>
         </div>
 
-        <div
-          className={cn(
-            "flex flex-col relative transition-[padding] duration-200 ease-in-out",
-            stage === "ai" ? "py-6" : "py-0"
-          )}
-        >
+        <div className="w-[80%] border border-b" />
+
+        <div className={cn("flex flex-col relative transition-[padding] duration-200 ease-in-out")}>
           <motion.p variants={AI_TITLE_VARIANTS} className="font-space-grotesk text-2xl">
             Chat with your trace
           </motion.p>
           <motion.div variants={AI_SUBTITLE_VARIANTS} className="overflow-hidden">
             <div className="pt-4 flex flex-col gap-4">
-              <p className={cn("text-landing-text-300", bodySQL)}>
+              <p className={cn("text-landing-text-300", bodyClassName)}>
                 Chat with an agent with full context on your trace.
               </p>
-              <ul className={cn("flex flex-col gap-1 text-landing-text-300", bodySQL)}>
+              <ul className={cn("flex flex-col gap-1 text-landing-text-300", bodyClassName)}>
                 <li>Summarize</li>
                 <li>Analyze</li>
                 <li>Debug</li>
@@ -419,7 +405,7 @@ const IconItem = ({
   className?: string;
   children: ReactNode;
 }) => (
-  <li className={cn("flex items-center gap-3 text-landing-text-300", bodySQL)}>
+  <li className={cn("flex items-center gap-3 text-landing-text-300", bodyClassName)}>
     <span className={cn("size-5 rounded flex items-center justify-center shrink-0", className)}>
       <Icon className="size-4 text-white" />
     </span>
@@ -436,7 +422,7 @@ const IntegrationItem = ({
   alt?: string;
   children: ReactNode;
 }) => (
-  <li className={cn("flex items-center gap-3 text-landing-text-300", bodySQL)}>
+  <li className={cn("flex items-center gap-3 text-landing-text-300", bodyClassName)}>
     {logoSrc ? (
       <Image src={logoSrc} alt={alt ?? ""} width={20} height={20} className="size-5 object-contain shrink-0" />
     ) : (
