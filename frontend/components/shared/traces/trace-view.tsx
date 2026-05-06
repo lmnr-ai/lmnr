@@ -120,7 +120,7 @@ export const PureTraceView = ({ trace, spans, onClose, hasSession }: TraceViewPr
           isIncludePadding
           hideAnnouncement
           primarySignUp
-          className="border-b border-b-landing-surface-500 bg-landing-surface-800"
+          className="border-b border-b-border bg-background md:px-8 px-6 md:py-3 py-2"
         />
       )}
       <ResizablePanelGroup
