@@ -17,7 +17,7 @@ interface Props {
 
 const DESCRIPTION_LINES = [
   "Laminar detects events from your traces based on your prompt",
-  "Clusters are automatically created in an organized hierarchy",
+  "Events are clustered into an organized hierarchy",
 ];
 
 // Master progress is mapped from the section's scrollYProgress through this
