@@ -29,7 +29,7 @@ const SignalsSection = ({ className }: Props) => {
   return (
     <div className={cn("flex flex-col md:gap-[54px] items-start w-full gap-8", className)}>
       {/* Desktop: elongated scroll container with sticky sub-pin (mirrors composable-trace/desktop-tree). */}
-      <div ref={ref} className="hidden md:block h-[1800px] w-full">
+      <div ref={ref} className="hidden md:block h-[2200px] w-full">
         <div className="sticky top-[calc(50%-403px)] flex flex-col gap-[54px] items-start w-full">
           <div className="flex flex-col gap-1 items-start w-full">
             <motion.div className="w-full" style={{ height: bufferHeight }} />
