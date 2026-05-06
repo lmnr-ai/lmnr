@@ -12,11 +12,15 @@ import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
 
+import ClusterBreadcrumb from "./cluster-breadcrumb";
 import { schemaFieldsToStructuredOutput } from "./utils";
 
 interface Props {
   traceId: string;
   signal: TraceSignal;
+  /** Display color for accent borders (toolbar buttons, category badge).
+   *  Already includes the desired alpha — typically `${baseColor}66` (~40%). */
+  accentBorder: string;
 }
 
 function parsePayload(payload: string): Record<string, unknown> {
@@ -35,10 +39,12 @@ function PayloadValue({
   value,
   field,
   spanRefCallbacks,
+  badgeBorder,
 }: {
   value: unknown;
   field: SchemaField;
   spanRefCallbacks?: SpanReferenceCallbacks;
+  badgeBorder: string;
 }) {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">&mdash;</span>;
@@ -48,7 +54,10 @@ function PayloadValue({
       return <span className="text-secondary-foreground">{value ? "true" : "false"}</span>;
     case "enum":
       return (
-        <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+        <span
+          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+          style={{ borderColor: badgeBorder }}
+        >
           {String(value)}
         </span>
       );
@@ -67,7 +76,7 @@ function PayloadValue({
   }
 }
 
-export default function ExpandedContent({ traceId, signal }: Props) {
+export default function ExpandedContent({ traceId, signal, accentBorder }: Props) {
   const { projectId } = useParams();
   const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
   const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
@@ -112,23 +121,25 @@ export default function ExpandedContent({ traceId, signal }: Props) {
     openSignalInChat(signalDefinition, eventPayload);
   };
 
-  const buttonClass = "h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground";
+  const buttonClass = "h-6 px-2 text-xs bg-transparent hover:bg-muted text-secondary-foreground";
+  const buttonStyle = { borderColor: accentBorder };
 
   return (
-    <div className="px-4 pt-2 pb-3 flex flex-col gap-2.5">
+    <div className="px-4 pt-2 pb-3 flex flex-col gap-4">
+      {signal.clusterPath.length > 0 && <ClusterBreadcrumb clusterPath={signal.clusterPath} />}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Button variant="outline" className={buttonClass} onClick={handleOpenInChat}>
+        <Button variant="outline" className={buttonClass} style={buttonStyle} onClick={handleOpenInChat}>
           <Sparkles className="size-3.5 mr-1" />
           Open in AI Chat
         </Button>
-        <Button variant="outline" className={buttonClass} asChild>
+        <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
           <Link href={`/project/${projectId}/signals/${signal.signalId}`} target="_blank">
             <ExternalLink className="size-3.5 mr-1" />
             Open in Signals
           </Link>
         </Button>
         {leafCluster && (
-          <Button variant="outline" className={buttonClass} asChild>
+          <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
             <Link href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
               Open cluster
@@ -140,10 +151,15 @@ export default function ExpandedContent({ traceId, signal }: Props) {
         <div className="py-2 text-xs text-muted-foreground">No events found</div>
       ) : (
         validFields.map((field) => (
-          <div key={field.name}>
-            <div className="text-xs text-muted-foreground mb-0.5">{field.name}</div>
+          <div key={field.name} className="flex flex-col gap-1">
+            <div className="text-xs text-muted-foreground">{field.name}</div>
             <div className="text-xs">
-              <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
+              <PayloadValue
+                value={parsed[field.name]}
+                field={field}
+                spanRefCallbacks={spanRefCallbacks}
+                badgeBorder={accentBorder}
+              />
             </div>
           </div>
         ))
