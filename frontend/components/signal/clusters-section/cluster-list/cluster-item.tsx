@@ -6,9 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { withOpacity } from "../colors";
 import { type ClusterNode } from "../utils";
 
 export type IconVariant = "boxes" | "box" | "circle-dashed";

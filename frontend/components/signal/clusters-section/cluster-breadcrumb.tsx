@@ -1,6 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { Box } from "lucide-react";
+
+import { getClusterColorById, withOpacity } from "@/lib/clusters/colors";
 
 import { type ClusterNode } from "./utils";
 
@@ -67,18 +70,25 @@ export default function ClusterBreadcrumb({
             >
               {/* Inner: handles swaps within this level (e.g. sibling leaf selection) */}
               <AnimatePresence initial={false} mode="wait">
-                <motion.div key={node.id} className="flex">
+                <motion.div key={node.id} className="flex items-center">
                   <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
                     /
                   </motion.span>
                   <motion.button
-                    className={`hover:underline truncate block max-w-full text-left ${
+                    className={`hover:underline truncate flex items-center gap-1 max-w-full text-left ${
                       isLast ? "text-secondary-foreground" : "text-muted-foreground"
                     }`}
                     onClick={() => onNavigateToBreadcrumb(index)}
                     {...slideIn}
                   >
-                    {node.name}
+                    <Box
+                      className="size-3 shrink-0"
+                      fill={withOpacity(getClusterColorById(node.id), 0.1)}
+                      stroke={withOpacity(getClusterColorById(node.id), 0.7)}
+                      strokeWidth={1.5}
+                      aria-hidden
+                    />
+                    <span className="truncate">{node.name}</span>
                   </motion.button>
                 </motion.div>
               </AnimatePresence>

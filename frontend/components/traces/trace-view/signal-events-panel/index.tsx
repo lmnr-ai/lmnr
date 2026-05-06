@@ -1,23 +1,23 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Loader2, X } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { cn } from "@/lib/utils";
 
-import ExpandedContent from "./expanded-content";
-import { getSignalDisplayColor } from "./utils";
+import { PanelHoverContext } from "./hover-context";
+import PanelBody from "./panel-body";
+import { deriveAccent, PanelAccentProvider } from "./utils";
 
-const DEFAULT_HEIGHT = 280;
-const MIN_HEIGHT = 120;
-const MAX_HEIGHT = 600;
-const FALLBACK_BORDER = "hsl(var(--border))";
+const PANEL_HEIGHT = 200;
+const HOVER_OPEN_DELAY_MS = 300;
+const HOVER_CLOSE_DELAY_MS = 100;
+const POPOVER_MAX_HEIGHT = 480;
+
+const OUTER_CLS = "flex flex-col rounded-lg border overflow-hidden relative";
 
 interface Props {
   traceId: string;
@@ -26,150 +26,102 @@ interface Props {
 }
 
 export default function SignalEventsPanel({ traceId, onClose, className }: Props) {
-  const { traceSignals, isTraceSignalsLoading, activeSignalTabId, setActiveSignalTabId, initialSignalId } =
-    useTraceViewStore(
-      (state) => ({
-        traceSignals: state.traceSignals,
-        isTraceSignalsLoading: state.isTraceSignalsLoading,
-        activeSignalTabId: state.activeSignalTabId,
-        setActiveSignalTabId: state.setActiveSignalTabId,
-        initialSignalId: state.initialSignalId,
-      }),
-      shallow
-    );
-
-  const [height, setHeight] = useState(DEFAULT_HEIGHT);
-  const [isResizing, setIsResizing] = useState(false);
-  const startY = useRef(0);
-  const startHeight = useRef(0);
-
-  // Effective active tab: store value → initialSignalId fallback → first signal.
-  const effectiveTabId = useMemo(() => {
-    if (activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)) {
-      return activeSignalTabId;
-    }
-    if (initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)) {
-      return initialSignalId;
-    }
-    return traceSignals[0]?.signalId ?? "";
-  }, [activeSignalTabId, initialSignalId, traceSignals]);
-
-  const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
-  // Single accent color drives all tinting: outer border (80%), active tab bg
-  // (~25%), button & badge borders (~40%). Lets the panel adopt the color of
-  // whichever signal is currently selected.
-  const accentBase = activeSignal ? getSignalDisplayColor(activeSignal) : null;
-  const borderColor = accentBase ? `${accentBase}60` : FALLBACK_BORDER;
-  const tabActiveBg = accentBase ? `${accentBase}40` : "transparent"; // ~25%
-  const accentBorder = accentBase ? `${accentBase}66` : "hsl(var(--border))"; // ~40%
-  const panelTint = accentBase ? `${accentBase}1a` : undefined; // ~10%
-
-  const cardVariants = useMemo(
-    () => ({
-      initial: { height: 0, opacity: 0 },
-      open: (h: number) => ({
-        height: h,
-        opacity: 1,
-        transition: { type: "spring", stiffness: 300, damping: 30 },
-      }),
-      resizing: (h: number) => ({ height: h, opacity: 1, transition: { duration: 0 } }),
-      closed: { height: 0, opacity: 0 },
+  const { traceSignals, isTraceSignalsLoading, activeSignalTabId, initialSignalId } = useTraceViewStore(
+    (state) => ({
+      traceSignals: state.traceSignals,
+      isTraceSignalsLoading: state.isTraceSignalsLoading,
+      activeSignalTabId: state.activeSignalTabId,
+      initialSignalId: state.initialSignalId,
     }),
-    []
+    shallow
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      setIsResizing(true);
-      startY.current = e.clientY;
-      startHeight.current = height;
-      e.preventDefault();
+  const [hovered, setHovered] = useState(false);
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const delta = moveEvent.clientY - startY.current;
-        const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeight.current + delta));
-        setHeight(newHeight);
-      };
-      const handleMouseUp = () => {
-        setIsResizing(false);
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [height]
-  );
+  // Resolve active signal so we can derive the accent palette once and share
+  // it via context (so the trigger, the portal, and ExpandedContent all read
+  // identical colors without re-deriving from the store).
+  const accent = useMemo(() => {
+    const id =
+      activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)
+        ? activeSignalTabId
+        : initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)
+          ? initialSignalId
+          : (traceSignals[0]?.signalId ?? "");
+    return deriveAccent(traceSignals.find((s) => s.signalId === id));
+  }, [traceSignals, activeSignalTabId, initialSignalId]);
 
-  if (!isTraceSignalsLoading && traceSignals.length === 0) {
-    // Nothing to show — don't render the panel at all.
-    return null;
-  }
+  const handleClose = useCallback(() => {
+    setHovered(false);
+    onClose();
+  }, [onClose]);
+
+  if (!isTraceSignalsLoading && traceSignals.length === 0) return null;
+
+  // Two-layer background: a solid `bg-background` underneath (provided by
+  // className) and the semi-transparent accent tint on top via background-image.
+  // Without the solid back, the popover is see-through over the trigger.
+  const tintLayer = accent.panelTint ?? "hsl(var(--muted) / 0.4)";
+  const outerStyle = {
+    borderColor: accent.borderColor,
+    backgroundImage: `linear-gradient(${tintLayer}, ${tintLayer})`,
+  };
 
   return (
-    <motion.div
-      className={cn("flex flex-col rounded-lg border overflow-hidden relative", className)}
-      style={{ borderColor, backgroundColor: panelTint ?? "hsl(var(--muted) / 0.4)" }}
-      custom={height}
-      variants={cardVariants}
-      initial="initial"
-      animate={isResizing ? "resizing" : "open"}
-      exit="closed"
-    >
-      {isTraceSignalsLoading ? (
-        <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-        </div>
-      ) : (
-        <Tabs
-          value={effectiveTabId}
-          onValueChange={setActiveSignalTabId}
-          className="flex flex-col flex-1 min-h-0 gap-0"
+    <PanelAccentProvider value={accent}>
+      <HoverCard
+        openDelay={HOVER_OPEN_DELAY_MS}
+        closeDelay={HOVER_CLOSE_DELAY_MS}
+        open={hovered}
+        onOpenChange={setHovered}
+      >
+        <HoverCardTrigger asChild>
+          <motion.div
+            className={cn(OUTER_CLS, "bg-background", className)}
+            style={{ ...outerStyle, height: PANEL_HEIGHT }}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: PANEL_HEIGHT, opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <PanelHoverContext.Provider value={false}>
+              <PanelBody traceId={traceId} onClose={handleClose} />
+            </PanelHoverContext.Provider>
+          </motion.div>
+        </HoverCardTrigger>
+        <HoverCardContent
+          side="bottom"
+          align="start"
+          sideOffset={-PANEL_HEIGHT}
+          avoidCollisions={false}
+          // Disable Radix's default open zoom/fade so the only entrance is the
+          // inner motion.div's height grow. Keep close defaults so the popover
+          // gracefully fades out.
+          className={cn(
+            OUTER_CLS,
+            "bg-background p-0 shadow-xl data-[state=open]:zoom-in-100 data-[state=open]:fade-in-100"
+          )}
+          style={{
+            ...outerStyle,
+            width: "var(--radix-hover-card-trigger-width)",
+          }}
         >
-          <div className="flex items-center gap-2 pl-2 pr-3 py-2 shrink-0">
-            <TabsList className="flex-1 h-auto bg-transparent p-0 gap-1 justify-start">
-              {traceSignals.map((signal) => {
-                const isActive = signal.signalId === effectiveTabId;
-                return (
-                  <TabsTrigger
-                    key={signal.signalId}
-                    value={signal.signalId}
-                    style={isActive ? { backgroundColor: tabActiveBg } : undefined}
-                    className={cn(
-                      "flex-1 min-w-0 h-auto px-2 py-0.5 text-xs rounded justify-center",
-                      "data-[state=active]:shadow-none data-[state=active]:text-foreground",
-                      "text-secondary-foreground hover:text-foreground"
-                    )}
-                  >
-                    <span className="truncate">{signal.signalName}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
-            <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
-              <X className="size-3.5" />
-            </Button>
-          </div>
-          {/* `[&>div>div]:!block` — see Radix ScrollArea overflow note in old
-              accordion build; same fix prevents long content from forcing
-              horizontal scroll. */}
-          <ScrollArea className="flex-1 min-h-0 [&>div>div]:!block">
-            {traceSignals.map((signal) => (
-              <TabsContent
-                key={signal.signalId}
-                value={signal.signalId}
-                className="m-0 outline-none data-[state=inactive]:hidden"
-              >
-                <ExpandedContent traceId={traceId} signal={signal} accentBorder={accentBorder} />
-              </TabsContent>
-            ))}
-          </ScrollArea>
-        </Tabs>
-      )}
-      <div
-        onMouseDown={handleMouseDown}
-        className="h-1 cursor-row-resize hover:bg-[#18181B] transition-colors shrink-0 absolute bottom-0 w-full"
-      />
-    </motion.div>
+          <motion.div
+            // Bottom edge slides down from the trigger height to the natural
+            // content height (capped). No flex-1 here — that fights the
+            // explicit height we're animating.
+            initial={{ height: PANEL_HEIGHT }}
+            animate={{ height: "auto" }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="flex flex-col overflow-hidden"
+            style={{ maxHeight: POPOVER_MAX_HEIGHT }}
+          >
+            <PanelHoverContext.Provider value={hovered}>
+              <PanelBody traceId={traceId} onClose={handleClose} />
+            </PanelHoverContext.Provider>
+          </motion.div>
+        </HoverCardContent>
+      </HoverCard>
+    </PanelAccentProvider>
   );
 }

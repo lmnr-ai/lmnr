@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -13,14 +14,12 @@ import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
 
 import ClusterBreadcrumb from "./cluster-breadcrumb";
-import { schemaFieldsToStructuredOutput } from "./utils";
+import { usePanelHover } from "./hover-context";
+import { schemaFieldsToStructuredOutput, usePanelAccent } from "./utils";
 
 interface Props {
   traceId: string;
   signal: TraceSignal;
-  /** Display color for accent borders (toolbar buttons, category badge).
-   *  Already includes the desired alpha — typically `${baseColor}66` (~40%). */
-  accentBorder: string;
 }
 
 function parsePayload(payload: string): Record<string, unknown> {
@@ -76,10 +75,12 @@ function PayloadValue({
   }
 }
 
-export default function ExpandedContent({ traceId, signal, accentBorder }: Props) {
+export default function ExpandedContent({ traceId, signal }: Props) {
   const { projectId } = useParams();
   const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
   const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
+  const hovered = usePanelHover();
+  const { accentBorder } = usePanelAccent();
 
   const events = (signal.events as EventRow[]) ?? [];
   const latestEvent = events[0];
@@ -127,26 +128,41 @@ export default function ExpandedContent({ traceId, signal, accentBorder }: Props
   return (
     <div className="px-4 pt-2 pb-3 flex flex-col gap-4">
       {signal.clusterPath.length > 0 && <ClusterBreadcrumb clusterPath={signal.clusterPath} />}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <Button variant="outline" className={buttonClass} style={buttonStyle} onClick={handleOpenInChat}>
-          <Sparkles className="size-3.5 mr-1" />
-          Open in AI Chat
-        </Button>
-        <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
-          <Link href={`/project/${projectId}/signals/${signal.signalId}`} target="_blank">
-            <ExternalLink className="size-3.5 mr-1" />
-            Open in Signals
-          </Link>
-        </Button>
-        {leafCluster && (
+      {/* Toolbar is hidden in the trigger (base) variant and revealed in the
+          hover variant. We render the wrapper only when hovered so it doesn't
+          take up gap space when collapsed; the hover popover's height: auto
+          animation visually grows it into view, plus we fade in to soften the
+          appearance after the popover has finished growing. */}
+      {hovered && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.18, delay: 0.15 }}
+          className="flex items-center gap-1.5 flex-wrap"
+        >
+          <Button variant="outline" className={buttonClass} style={buttonStyle} onClick={handleOpenInChat}>
+            <Sparkles className="size-3.5 mr-1" />
+            Open in AI Chat
+          </Button>
           <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
-            <Link href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}`} target="_blank">
+            <Link href={`/project/${projectId}/signals/${signal.signalId}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
-              Open cluster
+              Open in Signals
             </Link>
           </Button>
-        )}
-      </div>
+          {leafCluster && (
+            <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
+              <Link
+                href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}`}
+                target="_blank"
+              >
+                <ExternalLink className="size-3.5 mr-1" />
+                Open cluster
+              </Link>
+            </Button>
+          )}
+        </motion.div>
+      )}
       {!latestEvent ? (
         <div className="py-2 text-xs text-muted-foreground">No events found</div>
       ) : (
