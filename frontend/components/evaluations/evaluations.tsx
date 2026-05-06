@@ -276,7 +276,7 @@ function EvaluationsContent() {
                 </div>
                 <div className="w-full">
                   <AdvancedSearch
-                    storageKey="evaluations"
+                    storageKey={`evaluations-${params?.projectId}`}
                     filters={filters}
                     placeholder="Search evaluations..."
                     className="w-full flex-1"

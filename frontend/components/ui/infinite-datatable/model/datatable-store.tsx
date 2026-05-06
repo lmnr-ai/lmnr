@@ -5,6 +5,8 @@ import { createContext, type ReactNode, useContext, useEffect, useRef, useState 
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { type CustomColumn } from "@/components/ui/columns-menu";
+
 export interface InfiniteScrollState<TData> {
   data: TData[];
   currentPage: number;
@@ -36,6 +38,10 @@ export interface SelectionState {
   draggingColumnId: string | null;
 }
 
+export interface CustomColumnsState {
+  customColumns: CustomColumn[];
+}
+
 export interface SelectionActions {
   selectRow: (id: string) => void;
   deselectRow: (id: string) => void;
@@ -50,10 +56,18 @@ export interface SelectionActions {
   getStorageKey: () => string;
 }
 
+export interface CustomColumnsActions {
+  addCustomColumn: (column: CustomColumn) => void;
+  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
+  removeCustomColumn: (name: string) => void;
+}
+
 type DataTableStore<TData> = InfiniteScrollState<TData> &
   InfiniteScrollActions<TData> &
   SelectionState &
-  SelectionActions;
+  SelectionActions &
+  CustomColumnsState &
+  CustomColumnsActions;
 
 function createDataTableStore<TData>(
   uniqueKey: string = "id",
@@ -78,6 +92,8 @@ function createDataTableStore<TData>(
     columnOrder: initialColumnConfig?.columnOrder ?? defaultColumnOrder,
     columnSizing: initialColumnConfig?.columnSizing ?? {},
     draggingColumnId: null,
+    customColumns: [],
+
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
@@ -94,6 +110,47 @@ function createDataTableStore<TData>(
         columnOrder: defaultColumnOrder,
         columnSizing: {},
       }),
+
+    addCustomColumn: (column) => {
+      const { customColumns, columnOrder } = get();
+      if (customColumns.some((cc) => cc.name === column.name)) return;
+      const id = `custom:${column.name}`;
+      set({
+        customColumns: [...customColumns, column],
+        columnOrder: [...columnOrder, id],
+      });
+    },
+
+    updateCustomColumn: (oldName, column) => {
+      const { customColumns, columnOrder, columnSizing, columnVisibility } = get();
+      const oldId = `custom:${oldName}`;
+      const newId = `custom:${column.name}`;
+      const renamed = oldName !== column.name;
+      set({
+        customColumns: customColumns.map((cc) => (cc.name === oldName ? column : cc)),
+        ...(renamed && {
+          columnOrder: columnOrder.map((id) => (id === oldId ? newId : id)),
+          columnSizing: Object.fromEntries(Object.entries(columnSizing).map(([k, v]) => [k === oldId ? newId : k, v])),
+          columnVisibility: Object.fromEntries(
+            Object.entries(columnVisibility).map(([k, v]) => [k === oldId ? newId : k, v])
+          ),
+        }),
+      });
+    },
+
+    removeCustomColumn: (name) => {
+      const { customColumns, columnOrder, columnSizing, columnVisibility } = get();
+      const id = `custom:${name}`;
+      const { [id]: _vis, ...restVisibility } = columnVisibility;
+      const { [id]: _size, ...restSizing } = columnSizing;
+      set({
+        customColumns: customColumns.filter((cc) => cc.name !== name),
+        columnOrder: columnOrder.filter((colId) => colId !== id),
+        columnVisibility: restVisibility,
+        columnSizing: restSizing,
+      });
+    },
+
     appendData: (items, count) =>
       set((state) => {
         const combined = [...state.data, ...items];
@@ -168,19 +225,27 @@ function createDataTableStore<TData>(
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
           columnSizing: state.columnSizing,
+          customColumns: state.customColumns,
         }),
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<
-            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
+            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing"> &
+              Pick<CustomColumnsState, "customColumns">
           >;
-          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
-          const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
+
+          const persistedCustomColumns = persisted?.customColumns ?? [];
+          const customColumnIds = persistedCustomColumns.map((cc) => `custom:${cc.name}`);
+          const fullDefaultOrder = [...defaultColumnOrder, ...customColumnIds];
+
+          const validColumns = intersection(persisted?.columnOrder ?? [], fullDefaultOrder);
+          const newColumns = fullDefaultOrder.filter((col) => !validColumns.includes(col));
           const mergedColumnOrder = [...validColumns, ...newColumns];
-          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
-          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, defaultColumnOrder);
+          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, fullDefaultOrder);
+          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, fullDefaultOrder);
 
           return {
             ...currentState,
+            customColumns: persistedCustomColumns,
             columnVisibility: filteredColumnVisibility,
             columnOrder: mergedColumnOrder,
             columnSizing: filteredColumnSizing,
