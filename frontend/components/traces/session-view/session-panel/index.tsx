@@ -117,7 +117,7 @@ export default function SessionPanel() {
             </>
           )}
           <ResizablePanel className="flex flex-col items-center flex-1 h-full overflow-hidden">
-            <div className="flex h-full w-full max-w-4xl 2xl:max-w-6xl">
+            <div className="flex h-full w-full max-w-[1600px] 2xl:max-w-[1800px]">
               <SessionList />
             </div>
           </ResizablePanel>
