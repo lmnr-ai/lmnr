@@ -70,6 +70,10 @@ pub async fn create_labeling_queues_items(
     }
 
     let now_ms = now_ch_millis();
+    // Same millisecond instant as what we persist to ClickHouse, so the HTTP response's
+    // `createdAt` doesn't drift by microseconds from the stored value.
+    let now_dt =
+        chrono::DateTime::from_timestamp_millis(now_ms as i64).unwrap_or_else(chrono::Utc::now);
     let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
     let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
 
@@ -79,13 +83,8 @@ pub async fn create_labeling_queues_items(
         // If an idempotency key was supplied, check for an existing row in CH.
         // We FINAL the lookup to collapse replacing-merge-tree duplicates.
         if !idempotency_key.is_empty()
-            && idempotency_key_exists(
-                clickhouse.clone(),
-                project_id,
-                queue_id,
-                &idempotency_key,
-            )
-            .await?
+            && idempotency_key_exists(clickhouse.clone(), project_id, queue_id, &idempotency_key)
+                .await?
         {
             continue;
         }
@@ -113,7 +112,7 @@ pub async fn create_labeling_queues_items(
 
         response.push(LabelingQueueItemResponse {
             id,
-            created_at: chrono::Utc::now(),
+            created_at: now_dt,
         });
     }
 
