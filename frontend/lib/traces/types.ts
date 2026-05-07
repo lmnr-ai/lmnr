@@ -140,9 +140,6 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
-  analysis_status?: string;
-  analysis_preview?: string;
-  analysis?: string;
   rootSpanInput?: string;
   rootSpanOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };

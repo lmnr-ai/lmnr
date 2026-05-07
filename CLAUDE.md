@@ -189,6 +189,11 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - Time-range-to-grouping logic is duplicated in three places that must stay in sync: `getGroupByInterval` (`frontend/lib/utils.ts`), `inferGroupByInterval` (`frontend/lib/time.ts`), and `getOptimalDateFormat` (`frontend/components/chart-builder/charts/utils.ts`). When changing grouping thresholds, update all three.
 
+## Traces Table Filters and `traces_v0`
+
+- The traces table queries the `traces_v0` ClickHouse view. Its schema evolves via migrations — migration 36 (`36_trace_tags.sql`) dropped the `trace_summaries` LEFT JOIN and removed `analysis_status`/`analysis`/`analysis_preview`/`summary` columns from the view. Older migration files (e.g. `6_trace-summary-views.sql`, `10_trace_browser_session.sql`) still reference those columns; they are historical and must not be edited — the view is superseded by the later migration.
+- When removing a column from `traces_v0`, it must ALSO be removed from (1) `tracesColumnFilterConfig.processors` in `frontend/lib/actions/traces/utils.ts`, (2) the `filters` array in `frontend/components/traces/traces-table/columns.tsx`, and (3) the `TraceRow` type in `frontend/lib/traces/types.ts`. A stale filter processor is the mechanism by which selecting the filter in the UI injects SQL referencing a missing column and 500s the traces API route.
+
 ## Trace-view Span Attributes
 
 - The trace-view (transcript/tree) and shared-trace endpoints do NOT fetch the full `attributes` JSON blob from ClickHouse. LLM spans' `attributes` can be tens of kB each, so we extract only the keys listed in `TRACE_VIEW_ATTRIBUTE_KEYS` via `buildTraceViewAttributesExpression()` in `frontend/lib/actions/spans/utils.ts`. Downstream `tryParseJson` + key access keeps working unchanged because missing keys are omitted from the synthesized JSON.
