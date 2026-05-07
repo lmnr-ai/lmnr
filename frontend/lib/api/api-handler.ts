@@ -21,14 +21,7 @@ export function apiHandler<P extends Record<string, string> = Record<string, str
       // can handle them correctly. Real application errors fall through.
       unstable_rethrow(error);
 
-      Sentry.withScope((scope) => {
-        scope.setTags({
-          "http.method": req.method,
-          "http.route": req.nextUrl.pathname,
-          source: "apiHandler",
-        });
-        Sentry.captureException(error);
-      });
+      Sentry.captureException(error, { tags: { source: "apiHandler" } });
 
       if (error instanceof ZodError) {
         return Response.json({ error: prettifyError(error) }, { status: 400 });

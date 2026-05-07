@@ -360,4 +360,6 @@ export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
 
 Exceptions (don't wrap): streaming/SSE responses, file/binary downloads, webhook routes (Stripe, Slack), NextAuth handlers, routes with non-`{error: string}` error shapes.
 
+Do NOT set `http.route` / `http.method` tags on `Sentry.captureException` inside `apiHandler` (or anywhere else in App Router code). `@sentry/nextjs` (v8+) auto-instruments App Router via OpenTelemetry and already attaches the parameterized route (`/api/projects/[projectId]/...`) and method to the active root span, which captured exceptions inherit. Tagging `req.nextUrl.pathname` overrides that with a high-cardinality value (one per concrete request id) and breaks Sentry's per-route aggregation. Next.js does NOT expose the route pattern to handlers directly — rely on Sentry's auto-instrumentation rather than reconstructing it from `ctx.params`.
+
 **Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).
