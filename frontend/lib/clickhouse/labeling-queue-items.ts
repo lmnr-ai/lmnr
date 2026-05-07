@@ -182,37 +182,6 @@ export const getQueueItems = async (
   return rows.map(rowToItem);
 };
 
-export const getQueueItemById = async (
-  projectId: string,
-  queueId: string,
-  id: string
-): Promise<LabelingQueueItem | null> => {
-  const query = `
-    SELECT
-      toString(id) AS id,
-      toString(queue_id) AS queue_id,
-      toString(project_id) AS project_id,
-      payload,
-      metadata,
-      is_labelled,
-      idempotency_key,
-      formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS created_at,
-      formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS updated_at
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-      AND id = {id: UUID}
-    LIMIT 1
-  `;
-  const result = await clickhouseClient.query({
-    query,
-    query_params: { projectId, queueId, id },
-    format: "JSONEachRow",
-  });
-  const rows = (await result.json()) as CHRow[];
-  return rows[0] ? rowToItem(rows[0]) : null;
-};
-
 export const getQueueItemsCount = async (projectId: string, queueId: string): Promise<number> => {
   const query = `
     SELECT count(*) AS total
@@ -234,6 +203,13 @@ export interface UpdateQueueItemInput {
   queueId: string;
   projectId: string;
   payload?: unknown;
+  /**
+   * Partial payload patch — merged into `existing.payload` with `target` taking
+   * precedence. Use this instead of fetching and re-sending the full payload
+   * from the caller, which doubles the number of FINAL round-trips per update.
+   * Ignored when `payload` is set explicitly.
+   */
+  target?: unknown;
   metadata?: unknown;
   isLabelled?: boolean;
   idempotencyKey?: string;
@@ -271,12 +247,15 @@ export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void
   const existingRows = (await existingResult.json()) as CHRow[];
   const existing = existingRows[0];
 
+  const existingPayload = existing
+    ? tryParseJson<Record<string, unknown>>(existing.payload, { data: {}, target: {} })
+    : { data: {}, target: {} };
   const payload =
     input.payload !== undefined
       ? input.payload
-      : existing
-        ? tryParseJson(existing.payload, { data: {}, target: {} })
-        : { data: {}, target: {} };
+      : input.target !== undefined
+        ? { ...existingPayload, target: input.target }
+        : existingPayload;
   const metadata = input.metadata !== undefined ? input.metadata : existing ? tryParseJson(existing.metadata, {}) : {};
   const isLabelled = input.isLabelled ?? existing?.is_labelled ?? false;
   const idempotencyKey = input.idempotencyKey ?? existing?.idempotency_key ?? "";

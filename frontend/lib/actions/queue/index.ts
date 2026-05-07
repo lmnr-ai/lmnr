@@ -7,7 +7,6 @@ import {
   filterExistingIdempotencyKeys,
   getLabelledQueueItems,
   getQueueCounts,
-  getQueueItemById,
   getQueueItems,
   insertQueueItems,
   updateQueueItem,
@@ -140,16 +139,14 @@ export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>)
 export async function updateQueueItemTarget(input: z.infer<typeof UpdateQueueItemTargetSchema>) {
   const parsed = UpdateQueueItemTargetSchema.parse(input);
 
-  // Read-modify-write: fetch current item so we only touch payload.target and
-  // is_labelled, preserving data / caller-defined metadata across updates.
-  const existing = await getQueueItemById(parsed.projectId, parsed.queueId, parsed.id);
-  const basePayload = existing?.payload ?? { data: {}, target: {} };
-
+  // Delegate the read-modify-write entirely to `updateQueueItem`: one FINAL
+  // SELECT there splices the new target into the existing payload AND returns
+  // the immutable fields (createdAt, idempotency_key) we need to preserve.
   await updateQueueItem({
     id: parsed.id,
     queueId: parsed.queueId,
     projectId: parsed.projectId,
-    payload: { ...basePayload, target: parsed.target },
+    target: parsed.target,
     isLabelled: parsed.isLabelled,
   });
 
