@@ -121,6 +121,10 @@ function QueueInner() {
       : null;
   const debouncedSaveKey = useDebounce(pendingSaveKey, 600);
   const lastSavedKeyRef = useRef<string | null>(null);
+  // Tracks the in-flight debounced save's fetch so approve/discard can cancel it. Without this,
+  // an in-flight `isLabelled:false` PATCH can land after approve's `isLabelled:true` PATCH and
+  // — since ClickHouse RMT resolves by updated_at — silently revert the approval.
+  const debouncedAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!debouncedSaveKey || !queueId) return;
@@ -128,22 +132,35 @@ function QueueInner() {
     const { id, target } = JSON.parse(debouncedSaveKey) as { id: string; target: unknown };
     lastSavedKeyRef.current = debouncedSaveKey;
 
+    const controller = new AbortController();
+    debouncedAbortRef.current = controller;
+
     (async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target, isLabelled: false }),
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error("save failed");
       } catch {
-        lastSavedKeyRef.current = null;
+        if (!controller.signal.aborted) {
+          lastSavedKeyRef.current = null;
+        }
+      } finally {
+        if (debouncedAbortRef.current === controller) debouncedAbortRef.current = null;
       }
     })();
   }, [debouncedSaveKey, projectId, queueId]);
 
   const approveCurrent = useCallback(async () => {
     if (!currentItem || !queueId || !isTargetJsonValid) return;
+    // Cancel any in-flight debounced save and short-circuit a pending one — we're about to write
+    // `isLabelled:true` and a stale `isLabelled:false` PATCH arriving after would revert it.
+    debouncedAbortRef.current?.abort();
+    debouncedAbortRef.current = null;
+    lastSavedKeyRef.current = pendingSaveKey;
     setIoState("save");
     try {
       const target = (currentItem.payload as { target?: unknown }).target;
@@ -178,10 +195,16 @@ function QueueInner() {
     items.length,
     step,
     setIoState,
+    pendingSaveKey,
   ]);
 
   const discardCurrent = useCallback(async () => {
     if (!currentItem || !queueId) return;
+    // Cancel any in-flight debounced save — a late PATCH would re-insert a row with a fresher
+    // updated_at and resurrect this item past the delete tombstone.
+    debouncedAbortRef.current?.abort();
+    debouncedAbortRef.current = null;
+    lastSavedKeyRef.current = pendingSaveKey;
     setIoState("remove");
     try {
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${currentItem.id}`, {
@@ -208,7 +231,7 @@ function QueueInner() {
     } finally {
       setIoState(false);
     }
-  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState]);
+  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, pendingSaveKey]);
 
   const pushAll = useCallback(async () => {
     if (!queueId) return;
