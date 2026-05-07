@@ -15,6 +15,9 @@ export function apiHandler<P extends Record<string, string> = Record<string, str
     try {
       return await handler(req, ctx);
     } catch (error) {
+      if (error instanceof ZodError) {
+        return Response.json({ error: prettifyError(error) }, { status: 400 });
+      }
       Sentry.withScope((scope) => {
         scope.setTags({
           "http.method": req.method,
@@ -23,9 +26,6 @@ export function apiHandler<P extends Record<string, string> = Record<string, str
         });
         Sentry.captureException(error);
       });
-      if (error instanceof ZodError) {
-        return Response.json({ error: prettifyError(error) }, { status: 400 });
-      }
       return Response.json(
         { error: error instanceof Error ? error.message : "Internal server error" },
         { status: 500 }
