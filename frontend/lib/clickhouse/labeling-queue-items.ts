@@ -71,9 +71,14 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
     table: "labeling_queue_items",
     values: rows,
     format: "JSONEachRow",
+    // Synchronous insert — `updateQueueItem` reads the just-inserted row back via
+    // FINAL during its read-modify-write. With `async_insert: 1`, the ack returns
+    // when the row enters the async buffer (typically flushed every 200ms), so
+    // the next SELECT FINAL can miss it and the RMW would restore defaults
+    // (empty idempotency_key, fresh created_at). The client-level default
+    // (`client.ts`) stays async for high-throughput tables; we opt out here.
     clickhouse_settings: {
-      wait_for_async_insert: 1,
-      async_insert: 1,
+      async_insert: 0,
     },
   });
 };
