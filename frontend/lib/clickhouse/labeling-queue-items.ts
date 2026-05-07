@@ -83,10 +83,6 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
   });
 };
 
-export interface IdempotencyCollision {
-  idempotencyKey: string;
-}
-
 /** Filter out items whose idempotency_key already exists for the queue. */
 export const filterExistingIdempotencyKeys = async (
   projectId: string,
@@ -180,22 +176,6 @@ export const getQueueItems = async (
   });
   const rows = (await result.json()) as CHRow[];
   return rows.map(rowToItem);
-};
-
-export const getQueueItemsCount = async (projectId: string, queueId: string): Promise<number> => {
-  const query = `
-    SELECT count(*) AS total
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-  `;
-  const result = await clickhouseClient.query({
-    query,
-    query_params: { projectId, queueId },
-    format: "JSONEachRow",
-  });
-  const rows = (await result.json()) as { total: string }[];
-  return rows[0] ? Number(rows[0].total) : 0;
 };
 
 export interface UpdateQueueItemInput {
