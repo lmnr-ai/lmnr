@@ -246,6 +246,10 @@ function QueueInner() {
       toast({ variant: "destructive", title: "Pick a dataset first" });
       return;
     }
+    if (!currentItem.isLabelled) {
+      toast({ variant: "destructive", title: "Approve the item before pushing" });
+      return;
+    }
     setIoState("push-one");
     try {
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/push-to-dataset`, {
@@ -259,6 +263,11 @@ function QueueInner() {
           .then((d) => d?.error)
           .catch(() => null);
         toast({ variant: "destructive", title: errMessage ?? "Failed to push item" });
+        return;
+      }
+      const result = await res.json();
+      if (!result?.pushed) {
+        toast({ variant: "destructive", title: "Item was not pushed — approve it first" });
         return;
       }
       toast({ title: "Pushed item to dataset" });
@@ -374,7 +383,7 @@ function QueueInner() {
           onPushAll={pushAll}
           onPushCurrent={pushCurrent}
           disablePushAll={progress.labelled === 0 || !dataset || disableNav}
-          disablePushCurrent={!currentItem || !dataset || disableNav}
+          disablePushCurrent={!currentItem || !currentItem.isLabelled || !dataset || disableNav}
           ioState={ioState}
         />
 
