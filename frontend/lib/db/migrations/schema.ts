@@ -493,34 +493,6 @@ export const workspaceUsageWarnings = pgTable(
   ]
 );
 
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-    idempotencyKey: text("idempotency_key"),
-  },
-  (table) => [
-    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
-      .using(
-        "btree",
-        table.queueId.asc().nullsLast().op("text_ops"),
-        table.idempotencyKey.asc().nullsLast().op("text_ops")
-      )
-      .where(sql`(idempotency_key IS NOT NULL)`),
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const workspaceInvitations = pgTable(
   "workspace_invitations",
   {
@@ -777,7 +749,7 @@ export const labelingQueues = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
     projectId: uuid("project_id").notNull(),
-    annotationSchema: jsonb("annotation_schema"),
+    targetSchema: jsonb("target_schema"),
   },
   (table) => [
     foreignKey({

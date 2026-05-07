@@ -182,7 +182,7 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
     useQueueStore((state) => ({
       fields: state.fields,
       focusedFieldIndex: state.focusedFieldIndex,
-      target: state.getTarget(),
+      target: (state.getTarget() as Record<string, unknown>) || {},
       updateTargetField: state.updateTargetField,
       focusField: state.focusField,
       selectOptionInFocusedField: state.selectOptionInFocusedField,

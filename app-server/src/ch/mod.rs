@@ -3,6 +3,7 @@ pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
 pub mod evaluation_datapoints;
+pub mod labeling_queue_items;
 pub mod limits;
 pub mod logs;
 pub mod notification_deliveries;

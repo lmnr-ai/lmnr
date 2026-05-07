@@ -118,6 +118,16 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
 - **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
 
+## Labeling Queue Items (ClickHouse)
+
+- Queue metadata (`labeling_queues`) still lives in Postgres. Per-item rows (`labeling_queue_items`) live in ClickHouse as a `ReplacingMergeTree(updated_at)` keyed `(project_id, queue_id, id)` — see `frontend/lib/clickhouse/migrations/42_labeling_queue_items.sql`.
+- **All reads must use `FINAL`** to collapse the most-recent version of each row. Writes append; there is no `UPDATE` — the read-modify-write helper `updateQueueItem` in `frontend/lib/clickhouse/labeling-queue-items.ts` re-inserts with a fresh `updated_at` and preserves immutable fields (`createdAt`, `idempotency_key`).
+- Idempotency is **not** enforced by a unique constraint (RMT doesn't support them). `pushQueueItems` in `frontend/lib/actions/queue/index.ts` filters keys via `filterExistingIdempotencyKeys` (a FINAL-scoped `SELECT DISTINCT`) before insert. The Rust `insert_labeling_queue_items` in `app-server/src/ch/labeling_queue_items.rs` does the same via `idempotency_key_exists`.
+- Deletes use ClickHouse **lightweight DELETE** (`DELETE FROM ... WHERE ...`), which writes a tombstone that FINAL reads respect. `deleteQueueItems` / `deleteQueueItemsByQueueIds` wrap this. On queue deletion (`deleteQueues`), call `deleteQueueItemsByQueueIds` BEFORE the Postgres `DELETE` — FK cascades only cover Postgres.
+- `created_at` / `updated_at` are `DateTime64(3, 'UTC')`. In Rust, model them as `u64` milliseconds since epoch (`Utc::now().timestamp_millis() as u64`); the JSON view from the TS client comes back as ISO strings formatted via `formatDateTime(..., '%Y-%m-%dT%H:%i:%S.%fZ')`.
+- The `labelingQueues.annotation_schema` column was renamed to `target_schema` (migration 0085). The UI now exposes it as "target schema" everywhere; endpoint is `PUT /api/projects/[projectId]/queues/[queueId]/target-schema`.
+- Per-queue item-count filters were dropped from the queues list endpoint — cross-datastore counts are not supported. The `count` filter is silently stripped in `getQueues`; the `count` column on the queues table will render empty.
+
 ## OTel GenAI Semantic Convention Ingestion
 
 - **Backend (app-server)** preserves the native OTel GenAI message shape end-to-end — `gen_ai.input.messages` / `gen_ai.output.messages` are deserialised from JSON string to `Value` but NOT reshaped into Laminar's `ChatMessage` struct. This keeps the original instrumentation payload lossless; the frontend owns rendering. Do NOT reintroduce a backend ChatMessage conversion here — this was explicitly reverted in favour of keeping the raw shape.

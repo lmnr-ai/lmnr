@@ -1,12 +1,11 @@
-import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
-import { partition } from "lodash";
+import { and, desc, eq, getTableColumns, ilike, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import { deleteQueueItemsByQueueIds } from "@/lib/clickhouse/labeling-queue-items";
 import { db } from "@/lib/db/drizzle";
-import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
+import { labelingQueues } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
 
 export const GetQueuesSchema = PaginationFiltersSchema.extend({
@@ -27,7 +26,11 @@ export const DeleteQueuesSchema = z.object({
 export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
   const { projectId, pageNumber, pageSize, search, filter } = input;
 
-  const [countFilters, pgFilters] = partition(filter, (f) => f.column === "count");
+  // Item count filters were previously evaluated via a SQL subquery. Queue
+  // items now live in ClickHouse, so per-queue counts would require a
+  // cross-datastore join. We no longer support the `count` filter in the list
+  // endpoint; filters on name/id still work through Postgres.
+  const pgFilters = (filter ?? []).filter((f) => f.column !== "count");
 
   const filters = [
     eq(labelingQueues.projectId, projectId),
@@ -41,61 +44,7 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
   }
 
-  const countExpr = sql<number>`COALESCE((
-        SELECT COUNT(*)
-        FROM ${labelingQueueItems} lqi
-        WHERE lqi.queue_id = labeling_queues.id
-  ), 0)::int`;
-
-  if (countFilters.length > 0) {
-    const havingConditions = countFilters.map((countFilter) => {
-      const operator = OperatorLabelMap[countFilter.operator];
-      return sql`${countExpr} ${sql.raw(operator)} ${countFilter.value}`;
-    });
-
-    const combinedHaving = havingConditions.reduce((acc, condition) =>
-      acc ? sql`${acc} AND ${condition}` : condition
-    );
-
-    const qualifyingQueues = await db
-      .select({
-        id: labelingQueues.id,
-      })
-      .from(labelingQueues)
-      .where(eq(labelingQueues.projectId, projectId))
-      .groupBy(labelingQueues.id)
-      .having(combinedHaving);
-
-    if (qualifyingQueues.length === 0) {
-      return {
-        items: [],
-        totalCount: 0,
-      };
-    }
-
-    filters.push(
-      inArray(
-        labelingQueues.id,
-        qualifyingQueues.map((q) => q.id)
-      )
-    );
-
-    const queuesData = await paginatedGet({
-      table: labelingQueues,
-      pageNumber,
-      pageSize,
-      filters,
-      orderBy: [desc(labelingQueues.createdAt)],
-      columns: {
-        ...getTableColumns(labelingQueues),
-        count: countExpr,
-      },
-    });
-
-    return queuesData;
-  }
-
-  const queuesData = await paginatedGet({
+  return paginatedGet({
     table: labelingQueues,
     pageNumber,
     pageSize,
@@ -103,11 +52,8 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
     orderBy: [desc(labelingQueues.createdAt)],
     columns: {
       ...getTableColumns(labelingQueues),
-      count: countExpr,
     },
   });
-
-  return queuesData;
 }
 
 export async function createQueue(input: z.infer<typeof CreateQueueSchema>) {
@@ -126,6 +72,9 @@ export async function createQueue(input: z.infer<typeof CreateQueueSchema>) {
 
 export async function deleteQueues(input: z.infer<typeof DeleteQueuesSchema>) {
   const { projectId, queueIds } = DeleteQueuesSchema.parse(input);
+
+  // Clean up queue items in ClickHouse first — FK cascades only cover Postgres.
+  await deleteQueueItemsByQueueIds(projectId, queueIds);
 
   await db
     .delete(labelingQueues)

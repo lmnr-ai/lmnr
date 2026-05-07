@@ -596,6 +596,13 @@
       "when": 1776626433476,
       "tag": "0084_red_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1777000000000,
+      "tag": "0085_labeling_queue_items_to_clickhouse",
+      "breakpoints": true
     }
   ]
 }
