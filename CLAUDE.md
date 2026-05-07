@@ -216,6 +216,12 @@ The frontend uses Husky with lint-staged. Before commits:
 - Responses schemas in `lib/spans/types/openai-responses.ts` deliberately do NOT use `.loose()` — every known field must be listed explicitly. Strict schemas are the detection mechanism: a Chat Completions or LangChain payload must fail to parse here so it can fall through to the right parser. When OpenAI adds a new field, add it to the schema rather than reintroducing `.loose()`.
 - When adding a new provider format, update `ProcessedMessages`, `processMessages`, `buildToolNameMap`, and `renderMessageContent` in `messages.tsx`, and add a renderer component. Tool-call IDs are mapped to tool names via `buildToolNameMap` so tool-result items can show their originating tool name even when the output item only carries `call_id`. Note: `local_shell_call_output` has no `call_id` in the API — key it by `id`.
 
+## Integrations Grid
+
+- `frontend/components/integrations/frameworks-grid.tsx` is the single source of truth for the integrations list shown on the traces onboarding placeholder (`components/traces/placeholder/manual-tab.tsx`). It reuses the SVG assets from `frontend/assets/landing/logos/` so the onboarding grid stays visually aligned with the landing page's "Integrate in minutes" section.
+- SVG asset filenames don't always match the integration name — `light-llm.svg` is LiteLLM, `open-ai.svg` is OpenAI, `pydantic-ai.svg` is Pydantic AI. Before adding a new logo, check `frontend/assets/landing/logos/` for an existing file; only fetch from upstream if one isn't already there.
+- Source SVGs must render at a 24×24 box via `next/image` (`object-contain w-6 h-6`). When sourcing a new logo, prefer single-color/white variants (e.g. simple-icons `fill="#fff"`) so they sit on the dark background.
+
 ## Frontend Best Practices
 
 ### One component per file
