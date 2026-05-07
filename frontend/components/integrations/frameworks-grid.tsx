@@ -4,6 +4,7 @@ import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 
 import anthropic from "@/assets/landing/logos/anthropic.svg";
+import bedrock from "@/assets/landing/logos/bedrock.svg";
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import gemini from "@/assets/landing/logos/gemini.svg";
@@ -12,6 +13,7 @@ import lightLlm from "@/assets/landing/logos/light-llm.svg";
 import mastra from "@/assets/landing/logos/mastra.svg";
 import openAi from "@/assets/landing/logos/open-ai.svg";
 import opencode from "@/assets/landing/logos/opencode.svg";
+import openTelemetry from "@/assets/landing/logos/open-telemetry.svg";
 import playwright from "@/assets/landing/logos/playwright.svg";
 import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
@@ -82,6 +84,16 @@ const integrations: Integration[] = [
     name: "Mastra",
     src: mastra,
     link: "https://docs.lmnr.ai/tracing/integrations/mastra",
+  },
+  {
+    name: "AWS Bedrock",
+    src: bedrock,
+    link: "https://docs.lmnr.ai/tracing/integrations/overview",
+  },
+  {
+    name: "OpenTelemetry",
+    src: openTelemetry,
+    link: "https://docs.lmnr.ai/tracing/otel",
   },
 ];
 
