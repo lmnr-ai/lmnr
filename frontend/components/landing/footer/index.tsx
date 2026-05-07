@@ -54,7 +54,7 @@ const Footer = ({ className }: Props) => {
           </div>
           <div className={cn("flex items-start md:w-auto md:gap-[40px] lg:gap-[120px] translate-y-2", "w-full gap-0")}>
             <div className={cn("flex flex-col items-start md:gap-2 lg:gap-3", "flex-1 basis-0 gap-3")}>
-              <Link href="/contact">
+              <Link href="https://cal.com/robert-lmnr/30min" target="_blank">
                 <LandingButton
                   variant="minimal"
                   className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
