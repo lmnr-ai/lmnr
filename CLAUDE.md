@@ -299,21 +299,21 @@ Prefer `AbortController` over hand-rolled "snapshot state at start, compare at r
 
 ### Error handling
 
-**Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
+**Client-side fetch calls** (in `"use client"` components): Prefer `fetchApi<T>` from `@/lib/api/fetch-api` over raw `fetch` — it returns `{ data, error, status }`, never throws (except `AbortError`, re-thrown for `AbortController` cancellation), and reports network failures + JSON parse errors to Sentry for you. Show a toast via `useToast()` on error using the returned `error` string.
 
 ```typescript
-try {
-  const res = await fetch(`/api/projects/${projectId}/resource`, { method: "POST", body: JSON.stringify(data) });
-  if (!res.ok) {
-    const errMessage = await res.json().then((d) => d?.error).catch(() => null);
-    toast({ variant: "destructive", title: errMessage ?? "Something went wrong" });
-    return;
-  }
-  // handle success
-} catch {
-  toast({ variant: "destructive", title: "Something went wrong" });
+const { data, error } = await fetchApi<ResourceT>(`/api/projects/${projectId}/resource`, {
+  method: "POST",
+  body: JSON.stringify(payload),
+});
+if (error !== null) {
+  toast({ variant: "destructive", title: error });
+  return;
 }
+// use data
 ```
+
+Only reach for raw `fetch` when you need streaming, non-JSON responses, or other low-level behavior `fetchApi` doesn't cover. For `useSWR`, pass `swrFetcher` (also from `@/lib/api/fetch-api`) — it's the same wrapper but throws on error to match SWR's contract.
 
 **API route handlers** (`app/api/**/route.ts`): Wrap the handler body in `try/catch`. Distinguish `ZodError` (return 400 with `prettifyError()`) from other errors (return 500). Always return a JSON response with an `error` field.
 
