@@ -113,33 +113,34 @@ function QueueInner() {
   }, [currentItem, projectId]);
 
   // Debounced target save: when payload.target changes, PATCH it back to ClickHouse.
-  // We track via `dirtyItemIds` so the latest target is always flushed even if the user navigates away.
-  const pendingSaveId = currentItem?.id && dirtyItemIds.has(currentItem.id) ? currentItem.id : null;
-  const debouncedPendingId = useDebounce(pendingSaveId, 600);
-  const lastSavedRef = useRef<string | null>(null);
+  // Key is (id, stringified target) so every distinct edit to the same item triggers a fresh save —
+  // tracking just the id would coalesce repeated edits into a single no-op after the first flush.
+  const pendingSaveKey =
+    currentItem && dirtyItemIds.has(currentItem.id)
+      ? JSON.stringify({ id: currentItem.id, target: (currentItem.payload as { target?: unknown }).target ?? null })
+      : null;
+  const debouncedSaveKey = useDebounce(pendingSaveKey, 600);
+  const lastSavedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!debouncedPendingId || !queueId) return;
-    if (lastSavedRef.current === debouncedPendingId) return;
-    const item = items.find((i) => i.id === debouncedPendingId);
-    if (!item) return;
-
-    const target = (item.payload as { target?: unknown }).target;
-    lastSavedRef.current = debouncedPendingId;
+    if (!debouncedSaveKey || !queueId) return;
+    if (lastSavedKeyRef.current === debouncedSaveKey) return;
+    const { id, target } = JSON.parse(debouncedSaveKey) as { id: string; target: unknown };
+    lastSavedKeyRef.current = debouncedSaveKey;
 
     (async () => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${debouncedPendingId}`, {
+        const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target, isLabelled: false }),
         });
         if (!res.ok) throw new Error("save failed");
       } catch {
-        lastSavedRef.current = null;
+        lastSavedKeyRef.current = null;
       }
     })();
-  }, [debouncedPendingId, items, projectId, queueId]);
+  }, [debouncedSaveKey, projectId, queueId]);
 
   const approveCurrent = useCallback(async () => {
     if (!currentItem || !queueId || !isTargetJsonValid) return;
