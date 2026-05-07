@@ -3,20 +3,18 @@
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 
-import bedrock from "@/assets/landing/logos/bedrock.svg";
+import anthropic from "@/assets/landing/logos/anthropic.svg";
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
-import crewai from "@/assets/landing/logos/crewai.svg";
 import gemini from "@/assets/landing/logos/gemini.svg";
 import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
 import mastra from "@/assets/landing/logos/mastra.svg";
-import mistral from "@/assets/landing/logos/mistral.svg";
 import openAi from "@/assets/landing/logos/open-ai.svg";
-import openHands from "@/assets/landing/logos/open-hands.svg";
-import openTelemetry from "@/assets/landing/logos/open-telemetry.svg";
+import opencode from "@/assets/landing/logos/opencode.svg";
 import playwright from "@/assets/landing/logos/playwright.svg";
 import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
+import vercel from "@/assets/landing/logos/vercel.svg";
 
 interface Integration {
   name: string;
@@ -26,9 +24,9 @@ interface Integration {
 
 const integrations: Integration[] = [
   {
-    name: "Browser Use",
-    src: browserUse,
-    link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
+    name: "OpenAI",
+    src: openAi,
+    link: "https://docs.lmnr.ai/tracing/integrations/openai",
   },
   {
     name: "Claude Agent SDK",
@@ -36,19 +34,44 @@ const integrations: Integration[] = [
     link: "https://docs.lmnr.ai/tracing/integrations/claude-agent-sdk",
   },
   {
-    name: "OpenAI Agent SDK",
-    src: openAi,
-    link: "https://docs.lmnr.ai/tracing/integrations/openai-agents-sdk",
+    name: "Anthropic",
+    src: anthropic,
+    link: "https://docs.lmnr.ai/tracing/integrations/anthropic",
   },
   {
-    name: "OpenHands",
-    src: openHands,
-    link: "https://docs.lmnr.ai/tracing/integrations/openhands-sdk",
+    name: "Gemini",
+    src: gemini,
+    link: "https://docs.lmnr.ai/tracing/integrations/gemini",
+  },
+  {
+    name: "OpenCode",
+    src: opencode,
+    link: "https://docs.lmnr.ai/tracing/integrations/opencode",
   },
   {
     name: "LangChain",
     src: langchain,
     link: "https://docs.lmnr.ai/tracing/integrations/langchain",
+  },
+  {
+    name: "Pydantic AI",
+    src: pydanticAi,
+    link: "https://docs.lmnr.ai/tracing/integrations/pydantic-ai",
+  },
+  {
+    name: "Vercel AI SDK",
+    src: vercel,
+    link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk",
+  },
+  {
+    name: "Playwright",
+    src: playwright,
+    link: "https://docs.lmnr.ai/tracing/integrations/playwright",
+  },
+  {
+    name: "Browser Use",
+    src: browserUse,
+    link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
   },
   {
     name: "LiteLLM",
@@ -59,41 +82,6 @@ const integrations: Integration[] = [
     name: "Mastra",
     src: mastra,
     link: "https://docs.lmnr.ai/tracing/integrations/mastra",
-  },
-  {
-    name: "Pydantic AI",
-    src: pydanticAi,
-    link: "https://docs.lmnr.ai/tracing/integrations/pydantic-ai",
-  },
-  {
-    name: "Gemini",
-    src: gemini,
-    link: "https://docs.lmnr.ai/tracing/integrations/gemini",
-  },
-  {
-    name: "Mistral",
-    src: mistral,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "AWS Bedrock",
-    src: bedrock,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "Playwright",
-    src: playwright,
-    link: "https://docs.lmnr.ai/tracing/integrations/playwright",
-  },
-  {
-    name: "OpenTelemetry",
-    src: openTelemetry,
-    link: "https://docs.lmnr.ai/tracing/otel",
-  },
-  {
-    name: "CrewAI",
-    src: crewai,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
 ];
 
