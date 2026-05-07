@@ -441,6 +441,18 @@ export const queueItemIdForIdempotency = (projectId: string, queueId: string, id
   return uuidv5(`${projectId}:${queueId}:${idempotencyKey}`, LABELING_QUEUE_ITEM_NAMESPACE);
 };
 
+/**
+ * Deterministic UUID for a dataset datapoint that originates from a labeling
+ * queue item. Used by `pushItemsToDataset` so a retry after a partial failure
+ * (datapoints inserted, queue tombstones not written) produces the same ids and
+ * `filterExistingDatapointIds` can skip re-inserting them. `dataset_datapoints`
+ * is `MergeTree`, so duplicate ids would persist as distinct rows.
+ */
+export const DATASET_DATAPOINT_FROM_QUEUE_NAMESPACE = "a3d1e6c4-7f52-4a18-9b40-2c7e1d8a0f93";
+
+export const datapointIdForQueueItem = (datasetId: string, queueItemId: string): string =>
+  uuidv5(`${datasetId}:${queueItemId}`, DATASET_DATAPOINT_FROM_QUEUE_NAMESPACE);
+
 export const generateSequentialUuidsV7 = (count: number = 1): string[] => {
   if (count <= 0) {
     return [];

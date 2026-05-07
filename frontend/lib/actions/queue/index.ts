@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { createDatapoints } from "@/lib/clickhouse/datapoints";
+import { createDatapoints, filterExistingDatapointIds } from "@/lib/clickhouse/datapoints";
 import {
   deleteQueueItems,
   filterExistingIdempotencyKeys,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/clickhouse/labeling-queue-items";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
-import { generateUuid, queueItemIdForIdempotency } from "@/lib/utils";
+import { datapointIdForQueueItem, generateUuid, queueItemIdForIdempotency } from "@/lib/utils";
 
 const PayloadSchema = z.object({
   data: z.any(),
@@ -189,18 +189,29 @@ export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatase
     return { pushed: 0 };
   }
 
+  // Derive a deterministic datapoint id per queue item. createDatapoints +
+  // deleteQueueItems are two separate ClickHouse writes with no transaction:
+  // if the delete fails (or the process crashes) after the insert succeeds,
+  // the items stay in the queue and the user retries. Without deterministic
+  // ids the retry would insert a second set of datapoints — dataset_datapoints
+  // is MergeTree, so duplicate-keyed retries persist as distinct rows. We
+  // filter out already-inserted ids so the retry only writes what's missing
+  // and then re-issues the delete.
+  const datapointsById = new Map(targetItems.map((item) => [datapointIdForQueueItem(datasetId, item.id), item]));
+  const existingIds = await filterExistingDatapointIds(projectId, datasetId, Array.from(datapointsById.keys()));
+
   const now = new Date().toISOString();
-  await createDatapoints(
-    projectId,
-    datasetId,
-    targetItems.map((item) => ({
-      id: generateUuid(),
+  const toInsert = Array.from(datapointsById.entries())
+    .filter(([id]) => !existingIds.has(id))
+    .map(([id, item]) => ({
+      id,
       data: (item.payload as { data?: unknown }).data ?? {},
       target: (item.payload as { target?: unknown }).target ?? null,
       metadata: (item.payload as { metadata?: unknown }).metadata ?? item.metadata ?? {},
       createdAt: now,
-    }))
-  );
+    }));
+
+  await createDatapoints(projectId, datasetId, toInsert);
 
   await deleteQueueItems(
     projectId,
