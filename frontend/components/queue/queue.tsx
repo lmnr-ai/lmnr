@@ -22,7 +22,6 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useDebounce } from "@/lib/hooks/use-debounce";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 import { cn, swrFetcher } from "@/lib/utils";
@@ -115,58 +114,131 @@ function QueueInner() {
     return null;
   }, [currentItem, projectId]);
 
-  // Debounced target save: when payload.target changes, PATCH it back to ClickHouse.
-  // Key is (id, stringified target) so every distinct edit to the same item triggers a fresh save —
-  // tracking just the id would coalesce repeated edits into a single no-op after the first flush.
-  const pendingSaveKey =
-    currentItem && dirtyItemIds.has(currentItem.id)
-      ? JSON.stringify({ id: currentItem.id, target: (currentItem.payload as { target?: unknown }).target ?? null })
-      : null;
-  const debouncedSaveKey = useDebounce(pendingSaveKey, 600);
-  const lastSavedKeyRef = useRef<string | null>(null);
-  // Tracks the in-flight debounced save's fetch so approve/discard can cancel it. Without this,
-  // an in-flight `isLabelled:false` PATCH can land after approve's `isLabelled:true` PATCH and
-  // — since ClickHouse RMT resolves by updated_at — silently revert the approval.
-  const debouncedAbortRef = useRef<AbortController | null>(null);
+  // Per-item debounced target save. Every dirty item tracks its own timer + in-flight abort
+  // controller, keyed by item id. This is deliberately NOT a `useDebounce` on `currentItem`:
+  // if the user edits A then navigates to B within the 600 ms window, a single shared timer
+  // would be cleared by the currentItem→B transition and A's edit would be silently lost.
+  // The per-id map lets A's timer keep ticking while B gets its own independent one.
+  //
+  // `lastSavedKey` guards against re-firing a save for an id whose content hasn't changed
+  // since its last attempt (rerenders would otherwise re-schedule identical PATCHes).
+  //
+  // `abortByItemId` lets approve/discard cancel a specific item's in-flight/not-yet-fired
+  // save so a stale `isLabelled:false` PATCH can't land after `isLabelled:true` and —
+  // since ClickHouse RMT resolves by updated_at — revert the approval (same reasoning
+  // applies to discard: a late re-insert with a fresher updated_at would resurrect a
+  // row past its delete tombstone).
+  const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const abortByItemIdRef = useRef<Map<string, AbortController>>(new Map());
+  const lastSavedKeyRef = useRef<Map<string, string>>(new Map());
+  // Key the item was last scheduled with. Guards against re-arming the timer on unrelated
+  // `items` renders (e.g. editing B while A is still pending) — only a changed A target
+  // reschedules A, a changed B target reschedules B.
+  const scheduledKeyRef = useRef<Map<string, string>>(new Map());
 
-  useEffect(() => {
-    if (!debouncedSaveKey || !queueId) return;
-    if (lastSavedKeyRef.current === debouncedSaveKey) return;
-    const { id, target } = JSON.parse(debouncedSaveKey) as { id: string; target: unknown };
-    lastSavedKeyRef.current = debouncedSaveKey;
-
-    const controller = new AbortController();
-    debouncedAbortRef.current = controller;
-
-    (async () => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target, isLabelled: false }),
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("save failed");
-      } catch {
-        if (!controller.signal.aborted) {
-          lastSavedKeyRef.current = null;
+  const flushSave = useCallback(
+    (itemId: string, target: unknown, key: string) => {
+      if (!queueId) return;
+      const existingController = abortByItemIdRef.current.get(itemId);
+      if (existingController) existingController.abort();
+      const controller = new AbortController();
+      abortByItemIdRef.current.set(itemId, controller);
+      lastSavedKeyRef.current.set(itemId, key);
+      (async () => {
+        try {
+          const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${itemId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target, isLabelled: false }),
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error("save failed");
+        } catch {
+          if (!controller.signal.aborted) {
+            // Clear the last-saved marker so a subsequent render can retry.
+            lastSavedKeyRef.current.delete(itemId);
+          }
+        } finally {
+          if (abortByItemIdRef.current.get(itemId) === controller) abortByItemIdRef.current.delete(itemId);
         }
-      } finally {
-        if (debouncedAbortRef.current === controller) debouncedAbortRef.current = null;
+      })();
+    },
+    [projectId, queueId]
+  );
+
+  // Re-scan dirty items on every render and (re)arm one timer per id WHEN the id's own
+  // target content has changed since it was last scheduled. Ids whose target is unchanged
+  // keep their existing timer untouched — so editing B doesn't defer A's pending save.
+  useEffect(() => {
+    if (!queueId) return;
+    const timers = saveTimersRef.current;
+    for (const id of dirtyItemIds) {
+      const item = items.find((i) => i.id === id);
+      if (!item) continue;
+      const target = (item.payload as { target?: unknown }).target ?? null;
+      const key = JSON.stringify({ id, target });
+      if (lastSavedKeyRef.current.get(id) === key) continue;
+      if (scheduledKeyRef.current.get(id) === key) continue;
+      const existingTimer = timers.get(id);
+      if (existingTimer) clearTimeout(existingTimer);
+      scheduledKeyRef.current.set(id, key);
+      const timer = setTimeout(() => {
+        timers.delete(id);
+        scheduledKeyRef.current.delete(id);
+        flushSave(id, target, key);
+      }, 600);
+      timers.set(id, timer);
+    }
+  }, [items, dirtyItemIds, queueId, flushSave]);
+
+  // On unmount, flush any pending-but-not-yet-fired saves so leaving the page doesn't
+  // silently drop edits. Use refs for latest items/flushSave since this effect runs once.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const flushSaveRef = useRef(flushSave);
+  flushSaveRef.current = flushSave;
+  useEffect(() => {
+    const timers = saveTimersRef.current;
+    return () => {
+      for (const [id, timer] of timers) {
+        clearTimeout(timer);
+        const item = itemsRef.current.find((i) => i.id === id);
+        if (!item) continue;
+        const target = (item.payload as { target?: unknown }).target ?? null;
+        const key = JSON.stringify({ id, target });
+        if (lastSavedKeyRef.current.get(id) === key) continue;
+        flushSaveRef.current(id, target, key);
       }
-    })();
-  }, [debouncedSaveKey, projectId, queueId]);
+      timers.clear();
+    };
+  }, []);
+
+  // Cancel the timer and in-flight PATCH for one item, and pre-set lastSavedKey to the
+  // target content we're about to send so the scheduler effect won't re-arm a fresh timer
+  // on the next render.
+  const cancelPendingSaveFor = useCallback((itemId: string, target: unknown) => {
+    const timer = saveTimersRef.current.get(itemId);
+    if (timer) {
+      clearTimeout(timer);
+      saveTimersRef.current.delete(itemId);
+    }
+    scheduledKeyRef.current.delete(itemId);
+    const controller = abortByItemIdRef.current.get(itemId);
+    if (controller) {
+      controller.abort();
+      abortByItemIdRef.current.delete(itemId);
+    }
+    lastSavedKeyRef.current.set(itemId, JSON.stringify({ id: itemId, target: target ?? null }));
+  }, []);
 
   const approveCurrent = useCallback(async () => {
     if (!currentItem || !queueId || !isTargetJsonValid) return;
+    const target = (currentItem.payload as { target?: unknown }).target;
     // Cancel any in-flight debounced save and short-circuit a pending one — we're about to write
     // `isLabelled:true` and a stale `isLabelled:false` PATCH arriving after would revert it.
-    debouncedAbortRef.current?.abort();
-    debouncedAbortRef.current = null;
-    lastSavedKeyRef.current = pendingSaveKey;
+    cancelPendingSaveFor(currentItem.id, target);
     setIoState("save");
     try {
-      const target = (currentItem.payload as { target?: unknown }).target;
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${currentItem.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -198,16 +270,14 @@ function QueueInner() {
     items.length,
     step,
     setIoState,
-    pendingSaveKey,
+    cancelPendingSaveFor,
   ]);
 
   const discardCurrent = useCallback(async () => {
     if (!currentItem || !queueId) return;
     // Cancel any in-flight debounced save — a late PATCH would re-insert a row with a fresher
     // updated_at and resurrect this item past the delete tombstone.
-    debouncedAbortRef.current?.abort();
-    debouncedAbortRef.current = null;
-    lastSavedKeyRef.current = pendingSaveKey;
+    cancelPendingSaveFor(currentItem.id, (currentItem.payload as { target?: unknown }).target);
     setIoState("remove");
     try {
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/items/${currentItem.id}`, {
@@ -234,7 +304,7 @@ function QueueInner() {
     } finally {
       setIoState(false);
     }
-  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, pendingSaveKey]);
+  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, cancelPendingSaveFor]);
 
   const pushAll = useCallback(async () => {
     if (!queueId) return;
