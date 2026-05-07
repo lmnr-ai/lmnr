@@ -96,6 +96,37 @@ export const parseTargetSchema = (schema: Record<string, unknown> | null): Targe
   return fields.slice(0, 9);
 };
 
+/**
+ * Merge sticky `globalTargetSelections` into the newly-focused item's target. Only fills
+ * missing keys (item's own target wins) and only touches un-labelled items, so re-visiting
+ * an approved item doesn't mutate its saved answer. Marks the item dirty when any key is
+ * filled so the debounced save flushes the carried-over values.
+ */
+const applyGlobalsToIndex = (state: QueueStore, nextIndex: number): Partial<QueueStore> => {
+  const target = state.items[nextIndex];
+  const globals = state.globalTargetSelections;
+  if (!target || target.isLabelled || Object.keys(globals).length === 0) {
+    return { currentIndex: nextIndex };
+  }
+  const existing = (target.payload?.target as Record<string, unknown> | undefined) ?? {};
+  const merged: Record<string, unknown> = { ...existing };
+  let changed = false;
+  for (const [key, value] of Object.entries(globals)) {
+    if (!(key in existing)) {
+      merged[key] = value;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return { currentIndex: nextIndex };
+  }
+  const nextItems = state.items.slice();
+  nextItems[nextIndex] = { ...target, payload: { ...target.payload, target: merged } };
+  const dirty = new Set(state.dirtyItemIds);
+  dirty.add(target.id);
+  return { currentIndex: nextIndex, items: nextItems, dirtyItemIds: dirty };
+};
+
 const createQueueStore = (queue: LabelingQueue) => {
   const initialSchema = (queue.targetSchema as Record<string, unknown>) || null;
   const initialFields = parseTargetSchema(initialSchema);
@@ -148,16 +179,17 @@ const createQueueStore = (queue: LabelingQueue) => {
         },
 
         setCurrentIndex: (index) => {
-          set((state) => ({
-            currentIndex: Math.min(Math.max(index, 0), Math.max(state.items.length - 1, 0)),
-          }));
+          set((state) => {
+            const clamped = Math.min(Math.max(index, 0), Math.max(state.items.length - 1, 0));
+            return applyGlobalsToIndex(state, clamped);
+          });
         },
 
         step: (dir) => {
           set((state) => {
             const next = state.currentIndex + dir;
             if (next < 0 || next >= state.items.length) return state;
-            return { currentIndex: next };
+            return applyGlobalsToIndex(state, next);
           });
         },
 
