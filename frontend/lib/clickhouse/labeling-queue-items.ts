@@ -144,8 +144,9 @@ export const getQueueItems = async (
   queueId: string,
   options: { limit?: number; offset?: number } = {}
 ): Promise<LabelingQueueItem[]> => {
-  const limit = options.limit ?? 1000;
-  const offset = options.offset ?? 0;
+  const { limit, offset } = options;
+  const hasLimit = typeof limit === "number";
+  const hasOffset = typeof offset === "number";
   const query = `
     SELECT
       toString(id) AS id,
@@ -161,11 +162,15 @@ export const getQueueItems = async (
     WHERE project_id = {projectId: UUID}
       AND queue_id = {queueId: UUID}
     ORDER BY created_at ASC, id ASC
-    LIMIT {limit: UInt32} OFFSET {offset: UInt32}
+    ${hasLimit ? "LIMIT {limit: UInt32}" : ""}
+    ${hasLimit && hasOffset ? "OFFSET {offset: UInt32}" : ""}
   `;
+  const query_params: Record<string, unknown> = { projectId, queueId };
+  if (hasLimit) query_params.limit = limit;
+  if (hasLimit && hasOffset) query_params.offset = offset;
   const result = await clickhouseClient.query({
     query,
-    query_params: { projectId, queueId, limit, offset },
+    query_params,
     format: "JSONEachRow",
   });
   const rows = (await result.json()) as CHRow[];

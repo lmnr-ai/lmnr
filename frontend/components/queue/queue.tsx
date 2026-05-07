@@ -81,7 +81,10 @@ function QueueInner() {
   }, [error, toast]);
 
   const progress = useMemo(() => {
-    const total = items.length || data?.progress.total || 0;
+    // Prefer the server-side FINAL count — it's authoritative and matches even if
+    // the loaded item list ever gets paginated/capped. Fall back to items.length
+    // before the first fetch completes so the bar doesn't flash at 0.
+    const total = data?.progress.total ?? items.length;
     const labelled = items.filter((i) => i.isLabelled).length;
     return { total, labelled };
   }, [items, data?.progress.total]);
