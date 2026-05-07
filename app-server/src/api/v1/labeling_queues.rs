@@ -12,6 +12,23 @@ use crate::{
     routes::types::ResponseResult,
 };
 
+/// Namespace UUID mirrored in `frontend/lib/utils.ts` — changing it here breaks
+/// cross-runtime idempotency collapsing, so update both sides together.
+const LABELING_QUEUE_ITEM_NAMESPACE: Uuid = Uuid::from_u128(0xb8f3c3a2_4a33_4f4b_8c6a_5a9a1f7d2e21);
+
+/// Derive a deterministic item id from `(project_id, queue_id, idempotency_key)`.
+/// Concurrent inserts with the same key produce the same RMT primary key and
+/// collapse on merge / FINAL; callers with no key get a fresh UUIDv7.
+fn queue_item_id_for_idempotency(project_id: Uuid, queue_id: Uuid, idempotency_key: &str) -> Uuid {
+    if idempotency_key.is_empty() {
+        return Uuid::now_v7();
+    }
+    Uuid::new_v5(
+        &LABELING_QUEUE_ITEM_NAMESPACE,
+        format!("{}:{}:{}", project_id, queue_id, idempotency_key).as_bytes(),
+    )
+}
+
 /// Request structure for a single labeling queue item.
 /// For API ingestion, items are created manually without a source reference.
 #[derive(Debug, Deserialize)]
@@ -89,7 +106,7 @@ pub async fn create_labeling_queues_items(
             continue;
         }
 
-        let id = Uuid::now_v7();
+        let id = queue_item_id_for_idempotency(project_id, queue_id, &idempotency_key);
         let payload = serde_json::json!({
             "data": item.data,
             "target": item.target,

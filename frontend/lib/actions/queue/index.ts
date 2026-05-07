@@ -14,7 +14,7 @@ import {
 } from "@/lib/clickhouse/labeling-queue-items";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
-import { generateUuid } from "@/lib/utils";
+import { generateUuid, queueItemIdForIdempotency } from "@/lib/utils";
 
 const PayloadSchema = z.object({
   data: z.any(),
@@ -112,7 +112,11 @@ export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>)
   const toInsert = withKeys
     .filter((item) => item.idempotencyKey === "" || !existing.has(item.idempotencyKey))
     .map((item) => ({
-      id: generateUuid(),
+      // Derive a deterministic id from `idempotencyKey` so two concurrent inserts
+      // that both slip past `filterExistingIdempotencyKeys` collide on the RMT
+      // ORDER BY `(project_id, queue_id, id)` and collapse on FINAL — instead of
+      // producing two distinct-`id` rows RMT will never dedupe.
+      id: queueItemIdForIdempotency(projectId, queueId, item.idempotencyKey),
       queueId,
       projectId,
       payload: item.payload,

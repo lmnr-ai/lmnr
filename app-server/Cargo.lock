@@ -5994,6 +5994,7 @@ dependencies = [
  "js-sys",
  "rand 0.9.2",
  "serde_core",
+ "sha1_smol",
  "uuid-macro-internal",
  "wasm-bindgen",
 ]
