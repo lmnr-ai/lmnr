@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
 import { type ManageSignalContentVariant } from "./manage-signal-content";
@@ -41,6 +42,7 @@ export default function SignalFormFields({
   const applyTemplate = useCallback(
     (templateIndex: number) => {
       const template = templates[templateIndex];
+      track("signals", "template_applied", { template: template.name });
       setValue("prompt", template.prompt, { shouldValidate: true });
       const parsedSchema = tryParseJson(template.structuredOutputSchema);
       if (parsedSchema) {
@@ -52,6 +54,7 @@ export default function SignalFormFields({
   );
 
   const clearToBlank = useCallback(() => {
+    track("signals", "template_applied", { template: "Blank" });
     setValue("prompt", "", { shouldValidate: true });
     setValue("schemaFields", getDefaultSchemaFields(), { shouldValidate: true });
   }, [setValue]);

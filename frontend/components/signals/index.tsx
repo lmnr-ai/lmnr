@@ -42,6 +42,10 @@ function SignalsContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  useEffect(() => {
+    track("signals", "page_viewed");
+  }, []);
+
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });

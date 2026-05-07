@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
@@ -82,6 +83,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
             <Link
               href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
               passHref
+              onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
             >
               <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
                 <PlayCircle className="mr-1" size={14} />
