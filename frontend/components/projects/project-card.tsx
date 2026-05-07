@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type Project, type ProjectStats } from "@/lib/workspaces/types";
 
 interface ProjectCardProps {

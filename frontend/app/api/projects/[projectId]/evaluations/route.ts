@@ -2,10 +2,10 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteEvaluations, getEvaluations, GetEvaluationsSchema } from "@/lib/actions/evaluations";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = apiHandler<{ projectId: string }>(async (req: NextRequest, ctx) => {
+  const { projectId } = await ctx.params;
   const groupId = req.nextUrl.searchParams.get("groupId");
   const pageSize = req.nextUrl.searchParams.get("pageSize");
   const pageNumber = req.nextUrl.searchParams.get("pageNumber");
@@ -25,20 +25,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  try {
-    const result = await getEvaluations(parseResult.data);
+  const result = await getEvaluations(parseResult.data);
 
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch evaluations." },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});
 
 export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;

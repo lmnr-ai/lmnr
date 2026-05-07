@@ -11,46 +11,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export async function fetcherRealTime(url: string, init: any): Promise<Response> {
-  const res = await fetch(`${process.env.BACKEND_RT_URL}/api/v1${url}`, {
-    ...init,
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-
-    throw new Error(text);
-  }
-
-  return res;
-}
-
-export async function fetcherJSON<JSON = any>(url: string, init: any): Promise<JSON> {
-  const res = await fetch(`${process.env.BACKEND_URL}/api/v1${url}`, {
-    ...init,
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text);
-  }
-
-  return (await res.json()) as JSON;
-}
-
-export const swrFetcher = async (url: string) => {
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    const errorText = (await res.json()) as { error: string };
-    throw new Error(errorText.error);
-  }
-
-  return res.json();
-};
-
 // return string such as 0319 for March 19 or 1201 for December 1
 // Note that the date is calculated for local time
 export function getCurrentMonthDayStr() {

@@ -1,25 +1,16 @@
-import { prettifyError, ZodError } from "zod/v4";
-
 import { updateQueueAnnotationSchema } from "@/lib/actions/queue";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function PUT(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
-  const params = await props.params;
+export const PUT = apiHandler<{ projectId: string; queueId: string }>(async (request, ctx) => {
+  const params = await ctx.params;
 
-  try {
-    const body = await request.json();
+  const body = await request.json();
 
-    const updatedQueue = await updateQueueAnnotationSchema({
-      queueId: params.queueId,
-      projectId: params.projectId,
-      ...body,
-    });
+  const updatedQueue = await updateQueueAnnotationSchema({
+    queueId: params.queueId,
+    projectId: params.projectId,
+    ...body,
+  });
 
-    return new Response(JSON.stringify(updatedQueue));
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
+  return Response.json(updatedQueue);
+});

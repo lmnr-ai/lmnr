@@ -6,10 +6,11 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 
 import { envVarsToIconMap } from "@/components/playground/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type EnvVars } from "@/lib/env/utils";
 import { track } from "@/lib/posthog";
 import { type ProviderApiKey } from "@/lib/settings/types";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 
 import { Button } from "../ui/button";
 import AddProviderApiKeyVarDialog from "./add-provider-api-key-dialog";

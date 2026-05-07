@@ -1,40 +1,26 @@
 import { and, eq } from "drizzle-orm";
-import { prettifyError, ZodError } from "zod";
 
 import { createOrUpdateTagClass } from "@/lib/actions/tags";
+import { apiHandler } from "@/lib/api/api-handler";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string; tagName: string }> }
-): Promise<Response> {
-  const params = await props.params;
+export const POST = apiHandler<{ projectId: string; tagName: string }>(async (req, ctx) => {
+  const params = await ctx.params;
   const projectId = params.projectId;
   const tagName = params.tagName;
   const body = await req.json();
 
-  try {
-    const result = await createOrUpdateTagClass({
-      projectId,
-      name: tagName,
-      color: body.color,
-    });
-    return Response.json(result, { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  const result = await createOrUpdateTagClass({
+    projectId,
+    name: tagName,
+    color: body.color,
+  });
+  return Response.json(result, { status: 200 });
+});
 
-    return Response.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-export async function DELETE(
-  req: Request,
-  props: { params: Promise<{ projectId: string; tagName: string }> }
-): Promise<Response> {
-  const params = await props.params;
+export const DELETE = apiHandler<{ projectId: string; tagName: string }>(async (_req, ctx) => {
+  const params = await ctx.params;
   const projectId = params.projectId;
   const tagName = params.tagName;
 
@@ -48,4 +34,4 @@ export async function DELETE(
   }
 
   return new Response(null, { status: 200 });
-}
+});

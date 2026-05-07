@@ -29,8 +29,9 @@ import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { cn, swrFetcher } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types.ts";
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {

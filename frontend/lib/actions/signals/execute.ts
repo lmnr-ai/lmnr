@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/utils.ts";
+import { fetcherJSON } from "@/lib/api/backend";
 
 const ExecuteSignalSchema = z.object({
   projectId: z.guid(),

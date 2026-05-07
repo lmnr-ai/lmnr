@@ -1,68 +1,22 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createChart, getCharts, updateChartsLayout } from "@/lib/actions/dashboard";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
+export const GET = apiHandler<{ projectId: string }>(async (_req, ctx) => {
+  const { projectId } = await ctx.params;
+  const charts = await getCharts({ projectId });
+  return Response.json(charts);
+});
 
-  try {
-    const charts = await getCharts({ projectId });
+export const PATCH = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
+  const body = await req.json();
+  await updateChartsLayout({ projectId, ...body });
+  return Response.json({ success: true });
+});
 
-    return Response.json(charts);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get chart layouts. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
-
-  try {
-    const body = await req.json();
-
-    await updateChartsLayout({ projectId, ...body });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart layouts. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const { projectId } = await props.params;
-
-  try {
-    const body = await req.json();
-
-    const chart = await createChart({
-      projectId,
-      ...body,
-    });
-
-    return Response.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create chart. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
+  const body = await req.json();
+  const chart = await createChart({ projectId, ...body });
+  return Response.json(chart);
+});

@@ -23,6 +23,7 @@ import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trac
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import {
   type EvalRow,
   type Evaluation,
@@ -31,7 +32,6 @@ import {
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
-import { swrFetcher } from "@/lib/utils";
 
 interface SharedEvaluationProps {
   evaluationId: string;

@@ -4,9 +4,10 @@ import { prettifyError, ZodError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
 import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
+export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const params = await ctx.params;
   const projectId = params.projectId;
 
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
@@ -23,19 +24,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     return retentionError;
   }
 
-  try {
-    const result = await getTraces({ ...parseResult.data, projectId });
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch traces." },
-      { status: 500 }
-    );
-  }
-}
+  const result = await getTraces({ ...parseResult.data, projectId });
+  return Response.json(result);
+});
 
 export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;

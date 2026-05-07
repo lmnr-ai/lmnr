@@ -1,13 +1,11 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getTraceStats, GetTraceStatsSchema } from "@/lib/actions/traces/stats";
 import { generateEmptyTimeBuckets } from "@/lib/actions/traces/utils.ts";
+import { apiHandler } from "@/lib/api/api-handler";
 import { getOptionalTimeRange } from "@/lib/clickhouse/utils.ts";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
+export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const params = await ctx.params;
   const projectId = params.projectId;
 
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTraceStatsSchema.omit({ projectId: true }));
@@ -22,16 +20,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     return Response.json({ items });
   }
 
-  try {
-    const result = await getTraceStats({ ...parseResult.data, projectId });
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch trace stats." },
-      { status: 500 }
-    );
-  }
-}
+  const result = await getTraceStats({ ...parseResult.data, projectId });
+  return Response.json(result);
+});

@@ -22,9 +22,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 import {
   DeploymentType,
   type Workspace,
