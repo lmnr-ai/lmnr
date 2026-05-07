@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, GanttChart } from "lucide-react";
+import { AlertTriangle, CirclePlay, GanttChart } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -31,6 +31,8 @@ export default function SessionPanel() {
     clearSearch,
     sessionTimelineEnabled,
     setSessionTimelineEnabled,
+    mediaPanelOpen,
+    setMediaPanelOpen,
   } = useSessionViewStore(
     (s) => ({
       traces: s.traces,
@@ -40,6 +42,8 @@ export default function SessionPanel() {
       clearSearch: s.clearSearch,
       sessionTimelineEnabled: s.sessionTimelineEnabled,
       setSessionTimelineEnabled: s.setSessionTimelineEnabled,
+      mediaPanelOpen: s.mediaPanelOpen,
+      setMediaPanelOpen: s.setMediaPanelOpen,
     }),
     shallow
   );
@@ -64,17 +68,30 @@ export default function SessionPanel() {
         <div className="flex h-7 items-center justify-start gap-2">
           {sessionStats && <StatsShields stats={sessionStats} labelPrefix="Session" />}
           {traces.length > 0 && (
-            <Button
-              onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
-              variant="outline"
-              className={cn(
-                "h-6 text-xs px-1.5",
-                sessionTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-              )}
-            >
-              <GanttChart size={14} className="mr-1" />
-              Timeline
-            </Button>
+            <>
+              <Button
+                onClick={() => setSessionTimelineEnabled(!sessionTimelineEnabled)}
+                variant="outline"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  sessionTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
+              >
+                <GanttChart size={14} className="mr-1" />
+                Timeline
+              </Button>
+              <Button
+                onClick={() => setMediaPanelOpen(!mediaPanelOpen)}
+                variant="outline"
+                className={cn(
+                  "h-6 text-xs px-1.5",
+                  mediaPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+                )}
+              >
+                <CirclePlay size={14} className="mr-1" />
+                Media
+              </Button>
+            </>
           )}
         </div>
         {/* TODO(session-view): add autocomplete suggestions from loaded/matched spans */}

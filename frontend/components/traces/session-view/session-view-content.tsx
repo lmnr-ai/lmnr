@@ -7,6 +7,7 @@ import { shallow } from "zustand/shallow";
 import { type TraceRow } from "@/lib/traces/types";
 
 import FillWidthLayout, { type SessionViewPanels } from "./fill-width-layout";
+import SessionMediaPlayer from "./session-media-player";
 import SessionPanel from "./session-panel";
 import SessionSpanPanel from "./session-span-panel";
 import { useSessionViewStore } from "./store";
@@ -20,10 +21,11 @@ const PAGE_SIZE = 200;
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
-  const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
+  const { spanPanelOpen, mediaPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
     useSessionViewStore(
       (s) => ({
         spanPanelOpen: s.spanPanelOpen,
+        mediaPanelOpen: s.mediaPanelOpen,
         setTraces: s.setTraces,
         setIsTracesLoading: s.setIsTracesLoading,
         setTracesError: s.setTracesError,
@@ -79,9 +81,11 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
     () => ({
       sessionPanel: <SessionPanel />,
       spanPanel: <SessionSpanPanel />,
+      mediaPanel: <SessionMediaPlayer />,
       showSpan: spanPanelOpen,
+      showMedia: mediaPanelOpen,
     }),
-    [spanPanelOpen]
+    [spanPanelOpen, mediaPanelOpen]
   );
 
   return <FillWidthLayout panels={panels} />;
