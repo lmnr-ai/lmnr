@@ -10,9 +10,9 @@ import ProjectCreateDialog from "@/components/projects/project-create-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 interface ProjectsProps {

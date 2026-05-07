@@ -20,8 +20,9 @@ import { useNotificationPanelStore } from "@/components/notifications/notificati
 import { useProjectContext } from "@/contexts/project-context";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface NoteworthyEventPayload {
   signal_name: string;

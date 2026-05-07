@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import useSWR from "swr";
 
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import { InfiniteDataTable } from "../ui/infinite-datatable";

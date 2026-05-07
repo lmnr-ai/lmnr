@@ -6,7 +6,7 @@ import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { type WorkspaceUsageWarning } from "@/lib/actions/usage/usage-warnings";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import WarningChip, { AddWarningPopover } from "./warning-row";
 

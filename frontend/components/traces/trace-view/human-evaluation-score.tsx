@@ -10,8 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 interface EvaluationScore {
   id: string;
@@ -245,12 +245,7 @@ const HumanEvaluationScore = ({
             />
           </div>
           <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              variant="default"
-              handleEnter
-            >
+            <Button type="submit" disabled={isSubmitting} variant="default" handleEnter>
               {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
               <span>Save score</span>
             </Button>

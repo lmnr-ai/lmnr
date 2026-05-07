@@ -7,7 +7,7 @@ import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";

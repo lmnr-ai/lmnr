@@ -7,9 +7,10 @@ import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TagClass } from "@/lib/traces/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
 import TagsDropdown, { type Tag as TagType } from "./tags-dropdown";

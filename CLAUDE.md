@@ -330,3 +330,14 @@ try {
 ```
 
 **Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).
+
+### API I/O primitives (`lib/api/`)
+
+All frontend API I/O wrappers live under `frontend/lib/api/` — do not add new ones to `lib/utils.ts`.
+
+- `@/lib/api/fetch-api` — client-side fetch helpers:
+  - `fetchApi<T>(url, init?)` returns `{ data, error, status }` and never throws (except `AbortError`, which is re-thrown so `AbortController`-based cancellation still works). Reports network failures + JSON parse errors to Sentry with `http.method` / `source: "fetchApi"` tags. Does NOT report `!response.ok` — those are already reported server-side by `apiHandler`, so double-capturing would create duplicate Sentry issues for one bug.
+  - `swrFetcher<T>(url)` is a thin adapter over `fetchApi` that throws on error (SWR's contract). Use it for `useSWR` calls.
+- `@/lib/api/api-handler` — server-side `apiHandler<P>(handler)` wraps Next.js route handlers. Catches uncaught errors, reports to Sentry with `http.method` / `http.route` / `source: "apiHandler"` tags, returns 400 (`prettifyError`) for `ZodError` and 500 for other errors. Use for any new route handler instead of hand-rolled try/catch.
+- `@/lib/api/backend` — server-only `fetcherJSON` / `fetcherRealTime` for calling the Rust app-server (prepends `BACKEND_URL`/`BACKEND_RT_URL` + `/api/v1`). These throw on `!ok`; errors bubble up to be captured by `apiHandler` (or the nearest server wrapper).
+- Sentry config intentionally relies on default grouping + `browserTracingIntegration` fetch breadcrumbs + `sendDefaultPii`. Do NOT add URL normalization, custom fingerprints, or `setContext("request", ...)` calls — only `setTags` (tags are searchable in the Sentry UI, context is not).

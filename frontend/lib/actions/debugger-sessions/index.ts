@@ -4,9 +4,9 @@ import { z } from "zod/v4";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
+import { fetcherJSON } from "@/lib/api/backend";
 import { db } from "@/lib/db/drizzle";
 import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
-import { fetcherJSON } from "@/lib/utils";
 
 export type DebuggerSessionStatus = "PENDING" | "RUNNING" | "FINISHED" | "STOPPED";
 

@@ -5,9 +5,10 @@ import useSWR from "swr";
 
 import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type Dataset } from "@/lib/dataset/types";
 import { type PaginatedResponse } from "@/lib/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface DatasetSelectProps {
   className?: string;

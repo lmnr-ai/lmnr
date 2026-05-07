@@ -7,8 +7,9 @@ import { formatNotification } from "@/components/notifications/notification-pane
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { track } from "@/lib/posthog";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const NotificationTrigger = () => {
   const { workspace, project } = useProjectContext();

@@ -16,8 +16,8 @@ import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/sla
 import { Button } from "@/components/ui/button";
 import { useUserContext } from "@/contexts/user-context";
 import { type ReportWithDetails } from "@/lib/actions/reports/types";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 
 import ManageReportSheet from "./manage-report-sheet";
 import { formatSchedule } from "./utils";

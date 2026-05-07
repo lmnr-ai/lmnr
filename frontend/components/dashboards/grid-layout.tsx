@@ -10,8 +10,8 @@ import useSWR from "swr";
 import Chart from "@/components/dashboards/chart";
 import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
