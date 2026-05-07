@@ -1,0 +1,9 @@
+publicHoistPattern:
+  - pdfjs-dist
+
+allowBuilds:
+  "@sentry/cli": true
+  core-js: true
+  esbuild: true
+  protobufjs: true
+  sharp: true
