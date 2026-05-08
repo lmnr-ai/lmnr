@@ -49,6 +49,9 @@ export default function OnboardingWizard({
     projectId: resumeState?.projectId,
   });
   const [createdSignalIds, setCreatedSignalIds] = useState<Set<string>>(new Set());
+  // Report IDs the user has opted OUT of during this session, tracked so we
+  // can re-opt-in if they toggle the email checkbox back on before advancing.
+  const [optedOutReportIds, setOptedOutReportIds] = useState<Set<string>>(new Set());
 
   const form = useForm<OnboardingFormValues>({
     defaultValues: {
@@ -212,46 +215,78 @@ export default function OnboardingWizard({
   const handleSaveNotifications = useCallback(async () => {
     const workspaceId = createdIds.workspaceId;
     const emailOn = form.getValues("emailNotificationsEnabled");
-    if (workspaceId && !emailOn && userEmail) {
+    if (workspaceId && userEmail) {
       setIsSubmitting(true);
-      // Opting out of email is a nice-to-have — toast on failure but let the
+      // Opting out/in of email is nice-to-have — toast on failure but let the
       // user continue so they don't get stuck on this step.
-      const optOutToast = () =>
+      const failureToast = () =>
         toast({
           variant: "destructive",
           title: "Could not update email notifications",
           description: "You can change this later from workspace settings.",
         });
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
-        if (!res.ok) {
-          optOutToast();
-        } else {
-          const reports = (await res.json()) as {
-            id: string;
-            targets: { id: string; type: string; email: string | null }[];
-          }[];
-          const deletes = await Promise.all(
-            reports.flatMap((r) =>
-              r.targets
-                .filter((t) => t.type === "EMAIL" && t.email === userEmail)
-                .map(() =>
-                  fetch(`/api/workspaces/${workspaceId}/reports`, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reportId: r.id, email: userEmail }),
-                  })
-                    .then((del) => del.ok)
-                    .catch(() => false)
-                )
+        if (!emailOn) {
+          const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
+          if (!res.ok) {
+            failureToast();
+          } else {
+            const reports = (await res.json()) as {
+              id: string;
+              targets: { id: string; type: string; email: string | null }[];
+            }[];
+            const toOptOut = reports.filter((r) => r.targets.some((t) => t.type === "EMAIL" && t.email === userEmail));
+            const results = await Promise.all(
+              toOptOut.map((r) =>
+                fetch(`/api/workspaces/${workspaceId}/reports`, {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ reportId: r.id, email: userEmail }),
+                })
+                  .then((del) => ({ reportId: r.id, ok: del.ok }))
+                  .catch(() => ({ reportId: r.id, ok: false }))
+              )
+            );
+            const succeeded = results.filter((r) => r.ok).map((r) => r.reportId);
+            if (succeeded.length > 0) {
+              setOptedOutReportIds((prev) => {
+                const next = new Set(prev);
+                succeeded.forEach((id) => next.add(id));
+                return next;
+              });
+            }
+            if (results.some((r) => !r.ok)) {
+              failureToast();
+            }
+          }
+        } else if (optedOutReportIds.size > 0) {
+          // User re-checked the box after previously opting out this session;
+          // re-subscribe so the auto-created targets come back.
+          const results = await Promise.all(
+            Array.from(optedOutReportIds).map((reportId) =>
+              fetch(`/api/workspaces/${workspaceId}/reports`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reportId, email: userEmail }),
+              })
+                .then((res) => ({ reportId, ok: res.ok }))
+                .catch(() => ({ reportId, ok: false }))
             )
           );
-          if (deletes.some((ok) => !ok)) {
-            optOutToast();
+          const succeeded = results.filter((r) => r.ok).map((r) => r.reportId);
+          if (succeeded.length > 0) {
+            setOptedOutReportIds((prev) => {
+              const next = new Set(prev);
+              succeeded.forEach((id) => next.delete(id));
+              return next;
+            });
+          }
+          if (results.some((r) => !r.ok)) {
+            failureToast();
           }
         }
       } catch {
-        optOutToast();
+        failureToast();
       } finally {
         setIsSubmitting(false);
       }
@@ -261,7 +296,7 @@ export default function OnboardingWizard({
       await persistState(workspaceId, createdIds.projectId, 3);
     }
     setStepIndex(3);
-  }, [createdIds, form, persistState, toast, userEmail]);
+  }, [createdIds, form, optedOutReportIds, persistState, toast, userEmail]);
 
   const handleSlackNext = useCallback(async () => {
     const connected = form.getValues("slackConnected");
