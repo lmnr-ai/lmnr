@@ -303,7 +303,6 @@ export function useOnboardingActions(): UseOnboardingActions {
   // (authenticated) tree on false — the cookie is still live, the layout
   // gate would bounce back to /onboarding and loop.
   const finishFreeTier = useCallback(async (): Promise<boolean> => {
-    track("onboarding", "completed", { tier: form.getValues("selectedTier") });
     setIsSubmitting(true);
     try {
       const ok = await clearOnboardingStateCookie();
@@ -313,8 +312,13 @@ export function useOnboardingActions(): UseOnboardingActions {
           title: "Couldn't finish onboarding",
           description: "Please try again.",
         });
+        return false;
       }
-      return ok;
+      // Fire `completed` only after the DELETE confirms. Firing before the
+      // gate would inflate the metric on every failed retry: each click
+      // toasts + re-fires the event without the user actually completing.
+      track("onboarding", "completed", { tier: form.getValues("selectedTier") });
+      return true;
     } finally {
       setIsSubmitting(false);
     }

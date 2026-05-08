@@ -88,7 +88,6 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       // response (e.g. 401 on session expiry) resolves without throwing, so
       // if we navigated unconditionally the cookie would still be live and
       // the (authenticated) billing page would bounce back to /onboarding.
-      track("onboarding", "completed", { tier: selectedTier });
       beginSubmitting();
       let ok = false;
       try {
@@ -106,6 +105,9 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
         });
         return;
       }
+      // Fire `completed` only after the DELETE confirms. Firing before the
+      // gate would inflate the metric on every failed retry.
+      track("onboarding", "completed", { tier: selectedTier });
       window.location.href = checkoutUrl;
       return;
     }
