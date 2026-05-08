@@ -299,12 +299,16 @@ function QueueInner() {
         return;
       }
       removeItemLocal(currentItem.id);
+      // Revalidate so `data.progress.total` — the authoritative server count used as the
+      // progress-bar denominator — reflects the discard. Without this the bar stays stuck
+      // at the pre-discard total until the next full refetch.
+      mutate();
     } catch {
       toast({ variant: "destructive", title: "Failed to discard item" });
     } finally {
       setIoState(false);
     }
-  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, cancelPendingSaveFor]);
+  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, cancelPendingSaveFor, mutate]);
 
   const pushAll = useCallback(async () => {
     if (!queueId) return;
@@ -369,12 +373,15 @@ function QueueInner() {
       }
       toast({ title: "Pushed item to dataset" });
       removeItemLocal(currentItem.id);
+      // Revalidate so `data.progress.total` (the progress-bar denominator) reflects the
+      // server-side row count after the queue item was deleted in push-to-dataset.
+      mutate();
     } catch {
       toast({ variant: "destructive", title: "Failed to push item" });
     } finally {
       setIoState(false);
     }
-  }, [queueId, currentItem, dataset, projectId, toast, setIoState, removeItemLocal]);
+  }, [queueId, currentItem, dataset, projectId, toast, setIoState, removeItemLocal, mutate]);
 
   useHotkeys(
     "meta+enter,ctrl+enter",
