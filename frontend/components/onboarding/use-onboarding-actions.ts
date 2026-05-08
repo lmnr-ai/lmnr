@@ -200,6 +200,16 @@ export function useOnboardingActions(): UseOnboardingActions {
 
     const emailOn = form.getValues("emailNotificationsEnabled");
     const userEmail = user.email;
+
+    // Session.user.email is typed as string, but OAuth providers without an
+    // email scope can leave it empty. EMPTY_DEFAULTS sets the email toggle
+    // to true, so without this guard we'd POST `email: ""` to every report.
+    if (!userEmail) {
+      track("onboarding", "notifications_configured", { email: emailOn });
+      await persistOnboardingStep(workspaceId, resources.projectId, 3);
+      return true;
+    }
+
     setIsSubmitting(true);
 
     const failureToast = () =>
