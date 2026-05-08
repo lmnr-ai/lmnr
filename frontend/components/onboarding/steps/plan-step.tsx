@@ -6,6 +6,7 @@ import { Controller, useFormContext } from "react-hook-form";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 interface PlanOption {
@@ -84,6 +85,16 @@ export default function PlanStep({
   const handleNext = () => {
     const checkoutUrl = buildCheckoutUrl();
     if (checkoutUrl) {
+      // Stripe's success/cancel URLs land on the workspace billing page,
+      // not back on /onboarding — so onboarding terminates here. Track and
+      // clear the resume cookie before navigating away. keepalive keeps
+      // the DELETE in flight across the impending window.location change.
+      track("onboarding", "completed", { tier: selectedTier });
+      try {
+        void fetch("/api/onboarding/state", { method: "DELETE", keepalive: true });
+      } catch {
+        // Best-effort; server-side cookie will expire in a day anyway.
+      }
       window.location.href = checkoutUrl;
       return;
     }
@@ -162,7 +173,7 @@ export default function PlanStep({
       />
 
       <p className="text-xs text-muted-foreground">
-        Selecting a paid plan takes you to Stripe checkout. After payment, you'll return here to finish onboarding.
+        Selecting a paid plan takes you to Stripe checkout. After payment, you'll land on your workspace billing page.
       </p>
     </StepShell>
   );
