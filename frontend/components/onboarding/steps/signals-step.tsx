@@ -4,8 +4,9 @@ import { AlertCircle, Brain, Check, CheckCircle, CloudOff, Frown, Shield, Target
 import { type ComponentType } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
+import { SIGNAL_OPTIONS } from "@/components/onboarding/signal-options";
 import StepShell from "@/components/onboarding/step-shell";
-import { type OnboardingFormValues, type SignalOption } from "@/components/onboarding/types";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import signalTemplates from "@/components/signals/prompts";
 import { cn } from "@/lib/utils";
@@ -20,15 +21,6 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "cloud-off": CloudOff,
   target: Target,
 };
-
-export const SIGNAL_OPTIONS: SignalOption[] = signalTemplates.map((t) => ({
-  id: t.name,
-  name: t.name,
-  shortName: t.shortName,
-  description: t.description,
-  prompt: t.prompt,
-  structuredOutputSchema: t.structuredOutputSchema,
-}));
 
 const ICON_BY_ID: Record<string, ComponentType<{ className?: string }>> = Object.fromEntries(
   signalTemplates.map((t) => [t.name, ICONS[t.icon] ?? AlertCircle])

@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { SIGNAL_OPTIONS } from "@/components/onboarding/steps/signals-step";
+import { SIGNAL_OPTIONS } from "@/components/onboarding/signal-options";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
