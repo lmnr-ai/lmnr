@@ -233,6 +233,10 @@ function QueueInner() {
 
   const approveCurrent = useCallback(async () => {
     if (!currentItem || !queueId || !isTargetJsonValid) return;
+    // Re-entry guard: the button is disabled while any PATCH/DELETE is in flight, but
+    // the meta+enter hotkey bypasses that. Without this, a held shortcut or rapid
+    // double-tap can queue a second approve for the same item.
+    if (ioState !== false && ioState !== "list") return;
     const target = (currentItem.payload as { target?: unknown }).target;
     // Cancel any in-flight debounced save and short-circuit a pending one — we're about to write
     // `isLabelled:true` and a stale `isLabelled:false` PATCH arriving after would revert it.
@@ -263,6 +267,7 @@ function QueueInner() {
     currentItem,
     queueId,
     isTargetJsonValid,
+    ioState,
     projectId,
     toast,
     markLabelled,
@@ -275,6 +280,8 @@ function QueueInner() {
 
   const discardCurrent = useCallback(async () => {
     if (!currentItem || !queueId) return;
+    // Re-entry guard — see approveCurrent. Meta+backspace would otherwise fire twice.
+    if (ioState !== false && ioState !== "list") return;
     // Cancel any in-flight debounced save — a late PATCH would re-insert a row with a fresher
     // updated_at and resurrect this item past the delete tombstone.
     cancelPendingSaveFor(currentItem.id, (currentItem.payload as { target?: unknown }).target);
@@ -308,7 +315,7 @@ function QueueInner() {
     } finally {
       setIoState(false);
     }
-  }, [currentItem, queueId, projectId, toast, removeItemLocal, setIoState, cancelPendingSaveFor, mutate]);
+  }, [currentItem, queueId, ioState, projectId, toast, removeItemLocal, setIoState, cancelPendingSaveFor, mutate]);
 
   const pushAll = useCallback(async () => {
     if (!queueId) return;
@@ -429,7 +436,11 @@ function QueueInner() {
     [setTarget, setTargetJsonValid]
   );
 
-  const disableNav = ioState !== false && ioState !== "save" && ioState !== "list";
+  // "list" covers SWR loading the full item list — navigation is fine because items are
+  // already rendered from cache. Every other in-flight state (approve="save", discard,
+  // push-one, push-all) must block approve/discard so a rapid double-click can't
+  // double-PATCH the same item or spill the action into the one `step(1)` moved to next.
+  const disableNav = ioState !== false && ioState !== "list";
   const canApprove = !!currentItem && isTargetJsonValid && !disableNav;
   const canDiscard = !!currentItem && !disableNav;
 
