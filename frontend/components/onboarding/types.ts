@@ -17,5 +17,3 @@ export interface OnboardingFormValues {
 }
 
 export const ONBOARDING_STEPS = ["workspace", "signals", "notifications", "slack", "plan"] as const;
-
-export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
