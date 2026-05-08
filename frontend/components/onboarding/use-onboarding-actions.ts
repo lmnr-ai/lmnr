@@ -259,15 +259,16 @@ export function useOnboardingActions(): UseOnboardingActions {
           if (unsubscribes.some((ok) => !ok)) failureToast();
         }
       }
+
+      track("onboarding", "notifications_configured", { email: emailOn });
+      await persistOnboardingStep(workspaceId, resources.projectId, 3);
+      return true;
     } catch {
       failureToast();
+      return true;
     } finally {
       setIsSubmitting(false);
     }
-
-    track("onboarding", "notifications_configured", { email: emailOn });
-    await persistOnboardingStep(workspaceId, resources.projectId, 3);
-    return true;
   }, [form, resources.projectId, resources.workspaceId, toast, user.email]);
 
   const recordSlackStep = useCallback(() => {
