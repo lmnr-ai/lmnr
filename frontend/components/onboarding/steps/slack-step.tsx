@@ -85,9 +85,11 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
             </Badge>
           ) : (
             slackAvailable && (
-              <a href={slackUrl} onClick={() => track("onboarding", "slack_connect_clicked")}>
-                <Button variant="outlinePrimary">Connect Slack</Button>
-              </a>
+              <Button asChild variant="outlinePrimary">
+                <a href={slackUrl} onClick={() => track("onboarding", "slack_connect_clicked")}>
+                  Connect Slack
+                </a>
+              </Button>
             )
           )}
         </div>
