@@ -214,14 +214,24 @@ export default function OnboardingWizard({
     const emailOn = form.getValues("emailNotificationsEnabled");
     if (workspaceId && !emailOn && userEmail) {
       setIsSubmitting(true);
+      // Opting out of email is a nice-to-have — toast on failure but let the
+      // user continue so they don't get stuck on this step.
+      const optOutToast = () =>
+        toast({
+          variant: "destructive",
+          title: "Could not update email notifications",
+          description: "You can change this later from workspace settings.",
+        });
       try {
         const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
-        if (res.ok) {
+        if (!res.ok) {
+          optOutToast();
+        } else {
           const reports = (await res.json()) as {
             id: string;
             targets: { id: string; type: string; email: string | null }[];
           }[];
-          await Promise.all(
+          const deletes = await Promise.all(
             reports.flatMap((r) =>
               r.targets
                 .filter((t) => t.type === "EMAIL" && t.email === userEmail)
@@ -230,19 +240,18 @@ export default function OnboardingWizard({
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ reportId: r.id, email: userEmail }),
-                  }).catch(() => null)
+                  })
+                    .then((del) => del.ok)
+                    .catch(() => false)
                 )
             )
           );
+          if (deletes.some((ok) => !ok)) {
+            optOutToast();
+          }
         }
       } catch {
-        // Opting out of email is a nice-to-have — surface the failure but
-        // let the user continue so they don't get stuck on this step.
-        toast({
-          variant: "destructive",
-          title: "Could not update email notifications",
-          description: "You can change this later from workspace settings.",
-        });
+        optOutToast();
       } finally {
         setIsSubmitting(false);
       }
