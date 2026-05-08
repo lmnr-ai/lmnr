@@ -1,0 +1,95 @@
+"use client";
+
+import { Controller, useFormContext } from "react-hook-form";
+
+import StepShell from "@/components/onboarding/step-shell";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+interface WorkspaceStepProps {
+  stepIndex: number;
+  totalSteps: number;
+  onNext: () => void;
+  isSubmitting: boolean;
+}
+
+export default function WorkspaceStep({ stepIndex, totalSteps, onNext, isSubmitting }: WorkspaceStepProps) {
+  const {
+    control,
+    watch,
+    formState: { errors },
+  } = useFormContext<OnboardingFormValues>();
+
+  const workspaceName = watch("workspaceName");
+  const projectName = watch("projectName");
+  const nextDisabled = !workspaceName?.trim() || !projectName?.trim() || isSubmitting;
+
+  return (
+    <StepShell
+      stepIndex={stepIndex}
+      totalSteps={totalSteps}
+      title="Welcome to Laminar"
+      description="Let's start by creating your first workspace and project."
+      onNext={onNext}
+      nextDisabled={nextDisabled}
+      isSubmitting={isSubmitting}
+      nextLabel="Create workspace"
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="workspace-name" className="text-sm font-medium">
+            Workspace name
+          </Label>
+          <Controller
+            name="workspaceName"
+            control={control}
+            rules={{
+              required: "Workspace name is required",
+              validate: (value) => value.trim().length > 0 || "Workspace name cannot be empty",
+            }}
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  {...field}
+                  id="workspace-name"
+                  placeholder="e.g. Acme Inc."
+                  className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                />
+                {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              </>
+            )}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="project-name" className="text-sm font-medium">
+            Project name
+          </Label>
+          <Controller
+            name="projectName"
+            control={control}
+            rules={{
+              required: "Project name is required",
+              validate: (value) => value.trim().length > 0 || "Project name cannot be empty",
+            }}
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  {...field}
+                  id="project-name"
+                  placeholder="e.g. My AI Agent"
+                  className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                />
+                {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+              </>
+            )}
+          />
+          {!errors.projectName && (
+            <p className="text-xs text-muted-foreground">Projects organize your traces, signals, and evaluations.</p>
+          )}
+        </div>
+      </div>
+    </StepShell>
+  );
+}
