@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import OnboardingWizard, { type OnboardingInitialValues } from "@/components/onboarding";
+import StaleResumeRedirect from "@/components/onboarding/stale-resume-redirect";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getOnboardingState } from "@/lib/actions/onboarding";
@@ -47,6 +48,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   let resumeWorkspaceId: string | null = null;
   let resumeProjectId: string | null = null;
   let resumeStep = 0;
+  let staleResume = false;
 
   if (saved && saved.userId === user.id && saved.workspaceId && saved.projectId) {
     const owned = await db
@@ -65,6 +67,12 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
       resumeWorkspaceId = saved.workspaceId;
       resumeProjectId = saved.projectId;
       resumeStep = Math.max(0, saved.step);
+    } else {
+      // Cookie references a workspace/project that no longer exists (user or
+      // another member deleted it). Without this the page would fall through
+      // to a fresh step-0 wizard, and the (authenticated) layout would bounce
+      // the user back here on every navigation — a permanent loop.
+      staleResume = true;
     }
   }
 
@@ -72,6 +80,14 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     .select({ count: sql`count(*)`.mapWith(Number) })
     .from(membersOfWorkspaces)
     .where(eq(membersOfWorkspaces.userId, user.id));
+
+  // Stale cookie + user still has other workspaces → clear cookie (from client,
+  // since Server Components can't reliably write cookies) and send them to
+  // /projects. If they have no workspaces at all, fall through to the wizard
+  // so they can set one up; the mount-effect will overwrite the stale cookie.
+  if (staleResume && count > 0) {
+    return <StaleResumeRedirect destination="/projects" />;
+  }
 
   const slackReturn = searchParams?.slack;
   // If the user already has workspaces AND there's no in-progress cookie AND they
