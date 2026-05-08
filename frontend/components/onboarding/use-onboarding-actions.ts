@@ -25,7 +25,7 @@ interface UseOnboardingActions {
   createWorkspace: () => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
   saveNotifications: () => Promise<boolean>;
-  recordSlackStep: () => void;
+  recordSlackStep: () => Promise<void>;
   finishFreeTier: () => Promise<void>;
 }
 
@@ -271,10 +271,19 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources.projectId, resources.workspaceId, toast, user.email]);
 
-  const recordSlackStep = useCallback(() => {
+  // Must AWAIT the step-4 POST: if this fires-and-forgets, advancing to the
+  // plan step and clicking Finish races the in-flight POST against the DELETE.
+  // The POST can land last, re-setting the cookie via Set-Cookie, and the
+  // (authenticated) gate then bounces the user straight back to /onboarding.
+  const recordSlackStep = useCallback(async (): Promise<void> => {
     const connected = form.getValues("slackConnected");
     track("onboarding", "slack_step_completed", { connected });
-    void persistOnboardingStep(resources.workspaceId, resources.projectId, 4);
+    setIsSubmitting(true);
+    try {
+      await persistOnboardingStep(resources.workspaceId, resources.projectId, 4);
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [form, resources.projectId, resources.workspaceId]);
 
   const finishFreeTier = useCallback(async () => {

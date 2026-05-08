@@ -29,7 +29,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
   const { watch } = useFormContext<OnboardingFormValues>();
   const flags = useFeatureFlags();
   const { resources, slackClientId, slackRedirectUri } = useOnboardingContext();
-  const { recordSlackStep } = useOnboardingActions();
+  const { isSubmitting, recordSlackStep } = useOnboardingActions();
   const connected = watch("slackConnected");
 
   const slackUrl = useMemo(() => {
@@ -49,8 +49,8 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
 
   const slackAvailable = flags[Feature.SLACK] && !!slackUrl;
 
-  const handleNext = () => {
-    recordSlackStep();
+  const handleNext = async () => {
+    await recordSlackStep();
     onAdvance();
   };
 
@@ -63,6 +63,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
       onNext={handleNext}
       onBack={onBack}
       nextLabel={connected ? "Continue" : "Skip for now"}
+      isSubmitting={isSubmitting}
     >
       <div className="rounded-lg border border-border bg-background p-4 flex items-center gap-4">
         <Image src={slackLogo} alt="Slack" width={32} height={32} className="shrink-0" unoptimized />
