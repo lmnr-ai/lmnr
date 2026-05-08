@@ -323,6 +323,16 @@ function QueueInner() {
       toast({ variant: "destructive", title: "Pick a dataset first" });
       return;
     }
+    // Cancel pending debounced saves for every dirty item. pushItemsToDataset deletes
+    // rows from CH, and a late save-fires `updateQueueItem` would FINAL-SELECT the
+    // now-missing row, fall through to defaults, and re-insert a ghost (empty data,
+    // fresh createdAt). Any dirty item might be labelled (hence pushed) or become
+    // labelled before the server reads — cancel them all to be safe.
+    for (const id of dirtyItemIds) {
+      const item = items.find((i) => i.id === id);
+      const target = item ? (item.payload as { target?: unknown }).target : undefined;
+      cancelPendingSaveFor(id, target);
+    }
     setIoState("push-all");
     try {
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/push-to-dataset`, {
@@ -346,7 +356,7 @@ function QueueInner() {
     } finally {
       setIoState(false);
     }
-  }, [queueId, dataset, projectId, toast, setIoState, mutate]);
+  }, [queueId, dataset, projectId, toast, setIoState, mutate, dirtyItemIds, items, cancelPendingSaveFor]);
 
   const pushCurrent = useCallback(async () => {
     if (!queueId || !currentItem) return;
@@ -358,6 +368,10 @@ function QueueInner() {
       toast({ variant: "destructive", title: "Approve the item before pushing" });
       return;
     }
+    // Cancel any in-flight debounced save for this item — push deletes the row, and a
+    // late PATCH would hit `updateQueueItem`'s FINAL SELECT, miss it, and fall through
+    // to defaults, re-inserting a ghost row (same pattern as discardCurrent).
+    cancelPendingSaveFor(currentItem.id, (currentItem.payload as { target?: unknown }).target);
     setIoState("push-one");
     try {
       const res = await fetch(`/api/projects/${projectId}/queues/${queueId}/push-to-dataset`, {
@@ -388,7 +402,7 @@ function QueueInner() {
     } finally {
       setIoState(false);
     }
-  }, [queueId, currentItem, dataset, projectId, toast, setIoState, removeItemLocal, mutate]);
+  }, [queueId, currentItem, dataset, projectId, toast, setIoState, removeItemLocal, mutate, cancelPendingSaveFor]);
 
   useHotkeys(
     "meta+enter,ctrl+enter",
