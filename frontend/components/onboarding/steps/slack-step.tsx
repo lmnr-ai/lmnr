@@ -42,7 +42,10 @@ export default function SlackStep({
 
   const slackUrl = useMemo(() => {
     if (!slackClientId || !slackRedirectUri || !workspaceId) return undefined;
-    const state = `${workspaceId}:/onboarding?slack=success`;
+    // returnPath is /onboarding with NO status param — the callback appends
+    // slack=success|error itself. Embedding ?slack=success here would mask
+    // errors because URLSearchParams.get() returns the first occurrence.
+    const state = `${workspaceId}:/onboarding`;
     const sp = new URLSearchParams({
       scope: SLACK_SCOPES.join(","),
       client_id: slackClientId,
