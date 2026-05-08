@@ -30,6 +30,8 @@ export const setOnboardingState = async (state: OnboardingState): Promise<void> 
     maxAge: MAX_AGE,
     path: "/",
     sameSite: "lax",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
   });
 };
 

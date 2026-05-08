@@ -235,6 +235,14 @@ export default function OnboardingWizard({
             )
           );
         }
+      } catch {
+        // Opting out of email is a nice-to-have — surface the failure but
+        // let the user continue so they don't get stuck on this step.
+        toast({
+          variant: "destructive",
+          title: "Could not update email notifications",
+          description: "You can change this later from workspace settings.",
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -244,7 +252,7 @@ export default function OnboardingWizard({
       await persistState(workspaceId, createdIds.projectId, 3);
     }
     setStepIndex(3);
-  }, [createdIds, form, persistState, userEmail]);
+  }, [createdIds, form, persistState, toast, userEmail]);
 
   const handleSlackNext = useCallback(async () => {
     const connected = form.getValues("slackConnected");
