@@ -13,7 +13,7 @@ import {
 } from "@/lib/clickhouse/labeling-queue-items";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
-import { datapointIdForQueueItem, generateUuid, queueItemIdForIdempotency } from "@/lib/utils";
+import { datapointIdForQueueItem, queueItemIdForIdempotency } from "@/lib/utils";
 
 const PayloadSchema = z.object({
   data: z.any(),
@@ -162,16 +162,28 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
   }
 
   if (datasetId) {
+    // Deterministic datapoint id + create-before-delete + idempotent insert.
+    // createDatapoints and deleteQueueItems are two separate ClickHouse writes
+    // with no transaction. Without this: (a) a random id would make a retry
+    // after a partial failure duplicate the dataset row, and (b) deleting
+    // first would lose the queue item if the insert then threw. With this:
+    // insert uses the same id on every retry, and `filterExistingDatapointIds`
+    // skips the re-insert (dataset_datapoints is plain MergeTree — duplicate
+    // ids do NOT collapse on merge).
+    const datapointId = datapointIdForQueueItem(datasetId, id);
+    const existing = await filterExistingDatapointIds(projectId, datasetId, [datapointId]);
+    if (!existing.has(datapointId)) {
+      await createDatapoints(projectId, datasetId, [
+        {
+          id: datapointId,
+          data,
+          target,
+          metadata: metadata ?? {},
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    }
     await deleteQueueItems(projectId, queueId, [id]);
-    await createDatapoints(projectId, datasetId, [
-      {
-        id: generateUuid(),
-        data,
-        target,
-        metadata: metadata ?? {},
-        createdAt: new Date().toISOString(),
-      },
-    ]);
     return { success: true };
   }
 
