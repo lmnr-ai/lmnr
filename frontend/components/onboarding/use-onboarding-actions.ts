@@ -208,6 +208,18 @@ export function useOnboardingActions(): UseOnboardingActions {
       track("onboarding", "signals_selected", { count: selected.size });
       await persistOnboardingStep(resources.workspaceId, projectId, 2);
       return true;
+    } catch {
+      // Defensive: every fetch above already has an inner try/catch, but an
+      // unexpected throw (e.g. from `track` or a future refactor) would
+      // otherwise reject the promise returned to `signals-step.tsx` — its
+      // `if (ok) onAdvance()` treats rejection as a thrown error with no
+      // toast and no way to retry. Mirror saveNotifications's outer catch.
+      toast({
+        variant: "destructive",
+        title: "Couldn't save your signals",
+        description: "Please try again.",
+      });
+      return false;
     } finally {
       setIsSubmitting(false);
     }
