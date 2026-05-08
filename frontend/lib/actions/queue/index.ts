@@ -86,10 +86,10 @@ export const GetQueueProgressSchema = z.object({
   queueId: z.guid(),
 });
 
-export const UpdateQueueTargetSchemaSchema = z.object({
+export const UpdateQueueAnnotationSchemaSchema = z.object({
   projectId: z.guid(),
   queueId: z.guid(),
-  targetSchema: z.record(z.string(), z.unknown()).nullable(),
+  annotationSchema: z.record(z.string(), z.unknown()).nullable(),
 });
 
 export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>) {
@@ -244,17 +244,17 @@ export async function getQueueProgress(input: z.infer<typeof GetQueueProgressSch
   return getQueueCounts(projectId, queueId);
 }
 
-export async function updateQueueTargetSchema(input: z.infer<typeof UpdateQueueTargetSchemaSchema>) {
-  const { queueId, projectId, targetSchema } = UpdateQueueTargetSchemaSchema.parse(input);
+export async function updateQueueAnnotationSchema(input: z.infer<typeof UpdateQueueAnnotationSchemaSchema>) {
+  const { queueId, projectId, annotationSchema } = UpdateQueueAnnotationSchemaSchema.parse(input);
 
   const [updatedQueue] = await db
     .update(labelingQueues)
-    .set({ targetSchema })
+    .set({ annotationSchema })
     .where(and(eq(labelingQueues.projectId, projectId), eq(labelingQueues.id, queueId)))
     .returning();
 
   if (!updatedQueue) {
-    throw new Error("Failed to update queue target schema");
+    throw new Error("Failed to update queue annotation schema");
   }
 
   return updatedQueue;

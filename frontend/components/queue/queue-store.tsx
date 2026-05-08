@@ -26,7 +26,7 @@ export type QueueState = {
   /** Rendered-JSON validity for the manual Target editor. */
   isTargetJsonValid: boolean;
 
-  targetSchema: Record<string, unknown> | null;
+  annotationSchema: Record<string, unknown> | null;
   fields: TargetField[];
   focusedFieldIndex: number;
   /** Sticky global target values — carry over between items when the user selects once. */
@@ -44,7 +44,7 @@ export type QueueActions = {
   setIoState: (state: QueueIoState) => void;
   setDataset: (dataset: string | undefined) => void;
 
-  setTargetSchema: (schema: Record<string, unknown> | null) => void;
+  setAnnotationSchema: (schema: Record<string, unknown> | null) => void;
   setTarget: (target: unknown) => void;
   setTargetJsonValid: (valid: boolean) => void;
   updateTargetField: (key: string, value: unknown) => void;
@@ -59,7 +59,7 @@ export type QueueActions = {
 
 export type QueueStore = QueueState & QueueActions;
 
-export const parseTargetSchema = (schema: Record<string, unknown> | null): TargetField[] => {
+export const parseAnnotationSchema = (schema: Record<string, unknown> | null): TargetField[] => {
   if (!schema || typeof schema !== "object" || !schema.properties) {
     return [];
   }
@@ -128,8 +128,8 @@ const applyGlobalsToIndex = (state: QueueStore, nextIndex: number): Partial<Queu
 };
 
 const createQueueStore = (queue: LabelingQueue) => {
-  const initialSchema = (queue.targetSchema as Record<string, unknown>) || null;
-  const initialFields = parseTargetSchema(initialSchema);
+  const initialSchema = (queue.annotationSchema as Record<string, unknown>) || null;
+  const initialFields = parseAnnotationSchema(initialSchema);
 
   return createStore<QueueStore>()(
     persist(
@@ -141,7 +141,7 @@ const createQueueStore = (queue: LabelingQueue) => {
         dataset: undefined,
         isTargetJsonValid: true,
 
-        targetSchema: initialSchema,
+        annotationSchema: initialSchema,
         fields: initialFields,
         focusedFieldIndex: initialFields.length > 0 ? 0 : -1,
         globalTargetSelections: {},
@@ -202,10 +202,10 @@ const createQueueStore = (queue: LabelingQueue) => {
         setIoState: (ioState) => set({ ioState }),
         setDataset: (dataset) => set({ dataset }),
 
-        setTargetSchema: (schema) => {
-          const fields = parseTargetSchema(schema);
+        setAnnotationSchema: (schema) => {
+          const fields = parseAnnotationSchema(schema);
           set({
-            targetSchema: schema,
+            annotationSchema: schema,
             fields,
             focusedFieldIndex: fields.length > 0 ? 0 : -1,
           });

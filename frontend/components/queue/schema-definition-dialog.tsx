@@ -41,14 +41,14 @@ const exampleSchema = {
 export default function SchemaDefinitionDialog() {
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { targetSchema, setTargetSchema, queue } = useQueueStore((state) => ({
-    targetSchema: state.targetSchema,
-    setTargetSchema: state.setTargetSchema,
+  const { annotationSchema, setAnnotationSchema, queue } = useQueueStore((state) => ({
+    annotationSchema: state.annotationSchema,
+    setAnnotationSchema: state.setAnnotationSchema,
     queue: state.queue,
   }));
 
   const [isOpen, setIsOpen] = useState(false);
-  const [tempSchema, setTempSchema] = useState(targetSchema ? JSON.stringify(targetSchema, null, 2) : "");
+  const [tempSchema, setTempSchema] = useState(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
   const [isValid, setIsValid] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -59,13 +59,13 @@ export default function SchemaDefinitionDialog() {
     try {
       const parsedSchema = tempSchema.trim() ? JSON.parse(tempSchema) : null;
 
-      const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/target-schema`, {
+      const response = await fetch(`/api/projects/${projectId}/queues/${queue.id}/annotation-schema`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          targetSchema: parsedSchema,
+          annotationSchema: parsedSchema,
         }),
       });
 
@@ -74,20 +74,20 @@ export default function SchemaDefinitionDialog() {
           .json()
           .then((d) => d?.error)
           .catch(() => null);
-        throw new Error(errMessage ?? "Failed to save target schema");
+        throw new Error(errMessage ?? "Failed to save annotation schema");
       }
 
-      setTargetSchema(parsedSchema);
+      setAnnotationSchema(parsedSchema);
       setIsOpen(false);
       toast({
         title: "Success",
-        description: "Target schema saved",
+        description: "Annotation schema saved",
       });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save target schema.",
+        description: error instanceof Error ? error.message : "Failed to save annotation schema.",
       });
     } finally {
       setIsSaving(false);
@@ -125,20 +125,20 @@ export default function SchemaDefinitionDialog() {
       onOpenChange={(open) => {
         setIsOpen(open);
         if (open) {
-          setTempSchema(targetSchema ? JSON.stringify(targetSchema, null, 2) : "");
+          setTempSchema(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
           setIsValid(true);
         }
       }}
     >
       <DialogTrigger asChild>
         <Button variant="outline" icon="braces">
-          {targetSchema ? "Edit target schema" : "Define target schema"}
+          {annotationSchema ? "Edit annotation schema" : "Define annotation schema"}
         </Button>
       </DialogTrigger>
       <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">
         <DialogTitle className="hidden invisible" />
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-          <span className="text-lg font-medium">Define Target Schema</span>
+          <span className="text-lg font-medium">Define Annotation Schema</span>
           <p className="text-xs text-muted-foreground">
             Define a JSON Schema to render interactive target fields. Maximum 9 fields supported.
             <br />

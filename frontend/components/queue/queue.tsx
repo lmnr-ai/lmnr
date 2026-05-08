@@ -44,7 +44,7 @@ function QueueInner() {
   const currentIndex = useQueueStore((s) => s.currentIndex);
   const ioState = useQueueStore((s) => s.ioState);
   const dataset = useQueueStore((s) => s.dataset);
-  const targetSchema = useQueueStore((s) => s.targetSchema);
+  const annotationSchema = useQueueStore((s) => s.annotationSchema);
   const fields = useQueueStore((s) => s.fields);
   const isTargetJsonValid = useQueueStore((s) => s.isTargetJsonValid);
   const dirtyItemIds = useQueueStore((s) => s.dirtyItemIds);
@@ -571,11 +571,11 @@ function QueueInner() {
                   </div>
                 </TabsContent>
                 <TabsContent value="form" className="flex flex-1 flex-col overflow-auto pt-3">
-                  {targetSchema && fields.length > 0 ? (
+                  {annotationSchema && fields.length > 0 ? (
                     <AnnotationInterface />
                   ) : (
                     <div className="text-xs text-secondary-foreground">
-                      Define a target schema first to enable the form view.
+                      Define an annotation schema first to enable the form view.
                     </div>
                   )}
                 </TabsContent>

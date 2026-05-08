@@ -1,6 +1,6 @@
 import { prettifyError, ZodError } from "zod/v4";
 
-import { updateQueueTargetSchema } from "@/lib/actions/queue";
+import { updateQueueAnnotationSchema } from "@/lib/actions/queue";
 
 export async function PUT(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const { projectId, queueId } = await props.params;
@@ -8,10 +8,10 @@ export async function PUT(request: Request, props: { params: Promise<{ projectId
   try {
     const body = await request.json();
 
-    const updatedQueue = await updateQueueTargetSchema({
+    const updatedQueue = await updateQueueAnnotationSchema({
       queueId,
       projectId,
-      targetSchema: body?.targetSchema ?? null,
+      annotationSchema: body?.annotationSchema ?? null,
     });
 
     return Response.json(updatedQueue);

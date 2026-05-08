@@ -21,6 +21,7 @@ import {
   renderTemplates,
   workspaceUsageWarnings,
   labelingQueues,
+  labelingQueueItems,
   workspaceInvitations,
   evaluators,
   evaluatorSpanPaths,
@@ -237,7 +238,15 @@ export const workspaceUsageWarningsRelations = relations(workspaceUsageWarnings,
   }),
 }));
 
-export const labelingQueuesRelations = relations(labelingQueues, ({ one }) => ({
+export const labelingQueueItemsRelations = relations(labelingQueueItems, ({ one }) => ({
+  labelingQueue: one(labelingQueues, {
+    fields: [labelingQueueItems.queueId],
+    references: [labelingQueues.id],
+  }),
+}));
+
+export const labelingQueuesRelations = relations(labelingQueues, ({ one, many }) => ({
+  labelingQueueItems: many(labelingQueueItems),
   project: one(projects, {
     fields: [labelingQueues.projectId],
     references: [projects.id],
