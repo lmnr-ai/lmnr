@@ -229,44 +229,51 @@ export function useOnboardingActions(): UseOnboardingActions {
       });
 
     try {
+      // Gate track + persistOnboardingStep on the GET succeeding. `fetch`
+      // resolves on any HTTP status, so without this a 500/403 would toast
+      // failure and then still record `notifications_configured` + advance
+      // the server-side step cursor — corrupting the metric and desyncing
+      // resume state (a later resume would land on step 4 despite zero
+      // reconcile having happened). The `catch` branch below mirrors this:
+      // network errors and non-2xx responses must behave identically.
       const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
       if (!res.ok) {
         failureToast();
+        return true;
+      }
+      const reports = (await res.json()) as WorkspaceReportRow[];
+      if (emailOn) {
+        const subscribes = await Promise.all(
+          reports
+            .filter((r) => !r.targets.some((t) => t.type === "EMAIL" && t.email === userEmail))
+            .map((r) =>
+              fetch(`/api/workspaces/${workspaceId}/reports`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reportId: r.id, email: userEmail }),
+              })
+                .then((d) => d.ok)
+                .catch(() => false)
+            )
+        );
+        if (subscribes.some((ok) => !ok)) failureToast();
       } else {
-        const reports = (await res.json()) as WorkspaceReportRow[];
-        if (emailOn) {
-          const subscribes = await Promise.all(
-            reports
-              .filter((r) => !r.targets.some((t) => t.type === "EMAIL" && t.email === userEmail))
-              .map((r) =>
+        const unsubscribes = await Promise.all(
+          reports.flatMap((r) =>
+            r.targets
+              .filter((t) => t.type === "EMAIL" && t.email === userEmail)
+              .map(() =>
                 fetch(`/api/workspaces/${workspaceId}/reports`, {
-                  method: "POST",
+                  method: "DELETE",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ reportId: r.id, email: userEmail }),
                 })
                   .then((d) => d.ok)
                   .catch(() => false)
               )
-          );
-          if (subscribes.some((ok) => !ok)) failureToast();
-        } else {
-          const unsubscribes = await Promise.all(
-            reports.flatMap((r) =>
-              r.targets
-                .filter((t) => t.type === "EMAIL" && t.email === userEmail)
-                .map(() =>
-                  fetch(`/api/workspaces/${workspaceId}/reports`, {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ reportId: r.id, email: userEmail }),
-                  })
-                    .then((d) => d.ok)
-                    .catch(() => false)
-                )
-            )
-          );
-          if (unsubscribes.some((ok) => !ok)) failureToast();
-        }
+          )
+        );
+        if (unsubscribes.some((ok) => !ok)) failureToast();
       }
 
       track("onboarding", "notifications_configured", { email: emailOn });
