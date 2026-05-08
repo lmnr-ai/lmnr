@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
+import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { db } from "@/lib/db/drizzle";
 import {
   reports as reportsTable,
@@ -47,7 +48,13 @@ export async function hydrateOnboardingValues({
           .select({ id: reportTargets.id })
           .from(reportTargets)
           .innerJoin(reportsTable, eq(reportTargets.reportId, reportsTable.id))
-          .where(eq(reportsTable.workspaceId, workspaceId))
+          .where(
+            and(
+              eq(reportsTable.workspaceId, workspaceId),
+              eq(reportTargets.type, REPORT_TARGET_TYPE.EMAIL),
+              eq(reportTargets.email, userEmail)
+            )
+          )
           .limit(1)
       : Promise.resolve([] as { id: string }[]),
     db
@@ -68,10 +75,8 @@ export async function hydrateOnboardingValues({
 
   return {
     selectedSignalIds: signalRows.map((r) => r.name),
-    // We didn't filter targets by user email server-side; if any email target
-    // exists for the workspace's reports, treat the user as opted in. The
-    // notifications step's reconcile only deletes targets matching userEmail
-    // on opt-out, so a stray foreign-email target won't be touched.
+    // Only the current user's EMAIL targets count — Slack targets and other
+    // users' email subscriptions must not flip this user's opt-in flag.
     emailNotificationsEnabled: emailTargetRows.length > 0,
     slackConnected: slackRows.length > 0,
     selectedTier,
