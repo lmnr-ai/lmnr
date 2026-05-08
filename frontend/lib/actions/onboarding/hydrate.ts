@@ -14,6 +14,7 @@ import {
 export type OnboardingTier = "free" | "hobby" | "pro";
 
 export interface OnboardingHydratedValues {
+  workspaceName: string | null;
   selectedSignalIds: string[];
   emailNotificationsEnabled: boolean;
   slackConnected: boolean;
@@ -63,17 +64,23 @@ export async function hydrateOnboardingValues({
       .where(eq(slackIntegrations.workspaceId, workspaceId))
       .limit(1),
     db
-      .select({ name: subscriptionTiers.name })
+      .select({ tierName: subscriptionTiers.name, workspaceName: workspaces.name })
       .from(workspaces)
       .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
       .where(eq(workspaces.id, workspaceId))
       .limit(1),
   ]);
 
-  const tierName = (tierRows[0]?.name ?? "Free").toLowerCase();
+  const tierName = (tierRows[0]?.tierName ?? "Free").toLowerCase();
   const selectedTier = TIER_NAME_TO_FORM_VALUE[tierName] ?? "free";
 
   return {
+    // Hydrating the workspace name here prevents the plan step from shipping
+    // a fallback-synthesized "<User>'s workspace" string to Stripe as
+    // subscription metadata on resume. Caller must thread this into
+    // defaultValues.workspaceName so the paid-tier checkout URL carries the
+    // real name.
+    workspaceName: tierRows[0]?.workspaceName ?? null,
     selectedSignalIds: signalRows.map((r) => r.name),
     // Only the current user's EMAIL targets count — Slack targets and other
     // users' email subscriptions must not flip this user's opt-in flag.

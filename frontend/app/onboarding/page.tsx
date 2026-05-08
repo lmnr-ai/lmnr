@@ -120,6 +120,11 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     defaultValues: hydrated
       ? {
           ...EMPTY_DEFAULTS,
+          // Pull the real workspace name from the DB so the plan step's
+          // Stripe checkout URL carries it as subscription metadata on
+          // resume — otherwise the wizard's fallback synthesizes
+          // "${user.name}'s workspace" and Stripe records that instead.
+          workspaceName: hydrated.workspaceName ?? EMPTY_DEFAULTS.workspaceName,
           // Hydrated selection wins over the "Failure Detector" default so unchecking
           // it on a previous visit isn't silently re-checked when the user resumes.
           selectedSignalIds: hydrated.selectedSignalIds,
