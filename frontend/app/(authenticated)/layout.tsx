@@ -6,8 +6,12 @@ import { getOnboardingState } from "@/lib/actions/onboarding";
 import { authOptions } from "@/lib/auth";
 
 // Shared gate for every authenticated app route tree. Two responsibilities:
-//   1. Require a session (replaces the proxy's withAuth redirect for these
-//      pages, so we don't need to import next-auth/middleware globally).
+//   1. Require a session. In practice `withAuth` in proxy.ts already redirects
+//      unauthenticated requests to `/sign-in?callbackUrl=<path>` for these
+//      routes (see the matcher there), so this branch is a belt-and-suspenders
+//      fallback. It can't construct a callbackUrl here because Server
+//      Component layouts don't receive the request pathname — all the more
+//      reason the middleware is the right owner of this redirect.
 //   2. If an onboarding cookie is present, force the user back to /onboarding
 //      until they finish (or the cookie expires). This replaces the old
 //      proxy-level matcher hack — onboarding logic now lives entirely under

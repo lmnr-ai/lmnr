@@ -93,5 +93,18 @@ export const config = {
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
     "/uploads/:path+",
+    // Authenticated app trees — listed so NextAuth's built-in pages.signIn
+    // redirect fires for unauthenticated deep links and appends
+    // ?callbackUrl=<current-url>. Without this the (authenticated) layout's
+    // server-component redirect("/sign-in") has no way to know the requested
+    // path, and the user lands on the sign-in page's default destination
+    // (/onboarding) after signing in. The middleware's `authorized` callback
+    // already returns `!!token` for non-API/uploads paths, and the inline
+    // regex checks above only match /api/* prefixes, so the body here is a
+    // no-op for these routes beyond the auth redirect.
+    "/projects",
+    "/project/:path+",
+    "/workspace/:path+",
+    "/invitations",
   ],
 };
