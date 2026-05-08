@@ -26,7 +26,7 @@ interface UseOnboardingActions {
   saveSignals: () => Promise<boolean>;
   saveNotifications: () => Promise<boolean>;
   recordSlackStep: () => Promise<void>;
-  finishFreeTier: () => Promise<void>;
+  finishFreeTier: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
 }
@@ -47,11 +47,18 @@ const persistOnboardingStep = async (
   }
 };
 
-const clearOnboardingStateCookie = async (): Promise<void> => {
+// Returns true only when the server confirms the cookie was cleared. A non-2xx
+// response (e.g. 401 on session expiry) resolves the fetch promise normally,
+// so callers that rely on `fetch` throwing would navigate into the
+// (authenticated) tree with the cookie still live — the layout gate would
+// bounce back to /onboarding, creating a redirect loop. Consumers MUST gate
+// navigation on this boolean.
+const clearOnboardingStateCookie = async (): Promise<boolean> => {
   try {
-    await fetch("/api/onboarding/state", { method: "DELETE" });
+    const res = await fetch("/api/onboarding/state", { method: "DELETE" });
+    return res.ok;
   } catch {
-    // ignore — server cookie expires on its own
+    return false;
   }
 };
 
@@ -291,15 +298,27 @@ export function useOnboardingActions(): UseOnboardingActions {
   // Toggle isSubmitting so the plan step's Finish button disables while the
   // cookie DELETE is in flight. Without this the user can double-click
   // Finish, fire two DELETEs, and cause a duplicate navigation.
-  const finishFreeTier = useCallback(async () => {
+  //
+  // Returns the DELETE's success. Callers MUST NOT navigate into the
+  // (authenticated) tree on false — the cookie is still live, the layout
+  // gate would bounce back to /onboarding and loop.
+  const finishFreeTier = useCallback(async (): Promise<boolean> => {
     track("onboarding", "completed", { tier: form.getValues("selectedTier") });
     setIsSubmitting(true);
     try {
-      await clearOnboardingStateCookie();
+      const ok = await clearOnboardingStateCookie();
+      if (!ok) {
+        toast({
+          variant: "destructive",
+          title: "Couldn't finish onboarding",
+          description: "Please try again.",
+        });
+      }
+      return ok;
     } finally {
       setIsSubmitting(false);
     }
-  }, [form]);
+  }, [form, toast]);
 
   // Paid-tier branch: plan step awaits a DELETE before window.location.href
   // navigates to Stripe. Expose a submitting toggle so the button can disable
