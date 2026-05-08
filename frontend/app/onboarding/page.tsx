@@ -45,12 +45,18 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   // READ the cookie here — Server Components can't reliably write cookies in Next.js,
   // so the wizard manages all cookie writes (set/clear) via /api/onboarding/state.
   const saved = await getOnboardingState();
+  // An other-user's cookie is not a real resume signal for this session — treat
+  // it as absent for every gate below. Without this narrowing the legacy
+  // redirect (count > 0 && !saved) would let user B through, the wizard's
+  // mount-effect would then overwrite the cookie under B's session, and the
+  // (authenticated) gate would trap B in a wizard loop.
+  const ownSaved = saved && saved.userId === user.id ? saved : null;
   let resumeWorkspaceId: string | null = null;
   let resumeProjectId: string | null = null;
   let resumeStep = 0;
   let staleResume = false;
 
-  if (saved && saved.userId === user.id && saved.workspaceId && saved.projectId) {
+  if (ownSaved && ownSaved.workspaceId && ownSaved.projectId) {
     const owned = await db
       .select({ id: projects.id })
       .from(projects)
@@ -58,15 +64,15 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
       .where(
         and(
           eq(membersOfWorkspaces.userId, user.id),
-          eq(projects.id, saved.projectId),
-          eq(projects.workspaceId, saved.workspaceId)
+          eq(projects.id, ownSaved.projectId),
+          eq(projects.workspaceId, ownSaved.workspaceId)
         )
       )
       .limit(1);
     if (owned.length > 0) {
-      resumeWorkspaceId = saved.workspaceId;
-      resumeProjectId = saved.projectId;
-      resumeStep = Math.max(0, saved.step);
+      resumeWorkspaceId = ownSaved.workspaceId;
+      resumeProjectId = ownSaved.projectId;
+      resumeStep = Math.max(0, ownSaved.step);
     } else {
       // Cookie references a workspace/project that no longer exists (user or
       // another member deleted it). Without this the page would fall through
@@ -90,11 +96,11 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   }
 
   const slackReturn = searchParams?.slack;
-  // If the user already has workspaces AND there's no in-progress cookie AND they
-  // aren't returning from Slack OAuth, respect the legacy redirect to /projects.
-  // When a cookie IS present, render the wizard so its mount-effect can refresh
-  // the cookie with the current session before any further navigation.
-  if (count > 0 && !saved && slackReturn === undefined) {
+  // If the user already has workspaces AND there's no in-progress cookie owned
+  // by THIS user AND they aren't returning from Slack OAuth, respect the legacy
+  // redirect to /projects. We gate on ownSaved (not saved) so an other-user's
+  // stale cookie cannot hijack the current session into the wizard.
+  if (count > 0 && !ownSaved && slackReturn === undefined) {
     return redirect("/projects");
   }
 
