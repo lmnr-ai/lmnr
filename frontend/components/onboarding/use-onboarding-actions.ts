@@ -1,0 +1,282 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { useFormContext } from "react-hook-form";
+
+import { useOnboardingContext } from "@/components/onboarding/context";
+import { SIGNAL_OPTIONS } from "@/components/onboarding/steps/signals-step";
+import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useUserContext } from "@/contexts/user-context";
+import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
+
+interface ProjectSignalRow {
+  id: string;
+  name: string;
+}
+
+interface WorkspaceReportRow {
+  id: string;
+  targets: { id: string; type: string; email: string | null }[];
+}
+
+interface UseOnboardingActions {
+  isSubmitting: boolean;
+  createWorkspace: () => Promise<{ workspaceId: string; projectId: string } | null>;
+  saveSignals: () => Promise<boolean>;
+  saveNotifications: () => Promise<boolean>;
+  recordSlackStep: () => void;
+  finishFreeTier: () => Promise<void>;
+}
+
+const persistOnboardingStep = async (
+  workspaceId: string | null,
+  projectId: string | null,
+  step: number
+): Promise<void> => {
+  try {
+    await fetch("/api/onboarding/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId, projectId, step }),
+    });
+  } catch {
+    // Cookie persistence is best-effort — the user can keep going.
+  }
+};
+
+const clearOnboardingStateCookie = async (): Promise<void> => {
+  try {
+    await fetch("/api/onboarding/state", { method: "DELETE" });
+  } catch {
+    // ignore — server cookie expires on its own
+  }
+};
+
+export function useOnboardingActions(): UseOnboardingActions {
+  const { resources, setResources } = useOnboardingContext();
+  const user = useUserContext();
+  const { toast } = useToast();
+  const form = useFormContext<OnboardingFormValues>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createWorkspace = useCallback(async () => {
+    const valid = await form.trigger(["workspaceName", "projectName"]);
+    if (!valid) return null;
+
+    if (resources.workspaceId && resources.projectId) {
+      return { workspaceId: resources.workspaceId, projectId: resources.projectId };
+    }
+
+    const data = form.getValues();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.workspaceName.trim(),
+          projectName: data.projectName.trim(),
+          isFirstProject: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast({ variant: "destructive", title: err?.error ?? "Failed to create workspace" });
+        return null;
+      }
+      const json = (await res.json()) as { id: string; projectId?: string };
+      if (!json.projectId) {
+        toast({ variant: "destructive", title: "Workspace created without a project" });
+        return null;
+      }
+      track("onboarding", "first_project_created");
+      setResources({ workspaceId: json.id, projectId: json.projectId });
+      await persistOnboardingStep(json.id, json.projectId, 1);
+      return { workspaceId: json.id, projectId: json.projectId };
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong" });
+      return null;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, resources.projectId, resources.workspaceId, setResources, toast]);
+
+  // Reconciles the user's signal selection against the project's existing
+  // signals: creates anything newly-selected, deletes anything that was
+  // previously created from a template but is now unchecked. Failure Detector
+  // is auto-created during workspace creation, so we never re-create it but
+  // we DO allow deleting it if the user unchecks it.
+  const saveSignals = useCallback(async (): Promise<boolean> => {
+    const projectId = resources.projectId;
+    if (!projectId) return true;
+
+    const selected = new Set(form.getValues("selectedSignalIds"));
+    const templateNames = new Set(SIGNAL_OPTIONS.map((opt) => opt.id));
+
+    setIsSubmitting(true);
+    try {
+      let existing: ProjectSignalRow[] = [];
+      try {
+        const res = await fetch(`/api/projects/${projectId}/signals?pageNumber=0&pageSize=200`);
+        if (res.ok) {
+          const json = (await res.json()) as { items?: ProjectSignalRow[] };
+          existing = json.items ?? [];
+        }
+      } catch {
+        existing = [];
+      }
+      const existingByName = new Map(existing.map((s) => [s.name, s]));
+
+      const toCreate = SIGNAL_OPTIONS.filter((opt) => selected.has(opt.id) && !existingByName.has(opt.name));
+      const toDelete = existing.filter((s) => templateNames.has(s.name) && !selected.has(s.name));
+
+      const [createResults, deleteResults] = await Promise.all([
+        Promise.all(
+          toCreate.map(async (opt) => {
+            let structuredOutput: Record<string, unknown> = {};
+            try {
+              structuredOutput = JSON.parse(opt.structuredOutputSchema);
+            } catch {
+              structuredOutput = {};
+            }
+            try {
+              const res = await fetch(`/api/projects/${projectId}/signals`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: opt.name, prompt: opt.prompt, structuredOutput }),
+              });
+              return res.ok;
+            } catch {
+              return false;
+            }
+          })
+        ),
+        Promise.all(
+          toDelete.map(async (s) => {
+            try {
+              const res = await fetch(`/api/projects/${projectId}/signals`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ids: [s.id] }),
+              });
+              return res.ok;
+            } catch {
+              return false;
+            }
+          })
+        ),
+      ]);
+
+      const failedCreates = createResults.filter((ok) => !ok).length;
+      const failedDeletes = deleteResults.filter((ok) => !ok).length;
+      if (failedCreates > 0 || failedDeletes > 0) {
+        toast({
+          variant: "destructive",
+          title: `Some signals weren't saved`,
+          description: "You can adjust them later from the Signals page.",
+        });
+      }
+
+      track("onboarding", "signals_selected", { count: selected.size });
+      await persistOnboardingStep(resources.workspaceId, projectId, 2);
+      return true;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, resources.projectId, resources.workspaceId, toast]);
+
+  // Reconciles the email-digest preference against the workspace's current
+  // report targets. Opt-in adds the user's email, opt-out deletes it. Other
+  // members' email targets are left untouched.
+  const saveNotifications = useCallback(async (): Promise<boolean> => {
+    const workspaceId = resources.workspaceId;
+    if (!workspaceId) {
+      track("onboarding", "notifications_configured", {
+        email: form.getValues("emailNotificationsEnabled"),
+      });
+      return true;
+    }
+
+    const emailOn = form.getValues("emailNotificationsEnabled");
+    const userEmail = user.email;
+    setIsSubmitting(true);
+
+    const failureToast = () =>
+      toast({
+        variant: "destructive",
+        title: "Couldn't update email notifications",
+        description: "You can change this later from workspace settings.",
+      });
+
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
+      if (!res.ok) {
+        failureToast();
+      } else {
+        const reports = (await res.json()) as WorkspaceReportRow[];
+        if (emailOn) {
+          const subscribes = await Promise.all(
+            reports
+              .filter((r) => !r.targets.some((t) => t.type === "EMAIL" && t.email === userEmail))
+              .map((r) =>
+                fetch(`/api/workspaces/${workspaceId}/reports`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ reportId: r.id, email: userEmail }),
+                })
+                  .then((d) => d.ok)
+                  .catch(() => false)
+              )
+          );
+          if (subscribes.some((ok) => !ok)) failureToast();
+        } else {
+          const unsubscribes = await Promise.all(
+            reports.flatMap((r) =>
+              r.targets
+                .filter((t) => t.type === "EMAIL" && t.email === userEmail)
+                .map(() =>
+                  fetch(`/api/workspaces/${workspaceId}/reports`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reportId: r.id, email: userEmail }),
+                  })
+                    .then((d) => d.ok)
+                    .catch(() => false)
+                )
+            )
+          );
+          if (unsubscribes.some((ok) => !ok)) failureToast();
+        }
+      }
+    } catch {
+      failureToast();
+    } finally {
+      setIsSubmitting(false);
+    }
+
+    track("onboarding", "notifications_configured", { email: emailOn });
+    await persistOnboardingStep(workspaceId, resources.projectId, 3);
+    return true;
+  }, [form, resources.projectId, resources.workspaceId, toast, user.email]);
+
+  const recordSlackStep = useCallback(() => {
+    const connected = form.getValues("slackConnected");
+    track("onboarding", "slack_step_completed", { connected });
+    void persistOnboardingStep(resources.workspaceId, resources.projectId, 4);
+  }, [form, resources.projectId, resources.workspaceId]);
+
+  const finishFreeTier = useCallback(async () => {
+    track("onboarding", "completed", { tier: form.getValues("selectedTier") });
+    await clearOnboardingStateCookie();
+  }, [form]);
+
+  return {
+    isSubmitting,
+    createWorkspace,
+    saveSignals,
+    saveNotifications,
+    recordSlackStep,
+    finishFreeTier,
+  };
+}

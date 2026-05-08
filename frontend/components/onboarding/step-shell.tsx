@@ -40,7 +40,7 @@ export default function StepShell({
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background px-4 py-6 overflow-y-auto">
       <div className="w-full max-w-2xl flex flex-col gap-6 my-auto">
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-4">
           <LaminarLogo className="h-7 w-auto" fill="#b5b5b5" />
           <div className="w-full flex items-center gap-1.5 mt-2">
             {Array.from({ length: totalSteps }).map((_, i) => (
@@ -50,7 +50,7 @@ export default function StepShell({
               />
             ))}
           </div>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             Step {stepIndex + 1} of {totalSteps}
           </span>
         </div>

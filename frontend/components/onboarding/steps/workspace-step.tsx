@@ -4,6 +4,7 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -11,20 +12,25 @@ import { cn } from "@/lib/utils";
 interface WorkspaceStepProps {
   stepIndex: number;
   totalSteps: number;
-  onNext: () => void;
-  isSubmitting: boolean;
+  onAdvance: () => void;
 }
 
-export default function WorkspaceStep({ stepIndex, totalSteps, onNext, isSubmitting }: WorkspaceStepProps) {
+export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: WorkspaceStepProps) {
   const {
     control,
     watch,
     formState: { errors },
   } = useFormContext<OnboardingFormValues>();
+  const { isSubmitting, createWorkspace } = useOnboardingActions();
 
   const workspaceName = watch("workspaceName");
   const projectName = watch("projectName");
-  const nextDisabled = !workspaceName?.trim() || !projectName?.trim() || isSubmitting;
+  const nextDisabled = !workspaceName?.trim() || !projectName?.trim();
+
+  const handleNext = async () => {
+    const result = await createWorkspace();
+    if (result) onAdvance();
+  };
 
   return (
     <StepShell
@@ -32,7 +38,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onNext, isSubmitt
       totalSteps={totalSteps}
       title="Welcome to Laminar"
       description="Let's start by creating your first workspace and project."
-      onNext={onNext}
+      onNext={handleNext}
       nextDisabled={nextDisabled}
       isSubmitting={isSubmitting}
       nextLabel="Create workspace"

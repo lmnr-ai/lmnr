@@ -6,10 +6,14 @@ import { useMemo } from "react";
 import { useFormContext } from "react-hook-form";
 
 import slackLogo from "@/assets/logo/slack.png";
+import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 
 const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
@@ -17,35 +21,23 @@ const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "group
 interface SlackStepProps {
   stepIndex: number;
   totalSteps: number;
-  workspaceId?: string;
-  slackClientId?: string;
-  slackRedirectUri?: string;
-  slackFeatureEnabled: boolean;
-  onNext: () => void;
+  onAdvance: () => void;
   onBack: () => void;
-  isSubmitting: boolean;
 }
 
-export default function SlackStep({
-  stepIndex,
-  totalSteps,
-  workspaceId,
-  slackClientId,
-  slackRedirectUri,
-  slackFeatureEnabled,
-  onNext,
-  onBack,
-  isSubmitting,
-}: SlackStepProps) {
+export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: SlackStepProps) {
   const { watch } = useFormContext<OnboardingFormValues>();
+  const flags = useFeatureFlags();
+  const { resources, slackClientId, slackRedirectUri } = useOnboardingContext();
+  const { recordSlackStep } = useOnboardingActions();
   const connected = watch("slackConnected");
 
   const slackUrl = useMemo(() => {
-    if (!slackClientId || !slackRedirectUri || !workspaceId) return undefined;
+    if (!slackClientId || !slackRedirectUri || !resources.workspaceId) return undefined;
     // returnPath is /onboarding with NO status param — the callback appends
     // slack=success|error itself. Embedding ?slack=success here would mask
     // errors because URLSearchParams.get() returns the first occurrence.
-    const state = `${workspaceId}:/onboarding`;
+    const state = `${resources.workspaceId}:/onboarding`;
     const sp = new URLSearchParams({
       scope: SLACK_SCOPES.join(","),
       client_id: slackClientId,
@@ -53,9 +45,14 @@ export default function SlackStep({
       redirect_uri: slackRedirectUri,
     });
     return `https://slack.com/oauth/v2/authorize?${sp}`;
-  }, [slackClientId, slackRedirectUri, workspaceId]);
+  }, [slackClientId, slackRedirectUri, resources.workspaceId]);
 
-  const slackAvailable = slackFeatureEnabled && !!slackUrl;
+  const slackAvailable = flags[Feature.SLACK] && !!slackUrl;
+
+  const handleNext = () => {
+    recordSlackStep();
+    onAdvance();
+  };
 
   return (
     <StepShell
@@ -63,9 +60,8 @@ export default function SlackStep({
       totalSteps={totalSteps}
       title="Connect Slack"
       description="Receive signal alerts directly in a Slack channel. This step is optional — you can skip it and add it later."
-      onNext={onNext}
+      onNext={handleNext}
       onBack={onBack}
-      isSubmitting={isSubmitting}
       nextLabel={connected ? "Continue" : "Skip for now"}
     >
       <div className="rounded-lg border border-border bg-background p-4 flex items-center gap-4">

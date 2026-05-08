@@ -5,26 +5,26 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useUserContext } from "@/contexts/user-context";
 
 interface NotificationsStepProps {
   stepIndex: number;
   totalSteps: number;
-  userEmail?: string | null;
-  onNext: () => void;
+  onAdvance: () => void;
   onBack: () => void;
-  isSubmitting: boolean;
 }
 
-export default function NotificationsStep({
-  stepIndex,
-  totalSteps,
-  userEmail,
-  onNext,
-  onBack,
-  isSubmitting,
-}: NotificationsStepProps) {
+export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, onBack }: NotificationsStepProps) {
   const { control } = useFormContext<OnboardingFormValues>();
+  const { email } = useUserContext();
+  const { isSubmitting, saveNotifications } = useOnboardingActions();
+
+  const handleNext = async () => {
+    const ok = await saveNotifications();
+    if (ok) onAdvance();
+  };
 
   return (
     <StepShell
@@ -32,7 +32,7 @@ export default function NotificationsStep({
       totalSteps={totalSteps}
       title="Set up notifications"
       description="Decide how you want to hear about the signals you just set up."
-      onNext={onNext}
+      onNext={handleNext}
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
@@ -57,7 +57,7 @@ export default function NotificationsStep({
               </div>
               <span className="text-xs text-muted-foreground">
                 Weekday and weekly digests of signal events delivered to{" "}
-                <span className="font-medium text-foreground">{userEmail ?? "your email"}</span>.
+                <span className="font-medium text-foreground">{email ?? "your email"}</span>.
               </span>
             </div>
           </label>

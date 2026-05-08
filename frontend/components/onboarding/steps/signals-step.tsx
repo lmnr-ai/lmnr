@@ -6,6 +6,7 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues, type SignalOption } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import signalTemplates from "@/components/signals/prompts";
 import { cn } from "@/lib/utils";
 
@@ -36,13 +37,17 @@ const ICON_BY_ID: Record<string, ComponentType<{ className?: string }>> = Object
 interface SignalsStepProps {
   stepIndex: number;
   totalSteps: number;
-  onNext: () => void;
-  onBack: () => void;
-  isSubmitting: boolean;
+  onAdvance: () => void;
 }
 
-export default function SignalsStep({ stepIndex, totalSteps, onNext, onBack, isSubmitting }: SignalsStepProps) {
+export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: SignalsStepProps) {
   const { control } = useFormContext<OnboardingFormValues>();
+  const { isSubmitting, saveSignals } = useOnboardingActions();
+
+  const handleNext = async () => {
+    const ok = await saveSignals();
+    if (ok) onAdvance();
+  };
 
   return (
     <StepShell
@@ -50,8 +55,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onNext, onBack, isS
       totalSteps={totalSteps}
       title="Choose what to monitor"
       description="Signals run on every trace to surface issues automatically. Pick one or more to set up — you can always change this later."
-      onNext={onNext}
-      onBack={onBack}
+      onNext={handleNext}
       isSubmitting={isSubmitting}
     >
       <Controller
