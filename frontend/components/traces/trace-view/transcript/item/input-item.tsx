@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 
-import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { cn } from "@/lib/utils.ts";
 
@@ -11,27 +11,32 @@ interface InputItemProps {
   className?: string;
 }
 
-export function InputItem({ text, isLoading, inGroup, className }: InputItemProps) {
-  if (!isLoading && !text) return null;
+export function InputItem({ text, inGroup, className }: InputItemProps) {
+  const { enabled: isDebuggerMode } = useOptionalDebuggerStore(() => null);
+
+  if (!text) return null;
 
   return (
-    <div
-      className={cn(
-        "flex flex-col flex-1 min-w-0 py-2 pl-1 pr-2 border-l-4 border-l-transparent gap-1 bg-blue-400/5",
-        {
-          "bg-muted/60": inGroup,
-        },
-        className
-      )}
-    >
-      <div className="flex gap-2 items-center min-w-0">
-        <div className="flex items-center justify-center z-10 rounded shrink-0 bg-blue-400/70 w-5 h-5 min-w-5 min-h-5">
-          <ArrowRight size={14} />
+    <div className="flex">
+      <div
+        className={cn(
+          "flex flex-col flex-1 min-w-0 py-2 pr-2 border-l-4 border-l-transparent gap-1 bg-blue-400/5",
+          {
+            "bg-muted/60": inGroup,
+          },
+          isDebuggerMode ? "pl-11" : "pl-1",
+          className
+        )}
+      >
+        <div className="flex gap-2 items-center min-w-0">
+          <div className="flex items-center justify-center z-10 rounded shrink-0 bg-blue-400/70 w-5 h-5 min-w-5 min-h-5">
+            <ArrowRight size={14} />
+          </div>
+          <span className="font-medium text-sm whitespace-nowrap shrink-0">Input</span>
         </div>
-        <span className="font-medium text-sm whitespace-nowrap shrink-0">Input</span>
-      </div>
-      <div className="pl-7">
-        {isLoading ? <PreviewLoadingPlaceholder /> : <CollapsedTextWithMore text={text!} lineHeight={17} />}
+        <div className="pl-7">
+          <CollapsedTextWithMore text={text} lineHeight={17} />
+        </div>
       </div>
     </div>
   );

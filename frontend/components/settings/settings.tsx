@@ -114,7 +114,7 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pb-24">
             <div className="flex flex-col gap-8 max-w-6xl mx-auto px-4">{renderContent()}</div>
           </div>
         </div>
