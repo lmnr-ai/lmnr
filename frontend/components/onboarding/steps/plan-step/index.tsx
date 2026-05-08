@@ -59,12 +59,20 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
     const checkoutUrl = buildCheckoutUrl();
     if (checkoutUrl) {
       // Stripe's success/cancel URLs land on the workspace billing page,
-      // not back on /onboarding — so onboarding terminates here. Track and
-      // clear the resume cookie before navigating away. keepalive keeps the
-      // DELETE in flight across the impending window.location change; the
-      // server-side cookie expires anyway if this fails.
+      // not back on /onboarding — so onboarding terminates here. We MUST
+      // await the DELETE before navigating: keepalive would keep the
+      // request in flight, but the response's Set-Cookie header only
+      // updates the browser's cookie jar while the current document is
+      // still alive. If the cookie survives, the (authenticated) layout
+      // on /workspace/.../billing bounces the paid user straight back
+      // into the wizard.
       track("onboarding", "completed", { tier: selectedTier });
-      fetch("/api/onboarding/state", { method: "DELETE", keepalive: true }).catch(() => {});
+      try {
+        await fetch("/api/onboarding/state", { method: "DELETE" });
+      } catch {
+        // Best-effort: the cookie expires on its own, and onboarding's
+        // stale-cookie recovery path redirects to /projects on next visit.
+      }
       window.location.href = checkoutUrl;
       return;
     }
