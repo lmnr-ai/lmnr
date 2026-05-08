@@ -48,6 +48,7 @@ export default function OnboardingWizard({
     workspaceId: resumeState?.workspaceId,
     projectId: resumeState?.projectId,
   });
+  const [createdSignalIds, setCreatedSignalIds] = useState<Set<string>>(new Set());
 
   const form = useForm<OnboardingFormValues>({
     defaultValues: {
@@ -150,34 +151,54 @@ export default function OnboardingWizard({
       return;
     }
     const selected = form.getValues("selectedSignalIds");
-    const failureAlreadyCreated = true; // createWorkspace auto-creates the Failure Detector signal.
-    const toCreate = SIGNAL_OPTIONS.filter((opt) => {
-      if (!selected.includes(opt.id)) return false;
-      if (failureAlreadyCreated && opt.id === "Failure Detector") return false;
-      return true;
-    });
+    // createWorkspace auto-creates the Failure Detector signal, and previous
+    // visits to this step may have already created others — skip both.
+    const toCreate = SIGNAL_OPTIONS.filter(
+      (opt) => selected.includes(opt.id) && opt.id !== "Failure Detector" && !createdSignalIds.has(opt.id)
+    );
 
     setIsSubmitting(true);
     try {
-      await Promise.all(
-        toCreate.map((opt) => {
+      const results = await Promise.all(
+        toCreate.map(async (opt) => {
           let structuredOutput: Record<string, unknown> = {};
           try {
             structuredOutput = JSON.parse(opt.structuredOutputSchema);
           } catch {
             structuredOutput = {};
           }
-          return fetch(`/api/projects/${projectId}/signals`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: opt.name,
-              prompt: opt.prompt,
-              structuredOutput,
-            }),
-          }).catch(() => null);
+          try {
+            const res = await fetch(`/api/projects/${projectId}/signals`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: opt.name,
+                prompt: opt.prompt,
+                structuredOutput,
+              }),
+            });
+            return { id: opt.id, ok: res.ok };
+          } catch {
+            return { id: opt.id, ok: false };
+          }
         })
       );
+      const created = results.filter((r) => r.ok).map((r) => r.id);
+      if (created.length > 0) {
+        setCreatedSignalIds((prev) => {
+          const next = new Set(prev);
+          created.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        toast({
+          variant: "destructive",
+          title: `Failed to create ${failed.length} signal${failed.length > 1 ? "s" : ""}`,
+          description: "You can create them later from the Signals page.",
+        });
+      }
       track("onboarding", "signals_selected", { count: selected.length });
       if (createdIds.workspaceId) {
         await persistState(createdIds.workspaceId, projectId, 2);
@@ -186,7 +207,7 @@ export default function OnboardingWizard({
     } finally {
       setIsSubmitting(false);
     }
-  }, [createdIds, form, persistState]);
+  }, [createdIds, createdSignalIds, form, persistState, toast]);
 
   const handleSaveNotifications = useCallback(async () => {
     const workspaceId = createdIds.workspaceId;

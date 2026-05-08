@@ -149,6 +149,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Slack step builds OAuth URL with `state = "${workspaceId}:/onboarding?slack=success"`. The existing `/api/integrations/slack/route.ts` parses this and redirects back with `?slack=success|error`. The wizard's `useEffect` lifts that query param into `slackConnected` form state and strips the param.
 - Plan step: "free" is the default. Selecting a paid tier and clicking Continue does `window.location.href = /checkout?lookupKey=...`. The resume cookie survives the Stripe round-trip. Non-subscription environments (`Feature.SUBSCRIPTION` off) short-circuit to a single "Finish" button.
 - Nested interactive elements: do NOT place a Radix `Checkbox` (renders `<button>`) inside a `<button>` card — it causes a hydration error ("button cannot be a descendant of button"). The signals step uses a plain `<span>` with a `Check` icon instead.
+- Step handlers that POST side effects (Signals, Notifications) must be idempotent — users can click Back then Continue to re-enter a step. `handleSaveSignals` tracks `createdSignalIds` in local state and excludes already-created options from the POST batch; silent `.catch(() => null)` on per-row fetches would otherwise hide duplicate-create failures from the user.
 
 ## Signal Triggers
 
