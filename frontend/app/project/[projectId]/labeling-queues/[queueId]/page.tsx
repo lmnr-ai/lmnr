@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import Queue from "@/components/queue/queue";
+import Queue from "@/components/queue";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
 

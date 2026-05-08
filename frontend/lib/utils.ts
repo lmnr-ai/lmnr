@@ -428,20 +428,6 @@ export const generateUuid = (): string => {
 };
 
 /**
- * Deterministic UUID for a labeling-queue item derived from
- * `(projectId, queueId, idempotencyKey)`. Two concurrent inserts with the
- * same idempotency key produce the same id, so the ReplacingMergeTree
- * (ordered by `(project_id, queue_id, id)`) collapses them on merge /
- * `FINAL` read. Falls back to a random UUID when no key is supplied.
- */
-export const LABELING_QUEUE_ITEM_NAMESPACE = "b8f3c3a2-4a33-4f4b-8c6a-5a9a1f7d2e21";
-
-export const queueItemIdForIdempotency = (projectId: string, queueId: string, idempotencyKey: string): string => {
-  if (!idempotencyKey) return generateUuid();
-  return uuidv5(`${projectId}:${queueId}:${idempotencyKey}`, LABELING_QUEUE_ITEM_NAMESPACE);
-};
-
-/**
  * Deterministic UUID for a dataset datapoint that originates from a labeling
  * queue item. Used by `pushItemsToDataset` so a retry after a partial failure
  * (datapoints inserted, queue tombstones not written) produces the same ids and

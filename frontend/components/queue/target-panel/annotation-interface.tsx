@@ -3,13 +3,13 @@
 import { type KeyboardEvent, useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
-import { Badge } from "../ui/badge";
-import { useQueueStore } from "./queue-store";
+import { useQueueStore } from "../queue-store";
 
 interface AnnotationInterfaceProps {
   className?: string;
@@ -260,7 +260,6 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
               </Badge>
               <span className="font-base text-secondary-foreground">{field.description || field.key}</span>
             </div>
-            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{index + 1}</span>
           </div>
 
           <FieldOptions

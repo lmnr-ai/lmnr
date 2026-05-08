@@ -4,16 +4,16 @@ import { z } from "zod/v4";
 import { createDatapoints, filterExistingDatapointIds } from "@/lib/clickhouse/datapoints";
 import {
   deleteQueueItems,
-  filterExistingIdempotencyKeys,
   getLabelledQueueItems,
   getQueueCounts,
+  getQueueItemIds,
   getQueueItems,
   insertQueueItems,
   updateQueueItem,
 } from "@/lib/clickhouse/labeling-queue-items";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
-import { datapointIdForQueueItem, queueItemIdForIdempotency } from "@/lib/utils";
+import { datapointIdForQueueItem, generateUuid } from "@/lib/utils";
 
 const PayloadSchema = z.object({
   data: z.any(),
@@ -38,7 +38,6 @@ export const PushQueueItemSchema = z.object({
       createdAt: z.string().optional(),
       payload: PayloadSchema,
       metadata: ItemMetadataSchema,
-      idempotencyKey: z.string().optional(),
     })
   ),
 });
@@ -74,9 +73,27 @@ export const PushItemsToDatasetSchema = z.object({
   queueId: z.guid(),
   datasetId: z.guid(),
   itemIds: z.array(z.guid()).optional(),
+  /**
+   * When true, push every queue item regardless of `is_labelled`. This is the
+   * "ship everything that's in the queue right now" escape hatch — un-annotated
+   * items will land in the dataset with whatever (possibly empty) `target` they
+   * carry. Default false to preserve the historical "approved-only" contract.
+   */
+  includeUnlabelled: z.boolean().optional(),
 });
 
 export const GetQueueItemsSchema = z.object({
+  projectId: z.guid(),
+  queueId: z.guid(),
+  /**
+   * Optional id filter for the windowed UI: when present we return ONLY those
+   * rows (still in `(created_at, id)` order). Omit to fall back to the
+   * historical "return everything" contract callers without windowing rely on.
+   */
+  ids: z.array(z.guid()).optional(),
+});
+
+export const GetQueueItemIdsSchema = z.object({
   projectId: z.guid(),
   queueId: z.guid(),
 });
@@ -96,35 +113,17 @@ export async function pushQueueItems(input: z.infer<typeof PushQueueItemSchema>)
   const { queueId, projectId, items } = PushQueueItemSchema.parse(input);
   if (items.length === 0) return [];
 
-  const withKeys = items.map((item) => ({
-    ...item,
-    idempotencyKey: item.idempotencyKey ?? "",
-  }));
-
-  const existing = await filterExistingIdempotencyKeys(
-    projectId,
-    queueId,
-    withKeys.map((i) => i.idempotencyKey)
-  );
-
   const now = new Date().toISOString();
-  const toInsert = withKeys
-    .filter((item) => item.idempotencyKey === "" || !existing.has(item.idempotencyKey))
-    .map((item) => ({
-      // Derive a deterministic id from `idempotencyKey` so two concurrent inserts
-      // that both slip past `filterExistingIdempotencyKeys` collide on the RMT
-      // ORDER BY `(project_id, queue_id, id)` and collapse on FINAL — instead of
-      // producing two distinct-`id` rows RMT will never dedupe.
-      id: queueItemIdForIdempotency(projectId, queueId, item.idempotencyKey),
-      queueId,
-      projectId,
-      payload: item.payload,
-      metadata: item.metadata ?? {},
-      isLabelled: false,
-      idempotencyKey: item.idempotencyKey,
-      createdAt: item.createdAt ?? now,
-      updatedAt: item.createdAt ?? now,
-    }));
+  const toInsert = items.map((item) => ({
+    id: generateUuid(),
+    queueId,
+    projectId,
+    payload: item.payload,
+    metadata: item.metadata ?? {},
+    isLabelled: false,
+    createdAt: item.createdAt ?? now,
+    updatedAt: item.createdAt ?? now,
+  }));
 
   await insertQueueItems(toInsert);
 
@@ -191,11 +190,16 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
 }
 
 export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatasetSchema>) {
-  const { projectId, queueId, datasetId, itemIds } = PushItemsToDatasetSchema.parse(input);
+  const { projectId, queueId, datasetId, itemIds, includeUnlabelled } = PushItemsToDatasetSchema.parse(input);
 
-  const labelled = await getLabelledQueueItems(projectId, queueId);
+  // `includeUnlabelled` opts out of the labelled-only filter that the API used
+  // to enforce unconditionally. Callers that don't pass it keep the safe
+  // default (only push reviewed rows) — see the CLAUDE.md note on this fn.
+  const sourceItems = includeUnlabelled
+    ? await getQueueItems(projectId, queueId)
+    : await getLabelledQueueItems(projectId, queueId);
 
-  const targetItems = itemIds && itemIds.length > 0 ? labelled.filter((i) => itemIds.includes(i.id)) : labelled;
+  const targetItems = itemIds && itemIds.length > 0 ? sourceItems.filter((i) => itemIds.includes(i.id)) : sourceItems;
 
   if (targetItems.length === 0) {
     return { pushed: 0 };
@@ -235,8 +239,13 @@ export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatase
 }
 
 export async function listQueueItems(input: z.infer<typeof GetQueueItemsSchema>) {
-  const { projectId, queueId } = GetQueueItemsSchema.parse(input);
-  return getQueueItems(projectId, queueId);
+  const { projectId, queueId, ids } = GetQueueItemsSchema.parse(input);
+  return getQueueItems(projectId, queueId, ids ? { ids } : undefined);
+}
+
+export async function listQueueItemIds(input: z.infer<typeof GetQueueItemIdsSchema>) {
+  const { projectId, queueId } = GetQueueItemIdsSchema.parse(input);
+  return getQueueItemIds(projectId, queueId);
 }
 
 export async function getQueueProgress(input: z.infer<typeof GetQueueProgressSchema>) {

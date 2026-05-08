@@ -11,7 +11,27 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useQueueStore } from "./queue-store";
+import { useQueueStore } from "../queue-store";
+
+interface SchemaDefinitionDialogProps {
+  /**
+   * Optional controlled `open`. When provided, the dialog renders in
+   * controlled mode and the parent owns the toggle state. The component
+   * exposes its default trigger (the "Define / Edit annotation schema"
+   * button in the panel header) as well, so passing `open` lets a
+   * second trigger (e.g. the empty-state CTA in the Form tab) drive
+   * the same dialog without rendering two separate dialog instances.
+   */
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
+  /**
+   * When false, the default header trigger button is omitted. The parent
+   * is then responsible for rendering its own trigger that toggles `open`.
+   * Useful when the panel header already has its own controls and we only
+   * want the dialog body wired up via the empty-state CTA.
+   */
+  showTrigger?: boolean;
+}
 
 const exampleSchema = {
   type: "object",
@@ -38,7 +58,11 @@ const exampleSchema = {
   required: ["exampleInteger", "exampleEnum", "exampleBoolean", "exampleString"],
 };
 
-export default function SchemaDefinitionDialog() {
+export default function SchemaDefinitionDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  showTrigger = true,
+}: SchemaDefinitionDialogProps = {}) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { annotationSchema, setAnnotationSchema, queue } = useQueueStore((state) => ({
@@ -47,7 +71,12 @@ export default function SchemaDefinitionDialog() {
     queue: state.queue,
   }));
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const setIsOpen = (next: boolean) => {
+    if (controlledOnOpenChange) controlledOnOpenChange(next);
+    if (controlledOpen === undefined) setInternalOpen(next);
+  };
   const [tempSchema, setTempSchema] = useState(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
   const [isValid, setIsValid] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -130,11 +159,13 @@ export default function SchemaDefinitionDialog() {
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" icon="braces">
-          {annotationSchema ? "Edit annotation schema" : "Define annotation schema"}
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" icon="braces">
+            {annotationSchema ? "Edit annotation schema" : "Define annotation schema"}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">
         <DialogTitle className="hidden invisible" />
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">

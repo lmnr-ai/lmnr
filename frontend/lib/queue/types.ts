@@ -20,7 +20,6 @@ export interface LabelingQueueItem {
   };
   metadata: Record<string, unknown>;
   isLabelled: boolean;
-  idempotencyKey: string;
   createdAt: string;
   updatedAt: string;
 }

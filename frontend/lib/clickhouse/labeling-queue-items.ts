@@ -1,37 +1,39 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { type LabelingQueueItem } from "@/lib/queue/types";
+import { tryParseJson } from "@/lib/utils";
 
-interface CHRow {
-  id: string;
-  queue_id: string;
-  project_id: string;
+/**
+ * Shared SELECT list for `LabelingQueueItem` reads. Uses ClickHouse implicit
+ * camelCase aliases so JSONEachRow returns keys matching the TS shape directly
+ * — no per-row remapping needed. UUID columns serialise as strings via
+ * JSONEachRow without an explicit `toString()` cast; we deliberately do NOT
+ * alias them with their original snake_case name (e.g. `toString(project_id)
+ * AS project_id`) because the ClickHouse analyzer would then resolve
+ * `WHERE project_id = {... UUID}` to the String alias and fail with
+ * `no supertype for types String, UUID`. `idempotency_key` is intentionally
+ * NOT selected — it's an API-caller-facing concern owned by the Rust ingest
+ * path; the frontend has no use for it.
+ */
+const SELECT_COLUMNS = `
+  id,
+  queue_id queueId,
+  project_id projectId,
+  payload,
+  metadata,
+  is_labelled isLabelled,
+  formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') createdAt,
+  formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') updatedAt
+`;
+
+type RawRow = Omit<LabelingQueueItem, "payload" | "metadata"> & {
   payload: string;
   metadata: string;
-  is_labelled: boolean;
-  idempotency_key: string;
-  created_at: string;
-  updated_at: string;
-}
-
-const tryParseJson = <T>(raw: string, fallback: T): T => {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
 };
 
-const rowToItem = (row: CHRow): LabelingQueueItem => ({
-  id: row.id,
-  queueId: row.queue_id,
-  projectId: row.project_id,
-  payload: tryParseJson(row.payload, { data: {}, target: {} }),
-  metadata: tryParseJson(row.metadata, {}),
-  isLabelled: row.is_labelled,
-  idempotencyKey: row.idempotency_key ?? "",
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
+const parseRow = (row: RawRow): LabelingQueueItem => ({
+  ...row,
+  payload: tryParseJson(row.payload) ?? { data: {}, target: {} },
+  metadata: tryParseJson(row.metadata) ?? {},
 });
 
 export interface InsertQueueItem {
@@ -41,7 +43,6 @@ export interface InsertQueueItem {
   payload: unknown;
   metadata?: unknown;
   isLabelled?: boolean;
-  idempotencyKey?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -61,7 +62,6 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
       payload: item.payload !== undefined && item.payload !== null ? JSON.stringify(item.payload) : "{}",
       metadata: item.metadata !== undefined && item.metadata !== null ? JSON.stringify(item.metadata) : "",
       is_labelled: item.isLabelled ?? false,
-      idempotency_key: item.idempotencyKey ?? "",
       created_at: createdAt,
       updated_at: updatedAt,
     };
@@ -75,64 +75,31 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
     // FINAL during its read-modify-write. With `async_insert: 1`, the ack returns
     // when the row enters the async buffer (typically flushed every 200ms), so
     // the next SELECT FINAL can miss it and the RMW would restore defaults
-    // (empty idempotency_key, fresh created_at). The client-level default
-    // (`client.ts`) stays async for high-throughput tables; we opt out here.
+    // (e.g. fresh `createdAt`). The client-level default (`client.ts`) stays
+    // async for high-throughput tables; we opt out here.
     clickhouse_settings: {
       async_insert: 0,
     },
   });
 };
 
-/** Filter out items whose idempotency_key already exists for the queue. */
-export const filterExistingIdempotencyKeys = async (
-  projectId: string,
-  queueId: string,
-  keys: string[]
-): Promise<Set<string>> => {
-  const nonEmpty = keys.filter((k) => k.length > 0);
-  if (nonEmpty.length === 0) return new Set();
-
-  const query = `
-    SELECT DISTINCT idempotency_key
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-      AND idempotency_key IN ({keys: Array(String)})
-  `;
-
-  const result = await clickhouseClient.query({
-    query,
-    query_params: { projectId, queueId, keys: nonEmpty },
-    format: "JSONEachRow",
-  });
-
-  const rows = (await result.json()) as { idempotency_key: string }[];
-  return new Set(rows.map((r) => r.idempotency_key));
-};
-
-interface CountRow {
-  total: string;
-  labelled: string;
-}
-
 export const getQueueCounts = async (
   projectId: string,
   queueId: string
 ): Promise<{ total: number; labelled: number }> => {
-  const query = `
-    SELECT
-      count(*) AS total,
-      countIf(is_labelled) AS labelled
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-  `;
   const result = await clickhouseClient.query({
-    query,
+    query: `
+      SELECT
+        count(*) AS total,
+        countIf(is_labelled) AS labelled
+      FROM labeling_queue_items FINAL
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+    `,
     query_params: { projectId, queueId },
     format: "JSONEachRow",
   });
-  const rows = (await result.json()) as CountRow[];
+  const rows = (await result.json()) as { total: string; labelled: string }[];
   const row = rows[0];
   return {
     total: row ? Number(row.total) : 0,
@@ -143,39 +110,79 @@ export const getQueueCounts = async (
 export const getQueueItems = async (
   projectId: string,
   queueId: string,
-  options: { limit?: number; offset?: number } = {}
+  options: { limit?: number; offset?: number; ids?: string[] } = {}
 ): Promise<LabelingQueueItem[]> => {
-  const { limit, offset } = options;
+  const { limit, offset, ids } = options;
   const hasLimit = typeof limit === "number";
   const hasOffset = typeof offset === "number";
-  const query = `
-    SELECT
-      toString(id) AS id,
-      toString(queue_id) AS queue_id,
-      toString(project_id) AS project_id,
-      payload,
-      metadata,
-      is_labelled,
-      idempotency_key,
-      formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS created_at,
-      formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS updated_at
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-    ORDER BY created_at ASC, id ASC
-    ${hasLimit ? "LIMIT {limit: UInt32}" : ""}
-    ${hasLimit && hasOffset ? "OFFSET {offset: UInt32}" : ""}
-  `;
+  // `ids` is opt-in for the windowed UI fetcher: pass an explicit list and we
+  // return only those rows (still ordered by created_at). An empty array
+  // short-circuits — without this guard, ClickHouse would parse `IN ()` as a
+  // syntax error and ALL queue items would 500 the route.
+  const hasIds = Array.isArray(ids);
+  if (hasIds && ids.length === 0) return [];
+
   const query_params: Record<string, unknown> = { projectId, queueId };
   if (hasLimit) query_params.limit = limit;
   if (hasLimit && hasOffset) query_params.offset = offset;
+  if (hasIds) query_params.ids = ids;
+
   const result = await clickhouseClient.query({
-    query,
+    query: `
+      SELECT ${SELECT_COLUMNS}
+      FROM labeling_queue_items FINAL
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+        ${hasIds ? "AND id IN ({ids: Array(UUID)})" : ""}
+      ORDER BY created_at ASC, id ASC
+      ${hasLimit ? "LIMIT {limit: UInt32}" : ""}
+      ${hasLimit && hasOffset ? "OFFSET {offset: UInt32}" : ""}
+    `,
     query_params,
     format: "JSONEachRow",
   });
-  const rows = (await result.json()) as CHRow[];
-  return rows.map(rowToItem);
+  const rows = (await result.json()) as RawRow[];
+  return rows.map(parseRow);
+};
+
+/**
+ * Lightweight ordered-id listing for the windowed UI: returns the full
+ * `(created_at, id)` ordering as a flat string array without paying for any
+ * payload/metadata bytes. The queue page hydrates this once and uses it as
+ * the master index so navigation can step through positions whose underlying
+ * items haven't been fetched yet.
+ */
+export const getQueueItemIds = async (projectId: string, queueId: string): Promise<string[]> => {
+  const result = await clickhouseClient.query({
+    query: `
+      SELECT id
+      FROM labeling_queue_items FINAL
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+      ORDER BY created_at ASC, id ASC
+    `,
+    query_params: { projectId, queueId },
+    format: "JSONEachRow",
+  });
+  const rows = (await result.json()) as { id: string }[];
+  return rows.map((row) => row.id);
+};
+
+export const getLabelledQueueItems = async (projectId: string, queueId: string): Promise<LabelingQueueItem[]> => {
+  const result = await clickhouseClient.query({
+    query: `
+      SELECT ${SELECT_COLUMNS}
+      FROM labeling_queue_items FINAL
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+        AND is_labelled = true
+      ORDER BY updated_at ASC, id ASC
+    `,
+    query_params: { projectId, queueId },
+    format: "JSONEachRow",
+  });
+  const rows = (await result.json()) as RawRow[];
+  return rows.map(parseRow);
 };
 
 export interface UpdateQueueItemInput {
@@ -192,54 +199,48 @@ export interface UpdateQueueItemInput {
   target?: unknown;
   metadata?: unknown;
   isLabelled?: boolean;
-  idempotencyKey?: string;
   createdAt?: string;
 }
 
 /**
  * Upsert a queue item via ReplacingMergeTree. Fetches the current FINAL row
- * so we preserve immutable fields (createdAt, idempotency_key) while still
- * emitting a fresh `updated_at`.
+ * so we preserve `createdAt` while still emitting a fresh `updated_at`.
+ *
+ * Note on `idempotency_key`: the frontend write path leaves the column at its
+ * CH `DEFAULT ''` and does NOT preserve any existing key. If the API later
+ * retries with the same key, the FINAL pre-check in Rust treats the row as
+ * absent and re-inserts — but the inserted `id` is deterministic (UUIDv5 over
+ * `(project_id, queue_id, idempotency_key)`), so the retry collides on the
+ * RMT sort key and collapses on merge / FINAL with the latest write winning.
+ * Net cost: at most one redundant insert per UI-edit-then-retry sequence; no
+ * duplicate row ever surfaces.
  */
 export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void> => {
-  const existingQuery = `
-    SELECT
-      toString(id) AS id,
-      toString(queue_id) AS queue_id,
-      toString(project_id) AS project_id,
-      payload,
-      metadata,
-      is_labelled,
-      idempotency_key,
-      formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS created_at,
-      formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS updated_at
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-      AND id = {id: UUID}
-    LIMIT 1
-  `;
   const existingResult = await clickhouseClient.query({
-    query: existingQuery,
+    query: `
+      SELECT ${SELECT_COLUMNS}
+      FROM labeling_queue_items FINAL
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+        AND id = {id: UUID}
+      LIMIT 1
+    `,
     query_params: { projectId: input.projectId, queueId: input.queueId, id: input.id },
     format: "JSONEachRow",
   });
-  const existingRows = (await existingResult.json()) as CHRow[];
-  const existing = existingRows[0];
+  const existingRows = (await existingResult.json()) as RawRow[];
+  const existing = existingRows[0] ? parseRow(existingRows[0]) : undefined;
 
-  const existingPayload = existing
-    ? tryParseJson<Record<string, unknown>>(existing.payload, { data: {}, target: {} })
-    : { data: {}, target: {} };
+  const existingPayload = existing?.payload ?? { data: {}, target: {} };
   const payload =
     input.payload !== undefined
       ? input.payload
       : input.target !== undefined
         ? { ...existingPayload, target: input.target }
         : existingPayload;
-  const metadata = input.metadata !== undefined ? input.metadata : existing ? tryParseJson(existing.metadata, {}) : {};
-  const isLabelled = input.isLabelled ?? existing?.is_labelled ?? false;
-  const idempotencyKey = input.idempotencyKey ?? existing?.idempotency_key ?? "";
-  const createdAt = input.createdAt ?? existing?.created_at ?? new Date().toISOString();
+  const metadata = input.metadata !== undefined ? input.metadata : (existing?.metadata ?? {});
+  const isLabelled = input.isLabelled ?? existing?.isLabelled ?? false;
+  const createdAt = input.createdAt ?? existing?.createdAt ?? new Date().toISOString();
 
   await insertQueueItems([
     {
@@ -249,7 +250,6 @@ export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void
       payload,
       metadata,
       isLabelled,
-      idempotencyKey,
       createdAt,
       updatedAt: new Date().toISOString(),
     },
@@ -263,14 +263,13 @@ export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void
 export const deleteQueueItems = async (projectId: string, queueId: string, ids: string[]): Promise<void> => {
   if (ids.length === 0) return;
 
-  const query = `
-    DELETE FROM labeling_queue_items
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-      AND id IN ({ids: Array(UUID)})
-  `;
   await clickhouseClient.command({
-    query,
+    query: `
+      DELETE FROM labeling_queue_items
+      WHERE project_id = {projectId: UUID}
+        AND queue_id = {queueId: UUID}
+        AND id IN ({ids: Array(UUID)})
+    `,
     query_params: { projectId, queueId, ids },
   });
 };
@@ -278,40 +277,12 @@ export const deleteQueueItems = async (projectId: string, queueId: string, ids: 
 export const deleteQueueItemsByQueueIds = async (projectId: string, queueIds: string[]): Promise<void> => {
   if (queueIds.length === 0) return;
 
-  const query = `
-    DELETE FROM labeling_queue_items
-    WHERE project_id = {projectId: UUID}
-      AND queue_id IN ({queueIds: Array(UUID)})
-  `;
   await clickhouseClient.command({
-    query,
+    query: `
+      DELETE FROM labeling_queue_items
+      WHERE project_id = {projectId: UUID}
+        AND queue_id IN ({queueIds: Array(UUID)})
+    `,
     query_params: { projectId, queueIds },
   });
-};
-
-export const getLabelledQueueItems = async (projectId: string, queueId: string): Promise<LabelingQueueItem[]> => {
-  const query = `
-    SELECT
-      toString(id) AS id,
-      toString(queue_id) AS queue_id,
-      toString(project_id) AS project_id,
-      payload,
-      metadata,
-      is_labelled,
-      idempotency_key,
-      formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS created_at,
-      formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') AS updated_at
-    FROM labeling_queue_items FINAL
-    WHERE project_id = {projectId: UUID}
-      AND queue_id = {queueId: UUID}
-      AND is_labelled = true
-    ORDER BY updated_at ASC, id ASC
-  `;
-  const result = await clickhouseClient.query({
-    query,
-    query_params: { projectId, queueId },
-    format: "JSONEachRow",
-  });
-  const rows = (await result.json()) as CHRow[];
-  return rows.map(rowToItem);
 };

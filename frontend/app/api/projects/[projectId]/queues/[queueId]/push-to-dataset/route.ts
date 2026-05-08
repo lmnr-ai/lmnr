@@ -5,6 +5,7 @@ import { pushItemsToDataset } from "@/lib/actions/queue";
 const BodySchema = z.object({
   datasetId: z.guid(),
   itemIds: z.array(z.guid()).optional(),
+  includeUnlabelled: z.boolean().optional(),
 });
 
 export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
@@ -22,6 +23,7 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
       queueId,
       datasetId: parsed.data.datasetId,
       itemIds: parsed.data.itemIds,
+      includeUnlabelled: parsed.data.includeUnlabelled,
     });
 
     return Response.json(result);
