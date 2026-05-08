@@ -22,7 +22,12 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   }
 
   const saved = await getOnboardingState();
-  if (saved) {
+  // Only bounce to /onboarding when the cookie belongs to the current session.
+  // A stale cookie from another user on the same device would otherwise force
+  // user B into the wizard — and because the page-level `!saved` guard is
+  // tripped by any truthy cookie, they'd land on an empty step-0 wizard
+  // instead of their existing /projects.
+  if (saved && saved.userId === session.user.id) {
     return redirect("/onboarding");
   }
 
