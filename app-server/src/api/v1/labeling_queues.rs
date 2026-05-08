@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use actix_web::{HttpResponse, post, web};
 use serde::{Deserialize, Serialize};
@@ -93,9 +93,19 @@ pub async fn create_labeling_queues_items(
         chrono::DateTime::from_timestamp_millis(now_ms as i64).unwrap_or_else(chrono::Utc::now);
     let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
     let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
+    // Dedupe keys appearing multiple times WITHIN this request. The per-item
+    // `idempotency_key_exists` check only covers rows already persisted to CH,
+    // so two entries carrying the same key in the same batch would both pass
+    // it and get queued with identical deterministic ids — RMT eventually
+    // collapses those on merge, but until then `getQueueCounts` double-counts.
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     for item in request.items {
         let idempotency_key = item.idempotency_key.unwrap_or_default();
+
+        if !idempotency_key.is_empty() && !seen_keys.insert(idempotency_key.clone()) {
+            continue;
+        }
 
         // If an idempotency key was supplied, check for an existing row in CH.
         // We FINAL the lookup to collapse replacing-merge-tree duplicates.
