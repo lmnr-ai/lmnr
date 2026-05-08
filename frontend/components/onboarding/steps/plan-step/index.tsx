@@ -47,7 +47,6 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   };
 
   const finishAndGoToProject = async () => {
-    track("onboarding", "completed", { tier: selectedTier });
     await finishFreeTier();
     if (resources.projectId) {
       router.push(`/project/${resources.projectId}/traces?onboarding=true`);
