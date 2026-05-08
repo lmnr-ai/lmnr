@@ -105,8 +105,11 @@ export const parseAnnotationSchema = (schema: Record<string, unknown> | null): T
 const applyGlobalsToIndex = (state: QueueStore, nextIndex: number): Partial<QueueStore> => {
   const target = state.items[nextIndex];
   const globals = state.globalTargetSelections;
+  // `isTargetJsonValid` is only toggled by the CodeMirror `onChange` handler, so
+  // invalid JSON left on the previous item would otherwise persist across navigation
+  // and keep Approve / ⌘+Enter disabled on every subsequent item.
   if (!target || target.isLabelled || Object.keys(globals).length === 0) {
-    return { currentIndex: nextIndex };
+    return { currentIndex: nextIndex, isTargetJsonValid: true };
   }
   const existing = (target.payload?.target as Record<string, unknown> | undefined) ?? {};
   const merged: Record<string, unknown> = { ...existing };
@@ -118,13 +121,13 @@ const applyGlobalsToIndex = (state: QueueStore, nextIndex: number): Partial<Queu
     }
   }
   if (!changed) {
-    return { currentIndex: nextIndex };
+    return { currentIndex: nextIndex, isTargetJsonValid: true };
   }
   const nextItems = state.items.slice();
   nextItems[nextIndex] = { ...target, payload: { ...target.payload, target: merged } };
   const dirty = new Set(state.dirtyItemIds);
   dirty.add(target.id);
-  return { currentIndex: nextIndex, items: nextItems, dirtyItemIds: dirty };
+  return { currentIndex: nextIndex, items: nextItems, dirtyItemIds: dirty, isTargetJsonValid: true };
 };
 
 const createQueueStore = (queue: LabelingQueue) => {
