@@ -27,6 +27,8 @@ interface UseOnboardingActions {
   saveNotifications: () => Promise<boolean>;
   recordSlackStep: () => Promise<void>;
   finishFreeTier: () => Promise<void>;
+  beginSubmitting: () => void;
+  endSubmitting: () => void;
 }
 
 const persistOnboardingStep = async (
@@ -286,10 +288,24 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources.projectId, resources.workspaceId]);
 
+  // Toggle isSubmitting so the plan step's Finish button disables while the
+  // cookie DELETE is in flight. Without this the user can double-click
+  // Finish, fire two DELETEs, and cause a duplicate navigation.
   const finishFreeTier = useCallback(async () => {
     track("onboarding", "completed", { tier: form.getValues("selectedTier") });
-    await clearOnboardingStateCookie();
+    setIsSubmitting(true);
+    try {
+      await clearOnboardingStateCookie();
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [form]);
+
+  // Paid-tier branch: plan step awaits a DELETE before window.location.href
+  // navigates to Stripe. Expose a submitting toggle so the button can disable
+  // during that window and prevent duplicate navigations / racing DELETEs.
+  const beginSubmitting = useCallback(() => setIsSubmitting(true), []);
+  const endSubmitting = useCallback(() => setIsSubmitting(false), []);
 
   return {
     isSubmitting,
@@ -298,5 +314,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     saveNotifications,
     recordSlackStep,
     finishFreeTier,
+    beginSubmitting,
+    endSubmitting,
   };
 }

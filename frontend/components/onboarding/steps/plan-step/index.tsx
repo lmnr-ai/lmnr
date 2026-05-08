@@ -25,7 +25,7 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
   const { resources } = useOnboardingContext();
   const flags = useFeatureFlags();
-  const { isSubmitting, finishFreeTier } = useOnboardingActions();
+  const { isSubmitting, finishFreeTier, beginSubmitting } = useOnboardingActions();
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
@@ -66,7 +66,15 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       // still alive. If the cookie survives, the (authenticated) layout
       // on /workspace/.../billing bounces the paid user straight back
       // into the wizard.
+      //
+      // beginSubmitting disables the StepShell button across the await +
+      // navigation window so a double-click can't fire two DELETEs or two
+      // window.location.href assignments. We deliberately do NOT pair it
+      // with endSubmitting: window.location.href tears the document down,
+      // so releasing the flag would only let the user click again during
+      // the brief unload, which is exactly what we're trying to prevent.
       track("onboarding", "completed", { tier: selectedTier });
+      beginSubmitting();
       try {
         await fetch("/api/onboarding/state", { method: "DELETE" });
       } catch {
