@@ -171,7 +171,13 @@ const createQueueStore = (queue: LabelingQueue) => {
             if (idx === -1) return state;
             const next = state.items.slice();
             next.splice(idx, 1);
-            const newIndex = state.currentIndex >= next.length ? Math.max(next.length - 1, 0) : state.currentIndex;
+            // Keep `currentIndex` pointing at the same logical item:
+            // - removal before current: shift left by one
+            // - removal at current: stay (shows the next item, matching approve/discard flow)
+            // - removal after current: unchanged
+            // Then clamp to the new bounds.
+            const shifted = idx < state.currentIndex ? state.currentIndex - 1 : state.currentIndex;
+            const newIndex = Math.min(Math.max(shifted, 0), Math.max(next.length - 1, 0));
             const dirty = new Set(state.dirtyItemIds);
             dirty.delete(id);
             return { items: next, currentIndex: newIndex, dirtyItemIds: dirty };
