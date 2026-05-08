@@ -123,17 +123,35 @@ export function useOnboardingActions(): UseOnboardingActions {
     const selected = new Set(form.getValues("selectedSignalIds"));
     const templateNames = new Set(SIGNAL_OPTIONS.map((opt) => opt.id));
 
+    const baselineFailureToast = () =>
+      toast({
+        variant: "destructive",
+        title: "Couldn't load your current signals",
+        description: "Please try again.",
+      });
+
     setIsSubmitting(true);
     try {
-      let existing: ProjectSignalRow[] = [];
+      // Reconcile requires an accurate baseline. Silently falling back to
+      // `existing = []` on GET failure would treat the auto-created
+      // Failure Detector (and any previously-saved templates on resume) as
+      // missing, so the reconcile would re-POST them — producing duplicate
+      // signals or 4xx errors and a misleading "some weren't saved" toast
+      // even though everything already exists. Return `false` instead so
+      // the caller (`signals-step.tsx`, which only advances on `ok`) keeps
+      // the user on this step to retry.
+      let existing: ProjectSignalRow[];
       try {
         const res = await fetch(`/api/projects/${projectId}/signals?pageNumber=0&pageSize=200`);
-        if (res.ok) {
-          const json = (await res.json()) as { items?: ProjectSignalRow[] };
-          existing = json.items ?? [];
+        if (!res.ok) {
+          baselineFailureToast();
+          return false;
         }
+        const json = (await res.json()) as { items?: ProjectSignalRow[] };
+        existing = json.items ?? [];
       } catch {
-        existing = [];
+        baselineFailureToast();
+        return false;
       }
       const existingByName = new Map(existing.map((s) => [s.name, s]));
 
