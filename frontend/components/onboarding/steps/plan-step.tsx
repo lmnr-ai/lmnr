@@ -88,13 +88,10 @@ export default function PlanStep({
       // Stripe's success/cancel URLs land on the workspace billing page,
       // not back on /onboarding — so onboarding terminates here. Track and
       // clear the resume cookie before navigating away. keepalive keeps
-      // the DELETE in flight across the impending window.location change.
+      // the DELETE in flight across the impending window.location change;
+      // the server-side cookie expires in a day anyway if this fails.
       track("onboarding", "completed", { tier: selectedTier });
-      try {
-        void fetch("/api/onboarding/state", { method: "DELETE", keepalive: true });
-      } catch {
-        // Best-effort; server-side cookie will expire in a day anyway.
-      }
+      fetch("/api/onboarding/state", { method: "DELETE", keepalive: true }).catch(() => {});
       window.location.href = checkoutUrl;
       return;
     }
