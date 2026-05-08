@@ -63,7 +63,7 @@ const clearOnboardingStateCookie = async (): Promise<boolean> => {
 };
 
 export function useOnboardingActions(): UseOnboardingActions {
-  const { resources, setResources } = useOnboardingContext();
+  const { resources, setResources, waitForMountPersist } = useOnboardingContext();
   const user = useUserContext();
   const { toast } = useToast();
   const form = useFormContext<OnboardingFormValues>();
@@ -346,6 +346,14 @@ export function useOnboardingActions(): UseOnboardingActions {
   const finishFreeTier = useCallback(async (): Promise<boolean> => {
     setIsSubmitting(true);
     try {
+      // Await the wizard's mount-POST before DELETE. A resume at step 4
+      // lets the user click Finish before that POST lands, and the POST's
+      // Set-Cookie would otherwise race the DELETE — resurrecting the
+      // cookie and bouncing the user back to /onboarding via the layout
+      // gate. The promise resolves on both success and failure (it's
+      // best-effort), so this only costs us the pending-RTT in the worst
+      // case, not a hard dependency on the POST succeeding.
+      await waitForMountPersist();
       const ok = await clearOnboardingStateCookie();
       if (!ok) {
         toast({
@@ -363,7 +371,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, toast]);
+  }, [form, toast, waitForMountPersist]);
 
   // Paid-tier branch: plan step awaits a DELETE before window.location.href
   // navigates to Stripe. Expose a submitting toggle so the button can disable

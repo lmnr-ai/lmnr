@@ -24,7 +24,7 @@ interface PlanStepProps {
 export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProps) {
   const router = useRouter();
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
-  const { resources } = useOnboardingContext();
+  const { resources, waitForMountPersist } = useOnboardingContext();
   const flags = useFeatureFlags();
   const { isSubmitting, finishFreeTier, beginSubmitting, endSubmitting } = useOnboardingActions();
   const { toast } = useToast();
@@ -89,6 +89,12 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       // if we navigated unconditionally the cookie would still be live and
       // the (authenticated) billing page would bounce back to /onboarding.
       beginSubmitting();
+      // Await the wizard's mount-POST so the DELETE can't race it. A
+      // resume at step 4 lets the user click Finish before that POST
+      // lands — its Set-Cookie would otherwise arrive after the DELETE
+      // and resurrect the cookie, bouncing the paid user back to
+      // /onboarding via the layout gate on the billing page.
+      await waitForMountPersist();
       let ok = false;
       try {
         const res = await fetch("/api/onboarding/state", { method: "DELETE" });

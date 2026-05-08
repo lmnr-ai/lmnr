@@ -49,19 +49,12 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
 
   useEffect(() => {
     track("onboarding", "page_viewed");
-    // Mark the user as in-progress as soon as the wizard mounts. The proxy
-    // reads the cookie's presence to keep them on /onboarding until they
-    // finish (or the cookie expires). Server Components can't reliably set
-    // cookies in Next.js 16, so this runs from the client.
-    void fetch("/api/onboarding/state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        workspaceId: initial.workspaceId,
-        projectId: initial.projectId,
-        step: initial.step,
-      }),
-    }).catch(() => {});
+    // Note: the mount POST to /api/onboarding/state that marks the user as
+    // in-progress lives inside OnboardingProvider so its promise can be
+    // awaited by finishFreeTier / the paid-tier branch. If it fired from
+    // here, a resume at step 4 could let the user click Finish before the
+    // POST lands, and the POST's Set-Cookie would race the DELETE —
+    // resurrecting the cookie and looping via the (authenticated) gate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,6 +87,7 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
         initialResources={{ workspaceId: initial.workspaceId, projectId: initial.projectId }}
+        initialStep={initial.step}
       >
         <WizardSteps initialStep={initial.step} />
       </OnboardingProvider>
