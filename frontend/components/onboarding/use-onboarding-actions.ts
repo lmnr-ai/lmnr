@@ -234,12 +234,16 @@ export function useOnboardingActions(): UseOnboardingActions {
       // failure and then still record `notifications_configured` + advance
       // the server-side step cursor — corrupting the metric and desyncing
       // resume state (a later resume would land on step 4 despite zero
-      // reconcile having happened). The `catch` branch below mirrors this:
-      // network errors and non-2xx responses must behave identically.
+      // reconcile having happened). Return false so the caller does NOT
+      // advance the wizard UI either: advancing without persisting step 3
+      // means the NEXT step's persist (`recordSlackStep` writes step 4)
+      // silently skips notifications on resume. The `catch` branch below
+      // mirrors this: network errors and non-2xx responses must behave
+      // identically.
       const res = await fetch(`/api/workspaces/${workspaceId}/reports`, { method: "GET" });
       if (!res.ok) {
         failureToast();
-        return true;
+        return false;
       }
       const reports = (await res.json()) as WorkspaceReportRow[];
       if (emailOn) {
@@ -281,7 +285,7 @@ export function useOnboardingActions(): UseOnboardingActions {
       return true;
     } catch {
       failureToast();
-      return true;
+      return false;
     } finally {
       setIsSubmitting(false);
     }
