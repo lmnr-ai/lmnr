@@ -87,7 +87,10 @@ export function getLanguageModel(tier: ModelTier = "default"): LanguageModel {
 
   const openai = createOpenAI({
     baseURL: process.env.OPENAI_COMPATIBLE_BASE_URL,
-    apiKey: process.env.OPENAI_COMPATIBLE_API_KEY,
+    // Pass an empty string for keyless gateways (e.g. local Ollama, LiteLLM without auth).
+    // Leaving this undefined makes `@ai-sdk/openai` fall back to `OPENAI_API_KEY` and
+    // throw a misleading "OpenAI API key is missing" error when that's also unset.
+    apiKey: process.env.OPENAI_COMPATIBLE_API_KEY ?? "",
   });
   return openai(getOpenAICompatibleModel(tier));
 }
