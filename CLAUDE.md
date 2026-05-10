@@ -181,6 +181,12 @@ The frontend uses Husky with lint-staged. Before commits:
 
 **Known issue**: `tsc --noEmit` may fail with pre-existing errors for SVG/PNG asset imports (missing module declarations in `assets/`). These are unrelated to your changes — verify your file has no errors with `npx tsc --noEmit 2>&1 | grep "your-file"` before using `--no-verify`.
 
+## AI Provider Configuration
+
+- All internal AI features (chat-with-trace, SQL generation, debugger/agent name generation, span previews, signal extraction) route through a single entry point: `getLanguageModel(tier)` in `frontend/lib/ai/model.ts`. Tiers are `"default" | "fast" | "lite"` — do NOT hardcode model ids in feature code.
+- Provider selection is env-var-driven with a fixed priority order: Gemini (`GOOGLE_GENERATIVE_AI_API_KEY`) → Anthropic Bedrock (`BEDROCK_ENABLED=true` + AWS creds) → OpenAI-compatible gateway (`OPENAI_COMPATIBLE_BASE_URL` + `OPENAI_COMPATIBLE_MODEL`, optional `OPENAI_COMPATIBLE_API_KEY` / `_MODEL_FAST` / `_MODEL_LITE`). The OpenAI-compatible path uses `createOpenAI({ baseURL, apiKey })` from `@ai-sdk/openai` and supports any OpenAI-format gateway (OpenRouter, LiteLLM, vLLM, Together, etc.).
+- When adding or removing a provider, update both `frontend/lib/ai/model.ts` (`isAiProviderConfigured` + `getActiveProvider` + `getLanguageModel`) AND the `Feature.SIGNALS` gate in `frontend/lib/features/features.ts` — the SIGNALS flag has its own duplicated env-var check and will silently hide the feature if the new provider isn't added there too.
+
 ## Next.js Catch-all Route Params
 
 - In Next.js 16 App Router, **catch-all** (`[...slug]`) dynamic params are NOT auto-decoded — `await props.params` returns the raw URL-encoded segments. Single-segment dynamic params (`[slug]`) ARE auto-decoded. If a caller uses `encodeURIComponent` on an id containing URL-unsafe chars (e.g. Slack ids `slack:C0ATXMVNUH1:...`) and the target route is catch-all, the page must `decodeURIComponent` each segment or the encoded `%3A`s flow into downstream filters and the API double-encodes them (`%253A`) yielding zero results. See `app/project/[projectId]/sessions/[...sessionId]/page.tsx`.

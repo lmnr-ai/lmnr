@@ -93,7 +93,8 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
       (process.env.BEDROCK_ENABLED === "true" &&
         !!process.env.AWS_ACCESS_KEY_ID &&
         !!process.env.AWS_SECRET_ACCESS_KEY &&
-        !!process.env.AWS_REGION)
+        !!process.env.AWS_REGION) ||
+      (!!process.env.OPENAI_COMPATIBLE_BASE_URL && !!process.env.OPENAI_COMPATIBLE_MODEL)
     );
   }
 
