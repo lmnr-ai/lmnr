@@ -116,20 +116,24 @@ export const manageWorkspaceSubscriptionEvent = async ({
     const newTierName = newTier?.name?.toLowerCase()?.trim();
     const currentTierIsPaid = ["hobby", "pro"].includes(currentTier ?? "");
     const currentTierConfig = currentTierIsPaid ? TIER_CONFIG[currentTier as PaidTier] : undefined;
-    if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
-      const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
-      await insertNewTierUsageWarnings({
+    const newTierIsPaid = ["hobby", "pro"].includes(newTierName ?? "");
+    const newTierConfig = newTierIsPaid ? TIER_CONFIG[newTierName! as PaidTier] : undefined;
+    // Run when entering a paid tier (insert defaults) OR when leaving a paid
+    // tier for free (cleanup stale defaults — e.g. cancellation from Hobby
+    // must drop the 5,000-step hard cap so it doesn't persist on the free plan).
+    if (newTierIsPaid || currentTierIsPaid) {
+      await reconcileTierUsageDefaults({
         workspaceId,
-        newTierName: newTierName as PaidTier,
+        newTierName: newTierIsPaid ? (newTierName as PaidTier) : undefined,
         newTierConfig,
         currentTierName: currentTierIsPaid ? (currentTier as PaidTier) : undefined,
         currentTierConfig,
       });
       await invalidateUsageWarningsCacheForWorkspace(workspaceId);
-      // The default hard limit inserted above feeds into PROJECT_CACHE_KEY as
-      // customSignalStepsLimit. The earlier updateUsageCacheForWorkspace cleared
+      // The default hard limit inserted/removed above feeds into PROJECT_CACHE_KEY
+      // as customSignalStepsLimit. The earlier updateUsageCacheForWorkspace cleared
       // that cache before the write, so re-invalidate here so the next read
-      // repopulates with the hard limit.
+      // repopulates with the correct limit.
       await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
     }
   } catch (e) {
@@ -295,7 +299,10 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
-const insertNewTierUsageWarnings = async ({
+// Reconciles default warnings/limits on a tier transition. Called for any
+// transition into or out of a paid tier (including cancellation to free),
+// so stale Hobby defaults are cleaned up even when the destination is free.
+const reconcileTierUsageDefaults = async ({
   workspaceId,
   newTierName,
   newTierConfig,
@@ -303,8 +310,8 @@ const insertNewTierUsageWarnings = async ({
   currentTierConfig,
 }: {
   workspaceId: string;
-  newTierName: PaidTier;
-  newTierConfig: TierConfigEntry;
+  newTierName?: PaidTier;
+  newTierConfig?: TierConfigEntry;
   currentTierName?: PaidTier;
   currentTierConfig?: TierConfigEntry;
 }) => {
@@ -328,37 +335,39 @@ const insertNewTierUsageWarnings = async ({
         )
       );
   }
-  await db
-    .insert(workspaceUsageWarnings)
-    .values([
-      {
-        workspaceId,
-        usageItem: "bytes",
-        limitValue: newTierConfig.includedBytes,
-      },
-      {
-        workspaceId,
-        usageItem: "signal_steps_processed",
-        limitValue: newTierConfig.includedSignalSteps,
-      },
-    ])
-    .onConflictDoNothing();
+  if (newTierConfig) {
+    await db
+      .insert(workspaceUsageWarnings)
+      .values([
+        {
+          workspaceId,
+          usageItem: "bytes",
+          limitValue: newTierConfig.includedBytes,
+        },
+        {
+          workspaceId,
+          usageItem: "signal_steps_processed",
+          limitValue: newTierConfig.includedSignalSteps,
+        },
+      ])
+      .onConflictDoNothing();
+  }
 
   // Hobby tier gets a default hard cap on signal steps processed so users don't
   // accrue overage charges without realizing it. Pro tier has no default hard
   // limit — admins opt in via the custom limits UI.
-  if (currentTierName === "hobby" && newTierName !== "hobby") {
+  if (currentTierName === "hobby" && newTierName !== "hobby" && currentTierConfig) {
     await db
       .delete(workspaceUsageLimits)
       .where(
         and(
           eq(workspaceUsageLimits.workspaceId, workspaceId),
           eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
-          eq(workspaceUsageLimits.limitValue, currentTierConfig?.includedSignalSteps ?? 0)
+          eq(workspaceUsageLimits.limitValue, currentTierConfig.includedSignalSteps)
         )
       );
   }
-  if (newTierName === "hobby") {
+  if (newTierName === "hobby" && newTierConfig) {
     await db
       .insert(workspaceUsageLimits)
       .values({
