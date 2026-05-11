@@ -95,15 +95,18 @@ fn trip_redis_breaker() {
 
 /// Serialise `value` with recursively sorted object keys so the same message
 /// content always hashes to the same digest regardless of key ordering.
-fn canonical_json(value: &Value) -> String {
+///
+/// All bytes written by `write_canonical` are ASCII punctuation or valid
+/// UTF-8 copied from the input `Value`'s existing `String` allocations, so
+/// decoding should never fail. Returning `Err` rather than panicking lets
+/// the caller skip dedup for a single malformed span cleanly instead of
+/// crashing the batch processor; returning an empty string instead would
+/// silently collapse distinct messages to the same hash and corrupt the
+/// deduplicated store.
+fn canonical_json(value: &Value) -> Result<String, std::string::FromUtf8Error> {
     let mut buf = Vec::with_capacity(64);
     write_canonical(&mut buf, value);
-    // All bytes written by write_canonical are ASCII punctuation or valid
-    // UTF-8 copied from the input Value's existing String allocations, so
-    // decoding never fails. Panic rather than fall back to an empty string:
-    // a silent fallback would collapse distinct messages to the same hash
-    // and corrupt the deduplicated store.
-    String::from_utf8(buf).expect("canonical_json produced non-UTF-8 bytes")
+    String::from_utf8(buf)
 }
 
 fn write_canonical(buf: &mut Vec<u8>, value: &Value) {
@@ -165,7 +168,21 @@ pub fn hash_span_input(span: &Span) -> Option<(Vec<HashedMessage>, Vec<[u8; 32]>
     let mut hashed = Vec::with_capacity(messages.len());
     let mut order = Vec::with_capacity(messages.len());
     for message in messages {
-        let canonical = canonical_json(message);
+        let canonical = match canonical_json(message) {
+            Ok(s) => s,
+            Err(e) => {
+                // Unreachable today, but don't crash the batch if
+                // write_canonical ever regresses: skip dedup for this span
+                // and let the caller keep its raw `input` intact.
+                log::error!(
+                    "canonical_json produced non-UTF-8 bytes for span {} in trace {}: {:?}",
+                    span.span_id,
+                    span.trace_id,
+                    e
+                );
+                return None;
+            }
+        };
         let hash_bytes: [u8; 32] = blake3::hash(canonical.as_bytes()).into();
         order.push(hash_bytes);
         hashed.push(HashedMessage {
@@ -261,22 +278,25 @@ mod tests {
     fn canonical_json_sorts_keys_recursively() {
         let a = json!({"b": 1, "a": {"d": 2, "c": 3}});
         let b = json!({"a": {"c": 3, "d": 2}, "b": 1});
-        assert_eq!(canonical_json(&a), canonical_json(&b));
-        assert_eq!(canonical_json(&a), r#"{"a":{"c":3,"d":2},"b":1}"#);
+        assert_eq!(canonical_json(&a).unwrap(), canonical_json(&b).unwrap());
+        assert_eq!(canonical_json(&a).unwrap(), r#"{"a":{"c":3,"d":2},"b":1}"#);
     }
 
     #[test]
     fn canonical_json_handles_arrays_and_primitives() {
         let v = json!({"xs": [1, "two", null, {"z": 9, "y": 8}]});
-        assert_eq!(canonical_json(&v), r#"{"xs":[1,"two",null,{"y":8,"z":9}]}"#);
+        assert_eq!(
+            canonical_json(&v).unwrap(),
+            r#"{"xs":[1,"two",null,{"y":8,"z":9}]}"#
+        );
     }
 
     #[test]
     fn hash_is_stable_across_key_ordering() {
         let a = json!({"role": "user", "content": "hello"});
         let b = json!({"content": "hello", "role": "user"});
-        let ha: [u8; 32] = blake3::hash(canonical_json(&a).as_bytes()).into();
-        let hb: [u8; 32] = blake3::hash(canonical_json(&b).as_bytes()).into();
+        let ha: [u8; 32] = blake3::hash(canonical_json(&a).unwrap().as_bytes()).into();
+        let hb: [u8; 32] = blake3::hash(canonical_json(&b).unwrap().as_bytes()).into();
         assert_eq!(ha, hb);
     }
 
