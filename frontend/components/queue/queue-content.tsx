@@ -28,7 +28,7 @@ export default function QueueContent() {
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `queue-layout-${queue.id}`,
-    storage: localStorage,
+    storage: typeof window === "undefined" ? undefined : localStorage,
   });
 
   if (!isInitialLoaded) {

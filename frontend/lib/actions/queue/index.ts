@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { createDatapoints, filterExistingDatapointIds } from "@/lib/clickhouse/datapoints";
+import { createDatapoints } from "@/lib/clickhouse/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
 import { type LabelingQueueItem } from "@/lib/queue/types";
-import { datapointIdForQueueItem, generateUuid, tryParseJson } from "@/lib/utils";
+import { generateUuid, tryParseJson } from "@/lib/utils";
 
 import {
   deleteQueueItems,
@@ -183,28 +183,16 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
       throw new Error("Queue item not found");
     }
 
-    // Deterministic datapoint id + create-before-delete + idempotent insert.
-    // createDatapoints and deleteQueueItems are two separate ClickHouse writes
-    // with no transaction. Without this: (a) a random id would make a retry
-    // after a partial failure duplicate the dataset row, and (b) deleting
-    // first would lose the queue item if the insert then threw. With this:
-    // insert uses the same id on every retry, and `filterExistingDatapointIds`
-    // skips the re-insert (dataset_datapoints is plain MergeTree — duplicate
-    // ids do NOT collapse on merge).
-    const datapointId = datapointIdForQueueItem(datasetId, id);
-    const existing = await filterExistingDatapointIds(projectId, datasetId, [datapointId]);
-    if (!existing.has(datapointId)) {
-      const payloadMetadata = (item.payload as { metadata?: unknown }).metadata;
-      await createDatapoints(projectId, datasetId, [
-        {
-          id: datapointId,
-          data: (item.payload as { data?: unknown }).data ?? {},
-          target: effectiveTarget(item),
-          metadata: payloadMetadata ?? item.metadata ?? {},
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-    }
+    const payloadMetadata = (item.payload as { metadata?: unknown }).metadata;
+    await createDatapoints(projectId, datasetId, [
+      {
+        id: generateUuid(),
+        data: (item.payload as { data?: unknown }).data ?? {},
+        target: effectiveTarget(item),
+        metadata: payloadMetadata ?? item.metadata ?? {},
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     await deleteQueueItems(projectId, queueId, [id]);
     return { success: true };
   }
@@ -228,20 +216,19 @@ export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatase
     return { pushed: 0 };
   }
 
-  const datapointsById = new Map(targetItems.map((item) => [datapointIdForQueueItem(datasetId, item.id), item]));
-  const existingIds = await filterExistingDatapointIds(projectId, datasetId, Array.from(datapointsById.keys()));
-
   const now = new Date().toISOString();
-  const toInsert = Array.from(datapointsById.entries())
-    .filter(([id]) => !existingIds.has(id))
-    .map(([id, item]) => ({
-      id,
-      data: (item.payload as { data?: unknown }).data ?? {},
-      target: effectiveTarget(item),
-      metadata: (item.payload as { metadata?: unknown }).metadata ?? item.metadata ?? {},
-      createdAt: now,
-    }));
+  const toInsert = targetItems.map((item) => ({
+    id: generateUuid(),
+    data: (item.payload as { data?: unknown }).data ?? {},
+    target: effectiveTarget(item),
+    metadata: (item.payload as { metadata?: unknown }).metadata ?? item.metadata ?? {},
+    createdAt: now,
+  }));
 
+  // Create before delete so a failed insert leaves the queue rows intact for
+  // retry. dataset_datapoints is plain MergeTree — if the delete then fails
+  // and the user retries, they'll get duplicate datapoints. Acceptable; the
+  // UI guards this path so retries are a deliberate action.
   await createDatapoints(projectId, datasetId, toInsert);
 
   await deleteQueueItems(

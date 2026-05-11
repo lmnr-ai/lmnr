@@ -1,13 +1,22 @@
+import { useParams } from "next/navigation";
+
 import Header from "@/components/ui/header";
 
 import { useQueueStore } from "./queue-store";
 import Toolbar from "./toolbar";
 
 export default function EmptyState() {
-  const queueName = useQueueStore((s) => s.queue.name);
+  const { projectId } = useParams<{ projectId: string }>();
+
+  const queue = useQueueStore((s) => s.queue);
   return (
     <>
-      <Header path={`labeling queues/${queueName}`} />
+      <Header
+        path={[
+          { name: "labeling queues", href: `/project/${projectId}/labeling-queues` },
+          { name: queue.name, copyValue: queue.id },
+        ]}
+      />
       <div className="px-4 pb-4 flex flex-col flex-1">
         <Toolbar />
         <div className="flex flex-col gap-1 justify-center items-center flex-1">
