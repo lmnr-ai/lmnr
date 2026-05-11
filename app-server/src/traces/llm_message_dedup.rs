@@ -68,9 +68,14 @@ fn redis_breaker_open() -> bool {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     if now >= until {
-        // Let one call through to probe; reset to 0 on success or re-trip on failure.
-        REDIS_CIRCUIT_BREAKER_UNTIL.store(0, Ordering::Relaxed);
-        false
+        // Gate the probe with a CAS so only one concurrent caller wins the
+        // reset and attempts Redis; everyone else still sees the breaker
+        // open for this call. Without this, N concurrent tasks observing
+        // `now >= until` would all unconditionally store 0 and all probe
+        // Redis at once, re-flooding a partially-recovered instance.
+        REDIS_CIRCUIT_BREAKER_UNTIL
+            .compare_exchange(until, 0, Ordering::Relaxed, Ordering::Relaxed)
+            .is_err()
     } else {
         true
     }
