@@ -28,6 +28,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
+        llm_message_dedup::dedup_llm_input_messages,
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -112,12 +113,23 @@ pub async fn process_span_messages(
     };
 
     // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
+    let mut ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
         .filter(|(span, _)| span.should_record_to_clickhouse())
         .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
         .collect();
+
+    // Dedup LLM input messages into `llm_messages` and replace per-span
+    // `input` with ordered hash arrays. Must complete BEFORE the span row
+    // insert below so the `spans_v0` view can reconstruct `input` from the
+    // messages table (the view joins on them).
+    if let Err(e) =
+        dedup_llm_input_messages(&spans, &mut ch_spans, cache.clone(), &ch, config).await
+    {
+        log::error!("LLM input-message dedup failed: {:?}", e);
+        return Err(HandlerError::transient(e));
+    }
 
     // Record spans to clickhouse
     if let Err(e) = ch.insert_batch(&ch_spans, config).await {

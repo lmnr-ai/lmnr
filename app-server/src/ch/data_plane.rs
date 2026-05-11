@@ -13,6 +13,7 @@ use crate::cache::Cache;
 use crate::data_plane::client::DataPlaneClient;
 use crate::db::workspaces::WorkspaceDeployment;
 
+use super::llm_messages::CHLlmMessage;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
@@ -26,6 +27,7 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
     Traces(Vec<CHTrace>),
+    LlmMessages(Vec<CHLlmMessage>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
 }

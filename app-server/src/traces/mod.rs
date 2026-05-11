@@ -1,6 +1,7 @@
 pub mod consumer;
 pub mod data_plane_consumer;
 pub mod grpc_service;
+pub mod llm_message_dedup;
 pub mod processor;
 pub mod producer;
 pub mod prompt_hash;
