@@ -50,7 +50,7 @@ export default function TargetPanel() {
   );
 
   return (
-    <div className={cn("flex flex-col border rounded-lg overflow-hidden bg-secondary transition-colors")}>
+    <div className={cn("flex flex-col h-full border rounded-lg overflow-hidden bg-secondary transition-colors")}>
       <div className="flex px-3 py-2 border-b items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Target</span>

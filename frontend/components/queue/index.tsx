@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 
 import { type LabelingQueue } from "@/lib/queue/types";
 
+import QueueContent from "./queue-content";
 import QueueDataLoader from "./queue-data-loader";
-import QueuePage from "./queue-page";
 import { QueueStoreProvider } from "./queue-store";
 
 /**
@@ -14,7 +14,7 @@ import { QueueStoreProvider } from "./queue-store";
  * Layering:
  *   <QueueStoreProvider>     - owns all UI state + side-effecting actions
  *     <QueueDataLoader />    - SWR fetch hydrates the store, returns null
- *     <QueuePage />          - pure consumer of the store
+ *     <QueueContent />       - pure consumer of the store
  *   </QueueStoreProvider>
  *
  * No props are threaded through children — every child reads from the store.
@@ -25,7 +25,7 @@ export default function Queue({ queue }: { queue: LabelingQueue }) {
   return (
     <QueueStoreProvider queue={queue} projectId={projectId}>
       <QueueDataLoader />
-      <QueuePage />
+      <QueueContent />
     </QueueStoreProvider>
   );
 }

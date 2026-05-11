@@ -96,10 +96,8 @@ export default function DataPanel() {
   );
 
   return (
-    <div className="flex flex-col border rounded-lg overflow-hidden">
-      {/* min-h-11 locks the header height to the target panel's header so the
-          two panels line up at the top regardless of which badges render. */}
-      <div className="flex min-h-11 px-3 py-2 border-b bg-secondary items-center justify-between gap-2">
+    <div className="flex flex-col h-full border rounded-lg overflow-hidden">
+      <div className="flex min-h-[45px] px-3 py-2 border-b bg-secondary items-center justify-between gap-2">
         <span className="text-sm font-medium">Data</span>
         {sourceMeta && <SourceBadge meta={sourceMeta} />}
       </div>
