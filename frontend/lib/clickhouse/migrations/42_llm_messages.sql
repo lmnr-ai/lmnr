@@ -56,8 +56,17 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         s.path AS path,
         if(
             length(s.input_message_hashes) > 0 AND notEmpty(m.hs),
+            -- A hash missing from `m.hs` (partial data loss, TTL expiry,
+            -- manual delete) makes `indexOf` return 0, and ClickHouse arrays
+            -- are 1-indexed so `m.cs[0]` yields '' — which would produce
+            -- invalid JSON with consecutive commas. Emit the literal `null`
+            -- token for missing hashes so the concatenated array stays
+            -- parseable.
             '[' || arrayStringConcat(
-                arrayMap(x -> m.cs[indexOf(m.hs, x)], s.input_message_hashes),
+                arrayMap(
+                    x -> if(indexOf(m.hs, x) > 0, m.cs[indexOf(m.hs, x)], 'null'),
+                    s.input_message_hashes
+                ),
                 ','
             ) || ']',
             s.input
