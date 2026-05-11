@@ -144,10 +144,11 @@ fn write_canonical(buf: &mut Vec<u8>, value: &Value) {
 
 fn write_json_string(buf: &mut Vec<u8>, s: &str) {
     // Reuse serde_json's own escaping so we match the wire format byte-for-byte.
-    match serde_json::to_vec(s) {
-        Ok(escaped) => buf.extend_from_slice(&escaped),
-        Err(_) => buf.extend_from_slice(b"\"\""),
-    }
+    // `serde_json::to_vec` on a `&str` is infallible; use `expect` so an
+    // impossible failure panics loudly rather than silently writing `""` and
+    // collapsing distinct strings to the same hash.
+    let escaped = serde_json::to_vec(s).expect("serde_json::to_vec of &str is infallible");
+    buf.extend_from_slice(&escaped);
 }
 
 /// Extract hashed input messages from the span's parsed input and produce the
