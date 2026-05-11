@@ -149,13 +149,18 @@ fn write_json_string(buf: &mut Vec<u8>, s: &str) {
 
 /// Extract hashed input messages from the span's parsed input and produce the
 /// ordered hash array for the span row. Returns `None` when the input isn't a
-/// JSON array (the span keeps its raw `input` string unchanged).
+/// JSON array or the array is empty (the span keeps its raw `input` string
+/// unchanged — otherwise the caller would blank out `input` for a span with
+/// no hashes, and `spans_v0`'s fallback would show `""` instead of `"[]"`).
 pub fn hash_span_input(span: &Span) -> Option<(Vec<HashedMessage>, Vec<[u8; 32]>)> {
     if span.span_type != SpanType::LLM {
         return None;
     }
     let input = span.input.as_ref()?;
     let messages = input.as_array()?;
+    if messages.is_empty() {
+        return None;
+    }
 
     let mut hashed = Vec::with_capacity(messages.len());
     let mut order = Vec::with_capacity(messages.len());
@@ -293,5 +298,36 @@ mod tests {
         let tid_b = Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap();
         let hash = [7u8; 32];
         assert_ne!(dedup_key(pid, tid_a, &hash), dedup_key(pid, tid_b, &hash));
+    }
+
+    #[test]
+    fn hash_span_input_returns_none_for_empty_array() {
+        // Empty array must not be treated as "hashed" — otherwise the caller
+        // would clear `input` to "" and spans_v0's fallback would render ""
+        // instead of the original "[]".
+        use crate::traces::spans::SpanAttributes;
+        use chrono::Utc;
+        use std::collections::HashMap;
+
+        let span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "test".to_string(),
+            attributes: SpanAttributes::new(HashMap::new()),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::LLM,
+            input: Some(json!([])),
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+        assert!(hash_span_input(&span).is_none());
     }
 }
