@@ -74,10 +74,13 @@ fn canonicalize(value: &Value) -> Value {
 }
 
 /// Serialize a canonical JSON value to bytes for hashing.
-fn canonical_bytes(value: &Value) -> Vec<u8> {
+fn canonical_bytes(value: &Value) -> anyhow::Result<Vec<u8>> {
     // `canonicalize` already sorted keys; serde_json with `preserve_order`
-    // then emits in the canonical order.
-    serde_json::to_vec(value).unwrap_or_default()
+    // then emits in the canonical order. Propagate errors rather than
+    // silently returning `Vec::new()` — an empty-byte fallback would hash
+    // every failed message to the same BLAKE3 digest and collapse distinct
+    // messages into a single empty row.
+    serde_json::to_vec(value).map_err(|e| anyhow::anyhow!("canonical_bytes serialize: {e}"))
 }
 
 fn message_blake3(canonical: &[u8]) -> [u8; 32] {
@@ -114,34 +117,43 @@ fn seen_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String {
 /// Build one `SpanDedupPlan` per LLM span whose `input` parses as a JSON
 /// array. Non-array inputs and non-LLM spans are filtered out so the
 /// returned vec is sparse relative to `spans`.
-fn build_plans(spans: &[Span]) -> Vec<SpanDedupPlan> {
-    spans
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, span)| {
-            if span.span_type != SpanType::LLM {
-                return None;
-            }
-            let input = span.input.as_ref()?;
-            let messages = input.as_array()?;
-            if messages.is_empty() {
-                return None;
-            }
-            let mut hashes = Vec::with_capacity(messages.len());
-            let mut canonical_messages = Vec::with_capacity(messages.len());
-            for msg in messages {
-                let canon = canonicalize(msg);
-                let bytes = canonical_bytes(&canon);
-                hashes.push(message_blake3(&bytes));
-                canonical_messages.push(String::from_utf8(bytes).unwrap_or_default());
-            }
-            Some(SpanDedupPlan {
-                span_index: idx,
-                hashes: Some(hashes),
-                canonical_messages,
-            })
-        })
-        .collect()
+///
+/// Returns an error if any message fails to serialize or decode — silently
+/// defaulting would collapse distinct messages into an empty-content row
+/// with the BLAKE3 digest of `[]`, permanently corrupting `input`.
+fn build_plans(spans: &[Span]) -> anyhow::Result<Vec<SpanDedupPlan>> {
+    let mut plans = Vec::new();
+    for (idx, span) in spans.iter().enumerate() {
+        if span.span_type != SpanType::LLM {
+            continue;
+        }
+        let Some(input) = span.input.as_ref() else {
+            continue;
+        };
+        let Some(messages) = input.as_array() else {
+            continue;
+        };
+        if messages.is_empty() {
+            continue;
+        }
+        let mut hashes = Vec::with_capacity(messages.len());
+        let mut canonical_messages = Vec::with_capacity(messages.len());
+        for msg in messages {
+            let canon = canonicalize(msg);
+            let bytes = canonical_bytes(&canon)?;
+            hashes.push(message_blake3(&bytes));
+            let text = String::from_utf8(bytes).map_err(|e| {
+                anyhow::anyhow!("canonical bytes are not valid UTF-8: {e}")
+            })?;
+            canonical_messages.push(text);
+        }
+        plans.push(SpanDedupPlan {
+            span_index: idx,
+            hashes: Some(hashes),
+            canonical_messages,
+        });
+    }
+    Ok(plans)
 }
 
 /// Apply dedup to the batch of spans.
@@ -178,7 +190,7 @@ pub async fn dedup_llm_input_messages(
         span_id_to_ch_idx.insert(ch_span.span_id, i);
     }
 
-    let plans = build_plans(spans);
+    let plans = build_plans(spans)?;
     if plans.is_empty() {
         return Ok(());
     }
@@ -257,8 +269,8 @@ mod tests {
         let a = json!({"b": 1, "a": 2});
         let b = json!({"a": 2, "b": 1});
         assert_eq!(
-            canonical_bytes(&canonicalize(&a)),
-            canonical_bytes(&canonicalize(&b)),
+            canonical_bytes(&canonicalize(&a)).unwrap(),
+            canonical_bytes(&canonicalize(&b)).unwrap(),
         );
     }
 
@@ -267,22 +279,23 @@ mod tests {
         let a = json!([{"b": 1, "a": 2}, {"d": 3, "c": 4}]);
         let b = json!([{"a": 2, "b": 1}, {"c": 4, "d": 3}]);
         assert_eq!(
-            canonical_bytes(&canonicalize(&a)),
-            canonical_bytes(&canonicalize(&b)),
+            canonical_bytes(&canonicalize(&a)).unwrap(),
+            canonical_bytes(&canonicalize(&b)).unwrap(),
         );
     }
 
     #[test]
     fn same_content_same_hash() {
-        let a = canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hi"})));
-        let b = canonical_bytes(&canonicalize(&json!({"content": "hi", "role": "user"})));
+        let a = canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hi"}))).unwrap();
+        let b = canonical_bytes(&canonicalize(&json!({"content": "hi", "role": "user"}))).unwrap();
         assert_eq!(message_blake3(&a), message_blake3(&b));
     }
 
     #[test]
     fn different_content_different_hash() {
-        let a = canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hi"})));
-        let b = canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hello"})));
+        let a = canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hi"}))).unwrap();
+        let b =
+            canonical_bytes(&canonicalize(&json!({"role": "user", "content": "hello"}))).unwrap();
         assert_ne!(message_blake3(&a), message_blake3(&b));
     }
 
