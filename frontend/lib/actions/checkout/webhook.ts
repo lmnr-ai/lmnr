@@ -16,7 +16,7 @@ import {
   workspaceUsageWarnings,
 } from "@/lib/db/migrations/schema";
 
-import { DATAPLANE_ADDON_LOOKUP_KEY, type PaidTier, TIER_CONFIG, type TierConfigEntry } from "./types";
+import { DATAPLANE_ADDON_LOOKUP_KEY, type PaidTier, TIER_CONFIG } from "./types";
 
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
@@ -114,20 +114,16 @@ export const manageWorkspaceSubscriptionEvent = async ({
       where: eq(subscriptionTiers.id, newTierId),
     });
     const newTierName = newTier?.name?.toLowerCase()?.trim();
-    const currentTierIsPaid = ["hobby", "pro"].includes(currentTier ?? "");
-    const currentTierConfig = currentTierIsPaid ? TIER_CONFIG[currentTier as PaidTier] : undefined;
-    const newTierIsPaid = ["hobby", "pro"].includes(newTierName ?? "");
-    const newTierConfig = newTierIsPaid ? TIER_CONFIG[newTierName! as PaidTier] : undefined;
+    const currentTierAsPaid = isPaidTier(currentTier) ? currentTier : undefined;
+    const newTierAsPaid = isPaidTier(newTierName) ? newTierName : undefined;
     // Run when entering a paid tier (insert defaults) OR when leaving a paid
     // tier for free (cleanup stale defaults — e.g. cancellation from Hobby
     // must drop the 5,000-step hard cap so it doesn't persist on the free plan).
-    if (newTierIsPaid || currentTierIsPaid) {
+    if (newTierAsPaid || currentTierAsPaid) {
       await reconcileTierUsageDefaults({
         workspaceId,
-        newTierName: newTierIsPaid ? (newTierName as PaidTier) : undefined,
-        newTierConfig,
-        currentTierName: currentTierIsPaid ? (currentTier as PaidTier) : undefined,
-        currentTierConfig,
+        newTierName: newTierAsPaid,
+        currentTierName: currentTierAsPaid,
       });
       await invalidateUsageWarningsCacheForWorkspace(workspaceId);
       // The default hard limit inserted/removed above feeds into PROJECT_CACHE_KEY
@@ -299,22 +295,27 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
+const isPaidTier = (tier: string | undefined): tier is PaidTier =>
+  tier === "hobby" || tier === "pro";
+
 // Reconciles default warnings/limits on a tier transition. Called for any
 // transition into or out of a paid tier (including cancellation to free),
 // so stale Hobby defaults are cleaned up even when the destination is free.
+// Tier configs are derived from the tier names so caller can't pass a
+// mismatched name/config pair — a tier name of "hobby" always implies its
+// config is TIER_CONFIG.hobby.
 const reconcileTierUsageDefaults = async ({
   workspaceId,
   newTierName,
-  newTierConfig,
   currentTierName,
-  currentTierConfig,
 }: {
   workspaceId: string;
   newTierName?: PaidTier;
-  newTierConfig?: TierConfigEntry;
   currentTierName?: PaidTier;
-  currentTierConfig?: TierConfigEntry;
 }) => {
+  const currentTierConfig = currentTierName ? TIER_CONFIG[currentTierName] : undefined;
+  const newTierConfig = newTierName ? TIER_CONFIG[newTierName] : undefined;
+
   if (currentTierConfig) {
     await db
       .delete(workspaceUsageWarnings)
@@ -356,24 +357,24 @@ const reconcileTierUsageDefaults = async ({
   // Hobby tier gets a default hard cap on signal steps processed so users don't
   // accrue overage charges without realizing it. Pro tier has no default hard
   // limit — admins opt in via the custom limits UI.
-  if (currentTierName === "hobby" && newTierName !== "hobby" && currentTierConfig) {
+  if (currentTierName === "hobby" && newTierName !== "hobby") {
     await db
       .delete(workspaceUsageLimits)
       .where(
         and(
           eq(workspaceUsageLimits.workspaceId, workspaceId),
           eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
-          eq(workspaceUsageLimits.limitValue, currentTierConfig.includedSignalSteps)
+          eq(workspaceUsageLimits.limitValue, TIER_CONFIG.hobby.includedSignalSteps)
         )
       );
   }
-  if (newTierName === "hobby" && newTierConfig) {
+  if (newTierName === "hobby") {
     await db
       .insert(workspaceUsageLimits)
       .values({
         workspaceId,
         limitType: "signal_steps_processed",
-        limitValue: newTierConfig.includedSignalSteps,
+        limitValue: TIER_CONFIG.hobby.includedSignalSteps,
       })
       .onConflictDoNothing();
   }
