@@ -12,7 +12,11 @@
 //! Redis is unreachable the caller falls back to inserting everything and
 //! lets ReplacingMergeTree collapse duplicates on merge.
 //!
-//! Keys are binary `m:{project_id_bytes}{hash_bytes}` (50 bytes total).
+//! Keys are `m:{project_id_hex}{trace_id_hex}{hash_hex}` (130 chars total).
+//! `trace_id` is part of the key because `llm_messages` is ordered by
+//! `(project_id, trace_id, message_hash)` — omitting it would let a hash
+//! seen in one trace suppress the insert for a different trace, leaving
+//! that trace's span rows pointing at missing `llm_messages` entries.
 
 use std::sync::{
     Arc,
@@ -161,24 +165,27 @@ pub fn hash_span_input(span: &Span) -> Option<(Vec<HashedMessage>, Vec<[u8; 32]>
     Some((hashed, order))
 }
 
-fn dedup_key(project_id: Uuid, hash: &[u8; 32]) -> String {
-    let mut key = String::with_capacity(2 + 16 + 32);
+fn dedup_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String {
+    use std::fmt::Write;
+    // 2 prefix + 32 hex (project uuid) + 32 hex (trace uuid) + 64 hex (hash)
+    let mut key = String::with_capacity(2 + 32 + 32 + 64);
     key.push_str("m:");
     // Bytes are encoded as hex rather than raw to stay compatible with
     // RedisCache's string-key APIs (`try_acquire_lock` etc. accept &str).
     for b in project_id.as_bytes() {
-        use std::fmt::Write;
+        let _ = write!(key, "{:02x}", b);
+    }
+    for b in trace_id.as_bytes() {
         let _ = write!(key, "{:02x}", b);
     }
     for b in hash {
-        use std::fmt::Write;
         let _ = write!(key, "{:02x}", b);
     }
     key
 }
 
 /// Filter `messages` down to the ones not already seen in Redis for this
-/// project+hash. Newly-seen messages are marked in Redis with a TTL so
+/// project+trace+hash. Newly-seen messages are marked in Redis with a TTL so
 /// subsequent batches can skip them. On any Redis error this trips the
 /// circuit breaker and returns the full list (safe fallback — duplicates are
 /// collapsed by ReplacingMergeTree on the server side).
@@ -194,7 +201,7 @@ pub async fn filter_unseen(
     let mut unseen = Vec::with_capacity(messages.len());
     let mut iter = messages.into_iter();
     while let Some(msg) = iter.next() {
-        let key = dedup_key(msg.project_id, &msg.hash);
+        let key = dedup_key(msg.project_id, msg.trace_id, &msg.hash);
         match cache.try_acquire_lock(&key, DEDUP_TTL_SECONDS).await {
             Ok(true) => unseen.push(msg),
             Ok(false) => {
@@ -222,7 +229,7 @@ pub async fn filter_unseen(
 /// retry actually re-inserts them.
 pub async fn release_seen_markers(messages: &[CHLlmMessage], cache: Arc<Cache>) {
     for msg in messages {
-        let key = dedup_key(msg.project_id, &msg.message_hash);
+        let key = dedup_key(msg.project_id, msg.trace_id, &msg.message_hash);
         if let Err(e) = cache.release_lock(&key).await {
             log::warn!(
                 "llm_messages failed to release Redis seen-marker on insert failure: {:?}",
@@ -263,10 +270,20 @@ mod tests {
     #[test]
     fn dedup_key_is_hex_encoded_prefixed() {
         let pid = Uuid::parse_str("00112233-4455-6677-8899-aabbccddeeff").unwrap();
+        let tid = Uuid::parse_str("ffeeddcc-bbaa-9988-7766-554433221100").unwrap();
         let hash = [0u8; 32];
-        let key = dedup_key(pid, &hash);
+        let key = dedup_key(pid, tid, &hash);
         assert!(key.starts_with("m:"));
-        // 2 prefix + 32 hex (uuid) + 64 hex (hash)
-        assert_eq!(key.len(), 2 + 32 + 64);
+        // 2 prefix + 32 hex (project uuid) + 32 hex (trace uuid) + 64 hex (hash)
+        assert_eq!(key.len(), 2 + 32 + 32 + 64);
+    }
+
+    #[test]
+    fn dedup_key_differs_across_traces_same_project_and_hash() {
+        let pid = Uuid::parse_str("00112233-4455-6677-8899-aabbccddeeff").unwrap();
+        let tid_a = Uuid::parse_str("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa").unwrap();
+        let tid_b = Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap();
+        let hash = [7u8; 32];
+        assert_ne!(dedup_key(pid, tid_a, &hash), dedup_key(pid, tid_b, &hash));
     }
 }
