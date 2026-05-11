@@ -46,7 +46,7 @@ export async function tryClaimEvent(event: TelemetryEvent): Promise<boolean> {
       sql`UPDATE self_hosted_instance
           SET last_event_at = NOW()
           WHERE last_event_at IS NULL
-             OR last_event_at < NOW() - INTERVAL ${sql.raw(`'${cooldown}'`)}
+             OR last_event_at < NOW() - CAST(${cooldown} AS INTERVAL)
           RETURNING id`
     )) as unknown as Array<{ id: string }>;
     return rows.length > 0;
