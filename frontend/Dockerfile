@@ -22,6 +22,10 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Release tag (e.g. v0.1.45). Unset for non-release builds so the badge stays hidden.
+ARG LAMINAR_VERSION
+ENV LAMINAR_VERSION=$LAMINAR_VERSION
+
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -31,6 +35,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Release tag propagated into the runtime so instrumentation.ts and VersionBadge see it.
+ARG LAMINAR_VERSION
+ENV LAMINAR_VERSION=$LAMINAR_VERSION
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

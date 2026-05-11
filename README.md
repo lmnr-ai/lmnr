@@ -53,6 +53,15 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
+### Telemetry
+
+Self-hosted Laminar has two independent telemetry flags:
+
+- `SELF_HOSTED_TELEMETRY` — anonymous install-level events (`instance:launched`, `instance:heartbeat`) so we can see how many self-hosted instances are running and on which version. **Enabled by default.** Opt out with `SELF_HOSTED_TELEMETRY=false`.
+- `POSTHOG_TELEMETRY` — in-app product analytics. **Disabled by default** on self-hosted.
+
+Install telemetry sends only a per-instance UUID plus Laminar version, Node.js version, OS, and CPU architecture. No trace, span, prompt, workspace, project, user, or secret data is transmitted. See [the Telemetry docs](https://laminar.sh/docs/hosting-options/telemetry) for the full payload and source links.
+
 ### Enabling the Signals feature
 
 To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.

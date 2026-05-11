@@ -8,6 +8,7 @@ import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
+import VersionBadge from "@/components/projects/version-badge";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -49,7 +50,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-              <ProjectSidebar details={projectDetails} />
+              <ProjectSidebar details={projectDetails} versionBadge={<VersionBadge />} />
               <SidebarInset className="relative flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
                 <NotificationPanel />
                 {showBanner && <ProjectUsageBanner details={projectDetails} />}

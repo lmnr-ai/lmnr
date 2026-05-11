@@ -2,7 +2,7 @@
 
 import { Book, X } from "lucide-react";
 import Link from "next/link";
-import React from "react";
+import React, { type ReactNode } from "react";
 
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
 import { IconGitHub } from "@/components/ui/icons";
@@ -19,7 +19,11 @@ import {
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = () => {
+interface SidebarFooterComponentProps {
+  versionBadge?: ReactNode;
+}
+
+const SidebarFooterComponent = ({ versionBadge }: SidebarFooterComponentProps = {}) => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
@@ -78,6 +82,9 @@ const SidebarFooterComponent = () => {
                 </div>
               </Link>
             </SidebarMenuItem>
+            {versionBadge && (open || openMobile) && (
+              <SidebarMenuItem className="mt-1 mx-0 px-2">{versionBadge}</SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

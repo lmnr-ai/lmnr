@@ -216,6 +216,19 @@ export async function register() {
       console.log("Initializing Laminar");
       Laminar.initialize();
     }
+
+    if (process.env.LAMINAR_CLOUD !== "true") {
+      const { isTelemetryEnabled, fireLaunchEvent, startHeartbeat } = await import("@/lib/telemetry/self-hosted.ts");
+      if (isTelemetryEnabled()) {
+        console.log(
+          "[laminar] Anonymous self-hosted telemetry is enabled. Set SELF_HOSTED_TELEMETRY=false to opt out. See https://laminar.sh/docs/hosting-options/telemetry."
+        );
+        await fireLaunchEvent().catch(() => {});
+        startHeartbeat();
+      } else {
+        console.log("[laminar] Self-hosted telemetry disabled.");
+      }
+    }
   }
 }
 

@@ -146,6 +146,16 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - Trigger evaluation flow: `process_span_messages` → `upsert_trace_statistics_batch` (returns merged DB trace) → `check_and_push_signals` → `matches_filters`. All filters use AND logic.
 - Run targeted tests with `cargo test --bin app-server db::trace::tests -- --nocapture`.
 
+## Self-hosted telemetry
+
+- Two independent telemetry flags: `POSTHOG_TELEMETRY` (product analytics, see the Analytics / PostHog section) and `SELF_HOSTED_TELEMETRY` (install-level `instance:launched` / `instance:heartbeat` events). They are deliberately decoupled — different questions, different answers. Never gate one on the other. `LAMINAR_CLOUD=true` disables both.
+- Implementation lives in `lib/telemetry/self-hosted.ts` and is wired up once from `instrumentation.ts` (Node runtime only, after Laminar init). All async paths are wrapped in `try/catch` with empty catches — air-gapped installs are expected, so telemetry must never throw on the app-startup path.
+- Multi-replica dedup is a single-row `self_hosted_instance` UPDATE with a cooldown interval (1h for launch, 23h for heartbeat). If the UPDATE returns a row, this replica won the claim; if it returns zero rows, another replica already fired. No locks, no cron tables, no clock-sync assumptions. The migration seeds the single row with a fresh UUID — application code never inserts. If the row is missing (migration not yet applied), all telemetry paths return null/false silently.
+- The heartbeat `setInterval` ticks hourly but fires only when the 23h cooldown has elapsed, so rolling deploys don't re-trigger events and clock skew between replicas doesn't matter. The timer is `.unref()`'d so it never keeps Node alive.
+- Self-hosted telemetry uses a dedicated `PostHog` client (instantiated on first use in `lib/telemetry/self-hosted.ts`). Do NOT reuse `@/lib/posthog/server` — that one is gated on `POSTHOG_TELEMETRY` and would couple the two flags.
+- `LAMINAR_VERSION` is a server-side env var (NOT `NEXT_PUBLIC_`). It's passed into both `builder` and `runner` stages of `frontend/Dockerfile` via `ARG LAMINAR_VERSION`, and only set for tag-triggered release builds in `.github/workflows/build-push.yml` (`matrix.pass_version: true` on the frontend image). Unset for dev / PR builds, which hides the badge.
+- The sidebar `VersionBadge` is a pure server component in `components/projects/version-badge.tsx`. Since both sidebars (`components/project/sidebar/index.tsx`, `components/workspace/sidebar/index.tsx`) are `"use client"`, the badge is constructed in the server parent (`app/project/[projectId]/layout.tsx`, `app/workspace/[workspaceId]/page.tsx`) and threaded down as a `versionBadge?: ReactNode` prop to keep `process.env.LAMINAR_VERSION` off the client bundle.
+
 ## Analytics / PostHog
 
 - Client-side analytics is centralized in `frontend/lib/posthog/`. Feature code should import `track` from `@/lib/posthog` — never import `posthog-js` directly.
