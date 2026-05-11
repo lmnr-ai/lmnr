@@ -17,6 +17,7 @@ const EVENT_COOLDOWN: Record<SelfHostedEvent, string> = {
   heartbeat: "23 hours",
 };
 const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000;
+const LAUNCH_FLUSH_TIMEOUT_MS = 2000;
 
 let cachedInstanceId: string | null | undefined = undefined;
 let posthogClient: PostHog | null = null;
@@ -90,11 +91,15 @@ const captureEvent = async (event: SelfHostedEvent): Promise<void> => {
       },
     });
 
-    // Fire-and-forget flush so a crashlooping container delivers the event
-    // before exit. Don't await — flush can hang if PostHog is unreachable
-    // and startup must never block on telemetry.
+    // Bounded flush on launch so a crashlooping/short-lived container
+    // delivers the event before exit. Capped via Promise.race so
+    // air-gapped installs / unreachable PostHog can't block startup
+    // beyond LAUNCH_FLUSH_TIMEOUT_MS.
     if (event === "launched") {
-      void client.flush().catch(() => {});
+      await Promise.race([
+        client.flush().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, LAUNCH_FLUSH_TIMEOUT_MS).unref()),
+      ]);
     }
   } catch {
     // telemetry must never fail startup
