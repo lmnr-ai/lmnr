@@ -116,8 +116,9 @@ pub async fn process_span_messages(
     // Build CHSpans with embedded events and insert to ClickHouse
     let mut ch_spans: Vec<CHSpan> = Vec::with_capacity(spans.len());
     // Hashed input messages collected across all LLM spans in this batch.
-    // Ordered so we can release Redis markers on later insert failure.
-    let mut collected_messages: Vec<CHLlmMessage> = Vec::new();
+    // Kept as HashedMessage so filter_unseen can consume them by value
+    // without cloning `content`.
+    let mut collected_messages: Vec<crate::traces::llm_message_dedup::HashedMessage> = Vec::new();
 
     for (span, usage) in spans.iter().zip(span_usage_vec.iter()) {
         if !span.should_record_to_clickhouse() {
@@ -129,14 +130,7 @@ pub async fn process_span_messages(
         // string, and reference the messages via `input_message_hashes`. The
         // `spans_v0` view reconstructs `input` at read time.
         if let Some((hashed, order)) = hash_span_input(span) {
-            for hm in hashed {
-                collected_messages.push(CHLlmMessage {
-                    project_id: hm.project_id,
-                    trace_id: hm.trace_id,
-                    message_hash: hm.hash,
-                    content: hm.content,
-                });
-            }
+            collected_messages.extend(hashed);
             ch_span.input_message_hashes = order;
             ch_span.input = String::new();
         }
@@ -146,16 +140,7 @@ pub async fn process_span_messages(
     // Insert deduplicated messages BEFORE spans so the view can always
     // resolve hashes it finds on a span row.
     if !collected_messages.is_empty() {
-        let hashed_for_filter = collected_messages
-            .iter()
-            .map(|m| crate::traces::llm_message_dedup::HashedMessage {
-                project_id: m.project_id,
-                trace_id: m.trace_id,
-                hash: m.message_hash,
-                content: m.content.clone(),
-            })
-            .collect::<Vec<_>>();
-        let unseen = filter_unseen(hashed_for_filter, cache.clone()).await;
+        let unseen = filter_unseen(collected_messages, cache.clone()).await;
         let to_insert: Vec<CHLlmMessage> = unseen
             .into_iter()
             .map(|m| CHLlmMessage {
