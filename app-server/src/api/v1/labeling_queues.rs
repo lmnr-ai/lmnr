@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::labeling_queue_items::{
-        CHLabelingQueueItem, idempotency_key_exists, insert_labeling_queue_items, now_ch_millis,
+        CHLabelingQueueItem, idempotency_key_exists, insert_labeling_queue_items,
     },
     db::{self, DB, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
@@ -63,9 +63,8 @@ pub async fn create_labeling_queues_items(
         })));
     }
 
-    let now_ms = now_ch_millis();
-    let now_dt =
-        chrono::DateTime::from_timestamp_millis(now_ms as i64).unwrap_or_else(chrono::Utc::now);
+    let now_dt = chrono::Utc::now();
+    let now_ms = now_dt.timestamp_millis() as u64;
     let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
     let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
     // Drop keys that repeat inside this batch — the FINAL pre-check below

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,21 +11,12 @@ pub struct CHLabelingQueueItem {
     pub queue_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
-    /// Immutable {"data": ..., "target": ..., "metadata": ...} set on insert. The
-    /// UI never overwrites this column; in-app edits flow into `edit` instead.
     pub payload: String,
-    /// UI-only: full edited target as JSON. Empty string means "no edits, use
-    /// `payload.target` verbatim on export". The public ingest API does NOT
-    /// accept this field — only the in-app PATCH path writes it.
     pub edit: String,
     pub metadata: String,
-    /// 0 = unlabeled, 1 = approved. Modeled as `u8` so future states (e.g. a
-    /// "discarded" sentinel) slot in without another column rename.
     pub status: u8,
     pub idempotency_key: String,
-    /// DateTime64(3, 'UTC') — milliseconds since epoch.
     pub created_at: u64,
-    /// DateTime64(3, 'UTC') — milliseconds since epoch.
     pub updated_at: u64,
 }
 
@@ -74,9 +64,4 @@ pub async fn insert_labeling_queue_items(
     }
     insert.end().await?;
     Ok(())
-}
-
-pub fn now_ch_millis() -> u64 {
-    // ClickHouse DateTime64(3) is milliseconds since epoch (UTC).
-    Utc::now().timestamp_millis() as u64
 }
