@@ -7,7 +7,7 @@ const SELECT_COLUMNS = `
   id,
   queue_id queueId,
   payload,
-  target edit,
+  edit,
   metadata,
   status,
   formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') createdAt,
@@ -117,7 +117,7 @@ export const getQueueItemStates = async (projectId: string, queueId: string): Pr
         id,
         multiIf(
           status = 1, 'approved',
-          target = JSONExtractRaw(payload, 'target'), 'new',
+          edit = JSONExtractRaw(payload, 'target'), 'new',
           'modified'
         ) AS state
       FROM labeling_queue_items
@@ -132,8 +132,8 @@ export const getQueueItemStates = async (projectId: string, queueId: string): Pr
 // totals never disagree with what the navigator bar shows for the same queue.
 const PROGRESS_EXPR = {
   total: "count()",
-  new: "countIf(status = 0 AND target = JSONExtractRaw(payload, 'target'))",
-  modified: "countIf(status = 0 AND target != JSONExtractRaw(payload, 'target'))",
+  new: "countIf(status = 0 AND edit = JSONExtractRaw(payload, 'target'))",
+  modified: "countIf(status = 0 AND edit != JSONExtractRaw(payload, 'target'))",
   approved: "countIf(status = 1)",
 } as const;
 
@@ -190,7 +190,7 @@ export const findQueueIdsByProgress = async (projectId: string, filters: Progres
 };
 
 // Per-queue lifecycle counts for the queues list page. Uses the same
-// `multiIf(status, target == JSONExtractRaw(payload, 'target'))` derivation
+// `multiIf(status, edit == JSONExtractRaw(payload, 'target'))` derivation
 // as `getQueueItemStates` so totals stay consistent with the navigator bar.
 // Empty `queueIds` short-circuits — `IN ()` is a CH syntax error.
 export const getQueueProgresses = async (
@@ -209,8 +209,8 @@ export const getQueueProgresses = async (
     query: `
       SELECT
         queue_id queueId,
-        countIf(status = 0 AND target = JSONExtractRaw(payload, 'target')) AS new,
-        countIf(status = 0 AND target != JSONExtractRaw(payload, 'target')) AS modified,
+        countIf(status = 0 AND edit = JSONExtractRaw(payload, 'target')) AS new,
+        countIf(status = 0 AND edit != JSONExtractRaw(payload, 'target')) AS modified,
         countIf(status = 1) AS approved
       FROM labeling_queue_items
       WHERE queue_id IN ({queueIds: Array(UUID)})

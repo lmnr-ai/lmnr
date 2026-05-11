@@ -174,19 +174,13 @@ class TableRegistry:
             "event_name",
         }
 
-        # `labeling_queue_items_v0` exposes the immutable `payload` (raw JSON
-        # with the original `{data, target, metadata}`) plus `target` — the
-        # canonical current target (re-exposed `edit` column from the table,
-        # seeded from `payload.target` on insert and overwritten by UI edits).
-        # `status` is 0 unlabeled / 1 approved. The internal `edit` column is
-        # NOT exposed by the view — query `target` instead.
         labeling_queue_items_columns = {
             "id",
             "queue_id",
             "payload",
             "metadata",
             "status",
-            "target",
+            "edit",
             "created_at",
             "updated_at",
         }
