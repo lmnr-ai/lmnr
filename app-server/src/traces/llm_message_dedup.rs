@@ -93,9 +93,12 @@ fn trip_redis_breaker() {
 fn canonical_json(value: &Value) -> String {
     let mut buf = Vec::with_capacity(64);
     write_canonical(&mut buf, value);
-    // All bytes written by write_canonical are ASCII or valid UTF-8 copied
-    // from the input Value's existing String allocations, so this is safe.
-    String::from_utf8(buf).unwrap_or_default()
+    // All bytes written by write_canonical are ASCII punctuation or valid
+    // UTF-8 copied from the input Value's existing String allocations, so
+    // decoding never fails. Panic rather than fall back to an empty string:
+    // a silent fallback would collapse distinct messages to the same hash
+    // and corrupt the deduplicated store.
+    String::from_utf8(buf).expect("canonical_json produced non-UTF-8 bytes")
 }
 
 fn write_canonical(buf: &mut Vec<u8>, value: &Value) {
