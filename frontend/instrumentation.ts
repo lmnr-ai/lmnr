@@ -223,7 +223,7 @@ export async function register() {
         console.log(
           "[laminar] Anonymous self-hosted telemetry is enabled. Set SELF_HOSTED_TELEMETRY=false to opt out. See https://laminar.sh/docs/hosting-options/telemetry."
         );
-        await fireLaunchEvent().catch(() => {});
+        await fireLaunchEvent();
         startHeartbeat();
       } else {
         console.log("[laminar] Self-hosted telemetry disabled.");
