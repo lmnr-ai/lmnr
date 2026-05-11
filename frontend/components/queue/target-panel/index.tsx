@@ -2,7 +2,7 @@
 
 import { Prec } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { Braces, Loader2, Sparkles } from "lucide-react";
+import { Braces, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,6 @@ import AnnotationInterface from "./annotation-interface";
 import ApprovalStatus from "./approval-status";
 import SchemaDefinitionDialog from "./schema-definition-dialog";
 
-// CodeMirror's keymap (registered on its own contentDOM) processes `Mod-Enter`
-// before the document-level approve hotkey in `hotkeys.tsx` runs — so without
-// this, ⌘⏎ inside the JSON editor inserts a newline AND approves. This binding
-// returns `true` so CM calls `event.preventDefault()` (suppresses the newline)
-// but does NOT stop propagation, so the keydown still bubbles up and the
-// document hotkey fires the approve action. `Prec.highest` ensures we win over
-// `defaultKeymap` from `basicSetup`.
 const SUPPRESS_MOD_ENTER = [Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => true, preventDefault: true }]))];
 
 export default function TargetPanel() {
@@ -71,20 +64,16 @@ export default function TargetPanel() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         )}
-        <Tabs defaultValue={hasSchema ? "form" : "data"} className="flex flex-1 flex-col gap-0 p-3">
+        <Tabs defaultValue={hasSchema ? "form" : "data"} className="flex flex-1 flex-col gap-0 p-3 min-h-0">
           <TabsList className="self-start">
             <TabsTrigger value="data">Data</TabsTrigger>
-            {/* Form tab is no longer disabled when no schema is defined —
-                clicking it now reveals the empty state with a CTA, which is
-                the only place the schema dialog feature is discoverable
-                besides the header button. */}
             <TabsTrigger value="form">Form</TabsTrigger>
           </TabsList>
-          <TabsContent value="data" className="flex flex-1 flex-col overflow-hidden pt-3">
+          <TabsContent value="data" className="flex flex-1 flex-col overflow-hidden pt-3 min-h-0">
             <span className="text-xs text-secondary-foreground mb-2">
               JSON written to the target key of the payload.
             </span>
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden min-h-0">
               <ContentRenderer
                 presetKey={`labeling-queue-target-${queueId}`}
                 codeEditorClassName="rounded-none"
@@ -96,7 +85,7 @@ export default function TargetPanel() {
               />
             </div>
           </TabsContent>
-          <TabsContent value="form" className="flex flex-1 flex-col overflow-auto pt-3">
+          <TabsContent value="form" className="flex flex-1 flex-col overflow-auto pt-3 min-h-0">
             {hasSchema ? <AnnotationInterface /> : <FormEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />}
           </TabsContent>
         </Tabs>
@@ -109,7 +98,7 @@ function FormEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center border border-dashed rounded-md">
       <div className="flex items-center justify-center size-10 rounded-full bg-primary/10 text-primary">
-        <Sparkles className="size-5" />
+        <Braces className="size-5" />
       </div>
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium">Annotate with structured fields</span>
@@ -118,9 +107,8 @@ function FormEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
           hotkey shortcuts for fast labelling.
         </span>
       </div>
-      <Button variant="outline" onClick={onDefineSchema} className="mt-1">
-        <Braces className="size-3.5 mr-1" />
-        Define annotation schema
+      <Button variant="secondary" onClick={onDefineSchema} className="mt-1">
+        Define schema
       </Button>
     </div>
   );

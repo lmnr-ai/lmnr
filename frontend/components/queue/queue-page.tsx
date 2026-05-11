@@ -1,5 +1,7 @@
 "use client";
 
+import { useParams } from "next/navigation";
+
 import Header from "@/components/ui/header";
 
 import BottomControls from "./bottom-controls";
@@ -17,12 +19,13 @@ import Toolbar from "./toolbar";
  * store actions, so this file is just composition.
  */
 export default function QueuePage() {
-  const queueName = useQueueStore((s) => s.queue.name);
+  const { projectId } = useParams<{ projectId: string }>();
+  const queue = useQueueStore((s) => s.queue);
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
 
   if (!isInitialLoaded) {
-    return <LoadingState name={queueName} />;
+    return <LoadingState name={queue.name} />;
   }
 
   if (itemsLen === 0) {
@@ -31,7 +34,12 @@ export default function QueuePage() {
 
   return (
     <>
-      <Header path={`labeling queues/${queueName}`} />
+      <Header
+        path={[
+          { name: "labeling queues", href: `/project/${projectId}/labeling-queues` },
+          { name: queue.name, copyValue: queue.id },
+        ]}
+      />
       <div className="px-4 pb-4 flex flex-col flex-1 gap-3 overflow-hidden">
         <Toolbar />
         <div className="grid grid-cols-2 gap-3 flex-1 overflow-hidden">
