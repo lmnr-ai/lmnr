@@ -174,6 +174,23 @@ class TableRegistry:
             "event_name",
         }
 
+        # `labeling_queue_items_v0` exposes the immutable `payload` (raw JSON
+        # with the original `{data, target, metadata}`) plus `target` — the
+        # canonical current target (re-exposed `edit` column from the table,
+        # seeded from `payload.target` on insert and overwritten by UI edits).
+        # `status` is 0 unlabeled / 1 approved. The internal `edit` column is
+        # NOT exposed by the view — query `target` instead.
+        labeling_queue_items_columns = {
+            "id",
+            "queue_id",
+            "payload",
+            "metadata",
+            "status",
+            "target",
+            "created_at",
+            "updated_at",
+        }
+
         self.tables["spans"] = TableSchema("spans", spans_columns, "start_time")
         self.tables["traces"] = TableSchema("traces", traces_columns, "start_time")
         self.tables["dataset_datapoints"] = TableSchema(
@@ -231,6 +248,9 @@ class TableRegistry:
             "signal_events", signal_events_columns, "timestamp"
         )
         self.tables["logs"] = TableSchema("logs", logs_columns, "time")
+        self.tables["labeling_queue_items"] = TableSchema(
+            "labeling_queue_items", labeling_queue_items_columns, "created_at"
+        )
 
         clusters_columns = {
             "id",

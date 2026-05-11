@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import useSWR from "swr";
 
+import { type QueueItemStateRow } from "@/lib/actions/queue";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueueItem } from "@/lib/queue/types";
 import { swrFetcher } from "@/lib/utils";
@@ -10,34 +11,13 @@ import { swrFetcher } from "@/lib/utils";
 import { useQueueStore } from "./queue-store";
 
 interface QueueIndexResponse {
-  ids: string[];
-  progress: { total: number; labelled: number };
+  items: QueueItemStateRow[];
 }
 
 interface QueueWindowResponse {
   items: LabelingQueueItem[];
 }
 
-/**
- * Two-phase data loader for the windowed queue UI:
- *
- *  1) The "index" SWR call hits `/items` with no `?ids` and gets back just
- *     the ordered id list + progress counters. This is the cheap, cacheable
- *     query that lets the user see total/approved counts and lets the store
- *     know the queue size BEFORE we've fetched any rows.
- *
- *  2) The "window" effect watches `currentIndex` and fetches only the rows
- *     in `[currentIndex - 2, currentIndex + 2]` that aren't already loaded.
- *     Window fetches are issued via a manual `fetch` (not SWR) keyed by the
- *     comma-joined id list, which would explode the SWR cache as the user
- *     pages through a large queue. An `AbortController` cancels in-flight
- *     window fetches when nav supersedes them, preventing late hydrate-on
- *     -wrong-window from clobbering the user's actual viewport.
- *
- * No props are threaded — the component reads `currentIndex` reactively and
- * calls store helpers (`getMissingWindowIds`, `hydrateWindow`) so the loader
- * stays a passive consumer of store-derived window math.
- */
 export default function QueueDataLoader() {
   const { toast } = useToast();
   const projectId = useQueueStore((s) => s.projectId);
@@ -51,17 +31,16 @@ export default function QueueDataLoader() {
   const registerRevalidate = useQueueStore((s) => s.registerRevalidate);
   const flushPendingSaves = useQueueStore((s) => s.flushPendingSaves);
 
-  const { data, error, mutate } = useSWR<QueueIndexResponse>(
-    `/api/projects/${projectId}/queues/${queueId}/items`,
-    swrFetcher
-  );
+  const indexUrl = `/api/projects/${projectId}/queues/${queueId}/items`;
+
+  const { data, error, mutate } = useSWR<QueueIndexResponse>(indexUrl, swrFetcher);
 
   useEffect(() => {
     registerRevalidate(() => mutate());
   }, [registerRevalidate, mutate]);
 
   useEffect(() => {
-    if (data?.ids) hydrateIndex(data.ids, data.progress);
+    if (data?.items) hydrateIndex(data.items);
   }, [data, hydrateIndex]);
 
   useEffect(() => {

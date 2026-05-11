@@ -31,6 +31,11 @@ fn queue_item_id_for_idempotency(project_id: Uuid, queue_id: Uuid, idempotency_k
 
 /// Request structure for a single labeling queue item.
 /// For API ingestion, items are created manually without a source reference.
+///
+/// Note: `edit` is intentionally absent from the public surface. The handler
+/// seeds `edit` from `target` on insert so the canonical "current target"
+/// always lives in one column; in-app edits later overwrite it via the
+/// frontend PATCH path.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelingQueueItemRequest {
@@ -117,12 +122,22 @@ pub async fn create_labeling_queues_items(
         }
 
         let id = queue_item_id_for_idempotency(project_id, queue_id, &idempotency_key);
+        // `payload` is immutable post-insert — it's the original snapshot of
+        // what was queued. `edit` carries the canonical current target,
+        // seeded equal to `payload.target` on insert and overwritten by the
+        // frontend PATCH path on in-app edits. Two consequences:
+        //  - readers never branch on "is edit empty?" — the current value is
+        //    always in `edit`,
+        //  - `dirty` becomes a structural compare between `edit` and the
+        //    original `payload.target` (never a sentinel check), so reverting
+        //    an edit to the original answer correctly drops the dirty flag.
         let payload = serde_json::json!({
             "data": item.data,
             "target": item.target,
             "metadata": item.metadata,
         })
         .to_string();
+        let edit = serde_json::to_string(&item.target).unwrap_or_else(|_| "null".to_string());
         let metadata = "{}".to_string();
 
         ch_items.push(CHLabelingQueueItem {
@@ -130,8 +145,9 @@ pub async fn create_labeling_queues_items(
             queue_id,
             project_id,
             payload,
+            edit,
             metadata,
-            is_labelled: false,
+            status: 0,
             idempotency_key,
             created_at: now_ms,
             updated_at: now_ms,

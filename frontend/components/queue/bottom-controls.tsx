@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useQueueStore } from "./queue-store";
+import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
 export default function BottomControls() {
   const { toast } = useToast();
@@ -16,7 +16,7 @@ export default function BottomControls() {
   const currentIndex = useQueueStore((s) => s.currentIndex);
   const ioState = useQueueStore((s) => s.ioState);
   const isTargetJsonValid = useQueueStore((s) => s.isTargetJsonValid);
-  const isApproved = useQueueStore((s) => s.getCurrentItem()?.isLabelled ?? false);
+  const isApproved = useQueueStore((s) => isApprovedItem(s.getCurrentItem()));
   const hasItem = useQueueStore((s) => !!s.getCurrentItem());
 
   const step = useQueueStore((s) => s.step);

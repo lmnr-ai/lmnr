@@ -1,12 +1,28 @@
-import { and, desc, eq, getTableColumns, ilike, inArray } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray } from "drizzle-orm";
+import { partition } from "lodash";
 import { z } from "zod/v4";
 
-import { parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
-import { deleteQueueItemsByQueueIds } from "@/lib/clickhouse/labeling-queue-items";
+import {
+  deleteQueueItemsByQueueIds,
+  findQueueIdsByProgress,
+  getQueueProgresses,
+  type ProgressColumn,
+  type ProgressFilter,
+  type ProgressOperator,
+} from "@/lib/actions/queue/items";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueues } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
+import { EMPTY_PROGRESS, type LabelingQueue, type LabelingQueueWithProgress } from "@/lib/queue/types";
+import { type PaginatedResponse } from "@/lib/types";
+
+const PROGRESS_COLUMNS: ReadonlySet<ProgressColumn> = new Set(["total", "new", "modified", "approved"]);
+const PROGRESS_OPERATORS: ReadonlySet<ProgressOperator> = new Set(["eq", "ne", "gt", "gte", "lt", "lte"]);
+
+const isProgressFilter = (f: Filter): f is Filter & ProgressFilter =>
+  PROGRESS_COLUMNS.has(f.column as ProgressColumn) && PROGRESS_OPERATORS.has(f.operator as ProgressOperator);
 
 export const GetQueuesSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
@@ -23,14 +39,14 @@ export const DeleteQueuesSchema = z.object({
   queueIds: z.array(z.string()).min(1, "At least one queue id is required"),
 });
 
-export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
+export async function getQueues(
+  input: z.infer<typeof GetQueuesSchema>
+): Promise<PaginatedResponse<LabelingQueueWithProgress>> {
   const { projectId, pageNumber, pageSize, search, filter } = input;
 
-  // Item count filters were previously evaluated via a SQL subquery. Queue
-  // items now live in ClickHouse, so per-queue counts would require a
-  // cross-datastore join. We no longer support the `count` filter in the list
-  // endpoint; filters on name/id still work through Postgres.
-  const pgFilters = (filter ?? []).filter((f) => f.column !== "count");
+  // Progress filters live in ClickHouse — pre-filter to qualifying queue ids
+  // before the Postgres query. Combined with name/id filters they AND together.
+  const [progressFilters, pgFilters] = partition(filter ?? [], isProgressFilter);
 
   const filters = [
     eq(labelingQueues.projectId, projectId),
@@ -40,20 +56,41 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
     } as const),
   ];
 
+  if (progressFilters.length > 0) {
+    const qualifyingIds = await findQueueIdsByProgress(projectId, progressFilters);
+    if (qualifyingIds.length === 0) {
+      return { items: [], totalCount: 0 };
+    }
+    filters.push(inArray(labelingQueues.id, qualifyingIds));
+  }
+
   if (search) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
   }
 
-  return paginatedGet({
+  const page: PaginatedResponse<LabelingQueue> = await paginatedGet({
     table: labelingQueues,
     pageNumber,
     pageSize,
     filters,
     orderBy: [desc(labelingQueues.createdAt)],
     columns: {
-      ...getTableColumns(labelingQueues),
+      id: labelingQueues.id,
+      name: labelingQueues.name,
+      projectId: labelingQueues.projectId,
+      createdAt: labelingQueues.createdAt,
     },
   });
+
+  const progresses = await getQueueProgresses(
+    projectId,
+    page.items.map((q) => q.id)
+  );
+
+  return {
+    items: page.items.map((q) => ({ ...q, progress: progresses[q.id] ?? EMPTY_PROGRESS })),
+    totalCount: page.totalCount,
+  };
 }
 
 export async function createQueue(input: z.infer<typeof CreateQueueSchema>) {

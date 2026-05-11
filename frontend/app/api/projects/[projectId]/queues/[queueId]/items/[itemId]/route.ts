@@ -1,7 +1,12 @@
 import { prettifyError, ZodError } from "zod/v4";
 
-import { removeQueueItem, RemoveQueueItemRequestSchema, updateQueueItemTarget } from "@/lib/actions/queue";
+import { removeQueueItem, RemoveQueueItemRequestSchema, updateQueueItemEdit } from "@/lib/actions/queue";
 
+/**
+ * PATCH body: `{ edit?: string, status?: 0 | 1 }`. `edit` is the full edited
+ * target as a JSON string (UI-only — `payload` is immutable post-insert).
+ * Pass `edit: ""` to clear an edit; omit it to leave the column untouched.
+ */
 export async function PATCH(
   request: Request,
   props: { params: Promise<{ projectId: string; queueId: string; itemId: string }> }
@@ -10,12 +15,12 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    await updateQueueItemTarget({
+    await updateQueueItemEdit({
       projectId,
       queueId,
       id: itemId,
-      target: body?.target,
-      isLabelled: body?.isLabelled,
+      edit: typeof body?.edit === "string" ? body.edit : undefined,
+      status: body?.status === 0 || body?.status === 1 ? body.status : undefined,
     });
     return Response.json({ success: true });
   } catch (error) {
@@ -45,9 +50,6 @@ export async function DELETE(
       id: itemId,
       skip: parsed.data.skip,
       datasetId: parsed.data.datasetId,
-      data: parsed.data.data,
-      target: parsed.data.target,
-      metadata: parsed.data.metadata,
     });
     return Response.json({ success: true });
   } catch (error) {

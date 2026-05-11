@@ -1,6 +1,7 @@
 "use client";
 
-import { get } from "lodash";
+import { Prec } from "@codemirror/state";
+import { keymap } from "@codemirror/view";
 import { Braces, Loader2, Sparkles } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
@@ -9,10 +10,19 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-import { useQueueStore } from "../queue-store";
+import { getEffectiveTarget, useQueueStore } from "../queue-store";
 import AnnotationInterface from "./annotation-interface";
 import ApprovalStatus from "./approval-status";
 import SchemaDefinitionDialog from "./schema-definition-dialog";
+
+// CodeMirror's keymap (registered on its own contentDOM) processes `Mod-Enter`
+// before the document-level approve hotkey in `hotkeys.tsx` runs — so without
+// this, ⌘⏎ inside the JSON editor inserts a newline AND approves. This binding
+// returns `true` so CM calls `event.preventDefault()` (suppresses the newline)
+// but does NOT stop propagation, so the keydown still bubbles up and the
+// document hotkey fires the approve action. `Prec.highest` ensures we win over
+// `defaultKeymap` from `basicSetup`.
+const SUPPRESS_MOD_ENTER = [Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => true, preventDefault: true }]))];
 
 export default function TargetPanel() {
   const queueId = useQueueStore((s) => s.queue.id);
@@ -29,13 +39,9 @@ export default function TargetPanel() {
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
 
   const hasSchema = !!annotationSchema && fields.length > 0;
-  const isApproved = currentItem?.isLabelled ?? false;
   const showOverlay = ioState === "save" || ioState === "remove" || ioState === "push-one";
 
-  const targetValue = useMemo(
-    () => JSON.stringify(get(currentItem?.payload, "target", {}), null, 2),
-    [currentItem?.payload]
-  );
+  const targetValue = useMemo(() => JSON.stringify(getEffectiveTarget(currentItem), null, 2), [currentItem]);
 
   const onTargetJsonChange = useCallback(
     (v: string) => {
@@ -51,12 +57,7 @@ export default function TargetPanel() {
   );
 
   return (
-    <div
-      className={cn(
-        "flex flex-col border rounded-lg overflow-hidden bg-secondary transition-colors",
-        isApproved && "border-green-500/40 ring-1 ring-green-500/20"
-      )}
-    >
+    <div className={cn("flex flex-col border rounded-lg overflow-hidden bg-secondary transition-colors")}>
       <div className="flex px-3 py-2 border-b items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Target</span>
@@ -91,6 +92,7 @@ export default function TargetPanel() {
                 defaultMode="json"
                 value={targetValue}
                 onChange={onTargetJsonChange}
+                extraExtensions={SUPPRESS_MOD_ENTER}
               />
             </div>
           </TabsContent>
@@ -103,13 +105,6 @@ export default function TargetPanel() {
   );
 }
 
-/**
- * Empty state shown in the Form tab when no annotation schema is defined.
- * The previous behavior disabled the tab entirely, which made the schema
- * dialog feature undiscoverable to anyone who hadn't already noticed the
- * small button in the panel header. Surfacing the CTA here puts the
- * pathway one click away from the place users expect to find it.
- */
 function FormEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center border border-dashed rounded-md">

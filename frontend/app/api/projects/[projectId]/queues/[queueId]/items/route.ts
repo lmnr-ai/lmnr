@@ -1,19 +1,19 @@
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getQueueProgress, listQueueItemIds, listQueueItems } from "@/lib/actions/queue";
+import { listQueueItems, listQueueItemStates } from "@/lib/actions/queue";
 
 /**
  * Two response shapes from one endpoint, distinguished by query params.
  *
  * 1) `?ids=<csv>` — fetcher mode. Returns `{ items }` for the supplied ids
  *    only, in `(created_at, id)` order. Used by the queue UI to lazy-fetch
- *    the 5-item window around `currentIndex`. No progress is included to
- *    avoid an extra FINAL count on every window slide.
+ *    the 5-item window around `currentIndex`.
  *
- * 2) No `ids` — index mode. Returns `{ ids, progress }`: the full ordered
- *    id list plus the labelled/total counts. Used once on mount and on
- *    revalidate-after-mutation. Items themselves are NOT included; the UI
- *    fetches the window via mode (1) once it knows currentIndex.
+ * 2) No `ids` — index mode. Returns `{ items: [{id, state}] }`: one tuple
+ *    per queue row in the master `(created_at, id)` order. Tiny per-row
+ *    payload (id + 'new' | 'modified' | 'approved') keeps the index call
+ *    cheap even for thousands of items. The UI both drives navigation
+ *    from this list AND renders the navigator bar / derives counts from it.
  *
  * Two clients sharing one route. The shape divergence is intentional —
  * keeping the URL stable means SWR cache keys for the index are simple
@@ -36,11 +36,8 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
       return Response.json({ items });
     }
 
-    const [ids, progress] = await Promise.all([
-      listQueueItemIds({ projectId, queueId }),
-      getQueueProgress({ projectId, queueId }),
-    ]);
-    return Response.json({ ids, progress });
+    const items = await listQueueItemStates({ projectId, queueId });
+    return Response.json({ items });
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });

@@ -1,6 +1,8 @@
 "use client";
 
 import { ArrowRight, Database, Loader2, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -18,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { useQueueStore } from "./queue-store";
+import { isApproved as isApprovedItem, useQueueStore } from "./queue-store";
 
 type Scope = "approved" | "all" | "current";
 
@@ -29,17 +31,18 @@ interface PushToDatasetDialogProps {
 
 export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatasetDialogProps) {
   const { toast } = useToast();
+  const { projectId } = useParams<{ projectId: string }>();
   const dataset = useQueueStore((s) => s.dataset);
   const setDataset = useQueueStore((s) => s.setDataset);
   const ioState = useQueueStore((s) => s.ioState);
   const progress = useQueueStore((s) => s.progress);
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const hasCurrent = useQueueStore((s) => !!s.getCurrentItem());
-  const currentIsLabelled = useQueueStore((s) => s.getCurrentItem()?.isLabelled ?? false);
+  const currentIsLabelled = useQueueStore((s) => isApprovedItem(s.getCurrentItem()));
   const pushAllToDataset = useQueueStore((s) => s.pushAllToDataset);
   const pushCurrentToDataset = useQueueStore((s) => s.pushCurrentToDataset);
 
-  const approvedCount = progress.labelled;
+  const approvedCount = progress.approved;
   const totalCount = Math.max(progress.total, itemsLen);
   const unannotatedCount = Math.max(totalCount - approvedCount, 0);
 
@@ -82,9 +85,20 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
       toast({ variant: "destructive", title: "Nothing was pushed — check the selected scope" });
       return;
     }
-    toast({ title: `Pushed ${result.pushed} ${result.pushed === 1 ? "item" : "items"} to dataset` });
+    const noun = result.pushed === 1 ? "item" : "items";
+    toast({
+      title: `Pushed ${result.pushed} ${noun} to dataset`,
+      description: (
+        <span>
+          {result.pushed} {noun} added to the dataset and removed from the queue.{" "}
+          <Link className="text-primary" href={`/project/${projectId}/datasets/${dataset}`}>
+            Go to dataset.
+          </Link>
+        </span>
+      ),
+    });
     onOpenChange(false);
-  }, [dataset, scope, currentIsLabelled, pushAllToDataset, pushCurrentToDataset, toast, onOpenChange]);
+  }, [dataset, scope, currentIsLabelled, pushAllToDataset, pushCurrentToDataset, toast, projectId, onOpenChange]);
 
   const ctaLabel =
     scope === "current"
@@ -138,13 +152,7 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
                 label="Just the current item"
                 count={hasCurrent ? 1 : 0}
                 disabled={!hasCurrent}
-                hint={
-                  !hasCurrent
-                    ? "No item selected"
-                    : !currentIsLabelled
-                      ? "Not yet approved — will push as-is"
-                      : undefined
-                }
+                hint={!hasCurrent ? "No item selected" : !currentIsLabelled ? "Not yet approved" : undefined}
                 hintTone={hasCurrent && !currentIsLabelled ? "warning" : undefined}
               />
             </RadioGroup>
