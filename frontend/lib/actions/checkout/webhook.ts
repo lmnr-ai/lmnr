@@ -141,7 +141,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       invalidateProjectCacheForWorkspace(workspaceId),
     ]);
   } catch (e) {
-    console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
+    console.error(`Failed to sync usage warnings/limits for workspace ${workspaceId}, Error: ${e}`);
   }
 };
 
