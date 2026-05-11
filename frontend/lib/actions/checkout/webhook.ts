@@ -117,30 +117,29 @@ export const manageWorkspaceSubscriptionEvent = async ({
       where: eq(subscriptionTiers.id, newTierId),
     });
     const newTierName = newTier?.name?.toLowerCase()?.trim();
-    const currentTierConfig = ["hobby", "pro"].includes(currentTier ?? "")
-      ? TIER_CONFIG[currentTier as PaidTier]
-      : undefined;
-    if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
-      const newTierName_ = newTierName as PaidTier;
-      const newTierConfig = TIER_CONFIG[newTierName_];
+    const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
+    const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
+    const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
+    // Run limit cleanup on every tier transition so that cancellations (Hobby → Free)
+    // also clear the default Hobby hard cap. Warnings still only make sense on paid tiers.
+    await upsertDefaultTierUsageLimits({
+      workspaceId,
+      newTierName: newPaidTier,
+      newTierConfig: newPaidTier ? TIER_CONFIG[newPaidTier] : undefined,
+      currentTierName: currentPaidTier,
+      currentTierConfig,
+    });
+    if (newPaidTier) {
       await insertNewTierUsageWarnings({
         workspaceId,
-        newTierConfig,
+        newTierConfig: TIER_CONFIG[newPaidTier],
         currentTierConfig,
       });
-      const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
-      await upsertDefaultTierUsageLimits({
-        workspaceId,
-        newTierName: newTierName_,
-        newTierConfig,
-        currentTierName: currentPaidTier,
-        currentTierConfig,
-      });
-      await Promise.all([
-        invalidateUsageWarningsCacheForWorkspace(workspaceId),
-        invalidateProjectCacheForWorkspace(workspaceId),
-      ]);
     }
+    await Promise.all([
+      invalidateUsageWarningsCacheForWorkspace(workspaceId),
+      invalidateProjectCacheForWorkspace(workspaceId),
+    ]);
   } catch (e) {
     console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
   }
@@ -351,7 +350,10 @@ const insertNewTierUsageWarnings = async ({
 };
 
 // Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
-// don't silently accrue overage charges; Pro intentionally has no default cap.
+// don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
+// is undefined when the workspace moves to Free (cancellation), which must still trigger the
+// Hobby cleanup — otherwise a canceled Hobby leaves a 5,000-step row that would silently re-apply
+// on a future paid-tier upgrade.
 const upsertDefaultTierUsageLimits = async ({
   workspaceId,
   newTierName,
@@ -360,8 +362,8 @@ const upsertDefaultTierUsageLimits = async ({
   currentTierConfig,
 }: {
   workspaceId: string;
-  newTierName: PaidTier;
-  newTierConfig: TierConfigEntry;
+  newTierName?: PaidTier;
+  newTierConfig?: TierConfigEntry;
   currentTierName?: PaidTier;
   currentTierConfig?: TierConfigEntry;
 }) => {
@@ -378,7 +380,7 @@ const upsertDefaultTierUsageLimits = async ({
       );
   }
 
-  if (newTierName === "hobby") {
+  if (newTierName === "hobby" && newTierConfig) {
     await db
       .insert(workspaceUsageLimits)
       .values({
