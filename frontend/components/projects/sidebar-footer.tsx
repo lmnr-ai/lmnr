@@ -19,7 +19,11 @@ import {
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
-const SidebarFooterComponent = () => {
+interface SidebarFooterProps {
+  versionBadge?: React.ReactNode;
+}
+
+const SidebarFooterComponent = ({ versionBadge }: SidebarFooterProps) => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
@@ -81,6 +85,7 @@ const SidebarFooterComponent = () => {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+      {versionBadge && (open || openMobile) && <div className="px-4 pb-1">{versionBadge}</div>}
     </SidebarFooter>
   );
 };

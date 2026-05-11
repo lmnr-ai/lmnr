@@ -62,6 +62,15 @@ To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hos
 GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
 ```
 
+### Telemetry
+
+Self-hosted Laminar has two independent telemetry flags:
+
+- `POSTHOG_TELEMETRY` — product analytics for the web app (page views, feature-level events). Opt-in.
+- `SELF_HOSTED_TELEMETRY` — anonymous install-level reporting (version, Node/OS info, a random instance UUID). Defaults on; set `SELF_HOSTED_TELEMETRY=false` to opt out.
+
+Neither flag affects the other. See the [Telemetry](https://laminar.sh/docs/self-hosting/telemetry) doc for the full payload and what is / isn't collected.
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
