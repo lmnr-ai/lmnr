@@ -12,6 +12,7 @@ import {
   workspaceAddons,
   workspaces,
   workspaceUsage,
+  workspaceUsageLimits,
   workspaceUsageWarnings,
 } from "@/lib/db/migrations/schema";
 
@@ -113,17 +114,23 @@ export const manageWorkspaceSubscriptionEvent = async ({
       where: eq(subscriptionTiers.id, newTierId),
     });
     const newTierName = newTier?.name?.toLowerCase()?.trim();
-    const currentTierConfig = ["hobby", "pro"].includes(currentTier ?? "")
-      ? TIER_CONFIG[currentTier as PaidTier]
-      : undefined;
+    const currentTierIsPaid = ["hobby", "pro"].includes(currentTier ?? "");
+    const currentTierConfig = currentTierIsPaid ? TIER_CONFIG[currentTier as PaidTier] : undefined;
     if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
       const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
       await insertNewTierUsageWarnings({
         workspaceId,
+        newTierName: newTierName as PaidTier,
         newTierConfig,
+        currentTierName: currentTierIsPaid ? (currentTier as PaidTier) : undefined,
         currentTierConfig,
       });
       await invalidateUsageWarningsCacheForWorkspace(workspaceId);
+      // The default hard limit inserted above feeds into PROJECT_CACHE_KEY as
+      // customSignalStepsLimit. The earlier updateUsageCacheForWorkspace cleared
+      // that cache before the write, so re-invalidate here so the next read
+      // repopulates with the hard limit.
+      await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
     }
   } catch (e) {
     console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
@@ -290,11 +297,15 @@ export const handleInvoiceFinalized = async (
 
 const insertNewTierUsageWarnings = async ({
   workspaceId,
+  newTierName,
   newTierConfig,
+  currentTierName,
   currentTierConfig,
 }: {
   workspaceId: string;
+  newTierName: PaidTier;
   newTierConfig: TierConfigEntry;
+  currentTierName?: PaidTier;
   currentTierConfig?: TierConfigEntry;
 }) => {
   if (currentTierConfig) {
@@ -332,4 +343,29 @@ const insertNewTierUsageWarnings = async ({
       },
     ])
     .onConflictDoNothing();
+
+  // Hobby tier gets a default hard cap on signal steps processed so users don't
+  // accrue overage charges without realizing it. Pro tier has no default hard
+  // limit — admins opt in via the custom limits UI.
+  if (currentTierName === "hobby" && newTierName !== "hobby") {
+    await db
+      .delete(workspaceUsageLimits)
+      .where(
+        and(
+          eq(workspaceUsageLimits.workspaceId, workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
+          eq(workspaceUsageLimits.limitValue, currentTierConfig?.includedSignalSteps ?? 0)
+        )
+      );
+  }
+  if (newTierName === "hobby") {
+    await db
+      .insert(workspaceUsageLimits)
+      .values({
+        workspaceId,
+        limitType: "signal_steps_processed",
+        limitValue: newTierConfig.includedSignalSteps,
+      })
+      .onConflictDoNothing();
+  }
 };

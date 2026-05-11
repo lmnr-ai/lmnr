@@ -140,6 +140,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - The `types` query parameter on `conversations.list` must include both `public_channel,private_channel` — dropping `private_channel` silently breaks existing alert targets that point at private channels (they disappear from the picker and can't be re-selected).
 - Slack section block `text` fields are hard-capped at 3000 chars — Slack rejects the whole `chat.postMessage` call if any block exceeds this. When building alert payloads in `app-server/src/notifications/slack.rs`, feed any user-sourced text (extracted event info, report summaries) through `truncate_to_slack_section_limit` rather than dropping overflowing entries. Count chars, not bytes, and slice on `chars()` to stay on char boundaries (multi-byte payloads will panic on byte-indexed slicing).
 
+## Tier-switch Defaults (billing)
+
+- `insertNewTierUsageWarnings` in `frontend/lib/actions/checkout/webhook.ts` is the single entry point for tier-switch-triggered defaults: it manages soft warnings in `workspace_usage_warnings` and the Hobby-tier hard cap on `signal_steps_processed` in `workspace_usage_limits`. Tier-default rows are keyed by their value (matching `TIER_CONFIG[currentTier].includedSignalSteps`) so a user's custom limit is not clobbered on tier switch — only rows that equal the previous tier's default are deleted on transition out of Hobby.
+- Cache-invalidation ordering: `manageWorkspaceSubscriptionEvent` calls `updateUsageCacheForWorkspace` (which clears `PROJECT_CACHE_KEY`) BEFORE inserting warnings/limits, so any default hard limit inserted afterwards is not yet visible to the app-server until `deleteAllProjectsWorkspaceInfoFromCache(workspaceId)` is called a second time after `insertNewTierUsageWarnings`. Preserve that second invalidation when touching this flow.
+- Hobby-tier product rule: Hobby workspaces must stop at `includedSignalSteps` (5,000) by default so users don't accrue overage charges silently. Pro tier has no default hard limit — admins opt in via the custom limits UI.
+
 ## Signal Triggers
 
 - Signal trigger filters are evaluated in `app-server/src/db/trace.rs` (`matches_filters` / `evaluate_single_filter`). Spans arrive in batches, so filter evaluation must check accumulated state from the DB (e.g. `trace.span_names`) — not just the current batch's raw spans. The `traces.span_names` JSONB column aggregates span names across all batches via `||` merge on upsert.
