@@ -8,8 +8,14 @@ import { POSTHOG_HOST, POSTHOG_KEY } from "@/lib/posthog/constants";
 
 type SelfHostedEvent = "launched" | "heartbeat";
 
-const LAUNCH_COOLDOWN = "1 hour";
-const HEARTBEAT_COOLDOWN = "23 hours";
+const EVENT_COLUMN: Record<SelfHostedEvent, "launched_at" | "heartbeat_at"> = {
+  launched: "launched_at",
+  heartbeat: "heartbeat_at",
+};
+const EVENT_COOLDOWN: Record<SelfHostedEvent, string> = {
+  launched: "1 hour",
+  heartbeat: "23 hours",
+};
 const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000;
 
 let cachedInstanceId: string | null | undefined = undefined;
@@ -29,26 +35,32 @@ const getPostHogClient = (): PostHog => {
 };
 
 export const getInstanceId = async (): Promise<string | null> => {
-  if (cachedInstanceId !== undefined) return cachedInstanceId;
+  // Only cache positive lookups. A transient DB error at startup must not
+  // permanently disable telemetry for the process lifetime — subsequent
+  // heartbeats re-query and recover once the DB is reachable again.
+  if (cachedInstanceId) return cachedInstanceId;
 
   try {
     const rows = (await db.execute(sql`SELECT id FROM self_hosted_instance LIMIT 1`)) as { id: string }[];
-    cachedInstanceId = rows[0]?.id ?? null;
+    const id = rows[0]?.id ?? null;
+    if (id) cachedInstanceId = id;
+    return id;
   } catch {
-    cachedInstanceId = null;
+    return null;
   }
-
-  return cachedInstanceId;
 };
 
 export const tryClaimEvent = async (event: SelfHostedEvent): Promise<boolean> => {
   try {
-    const cooldown = event === "launched" ? LAUNCH_COOLDOWN : HEARTBEAT_COOLDOWN;
+    // Each event type claims on its own column so a recent heartbeat doesn't
+    // suppress the next launch event (or vice versa) via a shared cooldown.
+    const column = EVENT_COLUMN[event];
+    const cooldown = EVENT_COOLDOWN[event];
     const rows = (await db.execute(sql`
       UPDATE self_hosted_instance
-      SET last_event_at = NOW()
-      WHERE last_event_at IS NULL
-         OR last_event_at < NOW() - (${cooldown})::interval
+      SET ${sql.raw(column)} = NOW()
+      WHERE ${sql.raw(column)} IS NULL
+         OR ${sql.raw(column)} < NOW() - (${cooldown})::interval
       RETURNING id
     `)) as { id: string }[];
     return rows.length > 0;
@@ -77,6 +89,13 @@ const captureEvent = async (event: SelfHostedEvent): Promise<void> => {
         deployment_type: "self_hosted",
       },
     });
+
+    // Fire-and-forget flush so a crashlooping container delivers the event
+    // before exit. Don't await — flush can hang if PostHog is unreachable
+    // and startup must never block on telemetry.
+    if (event === "launched") {
+      void client.flush().catch(() => {});
+    }
   } catch {
     // telemetry must never fail startup
   }
