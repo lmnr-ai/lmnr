@@ -160,8 +160,10 @@ pub enum NotificationKind {
         /// copy about the included allowance being consumed.
         #[serde(default)]
         at_tier_included_allowance: bool,
-        /// Tier display name ("Free", "Hobby", "Pro", "your"). Empty when the
-        /// tier is unknown or uninterpreted — the email falls back to generic copy.
+        /// Tier display name ("Free", "Hobby", "Pro", or "your" for unknown tiers).
+        /// Defaults to empty string only when the field is absent in a legacy queued
+        /// message (backward-compat via `#[serde(default)]`); the email template's
+        /// `is_empty()` guard handles that case.
         #[serde(default)]
         tier_display_name: String,
         /// True when exceeding the included allowance for this item results in
