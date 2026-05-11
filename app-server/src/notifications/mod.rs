@@ -154,6 +154,22 @@ pub enum NotificationKind {
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        /// True when `limit_value` equals the tier's included allowance for this
+        /// usage item (e.g. 3 GiB bytes on Hobby). Used by the email template to
+        /// switch between a generic threshold-reached message and tier-specific
+        /// copy about the included allowance being consumed.
+        #[serde(default)]
+        at_tier_included_allowance: bool,
+        /// Tier display name ("Free", "Hobby", "Pro", "your"). Empty when the
+        /// tier is unknown or uninterpreted — the email falls back to generic copy.
+        #[serde(default)]
+        tier_display_name: String,
+        /// True when exceeding the included allowance for this item results in
+        /// metered overage billing (Hobby / Pro, but not Free / Other). When
+        /// true and `at_tier_included_allowance` is also true, the email tells
+        /// the customer they will now be billed pay-as-you-go.
+        #[serde(default)]
+        overage_billable: bool,
     },
 }
 

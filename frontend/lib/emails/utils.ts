@@ -23,11 +23,16 @@ export async function sendWelcomeEmail(email: string) {
   if (error) console.log(error);
 }
 
+const subjectItemLabel = (item: ItemDescription): string => {
+  const label = (item.shortDescription?.trim() || item.productDescription?.trim()) ?? "";
+  return label || "your subscription";
+};
+
 export async function sendOnPaymentReceivedEmail(email: string, itemDescriptions: ItemDescription[], date: string) {
   const from = "Laminar team <founders@lmnr.ai>";
   const subject =
     itemDescriptions.length === 1
-      ? `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} is received.`
+      ? `Laminar: Payment for ${subjectItemLabel(itemDescriptions[0])} is received.`
       : "Laminar: Payment received.";
   const component = SubscriptionUpdatedEmail({
     itemDescriptions,
@@ -49,7 +54,7 @@ export async function sendOnPaymentFailedEmail(email: string, itemDescriptions: 
   const from = "Laminar team <founders@lmnr.ai>";
   const subject =
     itemDescriptions.length === 1
-      ? `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} failed.`
+      ? `Laminar: Payment for ${subjectItemLabel(itemDescriptions[0])} failed.`
       : "Laminar: Payment failed.";
   const component = PaymentFailedEmail({
     itemDescriptions,

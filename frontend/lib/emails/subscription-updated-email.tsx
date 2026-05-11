@@ -2,6 +2,8 @@ import { Html, Link, Preview, Text } from "@react-email/components";
 
 import { type ItemDescription } from "@/lib/actions/checkout/types";
 
+import { formatItemAmount, formatItemQuantity, itemTotalLine } from "./line-item-format";
+
 interface SubscriptionUpdatedEmailProps {
   itemDescriptions: ItemDescription[];
   date: string;
@@ -17,6 +19,7 @@ const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
 };
 
 export default function SubscriptionUpdatedEmail({ itemDescriptions, date, billedTo }: SubscriptionUpdatedEmailProps) {
+  const total = itemTotalLine(itemDescriptions);
   return (
     <Html lang="en">
       <Preview>{renderPreviewString(itemDescriptions)}</Preview>
@@ -24,11 +27,23 @@ export default function SubscriptionUpdatedEmail({ itemDescriptions, date, bille
         <Text style={heading}>Payment details</Text>
         <Text style={text}>The payment has been received.</Text>
         <Text style={label}>Products</Text>
-        {itemDescriptions.map(({ productDescription }, index) => (
-          <Text style={value} key={index}>
-            {productDescription}
-          </Text>
-        ))}
+        {itemDescriptions.map((item, index) => {
+          const qty = formatItemQuantity(item);
+          const amount = formatItemAmount(item);
+          return (
+            <Text style={value} key={index}>
+              {item.productDescription}
+              {qty ? ` ${qty}` : ""}
+              {amount ? ` — ${amount}` : ""}
+            </Text>
+          );
+        })}
+        {total && (
+          <>
+            <Text style={label}>Total</Text>
+            <Text style={value}>{total}</Text>
+          </>
+        )}
         <Text style={label}>Date</Text>
         <Text style={value}>{date}</Text>
         <Text style={label}>Billed to</Text>

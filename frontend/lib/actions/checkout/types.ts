@@ -101,6 +101,10 @@ export interface ItemDescription {
   productDescription: string;
   shortDescription?: string;
   quantity?: number;
+  /** Line total in the smallest currency unit (e.g. cents for USD). */
+  amount?: number;
+  /** Lowercase ISO currency code (e.g. "usd"). */
+  currency?: string;
 }
 
 export interface SubscriptionDetails {

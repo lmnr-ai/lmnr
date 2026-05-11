@@ -16,7 +16,15 @@ function getLookupKey(line: Stripe.InvoiceLineItem): string | null {
   // even though the v20 types omit it.
   const legacyPrice = (line as unknown as Record<string, unknown>)["price"];
   if (typeof legacyPrice === "object" && legacyPrice && "lookup_key" in legacyPrice) {
-    return (legacyPrice as { lookup_key: string | null }).lookup_key;
+    const key = (legacyPrice as { lookup_key: string | null }).lookup_key;
+    if (key) return key;
+  }
+  // Modern invoice shape exposes the price via `pricing.price_details.price`,
+  // which is either an id string or an expanded Price object when the webhook
+  // was configured with `expand`.
+  const priceDetails = line.pricing?.price_details?.price;
+  if (typeof priceDetails === "object" && priceDetails && "lookup_key" in priceDetails) {
+    return (priceDetails as { lookup_key: string | null }).lookup_key ?? null;
   }
   return null;
 }
@@ -26,9 +34,16 @@ function buildItemDescriptions(lines: Stripe.InvoiceLineItem[]): ItemDescription
     .filter((line) => line.amount > 0)
     .map((line) => {
       const lookupKey = getLookupKey(line);
-      const productDescription = (lookupKey && LOOKUP_KEY_DISPLAY_NAMES[lookupKey]) ?? line.description ?? "";
+      const productDescription =
+        (lookupKey && LOOKUP_KEY_DISPLAY_NAMES[lookupKey]) || line.description || "Subscription charge";
       const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
-      return { productDescription, quantity: line.quantity ?? undefined, shortDescription };
+      return {
+        productDescription,
+        quantity: line.quantity ?? undefined,
+        shortDescription,
+        amount: line.amount,
+        currency: line.currency,
+      };
     });
 }
 
