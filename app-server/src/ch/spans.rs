@@ -109,6 +109,11 @@ pub struct CHSpan {
     /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
     #[serde(default)]
     pub events: Vec<(i64, String, String)>,
+    /// BLAKE3-256 hashes of the ordered input messages. Empty for non-LLM spans and
+    /// when the input doesn't parse as a JSON array. When non-empty, `input` is left
+    /// empty and the `spans_v0` view reconstructs the array from `llm_messages`.
+    #[serde(default)]
+    pub input_message_hashes: Vec<[u8; 32]>,
 }
 
 impl CHSpan {
@@ -184,6 +189,7 @@ impl CHSpan {
                     )
                 })
                 .collect(),
+            input_message_hashes: Vec::new(),
         }
     }
 }

@@ -11,6 +11,7 @@ use crate::{
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
+        llm_messages::CHLlmMessage,
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
     },
@@ -28,6 +29,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
+        llm_message_dedup::{filter_unseen, hash_span_input, release_seen_markers},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -112,12 +114,74 @@ pub async fn process_span_messages(
     };
 
     // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
-        .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
-        .collect();
+    let mut ch_spans: Vec<CHSpan> = Vec::with_capacity(spans.len());
+    // Hashed input messages collected across all LLM spans in this batch.
+    // Ordered so we can release Redis markers on later insert failure.
+    let mut collected_messages: Vec<CHLlmMessage> = Vec::new();
+
+    for (span, usage) in spans.iter().zip(span_usage_vec.iter()) {
+        if !span.should_record_to_clickhouse() {
+            continue;
+        }
+        let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+
+        // Dedup LLM span inputs: hash each message, clear the inline `input`
+        // string, and reference the messages via `input_message_hashes`. The
+        // `spans_v0` view reconstructs `input` at read time.
+        if let Some((hashed, order)) = hash_span_input(span) {
+            for hm in hashed {
+                collected_messages.push(CHLlmMessage {
+                    project_id: hm.project_id,
+                    trace_id: hm.trace_id,
+                    message_hash: hm.hash,
+                    content: hm.content,
+                });
+            }
+            ch_span.input_message_hashes = order;
+            ch_span.input = String::new();
+        }
+        ch_spans.push(ch_span);
+    }
+
+    // Insert deduplicated messages BEFORE spans so the view can always
+    // resolve hashes it finds on a span row.
+    if !collected_messages.is_empty() {
+        let hashed_for_filter = collected_messages
+            .iter()
+            .map(|m| crate::traces::llm_message_dedup::HashedMessage {
+                project_id: m.project_id,
+                trace_id: m.trace_id,
+                hash: m.message_hash,
+                content: m.content.clone(),
+            })
+            .collect::<Vec<_>>();
+        let unseen = filter_unseen(hashed_for_filter, cache.clone()).await;
+        let to_insert: Vec<CHLlmMessage> = unseen
+            .into_iter()
+            .map(|m| CHLlmMessage {
+                project_id: m.project_id,
+                trace_id: m.trace_id,
+                message_hash: m.hash,
+                content: m.content,
+            })
+            .collect();
+
+        if !to_insert.is_empty() {
+            if let Err(e) = ch.insert_batch(&to_insert, config).await {
+                log::error!(
+                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                    to_insert.len(),
+                    e
+                );
+                // Release the SETNX markers so the next retry re-inserts.
+                release_seen_markers(&to_insert, cache.clone()).await;
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    e
+                )));
+            }
+        }
+    }
 
     // Record spans to clickhouse
     if let Err(e) = ch.insert_batch(&ch_spans, config).await {
