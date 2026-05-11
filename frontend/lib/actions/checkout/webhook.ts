@@ -2,7 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { invalidateUsageWarningsCacheForWorkspace } from "@/lib/actions/usage/utils";
+import {
+  invalidateProjectCacheForWorkspace,
+  invalidateUsageWarningsCacheForWorkspace,
+} from "@/lib/actions/usage/utils";
 import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
@@ -12,6 +15,7 @@ import {
   workspaceAddons,
   workspaces,
   workspaceUsage,
+  workspaceUsageLimits,
   workspaceUsageWarnings,
 } from "@/lib/db/migrations/schema";
 
@@ -117,13 +121,25 @@ export const manageWorkspaceSubscriptionEvent = async ({
       ? TIER_CONFIG[currentTier as PaidTier]
       : undefined;
     if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
-      const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
+      const newTierName_ = newTierName as PaidTier;
+      const newTierConfig = TIER_CONFIG[newTierName_];
       await insertNewTierUsageWarnings({
         workspaceId,
         newTierConfig,
         currentTierConfig,
       });
-      await invalidateUsageWarningsCacheForWorkspace(workspaceId);
+      const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
+      await upsertDefaultTierUsageLimits({
+        workspaceId,
+        newTierName: newTierName_,
+        newTierConfig,
+        currentTierName: currentPaidTier,
+        currentTierConfig,
+      });
+      await Promise.all([
+        invalidateUsageWarningsCacheForWorkspace(workspaceId),
+        invalidateProjectCacheForWorkspace(workspaceId),
+      ]);
     }
   } catch (e) {
     console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
@@ -332,4 +348,44 @@ const insertNewTierUsageWarnings = async ({
       },
     ])
     .onConflictDoNothing();
+};
+
+// Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
+// don't silently accrue overage charges; Pro intentionally has no default cap.
+const upsertDefaultTierUsageLimits = async ({
+  workspaceId,
+  newTierName,
+  newTierConfig,
+  currentTierName,
+  currentTierConfig,
+}: {
+  workspaceId: string;
+  newTierName: PaidTier;
+  newTierConfig: TierConfigEntry;
+  currentTierName?: PaidTier;
+  currentTierConfig?: TierConfigEntry;
+}) => {
+  // Preserve user overrides: only clear the default when it still matches the Hobby default.
+  if (currentTierName === "hobby" && newTierName !== "hobby" && currentTierConfig) {
+    await db
+      .delete(workspaceUsageLimits)
+      .where(
+        and(
+          eq(workspaceUsageLimits.workspaceId, workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
+          eq(workspaceUsageLimits.limitValue, currentTierConfig.includedSignalSteps)
+        )
+      );
+  }
+
+  if (newTierName === "hobby") {
+    await db
+      .insert(workspaceUsageLimits)
+      .values({
+        workspaceId,
+        limitType: "signal_steps_processed",
+        limitValue: newTierConfig.includedSignalSteps,
+      })
+      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] });
+  }
 };

@@ -127,6 +127,15 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - **pydantic_ai tool-span quirk**: pydantic_ai emits `execute_tool <name>` spans WITHOUT `gen_ai.operation.name`; only `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` are set. `span_type()` has a fallback that classifies a span as Tool when either of those attributes is present. Do not remove this fallback when adding other GenAI emitters.
 - The `gen_ai.tool.call.*` → `self.input`/`self.output` block in `parse_and_enrich_attributes` is gated on `self.span_type == SpanType::Tool` (not just the raw attribute keys) so it cannot clobber LLM-span input/output if a spec-violating emitter mixes LLM message attrs with tool-call attrs on the same span. The gate still works for pydantic_ai because `span_type()` already infers Tool from the `gen_ai.tool.call.*` fallback before this runs.
 
+## Workspace Usage Warnings vs Hard Limits
+
+- Usage enforcement lives in two separate tables, both edited via Stripe webhook when a subscription is created or a tier is switched (`frontend/lib/actions/checkout/webhook.ts`):
+  - `workspace_usage_warnings` — soft limits that fire a notification once per billing cycle. Checked in `check_soft_limits` in `app-server/src/utils/limits.rs`.
+  - `workspace_usage_limits` — hard caps read by `get_project_and_workspace_billing_info` as `custom_bytes_limit` / `custom_signal_steps_limit` and enforced in `get_effective_*_limit` (app-server) and `checkSignalRunsLimit` (frontend).
+- On tier transition into **Hobby**, we insert BOTH a warning row AND a hard-limit row for `signal_steps_processed` at the Hobby default (5,000). This is deliberate — Hobby is priced to be cheaper than Pro, so we cap signal-step usage by default so users don't silently accrue overage. Pro and Free do NOT get a default hard limit.
+- On tier transition OUT of Hobby, the default Hobby hard limit is deleted **only if it still equals the Hobby default** (`currentTierConfig.includedSignalSteps`). A user-set custom value is preserved across upgrades/downgrades. Same pattern is applied to warnings.
+- After inserting or deleting a `workspace_usage_limits` row, you MUST invalidate the per-project cache via `invalidateProjectCacheForWorkspace(workspaceId)` — the app-server caches `ProjectWithWorkspaceBillingInfo` keyed by project id and will otherwise keep enforcing stale limits until TTL.
+
 ## Signals and Alerts
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
