@@ -14,8 +14,7 @@ const COOLDOWNS: Record<TelemetryEvent, string> = {
 
 const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000;
 
-let cachedInstanceId: string | null = null;
-let instanceIdFetched = false;
+let instanceIdPromise: Promise<string | null> | null = null;
 let posthogClient: PostHog | null = null;
 
 export function isTelemetryEnabled(): boolean {
@@ -25,17 +24,19 @@ export function isTelemetryEnabled(): boolean {
 }
 
 export async function getInstanceId(): Promise<string | null> {
-  if (instanceIdFetched) return cachedInstanceId;
-  try {
-    const rows = (await db.execute(sql`SELECT id FROM self_hosted_instance LIMIT 1`)) as unknown as Array<{
-      id: string;
-    }>;
-    cachedInstanceId = rows[0]?.id ?? null;
-  } catch {
-    cachedInstanceId = null;
+  if (!instanceIdPromise) {
+    instanceIdPromise = (async () => {
+      try {
+        const rows = (await db.execute(sql`SELECT id FROM self_hosted_instance LIMIT 1`)) as unknown as Array<{
+          id: string;
+        }>;
+        return rows[0]?.id ?? null;
+      } catch {
+        return null;
+      }
+    })();
   }
-  instanceIdFetched = true;
-  return cachedInstanceId;
+  return instanceIdPromise;
 }
 
 export async function tryClaimEvent(event: TelemetryEvent): Promise<boolean> {
