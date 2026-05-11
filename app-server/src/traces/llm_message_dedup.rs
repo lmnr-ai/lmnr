@@ -228,7 +228,8 @@ pub async fn filter_unseen(
     }
 
     let start = Instant::now();
-    let mut unseen = Vec::with_capacity(messages.len());
+    let total = messages.len();
+    let mut unseen = Vec::with_capacity(total);
     let mut iter = messages.into_iter();
     while let Some(msg) = iter.next() {
         let key = dedup_key(msg.project_id, msg.trace_id, &msg.hash);
@@ -247,7 +248,8 @@ pub async fn filter_unseen(
         }
     }
     log::trace!(
-        "llm_messages dedup checked {} messages in {:?}",
+        "llm_messages dedup checked {} messages, {} unseen, in {:?}",
+        total,
         unseen.len(),
         start.elapsed()
     );
