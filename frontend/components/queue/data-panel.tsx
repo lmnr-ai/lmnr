@@ -97,7 +97,7 @@ export default function DataPanel() {
 
   return (
     <div className="flex flex-col h-full border rounded-lg overflow-hidden">
-      <div className="flex min-h-[45px] px-3 py-2 border-b bg-secondary items-center justify-between gap-2">
+      <div className="flex min-h-[39px] p-2 border-b bg-secondary items-center justify-between gap-2">
         <span className="text-sm font-medium">Data</span>
         {sourceMeta && <SourceBadge meta={sourceMeta} />}
       </div>

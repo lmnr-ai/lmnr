@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
@@ -15,29 +16,45 @@ import { useQueueStore } from "./queue-store";
 import TargetPanel from "./target-panel";
 import Toolbar from "./toolbar";
 
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 /**
  * Top-level layout for a single labeling queue. Pure consumer of the store —
  * data fetching is orchestrated by `QueueDataLoader` and side effects live on
  * store actions, so this file is just composition.
  */
 export default function QueueContent() {
-  const { projectId } = useParams<{ projectId: string }>();
   const queue = useQueueStore((s) => s.queue);
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
 
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: `queue-layout-${queue.id}`,
-    storage: typeof window === "undefined" ? undefined : localStorage,
-  });
+  // `useDefaultLayout` from react-resizable-panels reads `localStorage` eagerly
+  // inside the hook body, so it crashes during SSR even when we pass `storage:
+  // undefined`. `useSyncExternalStore` with split server/client snapshots is the
+  // canonical way to render different content on the server vs client without
+  // a setState-in-effect cascade.
+  const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  if (!isInitialLoaded) {
+  if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
   }
 
   if (itemsLen === 0) {
     return <EmptyState />;
   }
+
+  return <QueueContentInner />;
+}
+
+function QueueContentInner() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const queue = useQueueStore((s) => s.queue);
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: `queue-layout-${queue.id}`,
+  });
 
   return (
     <>
@@ -58,7 +75,7 @@ export default function QueueContent() {
           <ResizablePanel defaultSize={50} minSize="30%">
             <DataPanel />
           </ResizablePanel>
-          <ResizableHandle withHandle className="z-30 bg-transparent ml-[14px]" />
+          <ResizableHandle withHandle className="z-30 bg-transparent ml-3.5" />
           <ResizablePanel defaultSize={50} minSize="30%">
             <TargetPanel />
           </ResizablePanel>

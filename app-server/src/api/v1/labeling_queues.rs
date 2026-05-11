@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::labeling_queue_items::{
-        CHLabelingQueueItem, idempotency_key_exists, insert_labeling_queue_items,
+        CHLabelingQueueItem, existing_idempotency_keys, insert_labeling_queue_items,
     },
     db::{self, DB, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
@@ -65,24 +65,32 @@ pub async fn create_labeling_queues_items(
 
     let now_dt = chrono::Utc::now();
     let now_ms = now_dt.timestamp_millis() as u64;
+
+    let keys_to_check: Vec<String> = request
+        .items
+        .iter()
+        .filter_map(|item| item.idempotency_key.as_ref())
+        .filter(|key| !key.is_empty())
+        .cloned()
+        .collect();
+
+    let already_present =
+        existing_idempotency_keys(clickhouse.clone(), project_id, queue_id, &keys_to_check).await?;
+
     let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
     let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
-    // Drop keys that repeat inside this batch — the FINAL pre-check below
-    // only sees rows already committed to CH.
     let mut seen_keys: HashSet<String> = HashSet::new();
 
     for item in request.items {
         let idempotency_key = item.idempotency_key.unwrap_or_default();
 
-        if !idempotency_key.is_empty() && !seen_keys.insert(idempotency_key.clone()) {
-            continue;
-        }
-
-        if !idempotency_key.is_empty()
-            && idempotency_key_exists(clickhouse.clone(), project_id, queue_id, &idempotency_key)
-                .await?
-        {
-            continue;
+        if !idempotency_key.is_empty() {
+            if already_present.contains(&idempotency_key) {
+                continue;
+            }
+            if !seen_keys.insert(idempotency_key.clone()) {
+                continue;
+            }
         }
 
         let payload = serde_json::json!({

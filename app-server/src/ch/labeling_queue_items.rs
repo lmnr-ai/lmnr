@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
@@ -20,30 +22,30 @@ pub struct CHLabelingQueueItem {
     pub updated_at: u64,
 }
 
-/// Check whether an item with the given idempotency_key already exists in the queue.
-/// Uses FINAL to collapse replacing-merge-tree duplicates.
-pub async fn idempotency_key_exists(
+pub async fn existing_idempotency_keys(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     queue_id: Uuid,
-    idempotency_key: &str,
-) -> Result<bool> {
-    if idempotency_key.is_empty() {
-        return Ok(false);
+    keys: &[String],
+) -> Result<HashSet<String>> {
+    if keys.is_empty() {
+        return Ok(HashSet::new());
     }
 
-    let count = clickhouse
+    let rows = clickhouse
         .query(
-            "SELECT count(*) FROM labeling_queue_items FINAL \
-             WHERE project_id = ? AND queue_id = ? AND idempotency_key = ?",
+            "SELECT DISTINCT idempotency_key FROM labeling_queue_items FINAL \
+             WHERE project_id = { project_id: UUID } \
+               AND queue_id   = { queue_id: UUID } \
+               AND idempotency_key IN { keys: Array(String) }",
         )
-        .bind(project_id)
-        .bind(queue_id)
-        .bind(idempotency_key)
-        .fetch_one::<u64>()
+        .param("project_id", project_id)
+        .param("queue_id", queue_id)
+        .param("keys", keys.to_vec())
+        .fetch_all::<String>()
         .await?;
 
-    Ok(count > 0)
+    Ok(rows.into_iter().collect())
 }
 
 /// Insert labeling queue items into ClickHouse. The caller is responsible for

@@ -5,15 +5,16 @@ import { keymap } from "@codemirror/view";
 import { Braces, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
+import SchemaDefinitionDialog from "@/components/queue/target-panel/schema-definition-dialog.tsx";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 import { getEffectiveTarget, useQueueStore } from "../queue-store";
 import AnnotationInterface from "./annotation-interface";
 import ApprovalStatus from "./approval-status";
-import SchemaDefinitionDialog from "./schema-definition-dialog";
 
 const SUPPRESS_MOD_ENTER = [Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => true, preventDefault: true }]))];
 
@@ -51,12 +52,11 @@ export default function TargetPanel() {
 
   return (
     <div className={cn("flex flex-col h-full border rounded-lg overflow-hidden bg-secondary transition-colors")}>
-      <div className="flex px-3 py-2 border-b items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex p-2 border-b items-center justify-between">
+        <div className="flex items-center gap-2 truncate">
           <span className="text-sm font-medium">Target</span>
           <ApprovalStatus />
         </div>
-        <SchemaDefinitionDialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden relative">
         {showOverlay && (
@@ -64,12 +64,15 @@ export default function TargetPanel() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         )}
-        <Tabs defaultValue={hasSchema ? "form" : "data"} className="flex flex-1 flex-col gap-0 p-3 min-h-0">
-          <TabsList className="self-start">
-            <TabsTrigger value="data">Data</TabsTrigger>
-            <TabsTrigger value="form">Form</TabsTrigger>
-          </TabsList>
-          <TabsContent value="data" className="flex flex-1 flex-col overflow-hidden pt-3 min-h-0">
+        <Tabs defaultValue={hasSchema ? "form" : "data"} className="flex flex-1 flex-col gap-0 min-h-0">
+          <div className="flex items-center justify-between px-2 pt-2">
+            <TabsList className="self-start">
+              <TabsTrigger value="data">Data</TabsTrigger>
+              <TabsTrigger value="form">Form</TabsTrigger>
+            </TabsList>
+            <SchemaDefinitionDialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen} />
+          </div>
+          <TabsContent value="data" className="flex flex-1 flex-col overflow-hidden min-h-0 p-2">
             <span className="text-xs text-secondary-foreground mb-2">
               JSON written to the target key of the payload.
             </span>
@@ -85,8 +88,14 @@ export default function TargetPanel() {
               />
             </div>
           </TabsContent>
-          <TabsContent value="form" className="flex flex-1 flex-col overflow-auto pt-3 min-h-0">
-            {hasSchema ? <AnnotationInterface /> : <FormEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />}
+          <TabsContent value="form" className="flex flex-1 flex-col min-h-0">
+            <ScrollArea className="p-2">
+              {hasSchema ? (
+                <AnnotationInterface />
+              ) : (
+                <FormEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />
+              )}
+            </ScrollArea>
           </TabsContent>
         </Tabs>
       </div>
