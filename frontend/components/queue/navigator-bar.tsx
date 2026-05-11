@@ -169,7 +169,7 @@ export default function NavigatorBar() {
           {progress.modified}
         </span>
         <span className="inline-flex items-center gap-1">
-          <Check className="size-3 text-green-500" />
+          <Check className="size-3 text-success-bright" />
           {progress.approved}
         </span>
       </div>

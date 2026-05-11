@@ -52,7 +52,7 @@ export default function TargetPanel() {
 
   return (
     <div className={cn("flex flex-col h-full border rounded-lg overflow-hidden bg-secondary transition-colors")}>
-      <div className="flex p-2 border-b items-center justify-between">
+      <div className="flex min-h-[39px] p-2 border-b items-center justify-between">
         <div className="flex items-center gap-2 truncate">
           <span className="text-sm font-medium">Target</span>
           <ApprovalStatus />
