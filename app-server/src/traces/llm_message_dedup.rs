@@ -85,17 +85,24 @@ fn message_blake3(canonical: &[u8]) -> [u8; 32] {
     *digest.as_bytes()
 }
 
-/// Redis key for "we've already written this message hash for this project".
-/// 50-byte binary key: `m:` prefix + project_id bytes + hash bytes.
-fn seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
+/// Redis key for "we've already written this message hash for this trace".
+/// 66-byte binary key: `m:` prefix + project_id bytes + trace_id bytes + hash
+/// bytes. Must include `trace_id` because the `llm_messages` table is keyed
+/// by `(project_id, trace_id, message_hash)` — a project-only key would make
+/// the cache report "seen" for a second trace and we'd skip the insert for
+/// that trace, leaving the view unable to reconstruct `input`.
+fn seen_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String {
     // Binary payload via Latin-1 bytes-to-chars: every byte is a valid char,
     // and `redis::ToRedisArgs` for `String` writes the UTF-8 encoding. The
     // round trip through UTF-8 inflates the key length but keeps us on the
     // existing String-keyed cache API. The key doesn't need to be readable
     // - only unique and stable.
-    let mut s = String::with_capacity(2 + 16 + 32);
+    let mut s = String::with_capacity(2 + 16 + 16 + 32);
     s.push_str("m:");
     for b in project_id.as_bytes() {
+        s.push(*b as char);
+    }
+    for b in trace_id.as_bytes() {
         s.push(*b as char);
     }
     for b in hash.iter() {
@@ -185,7 +192,7 @@ pub async fn dedup_llm_input_messages(
         let span = &spans[plan.span_index];
         let hashes = plan.hashes.as_ref().unwrap();
         for (hash, canonical) in hashes.iter().zip(plan.canonical_messages.iter()) {
-            let key = seen_key(span.project_id, hash);
+            let key = seen_key(span.project_id, span.trace_id, hash);
             let already_seen = cache.exists(&key).await.unwrap_or(false);
             if already_seen {
                 continue;
@@ -282,10 +289,20 @@ mod tests {
     #[test]
     fn seen_key_is_deterministic_and_has_fixed_prefix() {
         let pid = Uuid::from_u128(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef);
+        let tid = Uuid::from_u128(0xfedc_ba98_7654_3210_fedc_ba98_7654_3210);
         let hash = [7u8; 32];
-        let k1 = seen_key(pid, &hash);
-        let k2 = seen_key(pid, &hash);
+        let k1 = seen_key(pid, tid, &hash);
+        let k2 = seen_key(pid, tid, &hash);
         assert_eq!(k1, k2);
         assert!(k1.starts_with("m:"));
+    }
+
+    #[test]
+    fn seen_key_differs_per_trace() {
+        let pid = Uuid::from_u128(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef);
+        let tid1 = Uuid::from_u128(0x1111_1111_1111_1111_1111_1111_1111_1111);
+        let tid2 = Uuid::from_u128(0x2222_2222_2222_2222_2222_2222_2222_2222);
+        let hash = [7u8; 32];
+        assert_ne!(seen_key(pid, tid1, &hash), seen_key(pid, tid2, &hash));
     }
 }
