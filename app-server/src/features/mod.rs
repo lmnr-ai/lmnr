@@ -50,10 +50,22 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
         Feature::Signals => {
-            env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
-                || (env::var("AWS_ACCESS_KEY_ID").is_ok_and(|s| !s.is_empty())
-                    && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|s| !s.is_empty())
-                    && env::var("AWS_REGION").is_ok_and(|s| !s.is_empty()))
+            // Mirrors the credential checks in `LlmClient::new` so this flag
+            // is true exactly when the signal worker would actually start.
+            let provider = env::var("LLM_PROVIDER")
+                .ok()
+                .map(|s| s.trim().to_lowercase())
+                .unwrap_or_default();
+            let has_llm_api_key = env::var("LLM_API_KEY").is_ok_and(|s| !s.is_empty());
+            let has_aws = env::var("AWS_ACCESS_KEY_ID").is_ok_and(|s| !s.is_empty())
+                && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|s| !s.is_empty())
+                && env::var("AWS_REGION").is_ok_and(|s| !s.is_empty());
+            match provider.as_str() {
+                "gemini" | "openai" => has_llm_api_key,
+                "bedrock" => has_aws,
+                "mock" => true,
+                _ => false,
+            }
         }
         Feature::Reports => {
             env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true")
