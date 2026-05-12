@@ -16,8 +16,23 @@ const createIframeContent = (templateCode: string): string => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline';">
-  
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline'; connect-src https://esm.sh; img-src data: blob:;">
+
+  <script>
+    (function blockNetworkApis() {
+      const blocked = () => { throw new Error('Network requests are disabled inside template renderers.'); };
+      try { window.fetch = blocked; } catch {}
+      try { window.XMLHttpRequest = function() { blocked(); }; } catch {}
+      try { window.WebSocket = function() { blocked(); }; } catch {}
+      try { window.EventSource = function() { blocked(); }; } catch {}
+      try {
+        if (navigator && typeof navigator.sendBeacon === 'function') {
+          navigator.sendBeacon = () => { blocked(); };
+        }
+      } catch {}
+    })();
+  </script>
+
   <script type="importmap">
   {
     "imports": {
