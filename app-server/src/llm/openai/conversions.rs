@@ -171,14 +171,12 @@ fn append_content_as_messages(content: &ProviderContent, out: &mut Vec<Value>) {
     if has_text || has_tool_calls {
         let mut msg = json!({"role": role});
         // OpenAI accepts `content: null` on assistant messages that only have
-        // tool_calls. For everything else, we send a string (possibly empty).
-        if has_text {
-            msg["content"] = Value::String(text_buf);
-        } else if has_tool_calls {
-            msg["content"] = Value::Null;
+        // tool_calls. Otherwise send the accumulated text.
+        msg["content"] = if has_text {
+            Value::String(text_buf)
         } else {
-            msg["content"] = Value::String(String::new());
-        }
+            Value::Null
+        };
         if has_tool_calls {
             msg["tool_calls"] = Value::Array(tool_calls);
         }
