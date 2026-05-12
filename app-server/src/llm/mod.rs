@@ -218,9 +218,9 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-4-6".to_string(),
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-7".to_string(),
-        ("openai", ModelSize::Small) => "gpt-5-mini".to_string(),
-        ("openai", ModelSize::Medium) => "gpt-5".to_string(),
-        ("openai", ModelSize::Large) => "gpt-5".to_string(),
+        ("openai", ModelSize::Small) => "gpt-5.4-mini".to_string(),
+        ("openai", ModelSize::Medium) => "gpt-5.4".to_string(),
+        ("openai", ModelSize::Large) => "gpt-5.5".to_string(),
         _ => "".to_string(),
     }
 }
