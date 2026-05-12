@@ -247,7 +247,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
           <JsxRenderer className="rounded-none" code={currentTemplateCode} data={data} />
         </div>
 
-        <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={handleDialogOpenChange} />
+        <ManageTemplateDialog open={isDialogOpen} onOpenChange={handleDialogOpenChange} />
 
         {template && (
           <ConfirmDialog

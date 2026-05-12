@@ -68,7 +68,7 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
 
   return (
     <FormProvider {...methods}>
-      <ManageTemplateDialog testData="" open={open} onOpenChange={onOpenChange} />
+      <ManageTemplateDialog open={open} onOpenChange={onOpenChange} />
     </FormProvider>
   );
 }

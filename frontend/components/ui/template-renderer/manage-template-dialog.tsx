@@ -22,12 +22,10 @@ import { type ManageTemplateForm, type Template } from "./index";
 import JsxRenderer from "./jsx-renderer";
 
 const ManageTemplateDialog = ({
-  testData,
   open,
   onOpenChange,
   children,
 }: PropsWithChildren<{
-  testData: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }>) => {
