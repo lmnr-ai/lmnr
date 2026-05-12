@@ -63,15 +63,6 @@ export const METER_EVENT_NAMES = {
   },
 } as const;
 
-export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
-  hobby_monthly_2026_02: "Laminar Hobby tier",
-  pro_monthly_2026_02: "Laminar Pro tier",
-  // Legacy lookup keys
-  hobby_monthly_2026_02_legacy: "Laminar Hobby tier",
-  hobby_monthly_2025_04: "Laminar Hobby tier",
-  pro_monthly_2025_04: "Laminar Pro tier",
-};
-
 export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   // Base tiers
   hobby_monthly_2026_02: "Hobby plan",
@@ -96,16 +87,6 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   // Addons
   [DATAPLANE_ADDON_LOOKUP_KEY]: "Data Plane addon",
 };
-
-export interface ItemDescription {
-  productDescription: string;
-  shortDescription?: string;
-  quantity?: number;
-  /** Line total in the smallest currency unit (e.g. cents for USD). */
-  amount?: number;
-  /** Lowercase ISO currency code (e.g. "usd"). */
-  currency?: string;
-}
 
 export interface SubscriptionDetails {
   subscriptionId: string;

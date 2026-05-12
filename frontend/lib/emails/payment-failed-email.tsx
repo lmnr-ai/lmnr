@@ -1,59 +1,32 @@
-import { Html, Preview, Text } from "@react-email/components";
-
-import { type ItemDescription } from "@/lib/actions/checkout/types";
-
-import { formatItemAmount, formatItemQuantity, itemTotalLine } from "./line-item-format";
+import { Button, Html, Preview, Text } from "@react-email/components";
 
 interface PaymentFailedEmailProps {
-  itemDescriptions: ItemDescription[];
+  total: string;
   date: string;
   billedTo: string;
+  billingPortalUrl: string;
 }
 
-const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
-  if (itemDescriptions.length === 1) {
-    const { productDescription, shortDescription } = itemDescriptions[0];
-    return `Payment for ${shortDescription ?? productDescription} failed.`;
-  }
-  return "Payment failed - action required";
-};
-
-export default function PaymentFailedEmail({ itemDescriptions, date, billedTo }: PaymentFailedEmailProps) {
-  const total = itemTotalLine(itemDescriptions);
+export default function PaymentFailedEmail({ total, date, billedTo, billingPortalUrl }: PaymentFailedEmailProps) {
   return (
     <Html lang="en">
-      <Preview>{renderPreviewString(itemDescriptions)}</Preview>
+      <Preview>Payment failed — action required.</Preview>
       <div style={container}>
         <Text style={heading}>Payment failed</Text>
         <Text style={text}>
-          We were unable to process your payment. Please update your payment or verify payment details.
+          We were unable to process your payment. Please update your payment method or verify your details in your
+          billing portal.
         </Text>
-        <Text style={label}>Products</Text>
-        {itemDescriptions.map((item, index) => {
-          const qty = formatItemQuantity(item);
-          const amount = formatItemAmount(item);
-          return (
-            <Text style={value} key={index}>
-              {item.productDescription}
-              {qty ? ` ${qty}` : ""}
-              {amount ? ` — ${amount}` : ""}
-            </Text>
-          );
-        })}
-        {total && (
-          <>
-            <Text style={label}>Total</Text>
-            <Text style={value}>{total}</Text>
-          </>
-        )}
+        <Text style={label}>Amount due</Text>
+        <Text style={value}>{total}</Text>
         <Text style={label}>Date</Text>
         <Text style={value}>{date}</Text>
         <Text style={label}>Billed to</Text>
         <Text style={value}>{billedTo}</Text>
-        <Text style={text}>Please update your payment method in your workspace settings.</Text>
-        <Text style={text}>
-          If you have any questions or need assistance, please don{"'"}t hesitate to reach out to us.
-        </Text>
+        <Button style={button} href={billingPortalUrl}>
+          Update payment
+        </Button>
+        <Text style={text}>If you have any questions or need assistance, please don{"'"}t hesitate to reach out.</Text>
         <Text style={footer}>LMNR AI, INC. 2026</Text>
       </div>
     </Html>
@@ -80,11 +53,6 @@ const heading = {
   marginBottom: "24px",
 };
 
-const link = {
-  color: "#2563eb",
-  textDecoration: "none",
-};
-
 const label = {
   ...text,
   fontWeight: "600",
@@ -94,6 +62,19 @@ const label = {
 const value = {
   ...text,
   marginTop: "0px",
+};
+
+const button = {
+  display: "inline-block",
+  marginTop: "16px",
+  padding: "10px 20px",
+  backgroundColor: "#111827",
+  color: "#ffffff",
+  borderRadius: "6px",
+  fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
+  fontSize: "14px",
+  fontWeight: "600",
+  textDecoration: "none",
 };
 
 const footer = {
