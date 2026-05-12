@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
@@ -126,9 +126,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     await upsertDefaultTierUsageLimits({
       workspaceId,
       newTierName: newPaidTier,
-      newTierConfig: newPaidTier ? TIER_CONFIG[newPaidTier] : undefined,
       currentTierName: currentPaidTier,
-      currentTierConfig,
     });
     if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
       await clearHobbyOverageWarnings(workspaceId);
@@ -313,6 +311,11 @@ export const handleInvoiceFinalized = async (
 const HOBBY_OVERAGE_WARNING_SIGNAL_STEPS = 15_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
+// Default hard cap on Hobby signal-step overage. Deliberately pinned to the overage
+// warning threshold so the notification coincides with ingestion being blocked;
+// users can still raise/remove it from workspace usage settings.
+const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS = HOBBY_OVERAGE_WARNING_SIGNAL_STEPS;
+
 const insertNewTierUsageWarnings = async ({
   workspaceId,
   newTierName,
@@ -401,41 +404,46 @@ const clearHobbyOverageWarnings = async (workspaceId: string) => {
 // Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
 // don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
 // is undefined when the workspace moves to Free (cancellation), which must still trigger the
-// Hobby cleanup — otherwise a canceled Hobby leaves a 5,000-step row that would silently re-apply
+// Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply
 // on a future paid-tier upgrade.
 const upsertDefaultTierUsageLimits = async ({
   workspaceId,
   newTierName,
-  newTierConfig,
   currentTierName,
-  currentTierConfig,
 }: {
   workspaceId: string;
   newTierName?: PaidTier;
-  newTierConfig?: TierConfigEntry;
   currentTierName?: PaidTier;
-  currentTierConfig?: TierConfigEntry;
 }) => {
-  // Preserve user overrides: only clear the default when it still matches the Hobby default.
-  if (currentTierName === "hobby" && newTierName !== "hobby" && currentTierConfig) {
+  // Preserve user overrides: only clear the default when it still matches a known Hobby
+  // default. TIER_CONFIG["hobby"].includedSignalSteps covers workspaces whose default was
+  // written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS. Looked
+  // up here (not accepted from the caller) so the cleanup does not silently skip when the
+  // caller forgets to pass currentTierConfig.
+  if (currentTierName === "hobby" && newTierName !== "hobby") {
+    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS];
+    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalSteps;
+    if (!clearableValues.includes(legacyHobbyDefault)) {
+      clearableValues.push(legacyHobbyDefault);
+    }
     await db
       .delete(workspaceUsageLimits)
       .where(
         and(
           eq(workspaceUsageLimits.workspaceId, workspaceId),
           eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
-          eq(workspaceUsageLimits.limitValue, currentTierConfig.includedSignalSteps)
+          inArray(workspaceUsageLimits.limitValue, clearableValues)
         )
       );
   }
 
-  if (newTierName === "hobby" && newTierConfig) {
+  if (newTierName === "hobby") {
     await db
       .insert(workspaceUsageLimits)
       .values({
         workspaceId,
         limitType: "signal_steps_processed",
-        limitValue: newTierConfig.includedSignalSteps,
+        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS,
       })
       .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] });
   }
