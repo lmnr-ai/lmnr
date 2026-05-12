@@ -127,7 +127,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
       workspaceId,
       newTierName: newPaidTier,
       currentTierName: currentPaidTier,
-      currentTierConfig,
     });
     if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
       await clearHobbyOverageWarnings(workspaceId);
@@ -312,10 +311,10 @@ export const handleInvoiceFinalized = async (
 const HOBBY_OVERAGE_WARNING_SIGNAL_STEPS = 15_000;
 const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
 
-// Default hard cap on Hobby signal-step overage. Set at the same threshold as the
-// overage email warning so the notification coincides with ingestion being blocked;
+// Default hard cap on Hobby signal-step overage. Deliberately pinned to the overage
+// warning threshold so the notification coincides with ingestion being blocked;
 // users can still raise/remove it from workspace usage settings.
-const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS = 15_000;
+const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS = HOBBY_OVERAGE_WARNING_SIGNAL_STEPS;
 
 const insertNewTierUsageWarnings = async ({
   workspaceId,
@@ -411,20 +410,21 @@ const upsertDefaultTierUsageLimits = async ({
   workspaceId,
   newTierName,
   currentTierName,
-  currentTierConfig,
 }: {
   workspaceId: string;
   newTierName?: PaidTier;
   currentTierName?: PaidTier;
-  currentTierConfig?: TierConfigEntry;
 }) => {
   // Preserve user overrides: only clear the default when it still matches a known Hobby
-  // default. `includedSignalSteps` covers workspaces whose default was written before the
-  // hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS.
+  // default. TIER_CONFIG["hobby"].includedSignalSteps covers workspaces whose default was
+  // written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS. Looked
+  // up here (not accepted from the caller) so the cleanup does not silently skip when the
+  // caller forgets to pass currentTierConfig.
   if (currentTierName === "hobby" && newTierName !== "hobby") {
     const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS];
-    if (currentTierConfig && !clearableValues.includes(currentTierConfig.includedSignalSteps)) {
-      clearableValues.push(currentTierConfig.includedSignalSteps);
+    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalSteps;
+    if (!clearableValues.includes(legacyHobbyDefault)) {
+      clearableValues.push(legacyHobbyDefault);
     }
     await db
       .delete(workspaceUsageLimits)
