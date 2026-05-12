@@ -40,9 +40,12 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
       methods.reset(defaultTemplateValues);
       return;
     }
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`);
+        const res = await fetch(`/api/projects/${projectId}/render-templates/${templateId}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           const err = await res.json().catch(() => null);
           throw new Error(err?.error ?? "Failed to load template");
@@ -50,6 +53,7 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
         const template = (await res.json()) as Template;
         methods.reset({ ...template, testData: "" });
       } catch (e) {
+        if (controller.signal.aborted) return;
         toast({
           variant: "destructive",
           title: "Error",
@@ -59,6 +63,7 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
       }
     };
     load();
+    return () => controller.abort();
   }, [open, templateId, projectId, methods, toast, onOpenChange]);
 
   return (
