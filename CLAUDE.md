@@ -127,6 +127,10 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - **pydantic_ai tool-span quirk**: pydantic_ai emits `execute_tool <name>` spans WITHOUT `gen_ai.operation.name`; only `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` are set. `span_type()` has a fallback that classifies a span as Tool when either of those attributes is present. Do not remove this fallback when adding other GenAI emitters.
 - The `gen_ai.tool.call.*` → `self.input`/`self.output` block in `parse_and_enrich_attributes` is gated on `self.span_type == SpanType::Tool` (not just the raw attribute keys) so it cannot clobber LLM-span input/output if a spec-violating emitter mixes LLM message attrs with tool-call attrs on the same span. The gate still works for pydantic_ai because `span_type()` already infers Tool from the `gen_ai.tool.call.*` fallback before this runs.
 
+## Billing and Tier Allowances
+
+- Tier included allowances are hardcoded in two places that MUST stay in sync: frontend `TIER_CONFIG` in `frontend/lib/actions/checkout/types.ts` (`includedBytes` / `includedSignalSteps`) and Rust `WorkspaceTierName` methods in `app-server/src/db/projects.rs` (`included_bytes()` / `included_signal_steps()`). The backend uses these to detect whether a triggered usage warning corresponds to the tier's free allowance vs. a user-configured custom threshold — this drives tier-specific copy in the usage-warning email ("you've exhausted your included Hobby allowance, from now on usage is billed pay-as-you-go").
+- Stripe invoice line items expose their lookup key in two places: legacy `line.price.lookup_key` and the newer `line.pricing.price_details.price.lookup_key`. Email-subject/body rendering must check BOTH before falling back to `line.description` or a generic "Subscription charge" string, otherwise the subject line silently becomes `Laminar: Payment for  is received.` (trailing empty label).
 ## Workspace Usage Warnings vs Hard Limits
 
 - Usage enforcement lives in two separate tables, both edited via Stripe webhook when a subscription is created or a tier is switched (`frontend/lib/actions/checkout/webhook.ts`):
