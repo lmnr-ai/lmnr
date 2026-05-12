@@ -69,7 +69,7 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         // non-default value with HTTP 400. Letting the upstream pick its
         // default keeps every model happy.
         if let Some(m) = gc.max_output_tokens {
-            body["max_tokens"] = json!(m);
+            body["max_completion_tokens"] = json!(m);
         }
         if let Some(tc) = gc.thinking_config.as_ref() {
             if let Some(level) = tc.thinking_level.as_ref() {
@@ -500,7 +500,8 @@ mod tests {
         };
         let body = provider_request_to_openai_body("gpt-5", &req);
         assert_eq!(body["reasoning_effort"], "high");
-        assert_eq!(body["max_tokens"], 100);
+        assert_eq!(body["max_completion_tokens"], 100);
+        assert!(body.get("max_tokens").is_none());
         // We never forward sampling params — see provider_request_to_openai_body.
         assert!(body.get("temperature").is_none());
         assert!(body.get("top_p").is_none());
