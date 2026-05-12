@@ -34,7 +34,7 @@ const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
       <div className="sticky top-[calc(50%-470px)] flex flex-col gap-[54px] items-start w-full">
         <div className="flex flex-col gap-1 items-start w-full">
           <motion.div className="w-full" style={{ height: bufferHeight }} />
-          <h2 className={subsectionTitle}>See what your agent was doing</h2>
+          <h2 className={subsectionTitle}>Understand what your agent was doing, in seconds</h2>
           <p className={bodyLarge}>This is what an agent run looks like on Laminar</p>
         </div>
 

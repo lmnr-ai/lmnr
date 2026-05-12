@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 
 import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names";
 import DocsButton from "../docs-button";
-import SectionName from "../section-name";
 import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";
 import DebuggerVideo from "./debugger-video";
@@ -26,15 +25,9 @@ const ThreeCategories = ({ className }: Props) => (
     )}
   >
     <div className={cn("flex flex-col md:gap-[240px] items-start w-[1104px]", "max-w-full gap-[180px]")}>
-      {/* TRACING Section */}
-      <SectionName label="Tracing" index={1} />
-
       <IntegrateInMinutes />
 
       <ComposableTrace />
-
-      {/* ANALYSIS Section */}
-      <SectionName label="Analysis" index={2} />
 
       <SignalsSection />
 
@@ -132,9 +125,6 @@ const ThreeCategories = ({ className }: Props) => (
         </div>
         <DashboardImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
       </div>
-
-      {/* EVALS Section */}
-      <SectionName label="Evals" index={3} />
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">

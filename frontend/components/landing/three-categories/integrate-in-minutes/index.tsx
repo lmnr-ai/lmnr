@@ -1,17 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import Image, { type StaticImageData } from "next/image";
+import Link from "next/link";
 
-// Import all logos
-import bedrock from "@/assets/landing/logos/bedrock.svg";
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import gemini from "@/assets/landing/logos/gemini.svg";
-import groq from "@/assets/landing/logos/groq.svg";
 import langchain from "@/assets/landing/logos/langchain.svg";
 import lightLlm from "@/assets/landing/logos/light-llm.svg";
 import mastra from "@/assets/landing/logos/mastra.svg";
-import mistral from "@/assets/landing/logos/mistral.svg";
 import openAi from "@/assets/landing/logos/open-ai.svg";
 import openHands from "@/assets/landing/logos/open-hands.svg";
 import openTelemetry from "@/assets/landing/logos/open-telemetry.svg";
@@ -19,167 +16,76 @@ import openaiAgents from "@/assets/landing/logos/openai-agents.svg";
 import opencodeSdk from "@/assets/landing/logos/opencode-sdk.svg";
 import playwright from "@/assets/landing/logos/playwright.svg";
 import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
+import stagehand from "@/assets/landing/logos/stagehand.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, subsectionTitle } from "../../class-names";
+import { subsectionTitle } from "../../class-names";
 import DocsButton from "../../docs-button";
-import LogoButton from "../../logo-button";
-import IntegrationCodeSnippet from "./integration-code-snippet";
-import { type Integration, integrations as integrationData } from "./snippets";
 
 interface Props {
   className?: string;
 }
 
-const logos: {
-  src: string;
+interface Integration {
+  src: StaticImageData;
   alt: string;
-  name: string;
-  integration?: Integration;
-  docsUrl?: string;
+  href: string;
   iconClassName?: string;
-}[] = [
-  {
-    src: browserUse,
-    alt: "Browser Use",
-    name: "browser-use",
-    integration: "browser-use",
-    iconClassName: "md:size-5 size-4",
-  },
-  { src: claude, alt: "Claude Agent SDK", name: "claude", integration: "claude" },
-  { src: vercel, alt: "Vercel AI SDK", name: "vercel", integration: "vercel", iconClassName: "md:size-4 size-3" },
-  { src: openHands, alt: "OpenHands", name: "open-hands", integration: "open-hands" },
-  { src: langchain, alt: "LangChain Deep Agents", name: "langchain", integration: "langchain" },
-  { src: lightLlm, alt: "LiteLLM", name: "light-llm", integration: "light-llm" },
-  { src: mastra, alt: "Mastra", name: "mastra", integration: "mastra" },
-  {
-    src: openaiAgents,
-    alt: "OpenAI Agents SDK",
-    name: "openai-agents-sdk",
-    integration: "openai-agents-sdk",
-    iconClassName: "md:size-5 size-4",
-  },
-  { src: pydanticAi, alt: "Pydantic AI", name: "pydantic-ai", integration: "pydantic-ai" },
-  { src: opencodeSdk, alt: "OpenCode SDK", name: "opencode-sdk", integration: "opencode-sdk" },
-  { src: gemini, alt: "Gemini API", name: "gemini", docsUrl: "https://laminar.sh/docs/tracing/integrations/gemini" },
-  {
-    src: openAi,
-    alt: "OpenAI SDK",
-    name: "open-ai",
-    docsUrl: "https://laminar.sh/docs/tracing/integrations/openai",
-    iconClassName: "md:size-5 size-4",
-  },
-  { src: groq, alt: "Groq", name: "groq", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
-  { src: mistral, alt: "Mistral", name: "mistral", docsUrl: "https://laminar.sh/docs/tracing/integrations/overview" },
-  {
-    src: bedrock,
-    alt: "AWS Bedrock",
-    name: "bedrock",
-    docsUrl: "https://laminar.sh/docs/tracing/integrations/overview",
-  },
-  {
-    src: playwright,
-    alt: "Playwright",
-    name: "playwright",
-    docsUrl: "https://laminar.sh/docs/tracing/integrations/playwright",
-  },
-  {
-    src: openTelemetry,
-    alt: "OpenTelemetry",
-    name: "open-telemetry",
-    docsUrl: "https://laminar.sh/docs/tracing/otel",
-  },
+}
+
+const DOCS_BASE = "https://laminar.sh/docs/tracing/integrations";
+
+// Placeholder list — will be curated before launch.
+const integrations: Integration[] = [
+  { src: claude, alt: "Claude Agent SDK", href: `${DOCS_BASE}/claude-agent-sdk` },
+  { src: openaiAgents, alt: "OpenAI Agents SDK", href: `${DOCS_BASE}/openai-agents-sdk`, iconClassName: "size-5" },
+  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
+  { src: langchain, alt: "LangChain Deep Agents", href: `${DOCS_BASE}/langchain` },
+  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
+  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
+  { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode` },
+  { src: openHands, alt: "OpenHands SDK", href: `${DOCS_BASE}/openhands-sdk` },
+  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
+  { src: stagehand, alt: "Stagehand", href: `${DOCS_BASE}/stagehand` },
+  { src: playwright, alt: "Playwright", href: `${DOCS_BASE}/playwright` },
+  { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, iconClassName: "size-5" },
+  { src: claude, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
+  { src: gemini, alt: "Gemini API", href: `${DOCS_BASE}/gemini` },
+  { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
+  { src: openTelemetry, alt: "OpenTelemetry", href: "https://laminar.sh/docs/tracing/otel" },
 ];
 
-const ROTATE_INTERVAL = 5000;
-const CLICK_INTERVAL = 10000;
-
-const integrations = logos.filter((logo) => logo.integration).map((logo) => logo.integration!);
-
-const IntegrateInMinutes = ({ className }: Props) => {
-  const [selectedIntegration, setSelectedIntegration] = useState<Integration>("browser-use");
-  const [showAll, setShowAll] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const startInterval = useCallback((interval: number = ROTATE_INTERVAL) => {
-    intervalRef.current = setInterval(() => {
-      setSelectedIntegration((current) => {
-        const currentIndex = integrations.indexOf(current);
-        const nextIndex = (currentIndex + 1) % integrations.length;
-        return integrations[nextIndex];
-      });
-    }, interval);
-  }, []);
-
-  const handleSelectIntegration = useCallback(
-    (integration: Integration) => {
-      setSelectedIntegration(integration);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      startInterval(CLICK_INTERVAL);
-    },
-    [startInterval]
-  );
-
-  useEffect(() => {
-    startInterval();
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [startInterval]);
-
-  return (
-    <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8", className)}>
-      <div className="flex flex-col gap-1 items-start w-full">
-        <p className={subsectionTitle}>Start tracing your agent in minutes</p>
-        <p className={bodyLarge}>Two lines to integrate with the AI frameworks or SDKs you use</p>
-      </div>
-      {/* Logo grid */}
-      <div className={cn("flex flex-wrap md:gap-3 items-center w-full", "gap-2")}>
-        {/* Clickable integration buttons */}
-        {logos
-          .filter((logo) => logo.integration)
-          .map((logo) => (
-            <LogoButton
-              key={logo.name}
-              logoSrc={logo.src}
-              alt={logo.alt}
-              label={logo.alt}
-              logoClassName={logo.iconClassName}
-              isActive={logo.integration === selectedIntegration}
-              onClick={() => handleSelectIntegration(logo.integration!)}
+const IntegrateInMinutes = ({ className }: Props) => (
+  <div className={cn("flex flex-col items-start w-full md:gap-[54px] gap-8", className)}>
+    <h2 className={cn(subsectionTitle, "max-w-[833px]")}>
+      Two lines to integrate
+      <br />
+      with your stack
+    </h2>
+    <div className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 md:gap-x-5 gap-x-4 md:gap-y-3 gap-y-2">
+      {integrations.map((integration, index) => (
+        <Link
+          key={`${integration.alt}-${index}`}
+          href={integration.href}
+          target="_blank"
+          className="group flex items-center gap-8 h-7 no-underline"
+        >
+          <div className="flex items-center justify-center size-4 shrink-0">
+            <Image
+              src={integration.src}
+              alt={integration.alt}
+              className={cn("size-4 object-contain", integration.iconClassName)}
             />
-          ))}
-        {/* Docs-link logos hidden behind a "..." toggle until expanded */}
-        {showAll ? (
-          <>
-            <div className="h-[28px] bg-landing-surface-500 border-r border-landing-surface-400" />
-            {logos
-              .filter((logo) => !logo.integration)
-              .map((logo) => (
-                <LogoButton
-                  key={logo.name}
-                  logoSrc={logo.src}
-                  alt={logo.alt}
-                  label={logo.alt}
-                  logoClassName={logo.iconClassName}
-                  href={logo.docsUrl}
-                />
-              ))}
-            <LogoButton className="md:px-3 px-2" label="Less" onClick={() => setShowAll(false)} />
-          </>
-        ) : (
-          <LogoButton className="md:px-3 px-2" label="More..." onClick={() => setShowAll(true)} />
-        )}
-      </div>
-      <IntegrationCodeSnippet selectedIntegration={selectedIntegration} integrationOrder={integrations} />
-      <DocsButton href={integrationData[selectedIntegration].docsUrl} />
+          </div>
+          <p className="font-sans text-base leading-7 text-landing-text-300 transition-colors group-hover:text-white">
+            {integration.alt}
+          </p>
+        </Link>
+      ))}
     </div>
-  );
-};
+    <DocsButton href={`${DOCS_BASE}/overview`} />
+  </div>
+);
 
 export default IntegrateInMinutes;

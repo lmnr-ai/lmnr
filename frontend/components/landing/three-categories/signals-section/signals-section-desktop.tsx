@@ -131,7 +131,6 @@ const SignalsSectionDesktop = ({ className, progress }: Props) => {
 
         <div className="flex flex-col font-normal h-full items-start justify-start shrink-0 w-[340px] gap-8 z-20">
           <div className="flex flex-col gap-1 items-start w-full">
-            <p className="font-space-grotesk text-base leading-5 text-landing-text-300">Prompt</p>
             <p
               className={cn(
                 "font-space-grotesk text-2xl leading-8 w-full transition-colors",

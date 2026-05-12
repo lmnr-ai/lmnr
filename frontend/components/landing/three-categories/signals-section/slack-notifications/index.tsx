@@ -1,113 +1,62 @@
 "use client";
 
 import { useScroll, useTransform } from "framer-motion";
-import { type ReactNode, type Ref, useRef } from "react";
+import { Mail } from "lucide-react";
+import Image from "next/image";
+import { useRef } from "react";
 
+import slackLogo from "@/assets/landing/logos/slack.svg";
 import { cn } from "@/lib/utils";
 
-import FixMock from "./fix-mock";
-import GetContextMock from "./get-context-mock";
 import SlackAlertMock from "./slack-alert-mock";
 
 interface Props {
   className?: string;
 }
 
-interface StepCardProps {
-  number: number;
-  label: string;
-  subtitle: string;
-  className?: string;
-  children: ReactNode;
-  ref?: Ref<HTMLDivElement>;
-}
-
-const StepCard = ({ number, label, subtitle, className, children, ref }: StepCardProps) => (
-  <div
-    ref={ref}
-    className={cn(
-      "bg-landing-surface-700 overflow-hidden relative rounded-lg w-full min-w-0",
-      "md:flex md:flex-col md:items-start md:gap-6 md:px-6 md:py-6",
-      "flex flex-col gap-6 p-5",
-      className
-    )}
-  >
-    <div className={cn("shrink-0 z-10 flex items-start", "md:gap-5 md:w-full", "w-full gap-3")}>
-      <div
-        className={cn(
-          "flex items-center justify-center rounded border border-landing-surface-400 bg-landing-surface-500 shrink-0",
-          "md:size-8 size-7"
-        )}
-      >
-        <span className={cn("font-sans text-landing-text-100", "md:text-base md:leading-5", "text-sm leading-5")}>
-          {number}
-        </span>
-      </div>
-      <div className="flex flex-col gap-1 items-start justify-center min-w-0">
-        <p
-          className={cn(
-            "font-space-grotesk text-landing-text-100 whitespace-nowrap",
-            "md:text-xl md:leading-8",
-            "text-base leading-6"
-          )}
-        >
-          {label}
-        </p>
-        <p className={cn("font-sans text-landing-text-300", "md:text-base md:leading-5", "text-sm leading-5")}>
-          {subtitle}
-        </p>
-      </div>
-    </div>
-
-    <div className={cn("flex items-start min-w-0 self-stretch", "md:flex-1", "w-full justify-start")}>
-      <div className="w-full h-full shrink-0">{children}</div>
-    </div>
-
-    <div className="absolute right-0 top-0 bottom-0 md:w-[73px] w-[60px] bg-gradient-to-l from-landing-surface-700 to-transparent pointer-events-none" />
-
-    <div className="absolute bottom-0 left-0 right-0 md:h-[73px] h-[60px] bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none" />
-  </div>
-);
-
 const SlackNotifications = ({ className }: Props) => {
-  // Single global scroll across the whole signals section, then stagger each
-  // mock's local 0->1 progress over a different slice of it.
   const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: globalProgress } = useScroll({
+  const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ["start end", "end start"],
   });
 
-  const slackProgress = useTransform(globalProgress, [0.3, 0.45], [0, 1], { clamp: true });
-  const getContextProgress = useTransform(globalProgress, [0.38, 0.58], [0, 1], { clamp: true });
-  const fixProgress = useTransform(globalProgress, [0.52, 0.68], [0, 1], { clamp: true });
+  const mockProgress = useTransform(scrollYProgress, [0.2, 0.6], [0, 1], { clamp: true });
 
   return (
-    <div ref={sectionRef} className={cn("flex w-full", "md:flex-row md:gap-2", "flex-col gap-5", className)}>
-      <StepCard
-        number={1}
-        label="Receive alerts"
-        subtitle="Slack and email alerts about critical issues and weekly summaries of your Signal events."
-        className="md:h-[540px]"
-      >
-        <SlackAlertMock progress={slackProgress} />
-      </StepCard>
-      <StepCard
-        number={2}
-        label="Get context"
-        subtitle="See when, why, and how things went wrong. Quickly dive into related traces."
-        className="md:h-[540px]"
-      >
-        <GetContextMock progress={getContextProgress} />
-      </StepCard>
-      <StepCard
-        number={3}
-        label="Fix with confidence"
-        subtitle="Ship a fix based on the full picture, not a guess."
-        className="md:h-[540px]"
-      >
-        <FixMock progress={fixProgress} />
-      </StepCard>
+    <div
+      ref={sectionRef}
+      className={cn(
+        "bg-landing-surface-700 relative overflow-hidden rounded-lg w-full min-w-0",
+        "md:flex md:flex-row md:items-stretch md:justify-between",
+        "flex flex-col",
+        className
+      )}
+    >
+      <div className={cn("flex flex-col items-start shrink-0", "md:w-[472px] md:gap-4 md:p-8", "w-full gap-3 p-5")}>
+        <p className={cn("font-space-grotesk text-landing-text-100", "md:text-2xl md:leading-8", "text-xl leading-7")}>
+          Know when your agent fails
+        </p>
+        <p className={cn("font-sans text-landing-text-300", "md:text-base md:leading-5", "text-sm leading-5")}>
+          Slack and email alerts notify you of critical issues.
+        </p>
+        <p className={cn("font-sans text-landing-text-300", "md:text-base md:leading-5", "text-sm leading-5")}>
+          Jump straight from an alert into relevant context. See when, why, and how things went wrong.
+        </p>
+
+        <div className="flex items-center gap-3 md:mt-0 mt-1">
+          <div className="size-14 rounded-lg bg-landing-surface-600 border border-landing-surface-500 flex items-center justify-center shadow-lg">
+            <Image src={slackLogo} alt="Slack" width={40} height={40} className="opacity-70" />
+          </div>
+          <div className="size-14 rounded-lg bg-landing-surface-600 border border-landing-surface-500 flex items-center justify-center shadow-lg">
+            <Mail className="size-7 text-landing-text-400" />
+          </div>
+        </div>
+      </div>
+
+      <div className={cn("flex justify-end items-center min-w-0", "md:flex-1 md:p-8", "w-full px-5 pb-5")}>
+        <SlackAlertMock progress={mockProgress} />
+      </div>
     </div>
   );
 };

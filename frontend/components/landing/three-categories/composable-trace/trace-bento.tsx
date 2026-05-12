@@ -8,7 +8,7 @@ import {
   useMotionValueEvent,
   type Variants,
 } from "framer-motion";
-import { ArrowRight, Bolt, Bot, CirclePlay, type LucideIcon, MessageCircle } from "lucide-react";
+import { CirclePlay } from "lucide-react";
 import Image, { type StaticImageData } from "next/image";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -300,20 +300,6 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
               <p className={cn("text-landing-text-300", bodyClassName)}>
                 Clear, concise view of your agent's decisions and behavior.
               </p>
-              <ul className="flex flex-col gap-1">
-                <IconItem icon={ArrowRight} className="bg-blue-400">
-                  Extracted trace input
-                </IconItem>
-                <IconItem icon={MessageCircle} className="bg-llm">
-                  LLM call
-                </IconItem>
-                <IconItem icon={Bolt} className="bg-tool">
-                  Tool call
-                </IconItem>
-                <IconItem icon={Bot} className="bg-subagent">
-                  Sub-agent
-                </IconItem>
-              </ul>
               <DocsButton href="https://laminar.sh/docs/platform/viewing-traces#transcript-view" />
             </div>
           </motion.div>
@@ -395,23 +381,6 @@ const TraceBento = ({ progress, trace, spans, initialSpanId }: Props) => {
     </motion.div>
   );
 };
-
-const IconItem = ({
-  icon: Icon,
-  className,
-  children,
-}: {
-  icon: LucideIcon;
-  className?: string;
-  children: ReactNode;
-}) => (
-  <li className={cn("flex items-center gap-3 text-landing-text-300", bodyClassName)}>
-    <span className={cn("size-5 rounded flex items-center justify-center shrink-0", className)}>
-      <Icon className="size-4 text-white" />
-    </span>
-    {children}
-  </li>
-);
 
 const IntegrationItem = ({
   logoSrc,
