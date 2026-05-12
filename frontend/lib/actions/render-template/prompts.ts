@@ -34,6 +34,7 @@ Hard rules:
 - The function receives a single argument \`{ data }\`. Always destructure as \`function({ data })\`.
 - Return ONE root JSX element. Use Tailwind classes via \`className\`.
 - Available hooks: \`useState\`, \`useEffect\`, \`useMemo\`, \`useRef\`, \`useCallback\`, \`useContext\` (already in scope — do NOT import).
+- \`Fragment\` is in scope. When rendering siblings in a list, give each iteration a stable \`key\` (e.g. \`<Fragment key={...}>\`). Never emit \`<>\`/\`</>\` inside an \`Array.map\` — bare fragments cannot carry a key.
 - You may use \`JSON.stringify\`, \`Array.isArray\`, \`Object.entries\`, \`Object.keys\`, \`String\`, \`Number\`, \`Boolean\`.
 - Be defensive: \`data\` may be \`undefined\`, \`null\`, a primitive, an array, or an object. Guard every access (\`data?.foo\`, \`Array.isArray(data) ? data : []\`).
 - Do NOT call \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, \`EventSource\`, \`navigator.sendBeacon\`, \`window.open\`, \`document.cookie\`, \`localStorage\`, or any other I/O API. They are blocked in the sandbox and will throw.
@@ -61,12 +62,12 @@ function({ data }) {
         </div>
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
           {entries.map(([key, value]) => (
-            <>
+            <Fragment key={key}>
               <div className="text-neutral-400">{key}</div>
               <div className="font-mono text-neutral-200 truncate">
                 {typeof value === 'object' ? JSON.stringify(value) : String(value)}
               </div>
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

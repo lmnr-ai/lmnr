@@ -21,10 +21,9 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templateId: string | null;
-  onSaved?: () => void;
 }
 
-export default function RenderTemplateDialog({ open, onOpenChange, templateId, onSaved }: Props) {
+export default function RenderTemplateDialog({ open, onOpenChange, templateId }: Props) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const methods = useForm<ManageTemplateForm>({
@@ -62,14 +61,9 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId, o
     load();
   }, [open, templateId, projectId, methods, toast, onOpenChange]);
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    onOpenChange(nextOpen);
-    if (!nextOpen) onSaved?.();
-  };
-
   return (
     <FormProvider {...methods}>
-      <ManageTemplateDialog testData="" open={open} onOpenChange={handleOpenChange} />
+      <ManageTemplateDialog testData="" open={open} onOpenChange={onOpenChange} />
     </FormProvider>
   );
 }

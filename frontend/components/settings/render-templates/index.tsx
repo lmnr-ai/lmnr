@@ -113,12 +113,7 @@ export default function RenderTemplates() {
         ))}
       </SettingsTable>
 
-      <RenderTemplateDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        templateId={editingTemplateId}
-        onSaved={() => mutate()}
-      />
+      <RenderTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} templateId={editingTemplateId} />
 
       <ConfirmDialog
         open={!!templateToDelete}
