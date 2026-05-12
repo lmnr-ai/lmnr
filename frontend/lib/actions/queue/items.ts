@@ -68,6 +68,11 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
 
   // Synchronous insert: `updateQueueItem`'s read-modify-write must see this
   // row on the next FINAL SELECT (async buffer flushes ~200ms apart).
+  // Sync insert guarantees the row is *visible* to the next SELECT; `FINAL`
+  // on every reader (below) guarantees that when multiple versions of the
+  // same primary key coexist (writes append, RMT merges in the background),
+  // the latest one wins. Both are required — sync alone leaves duplicates,
+  // FINAL alone races with the async buffer.
   await clickhouseClient.insert({
     table: "labeling_queue_items",
     values: rows,
@@ -97,7 +102,7 @@ export const getQueueItems = async (
     projectId,
     query: `
       SELECT ${SELECT_COLUMNS}
-      FROM labeling_queue_items
+      FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
         ${hasIds ? "AND id IN ({ids: Array(UUID)})" : ""}
       ORDER BY created_at ASC, id ASC
@@ -120,7 +125,7 @@ export const getQueueItemStates = async (projectId: string, queueId: string): Pr
           edit = JSONExtractRaw(payload, 'target'), 'new',
           'modified'
         ) AS state
-      FROM labeling_queue_items
+      FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
       ORDER BY created_at ASC, id ASC
     `,
@@ -180,7 +185,7 @@ export const findQueueIdsByProgress = async (projectId: string, filters: Progres
     projectId,
     query: `
       SELECT queue_id queueId
-      FROM labeling_queue_items
+      FROM labeling_queue_items FINAL
       GROUP BY queue_id
       HAVING ${conditions.join(" AND ")}
     `,
@@ -212,7 +217,7 @@ export const getQueueProgresses = async (
         countIf(status = 0 AND edit = JSONExtractRaw(payload, 'target')) AS new,
         countIf(status = 0 AND edit != JSONExtractRaw(payload, 'target')) AS modified,
         countIf(status = 1) AS approved
-      FROM labeling_queue_items
+      FROM labeling_queue_items FINAL
       WHERE queue_id IN ({queueIds: Array(UUID)})
       GROUP BY queue_id
     `,
@@ -231,17 +236,29 @@ export const getQueueProgresses = async (
   return result;
 };
 
-export const getApprovedQueueItems = async (projectId: string, queueId: string): Promise<LabelingQueueItem[]> => {
+export const getApprovedQueueItems = async (
+  projectId: string,
+  queueId: string,
+  options: { ids?: string[] } = {}
+): Promise<LabelingQueueItem[]> => {
+  const { ids } = options;
+  const hasIds = Array.isArray(ids);
+  if (hasIds && ids.length === 0) return [];
+
+  const parameters: Record<string, unknown> = { queueId };
+  if (hasIds) parameters.ids = ids;
+
   const rows = await executeQuery<RawRow>({
     projectId,
     query: `
       SELECT ${SELECT_COLUMNS}
-      FROM labeling_queue_items
+      FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
         AND status = 1
+        ${hasIds ? "AND id IN ({ids: Array(UUID)})" : ""}
       ORDER BY updated_at ASC, id ASC
     `,
-    parameters: { queueId },
+    parameters,
   });
   return rows.map((row) => parseRow(projectId, row));
 };
@@ -255,7 +272,11 @@ export interface UpdateQueueItemInput {
 }
 
 // Read-modify-write upsert: preserve immutable fields (`payload`, `metadata`,
-// `createdAt`) while emitting fresh `edit` / `status` / `updated_at`.
+// `createdAt`) while emitting fresh `edit` / `status` / `updated_at`. The
+// FINAL-scoped read collapses any un-merged duplicate versions to the latest
+// `updated_at` row, so partial-update PATCHes (e.g. `{ edit }`-only landing
+// after `{ status: 1 }`) inherit the up-to-date `status` instead of re-emitting
+// a stale one and silently reverting an approval.
 export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void> => {
   const [existing] = await getQueueItems(input.projectId, input.queueId, { ids: [input.id] });
 

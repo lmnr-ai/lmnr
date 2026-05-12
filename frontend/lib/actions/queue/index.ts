@@ -205,12 +205,15 @@ export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatase
 
   // `includeUnlabelled` opts out of the approved-only filter that the API used
   // to enforce unconditionally. Callers that don't pass it keep the safe
-  // default (only push reviewed rows).
-  const sourceItems = includeUnlabelled
-    ? await getQueueItems(projectId, queueId)
-    : await getApprovedQueueItems(projectId, queueId);
-
-  const targetItems = itemIds && itemIds.length > 0 ? sourceItems.filter((i) => itemIds.includes(i.id)) : sourceItems;
+  // default (only push reviewed rows). When `itemIds` is provided we push it
+  // down into the ClickHouse `IN (...)` filter rather than fetching every row
+  // and filtering client-side — `payload`/`edit` can be tens of kB per row, so
+  // a single-item push on a queue with thousands of items previously dragged
+  // the entire queue over the wire.
+  const fetchOpts = itemIds && itemIds.length > 0 ? { ids: itemIds } : undefined;
+  const targetItems = includeUnlabelled
+    ? await getQueueItems(projectId, queueId, fetchOpts)
+    : await getApprovedQueueItems(projectId, queueId, fetchOpts);
 
   if (targetItems.length === 0) {
     return { pushed: 0 };
