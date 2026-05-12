@@ -469,9 +469,7 @@ fn render_usage_warning_email(
         };
         let billing_sentence = if overage_billable {
             format!(
-                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier.",
-                meter_description = meter_description,
-                tier_label = tier_label,
+                " From now until the next billing cycle, additional {meter_description} will be billed in a pay-as-you-go manner at the overage rate for the {tier_label} tier."
             )
         } else {
             String::new()
@@ -479,10 +477,7 @@ fn render_usage_warning_email(
         format!(
             r#"<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
       This threshold matches the {tier_label} tier's included allowance, so you have now used up the free {meter_description} included in your current plan.{billing_sentence}
-    </p>"#,
-            tier_label = tier_label,
-            meter_description = meter_description,
-            billing_sentence = billing_sentence,
+    </p>"#
         )
     } else {
         String::new()
