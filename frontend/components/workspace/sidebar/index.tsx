@@ -11,14 +11,13 @@ import { type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 interface WorkspaceSidebarProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
-  versionBadge?: React.ReactNode;
 }
 
-const WorkspaceSidebar = ({ workspace, isOwner, versionBadge }: WorkspaceSidebarProps) => (
+const WorkspaceSidebar = ({ workspace, isOwner }: WorkspaceSidebarProps) => (
   <Sidebar className="border-none" collapsible="icon">
     <WorkspaceSidebarHeader workspace={workspace} />
     <WorkspaceSidebarContent tier={workspace.tierName} isOwner={isOwner} />
-    <SidebarFooter versionBadge={versionBadge} />
+    <SidebarFooter />
   </Sidebar>
 );
 

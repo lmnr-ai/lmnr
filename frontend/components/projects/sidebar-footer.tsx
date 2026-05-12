@@ -4,6 +4,7 @@ import { Book, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
+import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
 import { IconGitHub } from "@/components/ui/icons";
 import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
@@ -19,11 +20,7 @@ import {
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
-interface SidebarFooterProps {
-  versionBadge?: React.ReactNode;
-}
-
-const SidebarFooterComponent = ({ versionBadge }: SidebarFooterProps) => {
+const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
@@ -85,7 +82,11 @@ const SidebarFooterComponent = ({ versionBadge }: SidebarFooterProps) => {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {versionBadge && (open || openMobile) && <div className="px-4 pb-1">{versionBadge}</div>}
+      {(open || openMobile) && (
+        <div className="px-4 pt-0.5 flex justify-end">
+          <VersionBadge />
+        </div>
+      )}
     </SidebarFooter>
   );
 };

@@ -11,15 +11,14 @@ import ProjectSidebarContent from "./content";
 
 interface ProjectSidebarProps {
   details: ProjectDetails;
-  versionBadge?: React.ReactNode;
 }
 
-export default function ProjectSidebar({ details, versionBadge }: ProjectSidebarProps) {
+export default function ProjectSidebar({ details }: ProjectSidebarProps) {
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
       <ProjectSidebarContent details={details} />
-      <SidebarFooter versionBadge={versionBadge} />
+      <SidebarFooter />
     </Sidebar>
   );
 }
