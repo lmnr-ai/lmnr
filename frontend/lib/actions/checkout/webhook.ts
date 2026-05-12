@@ -120,8 +120,9 @@ export const manageWorkspaceSubscriptionEvent = async ({
     const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
     const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
     const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
-    // Run limit cleanup on every tier transition so that cancellations (Hobby → Free)
-    // also clear the default Hobby hard cap. Warnings still only make sense on paid tiers.
+    // Run limit and Hobby-overage-warning cleanup on every tier transition so that
+    // cancellations (Hobby → Free) also clear Hobby-specific defaults. Otherwise a
+    // later upgrade to Pro would inherit them.
     await upsertDefaultTierUsageLimits({
       workspaceId,
       newTierName: newPaidTier,
@@ -129,9 +130,13 @@ export const manageWorkspaceSubscriptionEvent = async ({
       currentTierName: currentPaidTier,
       currentTierConfig,
     });
+    if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
+      await clearHobbyOverageWarnings(workspaceId);
+    }
     if (newPaidTier) {
       await insertNewTierUsageWarnings({
         workspaceId,
+        newTierName: newPaidTier,
         newTierConfig: TIER_CONFIG[newPaidTier],
         currentTierConfig,
       });
@@ -303,12 +308,19 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
+// Extra overage warnings fired on Hobby only, above the included allowance, so users
+// accumulating a large overage bill are nudged before it grows further.
+const HOBBY_OVERAGE_WARNING_SIGNAL_STEPS = 15_000;
+const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
+
 const insertNewTierUsageWarnings = async ({
   workspaceId,
+  newTierName,
   newTierConfig,
   currentTierConfig,
 }: {
   workspaceId: string;
+  newTierName: PaidTier;
   newTierConfig: TierConfigEntry;
   currentTierConfig?: TierConfigEntry;
 }) => {
@@ -332,21 +344,58 @@ const insertNewTierUsageWarnings = async ({
         )
       );
   }
-  await db
-    .insert(workspaceUsageWarnings)
-    .values([
-      {
-        workspaceId,
-        usageItem: "bytes",
-        limitValue: newTierConfig.includedBytes,
-      },
+
+  const values = [
+    {
+      workspaceId,
+      usageItem: "bytes",
+      limitValue: newTierConfig.includedBytes,
+    },
+    {
+      workspaceId,
+      usageItem: "signal_steps_processed",
+      limitValue: newTierConfig.includedSignalSteps,
+    },
+  ];
+  if (newTierName === "hobby") {
+    values.push(
       {
         workspaceId,
         usageItem: "signal_steps_processed",
-        limitValue: newTierConfig.includedSignalSteps,
+        limitValue: HOBBY_OVERAGE_WARNING_SIGNAL_STEPS,
       },
-    ])
-    .onConflictDoNothing();
+      {
+        workspaceId,
+        usageItem: "bytes",
+        limitValue: HOBBY_OVERAGE_WARNING_BYTES,
+      }
+    );
+  }
+
+  await db.insert(workspaceUsageWarnings).values(values).onConflictDoNothing();
+};
+
+// Clear the Hobby-only overage warning rows when a workspace transitions out of Hobby.
+// Matched on exact default values so user-adjusted thresholds are preserved.
+const clearHobbyOverageWarnings = async (workspaceId: string) => {
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_STEPS)
+      )
+    );
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "bytes"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_BYTES)
+      )
+    );
 };
 
 // Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
