@@ -104,6 +104,45 @@ describe("computeSubagentGroups", () => {
     assert.deepStrictEqual(computeSubagentGroups(spans), []);
   });
 
+  it("returns no groups when every LLM span is hashless", () => {
+    // No hashed LLMs → no reliably-identifiable main agent → grouping must be
+    // suppressed entirely. Without the early return, every hashless LLM would
+    // be promoted into a spurious group because pathHashKeyOf(s) (a string)
+    // never equals mainPathHashKey (null).
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      {
+        id: "llm_a",
+        parentId: "root",
+        type: "LLM",
+        path: ["root", "llm_a"],
+        idsPath: ["root", "llm_a"],
+      },
+      {
+        id: "llm_b",
+        parentId: "root",
+        type: "LLM",
+        path: ["root", "llm_b"],
+        idsPath: ["root", "llm_b"],
+      },
+    ]);
+    assert.deepStrictEqual(computeSubagentGroups(spans), []);
+  });
+
+  it("returns no groups for a single hashless LLM span", () => {
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      {
+        id: "llm",
+        parentId: "root",
+        type: "LLM",
+        path: ["root", "main_llm"],
+        idsPath: ["root", "llm"],
+      },
+    ]);
+    assert.deepStrictEqual(computeSubagentGroups(spans), []);
+  });
+
   it("groups multiple iterations of one subagent into a single group", () => {
     // One subagent invocation with three LLM iterations sharing one loop body.
     const spans = buildSpans([

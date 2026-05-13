@@ -397,8 +397,19 @@ const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping 
           return best;
         })
       : null;
+  // No reliably-identifiable main agent → skip subagent grouping entirely.
+  // Otherwise hashless LLMs would all hash-key to "<path>|" (never === null) and
+  // be promoted into spurious subagent groups.
+  if (mainSpan === null) {
+    return {
+      llmToAnchor: new Map(),
+      mainAgentAncestors: new Set(),
+      subagentAncestors: new Map(),
+      anchorLlmTimes: new Map(),
+    };
+  }
   // Keyed by (path, hash) only so every main-agent invocation is suppressed.
-  const mainPathHashKey = mainSpan ? pathHashKey(mainSpan.spanPath, mainSpan.promptHash) : null;
+  const mainPathHashKey = pathHashKey(mainSpan.spanPath, mainSpan.promptHash);
   const pathHashKeyOf = (s: LlmSpanInfo) => pathHashKey(s.spanPath, s.promptHash);
 
   // Anchor = first LLM (by start time) per full composite key, excluding main.
