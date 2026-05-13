@@ -158,11 +158,16 @@ pub async fn process_span_messages(
         mark_seen(&keys, cache.clone()).await;
     }
 
-    // For each dedup'd span, rewrite `size_bytes` to reflect what we actually
-    // store: the full JSON `input` is replaced by `32 * num_hashes` bytes.
+    // For each dedup'd span, rewrite `size_bytes` to reflect the effective
+    // CH storage we just wrote: the full JSON `input` on the span is
+    // replaced by `32 * num_hashes` bytes, and the span is also charged for
+    // any NEW `llm_messages.content` rows it caused to be inserted this
+    // batch (messages already seen in Redis, or earlier in this batch, add
+    // nothing — shared messages are billed once, to the first referrer).
     // This feeds both the billing counter below and the CH `size_bytes`
-    // column written via `CHSpan::from_db_span`. The hash is hex on the read
-    // path but stored as raw `FixedString(32)` in CH, so 32 is the truth.
+    // column written via `CHSpan::from_db_span`. The hash is hex on the
+    // read path but stored as raw `FixedString(32)` in CH, so 32 is the
+    // truth.
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let num_hashes = dedup
             .span_hashes
@@ -177,10 +182,16 @@ pub async fn process_span_messages(
             .as_ref()
             .map_or(0, crate::utils::estimate_json_size);
         let hashes_size = num_hashes * 32;
+        let content_bytes = dedup
+            .span_content_bytes
+            .get(dedup_idx)
+            .copied()
+            .unwrap_or(0);
         let new_size = spans[span_idx]
             .size_bytes
             .saturating_sub(original_input_size)
-            .saturating_add(hashes_size);
+            .saturating_add(hashes_size)
+            .saturating_add(content_bytes);
         spans[span_idx].size_bytes = new_size;
     }
 

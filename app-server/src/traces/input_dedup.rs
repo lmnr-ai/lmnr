@@ -76,10 +76,16 @@ fn canonical_json(value: &Value) -> String {
 
 /// Bundle of messages to insert into `llm_messages` and the hash-array column
 /// values to stamp onto each span. Order in `span_hashes` matches the order
-/// of spans passed in.
+/// of spans passed in. `span_content_bytes[i]` is the byte count of
+/// `llm_messages.content` that span `i` caused to be newly inserted — a
+/// message that already exists (Redis-seen or earlier in this batch) adds
+/// nothing. Callers attribute those bytes to the emitting span's
+/// `size_bytes` so the workspace counter reflects CH storage actually
+/// written, with shared messages charged once to the first referrer.
 pub struct DedupBatch {
     pub messages: Vec<CHLlmMessage>,
     pub span_hashes: Vec<Vec<[u8; 32]>>,
+    pub span_content_bytes: Vec<usize>,
 }
 
 /// Parse each LLM span's input as a JSON array, hash its messages with
@@ -93,6 +99,7 @@ pub struct DedupBatch {
 pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
+    let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
     // Dedup within a single batch so two spans in the same trace referencing
     // the same new message produce one CHLlmMessage, not two. The key MUST
     // match the `llm_messages` ORDER BY (project_id, trace_id, message_hash)
@@ -106,14 +113,17 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
     for span in spans {
         if !span.is_llm_span() {
             span_hashes.push(Vec::new());
+            span_content_bytes.push(0);
             continue;
         }
         let Some(Value::Array(items)) = span.input.as_ref() else {
             span_hashes.push(Vec::new());
+            span_content_bytes.push(0);
             continue;
         };
 
         let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
+        let mut content_bytes_for_span: usize = 0;
         for item in items {
             let canonical = canonical_json(item);
             let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
@@ -131,27 +141,31 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 continue;
             }
 
+            // Store the original (non-canonicalized) serialization so the
+            // view reconstructs `input` with the same field order the
+            // non-dedup path (`CHSpan::from_db_span`) would have written —
+            // `serde_json` is compiled with `preserve_order`, so
+            // `item.to_string()` keeps ingestion-time key order. The hash
+            // is computed over the sorted-key canonical form so semantic
+            // duplicates still collapse, but what we serve back on read
+            // is byte-identical to what a non-deduped insert would produce.
+            let content = sanitize_string(&item.to_string());
+            content_bytes_for_span += content.len();
             messages.push(CHLlmMessage {
                 project_id: span.project_id,
                 trace_id: span.trace_id,
                 message_hash: hash,
-                // Store the original (non-canonicalized) serialization so the
-                // view reconstructs `input` with the same field order the
-                // non-dedup path (`CHSpan::from_db_span`) would have written —
-                // `serde_json` is compiled with `preserve_order`, so
-                // `item.to_string()` keeps ingestion-time key order. The hash
-                // is computed over the sorted-key canonical form so semantic
-                // duplicates still collapse, but what we serve back on read
-                // is byte-identical to what a non-deduped insert would produce.
-                content: sanitize_string(&item.to_string()),
+                content,
             });
         }
         span_hashes.push(hashes);
+        span_content_bytes.push(content_bytes_for_span);
     }
 
     DedupBatch {
         messages,
         span_hashes,
+        span_content_bytes,
     }
 }
 
