@@ -58,7 +58,6 @@ pub async fn process_span_messages(
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
-            span.estimate_size_bytes();
             span.parse_and_enrich_attributes();
             span
         })
@@ -79,6 +78,14 @@ pub async fn process_span_messages(
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
+        // Measure `size_bytes` AFTER all mutations that can reshape
+        // `span.input` — LangChain provider conversion can replace the
+        // input with a different-size `Value::Array`, and the dedup
+        // rewrite below takes `size_bytes - estimate_json_size(input)` as
+        // "bytes minus input payload". Running estimate earlier would
+        // mismatch the current `input` and skew workspace byte counters
+        // for LangChain users whose spans are deduplicated.
+        span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
