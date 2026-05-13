@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    ch::labeling_queue_items::{
-        CHLabelingQueueItem, existing_idempotency_keys, insert_labeling_queue_items,
-    },
+    ch::labeling_queue_items::{CHLabelingQueueItem, insert_labeling_queue_items},
     db::{self, DB, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
 };
@@ -66,17 +64,6 @@ pub async fn create_labeling_queues_items(
     let now_dt = chrono::Utc::now();
     let now_ms = now_dt.timestamp_millis() as u64;
 
-    let keys_to_check: Vec<String> = request
-        .items
-        .iter()
-        .filter_map(|item| item.idempotency_key.as_ref())
-        .filter(|key| !key.is_empty())
-        .cloned()
-        .collect();
-
-    let already_present =
-        existing_idempotency_keys(clickhouse.clone(), project_id, queue_id, &keys_to_check).await?;
-
     let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
     let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
     let mut seen_keys: HashSet<String> = HashSet::new();
@@ -84,14 +71,17 @@ pub async fn create_labeling_queues_items(
     for item in request.items {
         let idempotency_key = item.idempotency_key.unwrap_or_default();
 
-        if !idempotency_key.is_empty() {
-            if already_present.contains(&idempotency_key) {
-                continue;
-            }
+        // UUIDv5 over (queue_id, idempotency_key) so same-key retries collapse on RMT FINAL.
+        // In-batch dedupe avoids emitting the same id twice in one response; cross-batch
+        // retries collapse naturally via the deterministic id + ReplacingMergeTree.
+        let id = if idempotency_key.is_empty() {
+            Uuid::now_v7()
+        } else {
             if !seen_keys.insert(idempotency_key.clone()) {
                 continue;
             }
-        }
+            Uuid::new_v5(&queue_id, idempotency_key.as_bytes())
+        };
 
         let payload = serde_json::json!({
             "data": item.data,
@@ -101,7 +91,6 @@ pub async fn create_labeling_queues_items(
         .to_string();
         let edit = serde_json::to_string(&item.target).unwrap_or_else(|_| "null".to_string());
 
-        let id = Uuid::now_v7();
         ch_items.push(CHLabelingQueueItem {
             id,
             queue_id,

@@ -8,8 +8,8 @@ import { type LabelingQueueItem } from "@/lib/queue/types";
 import { generateUuid, tryParseJson } from "@/lib/utils";
 
 import {
+  copyQueueItemsToDataset,
   deleteQueueItems,
-  getApprovedQueueItems,
   getQueueItems,
   getQueueItemStates,
   insertQueueItems,
@@ -203,44 +203,12 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
 export async function pushItemsToDataset(input: z.infer<typeof PushItemsToDatasetSchema>) {
   const { projectId, queueId, datasetId, itemIds, includeUnlabelled } = PushItemsToDatasetSchema.parse(input);
 
-  // `includeUnlabelled` opts out of the approved-only filter that the API used
-  // to enforce unconditionally. Callers that don't pass it keep the safe
-  // default (only push reviewed rows). When `itemIds` is provided we push it
-  // down into the ClickHouse `IN (...)` filter rather than fetching every row
-  // and filtering client-side — `payload`/`edit` can be tens of kB per row, so
-  // a single-item push on a queue with thousands of items previously dragged
-  // the entire queue over the wire.
-  const fetchOpts = itemIds && itemIds.length > 0 ? { ids: itemIds } : undefined;
-  const targetItems = includeUnlabelled
-    ? await getQueueItems(projectId, queueId, fetchOpts)
-    : await getApprovedQueueItems(projectId, queueId, fetchOpts);
+  const pushed = await copyQueueItemsToDataset(projectId, queueId, datasetId, {
+    ids: itemIds && itemIds.length > 0 ? itemIds : undefined,
+    includeUnlabelled,
+  });
 
-  if (targetItems.length === 0) {
-    return { pushed: 0 };
-  }
-
-  const now = new Date().toISOString();
-  const toInsert = targetItems.map((item) => ({
-    id: generateUuid(),
-    data: (item.payload as { data?: unknown }).data ?? {},
-    target: effectiveTarget(item),
-    metadata: (item.payload as { metadata?: unknown }).metadata ?? item.metadata ?? {},
-    createdAt: now,
-  }));
-
-  // Create before delete so a failed insert leaves the queue rows intact for
-  // retry. dataset_datapoints is plain MergeTree — if the delete then fails
-  // and the user retries, they'll get duplicate datapoints. Acceptable; the
-  // UI guards this path so retries are a deliberate action.
-  await createDatapoints(projectId, datasetId, toInsert);
-
-  await deleteQueueItems(
-    projectId,
-    queueId,
-    targetItems.map((i) => i.id)
-  );
-
-  return { pushed: targetItems.length };
+  return { pushed };
 }
 
 export async function listQueueItems(input: z.infer<typeof GetQueueItemsSchema>) {

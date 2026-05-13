@@ -151,7 +151,7 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
                 disabled={totalCount === 0}
                 hint={
                   unannotatedCount > 0
-                    ? `${unannotatedCount} not yet annotated`
+                    ? `${unannotatedCount} not yet labeled`
                     : totalCount === 0
                       ? "Queue is empty"
                       : undefined
@@ -213,7 +213,7 @@ function ScopeOption({ value, label, count, disabled, hint, hintTone }: ScopeOpt
           <span
             className={cn(
               "inline-flex items-center gap-1 text-xs",
-              hintTone === "warning" ? "text-amber-500" : "text-secondary-foreground"
+              hintTone === "warning" ? "text-amber-500/80" : "text-secondary-foreground"
             )}
           >
             {hintTone === "warning" && <TriangleAlert className="size-3" />}

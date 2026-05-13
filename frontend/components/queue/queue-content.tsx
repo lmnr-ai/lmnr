@@ -30,11 +30,6 @@ export default function QueueContent() {
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
 
-  // `useDefaultLayout` from react-resizable-panels reads `localStorage` eagerly
-  // inside the hook body, so it crashes during SSR even when we pass `storage:
-  // undefined`. `useSyncExternalStore` with split server/client snapshots is the
-  // canonical way to render different content on the server vs client without
-  // a setState-in-effect cascade.
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
   if (!isInitialLoaded || !isClient) {

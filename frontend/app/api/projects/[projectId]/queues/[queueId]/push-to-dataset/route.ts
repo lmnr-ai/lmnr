@@ -28,7 +28,8 @@ export async function POST(request: Request, props: { params: Promise<{ projectI
 
     return Response.json(result);
   } catch (error) {
-    console.error("Error pushing items to dataset:", error);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Error pushing items to dataset:", { projectId, queueId, error });
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return Response.json({ error: message }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { type LabelingQueueItem, type QueueProgress } from "@/lib/queue/types";
-import { tryParseJson } from "@/lib/utils";
+import { generateSequentialUuidsV7, tryParseJson } from "@/lib/utils";
 
 const SELECT_COLUMNS = `
   id,
@@ -33,7 +33,7 @@ export interface QueueItemStateRow {
   state: QueueItemState;
 }
 
-export interface InsertQueueItem {
+interface InsertQueueItem {
   id: string;
   queueId: string;
   projectId: string;
@@ -66,13 +66,7 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
     };
   });
 
-  // Synchronous insert: `updateQueueItem`'s read-modify-write must see this
-  // row on the next FINAL SELECT (async buffer flushes ~200ms apart).
-  // Sync insert guarantees the row is *visible* to the next SELECT; `FINAL`
-  // on every reader (below) guarantees that when multiple versions of the
-  // same primary key coexist (writes append, RMT merges in the background),
-  // the latest one wins. Both are required — sync alone leaves duplicates,
-  // FINAL alone races with the async buffer.
+  // Sync insert so `updateQueueItem`'s FINAL read sees the row immediately.
   await clickhouseClient.insert({
     table: "labeling_queue_items",
     values: rows,
@@ -90,7 +84,6 @@ export const getQueueItems = async (
   const hasLimit = typeof limit === "number";
   const hasOffset = typeof offset === "number";
   const hasIds = Array.isArray(ids);
-  // ClickHouse rejects `IN ()` as a syntax error — short-circuit empty filters.
   if (hasIds && ids.length === 0) return [];
 
   const parameters: Record<string, unknown> = { queueId };
@@ -132,9 +125,7 @@ export const getQueueItemStates = async (projectId: string, queueId: string): Pr
     parameters: { queueId },
   });
 
-// SQL expressions for each progress bucket — kept identical to the row-level
-// derivation in `getQueueItemStates` / frontend `deriveItemState` so HAVING
-// totals never disagree with what the navigator bar shows for the same queue.
+// Bucket expressions kept identical to `getQueueItemStates` / frontend `deriveItemState`.
 const PROGRESS_EXPR = {
   total: "count()",
   new: "countIf(status = 0 AND edit = JSONExtractRaw(payload, 'target'))",
@@ -160,15 +151,7 @@ export interface ProgressFilter {
   value: number;
 }
 
-// Pre-filter queue ids by lifecycle counts via a CH GROUP BY ... HAVING. Used
-// by the queues list endpoint to support filters like `approved > 5` without
-// pulling every queue into Postgres. Combined filters are AND-ed.
-//
-// Limitation: only queues that have ≥ 1 item are scanned by the GROUP BY, so
-// `total = 0` / `<state> = 0` predicates do NOT match empty queues. We accept
-// that here rather than UNION-ing in the empty set — the common filters
-// (`approved > 0`, `new > 0`, `total > N`) work as expected; if "show me
-// queues with zero approved" becomes a real ask we can add an inverse branch.
+// GROUP BY only sees queues with ≥ 1 item, so `<col> = 0` won't match empty queues.
 export const findQueueIdsByProgress = async (projectId: string, filters: ProgressFilter[]): Promise<string[]> => {
   if (filters.length === 0) return [];
 
@@ -194,10 +177,6 @@ export const findQueueIdsByProgress = async (projectId: string, filters: Progres
   return rows.map((r) => r.queueId);
 };
 
-// Per-queue lifecycle counts for the queues list page. Uses the same
-// `multiIf(status, edit == JSONExtractRaw(payload, 'target'))` derivation
-// as `getQueueItemStates` so totals stay consistent with the navigator bar.
-// Empty `queueIds` short-circuits — `IN ()` is a CH syntax error.
 export const getQueueProgresses = async (
   projectId: string,
   queueIds: string[]
@@ -236,34 +215,90 @@ export const getQueueProgresses = async (
   return result;
 };
 
-export const getApprovedQueueItems = async (
+// Server-side push to `dataset_datapoints` via INSERT…SELECT (no payload bodies cross the wire).
+// `edit` → `target` directly under the mirror model; dp ids minted in JS and zipped by row position.
+export const copyQueueItemsToDataset = async (
   projectId: string,
   queueId: string,
-  options: { ids?: string[] } = {}
-): Promise<LabelingQueueItem[]> => {
-  const { ids } = options;
+  datasetId: string,
+  options: { ids?: string[]; includeUnlabelled?: boolean } = {}
+): Promise<number> => {
+  const { ids, includeUnlabelled } = options;
   const hasIds = Array.isArray(ids);
-  if (hasIds && ids.length === 0) return [];
+  if (hasIds && ids.length === 0) return 0;
 
-  const parameters: Record<string, unknown> = { queueId };
-  if (hasIds) parameters.ids = ids;
+  const selectParams: Record<string, unknown> = { queueId };
+  if (hasIds) selectParams.ids = ids;
 
-  const rows = await executeQuery<RawRow>({
+  const matchedRows = await executeQuery<{ id: string }>({
     projectId,
     query: `
-      SELECT ${SELECT_COLUMNS}
+      SELECT id
       FROM labeling_queue_items FINAL
       WHERE queue_id = {queueId: UUID}
-        AND status = 1
+        ${includeUnlabelled ? "" : "AND status = 1"}
         ${hasIds ? "AND id IN ({ids: Array(UUID)})" : ""}
-      ORDER BY updated_at ASC, id ASC
+      ORDER BY id
     `,
-    parameters,
+    parameters: selectParams,
   });
-  return rows.map((row) => parseRow(projectId, row));
+
+  if (matchedRows.length === 0) return 0;
+
+  const matchedIds = matchedRows.map((r) => r.id);
+  const newIds = generateSequentialUuidsV7(matchedIds.length);
+
+  // `row_number() OVER (ORDER BY id)` matches the preflight order so positional zip is stable.
+  // `toString(id) IN Array(String)` because `Array(UUID)` binding via `command` empirically didn't match.
+  await clickhouseClient.command({
+    query: `
+      INSERT INTO dataset_datapoints (id, dataset_id, project_id, created_at, data, target, metadata)
+      SELECT
+        arrayElement({newIds: Array(UUID)}, rn) AS id,
+        {datasetId: UUID} AS dataset_id,
+        project_id,
+        now64(9, 'UTC') AS created_at,
+        JSONExtractRaw(payload, 'data') AS data,
+        edit AS target,
+        JSONExtractRaw(payload, 'metadata') AS metadata
+      FROM (
+        SELECT
+          *,
+          row_number() OVER (ORDER BY id) AS rn
+        FROM labeling_queue_items FINAL
+        WHERE project_id = {projectId: UUID}
+          AND queue_id = {queueId: UUID}
+          AND toString(id) IN ({matchedIds: Array(String)})
+      )
+    `,
+    query_params: { projectId, queueId, datasetId, matchedIds, newIds },
+    clickhouse_settings: { async_insert: 0 },
+  });
+
+  // Verify by minted id before deleting source rows — guards against the previous zero-UUID zip bug.
+  const verifyRows = await executeQuery<{ c: number }>({
+    projectId,
+    query: `
+      SELECT count() AS c
+      FROM dataset_datapoints
+      WHERE dataset_id = {datasetId: UUID}
+        AND toString(id) IN ({newIds: Array(String)})
+    `,
+    parameters: { datasetId, newIds },
+  });
+  const inserted = Number(verifyRows[0]?.c ?? 0);
+
+  if (inserted !== matchedIds.length) {
+    throw new Error(
+      `push-to-dataset: expected ${matchedIds.length} rows inserted, got ${inserted}. Queue rows preserved.`
+    );
+  }
+
+  await deleteQueueItems(projectId, queueId, matchedIds);
+  return matchedIds.length;
 };
 
-export interface UpdateQueueItemInput {
+interface UpdateQueueItemInput {
   id: string;
   queueId: string;
   projectId: string;
@@ -271,12 +306,8 @@ export interface UpdateQueueItemInput {
   status?: 0 | 1;
 }
 
-// Read-modify-write upsert: preserve immutable fields (`payload`, `metadata`,
-// `createdAt`) while emitting fresh `edit` / `status` / `updated_at`. The
-// FINAL-scoped read collapses any un-merged duplicate versions to the latest
-// `updated_at` row, so partial-update PATCHes (e.g. `{ edit }`-only landing
-// after `{ status: 1 }`) inherit the up-to-date `status` instead of re-emitting
-// a stale one and silently reverting an approval.
+// Read-modify-write upsert. FINAL read collapses unmerged versions so partial PATCHes
+// (e.g. `{ edit }`-only after `{ status: 1 }`) inherit current `status` instead of reverting.
 export const updateQueueItem = async (input: UpdateQueueItemInput): Promise<void> => {
   const [existing] = await getQueueItems(input.projectId, input.queueId, { ids: [input.id] });
 
