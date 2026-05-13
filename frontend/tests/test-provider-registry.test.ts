@@ -75,11 +75,86 @@ describe("provider registry: matchProviderKey rendering", () => {
     assert.strictEqual(m!.rendered, "one\n\ntwo");
   });
 
+  it("renders only text from Anthropic mix of thinking + text, ignoring thinking", () => {
+    const data = {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "let me reason about this...", signature: "sig" },
+        { type: "text", text: "the answer is 42" },
+      ],
+    };
+    const m = matchProviderKey(data, "anthropic");
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "the answer is 42");
+  });
+
+  it("falls back to Anthropic thinking when no text block is present", () => {
+    const data = {
+      role: "assistant",
+      content: [{ type: "thinking", thinking: "internal monologue", signature: "sig" }],
+    };
+    const m = matchProviderKey(data, "anthropic");
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "internal monologue");
+  });
+
   it("renders Gemini candidate text", () => {
     const data = { content: { role: "model", parts: [{ text: "g-hello" }] } };
     const m = matchProviderKey(data);
     assert.ok(m);
     assert.strictEqual(m!.rendered, "g-hello");
+  });
+
+  it("ignores Gemini thought parts when a non-thought text part is present", () => {
+    const data = {
+      content: {
+        role: "model",
+        parts: [{ text: "thinking step by step...", thought: true }, { text: "final answer" }],
+      },
+    };
+    const m = matchProviderKey(data, "gemini");
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "final answer");
+  });
+
+  it("falls back to Gemini thought parts when no plain text is present", () => {
+    const data = {
+      content: {
+        role: "model",
+        parts: [{ text: "all I have is reasoning", thought: true }],
+      },
+    };
+    const m = matchProviderKey(data, "gemini");
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "all I have is reasoning");
+  });
+
+  it("renders gen-ai (OTel) output preferring text over thinking", () => {
+    const data = [
+      {
+        role: "assistant",
+        parts: [
+          { type: "thinking", content: "This is a straightforward math problem..." },
+          { type: "text", content: "# Answer: 9 sheep" },
+        ],
+        finish_reason: "stop",
+      },
+    ];
+    const m = matchProviderKey(data);
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "# Answer: 9 sheep");
+  });
+
+  it("falls back to gen-ai thinking when no text part is present", () => {
+    const data = [
+      {
+        role: "assistant",
+        parts: [{ type: "thinking", content: "internal monologue" }],
+      },
+    ];
+    const m = matchProviderKey(data);
+    assert.ok(m);
+    assert.strictEqual(m!.rendered, "internal monologue");
   });
 
   it("renders OpenAI Responses assistant output_text", () => {

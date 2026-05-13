@@ -4,6 +4,7 @@ import { type ParsedInput, type TextPart } from "@/lib/actions/sessions/parse-in
 import { GenAIMessagesSchema, looksLikeGenAIMessages } from "@/lib/spans/types/gen-ai";
 
 import { type ProviderAdapter } from "./types";
+import { joinNonEmpty } from "./utils";
 
 type GenAIMessage = z.infer<typeof GenAIMessagesSchema>[number];
 type GenAIPart = GenAIMessage["parts"][number];
@@ -53,8 +54,32 @@ const parseSystemAndUserGenAI = (data: unknown): ParsedInput | null => {
   return { systemText, userParts: extractFirstUserMessage(messages) };
 };
 
+const renderGenAIMessage = (message: GenAIMessage): string => {
+  const textParts: string[] = [];
+  const thinkingParts: string[] = [];
+  for (const part of message.parts) {
+    if (typeof part === "string") {
+      if (part.length > 0) textParts.push(part);
+      continue;
+    }
+    const obj = part as { type?: string; content?: unknown };
+    if (typeof obj.content !== "string" || obj.content.length === 0) continue;
+    if (obj.type === "text") textParts.push(obj.content);
+    else if (obj.type === "thinking") thinkingParts.push(obj.content);
+  }
+  return joinNonEmpty(textParts.length > 0 ? textParts : thinkingParts);
+};
+
+const renderOutputTextGenAI = (data: unknown): string | null => {
+  if (!looksLikeGenAIMessages(data)) return null;
+  const result = GenAIMessagesSchema.safeParse(data);
+  if (!result.success) return null;
+  return joinNonEmpty(result.data.map(renderGenAIMessage));
+};
+
 export const genAIAdapter: ProviderAdapter = {
   id: "gen-ai",
   detect: (data) => looksLikeGenAIMessages(data),
   parseSystemAndUser: parseSystemAndUserGenAI,
+  renderOutputText: renderOutputTextGenAI,
 };

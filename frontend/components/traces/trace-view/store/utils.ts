@@ -37,15 +37,32 @@ export const computePathInfoMap = (spans: TraceViewSpan[]): Map<string, PathInfo
     spans.map((span) => [span.spanId, { spanId: span.spanId, name: span.name, parentSpanId: span.parentSpanId }])
   );
 
-  // Sections needed for display counts
+  // Memoize parent chains so siblings reuse one walk and the two consumers
+  // below (buildSpanNameMap + the pathInfo loop) don't each pay the full cost.
+  const parentChainCache = new Map<string, string[]>();
+  const getParentIds = (spanId: string): string[] => {
+    const cached = parentChainCache.get(spanId);
+    if (cached) return cached;
+    const span = spanMap.get(spanId);
+    const parent = span?.parentSpanId ? spanMap.get(span.parentSpanId) : undefined;
+    const result = parent ? [...getParentIds(parent.spanId), parent.spanId] : [];
+    parentChainCache.set(spanId, result);
+    return result;
+  };
+
   const nonDefaultSpans = spans.filter((span) => span.spanType !== "DEFAULT");
   const sections = groupIntoSections(nonDefaultSpans);
-  const spanNameMap = buildSpanNameMap(sections, spanMap);
+  const spanNameMap = buildSpanNameMap(sections, spanMap, getParentIds);
 
-  // Compute pathInfo for each span
   const pathInfoMap = new Map<string, PathInfo>();
   for (const span of spans) {
-    const parentChain = buildParentChain(span, spanMap);
+    const parentIds = getParentIds(span.spanId);
+    const parentChain = parentIds
+      .map((id) => {
+        const parent = spanMap.get(id);
+        return parent ? { spanId: parent.spanId, name: parent.name } : null;
+      })
+      .filter((ref): ref is { spanId: string; name: string } => ref !== null);
     pathInfoMap.set(span.spanId, buildPathInfo(parentChain, spanNameMap));
   }
 
@@ -131,40 +148,19 @@ const groupIntoSections = (listSpans: TraceViewSpan[]): TraceViewSpan[][] =>
     return sections;
   }, []);
 
-const buildParentChainRecursive = (
-  spanId: string,
-  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>,
-  chain: string[] = []
-): string[] => {
-  const span = spanMap.get(spanId);
-  if (!span?.parentSpanId) {
-    return chain;
-  }
-
-  const parentSpan = spanMap.get(span.parentSpanId);
-  if (!parentSpan) {
-    return chain;
-  }
-
-  return buildParentChainRecursive(parentSpan.spanId, spanMap, [parentSpan.spanId, ...chain]);
-};
-
 /**
- * Calculate occurrence counts [2], [3] for duplicate names within sections
- * Returns a Map of spanId -> structured data with name and optional count
+ * Calculate occurrence counts [2], [3] for duplicate names within sections.
+ * Returns a Map of spanId -> structured data with name and optional count.
  */
 const buildSpanNameMap = (
   sections: TraceViewSpan[][],
-  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
+  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>,
+  getParentIds: (spanId: string) => string[]
 ): Map<string, { name: string; count?: number }> => {
   const map = new Map<string, { name: string; count?: number }>();
 
   sections.forEach((section) => {
-    const parentChains: string[][] = section.map((listSpan) => {
-      const chain = [listSpan.spanId];
-      const parentChain = buildParentChainRecursive(listSpan.spanId, spanMap);
-      return [...parentChain, ...chain];
-    });
+    const parentChains: string[][] = section.map((listSpan) => [...getParentIds(listSpan.spanId), listSpan.spanId]);
 
     const commonParentIndex =
       parentChains.length > 0
@@ -177,35 +173,16 @@ const buildSpanNameMap = (
     const spansInContext = new Set<string>(parentChains.flatMap((chain) => chain.slice(commonParentIndex)));
 
     const nameCounter = new Map<string, number>();
-    const sortedSpans = Array.from(spansInContext)
-      .map((id) => spanMap.get(id))
-      .filter((span): span is Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId"> => span !== undefined);
-
-    sortedSpans.forEach((span) => {
-      const name = span.name;
-      const currentCount = nameCounter.get(name) || 0;
-      const count = currentCount + 1;
-      nameCounter.set(name, count);
-
-      map.set(span.spanId, count > 1 ? { name, count } : { name });
-    });
+    for (const id of spansInContext) {
+      const span = spanMap.get(id);
+      if (!span) continue;
+      const count = (nameCounter.get(span.name) ?? 0) + 1;
+      nameCounter.set(span.name, count);
+      map.set(span.spanId, count > 1 ? { name: span.name, count } : { name: span.name });
+    }
   });
 
   return map;
-};
-
-const buildParentChain = (
-  span: TraceViewSpan,
-  spanMap: Map<string, Pick<TraceViewSpan, "spanId" | "name" | "parentSpanId">>
-): Array<{ spanId: string; name: string }> => {
-  const parentChainIds = buildParentChainRecursive(span.spanId, spanMap);
-
-  return parentChainIds
-    .map((spanId) => {
-      const parentSpan = spanMap.get(spanId);
-      return parentSpan ? { spanId: parentSpan.spanId, name: parentSpan.name } : null;
-    })
-    .filter((ref): ref is { spanId: string; name: string } => ref !== null);
 };
 
 const buildPathInfo = (
@@ -345,7 +322,7 @@ const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => 
  * each LLM's `ids_path`, used by `buildSpanToAnchorMap` to place non-LLM spans
  * by their deepest claimed ancestor (main wins ties → standalone).
  */
-export interface SubagentLlmGrouping {
+interface SubagentLlmGrouping {
   /** LLM/CACHED spanId -> its anchor spanId. Main-agent LLMs are absent. */
   llmToAnchor: Map<string, string>;
   /** Span IDs claimed by the main agent (strict ancestors of main-agent LLMs). */
@@ -356,7 +333,7 @@ export interface SubagentLlmGrouping {
   anchorLlmTimes: Map<string, string[]>;
 }
 
-export const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping => {
+const computeSubagentBoundaries = (spans: TraceViewSpan[]): SubagentLlmGrouping => {
   const llmSpans: LlmSpanInfo[] = [];
 
   for (const span of spans) {
@@ -605,8 +582,8 @@ export const buildTranscriptListEntries = (
   const spanMap = new Map<string, TraceViewSpan>();
   for (const s of allSpans) spanMap.set(s.spanId, s);
 
-  // Pass 1: bucket list-visible spans by anchor, preserving listSpans order
-  // (typically start-time from getTranscriptData).
+  // Bucket order matters: first/last-LLM detection below assumes start-time
+  // order (the order spans arrive in `listSpans`).
   const groupSpansMap = new Map<string, TraceViewSpan[]>();
   for (const span of listSpans) {
     const anchor = spanToAnchor.get(span.spanId);
@@ -619,48 +596,46 @@ export const buildTranscriptListEntries = (
     bucket.push(span);
   }
 
-  // Pass 2: pre-compute group metadata.
-  const groupMeta = new Map<
-    string,
-    {
-      groupId: string;
-      name: string;
-      path: string;
-      firstSpan: TraceViewListSpan;
-      firstLlmSpanId: string | null;
-      lastLlmSpanId: string | null;
-      startTime: string;
-      endTime: string;
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadInputTokens: number;
-      totalCost: number;
-      childSpans: TraceViewListSpan[];
-    }
-  >();
+  const emittedGroups = new Set<string>();
+  const entries: TranscriptListEntry[] = [];
 
-  for (const [anchor, groupSpans] of groupSpansMap) {
-    const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
-    const lastLlm = groupSpans.findLast((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+  const emitGroupBlock = (anchor: string) => {
+    const groupSpans = groupSpansMap.get(anchor);
+    if (!groupSpans || groupSpans.length === 0) return;
 
-    if (!firstLlm) continue;
-
-    const anchorSpan = spanMap.get(anchor);
-    const lightSpans = groupSpans.map((s) => toLightweight(s));
-
+    let firstLlm: TraceViewSpan | undefined;
+    let lastLlm: TraceViewSpan | undefined;
     let inputTokens = 0;
     let outputTokens = 0;
     let cacheReadInputTokens = 0;
     let totalCost = 0;
     for (const s of groupSpans) {
+      if (s.spanType === "LLM" || s.spanType === "CACHED") {
+        firstLlm ??= s;
+        lastLlm = s;
+      }
       inputTokens += s.inputTokens;
       outputTokens += s.outputTokens;
       cacheReadInputTokens += s.cacheReadInputTokens ?? 0;
       totalCost += s.totalCost;
     }
 
-    groupMeta.set(anchor, {
-      groupId: `group-${anchor}`,
+    // No LLM/CACHED left after visibility filtering — degrade to standalone
+    // rows so the user still sees the spans.
+    if (!firstLlm) {
+      for (const s of groupSpans) {
+        entries.push({ type: "span", span: toLightweight(s) });
+      }
+      return;
+    }
+
+    const anchorSpan = spanMap.get(anchor);
+    const lightSpans = groupSpans.map((s) => toLightweight(s));
+    const groupId = `group-${anchor}`;
+
+    entries.push({
+      type: "group",
+      groupId,
       name: anchorSpan?.name ?? groupSpans[0].name,
       path: anchorSpan?.path ?? "",
       firstSpan: lightSpans[0],
@@ -672,48 +647,19 @@ export const buildTranscriptListEntries = (
       outputTokens,
       cacheReadInputTokens,
       totalCost,
-      childSpans: lightSpans,
     });
-  }
 
-  const emitGroupBlock = (anchor: string, entries: TranscriptListEntry[]) => {
-    const meta = groupMeta.get(anchor);
-    if (!meta) {
-      const groupSpans = groupSpansMap.get(anchor);
-      if (groupSpans) {
-        for (const s of groupSpans) {
-          entries.push({ type: "span", span: toLightweight(s) });
-        }
-      }
-      return;
-    }
+    entries.push({ type: "group-input", groupId, firstLlmSpanId: firstLlm.spanId });
 
-    const { childSpans, ...groupHeader } = meta;
-    entries.push({ ...groupHeader, type: "group" });
-
-    if (meta.firstLlmSpanId) {
-      entries.push({
-        type: "group-input",
-        groupId: meta.groupId,
-        firstLlmSpanId: meta.firstLlmSpanId,
-      });
-    }
-
-    for (let i = 0; i < childSpans.length; i++) {
+    for (let i = 0; i < lightSpans.length; i++) {
       entries.push({
         type: "group-span",
-        span: childSpans[i],
-        groupId: meta.groupId,
-        isLast: i === childSpans.length - 1,
+        span: lightSpans[i],
+        groupId,
+        isLast: i === lightSpans.length - 1,
       });
     }
   };
-
-  // Pass 3: emit entries in listSpans order. Each group's block is emitted at
-  // the position of its first member; subsequent members of the same group are
-  // skipped. Anchorless spans render standalone.
-  const emittedGroups = new Set<string>();
-  const entries: TranscriptListEntry[] = [];
 
   for (const span of listSpans) {
     const anchor = spanToAnchor.get(span.spanId);
@@ -723,7 +669,7 @@ export const buildTranscriptListEntries = (
     }
     if (emittedGroups.has(anchor)) continue;
     emittedGroups.add(anchor);
-    emitGroupBlock(anchor, entries);
+    emitGroupBlock(anchor);
   }
 
   return entries;
@@ -822,16 +768,17 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     computeDepth(span.spanId, 0);
   }
 
-  // Calculate positions for each span
-  const spansWithPosition: Array<{
+  type SpanWithPosition = {
     span: TraceViewSpan;
     left: number;
     width: number;
     originalDepth: number;
     startMs: number;
     endMs: number;
-  }> = [];
+  };
 
+  // spanId -> position map keeps the DFS-ordering pass below O(N).
+  const positionById = new Map<string, SpanWithPosition>();
   for (const span of spans) {
     const spanStartMs = new Date(span.startTime).getTime();
     const spanEndMs = new Date(span.endTime).getTime();
@@ -840,7 +787,7 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     const left = ((spanStartMs - startTime) / upperIntervalInMilliseconds) * 100;
     const width = (spanDuration / upperIntervalInMilliseconds) * 100;
 
-    spansWithPosition.push({
+    positionById.set(span.spanId, {
       span,
       left,
       width,
@@ -850,27 +797,24 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     });
   }
 
-  // Use DFS order to process spans (parent before children) instead of sorting by start time
-  const orderedSpans: typeof spansWithPosition = [];
+  const orderedSpans: SpanWithPosition[] = [];
   const visited = new Set<string>();
 
   const dfsOrder = (spanId: string) => {
     if (visited.has(spanId)) return;
     visited.add(spanId);
 
-    const spanWithPos = spansWithPosition.find((s) => s.span.spanId === spanId);
+    const spanWithPos = positionById.get(spanId);
     if (spanWithPos) {
       orderedSpans.push(spanWithPos);
     }
 
-    // Process children in order
     const children = childSpansMap[spanId] || [];
     for (const child of children) {
       dfsOrder(child.spanId);
     }
   };
 
-  // Start from top-level spans
   for (const span of topLevelSpans) {
     dfsOrder(span.spanId);
   }
