@@ -20,7 +20,12 @@ ALTER TABLE spans
 -- version (NOT_IMPLEMENTED on the outer row reference), so we materialize the
 -- per-trace (hash -> content) arrays once in the join subquery and look up
 -- each hash with indexOf. Missing hashes fall back to 'null' so the
--- concatenated array stays parseable by JSON.parse on the frontend.
+-- concatenated array stays parseable by JSON.parse on the frontend. The
+-- reconstruction path is taken whenever input_message_hashes is non-empty,
+-- regardless of whether the join produced any matches; a completely empty
+-- subquery (e.g. CH replication lag between the llm_messages and spans
+-- inserts) still yields '[null,...,null]' rather than the cleared '' that
+-- would blow up JSON.parse on the frontend.
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -53,7 +58,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         s.provider AS provider,
         s.path AS path,
         if(
-            length(s.input_message_hashes) > 0 AND notEmpty(m.hs),
+            length(s.input_message_hashes) > 0,
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> ifNull(nullIf(m.cs[indexOf(m.hs, h)], ''), 'null'),
