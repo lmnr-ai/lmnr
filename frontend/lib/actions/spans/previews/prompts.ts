@@ -130,7 +130,7 @@ export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<
   try {
     const { text } = await observe({ name: "generate-preview-keys" }, async () =>
       generateText({
-        model: getLanguageModel("lite"),
+        model: getLanguageModel("small"),
         system: PREVIEW_KEY_SYSTEM_PROMPT,
         prompt: buildUserMessage(structures),
         maxRetries: 0,

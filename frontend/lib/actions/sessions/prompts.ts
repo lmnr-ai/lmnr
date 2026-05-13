@@ -134,7 +134,7 @@ const RegexResultSchema = z.object({
 export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
   try {
     const { object } = await generateObject({
-      model: getLanguageModel("lite"),
+      model: getLanguageModel("small"),
       system: SYSTEM_PROMPT,
       prompt: userMessage,
       schema: RegexResultSchema,
