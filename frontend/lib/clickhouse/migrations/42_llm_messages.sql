@@ -24,6 +24,14 @@ ALTER TABLE spans
 -- spans.input_message_hashes coerce transparently at dictGetOrDefault time.
 -- LIFETIME(MIN 30 MAX 60) refreshes the cache within ~1 minute so recent
 -- llm_messages inserts become queryable without a full rebuild.
+--
+-- SOURCE omits `DB` so the dictionary resolves `llm_messages` in whatever
+-- database the migration tool connects to (driven by CLICKHOUSE_DB, default
+-- `default`). Hardcoding `DB 'default'` would silently break self-hosted
+-- deployments that run against a non-default database: the dict would look
+-- up a table that doesn't exist there and every dictGetOrDefault in
+-- spans_v0 would return the 'null' fallback, replacing all reconstructed
+-- LLM inputs with [null,null,...].
 CREATE DICTIONARY IF NOT EXISTS llm_messages_dict
 (
     project_id UUID,
@@ -34,7 +42,6 @@ CREATE DICTIONARY IF NOT EXISTS llm_messages_dict
 PRIMARY KEY project_id, trace_id, message_hash
 SOURCE(CLICKHOUSE(
     TABLE 'llm_messages'
-    DB 'default'
 ))
 LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
 LIFETIME(MIN 30 MAX 60);
