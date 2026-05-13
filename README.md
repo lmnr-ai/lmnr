@@ -53,9 +53,9 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
-### Enabling the Signals feature
+### Configuring LLM provider (optional)
 
-To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, configure an LLM provider in your `.env` file at the repo root. The same vars are read by both the app-server and the frontend.
+Frontend AI features (chat-with-trace, SQL-with-AI) require an LLM provider. Configure one in your `.env` file at the repo root — the vars are read by the frontend only.
 
 Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are optional — per-provider defaults apply when unset.
 
