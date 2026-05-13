@@ -10,6 +10,12 @@
 //! - `MOCK_LLM_CLIENT_STEPS_COUNT` — total number of steps to before returning the final result.
 //!   All but last step return `get_full_spans`, last step returns `submit_identification`.
 //!   Defaults to 2.
+//! - `MOCK_LLM_CLIENT_GENERATE_FAILURE` — if set, `generate_content` fails with the specified error:
+//!   - `"retryable_429"` — retryable 429 ApiError (drives the realtime backoff/retry path)
+//!   - `"non_retryable"` — non-retryable 400 ApiError (drives the permanent-failure path)
+//! - `MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT` — how many `generate_content` calls fail before
+//!   succeeding. Counter is per-process (across all runs). Defaults to 3. Use `usize::MAX` to
+//!   fail forever. Ignored unless `MOCK_LLM_CLIENT_GENERATE_FAILURE` is set.
 //!
 //! For programmatic control in tests, use [`MockProviderClient::with_generate_failure`] to
 //! configure `generate_content` to fail a specified number of times before succeeding.
@@ -74,12 +80,15 @@ impl Default for MockProviderClient {
 
 impl MockProviderClient {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            generate_failure: read_generate_failure_from_env(),
+            ..Self::default()
+        }
     }
 
     /// Create a mock provider that fails `generate_content` for the first `fail_count` calls,
     /// then succeeds. Use `usize::MAX` for `fail_count` to fail forever.
-    #[cfg(test)]
+    #[allow(dead_code)]
     pub fn with_generate_failure(fail_count: usize, mode: GenerateFailureMode) -> Self {
         Self {
             generate_failure: Some(GenerateFailureConfig { fail_count, mode }),
@@ -92,6 +101,48 @@ impl MockProviderClient {
     pub fn generate_call_count(&self) -> usize {
         self.generate_call_count.load(Ordering::Relaxed)
     }
+}
+
+/// Reads `MOCK_LLM_CLIENT_GENERATE_FAILURE` (`"retryable_429"` | `"non_retryable"`) and the
+/// optional `MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT` (defaults to `usize::MAX` — fail forever).
+/// Returns `None` when the failure env var is unset or holds an unrecognized value.
+fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
+    let mode = match std::env::var("MOCK_LLM_CLIENT_GENERATE_FAILURE")
+        .ok()
+        .as_deref()
+    {
+        Some("retryable_429") => GenerateFailureMode::Retryable429,
+        Some("non_retryable") => GenerateFailureMode::NonRetryable,
+        Some(other) => {
+            log::warn!(
+                "[Mock LLM client] Ignoring unrecognized MOCK_LLM_CLIENT_GENERATE_FAILURE={:?} \
+                 (expected \"retryable_429\" or \"non_retryable\")",
+                other
+            );
+            return None;
+        }
+        None => return None,
+    };
+
+    let fail_count = std::env::var("MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(3);
+
+    log::info!(
+        "[Mock LLM client] generate_content failure injection enabled: mode={}, fail_count={}",
+        match mode {
+            GenerateFailureMode::Retryable429 => "retryable_429",
+            GenerateFailureMode::NonRetryable => "non_retryable",
+        },
+        if fail_count == usize::MAX {
+            "forever".to_string()
+        } else {
+            fail_count.to_string()
+        }
+    );
+
+    Some(GenerateFailureConfig { fail_count, mode })
 }
 
 fn mock_submit_identification() -> ProviderFunctionCall {
