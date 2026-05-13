@@ -15,17 +15,45 @@ SETTINGS index_granularity = 8192;
 ALTER TABLE spans
     ADD COLUMN IF NOT EXISTS input_message_hashes Array(FixedString(32)) CODEC(ZSTD(3));
 
--- Reconstruct `input` from llm_messages via a LEFT JOIN grouped per-trace.
--- Correlated scalar subqueries in a view definition fail on our ClickHouse
--- version (NOT_IMPLEMENTED on the outer row reference), so we materialize the
--- per-trace (hash -> content) arrays once in the join subquery and look up
--- each hash with indexOf. Missing hashes fall back to 'null' so the
--- concatenated array stays parseable by JSON.parse on the frontend. The
--- reconstruction path is taken whenever input_message_hashes is non-empty,
--- regardless of whether the join produced any matches; a completely empty
--- subquery (e.g. CH replication lag between the llm_messages and spans
--- inserts) still yields '[null,...,null]' rather than the cleared '' that
--- would blow up JSON.parse on the frontend.
+-- Dictionary fronting `llm_messages` for per-row lookups from `spans_v0`.
+-- Keyed by (project_id, trace_id, message_hash) so each span pays only for
+-- the hashes it actually references; we do NOT aggregate all project
+-- messages on every view read. `message_hash` is declared String because
+-- dictionary attribute types cannot be FixedString(N) on CH 25.12
+-- (UNKNOWN_TYPE at CREATE DICTIONARY); the FixedString(32) hashes from
+-- spans.input_message_hashes coerce transparently at dictGetOrDefault time.
+-- LIFETIME(MIN 30 MAX 60) refreshes the cache within ~1 minute so recent
+-- llm_messages inserts become queryable without a full rebuild.
+CREATE DICTIONARY IF NOT EXISTS llm_messages_dict
+(
+    project_id UUID,
+    trace_id UUID,
+    message_hash String,
+    content String
+)
+PRIMARY KEY project_id, trace_id, message_hash
+SOURCE(CLICKHOUSE(
+    TABLE 'llm_messages'
+    DB 'default'
+))
+LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+LIFETIME(MIN 30 MAX 60);
+
+-- Reconstruct `input` from llm_messages via dictGetOrDefault inside arrayMap.
+-- Missing hashes fall back to 'null' so the concatenated array stays
+-- parseable by JSON.parse on the frontend even when the dict hasn't yet
+-- picked up a freshly-inserted llm_messages row (CH replication lag between
+-- the llm_messages and spans inserts).
+--
+-- SETTINGS optimize_move_to_prewhere = 0 works around a CH 25.12 analyzer
+-- bug: a query like `SELECT * FROM spans_v0(...) WHERE span_type = 'LLM'
+-- ORDER BY start_time DESC` fails with AMBIGUOUS_COLUMN_NAME because the
+-- prewhere mover pushes the String predicate on the CASE-aliased
+-- `span_type` down onto the base UInt8 `spans.span_type` column with the
+-- same name. The bug reproduces whenever the view body contains an
+-- arrayMap over a base-table array column; disabling the prewhere move
+-- makes CH evaluate the String CASE alias first, avoiding the type
+-- collision.
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -61,7 +89,12 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             length(s.input_message_hashes) > 0,
             '[' || arrayStringConcat(
                 arrayMap(
-                    h -> ifNull(nullIf(m.cs[indexOf(m.hs, h)], ''), 'null'),
+                    h -> dictGetOrDefault(
+                        'llm_messages_dict',
+                        'content',
+                        tuple(s.project_id, s.trace_id, h),
+                        'null'
+                    ),
                     s.input_message_hashes
                 ),
                 ','
@@ -70,22 +103,14 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         ) AS input,
         s.output AS output,
         CASE
-          WHEN s.status = 'error' THEN 'error'
-          WHEN s.status = 'success' THEN 'success'
-          ELSE 'success'
+            WHEN s.status = 'error' THEN 'error'
+            WHEN s.status = 'success' THEN 'success'
+            ELSE 'success'
         END AS status,
         s.parent_span_id AS parent_span_id,
         s.attributes AS attributes,
         s.tags_array AS tags,
         s.events AS events
     FROM spans AS s
-    LEFT JOIN (
-        SELECT
-            trace_id,
-            groupArray(message_hash) AS hs,
-            groupArray(content) AS cs
-        FROM llm_messages
-        WHERE project_id = {project_id:UUID}
-        GROUP BY trace_id
-    ) AS m ON s.trace_id = m.trace_id
-    WHERE s.project_id = {project_id:UUID};
+    WHERE s.project_id = {project_id:UUID}
+    SETTINGS optimize_move_to_prewhere = 0;
