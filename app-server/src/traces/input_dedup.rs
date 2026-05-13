@@ -1,20 +1,8 @@
 //! Structural deduplication for LLM span input message payloads (LAM-1578).
-//!
-//! Agent traces step-over-step re-send the full message history, so step k's
-//! input contains roughly k(k+1)/2 messages across the trace when only k are
-//! unique. This module replaces each LLM span's `input` with an ordered array
-//! of BLAKE3 hashes and emits one row per unique message into `llm_messages`,
-//! trace-scoped. The `spans_v0` view LEFT-JOINs the table back on read to
-//! reconstruct the original JSON array transparently for the frontend.
-//!
-//! Redis is used as a best-effort "seen recently in this trace" filter so
-//! we don't re-INSERT unchanged messages on every step. The key MUST include
-//! `trace_id` because `llm_messages` is trace-scoped — a message seen in
-//! trace A cannot be assumed queryable for trace B even in the same project,
-//! so without the trace in the key we'd skip inserts for other traces whose
-//! spans would then reconstruct to empty. When Redis is unavailable we fall
-//! back to always inserting and rely on the ReplacingMergeTree engine to
-//! dedup on merge.
+//! Replaces each span's `input` with BLAKE3 hashes; unique messages land in
+//! `llm_messages` and the `spans_v0` view reconstructs the JSON array on read.
+//! Redis is a best-effort "seen recently in this trace" filter; the key
+//! includes `trace_id` because `llm_messages` is trace-scoped.
 
 use std::sync::Arc;
 
@@ -26,9 +14,6 @@ use crate::ch::llm_messages::CHLlmMessage;
 use crate::db::spans::Span;
 use crate::utils::sanitize_string;
 
-/// Keep Redis dedup markers for one hour. Longer TTLs just mean fewer
-/// re-inserts on the hot path at the cost of Redis memory; shorter TTLs are
-/// safe because the ReplacingMergeTree engine collapses duplicates anyway.
 const MESSAGE_SEEN_TTL_SECONDS: u64 = 3600;
 
 fn message_seen_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String {
@@ -40,8 +25,7 @@ fn message_seen_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String
     )
 }
 
-/// Canonical JSON with sorted object keys so semantically identical messages
-/// hash to the same value regardless of ingest-time field order.
+/// JSON with sorted object keys — stable hash identity across field-order-only diffs.
 fn canonical_json(value: &Value) -> String {
     match value {
         Value::Object(map) => {
@@ -74,39 +58,23 @@ fn canonical_json(value: &Value) -> String {
     }
 }
 
-/// Bundle of messages to insert into `llm_messages` and the hash-array column
-/// values to stamp onto each span. Order in `span_hashes` matches the order
-/// of spans passed in. `span_content_bytes[i]` is the byte count of
-/// `llm_messages.content` that span `i` caused to be newly inserted — a
-/// message that already exists (Redis-seen or earlier in this batch) adds
-/// nothing. Callers attribute those bytes to the emitting span's
-/// `size_bytes` so the workspace counter reflects CH storage actually
-/// written, with shared messages charged once to the first referrer.
+/// `span_hashes[i]` / `span_content_bytes[i]` align with the span order passed
+/// in. `span_content_bytes[i]` is the bytes of `llm_messages.content` span `i`
+/// caused to be newly inserted — shared messages contribute 0 (billed once).
 pub struct DedupBatch {
     pub messages: Vec<CHLlmMessage>,
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
 }
 
-/// Parse each LLM span's input as a JSON array, hash its messages with
-/// BLAKE3-256, and build the (messages, per-span hash arrays) batch.
-/// Non-LLM spans and LLM spans whose input is not a JSON array produce an
-/// empty hash array, leaving their `input` unchanged downstream.
-///
-/// Redis is consulted to drop messages seen recently in the same trace.
-/// On Redis error we degrade to always emitting the row, letting the
-/// ReplacingMergeTree dedup on merge.
+/// Hash each LLM span's input messages with BLAKE3 and emit unique rows per
+/// `(project_id, trace_id, hash)`. Non-LLM spans and non-array inputs pass
+/// through with empty hashes. Redis misses/errors fall through to insert.
 pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
-    // Dedup within a single batch so two spans in the same trace referencing
-    // the same new message produce one CHLlmMessage, not two. The key MUST
-    // match the `llm_messages` ORDER BY (project_id, trace_id, message_hash)
-    // — a batch can mix spans from multiple projects, and two projects
-    // sharing a trace_id would otherwise suppress the second project's
-    // insert, leaving its spans pointing at rows that don't exist for its
-    // (project_id, trace_id) scope.
+    // Key must match `llm_messages` ORDER BY — batches can mix projects.
     let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
 
@@ -134,21 +102,13 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
             }
 
             let key = message_seen_key(span.project_id, span.trace_id, &hash);
-            // On Redis errors / misses we emit the row. exists() returning
-            // Ok(true) is the only path that skips the insert.
             let already_seen = cache.exists(&key).await.unwrap_or(false);
             if already_seen {
                 continue;
             }
 
-            // Store the original (non-canonicalized) serialization so the
-            // view reconstructs `input` with the same field order the
-            // non-dedup path (`CHSpan::from_db_span`) would have written —
-            // `serde_json` is compiled with `preserve_order`, so
-            // `item.to_string()` keeps ingestion-time key order. The hash
-            // is computed over the sorted-key canonical form so semantic
-            // duplicates still collapse, but what we serve back on read
-            // is byte-identical to what a non-deduped insert would produce.
+            // Store ingest-order JSON (serde_json `preserve_order`) so reads
+            // match the non-dedup path byte-for-byte. Hash stays canonical.
             let content = sanitize_string(&item.to_string());
             content_bytes_for_span += content.len();
             messages.push(CHLlmMessage {
@@ -169,9 +129,7 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
     }
 }
 
-/// Mark every message we just inserted as seen in Redis with a 1h TTL. Called
-/// only after the llm_messages insert succeeded so a failed insert can't
-/// leave a "seen" marker blocking future re-inserts.
+/// Stamp Redis only after the `llm_messages` insert succeeded.
 pub async fn mark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
     for (project_id, trace_id, hash) in keys {
         let key = message_seen_key(*project_id, *trace_id, hash);
@@ -181,8 +139,7 @@ pub async fn mark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
     }
 }
 
-/// Remove Redis markers for messages whose ClickHouse insert failed so the
-/// next attempt re-emits them.
+/// Clear markers so a retry of the failed insert re-emits the rows.
 pub async fn unmark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
     for (project_id, trace_id, hash) in keys {
         let key = message_seen_key(*project_id, *trace_id, hash);

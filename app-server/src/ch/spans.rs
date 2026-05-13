@@ -71,10 +71,7 @@ pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
     pub name: String,
-    // Named `span_kind` in the underlying ClickHouse table (renamed from
-    // `span_type` in migration 43). The `spans_v0` view still exposes the
-    // string-cast projection aliased as `span_type` for downstream consumers.
-    pub span_kind: u8,
+    pub span_type: u8,
     /// Start time in nanoseconds
     pub start_time: i64,
     /// End time in nanoseconds
@@ -151,7 +148,7 @@ impl CHSpan {
             span_id: span.span_id,
             parent_span_id: span.parent_span_id.unwrap_or(Uuid::nil()),
             name: span.name.clone(),
-            span_kind: span.span_type.clone().into(),
+            span_type: span.span_type.clone().into(),
             start_time: chrono_to_nanoseconds(span.start_time),
             end_time: chrono_to_nanoseconds(span.end_time),
             input_tokens: usage.input_tokens,

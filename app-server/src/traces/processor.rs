@@ -78,13 +78,7 @@ pub async fn process_span_messages(
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
-        // Measure `size_bytes` AFTER all mutations that can reshape
-        // `span.input` — LangChain provider conversion can replace the
-        // input with a different-size `Value::Array`, and the dedup
-        // rewrite below takes `size_bytes - estimate_json_size(input)` as
-        // "bytes minus input payload". Running estimate earlier would
-        // mismatch the current `input` and skew workspace byte counters
-        // for LangChain users whose spans are deduplicated.
+        // Must run AFTER provider conversion — LangChain rewrites `input`.
         span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
@@ -119,12 +113,8 @@ pub async fn process_span_messages(
         }
     };
 
-    // Structural dedup for LLM span inputs: hash each message, insert unique
-    // rows into `llm_messages` first, then stamp the hash array onto each
-    // span and clear `input` so the view reconstructs it on read. The spec
-    // requires the messages insert to succeed before the span insert; if
-    // the messages insert fails we drop the Redis seen markers and abort
-    // this batch so it can be retried in full.
+    // Dedup LLM span inputs: insert unique messages first, then stamp hashes
+    // onto each span. If the messages insert fails, unmark Redis and retry.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -158,16 +148,10 @@ pub async fn process_span_messages(
         mark_seen(&keys, cache.clone()).await;
     }
 
-    // For each dedup'd span, rewrite `size_bytes` to reflect the effective
-    // CH storage we just wrote: the full JSON `input` on the span is
-    // replaced by `32 * num_hashes` bytes, and the span is also charged for
-    // any NEW `llm_messages.content` rows it caused to be inserted this
-    // batch (messages already seen in Redis, or earlier in this batch, add
-    // nothing — shared messages are billed once, to the first referrer).
-    // This feeds both the billing counter below and the CH `size_bytes`
-    // column written via `CHSpan::from_db_span`. The hash is hex on the
-    // read path but stored as raw `FixedString(32)` in CH, so 32 is the
-    // truth.
+    // Rewrite `size_bytes` to reflect post-dedup storage: drop the input
+    // payload, add the hash array (32 bytes each), and charge this span for
+    // any new `llm_messages.content` rows it caused — shared messages are
+    // billed once, to the first referrer.
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let num_hashes = dedup
             .span_hashes
@@ -177,22 +161,17 @@ pub async fn process_span_messages(
         if num_hashes == 0 {
             continue;
         }
-        let original_input_size = spans[span_idx]
+        let removed = spans[span_idx]
             .input
             .as_ref()
             .map_or(0, crate::utils::estimate_json_size);
-        let hashes_size = num_hashes * 32;
         let content_bytes = dedup
             .span_content_bytes
             .get(dedup_idx)
             .copied()
             .unwrap_or(0);
-        let new_size = spans[span_idx]
-            .size_bytes
-            .saturating_sub(original_input_size)
-            .saturating_add(hashes_size)
-            .saturating_add(content_bytes);
-        spans[span_idx].size_bytes = new_size;
+        let added = num_hashes * 32 + content_bytes;
+        spans[span_idx].adjust_size_bytes(removed, added);
     }
 
     // Build CHSpans with embedded events and insert to ClickHouse
@@ -225,12 +204,7 @@ pub async fn process_span_messages(
         )));
     }
 
-    // Check signal triggers AFTER spans are inserted into ClickHouse
-    // so the signal agent can see the trace data when processing.
-    // The signals entry point handles its own runtime feature gate and
-    // per-project filtering/grouping internally — when the cargo feature
-    // is off (OSS) or the runtime feature is disabled, this returns
-    // immediately without cloning/grouping the traces.
+    // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {
         crate::signals::check_and_push_signals(
             updated_traces,

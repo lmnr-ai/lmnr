@@ -1089,6 +1089,12 @@ impl Span {
         self.size_bytes = size_bytes;
     }
 
+    /// Adjust `size_bytes` after a structural rewrite (e.g. input dedup):
+    /// subtract what was removed, then add what replaced it.
+    pub fn adjust_size_bytes(&mut self, removed: usize, added: usize) {
+        self.size_bytes = self.size_bytes.saturating_sub(removed).saturating_add(added);
+    }
+
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
     /// of the user, when `execute` was register in tool definitions when calling
     /// `generateText`
