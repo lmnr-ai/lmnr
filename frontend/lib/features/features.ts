@@ -98,7 +98,7 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
-    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return false;
   }
 
   if (feature === Feature.CLUSTERING) {
