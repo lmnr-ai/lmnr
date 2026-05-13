@@ -17,8 +17,6 @@ pub enum Feature {
     SqlQueryEngine,
     ClickhouseReadOnly,
     Tracing,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    Clustering,
     Signals,
     Reports,
     RateLimiter,
@@ -48,10 +46,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
         Feature::Tracing => {
             env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
-        }
-        Feature::Clustering => {
-            env::var("CLUSTERING_SERVICE_URL").is_ok()
-                && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
         Feature::Signals => {
             // Mirrors the credential checks in `LlmClient::new` so this flag

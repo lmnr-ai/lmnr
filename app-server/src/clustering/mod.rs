@@ -1,19 +1,10 @@
-pub mod batching;
-pub mod clustering;
-pub mod queue;
+//! Public surface for the clustering feature.
+//!
+//! The full clustering implementation is an enterprise feature that lives in
+//! `lmnr-private` behind the `signals` cargo flag. OSS builds ship no
+//! clustering — `public.rs` exists only as a placeholder so the module tree
+//! compiles, and the clustering consumer worker is not spawned from
+//! `main.rs`.
 
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClusteringMessage {
-    pub project_id: Uuid,
-    pub signal_id: Uuid,
-    pub event_id: Uuid,
-    pub content: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClusteringBatchMessage {
-    pub events: Vec<ClusteringMessage>,
-}
+#[cfg(not(feature = "signals"))]
+mod public;
