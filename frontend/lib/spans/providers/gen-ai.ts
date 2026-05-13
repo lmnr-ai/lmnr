@@ -54,20 +54,25 @@ const parseSystemAndUserGenAI = (data: unknown): ParsedInput | null => {
   return { systemText, userParts: extractFirstUserMessage(messages) };
 };
 
-const renderGenAIMessage = (message: GenAIMessage): string => {
-  const textParts: string[] = [];
-  const thinkingParts: string[] = [];
-  for (const part of message.parts) {
+const collectGenAIParts = (parts: GenAIPart[]): { text: string[]; thinking: string[] } => {
+  const text: string[] = [];
+  const thinking: string[] = [];
+  for (const part of parts) {
     if (typeof part === "string") {
-      if (part.length > 0) textParts.push(part);
+      if (part.length > 0) text.push(part);
       continue;
     }
     const obj = part as { type?: string; content?: unknown };
     if (typeof obj.content !== "string" || obj.content.length === 0) continue;
-    if (obj.type === "text") textParts.push(obj.content);
-    else if (obj.type === "thinking") thinkingParts.push(obj.content);
+    if (obj.type === "text") text.push(obj.content);
+    else if (obj.type === "thinking") thinking.push(obj.content);
   }
-  return joinNonEmpty(textParts.length > 0 ? textParts : thinkingParts);
+  return { text, thinking };
+};
+
+const renderGenAIMessage = (message: GenAIMessage): string => {
+  const { text, thinking } = collectGenAIParts(message.parts);
+  return joinNonEmpty(text.length > 0 ? text : thinking);
 };
 
 const renderOutputTextGenAI = (data: unknown): string | null => {

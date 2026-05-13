@@ -819,6 +819,96 @@ describe("computeSubagentGroups", () => {
     assert.ok(!groupContaining(spans, "orphan"), "orphan tool with no ids_path must stay standalone");
   });
 
+  it("splits three invocations correctly when their divergence depths differ", () => {
+    // Pathological cluster: three subagent invocations of the same (path, hash)
+    // where the structural divergences happen at TWO different depths.
+    //
+    //   root
+    //   ├── X
+    //   │   ├── inv_A -> loop_A -> llm_A
+    //   │   └── inv_B -> loop_B -> llm_B    (A vs B diverge at idx=2)
+    //   └── Y
+    //       └── inv_C -> loop_C -> llm_C    (A vs C diverge at idx=1)
+    //
+    // A naive "first index where any member differs from cluster[0]" picks
+    // idx=1 and keys A and B with the same root (X), incorrectly merging
+    // two independent invocations. Using the full structural prefix as the
+    // key separates them.
+    const sharedPath = ["root", "branch", "task", "loop", "call"];
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      {
+        id: "main_llm",
+        parentId: "root",
+        type: "LLM",
+        path: ["root", "main"],
+        idsPath: ["root", "main_llm"],
+        promptHash: "main_hash",
+        inputTokens: 100,
+      },
+      { id: "X", parentId: "root", type: "DEFAULT", path: ["root", "branch"], idsPath: ["root", "X"] },
+      { id: "inv_A", parentId: "X", type: "TOOL", path: ["root", "branch", "task"], idsPath: ["root", "X", "inv_A"] },
+      {
+        id: "loop_A",
+        parentId: "inv_A",
+        type: "DEFAULT",
+        path: ["root", "branch", "task", "loop"],
+        idsPath: ["root", "X", "inv_A", "loop_A"],
+      },
+      {
+        id: "llm_A",
+        parentId: "loop_A",
+        type: "LLM",
+        path: sharedPath,
+        idsPath: ["root", "X", "inv_A", "loop_A", "llm_A"],
+        promptHash: "sub_hash",
+      },
+      { id: "inv_B", parentId: "X", type: "TOOL", path: ["root", "branch", "task"], idsPath: ["root", "X", "inv_B"] },
+      {
+        id: "loop_B",
+        parentId: "inv_B",
+        type: "DEFAULT",
+        path: ["root", "branch", "task", "loop"],
+        idsPath: ["root", "X", "inv_B", "loop_B"],
+      },
+      {
+        id: "llm_B",
+        parentId: "loop_B",
+        type: "LLM",
+        path: sharedPath,
+        idsPath: ["root", "X", "inv_B", "loop_B", "llm_B"],
+        promptHash: "sub_hash",
+      },
+      { id: "Y", parentId: "root", type: "DEFAULT", path: ["root", "branch"], idsPath: ["root", "Y"] },
+      { id: "inv_C", parentId: "Y", type: "TOOL", path: ["root", "branch", "task"], idsPath: ["root", "Y", "inv_C"] },
+      {
+        id: "loop_C",
+        parentId: "inv_C",
+        type: "DEFAULT",
+        path: ["root", "branch", "task", "loop"],
+        idsPath: ["root", "Y", "inv_C", "loop_C"],
+      },
+      {
+        id: "llm_C",
+        parentId: "loop_C",
+        type: "LLM",
+        path: sharedPath,
+        idsPath: ["root", "Y", "inv_C", "loop_C", "llm_C"],
+        promptHash: "sub_hash",
+      },
+    ]);
+
+    const groups = groupsBySpanIds(spans);
+    assert.strictEqual(groups.length, 3, "three invocations => three subagent groups");
+    const gA = groupContaining(spans, "llm_A");
+    const gB = groupContaining(spans, "llm_B");
+    const gC = groupContaining(spans, "llm_C");
+    assert.ok(gA && gB && gC);
+    assert.notStrictEqual(gA, gB, "A and B share branch X but are distinct invocations");
+    assert.notStrictEqual(gA, gC);
+    assert.notStrictEqual(gB, gC);
+  });
+
   it("excludes the wrapping TOOL/DEFAULT span from the subagent group it encloses", () => {
     // The span whose own ID appears as an ancestor of the subagent's LLM is the
     // call-site from the parent agent and must render OUTSIDE the group.

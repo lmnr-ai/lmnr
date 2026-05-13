@@ -268,14 +268,19 @@ const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${p
 
 /**
  * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return
- * each LLM's invocation root: the ancestor span ID that distinguishes its
- * invocation from other invocations of the same subagent. `""` means the
- * cluster is one invocation.
+ * each LLM's invocation root key: a string identifying the unique ancestor
+ * chain that distinguishes its invocation from other invocations of the same
+ * subagent. `""` means every member shares the same chain (one invocation).
  *
- * We find the first `ids_path` index where cluster members disagree, but
- * ignore the last two positions (the LLM itself and its direct parent —
- * some SDKs reuse one loop body across iterations, others spawn a fresh
- * one per iteration; both are still one invocation).
+ * The key is the full structural portion of `ids_path` — every ancestor
+ * except the last two positions (the LLM itself and its direct parent), which
+ * are iteration noise: some SDKs reuse one loop body across iterations,
+ * others spawn a fresh one per iteration; both are still one invocation.
+ *
+ * Using the full structural prefix (rather than a single divergence-index
+ * value) correctly partitions a cluster with multiple divergence depths —
+ * e.g. two invocations sharing depth-1 but diverging at depth-2 stay
+ * separate even when a third invocation diverges from them at depth-1.
  */
 const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => {
   const out = new Map<string, string>();
@@ -284,27 +289,16 @@ const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => 
     return out;
   }
 
-  const minLen = Math.min(...cluster.map((s) => s.idsPath.length));
-  const structuralLen = Math.max(0, minLen - 2);
+  const structuralPrefix = (s: LlmSpanInfo): string => (s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0"));
 
-  let divergenceIdx = -1;
-  for (let i = 0; i < structuralLen; i++) {
-    const expected = cluster[0].idsPath[i];
-    for (let j = 1; j < cluster.length; j++) {
-      if (cluster[j].idsPath[i] !== expected) {
-        divergenceIdx = i;
-        break;
-      }
-    }
-    if (divergenceIdx !== -1) break;
-  }
-
-  if (divergenceIdx === -1) {
+  const keys = cluster.map(structuralPrefix);
+  const firstKey = keys[0];
+  if (keys.every((k) => k === firstKey)) {
     for (const s of cluster) out.set(s.spanId, "");
     return out;
   }
-  for (const s of cluster) {
-    out.set(s.spanId, s.idsPath[divergenceIdx] ?? "");
+  for (let i = 0; i < cluster.length; i++) {
+    out.set(cluster[i].spanId, keys[i]);
   }
   return out;
 };
