@@ -109,15 +109,15 @@ services:
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       # Signals / AI feature provider. See README.md for setup.
+      # openai | gemini | bedrock. openai/gemini use LLM_API_KEY (+ optional LLM_BASE_URL);
+      # bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION.
       LLM_PROVIDER: ${LLM_PROVIDER}
       LLM_BASE_URL: ${LLM_BASE_URL}
       LLM_API_KEY: ${LLM_API_KEY}
+      # LLM_MODEL_* overrides (optional — per-provider defaults apply when unset).
       LLM_MODEL_SMALL: ${LLM_MODEL_SMALL}
       LLM_MODEL_MEDIUM: ${LLM_MODEL_MEDIUM}
       LLM_MODEL_LARGE: ${LLM_MODEL_LARGE}
-      # Bedrock override: set BEDROCK_ENABLED=true to use Anthropic Claude via AWS
-      # (pins the Claude model list and ignores LLM_MODEL_*).
-      BEDROCK_ENABLED: ${BEDROCK_ENABLED}
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
@@ -153,15 +153,15 @@ services:
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
       # Signals / AI feature provider. See README.md for setup.
+      # openai | gemini | bedrock. openai/gemini use LLM_API_KEY (+ optional LLM_BASE_URL);
+      # bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION.
       LLM_PROVIDER: ${LLM_PROVIDER}
       LLM_BASE_URL: ${LLM_BASE_URL}
       LLM_API_KEY: ${LLM_API_KEY}
+      # LLM_MODEL_* overrides (optional — per-provider defaults apply when unset).
       LLM_MODEL_SMALL: ${LLM_MODEL_SMALL}
       LLM_MODEL_MEDIUM: ${LLM_MODEL_MEDIUM}
       LLM_MODEL_LARGE: ${LLM_MODEL_LARGE}
-      # Bedrock override: set BEDROCK_ENABLED=true to use Anthropic Claude via AWS
-      # (pins the Claude model list and ignores LLM_MODEL_*).
-      BEDROCK_ENABLED: ${BEDROCK_ENABLED}
       AWS_REGION: ${AWS_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}

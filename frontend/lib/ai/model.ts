@@ -9,71 +9,72 @@ import type { LanguageModel } from "ai";
  */
 type ModelTier = "small" | "medium" | "large";
 
-type LLMProvider = "openai" | "gemini";
+type LLMProvider = "openai" | "gemini" | "bedrock";
 
-// Bedrock keeps its existing hard-coded model list so BEDROCK_ENABLED=true works without
-// requiring LLM_MODEL_* overrides. LLM_MODEL_* is ignored when Bedrock is active.
-const BEDROCK_MODELS: Record<ModelTier, string> = {
-  small: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-  medium: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-  large: "global.anthropic.claude-sonnet-4-6",
+// Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
+const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
+  gemini: {
+    small: "gemini-3-flash-preview",
+    medium: "gemini-3-flash-preview",
+    large: "gemini-3-pro-preview",
+  },
+  bedrock: {
+    small: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    medium: "us.anthropic.claude-sonnet-4-6",
+    large: "us.anthropic.claude-opus-4-7",
+  },
+  openai: {
+    small: "gpt-5.4-mini",
+    medium: "gpt-5.4",
+    large: "gpt-5.5",
+  },
 };
 
 function hasBedrockCreds(): boolean {
   return !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_REGION;
 }
 
-function isBedrockConfigured(): boolean {
-  return (process.env.BEDROCK_ENABLED === "true" || process.env.LLM_PROVIDER === "bedrock") && hasBedrockCreds();
-}
-
-function hasAllLlmModels(): boolean {
-  return !!process.env.LLM_MODEL_SMALL && !!process.env.LLM_MODEL_MEDIUM && !!process.env.LLM_MODEL_LARGE;
-}
-
 function getConfiguredLLMProvider(): LLMProvider | null {
   const provider = process.env.LLM_PROVIDER;
-  if (provider !== "openai" && provider !== "gemini") return null;
-  if (!process.env.LLM_API_KEY) return null;
-  if (!hasAllLlmModels()) return null;
-  return provider;
+  if (provider === "bedrock") {
+    return hasBedrockCreds() ? "bedrock" : null;
+  }
+  if (provider === "openai" || provider === "gemini") {
+    return process.env.LLM_API_KEY ? provider : null;
+  }
+  return null;
 }
 
 /**
- * Non-throwing check: true when a supported AI provider has credentials configured
- * AND (for non-Bedrock providers) all three LLM_MODEL_* tier overrides are set.
- * This mirrors the runtime contract of `getLanguageModel` so feature flags gating
- * AI features don't light up UI that will throw on first call.
+ * Non-throwing check: true when a supported AI provider has credentials configured.
+ * Mirrors the runtime contract of `getLanguageModel` so feature flags gating AI
+ * features don't light up UI that will throw on first call.
  */
 export function isAiProviderConfigured(): boolean {
-  return isBedrockConfigured() || getConfiguredLLMProvider() !== null;
+  return getConfiguredLLMProvider() !== null;
 }
 
-function resolveModelName(tier: ModelTier): string {
-  const override = process.env[`LLM_MODEL_${tier.toUpperCase()}`];
-  if (!override) {
-    throw new Error(
-      `LLM_MODEL_${tier.toUpperCase()} is not set. Define LLM_MODEL_SMALL, LLM_MODEL_MEDIUM, and LLM_MODEL_LARGE.`
-    );
-  }
-  return override;
+function resolveModelName(provider: LLMProvider, tier: ModelTier): string {
+  return process.env[`LLM_MODEL_${tier.toUpperCase()}`] || DEFAULT_MODELS[provider][tier];
 }
 
 export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
-  if (isBedrockConfigured()) {
-    const bedrock = createAmazonBedrock();
-    return bedrock(BEDROCK_MODELS[tier]);
-  }
-
   const provider = getConfiguredLLMProvider();
   if (!provider) {
     throw new Error(
-      "No AI provider configured. Set LLM_PROVIDER (openai|gemini) with LLM_API_KEY (and optional LLM_BASE_URL), " +
-        "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
+      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, or bedrock. " +
+        "openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
+        "bedrock requires AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION."
     );
   }
 
-  const modelName = resolveModelName(tier);
+  const modelName = resolveModelName(provider, tier);
+
+  if (provider === "bedrock") {
+    const bedrock = createAmazonBedrock();
+    return bedrock(modelName);
+  }
+
   const apiKey = process.env.LLM_API_KEY;
   const baseURL = process.env.LLM_BASE_URL;
 
