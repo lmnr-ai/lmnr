@@ -104,7 +104,7 @@ impl MockProviderClient {
 }
 
 /// Reads `MOCK_LLM_CLIENT_GENERATE_FAILURE` (`"retryable_429"` | `"non_retryable"`) and the
-/// optional `MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT` (defaults to `usize::MAX` — fail forever).
+/// optional `MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT` (defaults to `3`).
 /// Returns `None` when the failure env var is unset or holds an unrecognized value.
 fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
     let mode = match std::env::var("MOCK_LLM_CLIENT_GENERATE_FAILURE")
