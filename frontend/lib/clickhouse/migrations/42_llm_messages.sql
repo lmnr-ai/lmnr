@@ -51,73 +51,58 @@ LIFETIME(MIN 30 MAX 60);
 -- parseable by JSON.parse on the frontend even when the dict hasn't yet
 -- picked up a freshly-inserted llm_messages row (CH replication lag between
 -- the llm_messages and spans inserts).
---
--- SETTINGS optimize_move_to_prewhere = 0 works around a CH 25.12 analyzer
--- bug: a query like `SELECT * FROM spans_v0(...) WHERE span_type = 'LLM'
--- ORDER BY start_time DESC` fails with AMBIGUOUS_COLUMN_NAME because the
--- prewhere mover pushes the String predicate on the CASE-aliased
--- `span_type` down onto the base UInt8 `spans.span_type` column with the
--- same name. The bug reproduces whenever the view body contains an
--- arrayMap over a base-table array column; disabling the prewhere move
--- makes CH evaluate the String CASE alias first, avoiding the type
--- collision.
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
-        s.span_id AS span_id,
-        s.name AS name,
-        CASE
-            WHEN s.span_type = 0 THEN 'DEFAULT'
-            WHEN s.span_type = 1 THEN 'LLM'
-            WHEN s.span_type = 3 THEN 'EXECUTOR'
-            WHEN s.span_type = 4 THEN 'EVALUATOR'
-            WHEN s.span_type = 5 THEN 'EVALUATION'
-            WHEN s.span_type = 6 THEN 'TOOL'
-            WHEN s.span_type = 7 THEN 'HUMAN_EVALUATOR'
-            WHEN s.span_type = 8 THEN 'CACHED'
-            ELSE 'UNKNOWN'
-        END AS span_type,
-        s.start_time AS start_time,
-        s.end_time AS end_time,
-        s.end_time - s.start_time AS duration,
-        s.input_cost AS input_cost,
-        s.output_cost AS output_cost,
-        s.total_cost AS total_cost,
-        s.input_tokens AS input_tokens,
-        s.output_tokens AS output_tokens,
-        s.total_tokens AS total_tokens,
-        s.request_model AS request_model,
-        s.response_model AS response_model,
-        s.model AS model,
-        s.trace_id AS trace_id,
-        s.provider AS provider,
-        s.path AS path,
+        span_id,
+        name,
+        multiIf(
+            span_type = 0, 'DEFAULT',
+            span_type = 1, 'LLM',
+            span_type = 3, 'EXECUTOR',
+            span_type = 4, 'EVALUATOR',
+            span_type = 5, 'EVALUATION',
+            span_type = 6, 'TOOL',
+            span_type = 7, 'HUMAN_EVALUATOR',
+            span_type = 8, 'CACHED',
+            'UNKNOWN'
+        ) AS span_type,
+        start_time,
+        end_time,
+        end_time - start_time AS duration,
+        input_cost,
+        output_cost,
+        total_cost,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        request_model,
+        response_model,
+        model,
+        trace_id,
+        provider,
+        path,
         if(
-            length(s.input_message_hashes) > 0,
+            notEmpty(input_message_hashes),
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> dictGetOrDefault(
                         'llm_messages_dict',
                         'content',
-                        tuple(s.project_id, s.trace_id, h),
+                        tuple(project_id, trace_id, h),
                         'null'
                     ),
-                    s.input_message_hashes
+                    input_message_hashes
                 ),
                 ','
             ) || ']',
-            s.input
+            input
         ) AS input,
-        s.output AS output,
-        CASE
-            WHEN s.status = 'error' THEN 'error'
-            WHEN s.status = 'success' THEN 'success'
-            ELSE 'success'
-        END AS status,
-        s.parent_span_id AS parent_span_id,
-        s.attributes AS attributes,
-        s.tags_array AS tags,
-        s.events AS events
-    FROM spans AS s
-    WHERE s.project_id = {project_id:UUID}
-    SETTINGS optimize_move_to_prewhere = 0;
+        output,
+        multiIf(status = 'error', 'error', status = 'success', 'success', 'success') AS status,
+        parent_span_id,
+        attributes,
+        tags_array AS tags,
+        events
+    FROM spans
+    WHERE project_id = {project_id:UUID};
