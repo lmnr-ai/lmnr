@@ -25,13 +25,10 @@ export default function Toolbar() {
         <TooltipProvider delayDuration={200}>
           <Tooltip>
             <TooltipTrigger asChild>
-              {/* Span wrapper keeps the tooltip working when the button is disabled. */}
-              <span className="inline-flex">
-                <Button onClick={() => setPushOpen(true)} disabled={triggerDisabled}>
-                  <Database className="size-3.5 mr-1" />
-                  Push to dataset
-                </Button>
-              </span>
+              <Button variant="secondary" onClick={() => setPushOpen(true)} disabled={triggerDisabled}>
+                <Database className="size-3.5 mr-1" />
+                Push to dataset
+              </Button>
             </TooltipTrigger>
             {triggerHint && <TooltipContent>{triggerHint}</TooltipContent>}
           </Tooltip>

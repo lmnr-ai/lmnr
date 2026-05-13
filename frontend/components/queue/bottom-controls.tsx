@@ -24,9 +24,6 @@ export default function BottomControls() {
   const unapproveCurrent = useQueueStore((s) => s.unapproveCurrent);
   const discardCurrent = useQueueStore((s) => s.discardCurrent);
 
-  // "list" covers the SWR initial fetch (items already render from cache so nav is fine).
-  // Every other in-flight state must block approve/discard so a rapid double-click can't
-  // double-PATCH the same item or spill the action into the one `step(1)` moved to.
   const disableNav = ioState !== false && ioState !== "list";
   const canApprove = hasItem && isTargetJsonValid && !disableNav;
   const canDiscard = hasItem && !disableNav;
@@ -105,7 +102,7 @@ export default function BottomControls() {
 
         <div className="h-5 w-px bg-border mx-1" />
 
-        <Button onClick={onDiscard} disabled={!canDiscard} variant="destructiveOutline">
+        <Button onClick={onDiscard} disabled={!canDiscard} variant="secondary">
           {ioState === "remove" ? (
             <Loader2 className="size-3 animate-spin mr-1" />
           ) : (

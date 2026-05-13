@@ -20,6 +20,10 @@ const STATE_BG: Record<QueueItemState, string> = {
   approved: "bg-success-bright",
 };
 
+const MIN_SEGMENT_PX = 6;
+const SEGMENT_GAP_PX = 1;
+const CURSOR_PAD_PX = 2;
+
 export default function NavigatorBar() {
   const idsList = useQueueStore((s) => s.idsList);
   const itemStates = useQueueStore((s) => s.itemStates);
@@ -32,7 +36,18 @@ export default function NavigatorBar() {
   const barRef = useRef<HTMLDivElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [barWidth, setBarWidth] = useState(0);
   const lastDragIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setBarWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const indexFromClientX = useCallback(
     (clientX: number): number | null => {
@@ -72,8 +87,10 @@ export default function NavigatorBar() {
     return null;
   }
 
-  // renders the marker at 50% rather than 0%.
-  const cursorPct = ((currentIndex + 0.5) / total) * 100;
+  const totalGapPx = Math.max(0, (total - 1) * SEGMENT_GAP_PX);
+  const enforceMin = barWidth > 0 && total * MIN_SEGMENT_PX + totalGapPx <= barWidth;
+  const segmentWidth = barWidth > 0 ? Math.max(0, (barWidth - totalGapPx) / total) : 0;
+  const segmentStride = segmentWidth + SEGMENT_GAP_PX;
   const hoverPct = hoverIndex === null ? null : ((hoverIndex + 0.5) / total) * 100;
 
   return (
@@ -86,7 +103,7 @@ export default function NavigatorBar() {
         aria-valuemax={total}
         aria-valuenow={currentIndex + 1}
         aria-label="Queue navigator"
-        className="relative flex-1 min-w-0 h-3 cursor-pointer select-none touch-none outline-0"
+        className="relative flex-1 min-w-0 h-2.5 cursor-pointer select-none touch-none outline-0 group"
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           const idx = indexFromClientX(e.clientX);
@@ -139,37 +156,51 @@ export default function NavigatorBar() {
           </TooltipPrimitive.Root>
         </TooltipPrimitive.Provider>
 
-        <div className="flex h-3 w-full overflow-hidden rounded-full border bg-secondary">
+        <div className="flex h-2.5 w-full overflow-hidden rounded-sm bg-border" style={{ gap: `${SEGMENT_GAP_PX}px` }}>
           {idsList.map((id) => {
             const state = itemStates[id] ?? "new";
-            return <div key={id} className={cn("h-full flex-1 min-w-px transition-colors", STATE_BG[state])} />;
+            return (
+              <div
+                key={id}
+                className={cn("h-full flex-1 min-w-0 transition-colors duration-150", STATE_BG[state])}
+                style={enforceMin ? { minWidth: `${MIN_SEGMENT_PX}px` } : undefined}
+              />
+            );
           })}
         </div>
 
-        {hoverPct !== null && hoverIndex !== currentIndex && !isDragging && (
+        {barWidth > 0 && hoverIndex !== null && hoverIndex !== currentIndex && !isDragging && (
           <div
-            className="pointer-events-none absolute -top-0.5 -bottom-0.5 w-0.5 rounded-sm bg-foreground/40"
-            style={{ left: `calc(${hoverPct}% - 1px)` }}
+            className="pointer-events-none absolute -top-0.5 -bottom-0.5 rounded-sm border border-muted-foreground/50 transition-[left,width,opacity] duration-150 ease-out opacity-0 group-hover:opacity-100"
+            style={{
+              left: `${hoverIndex * segmentStride - CURSOR_PAD_PX / 2}px`,
+              width: `${segmentWidth + CURSOR_PAD_PX}px`,
+            }}
           />
         )}
 
-        <div
-          className="pointer-events-none absolute -top-0.5 -bottom-0.5 w-0.5 rounded-sm bg-foreground shadow-sm"
-          style={{ left: `calc(${cursorPct}% - 1px)` }}
-        />
+        {barWidth > 0 && (
+          <div
+            className="pointer-events-none absolute -top-0.5 -bottom-0.5 rounded-sm border border-muted-foreground bg-background/10 shadow-sm transition-[left,width] duration-150 ease-out"
+            style={{
+              left: `${currentIndex * segmentStride - CURSOR_PAD_PX}px`,
+              width: `${segmentWidth + CURSOR_PAD_PX * 2}px`,
+            }}
+          />
+        )}
       </div>
 
-      <div className="flex items-center gap-3 text-xs text-secondary-foreground tabular-nums shrink-0 whitespace-nowrap">
-        <span className="inline-flex items-center gap-1">
-          <Circle className="size-3 text-muted-foreground" />
+      <div className="flex items-center gap-1 text-xs text-secondary-foreground tabular-nums shrink-0 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+          <Circle className="size-2.5 text-muted-foreground" />
           {progress.new}
         </span>
-        <span className="inline-flex items-center gap-1">
-          <Pencil className="size-3 text-amber-500" />
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+          <Pencil className="size-2.5 text-amber-500" />
           {progress.modified}
         </span>
-        <span className="inline-flex items-center gap-1">
-          <Check className="size-3 text-success-bright" />
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 hover:bg-muted/50 transition-colors">
+          <Check className="size-2.5 text-success-bright" />
           {progress.approved}
         </span>
       </div>
