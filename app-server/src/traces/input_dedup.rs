@@ -135,12 +135,15 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 project_id: span.project_id,
                 trace_id: span.trace_id,
                 message_hash: hash,
-                // Match the non-dedup path (`CHSpan::from_db_span`), which
-                // runs `input.to_string()` through `sanitize_string` before
-                // storing in ClickHouse. Hash is computed over the raw
-                // canonical JSON so dedup identity is stable regardless of
-                // whether a message carries sanitizable characters.
-                content: sanitize_string(&canonical),
+                // Store the original (non-canonicalized) serialization so the
+                // view reconstructs `input` with the same field order the
+                // non-dedup path (`CHSpan::from_db_span`) would have written —
+                // `serde_json` is compiled with `preserve_order`, so
+                // `item.to_string()` keeps ingestion-time key order. The hash
+                // is computed over the sorted-key canonical form so semantic
+                // duplicates still collapse, but what we serve back on read
+                // is byte-identical to what a non-deduped insert would produce.
+                content: sanitize_string(&item.to_string()),
             });
         }
         span_hashes.push(hashes);
