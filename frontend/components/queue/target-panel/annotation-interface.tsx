@@ -19,6 +19,17 @@ function isNumberOptions(options: any): options is { min?: number; max?: number 
   return options && typeof options === "object" && !Array.isArray(options);
 }
 
+/**
+ * "Set" means the key is materially present on the target object. Crucial
+ * for booleans (where `false` would otherwise be indistinguishable from
+ * "user hasn't labelled yet") and number sliders (which render at `min`
+ * by default even when the key has never been written). Defensive
+ * `hasOwnProperty` call so a non-object target — coerced to `{}` upstream
+ * — reports every field as unset.
+ */
+const isFieldSet = (target: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(target, key);
+
 interface FieldOption {
   value: any;
   label: string;
@@ -253,13 +264,16 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
             focusedFieldIndex === index ? "border-primary bg-primary/5" : "border-muted"
           )}
         >
-          <div className="flex items-center justify-between">
-            <div className="text-sm flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm flex items-center gap-2 min-w-0">
               <Badge variant="outline" className="text-xs font-mono bg-muted/50 font-medium">
                 {field.key}
               </Badge>
-              <span className="font-base text-secondary-foreground">{field.description || field.key}</span>
+              <span className="font-base text-secondary-foreground truncate">{field.description || field.key}</span>
             </div>
+            {!isFieldSet(target, field.key) && (
+              <span className="text-xs text-muted-foreground italic shrink-0">Not labelled</span>
+            )}
           </div>
 
           <FieldOptions

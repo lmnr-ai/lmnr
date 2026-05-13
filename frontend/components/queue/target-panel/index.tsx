@@ -12,9 +12,10 @@ import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-import { getEffectiveTarget, useQueueStore } from "../queue-store";
+import { getEffectiveTarget, getTargetSchemaDrift, type TargetSchemaDrift, useQueueStore } from "../queue-store";
 import AnnotationInterface from "./annotation-interface";
 import ApprovalStatus from "./approval-status";
+import SchemaDriftBanner from "./schema-drift-banner";
 
 const SUPPRESS_MOD_ENTER = [Prec.highest(keymap.of([{ key: "Mod-Enter", run: () => true, preventDefault: true }]))];
 
@@ -40,7 +41,17 @@ export default function TargetPanel() {
 
   const activeTab: "fields" | "json" = targetTab ?? (hasSchema ? "fields" : "json");
 
-  const targetValue = useMemo(() => JSON.stringify(getEffectiveTarget(currentItem), null, 2), [currentItem]);
+  const target = useMemo(() => getEffectiveTarget(currentItem), [currentItem]);
+  const targetValue = useMemo(() => JSON.stringify(target, null, 2), [target]);
+  const drift = useMemo<TargetSchemaDrift>(
+    () =>
+      getTargetSchemaDrift(
+        target,
+        fields.map((f) => f.key)
+      ),
+    [target, fields]
+  );
+  const showJsonDot = hasSchema && drift.hasDrift && activeTab === "fields";
 
   const onTargetJsonChange = useCallback(
     (v: string) => {
@@ -77,7 +88,10 @@ export default function TargetPanel() {
           <div className="flex items-center justify-between px-2 pt-2">
             <TabsList className="self-start">
               <TabsTrigger value="fields">Fields</TabsTrigger>
-              <TabsTrigger value="json">JSON</TabsTrigger>
+              <TabsTrigger value="json">
+                JSON
+                {showJsonDot && <span className="ml-1 inline-block size-1.5 rounded-full bg-amber-500" />}
+              </TabsTrigger>
             </TabsList>
             <SchemaDefinitionDialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen} />
           </div>
@@ -100,7 +114,15 @@ export default function TargetPanel() {
           <TabsContent value="fields" className="flex flex-1 flex-col min-h-0">
             <ScrollArea className="p-2">
               {hasSchema ? (
-                <AnnotationInterface />
+                <>
+                  <SchemaDriftBanner
+                    targetIsObject={drift.targetIsObject}
+                    targetType={drift.targetType}
+                    extras={drift.extras}
+                    onViewJson={() => setTargetTab("json")}
+                  />
+                  <AnnotationInterface />
+                </>
               ) : (
                 <FieldsEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />
               )}

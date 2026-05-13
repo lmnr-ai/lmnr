@@ -161,7 +161,7 @@ export default function SchemaDefinitionDialog({
     >
       {showTrigger && (
         <DialogTrigger asChild>
-          <Button variant="secondary" icon="settings">
+          <Button className="outline-0" variant="secondary" icon="settings">
             Annotation schema
           </Button>
         </DialogTrigger>

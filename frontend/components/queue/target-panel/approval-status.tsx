@@ -1,25 +1,17 @@
 "use client";
 
-import { Check, Pencil } from "lucide-react";
+import { Check, Pencil, Undo2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { isApproved, isDirty, useQueueStore } from "../queue-store";
 
-/**
- * Approval pill driven by `status === 1`, plus a "Modified" pill that surfaces
- * when the current `edit` differs structurally from the original
- * `payload.target`. Both badges are pure derivations off the windowed item —
- * no extra fetch. Reverting an edit back to the original answer drops the
- * "Modified" pill because `isDirty` compares values, not "was edit written".
- *
- * The "Not approved" / untouched case renders nothing — an empty header is
- * the absence of state, not a noisy negative badge. Colors mirror the
- * navigator bar (`success-bright` / `amber-500`) for visual consistency
- * with the per-item segments and legend counts.
- */
 export default function ApprovalStatus({ className }: { className?: string }) {
   const item = useQueueStore((s) => s.getCurrentItem());
+  const revertCurrent = useQueueStore((s) => s.revertCurrent);
+  const ioState = useQueueStore((s) => s.ioState);
 
   if (!item) return null;
 
@@ -27,6 +19,8 @@ export default function ApprovalStatus({ className }: { className?: string }) {
   const dirty = !approved && isDirty(item);
 
   if (!approved && !dirty) return null;
+
+  const canRevert = dirty && (ioState === false || ioState === "list");
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
@@ -40,6 +34,25 @@ export default function ApprovalStatus({ className }: { className?: string }) {
           <Pencil className="size-3" />
           Modified
         </span>
+      )}
+      {dirty && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-5 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                disabled={!canRevert}
+                onClick={() => revertCurrent()}
+                aria-label="Revert edits"
+              >
+                <Undo2 className="size-3" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Revert edits to original target</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );

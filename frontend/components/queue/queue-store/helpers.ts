@@ -43,6 +43,27 @@ export const deriveItemState = (item: LabelingQueueItem): QueueItemState => {
   return isDirty(item) ? "modified" : "new";
 };
 
+export interface TargetSchemaDrift {
+  targetIsObject: boolean;
+  targetType: string;
+  extras: string[];
+  hasDrift: boolean;
+}
+
+export const getTargetSchemaDrift = (target: unknown, schemaKeys: readonly string[]): TargetSchemaDrift => {
+  const targetIsObject = !!target && typeof target === "object" && !Array.isArray(target);
+  const targetType = Array.isArray(target) ? "array" : target === null ? "null" : typeof target;
+  if (schemaKeys.length === 0) {
+    return { targetIsObject, targetType, extras: [], hasDrift: false };
+  }
+  if (!targetIsObject) {
+    return { targetIsObject, targetType, extras: [], hasDrift: true };
+  }
+  const schemaSet = new Set(schemaKeys);
+  const extras = Object.keys(target as Record<string, unknown>).filter((k) => !schemaSet.has(k));
+  return { targetIsObject, targetType, extras, hasDrift: extras.length > 0 };
+};
+
 export const computeProgress = (states: Record<string, QueueItemState>): QueueProgress => {
   let n = 0;
   let m = 0;

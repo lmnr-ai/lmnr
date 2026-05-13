@@ -15,6 +15,7 @@ import {
   deriveItemState,
   EMPTY_PROGRESS,
   getEffectiveTarget,
+  isDirty,
   type QueueIoState,
   type QueueProgress,
   WINDOW_RADIUS,
@@ -22,8 +23,8 @@ import {
 import { createSaveOrchestrator } from "./save-orchestrator";
 import { parseAnnotationSchema, type TargetField } from "./schema";
 
-export type { ActionResult, QueueIoState, QueueProgress } from "./helpers";
-export { deriveItemState, getEffectiveTarget, isApproved, isDirty } from "./helpers";
+export type { ActionResult, QueueIoState, QueueProgress, TargetSchemaDrift } from "./helpers";
+export { deriveItemState, getEffectiveTarget, getTargetSchemaDrift, isApproved, isDirty } from "./helpers";
 export type { TargetField } from "./schema";
 export { parseAnnotationSchema } from "./schema";
 export type { QueueItemState } from "@/lib/actions/queue";
@@ -80,6 +81,7 @@ export interface QueueActions {
   setTarget: (target: unknown) => void;
   setTargetJsonValid: (valid: boolean) => void;
   updateTargetField: (key: string, value: unknown) => void;
+  revertCurrent: () => void;
   focusField: (direction: "next" | "prev" | "first") => void;
   selectOptionInFocusedField: (optionNumber: number) => void;
 
@@ -359,6 +361,25 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
             replaceItem(nextItem);
             setItemState(nextItem.id, deriveItemState(nextItem));
             scheduleSaveFor(nextItem);
+          },
+
+          revertCurrent: () => {
+            const current = get().getCurrentItem();
+            if (!current || !isDirty(current)) return;
+            // Cancel any pending debounced PATCH carrying the now-discarded
+            // edit body — otherwise it would land after the revert's PATCH
+            // and silently re-modify the row (RMT last-write-wins on
+            // updated_at). Same write-ordering rationale as approve/discard.
+            orchestrator.cancel(current.id);
+            // Use `?? null` (not `?? {}`) to match the mirror seed
+            // convention: omitted target → CH seeds `edit = "null"`, and
+            // `isDirty` normalises both sides via `?? null`. Writing "{}"
+            // for an originally-null target would leave the row dirty.
+            const originalEdit = JSON.stringify(current.payload?.target ?? null);
+            const reverted: LabelingQueueItem = { ...current, edit: originalEdit, status: 0 };
+            replaceItem(reverted);
+            setItemState(reverted.id, deriveItemState(reverted));
+            scheduleSaveFor(reverted);
           },
 
           focusField: (direction) => {
