@@ -1,3 +1,5 @@
+import { isAiProviderConfigured } from "@/lib/ai/model";
+
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
   GITHUB_AUTH = "GITHUB_AUTH",
@@ -88,17 +90,19 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    const hasAws = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_REGION;
-    const bedrockOverride = process.env.BEDROCK_ENABLED === "true" && hasAws;
-    const provider = process.env.LLM_PROVIDER;
-    if (bedrockOverride) return true;
-    if (provider === "openai" || provider === "gemini") return !!process.env.LLM_API_KEY;
-    if (provider === "bedrock") return hasAws;
-    return false;
+    return isAiProviderConfigured();
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
-    return process.env.LLM_PROVIDER === "gemini" && !!process.env.LLM_API_KEY;
+    // Batch mode is Gemini-only (backend relies on the Gemini batch API). Requires
+    // full LLM_MODEL_* overrides so the UI doesn't enable a feature whose runtime throws.
+    return (
+      process.env.LLM_PROVIDER === "gemini" &&
+      !!process.env.LLM_API_KEY &&
+      !!process.env.LLM_MODEL_SMALL &&
+      !!process.env.LLM_MODEL_MEDIUM &&
+      !!process.env.LLM_MODEL_LARGE
+    );
   }
 
   if (feature === Feature.CLUSTERING) {

@@ -27,14 +27,24 @@ function isBedrockConfigured(): boolean {
   return (process.env.BEDROCK_ENABLED === "true" || process.env.LLM_PROVIDER === "bedrock") && hasBedrockCreds();
 }
 
+function hasAllLlmModels(): boolean {
+  return !!process.env.LLM_MODEL_SMALL && !!process.env.LLM_MODEL_MEDIUM && !!process.env.LLM_MODEL_LARGE;
+}
+
 function getConfiguredLLMProvider(): LLMProvider | null {
   const provider = process.env.LLM_PROVIDER;
   if (provider !== "openai" && provider !== "gemini") return null;
   if (!process.env.LLM_API_KEY) return null;
+  if (!hasAllLlmModels()) return null;
   return provider;
 }
 
-/** Non-throwing check: true when any supported AI provider has credentials configured. */
+/**
+ * Non-throwing check: true when a supported AI provider has credentials configured
+ * AND (for non-Bedrock providers) all three LLM_MODEL_* tier overrides are set.
+ * This mirrors the runtime contract of `getLanguageModel` so feature flags gating
+ * AI features don't light up UI that will throw on first call.
+ */
 export function isAiProviderConfigured(): boolean {
   return isBedrockConfigured() || getConfiguredLLMProvider() !== null;
 }
