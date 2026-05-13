@@ -3,7 +3,7 @@
 import { ArrowRight, Database, Loader2, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -41,6 +41,16 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
   const currentIsLabelled = useQueueStore((s) => isApprovedItem(s.getCurrentItem()));
   const pushAllToDataset = useQueueStore((s) => s.pushAllToDataset);
   const pushCurrentToDataset = useQueueStore((s) => s.pushCurrentToDataset);
+  const setDialogOpen = useQueueStore((s) => s.setDialogOpen);
+
+  // Mirror the dialog's open state into the store so window-level hotkeys
+  // (defined in `QueueHotkeys`) can early-return while we're open. Radix's
+  // modal overlay handles pointer events, but keyboard shortcuts bubble
+  // straight to the window listener regardless of focus traps.
+  useEffect(() => {
+    setDialogOpen(open);
+    return () => setDialogOpen(false);
+  }, [open, setDialogOpen]);
 
   const approvedCount = progress.approved;
   const totalCount = Math.max(progress.total, itemsLen);
@@ -59,9 +69,10 @@ export default function PushToDatasetDialog({ open, onOpenChange }: PushToDatase
   const [scope, setScope] = useState<Scope>(defaultScope);
 
   const pushing = ioState === "push-all" || ioState === "push-one";
+  const busy = ioState !== false && ioState !== "list";
 
   const scopeCount = scope === "approved" ? approvedCount : scope === "all" ? totalCount : hasCurrent ? 1 : 0;
-  const canPush = !!dataset && scopeCount > 0 && !pushing;
+  const canPush = !!dataset && scopeCount > 0 && !busy;
 
   const onPush = useCallback(async () => {
     if (!dataset) {

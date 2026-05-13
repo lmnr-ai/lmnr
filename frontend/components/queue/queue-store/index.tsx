@@ -41,8 +41,10 @@ export interface QueueState {
   ioState: QueueIoState;
   /** Dataset id persisted to localStorage so the user doesn't re-pick each session. */
   dataset: string | undefined;
+  targetTab: "fields" | "json" | undefined;
   /** Rendered-JSON validity for the manual Target editor. */
   isTargetJsonValid: boolean;
+  dialogOpen: boolean;
 
   annotationSchema: Record<string, unknown> | null;
   fields: TargetField[];
@@ -71,6 +73,8 @@ export interface QueueActions {
   step: (dir: 1 | -1) => void;
   setDataset: (dataset: string | undefined) => void;
   setIoState: (state: QueueIoState) => void;
+  setDialogOpen: (open: boolean) => void;
+  setTargetTab: (tab: "fields" | "json") => void;
 
   setAnnotationSchema: (schema: Record<string, unknown> | null) => void;
   setTarget: (target: unknown) => void;
@@ -219,7 +223,9 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
           currentIndex: 0,
           ioState: false as QueueIoState,
           dataset: undefined,
+          targetTab: undefined,
           isTargetJsonValid: true,
+          dialogOpen: false,
           annotationSchema: initialSchema,
           fields: initialFields,
           focusedFieldIndex: initialFields.length > 0 ? 0 : -1,
@@ -320,6 +326,8 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
 
           setDataset: (dataset) => set({ dataset }),
           setIoState: (ioState) => set({ ioState }),
+          setDialogOpen: (dialogOpen) => set({ dialogOpen }),
+          setTargetTab: (targetTab) => set({ targetTab }),
 
           setAnnotationSchema: (schema) => {
             const fields = parseAnnotationSchema(schema);
@@ -576,6 +584,9 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
             if (current.status !== 1 && !opts?.includeUnlabelled) {
               return { ok: false, error: "Approve the item before pushing" };
             }
+            if (state.ioState !== false && state.ioState !== "list") {
+              return { ok: false, error: "Busy" };
+            }
             orchestrator.cancel(current.id);
             set({ ioState: "push-one" });
             try {
@@ -636,7 +647,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
       },
       {
         name: `queue-store-${queue.id}`,
-        partialize: (state) => ({ dataset: state.dataset }),
+        partialize: (state) => ({ dataset: state.dataset, targetTab: state.targetTab }),
       }
     )
   );

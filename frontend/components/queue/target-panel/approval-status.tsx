@@ -1,39 +1,44 @@
 "use client";
 
-import { Check, CircleDashed, Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 import { isApproved, isDirty, useQueueStore } from "../queue-store";
 
 /**
- * Approval pill driven by `status === 1`, plus a small "Modified" pill that
- * surfaces whenever the current `edit` differs structurally from the original
+ * Approval pill driven by `status === 1`, plus a "Modified" pill that surfaces
+ * when the current `edit` differs structurally from the original
  * `payload.target`. Both badges are pure derivations off the windowed item —
  * no extra fetch. Reverting an edit back to the original answer drops the
  * "Modified" pill because `isDirty` compares values, not "was edit written".
+ *
+ * The "Not approved" / untouched case renders nothing — an empty header is
+ * the absence of state, not a noisy negative badge. Colors mirror the
+ * navigator bar (`success-bright` / `amber-500`) for visual consistency
+ * with the per-item segments and legend counts.
  */
 export default function ApprovalStatus({ className }: { className?: string }) {
   const item = useQueueStore((s) => s.getCurrentItem());
 
   if (!item) return null;
 
+  const approved = isApproved(item);
+  const dirty = !approved && isDirty(item);
+
+  if (!approved && !dirty) return null;
+
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
-      {isApproved(item) ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500">
+      {approved ? (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-success-bright">
           <Check className="size-3" />
           Approved
         </span>
-      ) : isDirty(item) ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500">
+      ) : (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
           <Pencil className="size-3" />
           Modified
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-secondary-foreground">
-          <CircleDashed className="size-3" />
-          Not approved
         </span>
       )}
     </div>

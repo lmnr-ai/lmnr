@@ -112,7 +112,7 @@ export default function BottomControls() {
             <Trash2 className="size-3.5 mr-1" />
           )}
           Discard
-          <span className="ml-2 text-xs opacity-75">⌘ ⌫</span>
+          <span className="ml-2 text-xs opacity-75">⌘⌫</span>
         </Button>
 
         {isApproved ? (
@@ -120,7 +120,7 @@ export default function BottomControls() {
             onClick={onUnapprove}
             disabled={disableNav}
             variant="outline"
-            className="border-green-500/40 text-green-500 hover:bg-green-500/10"
+            className="border-success-bright/40 text-success-bright hover:bg-success-bright/10"
           >
             {ioState === "save" ? (
               <Loader2 className="size-3 animate-spin mr-1" />
@@ -128,7 +128,7 @@ export default function BottomControls() {
               <RotateCcw className="size-3.5 mr-1" />
             )}
             Unapprove
-            <span className="ml-2 text-xs opacity-75">⌘ ⏎</span>
+            <span className="ml-2 text-xs opacity-75">⌘⏎</span>
           </Button>
         ) : (
           <Button onClick={onApprove} disabled={!canApprove}>
@@ -138,7 +138,7 @@ export default function BottomControls() {
               <Check className="size-3.5 mr-1" />
             )}
             Approve
-            <span className="ml-2 text-xs opacity-75">⌘ ⏎</span>
+            <span className="ml-2 text-xs opacity-75">⌘⏎</span>
           </Button>
         )}
       </div>

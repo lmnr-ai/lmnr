@@ -32,8 +32,13 @@ export default function TargetPanel() {
   // empty-state CTA drive the same dialog instance without rendering two.
   const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
 
+  const targetTab = useQueueStore((s) => s.targetTab);
+  const setTargetTab = useQueueStore((s) => s.setTargetTab);
+
   const hasSchema = !!annotationSchema && fields.length > 0;
   const showOverlay = ioState === "save" || ioState === "remove" || ioState === "push-one";
+
+  const activeTab: "fields" | "json" = targetTab ?? (hasSchema ? "fields" : "json");
 
   const targetValue = useMemo(() => JSON.stringify(getEffectiveTarget(currentItem), null, 2), [currentItem]);
 
@@ -64,15 +69,19 @@ export default function TargetPanel() {
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         )}
-        <Tabs defaultValue={hasSchema ? "form" : "data"} className="flex flex-1 flex-col gap-0 min-h-0">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setTargetTab(v as "fields" | "json")}
+          className="flex flex-1 flex-col gap-0 min-h-0"
+        >
           <div className="flex items-center justify-between px-2 pt-2">
             <TabsList className="self-start">
-              <TabsTrigger value="data">Data</TabsTrigger>
-              <TabsTrigger value="form">Form</TabsTrigger>
+              <TabsTrigger value="fields">Fields</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
             </TabsList>
             <SchemaDefinitionDialog open={schemaDialogOpen} onOpenChange={setSchemaDialogOpen} />
           </div>
-          <TabsContent value="data" className="flex flex-1 flex-col overflow-hidden min-h-0 p-2">
+          <TabsContent value="json" className="flex flex-1 flex-col overflow-hidden min-h-0 p-2">
             <span className="text-xs text-secondary-foreground mb-2">
               JSON written to the target key of the payload.
             </span>
@@ -88,12 +97,12 @@ export default function TargetPanel() {
               />
             </div>
           </TabsContent>
-          <TabsContent value="form" className="flex flex-1 flex-col min-h-0">
+          <TabsContent value="fields" className="flex flex-1 flex-col min-h-0">
             <ScrollArea className="p-2">
               {hasSchema ? (
                 <AnnotationInterface />
               ) : (
-                <FormEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />
+                <FieldsEmptyState onDefineSchema={() => setSchemaDialogOpen(true)} />
               )}
             </ScrollArea>
           </TabsContent>
@@ -103,7 +112,7 @@ export default function TargetPanel() {
   );
 }
 
-function FormEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
+function FieldsEmptyState({ onDefineSchema }: { onDefineSchema: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-8 px-4 text-center border border-dashed rounded-md">
       <div className="flex items-center justify-center size-10 rounded-full bg-primary/10 text-primary">
