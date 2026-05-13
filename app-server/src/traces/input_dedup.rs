@@ -94,8 +94,13 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     // Dedup within a single batch so two spans in the same trace referencing
-    // the same new message produce one CHLlmMessage, not two.
-    let mut emitted_in_batch: std::collections::HashSet<(Uuid, [u8; 32])> =
+    // the same new message produce one CHLlmMessage, not two. The key MUST
+    // match the `llm_messages` ORDER BY (project_id, trace_id, message_hash)
+    // — a batch can mix spans from multiple projects, and two projects
+    // sharing a trace_id would otherwise suppress the second project's
+    // insert, leaving its spans pointing at rows that don't exist for its
+    // (project_id, trace_id) scope.
+    let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
 
     for span in spans {
@@ -114,7 +119,7 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
             let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
             hashes.push(hash);
 
-            if !emitted_in_batch.insert((span.trace_id, hash)) {
+            if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
                 continue;
             }
 
