@@ -55,11 +55,31 @@ For production environment, we recommend using our [managed platform](https://la
 
 ### Enabling the Signals feature
 
-To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+To enable [Signals / AI monitoring](https://laminar.sh/docs/signals) in self-hosted mode, configure an LLM provider in your `.env` file at the repo root. The same vars are read by both the app-server and the frontend.
+
+Pick one of the following provider setups:
 
 ```sh
-# In .env at the repo root
-GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+# Option A: Gemini
+LLM_PROVIDER=gemini
+LLM_API_KEY=your_gemini_key
+LLM_MODEL_SMALL=gemini-2.5-flash-lite
+LLM_MODEL_MEDIUM=gemini-2.5-flash
+LLM_MODEL_LARGE=gemini-2.5-pro
+
+# Option B: OpenAI (or any OpenAI-compatible gateway such as LiteLLM, OpenRouter, vLLM)
+LLM_PROVIDER=openai
+# LLM_BASE_URL=http://localhost:4000   # optional, for OpenAI-compatible gateways
+LLM_API_KEY=your_openai_key
+LLM_MODEL_SMALL=gpt-5-mini
+LLM_MODEL_MEDIUM=gpt-5-mini
+LLM_MODEL_LARGE=gpt-5
+
+# Option C: AWS Bedrock (Anthropic Claude). Overrides LLM_PROVIDER when set.
+BEDROCK_ENABLED=true
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
 ```
 
 ## Contributing
