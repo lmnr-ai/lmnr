@@ -1,209 +1,68 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import Header from "../header";
 import LandingButton from "../landing-button";
-import InfiniteLogoCarousel from "./infinite-logo-carousel";
-import ScreenshotToggleButton from "./screenshot-toggle-button";
-
-const PROGRESS_DURATION_MS = 3000;
-const CLICK_DURATION_MS = 6000;
-const FADE_DURATION_MS = 300;
+import CustomerLogoStrip from "./customer-logo-strip";
+import TimelineMock from "./timeline-mock";
 
 interface Props {
   className?: string;
   hasSession: boolean;
 }
 
-type TabType = "Tracing" | "Debugger" | "Signals" | "Evals" | "SQL";
-
-const tabConfig: Record<TabType, { images: string[] }> = {
-  Tracing: { images: ["/assets/landing/tracing.png"] },
-  Debugger: { images: ["/assets/landing/debugger.png"] },
-  Signals: { images: ["/assets/landing/signals.png"] },
-  Evals: { images: ["/assets/landing/evals-1.png", "/assets/landing/evals-2.png"] },
-  SQL: { images: ["/assets/landing/sql.png"] },
-};
-
-const TABS: TabType[] = ["Tracing", "Signals", "Debugger", "Evals", "SQL"];
-
-const Hero = ({ className, hasSession }: Props) => {
-  const [activeTab, setActiveTab] = useState<TabType>("Tracing");
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [displayedImage, setDisplayedImage] = useState(tabConfig["Tracing"].images[0]);
-  const [progressDuration, setProgressDuration] = useState(PROGRESS_DURATION_MS);
-  const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const currentImage = tabConfig[activeTab].images[activeImageIndex];
-
-  const [prevCurrentImage, setPrevCurrentImage] = useState(currentImage);
-  if (currentImage !== prevCurrentImage) {
-    setPrevCurrentImage(currentImage);
-    setIsTransitioning(true);
-  }
-
-  // Handle fade transition when currentImage changes
-  useEffect(() => {
-    if (isTransitioning) {
-      // After fade completes, update displayed image
-      transitionTimeoutRef.current = setTimeout(() => {
-        setDisplayedImage(currentImage);
-        setIsTransitioning(false);
-      }, FADE_DURATION_MS);
-    }
-
-    return () => {
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-    };
-  }, [isTransitioning, currentImage]);
-
-  const handleTabClick = useCallback((tab: TabType) => {
-    setActiveTab(tab);
-    setActiveImageIndex(0);
-    setProgressDuration(CLICK_DURATION_MS);
-  }, []);
-
-  const handleSegmentClick = useCallback((tab: TabType, index: number) => {
-    setActiveTab(tab);
-    setActiveImageIndex(index);
-    setProgressDuration(CLICK_DURATION_MS);
-  }, []);
-
-  const handleProgressComplete = useCallback(() => {
-    const config = tabConfig[activeTab];
-    if (activeImageIndex < config.images.length - 1) {
-      // More images in current tab
-      setActiveImageIndex(activeImageIndex + 1);
-    } else {
-      // Move to next tab
-      const currentIndex = TABS.indexOf(activeTab);
-      const nextTab = TABS[(currentIndex + 1) % TABS.length];
-      setActiveTab(nextTab);
-      setActiveImageIndex(0);
-    }
-    setProgressDuration(PROGRESS_DURATION_MS);
-  }, [activeTab, activeImageIndex]);
-
-  return (
-    <div
-      className={cn(
-        "bg-landing-surface-900 flex flex-col items-center justify-between w-full md:gap-[160px]",
-        "gap-[80px]",
-        className
-      )}
-    >
-      <div className="flex flex-col h-dvh w-full">
-        <Header hasSession={hasSession} isIncludePadding />
-        <div className={cn("flex flex-col items-center justify-between flex-1 md:px-[48px]", "px-4")}>
-          <div className={cn("flex flex-col md:gap-[60px] items-center flex-1 justify-center", "gap-8")}>
-            <div className={cn("flex flex-col md:gap-4 items-center", "gap-3")}>
-              <Link
-                href="https://www.ycombinator.com/companies/laminar"
-                target="_blank"
-                className={cn(
-                  "flex gap-3 items-center bg-landing-surface-700 md:px-5 md:py-2 rounded-sm",
-                  "px-3 py-1.5"
-                )}
-              >
-                <Image src="/assets/landing/y-combinator.svg" alt="Y Combinator" width={20} height={20} />
-                <span className={cn("font-sans md:text-sm text-landing-text-300 tracking-[0.02em]", "text-xs")}>
-                  Backed by Y Combinator
-                </span>
-              </Link>
-              <h1
-                className={cn(
-                  "font-space-grotesk md:text-[60px] text-center text-white md:tracking-[-1.5px] md:leading-[72px] font-semibold",
-                  "text-[32px] tracking-[-0.56px] leading-[38px]"
-                )}
-              >
-                Open-source Agent Monitoring
-              </h1>
-              <p
-                className={cn(
-                  "text-secondary-foreground text-center md:text-3xl md:leading-10 font-medium",
-                  "text-sm leading-5 mt-4"
-                )}
-              >
-                Get alerts when your agent breaks.
-                <br />
-                Understand why in seconds.
-              </p>
-            </div>
-            <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>
-              <Link href="/sign-up" className="md:w-auto w-full">
-                <LandingButton variant="primary" size="lg" className={cn("md:w-[206px]", "flex-1 basis-0")}>
-                  Get Started
-                </LandingButton>
-              </Link>
-              <Link href="https://laminar.sh/docs" target="_blank" className="md:w-auto w-full">
-                <LandingButton size="lg" variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
-                  Read the Docs
-                </LandingButton>
-              </Link>
-            </div>
-          </div>
-          <InfiniteLogoCarousel />
-        </div>
-      </div>
-      <div className={cn("flex flex-col w-full md:pb-[120px] md:gap-[40px] items-center", "pb-[60px] gap-[24px] px-4")}>
-        <div className={cn("flex md:gap-5 items-center", "gap-2")}>
-          {TABS.map((tab) => (
-            <ScreenshotToggleButton
-              key={`${tab}-${activeTab === tab ? activeImageIndex : 0}`}
-              isActive={activeTab === tab}
-              imageCount={tabConfig[tab].images.length}
-              activeImageIndex={activeTab === tab ? activeImageIndex : 0}
-              progressDuration={progressDuration}
-              onProgressComplete={handleProgressComplete}
-              onSegmentClick={(index) => handleSegmentClick(tab, index)}
-              onClick={() => handleTabClick(tab)}
-            >
-              {tab}
-            </ScreenshotToggleButton>
-          ))}
-        </div>
-        <div
-          className={cn(
-            "relative lg:max-w-[1100px] md:max-w-[990px] w-full rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
-            "outline-[2px] outline-offset-2"
-          )}
-        >
-          {/* Background image - shows the target image during transition */}
-          <Image
-            src={currentImage}
-            alt={`${activeTab} screenshot`}
-            width={0}
-            height={0}
-            sizes="100vw"
-            className="w-full h-auto"
-            priority
-          />
-          {/* Foreground image - fades out to reveal background */}
-          <Image
-            src={displayedImage}
-            alt={`${activeTab} screenshot`}
-            width={800}
-            height={600}
-            sizes="100vw"
+const Hero = ({ className, hasSession }: Props) => (
+  <div className={cn("bg-landing-surface-800 flex flex-col w-full h-[calc(100dvh+20px)] items-center", className)}>
+    <Header hasSession={hasSession} className="max-w-[1104px] pt-4" />
+    <div className={cn("flex flex-1 flex-col gap-12 w-full pt-8", "md:pt-30 md:gap-8 md:max-w-[1104px]")}>
+      <div className={cn("flex flex-col gap-4", "md:gap-6")}>
+        <div className="flex flex-col items-start gap-3 max-w-[640px]">
+          <Link
+            href="https://www.ycombinator.com/companies/laminar"
+            target="_blank"
+            className="flex items-center gap-2 no-underline"
+          >
+            <Image src="/assets/landing/y-combinator.svg" alt="Y Combinator" width={16} height={16} />
+            <span className="font-sans text-xs text-landing-text-300 tracking-[0.02em]">Backed by Y-Combinator</span>
+          </Link>
+          <h1
             className={cn(
-              "w-full h-auto absolute inset-0 transition-opacity ease-in-out",
-              isTransitioning ? "opacity-0" : "opacity-100"
+              "font-space-grotesk font-normal text-white tracking-[-0.7px]",
+              "md:text-[32px] md:leading-[41px] text-[28px] leading-9"
             )}
-            style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
-            priority
-          />
+          >
+            Open-source Agent Monitoring
+          </h1>
+          <p className={cn("font-sans text-lg leading-5 text-landing-text-300", "md:text-lg md:leading-7")}>
+            Get alerts when your agent breaks,
+            <br />
+            Understand why in seconds.
+          </p>
+        </div>
+
+        <div className="flex flex-row gap-5 items-center mt-2">
+          <Link href="/sign-up">
+            <LandingButton variant="primary" size="sm" className="w-[160px]">
+              Get Started
+            </LandingButton>
+          </Link>
+          <Link href="https://laminar.sh/docs" target="_blank">
+            <LandingButton variant="outline" size="sm" className="w-[160px]">
+              Read the Docs
+            </LandingButton>
+          </Link>
         </div>
       </div>
+
+      <div className="hidden md:block w-full overflow-hidden flex-1">
+        <TimelineMock className="h-full" />
+      </div>
+
+      <CustomerLogoStrip className="" />
     </div>
-  );
-};
+  </div>
+);
 
 export default Hero;

@@ -14,12 +14,13 @@ export const sectionHeaderMedium =
 
 // Subsection Titles
 export const subsectionTitle =
-  "font-space-grotesk md:text-3xl text-white md:tracking-[-0.5px] text-2xl tracking-[-0.48px]";
+  "font-space-grotesk md:text-2xl text-white md:tracking-[-0.5px] text-xl tracking-[-0.48px]";
 
-export const cardTitle = "font-space-grotesk md:leading-8 tracking-[-0.3px] md:text-2xl text-landing-text-100 text-[22px] leading-7";
+export const cardTitle =
+  "font-space-grotesk md:leading-8 tracking-[-0.3px] md:text-2xl text-landing-text-100 text-[22px] leading-7";
 
 // Body Text
-export const bodyLarge = "font-sans md:leading-8 md:text-xl text-landing-text-300 text-lg leading-6";
+export const bodyLarge = "font-sans md:leading-8 md:text-[18px] text-landing-text-300 text-lg leading-6";
 
 export const bodyMedium = "font-sans md:leading-6 text-landing-text-300 md:text-base text-sm leading-5";
 

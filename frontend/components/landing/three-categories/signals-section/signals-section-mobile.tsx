@@ -64,12 +64,12 @@ const SignalsSectionMobile = ({ className }: Props) => {
                     <span className="text-landing-text-400">{ANYTHING_PROMPT}</span>
                   </>
                 ) : (
-                  promptValue
+                  `"${promptValue}"`
                 )}
               </p>
             </div>
             <div className="flex flex-col gap-6 w-[260px]">
-              <p className={cn("font-space-grotesk text-base leading-5 w-full text-landing-text-300")}>
+              <p className={cn("font-sans text-base leading-5 w-full text-landing-text-300")}>
                 Laminar automatically analyzes your traces, detects events based on your prompt, & creates clusters in
                 an organized hierarchy
               </p>

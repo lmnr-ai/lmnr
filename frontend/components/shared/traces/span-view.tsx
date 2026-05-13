@@ -1,4 +1,5 @@
 "use client";
+import { X } from "lucide-react";
 import React, { useMemo } from "react";
 import useSWR from "swr";
 
@@ -9,6 +10,7 @@ import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import SpanStatsShields from "@/components/traces/stats-shields";
 import { StructuredOutputSchema } from "@/components/traces/structured-output-schema";
 import { extractToolsFromAttributes, ToolList } from "@/components/traces/tool-list";
+import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,9 +22,10 @@ import { swrFetcher } from "@/lib/utils";
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  onClose?: () => void;
 }
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
   const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
 
   const errorEventAttributes = useMemo(
@@ -47,6 +50,16 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
           <div className="flex flex-none items-center space-x-2">
             <SpanTypeIcon spanType={span.spanType} />
             <div className="text-base items-center font-medium truncate">{span.name}</div>
+            {onClose && (
+              <Button
+                variant="ghost"
+                className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
+                onClick={onClose}
+                aria-label="Close span panel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
           <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
         </div>

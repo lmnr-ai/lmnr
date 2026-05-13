@@ -43,7 +43,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
 
   return (
     <>
-      <div className="flex items-center justify-center gap-1 sm:gap-3 bg-primary px-4 py-1 text-xs sm:text-sm text-white">
+      <div className="flex items-center justify-center gap-1 sm:gap-3 bg-primary px-4 py-1 text-xs sm:text-sm text-white w-full">
         <span className="leading-tight">Laminar raises $3M seed to build observability for long-running agents</span>
         <Link
           href="/blog/2026-03-16-laminar-launch"
@@ -106,12 +106,12 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             ) : (
               <>
                 <Link href="/sign-in">
-                  <LandingButton variant="minimal" size="sm">
+                  <LandingButton variant="minimal" size="sm" className="py-1.5">
                     Sign in
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm">
+                  <LandingButton variant="outline" size="sm" className="py-1.5">
                     Sign up
                   </LandingButton>
                 </Link>

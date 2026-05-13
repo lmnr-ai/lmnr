@@ -15,7 +15,6 @@ interface Props {
 }
 
 const TRACE_ID = "281e042a-75d4-5c83-c56e-1b31f0a73080";
-const INITIAL_SPAN_ID = "00000000-0000-0000-6b84-56826ec8a128";
 
 const DESKTOP_QUERY = "(min-width: 768px)";
 
@@ -36,7 +35,7 @@ const ComposableTrace = ({ className }: Props) => {
   return (
     <ComposableTraceErrorBoundary>
       {isDesktop ? (
-        <DesktopTree className={className} traceId={TRACE_ID} initialSpanId={INITIAL_SPAN_ID} />
+        <DesktopTree className={className} traceId={TRACE_ID} />
       ) : (
         <div className={cn("flex flex-col gap-8 items-start w-full", className)}>
           <div className="flex flex-col gap-1 items-start w-full">

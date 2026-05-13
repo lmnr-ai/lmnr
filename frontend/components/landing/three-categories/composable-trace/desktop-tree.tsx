@@ -14,10 +14,9 @@ import TraceBento from "./trace-bento";
 interface Props {
   className?: string;
   traceId: string;
-  initialSpanId: string;
 }
 
-const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
+const DesktopTree = ({ className, traceId }: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -39,7 +38,7 @@ const DesktopTree = ({ className, traceId, initialSpanId }: Props) => {
         </div>
 
         <TraceViewStoreProvider storeKey="landing-composable-trace" initialTrace={trace}>
-          <TraceBento progress={scrollYProgress} trace={trace} spans={spans ?? []} initialSpanId={initialSpanId} />
+          <TraceBento progress={scrollYProgress} trace={trace} spans={spans ?? []} />
         </TraceViewStoreProvider>
 
         <DocsButton href="https://laminar.sh/docs/tracing/introduction" />

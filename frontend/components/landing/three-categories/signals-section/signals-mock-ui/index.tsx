@@ -1,6 +1,5 @@
 "use client";
 
-import { motion, type MotionValue, useMotionValue, useTransform } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
@@ -18,11 +17,9 @@ import MockEventsTable from "./mock-events-table";
 interface Props {
   tabKey: SignalTabKey;
   className?: string;
-  eventsHeaderProgress?: MotionValue<number>;
-  clustersProgress?: MotionValue<number>;
 }
 
-const SignalsMockUI = ({ tabKey, className, eventsHeaderProgress, clustersProgress }: Props) => {
+const SignalsMockUI = ({ tabKey, className }: Props) => {
   const dataset = MOCK_DATASETS[tabKey];
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
@@ -138,26 +135,10 @@ const SignalsMockUI = ({ tabKey, className, eventsHeaderProgress, clustersProgre
     return () => ro.disconnect();
   }, []);
 
-  // Default both panels to fully visible (1) when no MotionValue is passed,
-  // so this component still works in any non-orchestrated context.
-  const eventsFallback = useMotionValue(1);
-  const clustersFallback = useMotionValue(1);
-  const eventsSource = eventsHeaderProgress ?? eventsFallback;
-  const clustersSource = clustersProgress ?? clustersFallback;
-  // 28 px is enough room for the "Signal events" label (text-sm + gap).
-  const eventsHeaderHeight = useTransform(eventsSource, [0, 1], [0, 28], { clamp: true });
-  const eventsHeaderOpacity = useTransform(eventsSource, [0, 1], [0, 1], { clamp: true });
-  const clustersHeight = useTransform(clustersSource, [0, 1], [0, 312], { clamp: true });
-  const clustersOpacity = useTransform(clustersSource, [0, 1], [0, 1], { clamp: true });
-  const clustersMarginBottom = useTransform(clustersSource, [0, 1], [0, 8], { clamp: true });
-
-  const eventsHeaderStyle = { height: eventsHeaderHeight, opacity: eventsHeaderOpacity };
-  const clustersStyle = { height: clustersHeight, opacity: clustersOpacity, marginBottom: clustersMarginBottom };
-
   return (
     <TooltipProvider delayDuration={200}>
       <div className={cn("flex flex-col w-full overflow-hidden border rounded-lg bg-background p-4 ", className)}>
-        <motion.div style={clustersStyle} className="flex flex-col gap-2 shrink-0 overflow-hidden">
+        <div className="flex flex-col gap-2 shrink-0 mb-2">
           <ClusterBreadcrumb
             breadcrumb={breadcrumb}
             selectedClusterId={selectedClusterId}
@@ -185,10 +166,7 @@ const SignalsMockUI = ({ tabKey, className, eventsHeaderProgress, clustersProgre
               />
             </div>
           </div>
-        </motion.div>
-        <motion.div style={eventsHeaderStyle} className="flex items-end shrink-0 overflow-hidden pl-1 ">
-          <p className="text-sm text-secondary-foreground mb-2">Signal events</p>
-        </motion.div>
+        </div>
         <MockEventsTable events={visibleEvents} className="flex-1 min-h-0 pointer-events-none" />
       </div>
     </TooltipProvider>

@@ -5,9 +5,9 @@ import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-export type StageVariant = "transcript" | "recording" | "span" | "ai" | "full";
+export type StageVariant = "transcript" | "recording" | "ai" | "full";
 
-export const STAGES: StageVariant[] = ["transcript", "recording", "span", "ai", "full"];
+export const STAGES: StageVariant[] = ["transcript", "recording", "ai", "full"];
 
 interface KeepCorners {
   tl?: boolean;

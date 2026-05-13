@@ -23,20 +23,14 @@ const PROJECT_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 const spanLink = (label: string, spanId: string) =>
   `\`[${label}](https://lmnr.ai/project/${PROJECT_ID_PLACEHOLDER}/traces/${TRACE_ID}?spanId=${spanId})\``;
 
-const INITIAL_RESPONSE = `## Workflow Overview
-
-The Lead Writer agent orchestrated a multi-step research and critique cycle to produce a report on "Observability."
-
-## Sub-Agent Execution
-
-A **Researcher sub-agent** extracted control theory fundamentals and Kálmán's principles from Wikipedia ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-c897-ab53f4b4d8d9")} span. This summary was then evaluated by a **Critic sub-agent**, who identified a critical gap regarding practical implementation risks and sensor noise ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-aa61-8e05c4ab425e")} span.
-
-## Final Outcome
-
-The process concluded with a structured final report ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-40aa-245c963c3424")} span synthesizing technical definitions, critical analysis, and primary sources.`;
+const INITIAL_RESPONSE = `To improve efficiency, consolidate ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span and ${spanLink("readPage", "00000000-0000-0000-4eb1-e78cf1b0ed69")} ${spanLink("readPage", "00000000-0000-0000-3191-542d50e2dc74")} span into a single tool call to halve LLM turns. Additionally, the readPage output is excessively large (12,000+ characters); implementing targeted extraction would reduce processing time and token costs for the final summary ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-c897-ab53f4b4d8d9")} span. Finally, providing a search tool would prevent the agent from navigating to suboptimal pages ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span before finding the correct source ${spanLink("navigate", "00000000-0000-0000-7940-6191c6c4189c")} span.`;
 
 const INITIAL_MESSAGES: MockMessage[] = [
-  { id: "init-user", role: "user", text: "Summarize this trace" },
+  {
+    id: "init-user",
+    role: "user",
+    text: "How would you recommend improving the research agent's tool call efficiency?",
+  },
   { id: "init-assistant", role: "assistant", text: INITIAL_RESPONSE },
 ];
 
