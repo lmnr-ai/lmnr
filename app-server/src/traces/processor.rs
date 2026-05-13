@@ -28,6 +28,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
+        input_dedup::{build_dedup_batch, mark_seen, unmark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -111,12 +112,59 @@ pub async fn process_span_messages(
         }
     };
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
+    // Structural dedup for LLM span inputs: hash each message, insert unique
+    // rows into `llm_messages` first, then stamp the hash array onto each
+    // span and clear `input` so the view reconstructs it on read. The spec
+    // requires the messages insert to succeed before the span insert; if
+    // the messages insert fails we drop the Redis seen markers and abort
+    // this batch so it can be retried in full.
+    let recordable: Vec<(&Span, &crate::traces::spans::SpanUsage)> = spans
         .iter()
         .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
+        .filter(|(s, _)| s.should_record_to_clickhouse())
+        .collect();
+    let dedup_input: Vec<&Span> = recordable.iter().map(|(s, _)| *s).collect();
+    let dedup = build_dedup_batch(&dedup_input, cache.clone()).await;
+
+    if !dedup.messages.is_empty() {
+        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+            log::error!(
+                "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                dedup.messages.len(),
+                e
+            );
+            let keys: Vec<(Uuid, [u8; 32])> = dedup
+                .messages
+                .iter()
+                .map(|m| (m.project_id, m.message_hash))
+                .collect();
+            unmark_seen(&keys, cache.clone()).await;
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert llm_messages to Clickhouse: {:?}",
+                e
+            )));
+        }
+        let keys: Vec<(Uuid, [u8; 32])> = dedup
+            .messages
+            .iter()
+            .map(|m| (m.project_id, m.message_hash))
+            .collect();
+        mark_seen(&keys, cache.clone()).await;
+    }
+
+    // Build CHSpans with embedded events and insert to ClickHouse
+    let ch_spans: Vec<CHSpan> = recordable
+        .iter()
+        .enumerate()
+        .map(|(idx, (span, usage))| {
+            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+            let hashes = dedup.span_hashes.get(idx).cloned().unwrap_or_default();
+            if !hashes.is_empty() {
+                ch_span.input = String::new();
+                ch_span.input_message_hashes = hashes;
+            }
+            ch_span
+        })
         .collect();
 
     // Record spans to clickhouse
@@ -151,24 +199,21 @@ pub async fn process_span_messages(
     }
 
     // Send realtime span updates
-    let recordable: Vec<&Span> = spans
-        .iter()
-        .filter(|span| span.should_record_to_clickhouse())
-        .collect();
+    let recordable_refs: Vec<&Span> = recordable.iter().map(|(s, _)| *s).collect();
 
-    let spans_for_realtime: Vec<Span> = recordable.iter().map(|s| (*s).clone()).collect();
+    let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
     // Non-LLM spans are only indexed if their size is <= 5KB
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
         .filter(|s| {
             s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
         })
         .map(|s| (*s).into())
         .collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
+    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
         .collect();
