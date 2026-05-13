@@ -7,10 +7,14 @@
 //! trace-scoped. The `spans_v0` view LEFT-JOINs the table back on read to
 //! reconstruct the original JSON array transparently for the frontend.
 //!
-//! Redis is used as a best-effort "seen recently in this project" filter so
-//! we don't re-INSERT unchanged messages on every step. When Redis is
-//! unavailable we fall back to always inserting and rely on the
-//! ReplacingMergeTree engine to dedup on merge.
+//! Redis is used as a best-effort "seen recently in this trace" filter so
+//! we don't re-INSERT unchanged messages on every step. The key MUST include
+//! `trace_id` because `llm_messages` is trace-scoped — a message seen in
+//! trace A cannot be assumed queryable for trace B even in the same project,
+//! so without the trace in the key we'd skip inserts for other traces whose
+//! spans would then reconstruct to empty. When Redis is unavailable we fall
+//! back to always inserting and rely on the ReplacingMergeTree engine to
+//! dedup on merge.
 
 use std::sync::Arc;
 
@@ -26,8 +30,13 @@ use crate::db::spans::Span;
 /// safe because the ReplacingMergeTree engine collapses duplicates anyway.
 const MESSAGE_SEEN_TTL_SECONDS: u64 = 3600;
 
-fn message_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
-    format!("m:{}{}", project_id.simple(), hex::encode(hash))
+fn message_seen_key(project_id: Uuid, trace_id: Uuid, hash: &[u8; 32]) -> String {
+    format!(
+        "m:{}:{}:{}",
+        project_id.simple(),
+        trace_id.simple(),
+        hex::encode(hash)
+    )
 }
 
 /// Canonical JSON with sorted object keys so semantically identical messages
@@ -77,7 +86,7 @@ pub struct DedupBatch {
 /// Non-LLM spans and LLM spans whose input is not a JSON array produce an
 /// empty hash array, leaving their `input` unchanged downstream.
 ///
-/// Redis is consulted to drop messages seen recently in the same project.
+/// Redis is consulted to drop messages seen recently in the same trace.
 /// On Redis error we degrade to always emitting the row, letting the
 /// ReplacingMergeTree dedup on merge.
 pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
@@ -108,7 +117,7 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 continue;
             }
 
-            let key = message_seen_key(span.project_id, &hash);
+            let key = message_seen_key(span.project_id, span.trace_id, &hash);
             // On Redis errors / misses we emit the row. exists() returning
             // Ok(true) is the only path that skips the insert.
             let already_seen = cache.exists(&key).await.unwrap_or(false);
@@ -135,9 +144,9 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
 /// Mark every message we just inserted as seen in Redis with a 1h TTL. Called
 /// only after the llm_messages insert succeeded so a failed insert can't
 /// leave a "seen" marker blocking future re-inserts.
-pub async fn mark_seen(project_id_hashes: &[(Uuid, [u8; 32])], cache: Arc<Cache>) {
-    for (project_id, hash) in project_id_hashes {
-        let key = message_seen_key(*project_id, hash);
+pub async fn mark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
+    for (project_id, trace_id, hash) in keys {
+        let key = message_seen_key(*project_id, *trace_id, hash);
         let _ = cache
             .insert_with_ttl(&key, "1", MESSAGE_SEEN_TTL_SECONDS)
             .await;
@@ -146,9 +155,9 @@ pub async fn mark_seen(project_id_hashes: &[(Uuid, [u8; 32])], cache: Arc<Cache>
 
 /// Remove Redis markers for messages whose ClickHouse insert failed so the
 /// next attempt re-emits them.
-pub async fn unmark_seen(project_id_hashes: &[(Uuid, [u8; 32])], cache: Arc<Cache>) {
-    for (project_id, hash) in project_id_hashes {
-        let key = message_seen_key(*project_id, hash);
+pub async fn unmark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
+    for (project_id, trace_id, hash) in keys {
+        let key = message_seen_key(*project_id, *trace_id, hash);
         let _ = cache.remove(&key).await;
     }
 }

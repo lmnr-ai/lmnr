@@ -127,28 +127,23 @@ pub async fn process_span_messages(
     let dedup = build_dedup_batch(&dedup_input, cache.clone()).await;
 
     if !dedup.messages.is_empty() {
+        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+            .messages
+            .iter()
+            .map(|m| (m.project_id, m.trace_id, m.message_hash))
+            .collect();
         if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
             log::error!(
                 "Failed to insert {} llm_messages to ClickHouse: {:?}",
                 dedup.messages.len(),
                 e
             );
-            let keys: Vec<(Uuid, [u8; 32])> = dedup
-                .messages
-                .iter()
-                .map(|m| (m.project_id, m.message_hash))
-                .collect();
             unmark_seen(&keys, cache.clone()).await;
             return Err(HandlerError::transient(anyhow::anyhow!(
                 "Failed to insert llm_messages to Clickhouse: {:?}",
                 e
             )));
         }
-        let keys: Vec<(Uuid, [u8; 32])> = dedup
-            .messages
-            .iter()
-            .map(|m| (m.project_id, m.message_hash))
-            .collect();
         mark_seen(&keys, cache.clone()).await;
     }
 
