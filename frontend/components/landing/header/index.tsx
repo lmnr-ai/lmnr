@@ -60,7 +60,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           className
         )}
       >
-        <div className={cn("relative shrink-0 md:w-[120px] md:h-[21px]", "w-[90px] h-[16px]")}>
+        <div className={cn("relative shrink-0 md:w-[100px] md:h-[21px]", "w-[80px] h-[16px]")}>
           <Link href="/" className="block">
             <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
           </Link>

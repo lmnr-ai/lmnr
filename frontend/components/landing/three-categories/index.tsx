@@ -4,7 +4,6 @@ import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../c
 import DocsButton from "../docs-button";
 import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";
-import DebuggerVideo from "./debugger-video";
 import EvalsImage from "./evals-image";
 import EvalsSDKImage from "./evals-sdk-image";
 import GranularEvalsImage from "./granular-evals-image";
@@ -89,45 +88,6 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>True Agent Debugger</h2>
-          <p className={bodyLarge}>First-of-its-kind agent developer experience</p>
-        </div>
-        <div className={cn("flex flex-col md:gap-16 items-start w-full", "gap-8")}>
-          <DebuggerVideo />
-        </div>
-        <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
-      </div>
-
-      {/* Custom dashboards */}
-      <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
-        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
-          <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={subsectionTitle}>Custom dashboards</h2>
-
-            <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track tokens, latency, and more.</p>
-              </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  Correlate data across users and sessions.
-                </p>
-              </div>
-              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  Comprehensive UI dashboard builder with support for{" "}
-                  <span className="text-primary-foreground">custom SQL queries</span>.
-                </p>
-              </div>
-            </div>
-          </div>
-          <DocsButton href="https://laminar.sh/docs/custom-dashboards/overview" />
-        </div>
-        <DashboardImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
-      </div>
-
-      <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
-        <div className="flex flex-col gap-1 items-start w-full">
           <h2 className={subsectionTitle}>Robust Evals</h2>
           <p className={bodyLarge}>Verify progress, catch regressions, and iterate with confidence</p>
         </div>
@@ -167,6 +127,34 @@ const ThreeCategories = ({ className }: Props) => (
           </div>
         </div>
         <DocsButton href="https://laminar.sh/docs/evaluations/introduction" />
+      </div>
+
+      {/* Custom dashboards */}
+      <div className={cn("flex md:flex-row md:items-start md:justify-between w-full", "flex-col gap-6")}>
+        <div className={cn("flex flex-col gap-[50px] items-start md:max-w-[380px]", "w-full")}>
+          <div className="flex flex-col gap-6 items-start w-full">
+            <h2 className={subsectionTitle}>Custom dashboards</h2>
+
+            <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track tokens, latency, and more.</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  Correlate data across users and sessions.
+                </p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                  Comprehensive UI dashboard builder with support for{" "}
+                  <span className="text-primary-foreground">custom SQL queries</span>.
+                </p>
+              </div>
+            </div>
+          </div>
+          <DocsButton href="https://laminar.sh/docs/custom-dashboards/overview" />
+        </div>
+        <DashboardImage className={cn("relative shrink-0 md:w-[664px] md:h-[415px]", "w-full h-[260px]")} />
       </div>
     </div>
     <div className="w-full sticky left-0 bottom-0 h-[100px] bg-gradient-to-t from-landing-surface-800 to-transparent z-30" />

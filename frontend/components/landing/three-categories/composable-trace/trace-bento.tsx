@@ -210,6 +210,9 @@ const TraceBento = ({ progress, trace, spans }: Props) => {
   useEffect(() => {
     const el = bentoRef.current;
     if (!el) return;
+    // Seed synchronously so the absolute inner div has a non-zero width on
+    // the very first reveal (ResizeObserver fires async after first paint).
+    setSpanPanelTargetWidth(el.getBoundingClientRect().width / 3);
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) setSpanPanelTargetWidth(entry.contentRect.width / 3);

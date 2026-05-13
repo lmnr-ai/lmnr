@@ -1,16 +1,10 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef } from "react";
 
-import laminarTextLogo from "@/assets/landing/laminar-text.svg";
-import { useIsMobile } from "@/hooks/use-mobile";
+import laminarLogo from "@/assets/logo/logo.svg";
 import { cn } from "@/lib/utils";
-
-import { subsectionTitle } from "../class-names";
-import LandingButton from "../landing-button";
 
 interface Props {
   className?: string;
@@ -65,7 +59,7 @@ const FooterLinkText = ({ link }: { link: FooterLink }) => (
   <Link
     href={link.href}
     target={link.external ? "_blank" : undefined}
-    className="text-sm text-landing-text-300 hover:text-landing-text-100 transition-colors"
+    className="text-sm text-landing-text-300 hover:text-landing-text-100 transition-colors whitespace-nowrap"
   >
     {link.label}
   </Link>
@@ -83,125 +77,79 @@ const FooterColumn = ({
   className?: string;
 }) => (
   <div className={cn("flex flex-col gap-3 items-start", className)}>
-    <p className={cn("text-sm text-landing-text-500", hideHeader && "opacity-0 pointer-events-none")}>{header}</p>
+    <p
+      className={cn(
+        "text-sm text-primary-foreground whitespace-nowrap",
+        hideHeader && "opacity-0 pointer-events-none select-none"
+      )}
+    >
+      {header}
+    </p>
     {links.map((link) => (
       <FooterLinkText key={`${header}-${link.label}`} link={link} />
     ))}
   </div>
 );
 
-const Footer = ({ className }: Props) => {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const isMobile = useIsMobile();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
-  const offset = useTransform(scrollYProgress, [0, 1], [isMobile ? -100 : -200, 0]);
-  const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
-
-  return (
-    <div className={cn("bg-landing-surface-800 flex flex-col items-start w-full", className)}>
-      <div
-        className={cn(
-          "flex flex-col items-end justify-end pt-[120px] w-full md:pb-8 md:px-8 lg:pb-20 lg:px-20",
-          "px-5 pb-10"
-        )}
-      >
-        {/* Desktop: heading + buttons (left) | 4 columns (right) */}
-        <div className="hidden xl:flex items-start w-full xl:gap-[60px] 2xl:gap-[240px]">
-          <div className="flex flex-col gap-8 items-start shrink-0">
-            <div className={cn("text-left leading-normal", subsectionTitle)}>
-              Understand why your agent failed.
-              <br />
-              Iterate fast to fix it.
-            </div>
-            <div className="flex gap-5 items-center w-[316px]">
-              <Link href="https://laminar.sh/docs" target="_blank" className="flex-1 basis-0">
-                <LandingButton variant="outline" className="w-full">
-                  Read the Docs
-                </LandingButton>
-              </Link>
-              <Link href="/sign-up" className="flex-1 basis-0">
-                <LandingButton variant="primary" className="w-full">
-                  Get Started
-                </LandingButton>
-              </Link>
-            </div>
-          </div>
-          <div className="flex flex-1 min-w-0 justify-between items-start">
-            <FooterColumn header="Connect" links={ELSEWHERE_LINKS} className="w-[140px]" />
-            <FooterColumn header="More" links={MORE_LINKS} className="w-[140px]" />
-            <FooterColumn header="Integrations" links={INTEGRATIONS_COL_1} className="w-[140px]" />
-            <FooterColumn header="Integrations" links={INTEGRATIONS_COL_2} hideHeader className="w-[140px]" />
-          </div>
+const Footer = ({ className }: Props) => (
+  <div className={cn("bg-landing-surface-800 flex flex-col items-center w-full", className)}>
+    <div
+      className={cn(
+        "w-full max-w-[1104px] border-t border-landing-surface-500",
+        "md:pt-20 md:pb-[120px] md:px-8",
+        "pt-16 pb-20 px-5"
+      )}
+    >
+      {/* Desktop */}
+      <div className="hidden xl:flex gap-[120px] items-start w-full">
+        <Image
+          src={laminarLogo}
+          alt="Laminar"
+          width={100}
+          height={21}
+          className="shrink-0 object-contain h-[21px] w-auto"
+        />
+        <div className="flex flex-1 min-w-0 justify-between items-start">
+          <FooterColumn header="Integrations" links={INTEGRATIONS_COL_1} className="w-[140px]" />
+          <FooterColumn header="Integrations" links={INTEGRATIONS_COL_2} hideHeader className="w-[140px]" />
+          <FooterColumn header="Elsewhere online" links={ELSEWHERE_LINKS} className="w-[140px]" />
+          <FooterColumn header="More" links={MORE_LINKS} className="w-[140px]" />
         </div>
+      </div>
 
-        {/* Mobile: heading + buttons (centered), then 2-col Elsewhere/More, then full-width Integrations */}
-        <div className="xl:hidden flex flex-col gap-24 items-center w-full">
-          <div className="flex flex-col gap-8 items-center w-full">
-            <div className={cn("text-center leading-12", subsectionTitle)}>
-              Understand
-              <br />
-              why your agent failed.
-              <br />
-              Iterate fast to fix it.
-            </div>
-            <div className="flex gap-2 items-center w-full max-w-[360px]">
-              <Link href="https://laminar.sh/docs" target="_blank" className="flex-1 basis-0">
-                <LandingButton variant="outline" className="w-full">
-                  Read the Docs
-                </LandingButton>
-              </Link>
-              <Link href="/sign-up" className="flex-1 basis-0">
-                <LandingButton variant="primary" className="w-full">
-                  Get Started
-                </LandingButton>
-              </Link>
-            </div>
+      {/* Mobile / tablet */}
+      <div className="xl:hidden flex flex-col items-start gap-12 w-full">
+        <Image
+          src={laminarLogo}
+          alt="Laminar"
+          width={100}
+          height={21}
+          className="shrink-0 object-contain h-[21px] w-auto"
+        />
+        <div className="flex flex-col gap-10 items-start w-full">
+          <div className="flex w-full gap-4">
+            <FooterColumn header="Elsewhere online" links={ELSEWHERE_LINKS} className="flex-1" />
+            <FooterColumn header="More" links={MORE_LINKS} className="flex-1" />
           </div>
-          <div className="flex flex-col gap-10 items-start w-full px-2">
+          <div className="flex flex-col gap-3 items-start w-full">
+            <p className="text-sm text-primary-foreground whitespace-nowrap">Integrations</p>
             <div className="flex w-full gap-4">
-              <FooterColumn header="Connect" links={ELSEWHERE_LINKS} className="flex-1" />
-              <FooterColumn header="More" links={MORE_LINKS} className="flex-1" />
-            </div>
-            <div className="flex flex-col gap-3 items-start w-full">
-              <p className="text-sm text-landing-text-500">Integrations</p>
-              <div className="flex w-full gap-4">
-                <div className="flex-1 flex flex-col gap-3 items-start">
-                  {INTEGRATIONS_COL_1.map((link) => (
-                    <FooterLinkText key={`int1-${link.label}`} link={link} />
-                  ))}
-                </div>
-                <div className="flex-1 flex flex-col gap-3 items-start">
-                  {INTEGRATIONS_COL_2.map((link) => (
-                    <FooterLinkText key={`int2-${link.label}`} link={link} />
-                  ))}
-                </div>
+              <div className="flex-1 flex flex-col gap-3 items-start">
+                {INTEGRATIONS_COL_1.map((link) => (
+                  <FooterLinkText key={`int1-${link.label}`} link={link} />
+                ))}
+              </div>
+              <div className="flex-1 flex flex-col gap-3 items-start">
+                {INTEGRATIONS_COL_2.map((link) => (
+                  <FooterLinkText key={`int2-${link.label}`} link={link} />
+                ))}
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div
-        className={cn("bg-landing-surface-900 flex flex-col items-start justify-end overflow-hidden w-full")}
-        ref={ref}
-      >
-        <motion.div
-          className={cn("relative w-full overflow-hidden md:p-8 lg:p-20", "p-6")}
-          style={{
-            y: offset,
-            opacity,
-          }}
-        >
-          <Image
-            alt="Laminar logo"
-            src={laminarTextLogo}
-            width={800}
-            height={200}
-            className="object-contain w-full h-auto"
-          />
-        </motion.div>
-      </div>
     </div>
-  );
-};
+  </div>
+);
 
 export default Footer;
