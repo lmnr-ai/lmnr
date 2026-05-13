@@ -118,13 +118,17 @@ pub async fn process_span_messages(
     // requires the messages insert to succeed before the span insert; if
     // the messages insert fails we drop the Redis seen markers and abort
     // this batch so it can be retried in full.
-    let recordable: Vec<(&Span, &crate::traces::spans::SpanUsage)> = spans
+    let recordable_indices: Vec<usize> = spans
         .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(s, _)| s.should_record_to_clickhouse())
+        .enumerate()
+        .filter(|(_, s)| s.should_record_to_clickhouse())
+        .map(|(i, _)| i)
         .collect();
-    let dedup_input: Vec<&Span> = recordable.iter().map(|(s, _)| *s).collect();
-    let dedup = build_dedup_batch(&dedup_input, cache.clone()).await;
+    let dedup = {
+        let dedup_input: Vec<&Span> =
+            recordable_indices.iter().map(|&i| &spans[i]).collect();
+        build_dedup_batch(&dedup_input, cache.clone()).await
+    };
 
     if !dedup.messages.is_empty() {
         let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
@@ -147,13 +151,41 @@ pub async fn process_span_messages(
         mark_seen(&keys, cache.clone()).await;
     }
 
+    // For each dedup'd span, rewrite `size_bytes` to reflect what we actually
+    // store: the full JSON `input` is replaced by `32 * num_hashes` bytes.
+    // This feeds both the billing counter below and the CH `size_bytes`
+    // column written via `CHSpan::from_db_span`. The hash is hex on the read
+    // path but stored as raw `FixedString(32)` in CH, so 32 is the truth.
+    for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+        let num_hashes = dedup
+            .span_hashes
+            .get(dedup_idx)
+            .map(|h| h.len())
+            .unwrap_or(0);
+        if num_hashes == 0 {
+            continue;
+        }
+        let original_input_size = spans[span_idx]
+            .input
+            .as_ref()
+            .map_or(0, crate::utils::estimate_json_size);
+        let hashes_size = num_hashes * 32;
+        let new_size = spans[span_idx]
+            .size_bytes
+            .saturating_sub(original_input_size)
+            .saturating_add(hashes_size);
+        spans[span_idx].size_bytes = new_size;
+    }
+
     // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = recordable
+    let ch_spans: Vec<CHSpan> = recordable_indices
         .iter()
         .enumerate()
-        .map(|(idx, (span, usage))| {
+        .map(|(dedup_idx, &span_idx)| {
+            let span = &spans[span_idx];
+            let usage = &span_usage_vec[span_idx];
             let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-            let hashes = dedup.span_hashes.get(idx).cloned().unwrap_or_default();
+            let hashes = dedup.span_hashes.get(dedup_idx).cloned().unwrap_or_default();
             if !hashes.is_empty() {
                 ch_span.input = String::new();
                 ch_span.input_message_hashes = hashes;
@@ -194,7 +226,7 @@ pub async fn process_span_messages(
     }
 
     // Send realtime span updates
-    let recordable_refs: Vec<&Span> = recordable.iter().map(|(s, _)| *s).collect();
+    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
 
     let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
