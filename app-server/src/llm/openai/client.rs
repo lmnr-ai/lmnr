@@ -22,8 +22,10 @@ impl OpenAIClient {
         let api_key = env::var("LLM_API_KEY")
             .map_err(|_| OpenAIError::config("LLM_API_KEY environment variable not set"))?;
 
-        let raw_base_url =
-            env::var("LLM_BASE_URL").unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+        let raw_base_url = env::var("LLM_BASE_URL")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
         let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()

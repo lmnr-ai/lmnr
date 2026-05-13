@@ -25,7 +25,9 @@ impl GeminiClient {
             .map_err(|_| GeminiError::config("LLM_API_KEY environment variable not set"))?;
 
         let raw_base_url = env::var("LLM_BASE_URL")
-            .unwrap_or_else(|_| "https://generativelanguage.googleapis.com/v1beta".to_string());
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
         let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()
