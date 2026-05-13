@@ -20,7 +20,7 @@ export async function generatePromptName(promptContent: string): Promise<Generat
   const truncated = promptContent.slice(0, MAX_PROMPT_CHARS);
 
   const { object } = await generateObject({
-    model: getLanguageModel("lite"),
+    model: getLanguageModel("small"),
     schema: NameResultSchema,
     prompt: `Given this system prompt, generate a short 2-5 word descriptive name for the agent/role it defines. If the input is not a valid system prompt or is too vague to name, set success to false with a brief error.\n\nSystem prompt:\n${truncated}`,
   });

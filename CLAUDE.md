@@ -142,6 +142,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - The hard-limit cleanup runs on **every** recognized tier transition — including Hobby → Free on cancellation. Warnings, in contrast, are only written when the new tier is paid (Hobby/Pro) since Free has no warnings to carry. Leaving the Hobby limit in place during cancellation would silently re-apply the Hobby cap the next time the workspace upgrades to any paid tier.
 - After inserting or deleting a `workspace_usage_limits` row, you MUST invalidate the per-project cache via `invalidateProjectCacheForWorkspace(workspaceId)` — the app-server caches `ProjectWithWorkspaceBillingInfo` keyed by project id and will otherwise keep enforcing stale limits until TTL.
 
+## AI Features Model Setup
+
+- All frontend AI features (chat-with-trace, SQL generation, span previews, session extraction regex, debugger-session naming) go through `getLanguageModel(tier)` in `frontend/lib/ai/model.ts`. Tiers are `small` / `medium` / `large` — never add new tier names without updating every call site.
+- Provider selection: **Bedrock wins when `BEDROCK_ENABLED=true`** (or `LLM_PROVIDER=bedrock`) + AWS creds are set. It uses a pinned Anthropic Claude model list and ignores `LLM_MODEL_*`. Otherwise `LLM_PROVIDER` picks between `openai` and `gemini`; `openai` is OpenAI-compatible and works with LiteLLM proxy / OpenRouter / vLLM via `LLM_BASE_URL`. Model names must be set per-tier via `LLM_MODEL_SMALL` / `LLM_MODEL_MEDIUM` / `LLM_MODEL_LARGE` (no defaults for the non-Bedrock path — missing env throws at call time). Mirror the app-server's provider matching in `app-server/src/features/mod.rs` / `llm/mod.rs` when extending.
+- `Feature.SIGNALS` requires `SIGNALS_ENABLED=true` AND (`LLM_PROVIDER` + `LLM_API_KEY`) OR Bedrock creds. `Feature.BATCH_SIGNALS` requires `LLM_PROVIDER=gemini` specifically (Gemini-only because the batch API is Gemini-specific on the backend). When adding other provider-specific features, gate them the same way rather than assuming any configured provider.
+
 ## Signals and Alerts
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).

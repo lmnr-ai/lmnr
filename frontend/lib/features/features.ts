@@ -88,17 +88,17 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    return (
-      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      (process.env.BEDROCK_ENABLED === "true" &&
-        !!process.env.AWS_ACCESS_KEY_ID &&
-        !!process.env.AWS_SECRET_ACCESS_KEY &&
-        !!process.env.AWS_REGION)
-    );
+    const hasAws = !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_REGION;
+    const bedrockOverride = process.env.BEDROCK_ENABLED === "true" && hasAws;
+    const provider = process.env.LLM_PROVIDER;
+    if (bedrockOverride) return true;
+    if (provider === "openai" || provider === "gemini") return !!process.env.LLM_API_KEY;
+    if (provider === "bedrock") return hasAws;
+    return false;
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
-    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return process.env.LLM_PROVIDER === "gemini" && !!process.env.LLM_API_KEY;
   }
 
   if (feature === Feature.CLUSTERING) {
