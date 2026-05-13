@@ -24,6 +24,7 @@ use uuid::Uuid;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::llm_messages::CHLlmMessage;
 use crate::db::spans::Span;
+use crate::utils::sanitize_string;
 
 /// Keep Redis dedup markers for one hour. Longer TTLs just mean fewer
 /// re-inserts on the hot path at the cost of Redis memory; shorter TTLs are
@@ -129,7 +130,12 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 project_id: span.project_id,
                 trace_id: span.trace_id,
                 message_hash: hash,
-                content: canonical,
+                // Match the non-dedup path (`CHSpan::from_db_span`), which
+                // runs `input.to_string()` through `sanitize_string` before
+                // storing in ClickHouse. Hash is computed over the raw
+                // canonical JSON so dedup identity is stable regardless of
+                // whether a message carries sanitizable characters.
+                content: sanitize_string(&canonical),
             });
         }
         span_hashes.push(hashes);
