@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
+
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
 
 const createIframeContent = (templateCode: string): string => {
@@ -10,6 +12,9 @@ const createIframeContent = (templateCode: string): string => {
     .replace(/`/g, "\\`")
     .replace(/\$/g, "\\$")
     .replace(/<\\\/script>/gi, "<\\\\/script>");
+
+  const themeJson = laminarIframeThemeJson();
+  const bodyFontFamily = LAMINAR_IFRAME_THEME.fontFamily.sans.map((f) => (f.includes(" ") ? `'${f}'` : f)).join(", ");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -48,15 +53,23 @@ const createIframeContent = (templateCode: string): string => {
   
   <style>
     * { box-sizing: border-box; }
-    html, body, #root { height: 100%; }
+    html, body { min-height: 100%; }
+    #root { min-height: 100%; }
     body { 
       margin: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: ${bodyFontFamily};
       line-height: 1.5;
-      background: #0A0A0A;
-      color: #FAFAFA;
+      background: ${LAMINAR_IFRAME_THEME.colors.background};
+      color: ${LAMINAR_IFRAME_THEME.colors.foreground};
+      overflow-x: hidden;
+      overflow-y: auto;
     }
-    .error { color: #CC3333; }
+    body::-webkit-scrollbar { width: 8px; height: 8px; }
+    body::-webkit-scrollbar-track { background: transparent; }
+    body::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 4px; }
+    body::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.muted.DEFAULT}; }
+    body { scrollbar-width: thin; scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} transparent; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
 </head>
@@ -65,6 +78,7 @@ const createIframeContent = (templateCode: string): string => {
   
   <script type="module">
     const parentOrigin = window.origin;
+    const LAMINAR_THEME = ${themeJson};
 
     class TemplateRenderer {
       constructor() {
@@ -99,7 +113,15 @@ const createIframeContent = (templateCode: string): string => {
         const tailwind = presetTailwind.default || presetTailwind;
         const autoprefix = presetAutoprefix.default || presetAutoprefix;
         const { install, observe } = core;
-        const tw = install({ presets: [tailwind(), autoprefix()] });
+        const tw = install({
+          presets: [tailwind(), autoprefix()],
+          theme: {
+            extend: {
+              colors: LAMINAR_THEME.colors,
+              fontFamily: LAMINAR_THEME.fontFamily,
+            },
+          },
+        });
 
         return {
           preact: preactModule,
@@ -187,8 +209,8 @@ const createErrorContent = (message: string): string => `
 <head>
   <meta charset="utf-8">
   <style>
-    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FAFAFA; }
-    .error { color: #dc2626; background: #fef2f2; padding: 1rem; border-radius: 0.375rem; border: 1px solid #fecaca; }
+    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${LAMINAR_IFRAME_THEME.colors.background}; color: ${LAMINAR_IFRAME_THEME.colors.foreground}; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; background: rgba(204, 51, 51, 0.08); padding: 1rem; border-radius: 0.375rem; border: 1px solid ${LAMINAR_IFRAME_THEME.colors.border}; }
   </style>
 </head>
 <body>
