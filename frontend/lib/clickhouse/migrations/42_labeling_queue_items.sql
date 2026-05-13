@@ -4,15 +4,15 @@ CREATE TABLE IF NOT EXISTS labeling_queue_items (
     project_id      UUID,
 
     payload         String,
-    edit            String DEFAULT '',
-    metadata        String DEFAULT '',
+    edit            String,
+    metadata        String,
 
-    status          UInt8  DEFAULT 0,
+    status          UInt8,
 
-    idempotency_key String DEFAULT '',       -- empty = no caller-provided key
+    idempotency_key String,
 
-    created_at      DateTime64(3, 'UTC') DEFAULT now64(3),
-    updated_at      DateTime64(3, 'UTC') DEFAULT now64(3)
+    created_at      DateTime64(3, 'UTC'),
+    updated_at      DateTime64(3, 'UTC')
 
 ) ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (project_id, queue_id, id);

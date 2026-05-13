@@ -59,8 +59,9 @@ export const insertQueueItems = async (items: InsertQueueItem[]): Promise<void> 
       project_id: item.projectId,
       payload: item.payload !== undefined && item.payload !== null ? JSON.stringify(item.payload) : "{}",
       edit: item.edit ?? "",
-      metadata: item.metadata !== undefined && item.metadata !== null ? JSON.stringify(item.metadata) : "",
+      metadata: item.metadata !== undefined && item.metadata !== null ? JSON.stringify(item.metadata) : "{}",
       status: item.status ?? 0,
+      idempotency_key: "",
       created_at: createdAt,
       updated_at: updatedAt,
     };
