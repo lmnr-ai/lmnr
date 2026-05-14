@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import laminarLogo from "@/assets/logo/logo.svg";
+import laminarLogo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -106,8 +106,8 @@ const Footer = ({ className }: Props) => (
           src={laminarLogo}
           alt="Laminar"
           width={100}
-          height={21}
-          className="shrink-0 object-contain h-[21px] w-auto"
+          height={18}
+          className="shrink-0 object-contain h-[18px] w-auto"
         />
         <div className="flex flex-1 min-w-0 justify-between items-start">
           <FooterColumn header="Integrations" links={INTEGRATIONS_COL_1} className="w-[140px]" />
@@ -123,8 +123,8 @@ const Footer = ({ className }: Props) => (
           src={laminarLogo}
           alt="Laminar"
           width={100}
-          height={21}
-          className="shrink-0 object-contain h-[21px] w-auto"
+          height={18}
+          className="shrink-0 object-contain h-[18px] w-auto"
         />
         <div className="flex flex-col gap-10 items-start w-full">
           <div className="flex w-full gap-4">

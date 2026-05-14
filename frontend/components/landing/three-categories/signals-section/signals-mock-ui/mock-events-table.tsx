@@ -1,6 +1,5 @@
+import { type MockEvent } from "@/components/landing/sections/clusters-mock-data";
 import { cn } from "@/lib/utils";
-
-import { type MockEvent } from "./mock-data";
 
 interface Props {
   events: MockEvent[];

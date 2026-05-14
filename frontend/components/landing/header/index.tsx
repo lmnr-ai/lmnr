@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import logo from "@/assets/logo/logo.svg";
+import logo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
 import LandingButton from "../landing-button";
@@ -60,7 +60,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           className
         )}
       >
-        <div className={cn("relative shrink-0 md:w-[100px] md:h-[21px]", "w-[80px] h-[16px]")}>
+        <div className={cn("relative shrink-0 md:w-[100px] md:h-[18px]", "w-[80px] h-[14px]")}>
           <Link href="/" className="block">
             <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
           </Link>

@@ -1,4 +1,4 @@
-import { type SignalTabKey } from "./signals-mock-ui/mock-data";
+import { type SignalTabKey } from "@/components/landing/sections/clusters-mock-data";
 
 export type TabKey = SignalTabKey | "anything";
 

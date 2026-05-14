@@ -3,9 +3,9 @@
 import Image from "next/image";
 import { useCallback, useState } from "react";
 
+import { type SignalTabKey } from "@/components/landing/sections/clusters-mock-data";
 import { cn } from "@/lib/utils";
 
-import { type SignalTabKey } from "./signals-mock-ui/mock-data";
 import { ANYTHING_PROMPT, type TabKey, TABS } from "./tabs";
 
 interface Props {

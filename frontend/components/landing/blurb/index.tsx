@@ -5,7 +5,7 @@ import { useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { quoteAttributionName, quoteAttributionRole, quoteSize, quoteText } from "../class-names";
+import { quoteAttributionName, quoteAttributionRole, quoteSize, quoteText } from "../class-names_old";
 
 interface Props {
   className?: string;

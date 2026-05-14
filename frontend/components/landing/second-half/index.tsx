@@ -6,7 +6,7 @@ import { useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, subsectionTitle } from "../class-names";
+import { bodyLarge, subsectionTitle } from "../class-names_old";
 import DocsButton from "../docs-button";
 import LocalToScaleImage from "./local-to-scale-image";
 

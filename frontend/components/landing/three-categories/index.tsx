@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names";
+import { bodyLarge, bodyMedium, bodySQL, cardTitle, subsectionTitle } from "../class-names_old";
 import DocsButton from "../docs-button";
 import ComposableTrace from "./composable-trace";
 import DashboardImage from "./dashboard-image";

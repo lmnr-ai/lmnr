@@ -7,7 +7,7 @@ import useSWR from "swr";
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { bodyLarge, subsectionTitle } from "../../class-names";
+import { bodyLarge, subsectionTitle } from "../../class-names_old";
 import DocsButton from "../../docs-button";
 import TraceBento from "./trace-bento";
 

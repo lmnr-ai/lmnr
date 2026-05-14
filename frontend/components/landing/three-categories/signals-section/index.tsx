@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, subsectionTitle } from "../../class-names";
+import { bodyLarge, subsectionTitle } from "../../class-names_old";
 import DocsButton from "../../docs-button";
 import SignalsSectionDesktop from "./signals-section-desktop";
 import SignalsSectionMobile from "./signals-section-mobile";

@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { subsectionTitle } from "../../class-names";
+import { subsectionTitle } from "../../class-names_old";
 import DocsButton from "../../docs-button";
 import AskAi from "./ask-ai";
 import TraceSection, { STAGES, type StageVariant } from "./trace-section";

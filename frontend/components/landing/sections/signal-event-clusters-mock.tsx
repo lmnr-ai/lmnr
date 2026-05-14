@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { MOCK_DATASETS, type SignalTabKey } from "@/components/landing/sections/clusters-mock-data";
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
 import ClusterList from "@/components/signal/clusters-section/cluster-list";
 import ClusterStackedChart from "@/components/signal/clusters-section/cluster-stacked-chart";
@@ -12,15 +11,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
-import MockEventsTable from "./mock-events-table";
+import { MOCK_DATASETS } from "./clusters-mock-data";
 
 interface Props {
-  tabKey: SignalTabKey;
   className?: string;
 }
 
-const SignalsMockUI = ({ tabKey, className }: Props) => {
-  const dataset = MOCK_DATASETS[tabKey];
+// Cluster card mirroring the production clusters section visual (bg-secondary
+// inner card on a bg-background wrapper) — list + stacked chart, no
+// breadcrumb/events. Drill-down works just like the real one.
+const SignalEventClustersMock = ({ className }: Props) => {
+  const dataset = MOCK_DATASETS["detect-failures"];
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
   const currentNode = useMemo(
@@ -35,15 +36,7 @@ const SignalsMockUI = ({ tabKey, className }: Props) => {
   );
 
   const visibleClusters: ClusterNode[] = displayNode ? displayNode.children : dataset.clusterTree;
-  const breadcrumb = useMemo(
-    () => (selectedClusterId ? buildPath(dataset.clusterTree, selectedClusterId) : []),
-    [dataset.clusterTree, selectedClusterId]
-  );
-  const displayBreadcrumb = useMemo(
-    () => (displayId ? buildPath(dataset.clusterTree, displayId) : []),
-    [dataset.clusterTree, displayId]
-  );
-  const drillDownDepth = displayBreadcrumb.length;
+  const drillDownDepth = displayNode ? displayNode.level + 1 : 0;
 
   const unclusteredCount = Math.max(0, dataset.totalEventCount - dataset.clusteredEventCount);
   const unclusteredVirtualCluster: ClusterNode = useMemo(
@@ -62,10 +55,10 @@ const SignalsMockUI = ({ tabKey, className }: Props) => {
   );
 
   const filteredCountByCluster = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of visibleClusters) map.set(c.id, c.numEvents);
-    map.set(UNCLUSTERED_ID, unclusteredCount);
-    return map;
+    const m = new Map<string, number>();
+    for (const c of visibleClusters) m.set(c.id, c.numEvents);
+    m.set(UNCLUSTERED_ID, unclusteredCount);
+    return m;
   }, [visibleClusters, unclusteredCount]);
 
   const chartClusters: ClusterNode[] = useMemo(() => {
@@ -94,13 +87,15 @@ const SignalsMockUI = ({ tabKey, className }: Props) => {
 
   const navigateToCluster = useCallback(
     (id: string) => {
-      if (id === selectedClusterId && isLeaf) {
-        setSelectedClusterId(displayId);
-      } else {
-        setSelectedClusterId(id);
-      }
+      if (id === selectedClusterId && isLeaf) setSelectedClusterId(displayId);
+      else setSelectedClusterId(id);
     },
     [selectedClusterId, isLeaf, displayId]
+  );
+
+  const breadcrumb = useMemo(
+    () => (selectedClusterId ? buildPath(dataset.clusterTree, selectedClusterId) : []),
+    [dataset.clusterTree, selectedClusterId]
   );
 
   const navigateToBreadcrumb = useCallback(
@@ -110,20 +105,6 @@ const SignalsMockUI = ({ tabKey, className }: Props) => {
     },
     [breadcrumb]
   );
-
-  const visibleEvents = useMemo(() => {
-    if (!selectedClusterId) return dataset.events;
-    if (selectedClusterId === UNCLUSTERED_ID) return [];
-    const node = findNodeById(dataset.clusterTree, selectedClusterId);
-    if (!node) return dataset.events;
-    const ids = new Set<string>();
-    const walk = (n: ClusterNode) => {
-      ids.add(n.id);
-      n.children.forEach(walk);
-    };
-    walk(node);
-    return dataset.events.filter((e) => ids.has(e.clusterId));
-  }, [selectedClusterId, dataset]);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
@@ -137,40 +118,37 @@ const SignalsMockUI = ({ tabKey, className }: Props) => {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className={cn("flex flex-col w-full overflow-hidden border rounded-lg bg-background p-4 ", className)}>
-        <div className="flex flex-col gap-2 shrink-0 mb-2">
-          <ClusterBreadcrumb
-            breadcrumb={breadcrumb}
-            selectedClusterId={selectedClusterId}
-            onNavigateToBreadcrumb={navigateToBreadcrumb}
-          />
-          <div className="flex h-[280px] shrink-0 border rounded-md bg-secondary overflow-hidden">
-            <div className="w-[280px] shrink-0 border-r overflow-hidden">
-              <ClusterList
-                className="h-full w-full bg-transparent"
-                drillDownDepth={drillDownDepth}
-                filteredCountByCluster={filteredCountByCluster}
-                visibleClusters={visibleClusters}
-                unclusteredCount={unclusteredCount}
-                unclusteredVirtualCluster={unclusteredVirtualCluster}
-                selectedClusterId={selectedClusterId}
-                onNavigateToCluster={navigateToCluster}
-              />
-            </div>
-            <div className="flex-1 min-w-0 py-2 pr-2" ref={chartContainerRef}>
-              <ClusterStackedChart
-                clusters={chartClusters}
-                statsData={dataset.stats}
-                containerWidth={chartWidth}
-                colorMap={colorMap}
-              />
-            </div>
+      <div className={cn("w-[720px]  rounded-lg border bg-background p-3 flex flex-col gap-2", className)}>
+        <ClusterBreadcrumb
+          breadcrumb={breadcrumb}
+          selectedClusterId={selectedClusterId}
+          onNavigateToBreadcrumb={navigateToBreadcrumb}
+        />
+        <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
+          <div className="w-[300px] shrink-0 border-r overflow-hidden">
+            <ClusterList
+              className="h-full w-full bg-transparent"
+              drillDownDepth={drillDownDepth}
+              filteredCountByCluster={filteredCountByCluster}
+              visibleClusters={visibleClusters}
+              unclusteredCount={unclusteredCount}
+              unclusteredVirtualCluster={unclusteredVirtualCluster}
+              selectedClusterId={selectedClusterId}
+              onNavigateToCluster={navigateToCluster}
+            />
+          </div>
+          <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>
+            <ClusterStackedChart
+              clusters={chartClusters}
+              statsData={dataset.stats}
+              containerWidth={chartWidth}
+              colorMap={colorMap}
+            />
           </div>
         </div>
-        <MockEventsTable events={visibleEvents} className="flex-1 min-h-0 pointer-events-none" />
       </div>
     </TooltipProvider>
   );
 };
 
-export default SignalsMockUI;
+export default SignalEventClustersMock;

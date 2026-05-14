@@ -20,7 +20,7 @@ import stagehand from "@/assets/landing/logos/stagehand.svg";
 import vercel from "@/assets/landing/logos/vercel.svg";
 import { cn } from "@/lib/utils";
 
-import { subsectionTitle } from "../../class-names";
+import { subsectionTitle } from "../../class-names_old";
 import DocsButton from "../../docs-button";
 
 interface Props {

@@ -2,11 +2,11 @@
 
 import { useCallback, useState } from "react";
 
+import { type SignalTabKey } from "@/components/landing/sections/clusters-mock-data";
 import { cn } from "@/lib/utils";
 
-import { bodyLarge } from "../../class-names";
+import { bodyLarge } from "../../class-names_old";
 import SignalsMockUI from "./signals-mock-ui";
-import { type SignalTabKey } from "./signals-mock-ui/mock-data";
 import { ANYTHING_PROMPT, type TabKey, TABS } from "./tabs";
 
 interface Props {

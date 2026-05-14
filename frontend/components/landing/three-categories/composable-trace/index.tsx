@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { bodyLarge, subsectionTitle } from "../../class-names";
+import { bodyLarge, subsectionTitle } from "../../class-names_old";
 import DocsButton from "../../docs-button";
 import DesktopTree from "./desktop-tree";
 import ComposableTraceErrorBoundary from "./error-boundary";
