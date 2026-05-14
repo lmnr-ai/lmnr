@@ -1,20 +1,15 @@
 "use client";
 
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { ChevronDown, Database, Loader2 } from "lucide-react";
+import { ChevronDown, Database, ListChecks, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 
-import { CategoryDropZone, type ColumnCategory } from "@/components/sql/dnd-components";
+import ColumnAssignmentDnd, {
+  buildInitialColumns,
+  type CategorizedColumns,
+  EMPTY_CATEGORIZED_COLUMNS,
+} from "@/components/sql/column-assignment-dnd";
 import { Button } from "@/components/ui/button";
 import DatasetSelect from "@/components/ui/dataset-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,94 +19,53 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
+import QueueSelect from "@/components/ui/queue-select";
 import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
+import { type LabelingQueue } from "@/lib/queue/types";
 
 import ExportJobDialog from "./export-job-dialog";
 
 interface ExportResultsDialogProps {
   results: Record<string, any>[] | null;
   sqlQuery: string;
+  sqlTemplateId?: string;
 }
+
+const buildBucketedRows = (results: Record<string, any>[], columns: CategorizedColumns) =>
+  results.map((row) => {
+    const data: Record<string, unknown> = {};
+    const target: Record<string, unknown> = {};
+    const metadata: Record<string, unknown> = {};
+    columns.data.forEach((key) => {
+      data[key] = row[key];
+    });
+    columns.target.forEach((key) => {
+      target[key] = row[key];
+    });
+    columns.metadata.forEach((key) => {
+      metadata[key] = row[key];
+    });
+    return { data, target, metadata };
+  });
 
 function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<ExportResultsDialogProps, "results">>) {
   const { projectId } = useParams();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [columnsByCategory, setColumnsByCategory] = useState<Record<ColumnCategory, string[]>>({
-    data: [],
-    target: [],
-    metadata: [],
-  });
+  const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
   const { toast } = useToast();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 12,
-      },
-    }),
-    useSensor(KeyboardSensor)
-  );
-
-  // Initialize column mappings whenever dialog opens or results change
   const handleDialogOpen = (open: boolean) => {
     if (open && results && results.length > 0) {
-      const allColumns = Object.keys(results[0]);
-      setColumnsByCategory({
-        data: allColumns,
-        target: [],
-        metadata: [],
-      });
+      setColumnsByCategory(buildInitialColumns(Object.keys(results[0])));
     } else {
       setSelectedDataset(null);
     }
-
     setIsExportDialogOpen(open);
   };
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      const activeData = active.data.current as { column: string; category: ColumnCategory };
-      const sourceCategory = activeData.category;
-      const columnName = activeData.column;
-      const targetCategory = over.id as ColumnCategory;
-
-      if (
-        sourceCategory !== targetCategory &&
-        (targetCategory === "data" || targetCategory === "target" || targetCategory === "metadata")
-      ) {
-        // Move the column from source category to target category
-        setColumnsByCategory((prev) => {
-          // Remove from source
-          const sourceColumns = prev[sourceCategory].filter((col) => col !== columnName);
-
-          // Add to target
-          const targetColumns = [...prev[targetCategory]];
-          if (!targetColumns.includes(columnName)) {
-            targetColumns.push(columnName);
-          }
-
-          return {
-            ...prev,
-            [sourceCategory]: sourceColumns,
-            [targetCategory]: targetColumns,
-          };
-        });
-      }
-    }
-  }, []);
-
-  const removeColumnFromCategory = useCallback((column: string, category: ColumnCategory) => {
-    setColumnsByCategory((prev) => ({
-      ...prev,
-      [category]: prev[category].filter((c) => c !== column),
-    }));
-  }, []);
 
   const exportToDataset = useCallback(async () => {
     if (!selectedDataset || !results || results.length === 0) return;
@@ -119,46 +73,19 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
     setIsExporting(true);
 
     try {
-      // Format data points using the current column categories
-      const datapoints = results.map((row: any) => {
-        const newDatapoint: any = {
-          data: {},
-          target: {},
-          metadata: {},
-        };
-
-        // Add data fields
-        columnsByCategory.data.forEach((key) => {
-          newDatapoint.data[key] = row[key];
-        });
-
-        // Add target fields
-        columnsByCategory.target.forEach((key) => {
-          newDatapoint.target[key] = row[key];
-        });
-
-        // Add metadata fields
-        columnsByCategory.metadata.forEach((key) => {
-          newDatapoint.metadata[key] = row[key];
-        });
-
-        return newDatapoint;
-      });
+      const datapoints = buildBucketedRows(results, columnsByCategory);
 
       const res = await fetch(`/api/projects/${projectId}/sql/export/${selectedDataset.id}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          datapoints: datapoints,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ datapoints }),
       });
 
       if (!res.ok) {
         throw new Error("Failed to export data");
       }
 
+      track("sql_editor", "exported_to_dataset", { count: datapoints.length });
       toast({
         title: `Exported to dataset`,
         description: (
@@ -181,15 +108,7 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
     } finally {
       setIsExporting(false);
     }
-  }, [
-    columnsByCategory.data,
-    columnsByCategory.metadata,
-    columnsByCategory.target,
-    projectId,
-    results,
-    selectedDataset,
-    toast,
-  ]);
+  }, [columnsByCategory, projectId, results, selectedDataset, toast]);
 
   if (!results || results.length === 0) {
     return null;
@@ -215,48 +134,137 @@ function ExportDatasetDialog({ results, children }: PropsWithChildren<Pick<Expor
         </DialogHeader>
         <div className="flex flex-1 flex-col gap-4">
           <DatasetSelect onChange={(dataset) => setSelectedDataset(dataset)} />
-          <div className="flex flex-col gap-2 flex-1 overflow-auto max-h-[80vh] h-full">
-            <div>
-              <Label className="text-lg font-medium">Assign columns to dataset fields</Label>
-              <p className="text-sm text-muted-foreground mb-2">Drag and drop columns between categories</p>
-            </div>
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <div className="grid grid-cols-3 gap-4">
-                <CategoryDropZone
-                  title="Data"
-                  items={columnsByCategory.data}
-                  category="data"
-                  onRemoveItem={(column) => removeColumnFromCategory(column, "data")}
-                />
-                <CategoryDropZone
-                  title="Target"
-                  items={columnsByCategory.target}
-                  category="target"
-                  onRemoveItem={(column) => removeColumnFromCategory(column, "target")}
-                />
-                <CategoryDropZone
-                  title="Metadata"
-                  items={columnsByCategory.metadata}
-                  category="metadata"
-                  onRemoveItem={(column) => removeColumnFromCategory(column, "metadata")}
-                />
-              </div>
-            </DndContext>
-          </div>
+          <ColumnAssignmentDnd value={columnsByCategory} onChange={setColumnsByCategory} />
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWithChildren<ExportResultsDialogProps>) {
+function ExportQueueDialog({
+  results,
+  sqlTemplateId,
+  children,
+}: PropsWithChildren<Pick<ExportResultsDialogProps, "results" | "sqlTemplateId">>) {
+  const { projectId } = useParams();
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [selectedQueue, setSelectedQueue] = useState<LabelingQueue | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [columnsByCategory, setColumnsByCategory] = useState<CategorizedColumns>(EMPTY_CATEGORIZED_COLUMNS);
+  const { toast } = useToast();
+
+  const handleDialogOpen = (open: boolean) => {
+    if (open && results && results.length > 0) {
+      setColumnsByCategory(buildInitialColumns(Object.keys(results[0])));
+    } else {
+      setSelectedQueue(null);
+    }
+    setIsExportDialogOpen(open);
+  };
+
+  const exportToQueue = useCallback(async () => {
+    if (!selectedQueue || !results || results.length === 0) return;
+
+    setIsExporting(true);
+
+    try {
+      const now = new Date().toISOString();
+      const items = buildBucketedRows(results, columnsByCategory).map((bucketed) => ({
+        createdAt: now,
+        payload: bucketed,
+        metadata: {
+          source: "sql" as const,
+          ...(sqlTemplateId ? { id: sqlTemplateId } : {}),
+        },
+      }));
+
+      const res = await fetch(`/api/projects/${projectId}/queues/${selectedQueue.id}/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(items),
+      });
+
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(errMessage ?? "Failed to export to labeling queue");
+      }
+
+      track("sql_editor", "exported_to_queue", { count: items.length });
+      toast({
+        title: "Exported to labeling queue",
+        description: (
+          <span>
+            Successfully added {items.length} items to queue.{" "}
+            <Link className="text-primary" href={`/project/${projectId}/labeling-queues/${selectedQueue.id}`}>
+              Go to queue.
+            </Link>
+          </span>
+        ),
+      });
+
+      setIsExportDialogOpen(false);
+    } catch (err) {
+      toast({
+        title: "Failed to export to labeling queue",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [columnsByCategory, projectId, results, selectedQueue, sqlTemplateId, toast]);
+
+  if (!results || results.length === 0) {
+    return null;
+  }
+
+  return (
+    <Dialog open={isExportDialogOpen} onOpenChange={handleDialogOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="max-w-4xl bg-background">
+        <DialogHeader className="flex flex-row justify-between items-center">
+          <DialogTitle>Export SQL Results to Labeling Queue</DialogTitle>
+          <Button
+            onClick={exportToQueue}
+            disabled={
+              isExporting ||
+              !selectedQueue ||
+              (columnsByCategory.data.length === 0 && columnsByCategory.target.length === 0)
+            }
+          >
+            {isExporting && <Loader2 className="mr-2 animate-spin w-4 h-4" />}
+            Export to Queue
+          </Button>
+        </DialogHeader>
+        <div className="flex flex-1 flex-col gap-4">
+          <QueueSelect onChange={(queue) => setSelectedQueue(queue)} />
+          <ColumnAssignmentDnd
+            value={columnsByCategory}
+            onChange={setColumnsByCategory}
+            description="Drag and drop columns into Data, Target (what labelers will edit), or Metadata"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function ExportSqlDialog({
+  results,
+  sqlQuery,
+  sqlTemplateId,
+  children,
+}: PropsWithChildren<ExportResultsDialogProps>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {children || (
           <Button disabled={!sqlQuery?.trim()} variant="secondary" className="w-fit px-2">
             <Database className="size-3.5 mr-2" />
-            Export to Dataset
+            Export
             <ChevronDown className="size-3.5 ml-2" />
           </Button>
         )}
@@ -274,6 +282,12 @@ export default function ExportSqlDialog({ results, sqlQuery, children }: PropsWi
             Export to Dataset as Job
           </DropdownMenuItem>
         </ExportJobDialog>
+        <ExportQueueDialog results={results} sqlTemplateId={sqlTemplateId}>
+          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <ListChecks className="w-4 h-4 mr-2" />
+            Export to Labeling Queue
+          </DropdownMenuItem>
+        </ExportQueueDialog>
       </DropdownMenuContent>
     </DropdownMenu>
   );

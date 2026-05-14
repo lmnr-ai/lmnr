@@ -1,13 +1,28 @@
-import { and, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray } from "drizzle-orm";
 import { partition } from "lodash";
 import { z } from "zod/v4";
 
-import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
-import { parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import {
+  deleteQueueItemsByQueueIds,
+  findQueueIdsByProgress,
+  getQueueProgresses,
+  type ProgressColumn,
+  type ProgressFilter,
+  type ProgressOperator,
+} from "@/lib/actions/queue/items";
 import { db } from "@/lib/db/drizzle";
-import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
+import { labelingQueues } from "@/lib/db/migrations/schema";
 import { paginatedGet } from "@/lib/db/utils";
+import { EMPTY_PROGRESS, type LabelingQueue, type LabelingQueueWithProgress } from "@/lib/queue/types";
+import { type PaginatedResponse } from "@/lib/types";
+
+const PROGRESS_COLUMNS: ReadonlySet<ProgressColumn> = new Set(["total", "new", "modified", "approved"]);
+const PROGRESS_OPERATORS: ReadonlySet<ProgressOperator> = new Set(["eq", "ne", "gt", "gte", "lt", "lte"]);
+
+const isProgressFilter = (f: Filter): f is Filter & ProgressFilter =>
+  PROGRESS_COLUMNS.has(f.column as ProgressColumn) && PROGRESS_OPERATORS.has(f.operator as ProgressOperator);
 
 export const GetQueuesSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
@@ -24,10 +39,14 @@ export const DeleteQueuesSchema = z.object({
   queueIds: z.array(z.string()).min(1, "At least one queue id is required"),
 });
 
-export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
+export async function getQueues(
+  input: z.infer<typeof GetQueuesSchema>
+): Promise<PaginatedResponse<LabelingQueueWithProgress>> {
   const { projectId, pageNumber, pageSize, search, filter } = input;
 
-  const [countFilters, pgFilters] = partition(filter, (f) => f.column === "count");
+  // Progress filters live in ClickHouse — pre-filter to qualifying queue ids
+  // before the Postgres query. Combined with name/id filters they AND together.
+  const [progressFilters, pgFilters] = partition(filter ?? [], isProgressFilter);
 
   const filters = [
     eq(labelingQueues.projectId, projectId),
@@ -37,77 +56,41 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
     } as const),
   ];
 
+  if (progressFilters.length > 0) {
+    const qualifyingIds = await findQueueIdsByProgress(projectId, progressFilters);
+    if (qualifyingIds.length === 0) {
+      return { items: [], totalCount: 0 };
+    }
+    filters.push(inArray(labelingQueues.id, qualifyingIds));
+  }
+
   if (search) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
   }
 
-  const countExpr = sql<number>`COALESCE((
-        SELECT COUNT(*)
-        FROM ${labelingQueueItems} lqi
-        WHERE lqi.queue_id = labeling_queues.id
-  ), 0)::int`;
-
-  if (countFilters.length > 0) {
-    const havingConditions = countFilters.map((countFilter) => {
-      const operator = OperatorLabelMap[countFilter.operator];
-      return sql`${countExpr} ${sql.raw(operator)} ${countFilter.value}`;
-    });
-
-    const combinedHaving = havingConditions.reduce((acc, condition) =>
-      acc ? sql`${acc} AND ${condition}` : condition
-    );
-
-    const qualifyingQueues = await db
-      .select({
-        id: labelingQueues.id,
-      })
-      .from(labelingQueues)
-      .where(eq(labelingQueues.projectId, projectId))
-      .groupBy(labelingQueues.id)
-      .having(combinedHaving);
-
-    if (qualifyingQueues.length === 0) {
-      return {
-        items: [],
-        totalCount: 0,
-      };
-    }
-
-    filters.push(
-      inArray(
-        labelingQueues.id,
-        qualifyingQueues.map((q) => q.id)
-      )
-    );
-
-    const queuesData = await paginatedGet({
-      table: labelingQueues,
-      pageNumber,
-      pageSize,
-      filters,
-      orderBy: [desc(labelingQueues.createdAt)],
-      columns: {
-        ...getTableColumns(labelingQueues),
-        count: countExpr,
-      },
-    });
-
-    return queuesData;
-  }
-
-  const queuesData = await paginatedGet({
+  const page: PaginatedResponse<LabelingQueue> = await paginatedGet({
     table: labelingQueues,
     pageNumber,
     pageSize,
     filters,
     orderBy: [desc(labelingQueues.createdAt)],
     columns: {
-      ...getTableColumns(labelingQueues),
-      count: countExpr,
+      id: labelingQueues.id,
+      name: labelingQueues.name,
+      projectId: labelingQueues.projectId,
+      createdAt: labelingQueues.createdAt,
     },
   });
 
-  return queuesData;
+  const progresses = await getQueueProgresses(
+    projectId,
+    page.items.map((q) => q.id)
+  );
+
+  return {
+    items: page.items.map((q) => ({ ...q, progress: progresses[q.id] ?? EMPTY_PROGRESS })),
+    totalCount: page.totalCount,
+  };
 }
 
 export async function createQueue(input: z.infer<typeof CreateQueueSchema>) {
@@ -126,6 +109,9 @@ export async function createQueue(input: z.infer<typeof CreateQueueSchema>) {
 
 export async function deleteQueues(input: z.infer<typeof DeleteQueuesSchema>) {
   const { projectId, queueIds } = DeleteQueuesSchema.parse(input);
+
+  // Clean up queue items in ClickHouse first — FK cascades only cover Postgres.
+  await deleteQueueItemsByQueueIds(projectId, queueIds);
 
   await db
     .delete(labelingQueues)
