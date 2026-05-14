@@ -29,7 +29,7 @@ const SidebarFooterComponent = () => {
 
   return (
     <SidebarFooter className="px-0 mb-2">
-      {!features.LAMINAR_CLOUD && (
+      {features.LAMINAR_CLOUD && (
         <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
           <SidebarGroupContent>
             <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
