@@ -14,9 +14,9 @@ type LLMProvider = "openai" | "gemini" | "bedrock";
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
 const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
   gemini: {
-    small: "gemini-3-flash-preview",
+    small: "gemini-3.1-flash-lite",
     medium: "gemini-3-flash-preview",
-    large: "gemini-3-pro-preview",
+    large: "gemini-3.1-pro-preview",
   },
   bedrock: {
     small: "us.anthropic.claude-haiku-4-5-20251001-v1:0",

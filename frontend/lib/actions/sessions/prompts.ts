@@ -148,7 +148,8 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
     });
 
     return object.regex?.trim() || null;
-  } catch {
+  } catch (error) {
+    console.error("[traces:generate-extraction-regex] LLM call failed:", error);
     return null;
   }
 }
