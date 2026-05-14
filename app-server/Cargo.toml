@@ -20,6 +20,7 @@ aws-sdk-s3 = "1.127.0"
 aws-smithy-types = "1.4.7"
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
+blake3 = "1.8"
 bytes = "1.11.1"
 chrono = {version = "0.4.43", features = ["serde"]}
 clickhouse = {version = "0.14.1", features = ["rustls-tls", "uuid"]}
