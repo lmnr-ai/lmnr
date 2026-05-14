@@ -54,13 +54,20 @@ const extractFirstUserMessage = (messages: AnthropicMessage[]): TextPart[] => {
 const renderAnthropicMessage = (msg: { content: unknown }): string => {
   if (typeof msg.content === "string") return msg.content;
   if (!Array.isArray(msg.content)) return "";
-  return joinNonEmpty(
-    msg.content.map(
-      (block) =>
-        AnthropicThinkingBlockSchema.safeParse(block).data?.thinking ??
-        AnthropicTextBlockSchema.safeParse(block).data?.text
-    )
-  );
+
+  const textParts: (string | undefined)[] = [];
+  const thinkingParts: (string | undefined)[] = [];
+  for (const block of msg.content) {
+    const text = AnthropicTextBlockSchema.safeParse(block).data?.text;
+    if (text) {
+      textParts.push(text);
+      continue;
+    }
+    const thinking = AnthropicThinkingBlockSchema.safeParse(block).data?.thinking;
+    if (thinking) thinkingParts.push(thinking);
+  }
+
+  return joinNonEmpty(textParts.length > 0 ? textParts : thinkingParts);
 };
 
 const renderOutputTextAnthropic = (data: unknown): string | null => {
