@@ -1055,9 +1055,13 @@ impl Span {
         }
     }
 
-    /// This function MUST to be called right after we deserialize or create a span object.
-    /// `input` is NOT counted here — it's charged post-dedup via `increment_size_bytes`
-    /// because dedup'd LLM spans pay for the hash array instead of the raw JSON.
+    /// Must run after `parse_and_enrich_attributes` + `convert_span_to_provider_format`.
+    /// Input is charged separately via `increment_size_bytes` (dedup'd LLM spans pay
+    /// for the hash array; everyone else pays for the raw JSON), so it's excluded here.
+    /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
+    /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
+    /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
+    /// so counting them here would double-bill against the input charge.
     pub fn estimate_size_bytes(&mut self) {
         let size_bytes = 16
             + 16
@@ -1069,6 +1073,7 @@ impl Span {
                 .attributes
                 .raw_attributes
                 .iter()
+                .filter(|(k, _)| should_keep_attribute(k))
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
             + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
