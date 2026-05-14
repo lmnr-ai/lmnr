@@ -212,9 +212,9 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     }
 
     match (provider, size) {
-        ("gemini", ModelSize::Small) => "gemini-3-flash-preview".to_string(),
+        ("gemini", ModelSize::Small) => "gemini-3.1-flash-lite".to_string(),
         ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
-        ("gemini", ModelSize::Large) => "gemini-3-pro-preview".to_string(),
+        ("gemini", ModelSize::Large) => "gemini-3.1-pro-preview".to_string(),
         ("bedrock", ModelSize::Small) => "us.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         ("bedrock", ModelSize::Medium) => "us.anthropic.claude-sonnet-4-6".to_string(),
         ("bedrock", ModelSize::Large) => "us.anthropic.claude-opus-4-7".to_string(),

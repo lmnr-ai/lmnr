@@ -24,7 +24,7 @@ export async function generateSql(
     { name: "generateSql" },
     async () =>
       await generateObject({
-        model: getLanguageModel("fast"),
+        model: getLanguageModel("medium"),
         schema: GenerationResultSchema,
         system: prompts.system,
         prompt: prompts.user(prompt),

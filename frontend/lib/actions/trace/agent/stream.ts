@@ -40,7 +40,7 @@ export const streamTraceChat = observe(
     const systemPrompt = TraceChatPrompt.replace("{{fullTraceData}}", traceString);
 
     const result = streamText({
-      model: getLanguageModel("default"),
+      model: getLanguageModel("large"),
       messages: convertToModelMessages(uiMessages as UIMessage[]),
       stopWhen: stepCountIs(10),
       maxRetries: 5,

@@ -68,7 +68,7 @@ tracing = {version = "0.1.41", features = ["attributes"]}
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
-uuid = {version = "1.19.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
+uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
 [build-dependencies]
 tonic-prost-build = "0.14"

@@ -128,9 +128,9 @@ export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<
   if (structures.length === 0) return [];
 
   try {
-    const { text } = await observe({ name: "generate-preview-keys" }, async () =>
+    const { text } = await observe({ name: "previews:generate-preview-keys" }, async () =>
       generateText({
-        model: getLanguageModel("lite"),
+        model: getLanguageModel("small"),
         system: PREVIEW_KEY_SYSTEM_PROMPT,
         prompt: buildUserMessage(structures),
         maxRetries: 0,
@@ -144,7 +144,8 @@ export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<
     );
 
     return parsePreviewKeysResponse(text, structures.length);
-  } catch {
+  } catch (error) {
+    console.error("[previews:generate-preview-keys] LLM call failed:", error);
     return new Array(structures.length).fill(null);
   }
 };

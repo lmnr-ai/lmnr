@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -204,6 +205,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     Ok(signal_runs >= effective_limit)
 }
 
+#[instrument(skip_all)]
 pub async fn update_workspace_bytes_ingested(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
