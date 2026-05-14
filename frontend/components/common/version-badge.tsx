@@ -5,7 +5,6 @@ interface VersionBadgeProps {
 }
 
 export default function VersionBadge({ className }: VersionBadgeProps) {
-  if (process.env.LAMINAR_CLOUD === "true") return null;
   const version = process.env.NEXT_PUBLIC_APP_VERSION;
   if (!version) return null;
 

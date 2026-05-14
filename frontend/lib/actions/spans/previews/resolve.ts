@@ -155,7 +155,10 @@ async function applyCachedKeys(
           continue;
         }
 
-        const rendered = validateMustacheKey(cachedKey, span.parsedData);
+        const rendered = observe(
+          { name: "validate-mustache-key", input: { key: cachedKey, data: span.parsedData } },
+          () => validateMustacheKey(cachedKey, span.parsedData)
+        );
         if (rendered) {
           resolved[span.key] = rendered;
           hitFingerprints.add(span.fingerprint);
@@ -244,7 +247,10 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
       let keyProducedValidRender = false;
 
       for (const span of groupSpans) {
-        const rendered = validateMustacheKey(key, span.parsedData);
+        const rendered = observe(
+          { name: "previews:validate-mustache-key", input: { key, data: span.parsedData } },
+          () => validateMustacheKey(key, span.parsedData)
+        );
         if (rendered) {
           resolved[span.key] = rendered;
           keyProducedValidRender = true;
