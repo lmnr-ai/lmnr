@@ -1,21 +1,36 @@
-import { motion, type MotionValue, useTransform } from "framer-motion";
+"use client";
+import { motion, type Variants } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
-  progress: MotionValue<number>;
+  /** When provided, the alert fades + scales in via the parent motion tree at this delay. */
+  delay?: number;
+  /** Optional top position (px). Pair with `translateY(-50%)` baked into the variants. */
+  top?: number;
 }
 
-const SlackAlertMock = ({ className, progress }: Props) => {
-  const opacity = useTransform(progress, [0, 0.4], [0.2, 1], { clamp: true });
-  const x = useTransform(progress, [0, 0.4], [80, 0], { clamp: true });
+// translateY(-50%) is baked in so the element's vertical centre lands exactly on
+// the `top` value passed in. Keeping it inside the variants lets framer-motion
+// compose it with `scale` without fighting an inline CSS `transform`.
+const ALERT_VARIANTS: Variants = {
+  hidden: { opacity: 0, scale: 0.7, y: "-50%" },
+  visible: (delay: number) => ({
+    opacity: 1,
+    scale: 1,
+    y: "-50%",
+    transition: { delay, duration: 0.25, ease: "easeOut" },
+  }),
+};
 
-  return (
+const SlackAlertMock = ({ className, delay, top }: Props) => (
     <motion.div
-      style={{ opacity, x }}
+      variants={delay !== undefined ? ALERT_VARIANTS : undefined}
+      custom={delay}
+      style={{ transformOrigin: "left center", top }}
       className={cn(
-        "flex gap-3 items-start overflow-hidden rounded border border-landing-surface-500 px-4 py-3 bg-landing-surface-600 w-[470px] max-w-full",
+        "flex gap-3 items-start overflow-hidden rounded border border-landing-surface-500 px-3 py-2.5 bg-landing-surface-600 w-[470px] max-w-full shadow-md",
         className
       )}
     >
@@ -42,42 +57,26 @@ const SlackAlertMock = ({ className, progress }: Props) => {
 
           <div className="flex gap-0.5 items-center font-sans text-xs">
             <div className="bg-muted border border-landing-surface-400 rounded px-1.5 py-px">
-              <p className="text-[rgba(208,117,78,0.6)] whitespace-nowrap">Failure</p>
+              <p className="text-primary whitespace-nowrap">Failure</p>
             </div>
             <p className="text-landing-text-200 whitespace-nowrap">: New Event</p>
           </div>
         </div>
 
         <p className="font-sans text-xs text-landing-text-200 w-full">
-          {`The LLM in the 'refine_report' task failed to follow the instruction to keep the summary to 3-4 sentences.`}
+          {`Agent on feat/dashboards claimed the task was done but never ran the tests it promised. CI is likely failing.`}
         </p>
-        <div className="flex gap-1">
+
+        <div className="flex flex-row gap-2 items-center">
           <div className="bg-landing-surface-500 px-2 py-1 rounded">
-            <p className="font-sans text-xs text-landing-text-200">View Trace</p>
+            <p className="font-sans text-xs text-landing-text-200">View trace</p>
           </div>
           <div className="bg-landing-surface-500 px-2 py-1 rounded">
             <p className="font-sans text-xs text-landing-text-200">View similar events</p>
           </div>
         </div>
-
-        <div className="flex flex-wrap gap-x-3 gap-y-1 items-center pt-1 w-full font-sans text-xs">
-          <div className="flex items-center gap-1">
-            <p className="text-landing-text-400">Severity:</p>
-            <div className="size-3.5 rounded-full bg-landing-primary-400" />
-            <p className="text-landing-text-400">Critical</p>
-          </div>
-          <p>
-            <span className="text-landing-text-400">Signal: </span>
-            <span className="text-landing-text-300">Failure</span>
-          </p>
-          <p>
-            <span className="text-landing-text-400">Alert: </span>
-            <span className="text-landing-text-300">asd</span>
-          </p>
-        </div>
       </div>
     </motion.div>
   );
-};
 
 export default SlackAlertMock;

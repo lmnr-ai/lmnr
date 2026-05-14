@@ -6,7 +6,7 @@ import { useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { bodySQL, sectionHeaderLarge } from "../class-names";
+import { bodyLarge, subsectionTitle } from "../class-names";
 import DocsButton from "../docs-button";
 import LocalToScaleImage from "./local-to-scale-image";
 
@@ -49,7 +49,7 @@ const SecondHalf = ({ className }: Props) => {
         >
           {/* Try it local, free section */}
           <div className="flex flex-col gap-6 items-start w-full">
-            <h2 className={sectionHeaderLarge}>Self-host anywhere</h2>
+            <h2 className={subsectionTitle}>Self-host anywhere</h2>
             <div className={cn("flex flex-col items-start w-full", "md:w-[380px]")}>
               <div
                 className={cn(
@@ -58,7 +58,9 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Fully open-source, Apache 2.0 licensed</p>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>
+                  Fully open-source, Apache 2.0 licensed
+                </p>
               </div>
               <div
                 className={cn(
@@ -67,7 +69,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Set up with Docker in three lines</p>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>Set up with Docker in three lines</p>
               </div>
               <div
                 className={cn(
@@ -76,7 +78,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Deploy anywhere with Helm charts</p>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>Deploy anywhere with Helm charts</p>
               </div>
             </div>
             <DocsButton href="https://laminar.sh/docs/hosting-options" />
@@ -84,7 +86,7 @@ const SecondHalf = ({ className }: Props) => {
 
           {/* Production-grade section */}
           <div className={cn("flex flex-col items-start w-full", "gap-6", "md:gap-[37px]")}>
-            <h2 className={sectionHeaderLarge}>
+            <h2 className={subsectionTitle}>
               Production-grade
               <br />
               to the core
@@ -97,7 +99,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>
                   Written in <span className="font-medium text-primary-foreground">Rust</span> for blazing fast
                   performance
                 </p>
@@ -109,7 +111,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>
                   <span className="font-medium text-primary-foreground">Terabytes</span> of data with ease
                 </p>
               </div>
@@ -120,7 +122,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
+                <p className={cn(bodyLarge, "basis-0 grow min-h-px min-w-px")}>
                   <span className="font-medium text-primary-foreground">HIPAA</span>,{" "}
                   <span className="font-medium text-primary-foreground">SOC2 Type 2</span> compliant
                 </p>

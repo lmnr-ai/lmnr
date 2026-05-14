@@ -56,7 +56,7 @@ const Hero = ({ className, hasSession }: Props) => (
         </div>
       </div>
 
-      <div className="hidden md:block w-full overflow-hidden flex-1">
+      <div className="hidden md:block w-full flex-1">
         <TimelineMock className="h-full" />
       </div>
 
