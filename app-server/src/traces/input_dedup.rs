@@ -146,3 +146,60 @@ pub async fn unmark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
         let _ = cache.remove(&key).await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn top_level_key_order_is_normalized() {
+        let a = json!({"role": "user", "content": "hi"});
+        let b = json!({"content": "hi", "role": "user"});
+        assert_eq!(canonical_json(&a), canonical_json(&b));
+        assert_eq!(canonical_json(&a), r#"{"content":"hi","role":"user"}"#);
+    }
+
+    #[test]
+    fn nested_object_keys_are_sorted_at_every_depth() {
+        let v = json!({
+            "z": {"b": 1, "a": {"y": 2, "x": 1}},
+            "a": [{"k": 2, "j": 1}],
+        });
+        assert_eq!(
+            canonical_json(&v),
+            r#"{"a":[{"j":1,"k":2}],"z":{"a":{"x":1,"y":2},"b":1}}"#
+        );
+    }
+
+    #[test]
+    fn array_element_order_is_preserved() {
+        let v = json!([3, 1, 2]);
+        assert_eq!(canonical_json(&v), "[3,1,2]");
+        let reordered = json!([1, 2, 3]);
+        assert_ne!(canonical_json(&v), canonical_json(&reordered));
+    }
+
+    #[test]
+    fn primitives_pass_through() {
+        assert_eq!(canonical_json(&json!(null)), "null");
+        assert_eq!(canonical_json(&json!(true)), "true");
+        assert_eq!(canonical_json(&json!(42)), "42");
+        assert_eq!(canonical_json(&json!("hi")), "\"hi\"");
+    }
+
+    #[test]
+    fn string_keys_and_values_are_json_escaped() {
+        let v = json!({"a\"b": "x\ny", "c": "\\"});
+        assert_eq!(canonical_json(&v), r#"{"a\"b":"x\ny","c":"\\"}"#);
+    }
+
+    #[test]
+    fn blake3_hash_is_stable_across_field_order() {
+        let a = json!({"role": "user", "content": [{"type": "text", "text": "hi"}]});
+        let b = json!({"content": [{"text": "hi", "type": "text"}], "role": "user"});
+        let ha = blake3::hash(canonical_json(&a).as_bytes());
+        let hb = blake3::hash(canonical_json(&b).as_bytes());
+        assert_eq!(ha.as_bytes(), hb.as_bytes());
+    }
+}
