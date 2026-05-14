@@ -1,4 +1,3 @@
-import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { cn } from "@/lib/utils";
 
 interface VersionBadgeProps {
@@ -6,8 +5,6 @@ interface VersionBadgeProps {
 }
 
 export default function VersionBadge({ className }: VersionBadgeProps) {
-  const features = useFeatureFlags();
-  if (features.LAMINAR_CLOUD) return null;
   const version = process.env.NEXT_PUBLIC_APP_VERSION;
   if (!version) return null;
 

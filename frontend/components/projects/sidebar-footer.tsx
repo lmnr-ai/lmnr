@@ -87,7 +87,7 @@ const SidebarFooterComponent = () => {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
-      {(open || openMobile) && (
+      {(open || openMobile) && !features.LAMINAR_CLOUD && (
         <div className="px-5 flex">
           <VersionBadge />
         </div>
