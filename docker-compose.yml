@@ -81,8 +81,8 @@ services:
       retries: 3
 
   frontend:
-    image: lmnr-frontend:test
-    pull_policy: never
+    image: ghcr.io/lmnr-ai/frontend
+    pull_policy: always
     ports:
       - "${FRONTEND_HOST_PORT:-5667}:5667"
     depends_on:
