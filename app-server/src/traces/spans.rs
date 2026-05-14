@@ -1063,11 +1063,11 @@ impl Span {
     /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
     /// so counting them here would double-bill against the input charge.
     pub fn estimate_size_bytes(&mut self) {
-        let size_bytes = 16
-            + 16
-            + 16
-            + 8
-            + 8
+        let size_bytes = 16 // span_id
+            + 16 // trace_id
+            + 16 // parent_span_id
+            + 8  // start_time
+            + 8  // end_time
             + self.name.len()
             + self
                 .attributes
