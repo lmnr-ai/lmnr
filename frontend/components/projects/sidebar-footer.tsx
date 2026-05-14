@@ -17,6 +17,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -24,9 +25,11 @@ const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
+  const features = useFeatureFlags();
+
   return (
     <SidebarFooter className="px-0 mb-2">
-      {process.env.LAMINAR_CLOUD !== "true" && (
+      {!features.LAMINAR_CLOUD && (
         <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
           <SidebarGroupContent>
             <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>

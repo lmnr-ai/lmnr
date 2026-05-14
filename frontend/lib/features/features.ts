@@ -18,6 +18,7 @@ export enum Feature {
   CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
+  LAMINAR_CLOUD = "LAMINAR_CLOUD",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -117,6 +118,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
+  if (feature === Feature.LAMINAR_CLOUD) {
+    return process.env.LAMINAR_CLOUD === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

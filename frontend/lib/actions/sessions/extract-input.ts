@@ -175,7 +175,9 @@ async function tryCachedRegex(
         stagedResults[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         continue;
       }
-      const result = applyRegex(cachedRegex, joinedText);
+      const result = observe({ name: "apply-regex", input: { pattern: cachedRegex, text: joinedText } }, () =>
+        applyRegex(cachedRegex, joinedText)
+      );
       if (result.kind === "extracted") {
         stagedResults[trace.traceId] = {
           inputPreview: result.text,
@@ -274,7 +276,9 @@ async function runRegexExtraction(
           results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
           continue;
         }
-        const result = applyRegex(regex, joinedText);
+        const result = observe({ name: "traces:apply-regex", input: { pattern: regex, text: joinedText } }, () =>
+          applyRegex(regex, joinedText)
+        );
         if (result.kind === "extracted") {
           results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
           extractedCount++;
