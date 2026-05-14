@@ -1056,17 +1056,9 @@ impl Span {
     }
 
     /// This function MUST to be called right after we deserialize or create a span object.
+    /// `input` is NOT counted here — it's charged post-dedup via `increment_size_bytes`
+    /// because dedup'd LLM spans pay for the hash array instead of the raw JSON.
     pub fn estimate_size_bytes(&mut self) {
-        // 16 bytes for span_id,
-        // 16 bytes for trace_id,
-        // 16 bytes for parent_span_id,
-        // 8 bytes for start_time,
-        // 8 bytes for end_time,
-
-        // For OTel spans, input/output start inside raw_attributes and are
-        // parsed out later, so raw_attributes alone captures the payload.
-        // For /v1/spans, input/output are set directly on the Span and must
-        // be counted separately.
         let size_bytes = 16
             + 16
             + 16
@@ -1079,7 +1071,6 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self.input.as_ref().map_or(0, |v| estimate_json_size(v))
             + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
@@ -1089,10 +1080,8 @@ impl Span {
         self.size_bytes = size_bytes;
     }
 
-    /// Adjust `size_bytes` after a structural rewrite (e.g. input dedup):
-    /// subtract what was removed, then add what replaced it.
-    pub fn adjust_size_bytes(&mut self, removed: usize, added: usize) {
-        self.size_bytes = self.size_bytes.saturating_sub(removed).saturating_add(added);
+    pub fn increment_size_bytes(&mut self, added: usize) {
+        self.size_bytes = self.size_bytes.saturating_add(added);
     }
 
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf

@@ -122,8 +122,7 @@ pub async fn process_span_messages(
         .map(|(i, _)| i)
         .collect();
     let dedup = {
-        let dedup_input: Vec<&Span> =
-            recordable_indices.iter().map(|&i| &spans[i]).collect();
+        let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         build_dedup_batch(&dedup_input, cache.clone()).await
     };
 
@@ -148,30 +147,40 @@ pub async fn process_span_messages(
         mark_seen(&keys, cache.clone()).await;
     }
 
-    // Rewrite `size_bytes` to reflect post-dedup storage: drop the input
-    // payload, add the hash array (32 bytes each), and charge this span for
-    // any new `llm_messages.content` rows it caused — shared messages are
-    // billed once, to the first referrer.
+    // Charge each span for its input: dedup'd LLM spans pay for the hash
+    // array + any newly-inserted `llm_messages.content` (shared messages are
+    // billed once, to the first referrer); everything else pays for the raw
+    // JSON. `estimate_size_bytes` intentionally excludes input so this loop
+    // owns the accounting.
+    let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
-        let num_hashes = dedup
-            .span_hashes
-            .get(dedup_idx)
-            .map(|h| h.len())
-            .unwrap_or(0);
-        if num_hashes == 0 {
-            continue;
-        }
-        let removed = spans[span_idx]
-            .input
-            .as_ref()
-            .map_or(0, crate::utils::estimate_json_size);
-        let content_bytes = dedup
-            .span_content_bytes
-            .get(dedup_idx)
-            .copied()
-            .unwrap_or(0);
-        let added = num_hashes * 32 + content_bytes;
-        spans[span_idx].adjust_size_bytes(removed, added);
+        dedup_lookup.insert(span_idx, dedup_idx);
+    }
+    for (span_idx, span) in spans.iter_mut().enumerate() {
+        let added = if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .map(|h| h.len())
+                .unwrap_or(0);
+            if hashes > 0 {
+                let content_bytes = dedup
+                    .span_content_bytes
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                hashes * 32 + content_bytes
+            } else {
+                span.input
+                    .as_ref()
+                    .map_or(0, crate::utils::estimate_json_size)
+            }
+        } else {
+            span.input
+                .as_ref()
+                .map_or(0, crate::utils::estimate_json_size)
+        };
+        span.increment_size_bytes(added);
     }
 
     // Build CHSpans with embedded events and insert to ClickHouse
@@ -182,7 +191,11 @@ pub async fn process_span_messages(
             let span = &spans[span_idx];
             let usage = &span_usage_vec[span_idx];
             let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-            let hashes = dedup.span_hashes.get(dedup_idx).cloned().unwrap_or_default();
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .cloned()
+                .unwrap_or_default();
             if !hashes.is_empty() {
                 ch_span.input = String::new();
                 ch_span.input_message_hashes = hashes;
