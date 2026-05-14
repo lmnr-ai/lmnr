@@ -40,7 +40,7 @@ const SidebarFooterComponent = () => {
             </div>
           </SidebarGroupContent>
         </SidebarGroup>
-      )}{" "}
+      )}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
