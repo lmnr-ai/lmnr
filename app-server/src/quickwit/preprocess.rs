@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_clean_whitespace_strips_other_backslashes() {
-        // Backslash is dropped; the following char (incl. the second `\`) is kept.
+        // Each backslash drops itself; consecutive backslashes are all consumed.
         assert_eq!(clean_whitespace(r#"a\"b\\c\/d"#), "a\"bc/d");
     }
 
