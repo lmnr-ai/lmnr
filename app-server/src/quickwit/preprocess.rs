@@ -8,6 +8,28 @@ static ANSI_ESCAPE_RE: LazyLock<Regex> =
 static WHITESPACE_CLASS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[\s\u00a0\u200b\ufeff]+").unwrap());
 
+// Magic-byte prefixes for common base64-encoded image formats. Long-enough
+// suffixes catch the inline payload itself (data: URI prefix is optional).
+static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:/9j/|iVBORw0KGgo|R0lGODlh|UklGR|PHN2Zz)[A-Za-z0-9+/=_-]{64,}"#).unwrap()
+});
+
+static SIGNATURE_FIELD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
+
+// Same as above but for `\"signature\":\"...\"` inside JSON-stringified blobs.
+static SIGNATURE_FIELD_ESCAPED_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(\\"(?:signature|thought_signature)\\")\s*:\s*\\"[^"\\]*\\""#).unwrap()
+});
+
+// Strip top-level `"role": "..."` and escaped `\"role\":\"...\"` plus their
+// surrounding comma so the resulting JSON-ish text stays parseable visually.
+static ROLE_FIELD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?:"role"\s*:\s*"[^"]*"\s*,?\s*)"#).unwrap());
+
+static ROLE_FIELD_ESCAPED_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?:\\"role\\"\s*:\s*\\"[^"\\]*\\"\s*,?\s*)"#).unwrap());
+
 /// Preprocess a string for Quickwit indexing.
 ///
 /// Normalization steps (in order):
@@ -16,20 +38,79 @@ static WHITESPACE_CLASS_RE: LazyLock<Regex> =
 /// 3. Replace all whitespace-class characters with a single space
 /// 4. NFC Unicode normalization
 pub fn preprocess_text(input: &str) -> String {
-    // 1. Unescape literal two-char escape sequences (\n, \t, \r)
     let s = unescape_literal_sequences(input);
-
-    // 2. Strip ANSI escape codes (before whitespace normalization so that
-    //    spaces formerly separated by ANSI bytes get properly collapsed)
     let s = ANSI_ESCAPE_RE.replace_all(&s, "");
-
-    // 3. Replace whitespace-class characters with a single space
     let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
-
-    // 4. NFC Unicode normalization
     let s: String = s.nfc().collect();
-
     s
+}
+
+/// Strip base64 images and `signature`/`thought_signature` values. Keeps a
+/// short placeholder so reconstructed text remains roughly aligned. Does NOT
+/// touch whitespace — pair with `clean_whitespace` afterwards.
+pub fn strip_noise(raw: &str) -> String {
+    let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
+    let without_sigs =
+        SIGNATURE_FIELD_RE.replace_all(&without_images, r#"$1:"[signature omitted]""#);
+    SIGNATURE_FIELD_ESCAPED_RE
+        .replace_all(&without_sigs, r##"$1:\"[signature omitted]\""##)
+        .into_owned()
+}
+
+/// Collapse runs of whitespace (real and literal `\n`/`\t`/`\r`) to a single
+/// space and drop other backslashes (`\"`, `\\`, `\/`) so JSON-stringified
+/// content reads as plain text.
+pub fn clean_whitespace(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_ws = false;
+    let mut chars = s.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\n' || ch == '\t' || ch == '\r' || ch == ' ' {
+            if !in_ws {
+                result.push(' ');
+                in_ws = true;
+            }
+        } else if ch == '\\' {
+            if let Some(&next) = chars.peek() {
+                if next == 'n' || next == 't' || next == 'r' {
+                    chars.next();
+                    if !in_ws {
+                        result.push(' ');
+                        in_ws = true;
+                    }
+                    continue;
+                }
+            }
+            // Other backslashes (\", \\, \/) are JSON escaping noise; drop.
+        } else {
+            result.push(ch);
+            in_ws = false;
+        }
+    }
+    result
+}
+
+/// Strip `"role": "..."` JSON object entries (and the escaped variant) so the
+/// indexed text doesn't return hits for `user`/`system` role metadata.
+pub fn strip_role_keys(s: &str) -> String {
+    let s = ROLE_FIELD_RE.replace_all(s, "");
+    ROLE_FIELD_ESCAPED_RE.replace_all(&s, "").into_owned()
+}
+
+/// Full cleaning pipeline for indexed span text:
+/// strip ANSI → strip noise → optionally strip role keys → collapse whitespace
+/// → strip remaining unicode whitespace classes → NFC.
+pub fn clean_for_indexing(input: &str, strip_roles: bool) -> String {
+    let s = ANSI_ESCAPE_RE.replace_all(input, "");
+    let s = strip_noise(&s);
+    let s = if strip_roles {
+        strip_role_keys(&s)
+    } else {
+        s
+    };
+    let s = clean_whitespace(&s);
+    let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
+    s.nfc().collect()
 }
 
 /// Replace literal two-character escape sequences (backslash + letter)
@@ -177,5 +258,136 @@ mod tests {
         let input = "\\nLet me validate the input\\nThen process it";
         let result = preprocess_text(input);
         assert_eq!(result, " Let me validate the input Then process it");
+    }
+
+    // ── strip_noise ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_strip_noise_base64_png() {
+        let raw = format!(
+            "before iVBORw0KGgo{} after",
+            "A".repeat(80)
+        );
+        let result = strip_noise(&raw);
+        assert!(result.contains("[base64 image omitted]"));
+        assert!(!result.contains("AAAAAAAA"));
+    }
+
+    #[test]
+    fn test_strip_noise_signature_field() {
+        let raw = r#"{"signature":"abc123xyz","other":"keep"}"#;
+        let result = strip_noise(raw);
+        assert_eq!(
+            result,
+            r#"{"signature":"[signature omitted]","other":"keep"}"#
+        );
+    }
+
+    #[test]
+    fn test_strip_noise_thought_signature_field() {
+        let raw = r#"{"thought_signature":"long-encrypted-blob","x":1}"#;
+        let result = strip_noise(raw);
+        assert_eq!(
+            result,
+            r#"{"thought_signature":"[signature omitted]","x":1}"#
+        );
+    }
+
+    #[test]
+    fn test_strip_noise_escaped_signature_field() {
+        let raw = r#"outer: \"signature\":\"abc\" end"#;
+        let result = strip_noise(raw);
+        assert!(result.contains(r#"\"signature\":\"[signature omitted]\""#));
+    }
+
+    #[test]
+    fn test_strip_noise_passthrough() {
+        let raw = "hello world no noise here";
+        assert_eq!(strip_noise(raw), raw);
+    }
+
+    // ── clean_whitespace ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_clean_whitespace_collapses_real_whitespace() {
+        assert_eq!(clean_whitespace("a   b\n\nc\td"), "a b c d");
+    }
+
+    #[test]
+    fn test_clean_whitespace_collapses_literal_escapes() {
+        assert_eq!(clean_whitespace(r"a\nb\tc\rd"), "a b c d");
+    }
+
+    #[test]
+    fn test_clean_whitespace_strips_other_backslashes() {
+        // Backslash is dropped; the following char (incl. the second `\`) is kept.
+        assert_eq!(clean_whitespace(r#"a\"b\\c\/d"#), "a\"bc/d");
+    }
+
+    #[test]
+    fn test_clean_whitespace_preserves_words() {
+        assert_eq!(clean_whitespace("hello world"), "hello world");
+    }
+
+    // ── strip_role_keys ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_strip_role_keys_basic() {
+        let raw = r#"{"role":"user","content":"hi"}"#;
+        let result = strip_role_keys(raw);
+        assert_eq!(result, r#"{"content":"hi"}"#);
+    }
+
+    #[test]
+    fn test_strip_role_keys_escaped() {
+        let raw = r#"outer \"role\":\"system\", \"content\":\"hi\""#;
+        let result = strip_role_keys(raw);
+        assert!(!result.contains("role"));
+        assert!(result.contains("content"));
+    }
+
+    #[test]
+    fn test_strip_role_keys_no_match() {
+        let raw = r#"{"content":"my role is admin"}"#;
+        let result = strip_role_keys(raw);
+        assert_eq!(result, raw);
+    }
+
+    // ── clean_for_indexing ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_clean_for_indexing_strips_roles_and_collapses() {
+        let raw = r#"{"role":"user","content":"hello\n\nworld"}"#;
+        let result = clean_for_indexing(raw, true);
+        // role removed, literal \n collapsed to single space
+        assert_eq!(result, r#"{"content":"hello world"}"#);
+    }
+
+    #[test]
+    fn test_clean_for_indexing_keeps_roles_when_false() {
+        let raw = r#"{"role":"user","content":"hi"}"#;
+        let result = clean_for_indexing(raw, false);
+        assert!(result.contains("role"));
+        assert!(result.contains("user"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_strips_base64() {
+        let raw = format!(r#"{{"image":"iVBORw0KGgo{}"}}"#, "A".repeat(80));
+        let result = clean_for_indexing(&raw, false);
+        assert!(result.contains("[base64 image omitted]"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_strips_signature() {
+        let raw = r#"{"signature":"verylongblob"}"#;
+        let result = clean_for_indexing(raw, false);
+        assert!(result.contains("[signature omitted]"));
+        assert!(!result.contains("verylongblob"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_empty() {
+        assert_eq!(clean_for_indexing("", true), "");
     }
 }

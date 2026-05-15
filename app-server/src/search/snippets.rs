@@ -198,13 +198,32 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 }
 
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
+    // Input snippet matches only the deduped "new messages" of this span —
+    // older repeated history is searchable via earlier spans in the trace.
+    // Output / attributes are untransformed columns, so we read raw `spans`
+    // directly and skip the `spans_v0` view's full input reconstruction.
     format!(
         "SELECT span_id,
-                extract(input, '{context_regex}') AS input_snippet,
+                extract(
+                    arrayStringConcat(
+                        arrayMap(
+                            i -> dictGetOrDefault(
+                                'llm_messages_dict',
+                                'content',
+                                tuple(project_id, trace_id, input_message_hashes[i + 1]),
+                                'null'
+                            ),
+                            input_new_message_indices
+                        ),
+                        ','
+                    ),
+                    '{context_regex}'
+                ) AS input_snippet,
                 extract(output, '{context_regex}') AS output_snippet,
                 extract(attributes, '{context_regex}') AS attributes_snippet
-         FROM spans_v0(project_id = '{project_id}')
-         WHERE (trace_id, span_id) IN ({key_tuples})
+         FROM spans
+         WHERE project_id = '{project_id}'
+           AND (trace_id, span_id) IN ({key_tuples})
          ORDER BY start_time ASC"
     )
 }

@@ -199,6 +199,11 @@ pub async fn process_span_messages(
             if !hashes.is_empty() {
                 ch_span.input = String::new();
                 ch_span.input_message_hashes = hashes;
+                ch_span.input_new_message_indices = dedup
+                    .span_new_indices
+                    .get(dedup_idx)
+                    .cloned()
+                    .unwrap_or_default();
             }
             ch_span
         })
@@ -237,13 +242,23 @@ pub async fn process_span_messages(
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    // Non-LLM spans are only indexed if their size is <= 5KB
+    // Non-LLM spans are only indexed if their size is <= 5KB.
+    // For LLM spans, only the deduped "new messages" subset is indexed —
+    // older repeated history already searchable via the prior step's span.
     let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
-        .filter(|s| {
+        .enumerate()
+        .filter(|(_, s)| {
             s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
         })
-        .map(|s| (*s).into())
+        .map(|(dedup_idx, s)| {
+            let new_messages = if s.span_type == SpanType::LLM {
+                build_new_messages_subset(s, &dedup, dedup_idx)
+            } else {
+                None
+            };
+            QuickwitIndexedSpan::from_span(s, new_messages.as_deref())
+        })
         .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
@@ -310,6 +325,29 @@ pub async fn process_span_messages(
     }
 
     Ok(())
+}
+
+/// Project the deduped batch's per-span "new" indices back onto this LLM
+/// span's input array. Returns `None` for spans whose input isn't a JSON
+/// array (we then index the raw input verbatim) or whose new-indices is
+/// empty (every message was Redis-hot or batch-duplicate — index empty
+/// rather than re-index the whole history).
+fn build_new_messages_subset(
+    span: &Span,
+    dedup: &crate::traces::input_dedup::DedupBatch,
+    dedup_idx: usize,
+) -> Option<Vec<serde_json::Value>> {
+    let items = match span.input.as_ref() {
+        Some(serde_json::Value::Array(items)) => items,
+        _ => return None,
+    };
+    let new_indices = dedup.span_new_indices.get(dedup_idx)?;
+    Some(
+        new_indices
+            .iter()
+            .filter_map(|&i| items.get(i as usize).cloned())
+            .collect(),
+    )
 }
 
 async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
