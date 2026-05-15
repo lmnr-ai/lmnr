@@ -68,10 +68,7 @@ mod tests {
 
     #[test]
     fn test_strip_noise_base64_png() {
-        let raw = format!(
-            "before iVBORw0KGgo{} after",
-            "A".repeat(80)
-        );
+        let raw = format!("before iVBORw0KGgo{} after", "A".repeat(80));
         let result = strip_noise(&raw);
         assert!(result.contains("[base64 image omitted]"));
         assert!(!result.contains("AAAAAAAA"));

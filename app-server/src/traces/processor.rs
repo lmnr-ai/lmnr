@@ -16,7 +16,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::{Span, SpanType},
+        spans::Span,
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -248,13 +248,8 @@ pub async fn process_span_messages(
     let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
         .enumerate()
-        .filter(|(_, s)| {
-            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
-        })
+        .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
         .map(|(dedup_idx, s)| {
-            // `is_llm_span()` matches the predicate used by `build_dedup_batch`
-            // so cached LLM spans (span_type == Cached + original_type LLM) get
-            // their new-messages subset, not the full repeated history.
             let new_messages = if s.is_llm_span() {
                 build_new_messages_subset(s, &dedup, dedup_idx)
             } else {
@@ -331,10 +326,11 @@ pub async fn process_span_messages(
 }
 
 /// Project the deduped batch's per-span "new" indices back onto this LLM
-/// span's input array. Returns `None` for spans whose input isn't a JSON
-/// array (we then index the raw input verbatim) or whose new-indices is
-/// empty (every message was Redis-hot or batch-duplicate — index empty
-/// rather than re-index the whole history).
+/// span's input array. Returns `None` when the span's input isn't a JSON
+/// array (the caller then indexes raw `span.input` verbatim). Returns
+/// `Some(vec![])` when every message was Redis-hot or batch-duplicate —
+/// the Quickwit doc gets an empty input array rather than re-indexing the
+/// whole repeated history.
 fn build_new_messages_subset(
     span: &Span,
     dedup: &crate::traces::input_dedup::DedupBatch,
