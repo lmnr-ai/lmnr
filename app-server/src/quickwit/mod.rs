@@ -15,7 +15,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::db::events::Event;
-use crate::db::spans::{Span, SpanType};
+use crate::db::spans::Span;
 use preprocess::{clean_for_indexing, preprocess_text};
 use utils::extract_text_from_json_value;
 
@@ -50,7 +50,9 @@ impl QuickwitIndexedSpan {
     /// for LLM input/output, whitespace collapse) so the Quickwit consumer
     /// doesn't have to know about provider-specific shapes.
     pub fn from_span(span: &Span, new_input_messages: Option<&[Value]>) -> Self {
-        let is_llm = span.span_type == SpanType::LLM;
+        // `is_llm_span()` matches the dedup / new-messages-subset predicate so
+        // cached LLM spans get role-key stripping like regular LLM spans.
+        let is_llm = span.is_llm_span();
 
         let raw_input = match new_input_messages {
             Some(msgs) => Some(Value::Array(msgs.to_vec())),

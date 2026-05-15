@@ -252,7 +252,10 @@ pub async fn process_span_messages(
             s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
         })
         .map(|(dedup_idx, s)| {
-            let new_messages = if s.span_type == SpanType::LLM {
+            // `is_llm_span()` matches the predicate used by `build_dedup_batch`
+            // so cached LLM spans (span_type == Cached + original_type LLM) get
+            // their new-messages subset, not the full repeated history.
+            let new_messages = if s.is_llm_span() {
                 build_new_messages_subset(s, &dedup, dedup_idx)
             } else {
                 None
