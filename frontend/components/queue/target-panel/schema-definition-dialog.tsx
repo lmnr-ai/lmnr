@@ -108,15 +108,15 @@ export default function SchemaDefinitionDialog({
       }
 
       setAnnotationSchema(parsedSchema);
-      const fieldsCount =
-        parsedSchema && typeof parsedSchema.properties === "object" && parsedSchema.properties !== null
-          ? Object.keys(parsedSchema.properties).length
-          : 0;
-      track("labeling_queues", "annotation_schema_saved", {
-        queueId: queue.id,
-        hasSchema: parsedSchema !== null,
-        fieldsCount,
-      });
+      if (parsedSchema !== null) {
+        const fieldsCount =
+          typeof parsedSchema.properties === "object" && parsedSchema.properties !== null
+            ? Object.keys(parsedSchema.properties).length
+            : 0;
+        track("labeling_queues", "annotation_schema_saved", { queueId: queue.id, fieldsCount });
+      } else {
+        track("labeling_queues", "annotation_schema_cleared", { queueId: queue.id });
+      }
       setIsOpen(false);
       toast({
         title: "Success",
