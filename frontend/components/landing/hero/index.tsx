@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { bodyMedium, mainTitle } from "../class-names";
 import Header from "../header";
 import LogoStrip from "./logo-strip";
-import YCBadge from "./yc-badge";
 
 interface Props {
   className?: string;
@@ -19,12 +18,15 @@ const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full bg-landing-surface-800", className)}>
     <Header hasSession={hasSession} className="w-full max-w-[880px] pt-4 px-6 md:px-0" isIncludePadding />
 
-    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[80vh] justify-end gap-[24vh]">
+    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[40vh] justify-start gap-[10vh]">
       <div className="flex flex-col items-start gap-8 w-full max-w-[880px]">
         <div className="flex flex-col items-start gap-4">
-          <YCBadge />
           <h1 className={mainTitle}>Open-source Agent Monitoring</h1>
-          <p className={bodyMedium}>{"Get alerts when your agent breaks.\nUnderstand why in seconds."}</p>
+          <p className={bodyMedium}>
+            {
+              "Laminar analyzes every trace your agent produces, surfaces the behavior worth your attention,\nand turns recurring failures into regression evals. Automatically."
+            }
+          </p>
         </div>
 
         <div className="flex flex-row gap-3 items-center">

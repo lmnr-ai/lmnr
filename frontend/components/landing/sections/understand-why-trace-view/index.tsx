@@ -99,14 +99,18 @@ const UnderstandWhyTraceView = () => {
               transition={TWEEN}
               className={cn("flex flex-col shrink-0", allPanelsOpen && "pointer-events-none")}
             >
-              <div ref={stage1Ref} className="flex flex-col gap-6 items-start justify-center h-screen min-w-[320px]">
-                <h2 className={subSection}>{"Get alerts when\nyour agent breaks."}</h2>
-                <LearnMoreLink label="Learn more about notifications" href="https://laminar.sh/docs/signals" />
+              <div ref={stage1Ref} className="flex flex-col gap-6 items-start justify-center h-screen min-w-[380px]">
+                <h2 className={subSection}>{"Get alerts when your agent breaks."}</h2>
+                <p className="text-white/75">
+                  Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings you
+                  in Slack the moment a trace matches.
+                </p>
+                <LearnMoreLink label="Learn more about signals" href="https://laminar.sh/docs/signals" />
               </div>
-              <div ref={stage2Ref} className="flex flex-col gap-6 items-start justify-center h-[200px] min-w-[320px]">
-                <h2 className={subSection}>{"Understand why\nin seconds."}</h2>
-                <LearnMoreLink label="Learn more about Signals" href="https://laminar.sh/docs/signals" />
-              </div>
+              <div
+                ref={stage2Ref}
+                className="flex flex-col gap-6 items-start justify-center h-[200px] min-w-[320px]"
+              ></div>
 
               {/* Trace stages 3-6 — one block per substage. Block height is
                   the dwell time for that substage. The sticky title is

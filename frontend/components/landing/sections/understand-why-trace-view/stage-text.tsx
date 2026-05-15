@@ -16,9 +16,9 @@ export type TraceStage = 3 | 4 | 5 | 6;
 // `whitespace-pre-line`).
 export const TRACE_STAGE_TEXTS: Record<TraceStage, { title: string; subtitle?: string }> = {
   3: {
-    title: "A clear, concise view\nof your agent run.",
+    title: "Understand why in seconds.",
     subtitle:
-      "Transcript view surfaces what's important. Extracted trace input, tool calls, LLM calls, and sub-agents.",
+      "Go from issue description to the exact step that caused it. Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
   },
   4: { title: "See every action\non a timeline." },
   5: { title: "And a screen recording\nof your agent's browser." },
