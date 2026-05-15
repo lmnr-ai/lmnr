@@ -1,100 +1,99 @@
 "use client";
 
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
-import { type ReactNode } from "react";
 
-import {
-  IconAmazonBedrock,
-  IconAnthropic,
-  IconBrowserUse,
-  IconCrewAI,
-  IconGemini,
-  IconGroq,
-  IconLangchain,
-  IconMistral,
-  IconOpenAI,
-  IconOpenTelemetry,
-  IconPlaywright,
-  IconVercel,
-} from "../ui/icons";
+import anthropic from "@/assets/landing/logos/anthropic.svg";
+import bedrock from "@/assets/landing/logos/bedrock.svg";
+import browserUse from "@/assets/landing/logos/browser-use.svg";
+import claude from "@/assets/landing/logos/claude.svg";
+import gemini from "@/assets/landing/logos/gemini.svg";
+import langchain from "@/assets/landing/logos/langchain.svg";
+import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import mastra from "@/assets/landing/logos/mastra.svg";
+import openAi from "@/assets/landing/logos/open-ai.svg";
+import opencode from "@/assets/landing/logos/opencode.svg";
+import openTelemetry from "@/assets/landing/logos/open-telemetry.svg";
+import playwright from "@/assets/landing/logos/playwright.svg";
+import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
+import vercel from "@/assets/landing/logos/vercel.svg";
 
 interface Integration {
   name: string;
-  icon?: ReactNode;
-  emoji?: string;
+  src: StaticImageData | string;
   link: string;
 }
 
 const integrations: Integration[] = [
   {
-    name: "OpenTelemetry",
-    icon: <IconOpenTelemetry className="h-6 w-6" />,
-    link: "https://docs.lmnr.ai/tracing/otel",
-  },
-  {
-    name: "LangGraph",
-    icon: <IconLangchain className="h-8 w-8" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/langchain",
-  },
-  {
-    name: "CrewAI",
-    icon: <IconCrewAI className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "AI SDK",
-    icon: <IconVercel className="w-4 h-4 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk",
-  },
-  {
-    name: "LiteLLM",
-    emoji: "🚅",
-    link: "https://docs.lmnr.ai/tracing/integrations/litellm",
-  },
-  {
-    name: "Browser Use",
-    icon: <IconBrowserUse className="w-5 h-5 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
-  },
-  {
-    name: "StageHand",
-    emoji: "🤘",
-    link: "https://docs.lmnr.ai/tracing/integrations/stagehand",
-  },
-  {
-    name: "Playwright",
-    icon: <IconPlaywright className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/playwright",
-  },
-  {
     name: "OpenAI",
-    icon: <IconOpenAI className="w-6 h-6 text-white" />,
+    src: openAi,
     link: "https://docs.lmnr.ai/tracing/integrations/openai",
   },
   {
+    name: "Claude Agent SDK",
+    src: claude,
+    link: "https://docs.lmnr.ai/tracing/integrations/claude-agent-sdk",
+  },
+  {
     name: "Anthropic",
-    icon: <IconAnthropic className="w-6 h-6 text-white" />,
+    src: anthropic,
     link: "https://docs.lmnr.ai/tracing/integrations/anthropic",
   },
   {
     name: "Gemini",
-    icon: <IconGemini className="w-6 h-6 text-white" />,
+    src: gemini,
     link: "https://docs.lmnr.ai/tracing/integrations/gemini",
   },
   {
-    name: "Mistral",
-    icon: <IconMistral className="w-6 h-6 text-white" />,
+    name: "OpenCode",
+    src: opencode,
+    link: "https://docs.lmnr.ai/tracing/integrations/opencode",
+  },
+  {
+    name: "LangChain",
+    src: langchain,
+    link: "https://docs.lmnr.ai/tracing/integrations/langchain",
+  },
+  {
+    name: "Pydantic AI",
+    src: pydanticAi,
+    link: "https://docs.lmnr.ai/tracing/integrations/pydantic-ai",
+  },
+  {
+    name: "Vercel AI SDK",
+    src: vercel,
+    link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk",
+  },
+  {
+    name: "Playwright",
+    src: playwright,
+    link: "https://docs.lmnr.ai/tracing/integrations/playwright",
+  },
+  {
+    name: "Browser Use",
+    src: browserUse,
+    link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
+  },
+  {
+    name: "LiteLLM",
+    src: lightLlm,
+    link: "https://docs.lmnr.ai/tracing/integrations/litellm",
+  },
+  {
+    name: "Mastra",
+    src: mastra,
+    link: "https://docs.lmnr.ai/tracing/integrations/mastra",
+  },
+  {
+    name: "AWS Bedrock",
+    src: bedrock,
     link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
   {
-    name: "Bedrock",
-    icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "Groq",
-    icon: <IconGroq className="w-6 h-6" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
+    name: "OpenTelemetry",
+    src: openTelemetry,
+    link: "https://docs.lmnr.ai/tracing/otel",
   },
 ];
 
@@ -116,16 +115,22 @@ export default function FrameworksGrid({
   return (
     <div className={className}>
       <div className={gridClassName}>
-        {integrations.map((integration, index) => (
+        {integrations.map((integration) => (
           <Link
-            key={index}
+            key={integration.name}
             rel="noopener noreferrer"
             target="_blank"
             href={integration.link}
             className={`flex flex-col items-center group w-16 ${itemClassName}`}
           >
             <div className="w-12 h-12 rounded-lg flex flex-col items-center justify-center hover:bg-white/20 transition-colors">
-              {integration.icon || <span className="text-2xl">{integration.emoji}</span>}
+              <Image
+                src={integration.src}
+                alt={integration.name}
+                width={24}
+                height={24}
+                className="object-contain w-6 h-6"
+              />
             </div>
             {showLabels && <span className={`text-xs mt-2 text-center ${labelTextColor}`}>{integration.name}</span>}
           </Link>
