@@ -39,7 +39,11 @@ export default function QueueContent() {
     if (trackedQueueIdRef.current === queue.id) return;
     trackedQueueIdRef.current = queue.id;
     track("labeling_queues", "queue_page_viewed", { queueId: queue.id, itemsCount: itemsLen });
-  }, [isInitialLoaded, queue.id, itemsLen]);
+    // hydrateIndex flips isInitialLoaded and sets idsList atomically, so itemsLen
+    // is already correct on the run that fires this. Re-running on every item
+    // removal would just be wasted no-ops past the ref guard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialLoaded, queue.id]);
 
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
