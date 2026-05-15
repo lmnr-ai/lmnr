@@ -118,14 +118,14 @@ const SignalEventClustersMock = ({ className }: Props) => {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className={cn("w-[720px]  rounded-lg border bg-background p-3 flex flex-col gap-2", className)}>
+      <div className={cn("w-[720px] min-w-[600px] rounded-lg border bg-background p-3 flex flex-col gap-2", className)}>
         <ClusterBreadcrumb
           breadcrumb={breadcrumb}
           selectedClusterId={selectedClusterId}
           onNavigateToBreadcrumb={navigateToBreadcrumb}
         />
         <div className="flex h-[230px] rounded-md border bg-secondary overflow-hidden">
-          <div className="w-[300px] shrink-0 border-r overflow-hidden">
+          <div className="w-[250px] md:w-[300px] shrink-0 border-r overflow-hidden">
             <ClusterList
               className="h-full w-full bg-transparent"
               drillDownDepth={drillDownDepth}

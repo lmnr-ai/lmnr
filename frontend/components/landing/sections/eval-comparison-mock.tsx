@@ -213,7 +213,7 @@ const EvalComparisonMock = ({ className }: Props) => {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 rounded-md border bg-secondary p-4 sm:flex-row sm:items-start">
+      <div className="flex flex-row items-start gap-6 rounded-md border bg-secondary p-4">
         <div className="flex flex-col gap-1.5">
           <Select value={metric} onValueChange={(v) => setMetric(v as Metric)}>
             <SelectTrigger className="h-7 w-fit gap-2 px-2 text-xs font-medium text-secondary-foreground">

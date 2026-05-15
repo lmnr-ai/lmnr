@@ -1,43 +1,31 @@
-"use client";
+// Stage union for the unified scroll-locked narrative.
+//
+//   1 — Slack notification
+//   2 — Slack morphs into Signal event card
+//   3 — Trace view materializes around the signal card (header + transcript)
+//   4 — Condensed timeline appears
+//   5 — Screen recording appears
+//   6 — Span view + chat-with-trace expand to the right
+export type Stage = 1 | 2 | 3 | 4 | 5 | 6;
 
-import { AnimatePresence, motion } from "framer-motion";
+export type TraceStage = 3 | 4 | 5 | 6;
 
-import { cn } from "@/lib/utils";
-
-import { bodyMedium } from "../../class-names";
-
-export type Stage = 1 | 2 | 3 | 4;
-
-interface Props {
-  stage: Stage;
-  className?: string;
-}
-
-const TEXTS: Record<Stage, string> = {
-  1: "A clear, concise view of your agent run",
-  2: "with a timeline,",
-  3: "and a screen recording of your agent's browser.",
-  4: "Have a long, complex agent run? Chat with AI about it",
+// Title + (optional) subtitle for each trace substage. Title is required;
+// subtitle is shown when present and the paragraph collapses when absent.
+// `\n` in either field renders as a line break (parent uses
+// `whitespace-pre-line`).
+export const TRACE_STAGE_TEXTS: Record<TraceStage, { title: string; subtitle?: string }> = {
+  3: {
+    title: "A clear, concise view\nof your agent run.",
+    subtitle:
+      "Transcript view surfaces what's important. Extracted trace input, tool calls, LLM calls, and sub-agents.",
+  },
+  4: { title: "See every action\non a timeline." },
+  5: { title: "And a screen recording\nof your agent's browser." },
+  6: { title: "Long complex run?\nChat with AI about it." },
 };
 
-// Stage description text. Crossfades between stages — each stage's text is
-// rendered as an absolutely-positioned paragraph so changing the text doesn't
-// reflow the column layout below.
-const StageText = ({ stage, className }: Props) => (
-  <div className={cn("relative w-full max-w-[760px] h-[24px]", className)}>
-    <AnimatePresence mode="wait">
-      <motion.p
-        key={stage}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        className={cn(bodyMedium, "absolute inset-0 flex items-center justify-center")}
-      >
-        {TEXTS[stage]}
-      </motion.p>
-    </AnimatePresence>
-  </div>
-);
-
-export default StageText;
+export const TRACE_LEARN_MORE = {
+  label: "Learn more about trace view",
+  href: "https://laminar.sh/docs/tracing",
+};

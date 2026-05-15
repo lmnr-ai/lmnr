@@ -1,16 +1,17 @@
+import { subSection } from "../class-names";
 import IntegrationsGrid from "./integrations-grid";
-import Section from "./section";
-import SectionBlock from "./section-block";
+import LearnMoreLink from "./learn-more-link";
 
+// Stacked full-width row: title at top, 3-col integrations grid + learn-more
+// below.
 const TwoLinesToIntegrate = () => (
-  <Section title={"Two lines to integrate\nwith your stack"} titleSpacing="mt-13">
-    <SectionBlock
-      visual={<IntegrationsGrid />}
-      learnMore={{ label: "See all integrations", href: "https://laminar.sh/docs/tracing/integrations" }}
-      linkGap="gap-10"
-      className="max-w-[760px]"
-    />
-  </Section>
+  <section className="flex flex-col gap-[52px] items-start w-full">
+    <h2 className={subSection}>{"Two lines to integrate\nwith your stack"}</h2>
+    <div className="flex flex-col gap-10 items-start w-full">
+      <IntegrationsGrid className="max-w-none w-full" />
+      <LearnMoreLink label="See all integrations" href="https://laminar.sh/docs/tracing/integrations" />
+    </div>
+  </section>
 );
 
 export default TwoLinesToIntegrate;

@@ -14,7 +14,7 @@ const LearnMoreLink = ({ label, href, className }: Props) => (
     href={href}
     target={href.startsWith("http") ? "_blank" : undefined}
     className={cn(
-      "inline-flex items-center gap-1 font-sans text-xs text-landing-text-600 no-underline hover:text-landing-text-400 transition-colors",
+      "inline-flex items-center gap-1 font-sans text-xs text-landing-text-300 no-underline hover:text-landing-text-400 transition-colors",
       className
     )}
   >

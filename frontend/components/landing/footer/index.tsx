@@ -95,13 +95,14 @@ const Footer = ({ className }: Props) => (
   <div className={cn("bg-landing-surface-800 flex flex-col items-center w-full", className)}>
     <div
       className={cn(
-        "w-full max-w-[1104px] border-t border-landing-surface-500",
-        "md:pt-20 md:pb-[120px] md:px-8",
-        "pt-16 pb-20 px-5"
+        "w-full max-w-[880px] border-t border-landing-surface-500",
+        "md:pt-20 md:pb-[120px]",
+        "pt-16 pb-20",
+        "px-6 md:px-0"
       )}
     >
       {/* Desktop */}
-      <div className="hidden xl:flex gap-[120px] items-start w-full">
+      <div className="hidden xl:flex gap-[80px] items-start w-full">
         <Image
           src={laminarLogo}
           alt="Laminar"

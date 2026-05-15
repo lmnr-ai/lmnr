@@ -1,18 +1,18 @@
-import Section from "./section";
-import SectionBlock from "./section-block";
-import SignalEventCardMock from "./signal-event-card-mock";
 import UnderstandWhyTraceView from "./understand-why-trace-view";
+import UnderstandWhyTraceViewMobile from "./understand-why-trace-view/mobile";
 
+// Mobile and desktop are completely separate trees: the desktop variant runs
+// a scroll-locked narrative that doesn't make sense on touch, so on mobile we
+// render three plain stacked blocks (alerts / signal card / trace cards).
 const UnderstandWhy = () => (
-  <Section title={"Understand why\nin seconds"}>
-    <SectionBlock
-      visual={<SignalEventCardMock />}
-      learnMore={{ label: "Learn more about Signals", href: "https://laminar.sh/docs/signals" }}
-    />
-    {/* Second block is its own scroll-locked container — text + bento +
-        learn-more all live inside the sticky inner. */}
-    <UnderstandWhyTraceView />
-  </Section>
+  <>
+    <div className="hidden md:block">
+      <UnderstandWhyTraceView />
+    </div>
+    <div className="md:hidden">
+      <UnderstandWhyTraceViewMobile />
+    </div>
+  </>
 );
 
 export default UnderstandWhy;

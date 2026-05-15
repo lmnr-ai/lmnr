@@ -1,16 +1,12 @@
 import { cn } from "@/lib/utils";
 
-interface Props {
-  className?: string;
-}
+const SLACK_BORDER = "rgb(37 37 38)";
+const SLACK_BG = "rgb(22 22 23)";
 
-const SlackNotificationMock = ({ className }: Props) => (
-  <div
-    className={cn(
-      "flex gap-3 items-start overflow-hidden rounded border border-landing-surface-500 bg-landing-surface-600 px-3 py-2 w-full max-w-[390px]",
-      className
-    )}
-  >
+// Slack notification inner content. No outer frame — callers wrap it in a
+// frame (static border/bg here, animated wrapper in slack-to-signal-morph).
+export const SlackContent = () => (
+  <div className="flex gap-3 items-start w-full px-3 py-2">
     <div className="shrink-0 size-8 bg-landing-surface-800 rounded flex items-center justify-center overflow-hidden">
       <svg width="16" height="16" viewBox="0 0 76 76" fill="none" className="size-4">
         <path
@@ -56,4 +52,19 @@ const SlackNotificationMock = ({ className }: Props) => (
   </div>
 );
 
-export default SlackNotificationMock;
+interface Props {
+  className?: string;
+}
+
+// Static slack-notification card (no morph). Used on mobile where each card
+// is rendered standalone instead of cross-fading via the morph wrapper.
+const SlackNotificationCard = ({ className }: Props) => (
+  <div
+    style={{ borderColor: SLACK_BORDER, backgroundColor: SLACK_BG }}
+    className={cn("rounded-md border overflow-hidden", className)}
+  >
+    <SlackContent />
+  </div>
+);
+
+export default SlackNotificationCard;
