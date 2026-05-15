@@ -198,26 +198,32 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 }
 
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
-    // Input snippet matches only the deduped "new messages" of this span —
-    // older repeated history is searchable via earlier spans in the trace.
-    // Output / attributes are untransformed columns, so we read raw `spans`
-    // directly and skip the `spans_v0` view's full input reconstruction.
+    // For LLM (deduped) spans, input snippet matches only the deduped
+    // "new messages" — older repeated history is searchable via earlier
+    // spans in the trace. For non-LLM spans, `input_message_hashes` is
+    // empty and the raw text lives in `spans.input`. Output / attributes
+    // are untransformed columns. Reading raw `spans` directly skips the
+    // `spans_v0` view's full input reconstruction.
     format!(
         "SELECT span_id,
-                extract(
-                    arrayStringConcat(
-                        arrayMap(
-                            i -> dictGetOrDefault(
-                                'llm_messages_dict',
-                                'content',
-                                tuple(project_id, trace_id, input_message_hashes[i + 1]),
-                                'null'
+                if(
+                    notEmpty(input_message_hashes),
+                    extract(
+                        arrayStringConcat(
+                            arrayMap(
+                                i -> dictGetOrDefault(
+                                    'llm_messages_dict',
+                                    'content',
+                                    tuple(project_id, trace_id, input_message_hashes[i + 1]),
+                                    'null'
+                                ),
+                                input_new_message_indices
                             ),
-                            input_new_message_indices
+                            ','
                         ),
-                        ','
+                        '{context_regex}'
                     ),
-                    '{context_regex}'
+                    extract(input, '{context_regex}')
                 ) AS input_snippet,
                 extract(output, '{context_regex}') AS output_snippet,
                 extract(attributes, '{context_regex}') AS attributes_snippet
