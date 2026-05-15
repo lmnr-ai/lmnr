@@ -50,8 +50,15 @@ pub fn clean_whitespace(s: &str) -> String {
                     }
                     continue;
                 }
+                if next == '\\' {
+                    // `\\` is a JSON-escaped backslash; consume both halves so
+                    // the second backslash can't re-pair with a following
+                    // n/t/r (which would corrupt e.g. `C:\\new_folder`).
+                    chars.next();
+                    continue;
+                }
             }
-            // Other backslashes (\", \\, \/) are JSON escaping noise; drop.
+            // Other backslashes (\", \/) are JSON escaping noise; drop.
         } else {
             result.push(ch);
             in_ws = false;
@@ -128,5 +135,16 @@ mod tests {
     #[test]
     fn test_clean_whitespace_preserves_words() {
         assert_eq!(clean_whitespace("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_clean_whitespace_escaped_backslash_then_letter() {
+        // `\\n` is a JSON-escaped backslash followed by literal `n`. The two
+        // backslashes must be consumed together so the trailing `n` survives —
+        // otherwise paths like `C:\\new_folder` lose their first letter.
+        assert_eq!(clean_whitespace(r"a\\nb"), "anb");
+        assert_eq!(clean_whitespace(r"a\\tb"), "atb");
+        assert_eq!(clean_whitespace(r"a\\rb"), "arb");
+        assert_eq!(clean_whitespace(r"C:\\new_folder"), "C:new_folder");
     }
 }
