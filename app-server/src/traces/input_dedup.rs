@@ -58,13 +58,17 @@ fn canonical_json(value: &Value) -> String {
     }
 }
 
-/// `span_hashes[i]` / `span_content_bytes[i]` align with the span order passed
-/// in. `span_content_bytes[i]` is the bytes of `llm_messages.content` span `i`
-/// caused to be newly inserted — shared messages contribute 0 (billed once).
+/// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` align
+/// with the span order passed in. `span_content_bytes[i]` is the bytes of
+/// `llm_messages.content` span `i` caused to be newly inserted — shared
+/// messages contribute 0 (billed once). `span_new_indices[i]` lists the
+/// 0-based positions inside `span_hashes[i]` that this span was first to
+/// introduce; Quickwit indexing only sees these new messages.
 pub struct DedupBatch {
     pub messages: Vec<CHLlmMessage>,
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
+    pub span_new_indices: Vec<Vec<u16>>,
 }
 
 /// Hash each LLM span's input messages with BLAKE3 and emit unique rows per
@@ -74,6 +78,7 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
+    let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
     // Key must match `llm_messages` ORDER BY — batches can mix projects.
     let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
@@ -82,17 +87,20 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
         if !span.is_llm_span() {
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
+            span_new_indices.push(Vec::new());
             continue;
         }
         let Some(Value::Array(items)) = span.input.as_ref() else {
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
+            span_new_indices.push(Vec::new());
             continue;
         };
 
         let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
+        let mut new_indices: Vec<u16> = Vec::new();
         let mut content_bytes_for_span: usize = 0;
-        for item in items {
+        for (idx, item) in items.iter().enumerate() {
             let canonical = canonical_json(item);
             let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
             hashes.push(hash);
@@ -117,15 +125,22 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 message_hash: hash,
                 content,
             });
+            // u16 cap matches the CH column type; LLM inputs > 64k messages
+            // are pathological and would already be truncated upstream.
+            if let Ok(i) = u16::try_from(idx) {
+                new_indices.push(i);
+            }
         }
         span_hashes.push(hashes);
         span_content_bytes.push(content_bytes_for_span);
+        span_new_indices.push(new_indices);
     }
 
     DedupBatch {
         messages,
         span_hashes,
         span_content_bytes,
+        span_new_indices,
     }
 }
 
