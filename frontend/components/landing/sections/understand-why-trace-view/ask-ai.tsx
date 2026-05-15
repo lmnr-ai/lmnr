@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowUp, Bolt, MessageCircle } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { renderSpanReferences } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
@@ -36,32 +35,82 @@ const INITIAL_MESSAGES: MockMessage[] = [
 
 const MOCK_RESPONSE = "Log in to chat with your traces";
 
-// Copy of the old composable-trace ask-ai mock. Keeps the same hardcoded
-// trace/span link references — they're decorative inside this mock.
+// Each known span label gets mapped to its tool/llm classification so the
+// chip can pick the right icon + color. Unknown labels fall through to
+// "tool" (Bolt). FLAG: if INITIAL_RESPONSE references a new span name,
+// add it here or it will render as a generic tool chip.
+const LABEL_TO_KIND: Record<string, "tool" | "llm"> = {
+  navigate: "tool",
+  readPage: "tool",
+  "ai.generateText.doGenerate": "llm",
+};
+
+const KIND_CONFIG = {
+  tool: { iconBg: "bg-tool", icon: <Bolt className="size-3 text-white" strokeWidth={2} /> },
+  llm: { iconBg: "bg-llm", icon: <MessageCircle className="size-3 text-white" strokeWidth={2} /> },
+} as const;
+
+// Chip styled to match the SignalEventCard span chips: small icon swatch
+// on the left, label on the right, neutral pill background. Clickable —
+// drills the trace-view store to the referenced span.
+const SpanChip = ({ kind, label, onClick }: { kind: "tool" | "llm"; label: string; onClick: () => void }) => {
+  const { iconBg, icon } = KIND_CONFIG[kind];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded border border-landing-text-200/15 bg-landing-text-200/15 pl-0.5 pr-1.5 py-0.5 align-middle hover:bg-landing-text-200/25 transition-colors"
+    >
+      <span className={cn("inline-flex items-center justify-center size-4 rounded", iconBg)}>{icon}</span>
+      <span className="text-landing-text-200 text-xs leading-none font-mono">{label}</span>
+    </button>
+  );
+};
+
+// Matches the markdown link text rendered inside backtick `code` elements:
+//   [label](https://.../traces/<traceId>?spanId=<uuid>)
+const MD_LINK_RE = /^\[([^\]]+)\]\((.+?spanId=([0-9a-f-]+).*)\)$/;
+
+// Word-by-word streaming reveal of the initial assistant response. Tokens
+// are whitespace-delimited; backtick-wrapped span links are guaranteed
+// single tokens (no internal whitespace in the URLs), so we never render a
+// half-broken chip mid-stream.
+const STREAM_INTERVAL_MS = 30;
+
 export default function AskAi() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<MockMessage[]>(INITIAL_MESSAGES);
 
   const selectSpanById = useTraceViewBaseStore((state) => state.selectSpanById);
 
-  const spanRefCallbacks = useMemo(
-    () => ({
-      resolveSpanId: async () => null,
-      onSelectSpan: (spanUuid: string) => selectSpanById(spanUuid),
-    }),
-    [selectSpanById]
-  );
+  const words = useMemo(() => INITIAL_RESPONSE.split(/\s+/), []);
+  const [streamedCount, setStreamedCount] = useState(0);
+  useEffect(() => {
+    let n = 0;
+    const id = setInterval(() => {
+      n += 1;
+      setStreamedCount(n);
+      if (n >= words.length) clearInterval(id);
+    }, STREAM_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [words.length]);
+  const streamedAssistantText = useMemo(() => words.slice(0, streamedCount).join(" "), [words, streamedCount]);
 
-  const components = useMemo(
+  const components = useMemo<{ code: (props: { children?: ReactNode }) => ReactNode }>(
     () => ({
-      code: ({ children }: { children?: React.ReactNode }) => {
+      code: ({ children }) => {
         const text = String(children);
-        const rendered = renderSpanReferences(text, spanRefCallbacks);
-        if (rendered) return rendered;
+        const m = text.match(MD_LINK_RE);
+        if (m) {
+          const label = m[1];
+          const spanId = m[3];
+          const kind = LABEL_TO_KIND[label] ?? "tool";
+          return <SpanChip kind={kind} label={label} onClick={() => selectSpanById(spanId)} />;
+        }
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [spanRefCallbacks]
+    [selectSpanById]
   );
 
   const handleSend = () => {
@@ -75,6 +124,8 @@ export default function AskAi() {
       { id: `a-${ts}`, role: "assistant", text: MOCK_RESPONSE },
     ]);
   };
+
+  const renderText = (m: MockMessage) => (m.id === "init-assistant" ? streamedAssistantText : m.text);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">
@@ -90,7 +141,7 @@ export default function AskAi() {
                 className={cn("w-full", m.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background")}
               >
                 <div className="text-sm text-foreground leading-relaxed space-y-2">
-                  <Response components={components}>{m.text}</Response>
+                  <Response components={components}>{renderText(m)}</Response>
                 </div>
               </div>
             </div>

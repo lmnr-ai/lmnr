@@ -28,7 +28,7 @@ interface Props {
   trace?: TraceViewTrace;
   spans: TraceViewSpan[];
   /** Fires when the trace view's three-panel state changes (true once the
-   *  user has clicked a span at stage 6 so Trace + Span + AskAi are all open). */
+   *  user has clicked a span at stage 5 so Trace + Span + AskAi are all open). */
   onAllPanelsOpenChange?: (open: boolean) => void;
 }
 
@@ -118,7 +118,7 @@ const TraceViewHeaderRow1 = ({
 //   ├─────────────────────────────────┤
 //   │ Transcript (flex-1)             │
 //   ├─────────────────────────────────┤
-//   │ Recording                       │  stage 5+
+//   │ Recording                       │  store browserSession — user toggle only
 //   └─────────────────────────────────┘
 //
 // The bento outer is fixed at 600px once the trace view materializes at
@@ -158,45 +158,45 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  // Stage transitions set the *default* visibility of the signal card and the
-  // session-replay panel — but the store is the source of truth, so a user
-  // click on the Signals or Media header buttons can override these between
-  // transitions. Each stage transition re-fires this effect (story-beat
-  // reset), which clobbers prior user toggles by design — once the narrative
-  // moves on, the next beat's intended layout wins.
+  // Stage transitions set the *default* visibility of the signal card. The
+  // store is the source of truth, so a user click on the Signals header
+  // button can override between transitions. Each stage transition re-fires
+  // this effect (story-beat reset), which clobbers a prior user toggle by
+  // design — once the narrative moves on, the next beat's intended layout
+  // wins.
   //
-  // FLAG: if this effect ever fights a different writer to either field
+  // Media/browser-session is NOT stage-driven anymore — only the Media
+  // header button opens/closes it. The recording stage was removed.
+  //
+  // FLAG: if this effect ever fights a different writer to signalsPanelOpen
   // (e.g. if we add network-driven signal data that opens the panel), we'll
   // get a flicker. Right now the landing-page store is the only writer.
   useEffect(() => {
     setSignalsPanelOpen(stage <= 3);
-    // Media opens only at stage 5 (recording stage). At stage 6 ask-ai takes
-    // its slot in the visual story, so media auto-closes.
-    setBrowserSession(stage === 5);
-  }, [stage, setSignalsPanelOpen, setBrowserSession]);
+  }, [stage, setSignalsPanelOpen]);
 
   const llmSpanIds = useMemo(() => spans.filter((s) => s.spanType === SpanType.LLM).map((s) => s.spanId), [spans]);
 
   // Spans only become clickable at the final stage; stored in a ref so the
   // callback identity doesn't change across stage transitions. Scrolling
-  // back below stage 6 clears the selection so the span panel doesn't flash
+  // back below stage 5 clears the selection so the span panel doesn't flash
   // open mid-transition on the way down.
   const stageRef = useRef(stage);
   useEffect(() => {
     stageRef.current = stage;
-    if (stage < 6 && selectedSpan) setSelectedSpan(undefined);
+    if (stage < 5 && selectedSpan) setSelectedSpan(undefined);
   }, [stage, selectedSpan, setSelectedSpan]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (stageRef.current !== 6) return;
+      if (stageRef.current !== 5) return;
       setSelectedSpan(span);
     },
     [setSelectedSpan]
   );
   const handleCloseSpan = useCallback(() => setSelectedSpan(undefined), [setSelectedSpan]);
 
-  const isShowSpanView = stage === 6 && !!selectedSpan && !!trace;
+  const isShowSpanView = stage === 5 && !!selectedSpan && !!trace;
 
   useEffect(() => {
     onAllPanelsOpenChange?.(isShowSpanView);
@@ -253,7 +253,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
           >
             <TraceViewHeaderRow1
               signalsActive={signalsPanelOpen}
-              chatActive={stage >= 6}
+              chatActive={stage >= 5}
               onSignalsToggle={() => setSignalsPanelOpen(!signalsPanelOpen)}
             />
           </motion.div>
@@ -325,9 +325,9 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
           {stage >= 3 && <Transcript onSpanSelect={handleSpanSelect} isShared />}
         </div>
 
-        {/* RECORDING — visibility now driven by the store's browserSession
-            field. Stage-sync useEffect opens it at stage 5 and closes it at
-            other stages, but the Media header button can override. */}
+        {/* RECORDING — visibility driven entirely by the store's
+            browserSession field. The Media header button is the only writer
+            — there's no stage-sync (the recording stage was removed). */}
         <motion.div
           animate={{ height: browserSession ? RECORDING_HEIGHT : 0 }}
           transition={TWEEN}
@@ -347,7 +347,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
       </div>
 
       {/* MIDDLE COL — span view. Opens only when the user clicks a span at
-          stage 6 (clicks are ignored before then). */}
+          stage 5 (clicks are ignored before then). */}
       <motion.div
         animate={{ width: isShowSpanView ? 360 : 0 }}
         transition={TWEEN}
@@ -365,13 +365,13 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
         </div>
       </motion.div>
 
-      {/* RIGHT COL — ask-ai, appears at stage 6 */}
+      {/* RIGHT COL — ask-ai, appears at stage 5 */}
       <motion.div
-        animate={{ width: stage >= 6 ? 360 : 0 }}
+        animate={{ width: stage >= 5 ? 360 : 0 }}
         transition={TWEEN}
         className="overflow-hidden h-full shrink-0"
       >
-        <div className="w-[360px] h-full bg-background border-l">{stage >= 6 && <AskAi />}</div>
+        <div className="w-[360px] h-full bg-background border-l">{stage >= 5 && <AskAi />}</div>
       </motion.div>
     </motion.div>
   );

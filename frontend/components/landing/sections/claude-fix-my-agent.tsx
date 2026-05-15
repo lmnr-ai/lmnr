@@ -16,7 +16,7 @@ const ClaudeFixMyAgent = () => (
     <div className="flex flex-col gap-6 items-start max-w-[320px]">
       <h2 className={subSection}>
         <RotatingAgentName />
-        {",\nfix my agent"}
+        {", fix my agent"}
       </h2>
       <p className={cn(bodyMedium)}>
         <Link href="https://laminar.sh/docs/platform/mcp" target="_blank" className={INLINE_LINK}>

@@ -9,6 +9,7 @@ import ClaudeFixMyAgent from "./sections/claude-fix-my-agent";
 import CTA from "./sections/cta";
 import DidMyFixWork from "./sections/did-my-fix-work";
 import Divider from "./sections/divider";
+import FeaturesForEveryStep from "./sections/features-for-every-step";
 import HasThisIssue from "./sections/has-this-issue";
 import Quote from "./sections/quote";
 import TwoLinesToIntegrate from "./sections/two-lines-to-integrate";
@@ -34,6 +35,7 @@ const Landing = ({ className, hasSession }: Props) => (
         <DidMyFixWork />
         <Divider />
         <TwoLinesToIntegrate />
+        <FeaturesForEveryStep />
         <Divider />
         <Quote />
         <Divider />

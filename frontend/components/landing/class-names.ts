@@ -9,7 +9,6 @@
 export const mainTitle =
   "font-manrope font-medium text-white whitespace-pre-line md:text-[32px] md:leading-tight text-[28px] leading-tight tracking-[-0.02em]";
 
-// Section subtitle — "Get alerts when your agent breaks.", "Has this issue occurred before?", etc.
 export const subSection =
   "font-manrope font-medium text-white whitespace-pre-line text-2xl leading-7 tracking-[-0.02em]";
 

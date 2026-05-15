@@ -10,7 +10,7 @@ import { cn, swrFetcher } from "@/lib/utils";
 import { bodyMedium, subSection } from "../../class-names";
 import LearnMoreLink from "../learn-more-link";
 import TraceViewErrorBoundary from "./error-boundary";
-import { type Stage, TRACE_LEARN_MORE, TRACE_STAGE_TEXTS, type TraceStage } from "./stage-text";
+import { PHASE_2_SUBTITLES, type Stage } from "./stage-text";
 import TraceBento from "./trace-bento";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
@@ -30,14 +30,12 @@ const UnderstandWhyTraceView = () => {
   const stage3Ref = useRef<HTMLDivElement>(null);
   const stage4Ref = useRef<HTMLDivElement>(null);
   const stage5Ref = useRef<HTMLDivElement>(null);
-  const stage6Ref = useRef<HTMLDivElement>(null);
 
   const stage1Active = useInView(stage1Ref, { margin: CENTERLINE });
   const stage2Active = useInView(stage2Ref, { margin: CENTERLINE });
   const stage3Active = useInView(stage3Ref, { margin: CENTERLINE });
   const stage4Active = useInView(stage4Ref, { margin: CENTERLINE });
   const stage5Active = useInView(stage5Ref, { margin: CENTERLINE });
-  const stage6Active = useInView(stage6Ref, { margin: CENTERLINE });
 
   // Morph (slack → signal) is driven by stage 2's scroll progress.
   const { scrollYProgress: morphProgress } = useScroll({
@@ -61,27 +59,23 @@ const UnderstandWhyTraceView = () => {
           ? 4
           : stage5Active
             ? 5
-            : stage6Active
-              ? 6
-              : null;
+            : null;
   const [stage, setStage] = useState<Stage>(1);
   if (activeStage !== null && activeStage !== stage) setStage(activeStage);
 
   // True only when the bento has all three panels open (Trace + Span + AskAi).
-  // Span panel requires a user click on a span at stage 6 — we don't open it
+  // Span panel requires a user click on a span at stage 5 — we don't open it
   // automatically. Drives the left text col's collapse-to-center animation.
   const [allPanelsOpen, setAllPanelsOpen] = useState(false);
 
   const { data: trace } = useSWR<TraceViewTrace>(`/api/shared/traces/${TRACE_ID}`, swrFetcher);
   const { data: spans } = useSWR<TraceViewSpan[]>(`/api/shared/traces/${TRACE_ID}/spans`, swrFetcher);
 
-  const traceStage: TraceStage = stage >= 3 ? (stage as TraceStage) : 3;
-
   return (
     <TraceViewErrorBoundary>
       <section className="w-full">
         <div className="w-full flex flex-col items-center">
-          {/* The row's gap collapses to 0 at stage 6 so the bento ends up
+          {/* The row's gap collapses to 0 at stage 5 so the bento ends up
               dead-centered (a non-zero gap would offset it by gap/2 against
               the freed text-col space). */}
           <motion.div
@@ -89,44 +83,48 @@ const UnderstandWhyTraceView = () => {
             transition={TWEEN}
             className="flex justify-between min-w-[880px]"
           >
-            {/* LEFT — text column. Animates to width 0 + opacity 0 at stage 6
+            {/* LEFT — text column. Animates to width 0 + opacity 0 at stage 5
                 so the bento can read as the focus, centered. Each text block
                 has min-w-[320px] so its content doesn't reflow as the parent
                 shrinks — they extend past the (now-zero-width) parent's
                 bounds, but opacity-0 hides them and the bento overlays them. */}
             <motion.div
-              animate={{ width: allPanelsOpen ? 0 : 320, opacity: allPanelsOpen ? 0 : 1 }}
+              animate={{ width: allPanelsOpen ? 0 : 400, opacity: allPanelsOpen ? 0 : 1 }}
               transition={TWEEN}
               className={cn("flex flex-col shrink-0", allPanelsOpen && "pointer-events-none")}
             >
-              <div ref={stage1Ref} className="flex flex-col gap-6 items-start justify-center h-screen min-w-[320px]">
-                <h2 className={subSection}>{"Get alerts when\nyour agent breaks."}</h2>
-                <LearnMoreLink label="Learn more about notifications" href="https://laminar.sh/docs/signals" />
-              </div>
-              <div ref={stage2Ref} className="flex flex-col gap-6 items-start justify-center h-[200px] min-w-[320px]">
-                <h2 className={subSection}>{"Understand why\nin seconds."}</h2>
-                <LearnMoreLink label="Learn more about Signals" href="https://laminar.sh/docs/signals" />
+              {/* Phase 1 — Slack notification: "Get alerts" */}
+              <div ref={stage1Ref} className="h-[90vh] min-w-[320px] relative">
+                <div
+                  style={{ top: "50vh" }}
+                  className="-translate-y-1/2 absolute left-0 flex flex-col justify-start items-start gap-6"
+                >
+                  <h2 className={subSection}>{"Get alerts when your agent breaks."}</h2>
+                  <LearnMoreLink label="Learn more about notifications" href="https://laminar.sh/docs/signals" />
+                </div>
               </div>
 
-              {/* Trace stages 3-6 — one block per substage. Block height is
-                  the dwell time for that substage. The sticky title is
-                  overlaid via an absolutely-positioned wrapper so the
-                  substage triggers can be empty boxes that just drive the
-                  centerline detection. */}
+              {/* Phase 2 — "Understand why in seconds" spans stages 2-5.
+                  The bento morphs from signal card to full trace view (with
+                  timeline, span panel, ask-ai) underneath this one sticky
+                  title — title doesn't change, subtitle does. Inner empty
+                  divs are the stage triggers: each one's centerline cross
+                  fires its `*Active` boolean, and stage 2's scroll progress
+                  drives the slack→signal morph. */}
               <div className="relative min-w-[320px]">
+                <div ref={stage2Ref} className="h-[50px]" />
                 <div ref={stage3Ref} className="h-[600px]" />
                 <div ref={stage4Ref} className="h-[600px]" />
-                <div ref={stage5Ref} className="h-[600px]" />
-                <div ref={stage6Ref} className="h-[600px]" />
+                <div ref={stage5Ref} className="h-[900px]" />
 
                 <div className="absolute inset-0">
                   <div className="sticky top-0 h-screen flex items-center">
-                    <div className="flex flex-col gap-6 items-start h-[500px]">
-                      <h2 className={subSection}>{TRACE_STAGE_TEXTS[traceStage].title}</h2>
-                      {TRACE_STAGE_TEXTS[traceStage].subtitle && (
-                        <p className={bodyMedium}>{TRACE_STAGE_TEXTS[traceStage].subtitle}</p>
-                      )}
-                      <LearnMoreLink {...TRACE_LEARN_MORE} />
+                    <div className="flex flex-col gap-6 items-start h-[70vh]">
+                      <div className="flex flex-col gap-2">
+                        <h2 className={subSection}>{"Understand why in seconds."}</h2>
+                        {PHASE_2_SUBTITLES[stage] && <p className={bodyMedium}>{PHASE_2_SUBTITLES[stage]}</p>}
+                      </div>
+                      <LearnMoreLink label="Learn more about Signals" href="https://laminar.sh/docs/signals" />
                     </div>
                   </div>
                 </div>
