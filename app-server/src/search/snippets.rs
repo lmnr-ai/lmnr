@@ -202,9 +202,13 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
     // "new messages" — older repeated history is searchable via earlier
     // spans in the trace. Legacy LLM rows pre-LAM-1599 have populated
     // `input_message_hashes` but empty `input_new_message_indices`; fall
-    // back to the full hash array so input snippets still work. Remove
-    // the fallback once those rows age out. For non-LLM spans, hashes
-    // are empty and the raw text lives in `spans.input`.
+    // back to the full hash array so input snippets still work. Note this
+    // condition also fires for post-LAM-1599 spans where every message
+    // was already seen (genuinely zero new indices), so those spans will
+    // over-match on terms that appear only in repeated history — losing
+    // the dedup benefit for that subset. Remove both the fallback and the
+    // resulting over-matching once legacy rows age out. For non-LLM spans,
+    // hashes are empty and the raw text lives in `spans.input`.
     format!(
         "SELECT span_id,
                 if(
