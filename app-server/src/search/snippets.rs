@@ -200,10 +200,11 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
     // For LLM (deduped) spans, input snippet matches only the deduped
     // "new messages" — older repeated history is searchable via earlier
-    // spans in the trace. For non-LLM spans, `input_message_hashes` is
-    // empty and the raw text lives in `spans.input`. Output / attributes
-    // are untransformed columns. Reading raw `spans` directly skips the
-    // `spans_v0` view's full input reconstruction.
+    // spans in the trace. Legacy LLM rows pre-LAM-1599 have populated
+    // `input_message_hashes` but empty `input_new_message_indices`; fall
+    // back to the full hash array so input snippets still work. Remove
+    // the fallback once those rows age out. For non-LLM spans, hashes
+    // are empty and the raw text lives in `spans.input`.
     format!(
         "SELECT span_id,
                 if(
@@ -211,13 +212,17 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
                     extract(
                         arrayStringConcat(
                             arrayMap(
-                                i -> dictGetOrDefault(
+                                h -> dictGetOrDefault(
                                     'llm_messages_dict',
                                     'content',
-                                    tuple(project_id, trace_id, input_message_hashes[i + 1]),
+                                    tuple(project_id, trace_id, h),
                                     'null'
                                 ),
-                                input_new_message_indices
+                                if(
+                                    empty(input_new_message_indices),
+                                    input_message_hashes,
+                                    arrayMap(i -> input_message_hashes[i + 1], input_new_message_indices)
+                                )
                             ),
                             ','
                         ),
