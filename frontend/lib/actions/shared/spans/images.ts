@@ -1,7 +1,10 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { executeQuery } from "@/lib/actions/sql";
 import { transformMessages } from "@/lib/actions/trace/utils";
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { db } from "@/lib/db/drizzle";
+import { sharedTraces } from "@/lib/db/migrations/schema";
 
 export const GetSharedSpanImagesSchema = z.object({
   traceId: z.guid(),
@@ -26,40 +29,49 @@ export async function getSharedSpanImages(
     return [];
   }
 
-  const chResult = await clickhouseClient.query({
+  const sharedTrace = await db.query.sharedTraces.findFirst({
+    where: eq(sharedTraces.id, traceId),
+  });
+
+  if (!sharedTrace) {
+    return [];
+  }
+
+  const rows = await executeQuery<{
+    spanId: string;
+    spanName: string;
+    startTime: string;
+    endTime: string;
+    input: string;
+  }>({
     query: `
-      SELECT span_id, name, start_time, end_time, input, output, project_id
+      SELECT
+        span_id as spanId,
+        name as spanName,
+        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
+        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+        input
       FROM spans
       WHERE span_id IN {spanIds: Array(UUID)} AND trace_id = {traceId: UUID}
       ORDER BY start_time ASC
     `,
-    format: "JSONEachRow",
-    query_params: { spanIds, traceId },
+    parameters: { spanIds, traceId },
+    projectId: sharedTrace.projectId,
   });
 
-  const chData = (await chResult.json()) as Array<{
-    span_id: string;
-    name: string;
-    start_time: string;
-    end_time: string;
-    input: string;
-    output: string;
-    project_id: string;
-  }>;
-
-  return chData.flatMap((spanData) => {
+  return rows.flatMap((span) => {
     const inputImages = extractImagesFromMessages(
-      transformMessages(spanData.input, spanData.project_id, "public").messages
+      transformMessages(span.input, sharedTrace.projectId, "public").messages
     );
 
     return inputImages.map(
       (imageUrl): SharedSpanImage => ({
-        spanId: spanData.span_id,
-        spanName: spanData.name,
-        startTime: spanData.start_time,
-        endTime: spanData.end_time,
+        spanId: span.spanId,
+        spanName: span.spanName,
+        startTime: span.startTime,
+        endTime: span.endTime,
         imageUrl,
-        timestamp: new Date(`${spanData.start_time}Z`).getTime(),
+        timestamp: new Date(span.startTime).getTime(),
       })
     );
   });
