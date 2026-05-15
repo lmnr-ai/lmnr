@@ -41,7 +41,7 @@ export default function QueueContent() {
   useEffect(() => {
     if (!isInitialLoaded || trackedRef.current) return;
     trackedRef.current = true;
-    track("labeling_queues", "queue_page_viewed", { count: itemsLen });
+    track("labeling_queues", "queue_page_viewed", { queueId: queue.id, itemsCount: itemsLen });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialLoaded]);
 
