@@ -113,9 +113,9 @@ export default function SchemaDefinitionDialog({
           typeof parsedSchema.properties === "object" && parsedSchema.properties !== null
             ? Object.keys(parsedSchema.properties).length
             : 0;
-        track("labeling_queues", "annotation_schema_saved", { queueId: queue.id, fieldsCount });
+        track("labeling_queues", "annotation_schema_saved", { fieldsCount });
       } else {
-        track("labeling_queues", "annotation_schema_cleared", { queueId: queue.id });
+        track("labeling_queues", "annotation_schema_cleared");
       }
       setIsOpen(false);
       toast({

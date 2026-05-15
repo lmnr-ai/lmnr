@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
@@ -33,17 +33,10 @@ export default function QueueContent() {
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  const trackedQueueIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isInitialLoaded) return;
-    if (trackedQueueIdRef.current === queue.id) return;
-    trackedQueueIdRef.current = queue.id;
-    track("labeling_queues", "queue_page_viewed", { queueId: queue.id, itemsCount: itemsLen });
-    // hydrateIndex flips isInitialLoaded and sets idsList atomically, so itemsLen
-    // is already correct on the run that fires this. Re-running on every item
-    // removal would just be wasted no-ops past the ref guard.
+    track("labeling_queues", "queue_page_viewed", { count: itemsLen });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialLoaded, queue.id]);
+  }, []);
 
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
