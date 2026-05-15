@@ -128,7 +128,6 @@ services:
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2
-      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
   frontend:
     image: ghcr.io/lmnr-ai/frontend
@@ -158,7 +157,19 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
-      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+      # LLM provider for frontend AI features (chat-with-trace, SQL-with-AI).
+      # openai | gemini | bedrock. openai/gemini use LLM_API_KEY (+ optional LLM_BASE_URL);
+      # bedrock uses AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION.
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      # LLM_MODEL_* overrides (optional — per-provider defaults apply when unset).
+      LLM_MODEL_SMALL: ${LLM_MODEL_SMALL}
+      LLM_MODEL_MEDIUM: ${LLM_MODEL_MEDIUM}
+      LLM_MODEL_LARGE: ${LLM_MODEL_LARGE}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
 
 volumes:
   clickhouse-data:

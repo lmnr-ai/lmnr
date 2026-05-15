@@ -254,7 +254,7 @@ export default function EditorPanel() {
                   <div className="text-center text-xs opacity-75">⌘ + ⏎</div>
                 </Button>
               )}
-              <ExportSqlDialog results={results} sqlQuery={template?.query || ""}>
+              <ExportSqlDialog results={results} sqlQuery={template?.query || ""} sqlTemplateId={template?.id}>
                 <Button disabled={!hasQuery} variant="secondary" className="rounded-tl-none rounded-bl-none">
                   <Database className="size-3.5 mr-2" />
                   Export

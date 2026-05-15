@@ -11,7 +11,27 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useQueueStore } from "./queue-store";
+import { useQueueStore } from "../queue-store";
+
+interface SchemaDefinitionDialogProps {
+  /**
+   * Optional controlled `open`. When provided, the dialog renders in
+   * controlled mode and the parent owns the toggle state. The component
+   * exposes its default trigger (the "Define / Edit annotation schema"
+   * button in the panel header) as well, so passing `open` lets a
+   * second trigger (e.g. the empty-state CTA in the Form tab) drive
+   * the same dialog without rendering two separate dialog instances.
+   */
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
+  /**
+   * When false, the default header trigger button is omitted. The parent
+   * is then responsible for rendering its own trigger that toggles `open`.
+   * Useful when the panel header already has its own controls and we only
+   * want the dialog body wired up via the empty-state CTA.
+   */
+  showTrigger?: boolean;
+}
 
 const exampleSchema = {
   type: "object",
@@ -38,7 +58,11 @@ const exampleSchema = {
   required: ["exampleInteger", "exampleEnum", "exampleBoolean", "exampleString"],
 };
 
-export default function SchemaDefinitionDialog() {
+export default function SchemaDefinitionDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  showTrigger = true,
+}: SchemaDefinitionDialogProps = {}) {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { annotationSchema, setAnnotationSchema, queue } = useQueueStore((state) => ({
@@ -47,7 +71,12 @@ export default function SchemaDefinitionDialog() {
     queue: state.queue,
   }));
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const setIsOpen = (next: boolean) => {
+    if (controlledOnOpenChange) controlledOnOpenChange(next);
+    if (controlledOpen === undefined) setInternalOpen(next);
+  };
   const [tempSchema, setTempSchema] = useState(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
   const [isValid, setIsValid] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -70,21 +99,24 @@ export default function SchemaDefinitionDialog() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save annotation schema");
+        const errMessage = await response
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(errMessage ?? "Failed to save annotation schema");
       }
 
       setAnnotationSchema(parsedSchema);
       setIsOpen(false);
       toast({
         title: "Success",
-        description: "Annotation schema saved successfully",
+        description: "Annotation schema saved",
       });
     } catch (error) {
-      console.error("Error saving annotation schema:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save annotation schema. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save annotation schema.",
       });
     } finally {
       setIsSaving(false);
@@ -106,7 +138,6 @@ export default function SchemaDefinitionDialog() {
       }
 
       const parsed = JSON.parse(trimmed);
-      // Basic validation - check if it's an object with properties
       if (typeof parsed === "object" && parsed !== null && parsed.type === "object" && parsed.properties) {
         setIsValid(true);
       } else {
@@ -123,23 +154,24 @@ export default function SchemaDefinitionDialog() {
       onOpenChange={(open) => {
         setIsOpen(open);
         if (open) {
-          // Reset tempSchema when opening dialog
           setTempSchema(annotationSchema ? JSON.stringify(annotationSchema, null, 2) : "");
           setIsValid(true);
         }
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outlinePrimary" icon="braces">
-          Define target schema
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button className="outline-0" variant="secondary" icon="settings">
+            Annotation schema
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="h-[80vh] overflow-hidden max-w-[60vw]">
         <DialogTitle className="hidden invisible" />
         <div className="flex flex-1 flex-col gap-4 overflow-hidden">
           <span className="text-lg font-medium">Define Annotation Schema</span>
           <p className="text-xs text-muted-foreground">
-            Define a JSON Schema to create interactive annotation buttons. Maximum 9 fields supported.
+            Define a JSON Schema to render interactive target fields. Maximum 9 fields supported.
             <br />
             Supported types: string, integer/number (with min/max), boolean, enum
           </p>

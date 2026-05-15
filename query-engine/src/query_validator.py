@@ -174,6 +174,17 @@ class TableRegistry:
             "event_name",
         }
 
+        labeling_queue_items_columns = {
+            "id",
+            "queue_id",
+            "payload",
+            "metadata",
+            "status",
+            "edit",
+            "created_at",
+            "updated_at",
+        }
+
         self.tables["spans"] = TableSchema("spans", spans_columns, "start_time")
         self.tables["traces"] = TableSchema("traces", traces_columns, "start_time")
         self.tables["dataset_datapoints"] = TableSchema(
@@ -231,6 +242,9 @@ class TableRegistry:
             "signal_events", signal_events_columns, "timestamp"
         )
         self.tables["logs"] = TableSchema("logs", logs_columns, "time")
+        self.tables["labeling_queue_items"] = TableSchema(
+            "labeling_queue_items", labeling_queue_items_columns, "created_at"
+        )
 
         clusters_columns = {
             "id",

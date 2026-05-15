@@ -4,6 +4,7 @@ import { Book, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
+import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
 import { IconGitHub } from "@/components/ui/icons";
 import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
@@ -16,6 +17,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -23,21 +25,25 @@ const SidebarFooterComponent = () => {
   const { open, openMobile } = useSidebar();
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
+  const features = useFeatureFlags();
+
   return (
     <SidebarFooter className="px-0 mb-2">
-      <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
-        <SidebarGroupContent>
-          <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
-            <div className="flex justify-between items-start">
-              <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
-              <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={16} />
-              </button>
+      {features.LAMINAR_CLOUD && (
+        <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
+          <SidebarGroupContent>
+            <div className={cn("flex flex-col rounded-lg border bg-muted relative p-2")}>
+              <div className="flex justify-between items-start">
+                <p className="text-xs text-muted-foreground mb-2">Laminar is fully open source</p>
+                <button onClick={() => setShowStarCard(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={16} />
+                </button>
+              </div>
+              <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
             </div>
-            <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      )}
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
@@ -81,6 +87,11 @@ const SidebarFooterComponent = () => {
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
+      {(open || openMobile) && !features.LAMINAR_CLOUD && (
+        <div className="px-5 flex">
+          <VersionBadge />
+        </div>
+      )}
     </SidebarFooter>
   );
 };

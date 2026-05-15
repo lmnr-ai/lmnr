@@ -21,12 +21,14 @@ pub type GeminiResult<T> = Result<T, GeminiError>;
 
 impl GeminiClient {
     pub fn new() -> GeminiResult<Self> {
-        let api_key = env::var("GOOGLE_GENERATIVE_AI_API_KEY").map_err(|_| {
-            GeminiError::config("GOOGLE_GENERATIVE_AI_API_KEY environment variable not set")
-        })?;
+        let api_key = env::var("LLM_API_KEY")
+            .map_err(|_| GeminiError::config("LLM_API_KEY environment variable not set"))?;
 
-        let api_base_url = env::var("GEMINI_API_BASE_URL")
-            .unwrap_or("https://generativelanguage.googleapis.com/v1beta".to_string());
+        let raw_base_url = env::var("LLM_BASE_URL")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());
+        let api_base_url = raw_base_url.trim_end_matches('/').to_string();
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
@@ -39,6 +41,10 @@ impl GeminiClient {
             api_key,
             api_base_url,
         })
+    }
+
+    pub fn api_base_url(&self) -> &str {
+        &self.api_base_url
     }
 
     pub async fn generate_content(
