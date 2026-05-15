@@ -7,6 +7,7 @@ import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type QueueItemState, type QueueItemStateRow } from "@/lib/actions/queue";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 
 import {
@@ -465,6 +466,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 };
               });
               const after = get();
+              track("labeling_queues", "item_approved", { queueId, itemId: current.id });
               if (after.currentIndex < after.idsList.length - 1) after.step(1);
               return { ok: true };
             } catch {
@@ -515,6 +517,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                   progress: computeProgress(nextStates),
                 };
               });
+              track("labeling_queues", "item_unapproved", { queueId, itemId: current.id });
               return { ok: true };
             } catch {
               return { ok: false, error: "Failed to unapprove item" };
@@ -548,6 +551,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: errMessage ?? "Failed to discard item" };
               }
               removeItemLocal(current.id);
+              track("labeling_queues", "item_discarded", { queueId, itemId: current.id });
               await revalidate?.();
               return { ok: true };
             } catch {
@@ -585,8 +589,17 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: errMessage ?? "Failed to push approved items" };
               }
               const result = await res.json();
+              const pushed = result?.pushed ?? 0;
+              if (pushed > 0) {
+                track("labeling_queues", "items_pushed_to_dataset", {
+                  queueId,
+                  datasetId: state.dataset,
+                  scope: opts?.includeUnlabelled ? "all" : "approved",
+                  itemsCount: pushed,
+                });
+              }
               await revalidate?.();
-              return { ok: true, pushed: result?.pushed ?? 0 };
+              return { ok: true, pushed };
             } catch {
               return { ok: false, error: "Failed to push approved items" };
             } finally {
@@ -632,6 +645,12 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: "Item was not pushed — approve it first" };
               }
               removeItemLocal(current.id);
+              track("labeling_queues", "items_pushed_to_dataset", {
+                queueId,
+                datasetId: state.dataset,
+                scope: opts?.includeUnlabelled ? "current_unlabelled" : "current",
+                itemsCount: result.pushed,
+              });
               await revalidate?.();
               return { ok: true, pushed: result.pushed };
             } catch {

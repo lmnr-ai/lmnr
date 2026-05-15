@@ -1,11 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { track } from "@/lib/posthog";
 
 import BottomControls from "./bottom-controls";
 import DataPanel from "./data-panel";
@@ -31,6 +32,14 @@ export default function QueueContent() {
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+
+  const trackedQueueIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isInitialLoaded) return;
+    if (trackedQueueIdRef.current === queue.id) return;
+    trackedQueueIdRef.current = queue.id;
+    track("labeling_queues", "queue_page_viewed", { queueId: queue.id, itemsCount: itemsLen });
+  }, [isInitialLoaded, queue.id, itemsLen]);
 
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
