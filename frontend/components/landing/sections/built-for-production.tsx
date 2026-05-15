@@ -33,7 +33,7 @@ const BuiltForProduction = () => (
       <div className="flex flex-col items-start gap-[52px]">
         <p className={bodyMedium}>
           <span className="text-white">50%</span>
-          {" trace compression\nfor fast ingestion and efficient storage"}
+          {" trace compression for fast\ningestion and efficient storage"}
         </p>
         <p className={bodyMedium}>
           <span className="text-white">Terabytes</span>
