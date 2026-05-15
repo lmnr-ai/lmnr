@@ -15,7 +15,6 @@ import {
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { type Span } from "@/lib/traces/types";
@@ -42,6 +41,12 @@ export const DeleteSpansSchema = z.object({
   projectId: z.guid(),
   spanIds: z.array(z.string()).min(1),
 });
+
+export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> =>
+  executeQuery<{ count: number }>({
+    query: `SELECT count(*) as count FROM spans`,
+    projectId,
+  });
 
 function buildTraceSubquery({
   startTime,
@@ -147,50 +152,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     items,
   };
 }
-
-export const searchSpanIds = async ({
-  projectId,
-  searchQuery,
-  traceId,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  traceId?: string;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  let baseQuery = `
-      SELECT DISTINCT(span_id) spanId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  if (traceId) {
-    baseQuery += ` AND trace_id = {traceId: UUID}`;
-  }
-
-  const finalQuery = `${baseQuery} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const queryParams: Record<string, any> = {
-    projectId,
-    query: `%${searchQuery.toLowerCase()}%`,
-  };
-
-  if (traceId) {
-    queryParams.traceId = traceId;
-  }
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: queryParams,
-  });
-
-  const result = (await response.json()) as { spanId: string }[];
-
-  return result.map((i) => i.spanId);
-};
 
 const getTraceTreeStructure = async ({
   projectId,
