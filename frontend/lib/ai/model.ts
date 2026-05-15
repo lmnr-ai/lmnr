@@ -1,64 +1,88 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 /**
  * Model tiers used across AI features (chat with trace, SQL generation, name generation).
  * Each tier maps to a specific model per provider.
  */
-type ModelTier = "default" | "fast" | "lite";
+type ModelTier = "small" | "medium" | "large";
 
-const GEMINI_MODELS: Record<ModelTier, string> = {
-  default: "gemini-3-flash-preview",
-  fast: "gemini-3-flash-preview",
-  lite: "gemini-3.1-flash-lite-preview",
+type LLMProvider = "openai" | "gemini" | "bedrock";
+
+// Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
+const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
+  gemini: {
+    small: "gemini-3.1-flash-lite",
+    medium: "gemini-3-flash-preview",
+    large: "gemini-3.1-pro-preview",
+  },
+  bedrock: {
+    small: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+    medium: "us.anthropic.claude-sonnet-4-6",
+    large: "us.anthropic.claude-opus-4-7",
+  },
+  openai: {
+    small: "gpt-5.4-mini",
+    medium: "gpt-5.4",
+    large: "gpt-5.5",
+  },
 };
 
-const BEDROCK_MODELS: Record<ModelTier, string> = {
-  default: "global.anthropic.claude-sonnet-4-6",
-  fast: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-  lite: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-};
-
-type AIProvider = "gemini" | "bedrock";
-
-function isGeminiConfigured(): boolean {
-  return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+function hasBedrockCreds(): boolean {
+  return !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_REGION;
 }
 
-function isBedrockConfigured(): boolean {
-  return (
-    process.env.BEDROCK_ENABLED === "true" &&
-    !!process.env.AWS_ACCESS_KEY_ID &&
-    !!process.env.AWS_SECRET_ACCESS_KEY &&
-    !!process.env.AWS_REGION
-  );
+function getConfiguredLLMProvider(): LLMProvider | null {
+  const provider = process.env.LLM_PROVIDER;
+  if (provider === "bedrock") {
+    return hasBedrockCreds() ? "bedrock" : null;
+  }
+  if (provider === "openai" || provider === "gemini") {
+    return process.env.LLM_API_KEY ? provider : null;
+  }
+  return null;
 }
 
-/** Non-throwing check: true when any supported AI provider has credentials configured. */
+/**
+ * Non-throwing check: true when a supported AI provider has credentials configured.
+ * Mirrors the runtime contract of `getLanguageModel` so feature flags gating AI
+ * features don't light up UI that will throw on first call.
+ */
 export function isAiProviderConfigured(): boolean {
-  return isGeminiConfigured() || isBedrockConfigured();
+  return getConfiguredLLMProvider() !== null;
 }
 
-function getActiveProvider(): AIProvider {
-  if (!isAiProviderConfigured()) {
+function resolveModelName(provider: LLMProvider, tier: ModelTier): string {
+  return process.env[`LLM_MODEL_${tier.toUpperCase()}`] || DEFAULT_MODELS[provider][tier];
+}
+
+export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
+  const provider = getConfiguredLLMProvider();
+  if (!provider) {
     throw new Error(
-      "No AI provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini, " +
-        "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
+      "No AI provider configured. Set LLM_PROVIDER to openai, gemini, or bedrock. " +
+        "openai/gemini require LLM_API_KEY (with optional LLM_BASE_URL); " +
+        "bedrock requires AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION."
     );
   }
 
-  return isGeminiConfigured() ? "gemini" : "bedrock";
-}
+  const modelName = resolveModelName(provider, tier);
 
-export function getLanguageModel(tier: ModelTier = "default"): LanguageModel {
-  const provider = getActiveProvider();
-
-  if (provider === "gemini") {
-    const google = createGoogleGenerativeAI();
-    return google(GEMINI_MODELS[tier]);
+  if (provider === "bedrock") {
+    const bedrock = createAmazonBedrock();
+    return bedrock(modelName);
   }
 
-  const bedrock = createAmazonBedrock();
-  return bedrock(BEDROCK_MODELS[tier]);
+  const apiKey = process.env.LLM_API_KEY;
+  const baseURL = process.env.LLM_BASE_URL;
+
+  if (provider === "openai") {
+    const openai = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+    return openai(modelName);
+  }
+
+  const google = createGoogleGenerativeAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  return google(modelName);
 }

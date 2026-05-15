@@ -28,6 +28,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
+        input_dedup::{build_dedup_batch, mark_seen, unmark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -57,7 +58,6 @@ pub async fn process_span_messages(
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
-            span.estimate_size_bytes();
             span.parse_and_enrich_attributes();
             span
         })
@@ -78,6 +78,8 @@ pub async fn process_span_messages(
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
+        // Must run AFTER provider conversion — LangChain rewrites `input`.
+        span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
@@ -111,12 +113,95 @@ pub async fn process_span_messages(
         }
     };
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
+    // Dedup LLM span inputs: insert unique messages first, then stamp hashes
+    // onto each span. If the messages insert fails, unmark Redis and retry.
+    let recordable_indices: Vec<usize> = spans
         .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
+        .enumerate()
+        .filter(|(_, s)| s.should_record_to_clickhouse())
+        .map(|(i, _)| i)
+        .collect();
+    let dedup = {
+        let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
+        build_dedup_batch(&dedup_input, cache.clone()).await
+    };
+
+    if !dedup.messages.is_empty() {
+        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+            .messages
+            .iter()
+            .map(|m| (m.project_id, m.trace_id, m.message_hash))
+            .collect();
+        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+            log::error!(
+                "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                dedup.messages.len(),
+                e
+            );
+            unmark_seen(&keys, cache.clone()).await;
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert llm_messages to Clickhouse: {:?}",
+                e
+            )));
+        }
+        mark_seen(&keys, cache.clone()).await;
+    }
+
+    // Charge each span for its input: dedup'd LLM spans pay for the hash
+    // array + any newly-inserted `llm_messages.content` (shared messages are
+    // billed once, to the first referrer); everything else pays for the raw
+    // JSON. `estimate_size_bytes` intentionally excludes input so this loop
+    // owns the accounting.
+    let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
+    for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+        dedup_lookup.insert(span_idx, dedup_idx);
+    }
+    for (span_idx, span) in spans.iter_mut().enumerate() {
+        let added = if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .map(|h| h.len())
+                .unwrap_or(0);
+            if hashes > 0 {
+                let content_bytes = dedup
+                    .span_content_bytes
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                hashes * 32 + content_bytes
+            } else {
+                span.input
+                    .as_ref()
+                    .map_or(0, crate::utils::estimate_json_size)
+            }
+        } else {
+            span.input
+                .as_ref()
+                .map_or(0, crate::utils::estimate_json_size)
+        };
+        span.increment_size_bytes(added);
+    }
+
+    // Build CHSpans with embedded events and insert to ClickHouse
+    let ch_spans: Vec<CHSpan> = recordable_indices
+        .iter()
+        .enumerate()
+        .map(|(dedup_idx, &span_idx)| {
+            let span = &spans[span_idx];
+            let usage = &span_usage_vec[span_idx];
+            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .cloned()
+                .unwrap_or_default();
+            if !hashes.is_empty() {
+                ch_span.input = String::new();
+                ch_span.input_message_hashes = hashes;
+            }
+            ch_span
+        })
         .collect();
 
     // Record spans to clickhouse
@@ -132,12 +217,7 @@ pub async fn process_span_messages(
         )));
     }
 
-    // Check signal triggers AFTER spans are inserted into ClickHouse
-    // so the signal agent can see the trace data when processing.
-    // The signals entry point handles its own runtime feature gate and
-    // per-project filtering/grouping internally — when the cargo feature
-    // is off (OSS) or the runtime feature is disabled, this returns
-    // immediately without cloning/grouping the traces.
+    // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {
         crate::signals::check_and_push_signals(
             updated_traces,
@@ -151,24 +231,21 @@ pub async fn process_span_messages(
     }
 
     // Send realtime span updates
-    let recordable: Vec<&Span> = spans
-        .iter()
-        .filter(|span| span.should_record_to_clickhouse())
-        .collect();
+    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
 
-    let spans_for_realtime: Vec<Span> = recordable.iter().map(|s| (*s).clone()).collect();
+    let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
     // Non-LLM spans are only indexed if their size is <= 5KB
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
         .filter(|s| {
             s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
         })
         .map(|s| (*s).into())
         .collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
+    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
         .collect();

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
     },
     db::{
         self, DB,
-        projects::ProjectWithWorkspaceBillingInfo,
+        projects::{ProjectWithWorkspaceBillingInfo, WorkspaceTierName},
         usage_warnings::{self, UsageItem},
     },
     mq::MessageQueue,
@@ -204,6 +205,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     Ok(signal_runs >= effective_limit)
 }
 
+#[instrument(skip_all)]
 pub async fn update_workspace_bytes_ingested(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -296,6 +298,7 @@ pub async fn update_workspace_bytes_ingested(
         project_info.reset_time,
         UsageItem::Bytes,
         current_value,
+        &project_info.tier_name,
     )
     .await;
 
@@ -396,6 +399,7 @@ pub async fn update_workspace_signal_steps_processed(
         project_info.reset_time,
         UsageItem::SignalStepsProcessed,
         current_value,
+        &project_info.tier_name,
     )
     .await;
 
@@ -404,6 +408,7 @@ pub async fn update_workspace_signal_steps_processed(
 
 /// Check soft limits (usage warnings) against the current usage value and enqueue
 /// notifications for any warnings that have not yet been sent this billing cycle.
+#[allow(clippy::too_many_arguments)]
 async fn check_soft_limits(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -412,6 +417,7 @@ async fn check_soft_limits(
     reset_time: DateTime<Utc>,
     usage_item: UsageItem,
     current_value: i64,
+    tier_name: &WorkspaceTierName,
 ) {
     let warnings = match get_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
         Ok(w) => w,
@@ -445,6 +451,7 @@ async fn check_soft_limits(
             warning.id,
             &usage_item,
             warning.limit_value,
+            tier_name,
         )
         .await;
     }
@@ -453,6 +460,7 @@ async fn check_soft_limits(
 /// Build and enqueue a soft-limit notification for workspace owners.
 /// Deduplication is handled on the notification-worker side via a short-lived cache
 /// lock, so this function simply constructs the message and pushes it to the queue.
+#[allow(clippy::too_many_arguments)]
 async fn send_soft_limit_notification(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -461,6 +469,7 @@ async fn send_soft_limit_notification(
     warning_id: Uuid,
     usage_item: &UsageItem,
     limit_value: i64,
+    tier_name: &WorkspaceTierName,
 ) {
     let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
         Ok(name) => name,
@@ -482,6 +491,15 @@ async fn send_soft_limit_notification(
         UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
 
+    let tier_included = match usage_item {
+        UsageItem::Bytes => tier_name.included_bytes(),
+        UsageItem::SignalRuns | UsageItem::SignalStepsProcessed => {
+            tier_name.included_signal_steps()
+        }
+    };
+    let at_tier_included_allowance = tier_included == Some(limit_value);
+    let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
+
     let notification_message = NotificationMessage {
         definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
@@ -492,6 +510,9 @@ async fn send_soft_limit_notification(
             usage_label,
             formatted_limit,
             usage_item: usage_item_str.to_string(),
+            at_tier_included_allowance,
+            tier_display_name: tier_name.display_name().to_string(),
+            overage_billable,
         }],
     };
 

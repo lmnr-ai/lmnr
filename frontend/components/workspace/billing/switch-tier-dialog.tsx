@@ -20,6 +20,7 @@ import { track } from "@/lib/posthog";
 interface SwitchTierDialogProps {
   children: ReactNode;
   workspaceId: string;
+  fromTier: PaidTier;
   targetTier: PaidTier;
   action: "upgrade" | "downgrade";
   currentTierName: string;
@@ -32,6 +33,7 @@ interface SwitchTierDialogProps {
 export default function SwitchTierDialog({
   children,
   workspaceId,
+  fromTier,
   targetTier,
   action,
   currentTierName,
@@ -58,7 +60,14 @@ export default function SwitchTierDialog({
           const err = await res.json();
           throw new Error(err.error ?? "Failed to switch tier");
         }
-        track("billing", action === "upgrade" ? "upgrade_confirmed" : "downgrade_confirmed", { to_tier: targetTier });
+        // sendInstantly bypasses posthog-js's batching queue — router.refresh()
+        // below triggers a full RSC re-render that can drop queued events.
+        track(
+          "billing",
+          action === "upgrade" ? "upgrade_confirmed" : "downgrade_confirmed",
+          { from_tier: fromTier, to_tier: targetTier },
+          { sendInstantly: true }
+        );
         setOpen(false);
         router.refresh();
       } catch (e: any) {

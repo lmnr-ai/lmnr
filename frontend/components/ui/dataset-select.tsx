@@ -6,7 +6,7 @@ import useSWR from "swr";
 import CreateDatasetDialog from "@/components/datasets/create-dataset-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { swrFetcher } from "@/lib/api/fetch-api";
-import { type Dataset } from "@/lib/dataset/types";
+import { type Dataset, type DatasetInfo } from "@/lib/dataset/types";
 import { type PaginatedResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,10 @@ interface DatasetSelectProps {
 
 export default function DatasetSelect({ onChange, value, className }: DatasetSelectProps) {
   const { projectId } = useParams();
-  const { data, isLoading } = useSWR<PaginatedResponse<Dataset>>(`/api/projects/${projectId}/datasets`, swrFetcher);
+  const { data, isLoading, mutate } = useSWR<PaginatedResponse<Dataset>>(
+    `/api/projects/${projectId}/datasets`,
+    swrFetcher
+  );
 
   const onValueChange = useCallback(
     (id: string) => {
@@ -26,6 +29,24 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
       if (dataset) onChange(dataset);
     },
     [data?.items, onChange]
+  );
+
+  const onDatasetCreated = useCallback(
+    (dataset: DatasetInfo) => {
+      mutate(
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            items: [dataset as Dataset, ...current.items],
+            totalCount: (current.totalCount ?? current.items.length) + 1,
+          };
+        },
+        { revalidate: false }
+      );
+      onChange(dataset as Dataset);
+    },
+    [mutate, onChange]
   );
 
   return (
@@ -39,7 +60,7 @@ export default function DatasetSelect({ onChange, value, className }: DatasetSel
             {dataset.name}
           </SelectItem>
         ))}
-        <CreateDatasetDialog>
+        <CreateDatasetDialog onUpdate={onDatasetCreated}>
           <div className="relative flex w-full cursor-pointer hover:bg-secondary items-center rounded-sm py-1.5 pl-2 pr-8 text-sm">
             <Plus className="w-3 h-3 mr-2" />
             <span className="text-xs">Create new dataset</span>

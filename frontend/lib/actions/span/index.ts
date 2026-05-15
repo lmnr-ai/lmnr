@@ -158,6 +158,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   const processedInput = await downloadSpanImages(span.input);
 
   await pushQueueItems({
+    projectId,
     queueId,
     items: [
       {

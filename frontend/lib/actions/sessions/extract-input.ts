@@ -24,7 +24,7 @@ export function joinUserParts(parts: TextPart[]): string | null {
   return text.length > 0 ? text : null;
 }
 
-// Structural fingerprint of a user message: sequence of top-level XML-like tags (nested tags ignored), or "plain" for messages with no tags.
+// Sequence of top-level XML-like tags, or "plain" for tag-free messages.
 export function fingerprintUserMessage(input: string): string {
   const TOP_LEVEL_TAG = /<([a-zA-Z_][\w-]*)\b[^>]*>([\s\S]*?)<\/\1\s*>/;
   const parts: string[] = [];
@@ -53,113 +53,277 @@ interface TraceForExtraction {
   parsed: ParsedInput | null;
 }
 
-/**
- * For a group of traces sharing the same system prompt, generate or
- * retrieve a cached regex, then apply it to extract each trace's input.
- */
+type ExtractionPath =
+  | "no-samples"
+  | "cache-hit"
+  | "cache-stale-regenerated"
+  | "cache-miss-regenerated"
+  | "llm-no-regex";
+
+type TraceResult = { inputPreview: string | null; outputPreview: string | null; outputSpan: unknown };
+type ResultsMap = Record<string, TraceResult>;
+
+// For a group of traces sharing a system prompt, retrieve or generate a regex
+// and apply it to extract each trace's input. `results` is mutated in place;
+// trace-io.ts hydrates the full Span afterwards.
 export async function extractInputsForGroup(
   systemHash: string,
   projectId: string,
   traces: TraceForExtraction[],
-  // Accepts any result shape with text preview fields + a nullable outputSpan;
-  // trace-io.ts hydrates the full Span afterwards, this layer only writes text.
-  results: Record<string, { inputPreview: string | null; outputPreview: string | null; outputSpan: unknown }>,
+  results: ResultsMap,
   fingerprint: string = "plain"
 ): Promise<void> {
   const cacheKey = `${REGEX_CACHE_PREFIX}${projectId}:${systemHash}:${fingerprint}`;
 
-  try {
-    const cachedRegex = await cache.get<string>(cacheKey);
-    if (cachedRegex) {
-      let allMatched = true;
-      for (const trace of traces) {
-        const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
-        if (!joinedText) {
-          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
-          continue;
-        }
-        const result = applyRegex(cachedRegex, joinedText);
-        if (result.kind === "extracted") {
-          results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
-        } else if (result.kind === "no-user-request") {
-          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
-        } else {
-          allMatched = false;
-          break;
-        }
+  await observe(
+    {
+      name: "traces:extract-inputs",
+      input: { projectId, systemHash, fingerprint, traceCount: traces.length, cacheKey },
+    },
+    async () => {
+      const cacheOutcome = await tryCachedRegex(cacheKey, traces, results);
+      if (cacheOutcome.cacheHitFullyApplied) {
+        return {
+          path: "cache-hit" satisfies ExtractionPath,
+          extractedFromCache: cacheOutcome.extractedCount,
+          tracesFulfilled: traces.length,
+        };
       }
-      if (allMatched) {
-        await cache.expire(cacheKey, SEVEN_DAYS_SECONDS).catch(() => {});
-        return;
-      }
-      await cache.remove(cacheKey).catch(() => {});
-    }
-  } catch {
-    // ignore cache errors
-  }
 
-  const samples = traces.slice(0, BATCH_SIZE).filter((t) => t.parsed && t.parsed.userParts.length > 0);
-  if (samples.length === 0) {
-    for (const trace of traces) {
-      results[trace.traceId] = {
-        inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
-        outputPreview: trace.output,
-        outputSpan: null,
-      };
-    }
-    return;
-  }
-
-  await observe({ name: "trace-io:extract-trace-inputs", input: { projectId } }, async () => {
-    const allUserParts = samples.map((s) => s.parsed!.userParts);
-    const llmInput = buildDeduplicatedLLMInput(allUserParts);
-    const regex = await generateExtractionRegex(llmInput);
-
-    if (!regex) {
-      for (const trace of traces) {
-        if (!(trace.traceId in results)) {
+      const samples = traces.slice(0, BATCH_SIZE).filter((t) => t.parsed && t.parsed.userParts.length > 0);
+      if (samples.length === 0) {
+        for (const trace of traces) {
           results[trace.traceId] = {
             inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
             outputPreview: trace.output,
             outputSpan: null,
           };
         }
+        return {
+          path: "no-samples" satisfies ExtractionPath,
+          tracesFulfilled: traces.length,
+          previousCacheState: cacheOutcome.cacheState,
+        };
       }
-      return;
+
+      const llmOutcome = await runRegexExtraction(cacheKey, traces, samples, results);
+
+      const path: ExtractionPath = !llmOutcome.regexGenerated
+        ? "llm-no-regex"
+        : cacheOutcome.cacheState === "stale"
+          ? "cache-stale-regenerated"
+          : "cache-miss-regenerated";
+
+      return {
+        path,
+        sampleCount: samples.length,
+        regexGenerated: llmOutcome.regexGenerated,
+        extractedFromLlm: llmOutcome.extractedCount,
+        cachedAfterLlm: llmOutcome.cached,
+        tracesFulfilled: traces.length,
+        previousCacheState: cacheOutcome.cacheState,
+      };
+    }
+  );
+}
+
+interface CacheOutcome {
+  cacheState: "miss" | "hit" | "stale" | "error";
+  cacheHitFullyApplied: boolean;
+  extractedCount: number;
+}
+
+// Cached regex must match EVERY trace; one failure invalidates it and stages
+// are discarded so the regenerated regex owns the whole batch.
+async function tryCachedRegex(
+  cacheKey: string,
+  traces: TraceForExtraction[],
+  results: ResultsMap
+): Promise<CacheOutcome> {
+  return observe({ name: "traces:cache-lookup", input: { cacheKey, traceCount: traces.length } }, async () => {
+    let cachedRegex: string | null = null;
+    let cacheError: string | null = null;
+    try {
+      cachedRegex = await cache.get<string>(cacheKey);
+    } catch (error) {
+      cacheError = error instanceof Error ? error.message : String(error);
     }
 
-    let anyMatch = false;
+    if (cacheError) {
+      return {
+        outcome: { cacheState: "error" as const, cacheHitFullyApplied: false, extractedCount: 0 },
+        error: cacheError,
+      };
+    }
+
+    if (!cachedRegex) {
+      return {
+        outcome: { cacheState: "miss" as const, cacheHitFullyApplied: false, extractedCount: 0 },
+        hit: false,
+      };
+    }
+
+    const stagedResults: ResultsMap = {};
+    let allMatched = true;
+    let extractedCount = 0;
+    let noUserRequestCount = 0;
+    let firstFailureTraceId: string | null = null;
+
     for (const trace of traces) {
       const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
       if (!joinedText) {
-        results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
+        stagedResults[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
         continue;
       }
-      const result = observe({ name: "apply-regex", input: { pattern: regex, text: joinedText } }, () =>
-        applyRegex(regex, joinedText)
+      const result = observe({ name: "apply-regex", input: { pattern: cachedRegex, text: joinedText } }, () =>
+        applyRegex(cachedRegex, joinedText)
       );
       if (result.kind === "extracted") {
-        results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
-        anyMatch = true;
+        stagedResults[trace.traceId] = {
+          inputPreview: result.text,
+          outputPreview: trace.output,
+          outputSpan: null,
+        };
+        extractedCount++;
       } else if (result.kind === "no-user-request") {
-        results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
-        anyMatch = true;
+        stagedResults[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
+        noUserRequestCount++;
       } else {
-        results[trace.traceId] = { inputPreview: joinedText, outputPreview: trace.output, outputSpan: null };
+        allMatched = false;
+        firstFailureTraceId = trace.traceId;
+        break;
       }
     }
 
-    if (anyMatch) {
-      await cache.set(cacheKey, regex, { expireAfterSeconds: SEVEN_DAYS_SECONDS }).catch(() => {});
+    if (allMatched) {
+      Object.assign(results, stagedResults);
+      await cache.expire(cacheKey, SEVEN_DAYS_SECONDS).catch(() => {});
+      return {
+        outcome: {
+          cacheState: "hit" as const,
+          cacheHitFullyApplied: true,
+          extractedCount,
+        },
+        hit: true,
+        ttlRefreshed: true,
+        extractedCount,
+        noUserRequestCount,
+        cachedRegex,
+      };
     }
-  });
+
+    await cache.remove(cacheKey).catch(() => {});
+    return {
+      outcome: {
+        cacheState: "stale" as const,
+        cacheHitFullyApplied: false,
+        extractedCount: 0,
+      },
+      hit: true,
+      invalidated: true,
+      firstFailureTraceId,
+      cachedRegex,
+    };
+  }).then(({ outcome }) => outcome);
 }
 
-/**
- * Build the LLM prompt from multiple traces' user message parts,
- * deduplicating parts that are identical across samples by index
- * and detecting scaffolding structurally for single-sample cases.
- */
+interface LlmOutcome {
+  regexGenerated: boolean;
+  extractedCount: number;
+  cached: boolean;
+}
+
+async function runRegexExtraction(
+  cacheKey: string,
+  traces: TraceForExtraction[],
+  samples: TraceForExtraction[],
+  results: ResultsMap
+): Promise<LlmOutcome> {
+  return observe(
+    {
+      name: "traces:generate-regex",
+      input: { cacheKey, sampleCount: samples.length, traceCount: traces.length },
+    },
+    async () => {
+      const allUserParts = samples.map((s) => s.parsed!.userParts);
+      const llmInput = buildDeduplicatedLLMInput(allUserParts);
+      const regex = await generateExtractionRegex(llmInput);
+
+      if (!regex) {
+        for (const trace of traces) {
+          if (!(trace.traceId in results)) {
+            results[trace.traceId] = {
+              inputPreview: joinUserParts(trace.parsed?.userParts ?? []),
+              outputPreview: trace.output,
+              outputSpan: null,
+            };
+          }
+        }
+        return {
+          outcome: { regexGenerated: false, extractedCount: 0, cached: false },
+          reason: "llm-returned-null",
+        };
+      }
+
+      let anyMatch = false;
+      let extractedCount = 0;
+      let noUserRequestCount = 0;
+      let fallbackToJoinedCount = 0;
+
+      for (const trace of traces) {
+        const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
+        if (!joinedText) {
+          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
+          continue;
+        }
+        const result = observe({ name: "traces:apply-regex", input: { pattern: regex, text: joinedText } }, () =>
+          applyRegex(regex, joinedText)
+        );
+        if (result.kind === "extracted") {
+          results[trace.traceId] = { inputPreview: result.text, outputPreview: trace.output, outputSpan: null };
+          extractedCount++;
+          anyMatch = true;
+        } else if (result.kind === "no-user-request") {
+          results[trace.traceId] = { inputPreview: null, outputPreview: trace.output, outputSpan: null };
+          noUserRequestCount++;
+          anyMatch = true;
+        } else {
+          results[trace.traceId] = { inputPreview: joinedText, outputPreview: trace.output, outputSpan: null };
+          fallbackToJoinedCount++;
+        }
+      }
+
+      let cached = false;
+      if (anyMatch) {
+        cached = await persistRegex(cacheKey, regex);
+      }
+
+      return {
+        outcome: { regexGenerated: true, extractedCount, cached },
+        regex,
+        extractedCount,
+        noUserRequestCount,
+        fallbackToJoinedCount,
+        anyMatch,
+      };
+    }
+  ).then(({ outcome }) => outcome);
+}
+
+// Persist failure is non-fatal; extractions are returned regardless.
+async function persistRegex(cacheKey: string, regex: string): Promise<boolean> {
+  return observe({ name: "traces:cache-save", input: { cacheKey, regex } }, async () => {
+    try {
+      await cache.set(cacheKey, regex, { expireAfterSeconds: SEVEN_DAYS_SECONDS });
+      return { saved: true };
+    } catch (error) {
+      return { saved: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }).then(({ saved }) => saved);
+}
+
+// Dedupes parts identical across samples by index; for a single sample,
+// detects scaffolding structurally so the LLM can ignore it.
 function buildDeduplicatedLLMInput(allParts: TextPart[][]): string {
   if (allParts.length === 1) {
     return buildSingleSampleInput(allParts[0]);

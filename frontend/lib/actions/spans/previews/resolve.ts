@@ -26,15 +26,9 @@ interface ParsedSpan {
   toolName?: string;
 }
 
-/**
- * Classify raw span payloads. Non-generation spans are resolved directly to a
- * truncated string; generation spans with object payloads are returned for
- * further processing by the resolution pipeline.
- *
- * Tool-only LLM outputs are split into one `ParsedSpan` entry per tool so
- * each tool's arguments get their own fingerprint (enabling cache reuse
- * across different tool mixes) and their own preview rendering.
- */
+// Non-generation spans resolve to a truncated string; generation spans go to
+// the pipeline. Tool-only LLM outputs split into one entry per tool so each
+// tool gets its own fingerprint and preview.
 function classifyRawSpans(
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
   spanTypes: Record<string, string>
@@ -64,16 +58,13 @@ function classifyRawSpans(
       case "object": {
         const hint = detectOutputStructure(classification.data);
 
-        // Happy path: provider schema extracts non-empty text/thinking → done.
         const match = matchProviderKey(classification.data, hint);
         if (match && match.rendered.trim() !== "") {
           resolved[raw.spanId] = match.rendered;
           break;
         }
 
-        // No visible text. For LLM outputs, surface every tool block so each
-        // tool's descriptive fields (e.g. input.description) flow through the
-        // pipeline independently instead of rendering nothing.
+        // No visible text — surface each tool block so descriptive fields render.
         const tools =
           spanType === "LLM" || spanType === "CACHED" ? extractToolsIfToolOnly(classification.data, hint) : null;
 
@@ -118,77 +109,99 @@ function fillMissing(previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
   return result;
 }
 
-/**
- * Look up cached LLM-generated Mustache keys by structural fingerprint.
- * Indexed by each ParsedSpan's `key` (not `spanId`) so tool-only entries
- * stay separate.
- */
+// Indexed by ParsedSpan.key (not spanId) so tool-only entries stay separate.
 async function applyCachedKeys(
   projectId: string,
   parsedSpans: ParsedSpan[]
 ): Promise<{ resolved: Record<string, string | null>; uncached: ParsedSpan[] }> {
   const uniqueFingerprints = [...new Set(parsedSpans.map((s) => s.fingerprint))];
 
-  const cachedEntries = await Promise.all(
-    uniqueFingerprints.map(async (fingerprint) => {
-      try {
-        const key = await cache.get<string>(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint));
-        return [fingerprint, key] as const;
-      } catch {
-        return [fingerprint, null] as const;
+  return observe(
+    {
+      name: "previews:cache-lookup",
+      input: {
+        projectId,
+        spanCount: parsedSpans.length,
+        uniqueFingerprintCount: uniqueFingerprints.length,
+        fingerprints: uniqueFingerprints,
+      },
+    },
+    async () => {
+      const cachedEntries = await Promise.all(
+        uniqueFingerprints.map(async (fingerprint) => {
+          try {
+            const key = await cache.get<string>(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint));
+            return [fingerprint, key] as const;
+          } catch {
+            return [fingerprint, null] as const;
+          }
+        })
+      );
+
+      const fingerprintToKey = new Map<string, string>();
+      for (const [fingerprint, key] of cachedEntries) {
+        if (key) fingerprintToKey.set(fingerprint, key);
       }
-    })
-  );
 
-  const fingerprintToKey = new Map<string, string>();
-  for (const [fingerprint, key] of cachedEntries) {
-    if (key) fingerprintToKey.set(fingerprint, key);
-  }
+      const resolved: Record<string, string | null> = {};
+      const uncached: ParsedSpan[] = [];
+      const hitFingerprints = new Set<string>();
+      const staleCachedKeys: Array<{ spanId: string; fingerprint: string; key: string }> = [];
 
-  const resolved: Record<string, string | null> = {};
-  const uncached: ParsedSpan[] = [];
-  const hitFingerprints = new Set<string>();
+      for (const span of parsedSpans) {
+        const cachedKey = fingerprintToKey.get(span.fingerprint);
+        if (!cachedKey) {
+          uncached.push(span);
+          continue;
+        }
 
-  for (const span of parsedSpans) {
-    const cachedKey = fingerprintToKey.get(span.fingerprint);
-    if (!cachedKey) {
-      uncached.push(span);
-      continue;
+        const rendered = observe(
+          { name: "validate-mustache-key", input: { key: cachedKey, data: span.parsedData } },
+          () => validateMustacheKey(cachedKey, span.parsedData)
+        );
+        if (rendered) {
+          resolved[span.key] = rendered;
+          hitFingerprints.add(span.fingerprint);
+        } else {
+          staleCachedKeys.push({ spanId: span.spanId, fingerprint: span.fingerprint, key: cachedKey });
+          uncached.push(span);
+        }
+      }
+
+      await Promise.all(
+        [...hitFingerprints].map((fingerprint) =>
+          cache
+            .expire(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), RENDERING_KEY_TTL_SECONDS)
+            .catch(() => false)
+        )
+      );
+
+      return {
+        resolved,
+        uncached,
+        cacheHitFingerprints: hitFingerprints.size,
+        cacheMissFingerprints: uniqueFingerprints.length - fingerprintToKey.size,
+        spansResolvedFromCache: Object.keys(resolved).length,
+        spansUncached: uncached.length,
+        staleCachedKeys,
+        ttlRefreshed: hitFingerprints.size,
+      };
     }
-
-    const rendered = validateMustacheKey(cachedKey, span.parsedData);
-    if (rendered) {
-      resolved[span.key] = rendered;
-      hitFingerprints.add(span.fingerprint);
-    } else {
-      uncached.push(span);
-    }
-  }
-
-  // Refresh TTL on successful hits so active schemas don't expire.
-  await Promise.all(
-    [...hitFingerprints].map((fingerprint) =>
-      cache.expire(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), RENDERING_KEY_TTL_SECONDS).catch(() => false)
-    )
   );
-
-  return { resolved, uncached };
 }
 
-/**
- * Ask the LLM to generate Mustache keys for remaining structures.
- * Keys that render successfully are persisted back to the cache.
- */
 async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
   resolved: Record<string, string | null>;
   unresolved: ParsedSpan[];
   keysToSave: Array<{ fingerprint: string; key: string }>;
 }> {
-  return observe({ name: "transcript:generate-mustache-keys", input: { spans } }, async () => {
+  return observe({ name: "previews:generate-mustache-keys", input: { spans } }, async () => {
     const resolved: Record<string, string | null> = {};
     const keysToSave: Array<{ fingerprint: string; key: string }> = [];
 
-    if (spans.length === 0) return { resolved, unresolved: [], keysToSave };
+    if (spans.length === 0) {
+      return { resolved, unresolved: [], keysToSave, llmCalled: false, generatedKeys: [] };
+    }
 
     const seen = new Set<string>();
     const dedupedFingerprints: string[] = [];
@@ -210,14 +223,16 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
     }
 
     let generatedKeys: Array<string | null> = [];
+    let llmError: string | null = null;
     try {
       const raw = await generatePreviewKeys(structures);
       generatedKeys = raw.slice(0, dedupedFingerprints.length);
     } catch (error) {
-      console.error("Preview key generation failed:", error);
+      llmError = error instanceof Error ? error.message : String(error);
     }
 
     const unresolved: ParsedSpan[] = [];
+    const skippedKeys: Array<{ fingerprint: string; key: string; groupSize: number }> = [];
 
     for (let i = 0; i < dedupedFingerprints.length; i++) {
       const fingerprint = dedupedFingerprints[i];
@@ -232,8 +247,9 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
       let keyProducedValidRender = false;
 
       for (const span of groupSpans) {
-        const rendered = observe({ name: "validate-mustache-key", input: { key, data: span.parsedData } }, () =>
-          validateMustacheKey(key, span.parsedData)
+        const rendered = observe(
+          { name: "previews:validate-mustache-key", input: { key, data: span.parsedData } },
+          () => validateMustacheKey(key, span.parsedData)
         );
         if (rendered) {
           resolved[span.key] = rendered;
@@ -245,19 +261,28 @@ async function generateKeysViaLlm(spans: ParsedSpan[]): Promise<{
 
       if (keyProducedValidRender) {
         keysToSave.push({ fingerprint, key });
+      } else {
+        skippedKeys.push({ fingerprint, key, groupSize: groupSpans.length });
       }
     }
 
-    return { resolved, unresolved, keysToSave };
+    return {
+      resolved,
+      unresolved,
+      keysToSave,
+      llmCalled: true,
+      llmError,
+      uniqueFingerprints: dedupedFingerprints.length,
+      generatedNonNullKeys: generatedKeys.filter((k) => !!k).length,
+      keysSkippedNoValidRender: skippedKeys,
+      spansResolved: Object.keys(resolved).length,
+      spansUnresolved: unresolved.length,
+    };
   });
 }
 
-/**
- * Last-resort fallback used when the LLM path is unavailable or produced no
- * valid key for a span. Dispatches based on variant: tool-only LLM entries
- * use the strictly descriptive-only heuristic (description/summary/title or
- * null), while generic spans use the full priority-key search.
- */
+// Tool-only entries use the descriptive-only heuristic; generic spans use
+// the full priority-key search.
 function applyHeuristicFallback(spans: ParsedSpan[]): Record<string, string | null> {
   const resolved: Record<string, string | null> = {};
   for (const span of spans) {
@@ -275,16 +300,35 @@ async function saveRenderingKeys(
 ): Promise<void> {
   if (keysToSave.length === 0) return;
 
-  await Promise.all(
-    keysToSave.map(({ fingerprint, key }) =>
-      cache
-        .set(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), key, {
-          expireAfterSeconds: RENDERING_KEY_TTL_SECONDS,
+  await observe(
+    {
+      name: "previews:cache-save",
+      input: { projectId, count: keysToSave.length, entries: keysToSave },
+    },
+    async () => {
+      const failures: Array<{ fingerprint: string; error: string }> = [];
+
+      await Promise.all(
+        keysToSave.map(async ({ fingerprint, key }) => {
+          try {
+            await cache.set(SPAN_RENDERING_KEY_CACHE_KEY(projectId, fingerprint), key, {
+              expireAfterSeconds: RENDERING_KEY_TTL_SECONDS,
+            });
+          } catch (error) {
+            failures.push({
+              fingerprint,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         })
-        .catch((error) => {
-          console.error("Failed to save rendering key:", error);
-        })
-    )
+      );
+
+      return {
+        succeeded: keysToSave.length - failures.length,
+        failed: failures.length,
+        failures,
+      };
+    }
   );
 }
 
@@ -303,7 +347,6 @@ function assembleFinalPreviews(
 ): SpanPreviewResult {
   const result: SpanPreviewResult = {};
 
-  // Group tool-only entries by their real spanId.
   const toolOnlyBySpanId = new Map<string, ParsedSpan[]>();
   for (const span of parsedSpans) {
     if (span.variant === "llm_tool_only") {
@@ -329,17 +372,8 @@ export interface ResolveOptions {
   skipGeneration?: boolean;
 }
 
-/**
- * Run the full preview resolution pipeline on pre-fetched span data:
- *   1. classify raw payloads; resolve inline when a provider schema (OpenAI /
- *      Anthropic / Gemini / LangChain) yields non-empty text/thinking, and
- *      split tool-only LLM outputs into per-tool entries
- *   2. look up cached LLM-generated Mustache keys by fingerprint
- *   3. generate new keys via LLM (when a provider is configured) and persist them
- *   4. fall back to priority-key heuristic for anything still unresolved
- *      (this is the only path for tool spans when no LLM provider is configured)
- *   5. group per-tool results back into one preview string per span
- */
+// Pipeline: classify → cache lookup → LLM generation (if configured) →
+// heuristic fallback → assemble per-tool results back into per-span previews.
 export async function resolvePreviews(
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
   spanIds: string[],
@@ -348,27 +382,69 @@ export async function resolvePreviews(
   options: ResolveOptions = {}
 ): Promise<SpanPreviewResult> {
   const { skipGeneration = false } = options;
-  const { resolved: classified, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
 
-  if (needsProcessing.length === 0) {
-    return fillMissing(classified, spanIds);
-  }
+  return observe(
+    {
+      name: "previews:resolve",
+      input: { projectId, spanCount: spanIds.length, rawSpanCount: rawSpans.length, skipGeneration },
+    },
+    async () => {
+      const { resolved: classified, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
+      const inlineResolvedCount = Object.keys(classified).length;
 
-  const { resolved: cacheResolved, uncached } = await applyCachedKeys(projectId, needsProcessing);
-  let keyResolved: Record<string, string | null> = { ...cacheResolved };
+      if (needsProcessing.length === 0) {
+        return {
+          previews: fillMissing(classified, spanIds),
+          inlineResolved: inlineResolvedCount,
+          needsProcessing: 0,
+          cacheResolved: 0,
+          llmResolved: 0,
+          heuristicResolved: 0,
+          unresolved: 0,
+          path: "inline-only",
+        };
+      }
 
-  if (uncached.length > 0) {
-    const llmAvailable = !skipGeneration && isAiProviderConfigured();
+      const { resolved: cacheResolved, uncached } = await applyCachedKeys(projectId, needsProcessing);
+      let keyResolved: Record<string, string | null> = { ...cacheResolved };
+      const cacheResolvedCount = Object.keys(cacheResolved).length;
+      let llmResolvedCount = 0;
+      let heuristicResolvedCount = 0;
+      let path: "cache-only" | "llm" | "heuristic-fallback" = "cache-only";
 
-    if (!llmAvailable) {
-      keyResolved = { ...keyResolved, ...applyHeuristicFallback(uncached) };
-    } else {
-      const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(uncached);
-      await saveRenderingKeys(projectId, keysToSave);
-      keyResolved = { ...keyResolved, ...llmResolved, ...applyHeuristicFallback(unresolved) };
+      if (uncached.length > 0) {
+        const aiConfigured = isAiProviderConfigured();
+        const llmAvailable = !skipGeneration && aiConfigured;
+
+        if (!llmAvailable) {
+          path = "heuristic-fallback";
+          const heuristic = applyHeuristicFallback(uncached);
+          heuristicResolvedCount = Object.values(heuristic).filter((v) => v !== null).length;
+          keyResolved = { ...keyResolved, ...heuristic };
+        } else {
+          path = "llm";
+          const { resolved: llmResolved, unresolved, keysToSave } = await generateKeysViaLlm(uncached);
+          llmResolvedCount = Object.keys(llmResolved).length;
+          await saveRenderingKeys(projectId, keysToSave);
+          const heuristic = applyHeuristicFallback(unresolved);
+          heuristicResolvedCount = Object.values(heuristic).filter((v) => v !== null).length;
+          keyResolved = { ...keyResolved, ...llmResolved, ...heuristic };
+        }
+      }
+
+      const assembled = assembleFinalPreviews(keyResolved, needsProcessing);
+      const previews = fillMissing({ ...classified, ...assembled }, spanIds);
+
+      return {
+        previews,
+        path,
+        inlineResolved: inlineResolvedCount,
+        needsProcessing: needsProcessing.length,
+        cacheResolved: cacheResolvedCount,
+        llmResolved: llmResolvedCount,
+        heuristicResolved: heuristicResolvedCount,
+        unresolved: Object.values(previews).filter((v) => v === null).length,
+      };
     }
-  }
-
-  const assembled = assembleFinalPreviews(keyResolved, needsProcessing);
-  return fillMissing({ ...classified, ...assembled }, spanIds);
+  ).then((result) => result.previews);
 }

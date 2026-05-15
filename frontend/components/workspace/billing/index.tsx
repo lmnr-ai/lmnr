@@ -235,6 +235,7 @@ export default function WorkspaceBilling({
     return (
       <SwitchTierDialog
         workspaceId={workspace.id}
+        fromTier={currentTierKey as PaidTier}
         targetTier={tierKey as PaidTier}
         action={action as "upgrade" | "downgrade"}
         currentTierName={currentTierInfo?.name ?? workspace.tierName}

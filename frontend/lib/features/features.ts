@@ -1,3 +1,5 @@
+import { isAiProviderConfigured } from "@/lib/ai/model";
+
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
   GITHUB_AUTH = "GITHUB_AUTH",
@@ -16,6 +18,7 @@ export enum Feature {
   CLUSTERING = "CLUSTERING",
   SLACK = "SLACK",
   LANDING = "LANDING",
+  LAMINAR_CLOUD = "LAMINAR_CLOUD",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -88,17 +91,11 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.SIGNALS_ENABLED !== "true") {
       return false;
     }
-    return (
-      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      (process.env.BEDROCK_ENABLED === "true" &&
-        !!process.env.AWS_ACCESS_KEY_ID &&
-        !!process.env.AWS_SECRET_ACCESS_KEY &&
-        !!process.env.AWS_REGION)
-    );
+    return isAiProviderConfigured();
   }
 
   if (feature === Feature.BATCH_SIGNALS) {
-    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return false;
   }
 
   if (feature === Feature.CLUSTERING) {
@@ -121,6 +118,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
+  if (feature === Feature.LAMINAR_CLOUD) {
+    return process.env.LAMINAR_CLOUD === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
