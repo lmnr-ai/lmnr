@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::db::events::Event;
 use crate::db::spans::Span;
+use crate::utils::json_value_to_string;
 use preprocess::{clean_for_indexing, preprocess_text};
 use utils::extract_text_from_json_value;
 
@@ -60,13 +61,13 @@ impl QuickwitIndexedSpan {
         };
         let input = raw_input
             .as_ref()
-            .map(value_to_indexed_string)
+            .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));
 
         let output = span
             .output
             .as_ref()
-            .map(value_to_indexed_string)
+            .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));
 
         let attributes = if span.attributes.raw_attributes.is_empty() {
@@ -86,13 +87,6 @@ impl QuickwitIndexedSpan {
             output,
             attributes,
         }
-    }
-}
-
-fn value_to_indexed_string(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        _ => v.to_string(),
     }
 }
 
