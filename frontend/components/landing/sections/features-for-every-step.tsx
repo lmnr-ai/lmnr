@@ -1,5 +1,7 @@
 import Image from "next/image";
 
+import { cn } from "@/lib/utils";
+
 import { subSection } from "../class-names";
 import LearnMoreLink from "./learn-more-link";
 
@@ -10,13 +12,18 @@ interface CardProps {
   imageAlt: string;
   learnMoreLabel: string;
   learnMoreHref: string;
+  /** Where the screenshot's preserved corner anchors. "top" keeps the app header visible; "bottom" keeps the bottom area visible. */
+  anchor?: "top" | "bottom";
 }
 
-const Card = ({ title, description, imageSrc, imageAlt, learnMoreLabel, learnMoreHref }: CardProps) => (
+const Card = ({ title, description, imageSrc, imageAlt, learnMoreLabel, learnMoreHref, anchor = "top" }: CardProps) => (
   <div className="flex min-w-0 flex-col items-start gap-6">
     <div
-      className="w-full h-[240px] bg-landing-surface-700 border border-landing-surface-500 rounded overflow-hidden flex items-start"
-      style={{ paddingLeft: 40, paddingTop: 32 }}
+      className={cn(
+        "w-full h-[240px] bg-landing-surface-700 border border-landing-surface-500 rounded overflow-hidden flex",
+        anchor === "top" ? "items-start" : "items-end"
+      )}
+      style={anchor === "top" ? { paddingLeft: 40, paddingTop: 32 } : { paddingLeft: 40, paddingBottom: 32 }}
     >
       <Image
         src={imageSrc}
@@ -24,7 +31,10 @@ const Card = ({ title, description, imageSrc, imageAlt, learnMoreLabel, learnMor
         width={1200}
         height={800}
         style={{ aspectRatio: "auto" }}
-        className="max-w-none w-[450px] h-auto border-l border-t border-[#2b2b31] rounded-tl"
+        className={cn(
+          "max-w-none w-[450px] h-auto border-l border-[#2b2b31]",
+          anchor === "top" ? "border-t rounded-tl" : "border-b rounded-bl"
+        )}
       />
     </div>
     <div className="flex flex-col items-start gap-2 w-full">
@@ -71,15 +81,14 @@ const FeaturesForEveryStep = () => (
         learnMoreLabel="Learn more about labeling queues"
         learnMoreHref="https://laminar.sh/docs/queues/quickstart"
       />
-      {/* FLAG: imageSrc path is a placeholder — no /assets/landing/browser-session.png in the repo yet. Add the asset
-          or swap the src before shipping. */}
       <Card
         title="Browser screen recording"
-        description="Replay your agent's browser session alongside the trace — see exactly what the model saw at every step."
+        description="Replay your agent's browser session alongside the trace. See exactly what the model saw at every step."
         imageSrc="/assets/landing/browser-session.png"
         imageAlt="Laminar browser session recording"
         learnMoreLabel="Learn more about browser recordings"
         learnMoreHref="https://laminar.sh/docs/tracing/browser-sessions"
+        anchor="bottom"
       />
     </div>
   </section>

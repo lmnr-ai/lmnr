@@ -94,13 +94,17 @@ const UnderstandWhyTraceView = () => {
               className={cn("flex flex-col shrink-0", allPanelsOpen && "pointer-events-none")}
             >
               {/* Phase 1 — Slack notification: "Get alerts" */}
-              <div ref={stage1Ref} className="h-[90vh] min-w-[320px] relative">
+              <div ref={stage1Ref} className="h-[90vh] min-w-[380px] relative">
                 <div
                   style={{ top: "50vh" }}
                   className="-translate-y-1/2 absolute left-0 flex flex-col justify-start items-start gap-6"
                 >
                   <h2 className={subSection}>{"Get alerts when your agent breaks."}</h2>
-                  <LearnMoreLink label="Learn more about notifications" href="https://laminar.sh/docs/signals" />
+                  <p className={bodyMedium}>
+                    Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings
+                    you in Slack the moment a trace matches.
+                  </p>
+                  <LearnMoreLink label="Learn more about signals" href="https://laminar.sh/docs/signals" />
                 </div>
               </div>
 

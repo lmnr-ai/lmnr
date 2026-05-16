@@ -17,7 +17,7 @@ export type Stage = 1 | 2 | 3 | 4 | 5;
 // Per-stage subtitle for phase 2. Stages without an entry render no
 // subtitle (the title sits alone).
 export const PHASE_2_SUBTITLES: Partial<Record<Stage, string>> = {
-  3: "A clear, concise view of your agent run.",
+  3: "Go from issue description to the exact step that caused it. Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
   4: "See every action on a timeline.",
   5: "Long complex run? Chat with AI about it.",
 };

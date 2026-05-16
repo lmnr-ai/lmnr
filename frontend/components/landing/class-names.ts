@@ -13,4 +13,4 @@ export const subSection =
   "font-manrope font-medium text-white whitespace-pre-line text-2xl leading-7 tracking-[-0.02em]";
 
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
-export const bodyMedium = "font-sans text-landing-text-300 whitespace-pre-line text-lg leading-6";
+export const bodyMedium = "text-white/80 whitespace-pre-line";
