@@ -3,9 +3,23 @@
 //! `llm_messages` and the `spans_v0` view reconstructs the JSON array on read.
 //! Redis is a best-effort "seen recently in this trace" filter; the key
 //! includes `trace_id` because `llm_messages` is trace-scoped.
+//!
+//! ## Producer-side dedup (LAM-1608)
+//!
+//! Hashing + Redis-existence checks run on the producer (HTTP/gRPC ingest)
+//! BEFORE the message hits Rabbit. The producer emits an [`LlmInputDedupPlan`]
+//! per LLM span: full ordered hash list, plus only the contents the consumer
+//! actually needs to insert (i.e. messages we haven't seen recently). Already-
+//! seen messages ride the queue as 32-byte hash references — the wire savings
+//! grow linearly with conversation history depth.
+//!
+//! Redis is still stamped on the consumer side, AFTER the `llm_messages`
+//! insert succeeds, so the "stamp only after success / unmark on failure"
+//! invariant is preserved exactly. Producer never writes to Redis.
 
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -58,28 +72,184 @@ fn canonical_json(value: &Value) -> String {
     }
 }
 
+/// Producer's hash + Redis-status verdict for one LLM span's input messages.
+///
+/// `hashes[i]` is the BLAKE3 hash of input message `i` over canonical JSON.
+/// `new_indices` lists positions inside `hashes` whose contents we are still
+/// shipping (Redis miss + first-occurrence-in-batch). The wire payload of
+/// those messages lives in `new_contents` aligned with `new_indices`, so
+/// `(new_indices[k], new_contents[k])` is one (position, ingest-order
+/// JSON content) pair the consumer must insert into `llm_messages`.
+///
+/// Already-seen messages do NOT travel in `new_contents`: we only ship their
+/// hash. The consumer never tries to read them back — the existing
+/// `llm_messages_dict` lookup at view-read time is the only reader path.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LlmInputDedupPlan {
+    pub hashes: Vec<[u8; 32]>,
+    pub new_indices: Vec<u16>,
+    pub new_contents: Vec<String>,
+}
+
+/// Producer-side: walk an LLM span's array `input`, hash each message,
+/// stamp Redis-already-seen entries as drop-content, and return a plan.
+/// Returns `None` when the span isn't an LLM span or its input isn't a JSON
+/// array — no dedup applies. Redis errors are best-effort: on failure we
+/// treat the message as new (insert path), matching the consumer's prior
+/// behaviour.
+pub async fn build_producer_plan(span: &Span, cache: Arc<Cache>) -> Option<LlmInputDedupPlan> {
+    if !span.is_llm_span() {
+        return None;
+    }
+    let items = match span.input.as_ref()? {
+        Value::Array(items) => items,
+        _ => return None,
+    };
+
+    let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
+    let mut new_indices: Vec<u16> = Vec::new();
+    let mut new_contents: Vec<String> = Vec::new();
+    let mut seen_in_span: std::collections::HashSet<[u8; 32]> = std::collections::HashSet::new();
+
+    for (idx, item) in items.iter().enumerate() {
+        let canonical = canonical_json(item);
+        let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
+        hashes.push(hash);
+
+        // Same hash twice in one span — emit only once.
+        if !seen_in_span.insert(hash) {
+            continue;
+        }
+
+        let key = message_seen_key(span.project_id, span.trace_id, &hash);
+        let already_seen = cache.exists(&key).await.unwrap_or(false);
+        if already_seen {
+            continue;
+        }
+
+        // Store ingest-order JSON (serde_json `preserve_order`) so reads
+        // match the non-dedup path byte-for-byte. Hash stays canonical.
+        let content = sanitize_string(&item.to_string());
+        if let Ok(i) = u16::try_from(idx) {
+            new_indices.push(i);
+            new_contents.push(content);
+        }
+    }
+
+    Some(LlmInputDedupPlan {
+        hashes,
+        new_indices,
+        new_contents,
+    })
+}
+
 /// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` align
 /// with the span order passed in. `span_content_bytes[i]` is the bytes of
 /// `llm_messages.content` span `i` caused to be newly inserted — shared
 /// messages contribute 0 (billed once). `span_new_indices[i]` lists the
 /// 0-based positions inside `span_hashes[i]` that this span was first to
 /// introduce; Quickwit indexing only sees these new messages.
+///
+/// `span_new_message_values[i]` is the Quickwit-ready `Vec<Value>` for span
+/// `i` — exactly the messages at `span_new_indices[i]`, aligned. Pre-built
+/// here because the producer-side path drops `span.input` and the consumer
+/// has no way to recover the originals otherwise; the legacy path mirrors
+/// the same shape from `span.input` for code-path symmetry.
 pub struct DedupBatch {
     pub messages: Vec<CHLlmMessage>,
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
     pub span_new_indices: Vec<Vec<u16>>,
+    pub span_new_message_values: Vec<Vec<Value>>,
 }
 
-/// Hash each LLM span's input messages with BLAKE3 and emit unique rows per
-/// `(project_id, trace_id, hash)`. Non-LLM spans and non-array inputs pass
-/// through with empty hashes. Redis misses/errors fall through to insert.
-pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
+/// Consume the per-span [`LlmInputDedupPlan`]s the producer attached and
+/// build the cross-span insert batch. Across spans we still dedupe by
+/// `(project_id, trace_id, hash)` — the producer's per-span Redis check
+/// can't know about other spans in the same flush, but two spans in one
+/// flush that share a never-yet-seen message must collapse to a single
+/// `llm_messages` row (RMT would merge them anyway, but skipping the
+/// duplicate write avoids transient double-counting in `span_content_bytes`).
+///
+/// Spans without a plan (legacy producers, non-LLM, non-array input) emit
+/// empty hashes — same fall-through as the original consumer-side path.
+pub fn build_dedup_batch_from_plans(
+    spans: &[&Span],
+    plans: &[Option<LlmInputDedupPlan>],
+) -> DedupBatch {
+    debug_assert_eq!(spans.len(), plans.len());
+
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
     let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
+    let mut span_new_message_values: Vec<Vec<Value>> = Vec::with_capacity(spans.len());
     // Key must match `llm_messages` ORDER BY — batches can mix projects.
+    let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
+        std::collections::HashSet::new();
+
+    for (span, plan) in spans.iter().zip(plans.iter()) {
+        let Some(plan) = plan else {
+            span_hashes.push(Vec::new());
+            span_content_bytes.push(0);
+            span_new_indices.push(Vec::new());
+            span_new_message_values.push(Vec::new());
+            continue;
+        };
+
+        // Insertable rows are the producer's `new_indices` filtered to those
+        // that haven't already been emitted earlier in this flush.
+        let mut new_indices: Vec<u16> = Vec::with_capacity(plan.new_indices.len());
+        let mut content_bytes_for_span: usize = 0;
+        // Quickwit indexing reconstructs Values from the producer's stored
+        // ingest-order JSON strings — `span.input` is `None` on the producer
+        // path. Malformed JSON falls through silently; the worst case is an
+        // unindexed message, never a panic.
+        let mut new_values: Vec<Value> = Vec::with_capacity(plan.new_indices.len());
+        for (i, &pos) in plan.new_indices.iter().enumerate() {
+            let hash = plan.hashes[pos as usize];
+            if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
+                continue;
+            }
+            let content = plan.new_contents[i].clone();
+            content_bytes_for_span += content.len();
+            if let Ok(v) = serde_json::from_str::<Value>(&content) {
+                new_values.push(v);
+            }
+            messages.push(CHLlmMessage {
+                project_id: span.project_id,
+                trace_id: span.trace_id,
+                message_hash: hash,
+                content,
+            });
+            new_indices.push(pos);
+        }
+
+        span_hashes.push(plan.hashes.clone());
+        span_content_bytes.push(content_bytes_for_span);
+        span_new_indices.push(new_indices);
+        span_new_message_values.push(new_values);
+    }
+
+    DedupBatch {
+        messages,
+        span_hashes,
+        span_content_bytes,
+        span_new_indices,
+        span_new_message_values,
+    }
+}
+
+/// Legacy on-consumer dedup path, used as a fallback when a `RabbitMqSpanMessage`
+/// arrives without a producer plan (older agents, dev mode, or any future
+/// path that bypasses `publish_span_messages`). Hashes everything in-line and
+/// hits Redis here; the producer-side path is preferred for new traffic.
+pub async fn build_dedup_batch_legacy(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
+    let mut messages: Vec<CHLlmMessage> = Vec::new();
+    let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
+    let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
+    let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
+    let mut span_new_message_values: Vec<Vec<Value>> = Vec::with_capacity(spans.len());
     let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
 
@@ -88,18 +258,21 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
             span_new_indices.push(Vec::new());
+            span_new_message_values.push(Vec::new());
             continue;
         }
         let Some(Value::Array(items)) = span.input.as_ref() else {
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
             span_new_indices.push(Vec::new());
+            span_new_message_values.push(Vec::new());
             continue;
         };
 
         let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
         let mut new_indices: Vec<u16> = Vec::new();
         let mut content_bytes_for_span: usize = 0;
+        let mut new_values: Vec<Value> = Vec::new();
         for (idx, item) in items.iter().enumerate() {
             let canonical = canonical_json(item);
             let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
@@ -115,8 +288,6 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 continue;
             }
 
-            // Store ingest-order JSON (serde_json `preserve_order`) so reads
-            // match the non-dedup path byte-for-byte. Hash stays canonical.
             let content = sanitize_string(&item.to_string());
             content_bytes_for_span += content.len();
             messages.push(CHLlmMessage {
@@ -125,15 +296,15 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
                 message_hash: hash,
                 content,
             });
-            // u16 cap matches the CH column type; LLM inputs > 64k messages
-            // are pathological and would already be truncated upstream.
             if let Ok(i) = u16::try_from(idx) {
                 new_indices.push(i);
+                new_values.push(item.clone());
             }
         }
         span_hashes.push(hashes);
         span_content_bytes.push(content_bytes_for_span);
         span_new_indices.push(new_indices);
+        span_new_message_values.push(new_values);
     }
 
     DedupBatch {
@@ -141,6 +312,7 @@ pub async fn build_dedup_batch(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch
         span_hashes,
         span_content_bytes,
         span_new_indices,
+        span_new_message_values,
     }
 }
 
@@ -216,5 +388,45 @@ mod tests {
         let ha = blake3::hash(canonical_json(&a).as_bytes());
         let hb = blake3::hash(canonical_json(&b).as_bytes());
         assert_eq!(ha.as_bytes(), hb.as_bytes());
+    }
+
+    #[test]
+    fn build_dedup_batch_from_plans_dedupes_across_spans_in_one_flush() {
+        // Two spans sharing the same trace, both shipping the same never-seen
+        // message — the second span must NOT re-insert it; its bytes attribute
+        // to the first referrer only.
+        let project_id = Uuid::nil();
+        let trace_id = Uuid::nil();
+        let hash = [7u8; 32];
+        let plan = LlmInputDedupPlan {
+            hashes: vec![hash],
+            new_indices: vec![0],
+            new_contents: vec![r#"{"role":"user","content":"hi"}"#.to_string()],
+        };
+
+        let span_a = Span {
+            project_id,
+            trace_id,
+            ..Default::default()
+        };
+        let span_b = Span {
+            project_id,
+            trace_id,
+            ..Default::default()
+        };
+        let spans: Vec<&Span> = vec![&span_a, &span_b];
+        let plans = vec![Some(plan.clone()), Some(plan)];
+        let batch = build_dedup_batch_from_plans(&spans, &plans);
+
+        assert_eq!(batch.messages.len(), 1, "shared message inserted once");
+        assert_eq!(batch.span_hashes[0], vec![hash]);
+        assert_eq!(batch.span_hashes[1], vec![hash]);
+        assert_eq!(batch.span_new_indices[0], vec![0u16]);
+        assert!(
+            batch.span_new_indices[1].is_empty(),
+            "second span attributes 0 new bytes"
+        );
+        assert!(batch.span_content_bytes[0] > 0);
+        assert_eq!(batch.span_content_bytes[1], 0);
     }
 }

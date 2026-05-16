@@ -28,7 +28,10 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{build_dedup_batch, mark_seen, unmark_seen},
+        input_dedup::{
+            LlmInputDedupPlan, build_dedup_batch_from_plans, build_dedup_batch_legacy, mark_seen,
+            unmark_seen,
+        },
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -53,36 +56,60 @@ pub async fn process_span_messages(
     ch: impl ClickhouseTrait,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
-    // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
-    let mut spans: Vec<Span> = messages
+    // Producer-side preprocessing already ran `parse_and_enrich_attributes`
+    // and `convert_span_to_provider_format` for `pre_processed` messages.
+    // Re-running on the consumer would double-apply the LangChain rewrite
+    // and double-copy attributes into `span.input`, breaking dedup identity.
+    // Split the wire tuple into parallel `Vec`s keyed by index so plans /
+    // pre-processed flags stay aligned with spans.
+    #[derive(Default)]
+    struct Decoded {
+        span: Span,
+        plan: Option<LlmInputDedupPlan>,
+        pre_processed: bool,
+    }
+    let mut decoded: Vec<Decoded> = messages
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
-            span.parse_and_enrich_attributes();
-            span
+            if !message.pre_processed {
+                span.parse_and_enrich_attributes();
+            }
+            Decoded {
+                span,
+                plan: message.input_dedup,
+                pre_processed: message.pre_processed,
+            }
         })
         .collect();
 
     // Enrich spans with usage info
-    let mut span_usage_vec = Vec::with_capacity(spans.len());
+    let mut span_usage_vec = Vec::with_capacity(decoded.len());
 
-    for span in &mut spans {
+    for d in &mut decoded {
         let span_usage = get_llm_usage_for_span(
-            &mut span.attributes,
+            &mut d.span.attributes,
             db.clone(),
             cache.clone(),
-            &span.name,
-            &span.project_id,
+            &d.span.name,
+            &d.span.project_id,
         )
         .await;
 
-        prepare_span_for_recording(span, &span_usage);
-        convert_span_to_provider_format(span);
+        prepare_span_for_recording(&mut d.span, &span_usage);
+        if !d.pre_processed {
+            convert_span_to_provider_format(&mut d.span);
+        }
         // Must run AFTER provider conversion — LangChain rewrites `input`.
-        span.estimate_size_bytes();
+        d.span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
+
+    // Re-split now that mutation is done — downstream code reads `spans`
+    // and `plans` as separate slices.
+    let (mut spans, plans): (Vec<Span>, Vec<Option<LlmInputDedupPlan>>) =
+        decoded.into_iter().map(|d| (d.span, d.plan)).unzip();
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
@@ -123,7 +150,23 @@ pub async fn process_span_messages(
         .collect();
     let dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-        build_dedup_batch(&dedup_input, cache.clone()).await
+        // If any span in this batch carries a producer plan, take the
+        // plans-based path — the producer already hashed and consulted Redis,
+        // so there's no work to redo. A mixed batch (some with, some without
+        // plans) still works: legacy spans pass `None` and emit empty hashes,
+        // matching the original consumer-side fall-through for non-LLM /
+        // non-array input. Only when EVERY span lacks a plan do we hit the
+        // legacy path that does its own hashing + Redis check.
+        let any_planned = recordable_indices.iter().any(|&i| plans[i].is_some());
+        if any_planned {
+            let dedup_plans: Vec<Option<LlmInputDedupPlan>> = recordable_indices
+                .iter()
+                .map(|&i| plans[i].clone())
+                .collect();
+            build_dedup_batch_from_plans(&dedup_input, &dedup_plans)
+        } else {
+            build_dedup_batch_legacy(&dedup_input, cache.clone()).await
+        }
     };
 
     if !dedup.messages.is_empty() {
@@ -250,8 +293,19 @@ pub async fn process_span_messages(
         .enumerate()
         .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
         .map(|(dedup_idx, s)| {
-            let new_messages = if s.is_llm_span() {
-                build_new_messages_subset(s, &dedup, dedup_idx)
+            // For LLM spans: hand the indexer the pre-built new-messages
+            // `Vec<Value>` from the dedup batch — works for both the producer
+            // path (where `span.input` is `None`) and the legacy path. A span
+            // with no hashes (non-array input or empty plan) gets `None`, so
+            // `from_span` falls through to raw `span.input` for indexing.
+            let new_messages = if s.is_llm_span()
+                && dedup
+                    .span_hashes
+                    .get(dedup_idx)
+                    .map(|h| !h.is_empty())
+                    .unwrap_or(false)
+            {
+                dedup.span_new_message_values.get(dedup_idx).cloned()
             } else {
                 None
             };
@@ -323,30 +377,6 @@ pub async fn process_span_messages(
     }
 
     Ok(())
-}
-
-/// Project the deduped batch's per-span "new" indices back onto this LLM
-/// span's input array. Returns `None` when the span's input isn't a JSON
-/// array (the caller then indexes raw `span.input` verbatim). Returns
-/// `Some(vec![])` when every message was Redis-hot or batch-duplicate —
-/// the Quickwit doc gets an empty input array rather than re-indexing the
-/// whole repeated history.
-fn build_new_messages_subset(
-    span: &Span,
-    dedup: &crate::traces::input_dedup::DedupBatch,
-    dedup_idx: usize,
-) -> Option<Vec<serde_json::Value>> {
-    let items = match span.input.as_ref() {
-        Some(serde_json::Value::Array(items)) => items,
-        _ => return None,
-    };
-    let new_indices = dedup.span_new_indices.get(dedup_idx)?;
-    Some(
-        new_indices
-            .iter()
-            .filter_map(|&i| items.get(i as usize).cloned())
-            .collect(),
-    )
 }
 
 async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
