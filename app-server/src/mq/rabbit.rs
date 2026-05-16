@@ -301,7 +301,10 @@ impl MessageQueueTrait for RabbitMQ {
     fn is_healthy(&self) -> bool {
         let publisher_ok = self.publisher_connection.is_connected();
         if !publisher_ok {
-            log::error!("RabbitMQ readiness: publisher connection is not connected");
+            log::error!(
+                "RabbitMQ readiness: publisher connection is not connected (state: {:?})",
+                self.publisher_connection.current().status().state()
+            );
         }
 
         let consumer_ok = self
@@ -310,7 +313,10 @@ impl MessageQueueTrait for RabbitMQ {
             .map(|c| {
                 let connected = c.is_connected();
                 if !connected {
-                    log::error!("RabbitMQ readiness: consumer connection is not connected");
+                    log::error!(
+                        "RabbitMQ readiness: consumer connection is not connected (state: {:?})",
+                        c.current().status().state()
+                    );
                 }
                 connected
             })
