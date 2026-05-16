@@ -206,12 +206,23 @@ pub fn build_dedup_batch_from_plans(
         // path. Malformed JSON falls through silently; the worst case is an
         // unindexed message, never a panic.
         let mut new_values: Vec<Value> = Vec::with_capacity(plan.new_indices.len());
+        // Defensive: if a malformed plan arrives over the wire (out-of-bounds
+        // `new_indices` / mismatched `new_contents` length), we skip the bad
+        // entries rather than panic and requeue the entire batch forever.
+        // Producer-built plans are always well-formed today; this guards
+        // against future bugs and against the rare corruption-on-deserialise
+        // case.
         for (i, &pos) in plan.new_indices.iter().enumerate() {
-            let hash = plan.hashes[pos as usize];
+            let Some(&hash) = plan.hashes.get(pos as usize) else {
+                continue;
+            };
+            let Some(content) = plan.new_contents.get(i) else {
+                continue;
+            };
             if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
                 continue;
             }
-            let content = plan.new_contents[i].clone();
+            let content = content.clone();
             content_bytes_for_span += content.len();
             if let Ok(v) = serde_json::from_str::<Value>(&content) {
                 new_values.push(v);
@@ -226,82 +237,6 @@ pub fn build_dedup_batch_from_plans(
         }
 
         span_hashes.push(plan.hashes.clone());
-        span_content_bytes.push(content_bytes_for_span);
-        span_new_indices.push(new_indices);
-        span_new_message_values.push(new_values);
-    }
-
-    DedupBatch {
-        messages,
-        span_hashes,
-        span_content_bytes,
-        span_new_indices,
-        span_new_message_values,
-    }
-}
-
-/// Legacy on-consumer dedup path, used as a fallback when a `RabbitMqSpanMessage`
-/// arrives without a producer plan (older agents, dev mode, or any future
-/// path that bypasses `publish_span_messages`). Hashes everything in-line and
-/// hits Redis here; the producer-side path is preferred for new traffic.
-pub async fn build_dedup_batch_legacy(spans: &[&Span], cache: Arc<Cache>) -> DedupBatch {
-    let mut messages: Vec<CHLlmMessage> = Vec::new();
-    let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
-    let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
-    let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
-    let mut span_new_message_values: Vec<Vec<Value>> = Vec::with_capacity(spans.len());
-    let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
-        std::collections::HashSet::new();
-
-    for span in spans {
-        if !span.is_llm_span() {
-            span_hashes.push(Vec::new());
-            span_content_bytes.push(0);
-            span_new_indices.push(Vec::new());
-            span_new_message_values.push(Vec::new());
-            continue;
-        }
-        let Some(Value::Array(items)) = span.input.as_ref() else {
-            span_hashes.push(Vec::new());
-            span_content_bytes.push(0);
-            span_new_indices.push(Vec::new());
-            span_new_message_values.push(Vec::new());
-            continue;
-        };
-
-        let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
-        let mut new_indices: Vec<u16> = Vec::new();
-        let mut content_bytes_for_span: usize = 0;
-        let mut new_values: Vec<Value> = Vec::new();
-        for (idx, item) in items.iter().enumerate() {
-            let canonical = canonical_json(item);
-            let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
-            hashes.push(hash);
-
-            if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
-                continue;
-            }
-
-            let key = message_seen_key(span.project_id, span.trace_id, &hash);
-            let already_seen = cache.exists(&key).await.unwrap_or(false);
-            if already_seen {
-                continue;
-            }
-
-            let content = sanitize_string(&item.to_string());
-            content_bytes_for_span += content.len();
-            messages.push(CHLlmMessage {
-                project_id: span.project_id,
-                trace_id: span.trace_id,
-                message_hash: hash,
-                content,
-            });
-            if let Ok(i) = u16::try_from(idx) {
-                new_indices.push(i);
-                new_values.push(item.clone());
-            }
-        }
-        span_hashes.push(hashes);
         span_content_bytes.push(content_bytes_for_span);
         span_new_indices.push(new_indices);
         span_new_message_values.push(new_values);

@@ -29,7 +29,7 @@ use crate::{
     },
     traces::{
         input_dedup::{
-            LlmInputDedupPlan, build_dedup_batch_from_plans, build_dedup_batch_legacy, mark_seen,
+            LlmInputDedupPlan, build_dedup_batch_from_plans, build_producer_plan, mark_seen,
             unmark_seen,
         },
         provider::convert_span_to_provider_format,
@@ -108,7 +108,7 @@ pub async fn process_span_messages(
 
     // Re-split now that mutation is done — downstream code reads `spans`
     // and `plans` as separate slices.
-    let (mut spans, plans): (Vec<Span>, Vec<Option<LlmInputDedupPlan>>) =
+    let (mut spans, mut plans): (Vec<Span>, Vec<Option<LlmInputDedupPlan>>) =
         decoded.into_iter().map(|d| (d.span, d.plan)).unzip();
 
     // Process trace aggregations and update trace statistics
@@ -148,25 +148,28 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
+    // Mint plans on the consumer for any recordable span that arrived
+    // without one (legacy producers, the `routes/spans.rs::create_span`
+    // path that still bypasses `publish_span_messages`, or any future
+    // bypass). With this normalization the dedup batch sees a uniform
+    // `Vec<Option<LlmInputDedupPlan>>` — no risk of a `None`-plan span
+    // getting silently dropped when batched alongside pre-processed
+    // spans, because every recordable LLM span with array input now has
+    // a plan regardless of which producer path it took. Non-LLM /
+    // non-array-input spans still get `None` (correctly — they have no
+    // dedup work to do).
+    for &idx in &recordable_indices {
+        if plans[idx].is_none() {
+            plans[idx] = build_producer_plan(&spans[idx], cache.clone()).await;
+        }
+    }
     let dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-        // If any span in this batch carries a producer plan, take the
-        // plans-based path — the producer already hashed and consulted Redis,
-        // so there's no work to redo. A mixed batch (some with, some without
-        // plans) still works: legacy spans pass `None` and emit empty hashes,
-        // matching the original consumer-side fall-through for non-LLM /
-        // non-array input. Only when EVERY span lacks a plan do we hit the
-        // legacy path that does its own hashing + Redis check.
-        let any_planned = recordable_indices.iter().any(|&i| plans[i].is_some());
-        if any_planned {
-            let dedup_plans: Vec<Option<LlmInputDedupPlan>> = recordable_indices
-                .iter()
-                .map(|&i| plans[i].clone())
-                .collect();
-            build_dedup_batch_from_plans(&dedup_input, &dedup_plans)
-        } else {
-            build_dedup_batch_legacy(&dedup_input, cache.clone()).await
-        }
+        let dedup_plans: Vec<Option<LlmInputDedupPlan>> = recordable_indices
+            .iter()
+            .map(|&i| plans[i].clone())
+            .collect();
+        build_dedup_batch_from_plans(&dedup_input, &dedup_plans)
     };
 
     if !dedup.messages.is_empty() {
