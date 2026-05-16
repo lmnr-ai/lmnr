@@ -4,6 +4,13 @@
 @plugin 'tailwindcss-animate';
 @plugin '@tailwindcss/typography';
 
+/* Explicit source dirs — Tailwind v4 + Turbopack has documented gaps in
+   auto-detection where arbitrary-value classes (e.g. h-[70vh]) work via HMR
+   but disappear on full page reload, because the Oxide scanner's cold-start
+   candidate set misses files outside Turbopack's initial module graph.
+   Listing the source roots explicitly forces deterministic scanning. */
+@source "../app/**/*.{ts,tsx,js,jsx}";
+@source "../components/**/*.{ts,tsx,js,jsx}";
 @source "../node_modules/streamdown/dist/index.js";
 
 @custom-variant dark (&:is(.dark *));

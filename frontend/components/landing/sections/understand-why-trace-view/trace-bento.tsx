@@ -172,7 +172,9 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
   // (e.g. if we add network-driven signal data that opens the panel), we'll
   // get a flicker. Right now the landing-page store is the only writer.
   useEffect(() => {
-    setSignalsPanelOpen(stage <= 3);
+    // Signals panel stays open through the timeline reveal (stage 4); it
+    // only auto-closes at stage 5 so the span + ask-ai panels have room.
+    setSignalsPanelOpen(stage <= 4);
   }, [stage, setSignalsPanelOpen]);
 
   const llmSpanIds = useMemo(() => spans.filter((s) => s.spanType === SpanType.LLM).map((s) => s.spanId), [spans]);
@@ -219,6 +221,11 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
 
   return (
     <motion.div
+      initial={{
+        borderColor: "rgb(37 37 38 / 0)",
+        backgroundColor: "rgb(15 15 15 / 0)",
+        height: 0,
+      }}
       animate={{
         borderColor: stage >= 3 ? "rgb(37 37 38)" : "rgb(37 37 38 / 0)",
         backgroundColor: stage >= 3 ? "rgb(15 15 15)" : "rgb(15 15 15 / 0)",
@@ -247,6 +254,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
         <div ref={headerRef} className="flex flex-col px-2 pt-1.5 pb-2 shrink-0">
           {/* Row 1 — fades in at stage 3 */}
           <motion.div
+            initial={{ height: 0, opacity: 0 }}
             animate={{ height: stage >= 3 ? ROW1_HEIGHT : 0, opacity: stage >= 3 ? 1 : 0 }}
             transition={TWEEN}
             className="overflow-hidden"
@@ -268,6 +276,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
               marginTop only applies when row 1 is present, so at stages 1-2
               the morph sits flush with the header's top padding. */}
           <motion.div
+            initial={{ maxHeight: SIGNAL_CARD_MAX, marginTop: 0 }}
             animate={{
               maxHeight: signalsPanelOpen ? SIGNAL_CARD_MAX : 0,
               marginTop: stage === 3 ? 8 : 0,
@@ -281,6 +290,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
 
         {/* CONDENSED TIMELINE — appears at stage 4 */}
         <motion.div
+          initial={{ height: 0 }}
           animate={{ height: stage >= 4 ? TIMELINE_HEIGHT : 0 }}
           transition={TWEEN}
           className="overflow-hidden shrink-0"
@@ -294,6 +304,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
             view materializes (stage 3+), not gated to the timeline. Lives in
             production at `trace-panel.tsx` as the panel's own header row. */}
         <motion.div
+          initial={{ height: 0 }}
           animate={{ height: stage >= 3 ? TOOLBAR_HEIGHT : 0 }}
           transition={TWEEN}
           className="overflow-hidden shrink-0"
@@ -349,6 +360,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
       {/* MIDDLE COL — span view. Opens only when the user clicks a span at
           stage 5 (clicks are ignored before then). */}
       <motion.div
+        initial={{ width: 0 }}
         animate={{ width: isShowSpanView ? 360 : 0 }}
         transition={TWEEN}
         className="overflow-hidden h-full shrink-0"
@@ -367,6 +379,7 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
 
       {/* RIGHT COL — ask-ai, appears at stage 5 */}
       <motion.div
+        initial={{ width: 0 }}
         animate={{ width: stage >= 5 ? 360 : 0 }}
         transition={TWEEN}
         className="overflow-hidden h-full shrink-0"
