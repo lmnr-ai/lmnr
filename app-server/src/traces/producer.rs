@@ -18,6 +18,7 @@ use super::{
     SPANS_DATA_PLANE_ROUTING_KEY,
     input_dedup::{LlmInputDedupPlan, build_producer_plan},
     provider::convert_span_to_provider_format,
+    utils::is_top_span,
 };
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -61,16 +62,20 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
     }
 
     let plan = build_producer_plan(span, cache).await;
-    if plan.is_some() && span.parent_span_id.is_some() {
+    if plan.is_some() && span.parent_span_id.is_some() && !is_top_span(span, &span.attributes) {
         // The plan is the source of truth from here on; the consumer rebuilds
         // any per-message Value it needs (Quickwit indexing) from
         // `plan.new_contents`. Dropping `input` is the wire savings.
         //
-        // Exception: root spans (no parent) keep `input` intact because
-        // `TraceAggregation::from_spans` reads it to derive `root_span_input`
-        // (a truncated preview rendered in the trace list). Root spans are
-        // 1 per trace — keeping their full input on the wire costs little —
-        // dedup savings come from the long tail of nested LLM spans.
+        // Carve-outs both protect `TraceAggregation::from_spans`'s
+        // `root_span_input` preview:
+        //   - `parent_span_id.is_none()` — natural OTel root.
+        //   - `is_top_span(...)` — Laminar SDK top span that has an OTel
+        //     parent now, but `prepare_span_for_recording` will null
+        //     `parent_span_id` on the consumer. If we stripped here,
+        //     the trace's `root_span_input` would silently disappear.
+        // Root spans are 1 per trace; dedup savings come from the long
+        // tail of nested LLM spans either way.
         span.input = None;
     }
     plan

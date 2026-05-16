@@ -177,7 +177,7 @@ pub fn skip_span_name(name: &str) -> bool {
     SKIP_SPAN_NAME_REGEX.is_match(name)
 }
 
-fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
+pub(crate) fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     let first_in_ids = span.span_id
         == attributes
             .ids_path()
