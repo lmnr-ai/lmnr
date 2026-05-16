@@ -300,6 +300,13 @@ The frontend uses Husky with lint-staged. Before commits:
 - Responses schemas in `lib/spans/types/openai-responses.ts` deliberately do NOT use `.loose()` — every known field must be listed explicitly. Strict schemas are the detection mechanism: a Chat Completions or LangChain payload must fail to parse here so it can fall through to the right parser. When OpenAI adds a new field, add it to the schema rather than reintroducing `.loose()`.
 - When adding a new provider format, update `ProcessedMessages`, `processMessages`, `buildToolNameMap`, and `renderMessageContent` in `messages.tsx`, and add a renderer component. Tool-call IDs are mapped to tool names via `buildToolNameMap` so tool-result items can show their originating tool name even when the output item only carries `call_id`. Note: `local_shell_call_output` has no `call_id` in the API — key it by `id`.
 
+## RabbitMQ Connections
+
+- `lapin::Connection` does NOT auto-reconnect — once the TCP socket drops it stays disconnected forever. Always wrap it in `ResilientConnection` (`app-server/src/mq/connection.rs`), which spawns a supervisor that listens on `Connection::events_listener()` for `Event::Error`, redials with uncapped exponential backoff, and atomically swaps the live connection in via `ArcSwap`. Callers read the current connection through `current()` on every operation — never cache an `Arc<Connection>` long-term, or you'll keep using a dead one after a swap.
+- The channel pool (`RabbitChannelManager` in `app-server/src/mq/rabbit.rs`) calls `connection.current().create_channel()` per attempt. Channel-level failures (publish promise error, `channel.status().connected() == false`) MUST call `connection.notify_error()` — the events listener catches connection-level tear-downs but not every transient channel-level failure that should still trigger a redial.
+- Liveness (`/health`) is process-only and always returns 200 (`app-server/src/routes/probes.rs`). Readiness (`/ready`) gates on `MessageQueue::is_healthy()` and returns 503 when the connection is mid-reconnect — so k8s steers traffic away during a blip but does NOT kill the pod. Do not re-couple `/health` to MQ state: a 3-replica cluster losing one node would otherwise crashloop the entire app-server fleet while ResilientConnection is doing its job.
+- Quorum queues are already declared (`x-queue-type=quorum` in `main.rs`) so message data survives node loss; the resilience work is purely about client-side reconnect, not durability.
+
 ## Frontend Best Practices
 
 ### One component per file
