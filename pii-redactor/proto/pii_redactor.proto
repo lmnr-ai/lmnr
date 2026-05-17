@@ -3,10 +3,19 @@ syntax = "proto3";
 package pii_redactor;
 
 message RedactRequest {
+    // Each entry must be a stringified JSON value (object, array, or scalar).
+    // The service walks the tree, recursively parses string leaves whose
+    // content is itself stringified JSON, redacts PII from string values,
+    // and returns each entry re-serialized as a JSON string. Object keys are
+    // never redacted; numbers/bools/null are passed through.
     repeated string texts = 1;
     // Optional override for the placeholder format.
     // When empty, defaults to "[REDACTED_{LABEL}]".
     optional string placeholder_format = 2;
+    // Object-key names whose VALUES should be skipped during redaction
+    // (treated as structural metadata, not content). Applied at every nesting
+    // level. If empty, a built-in default list is used.
+    repeated string skip_keys = 3;
 }
 
 message RedactResponse {

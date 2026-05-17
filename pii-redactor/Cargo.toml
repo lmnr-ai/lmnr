@@ -16,7 +16,10 @@ ndarray = "0.17"
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"]}
 prost = "0.14"
 serde = {version = "1", features = ["derive"]}
-serde_json = "1"
+# `preserve_order` keeps object-key order so round-tripped JSON looks like the
+# input (subject to whitespace/indent loss). Required for the strict-JSON
+# contract — caller expects structurally identical output.
+serde_json = {version = "1", features = ["preserve_order"]}
 tokenizers = {version = "0.21", default-features = false, features = ["onig"]}
 tokio = {version = "1", features = ["macros", "rt-multi-thread", "signal"]}
 tonic = "0.14"

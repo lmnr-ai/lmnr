@@ -44,8 +44,16 @@ service PiiRedactorService {
 }
 
 message RedactRequest {
+    // Each entry MUST be a stringified JSON value. The service walks the
+    // tree, recursively parses string leaves whose content is itself
+    // stringified JSON, redacts PII from string values, and returns each
+    // entry re-serialized as a JSON string with the same structure.
     repeated string texts = 1;
     optional string placeholder_format = 2;  // default "[REDACTED_{LABEL}]"
+    // Object-key names whose VALUES should be skipped (structural metadata,
+    // not content). Applied at every nesting level. If empty, a built-in
+    // default list is used (see `DEFAULT_SKIP_KEYS` in `src/json_walker.rs`).
+    repeated string skip_keys = 3;
 }
 
 message RedactResponse {
@@ -54,7 +62,35 @@ message RedactResponse {
 ```
 
 `{LABEL}` is substituted with the base label uppercased
-(e.g. `EMAIL_ADDRESS`).
+(e.g. `PRIVATE_EMAIL`, `PRIVATE_PERSON`, `SECRET`, `ACCOUNT_NUMBER`).
+
+### How redaction works
+
+The OpenAI privacy filter is a token-classification NER model trained on
+natural text. Feeding it raw JSON (escaped quotes, braces, separators)
+destroys its accuracy, so the service pre-processes each input:
+
+1. **Parse** the input as JSON. Reject with `INVALID_ARGUMENT` if it isn't.
+2. **Walk** the tree depth-first. Recursively parse string leaves that
+   themselves contain valid JSON objects/arrays (capped at 8 nesting levels).
+   Drop string values whose object key matches `skip_keys`.
+3. **Render** all redaction-eligible string leaves into a single
+   `key: value\n\nkey: value\n\n...` document that gives the model the same
+   structural cue it has seen thousands of times in training data
+   (form dumps, email signatures, system outputs).
+4. **Tokenise** the rendered document. If it exceeds
+   `PII_MAX_TOKENS_PER_TEXT` (default 24,576), reject with `RESOURCE_EXHAUSTED`.
+5. **Chunk** if the rendered document exceeds `PII_CHUNK_SIZE` (default 512).
+   Sliding windows with `PII_CHUNK_OVERLAP` (default 64) tokens of overlap so
+   entities straddling a boundary are still detected.
+6. **Run inference** on each window, decode BIOES tags into char spans.
+7. **Merge** spans across windows, then **route** each span back to its
+   originating leaf via byte offsets recorded during rendering. Spans
+   landing in key-prefix or separator regions are silently discarded.
+8. **Re-serialise** the JSON tree (object key order preserved). Originally
+   stringified JSON wrappers are re-stringified inside-out.
+
+Object keys are never redacted. Numbers, booleans, and nulls pass through.
 
 ## Performance knobs
 
@@ -64,8 +100,10 @@ Set via flag or env var:
 |-----------------------|-----------------------|---------|---------|
 | `--model-dir`         | `PII_MODEL_DIR`       | `/models` | dir holding the three model files |
 | `--port`              | `PII_PORT`            | `8910`  | gRPC listen port |
-| `--max-seq-len`       | `PII_MAX_SEQ_LEN`     | `512`   | longer texts are truncated |
-| `--max-batch-size`    | `PII_MAX_BATCH_SIZE`  | `32`    | sub-batch size per inference |
+| `--chunk-size`        | `PII_CHUNK_SIZE`      | `512`   | tokens per inference window (longer texts are sliced) |
+| `--chunk-overlap`     | `PII_CHUNK_OVERLAP`   | `64`    | overlap tokens between adjacent windows; sized to cover the longest expected entity |
+| `--max-tokens-per-text` | `PII_MAX_TOKENS_PER_TEXT` | `24576` | per-text hard cap; oversize inputs rejected with `RESOURCE_EXHAUSTED` |
+| `--max-batch-size`    | `PII_MAX_BATCH_SIZE`  | `32`    | reserved for future cross-text window batching |
 | `--max-texts-per-request` | `PII_MAX_TEXTS_PER_REQUEST` | `1024` | reject `Redact` calls with more texts than this |
 | `--intra-threads`     | `PII_INTRA_THREADS`   | `0`     | ORT op-level threads (0 = ORT default) |
 | `--inter-threads`     | `PII_INTER_THREADS`   | `1`     | ORT inter-op threads |
@@ -222,9 +260,10 @@ fine to leave; the service ignores them.
 
 ## Testing the service
 
-Once running on `localhost:8910`:
+Once running on `localhost:8910`. Remember: **every entry in `texts` must be
+stringified JSON.** Plain strings will be rejected with `INVALID_ARGUMENT`.
 
-### grpcurl
+### grpcurl — simple message
 
 ```bash
 # install grpcurl: https://github.com/fullstorydev/grpcurl
@@ -233,8 +272,7 @@ grpcurl -plaintext \
   -proto pii_redactor.proto \
   -d '{
     "texts": [
-      "Hi, my name is Jane Doe and my email is jane@example.com.",
-      "Call me at +1-415-555-0123."
+      "{\"content\":\"Hi, my name is Jane Doe and my email is jane@example.com. Call me at +1-415-555-0123.\"}"
     ]
   }' \
   localhost:8910 pii_redactor.PiiRedactorService/Redact
@@ -245,10 +283,51 @@ Expected output (labels depend on the model):
 ```json
 {
   "texts": [
-    "Hi, my name is [REDACTED_PERSON] and my email is [REDACTED_EMAIL_ADDRESS].",
-    "Call me at [REDACTED_PHONE_NUMBER]."
+    "{\"content\":\"Hi, my name is[REDACTED_PRIVATE_PERSON] and my email is[REDACTED_PRIVATE_EMAIL]. Call me at[REDACTED_PRIVATE_PHONE].\"}"
   ]
 }
+```
+
+### grpcurl — nested Anthropic-style tool_result
+
+Recursive parsing handles stringified-JSON values inside the tree. The
+default `skip_keys` list suppresses structural fields like `tool_use_id`,
+`type`, `role`, `cache_control`, etc.
+
+```bash
+grpcurl -plaintext \
+  -import-path pii-redactor/proto \
+  -proto pii_redactor.proto \
+  -d '{
+    "texts": [
+      "{\"content\":[{\"content\":[{\"text\":\"{\\\"account_id\\\":\\\"apn_1KhW56n\\\"}\",\"type\":\"text\"}],\"tool_use_id\":\"toolu_bdrk_01K8\",\"type\":\"tool_result\"}],\"role\":\"user\"}"
+    ]
+  }' \
+  localhost:8910 pii_redactor.PiiRedactorService/Redact
+```
+
+Expected output — `account_id` gets `[REDACTED_SECRET]` because the model
+sees the `account_id:` key as PII context; structural keys are untouched:
+
+```json
+{
+  "texts": [
+    "{\"content\":[{\"content\":[{\"text\":\"{\\\"account_id\\\":\\\"[REDACTED_SECRET]\\\"}\",\"type\":\"text\"}],\"tool_use_id\":\"toolu_bdrk_01K8\",\"type\":\"tool_result\"}],\"role\":\"user\"}"
+  ]
+}
+```
+
+### Overriding `skip_keys`
+
+Pass an explicit list to replace the defaults entirely:
+
+```bash
+grpcurl -plaintext -import-path pii-redactor/proto -proto pii_redactor.proto \
+  -d '{
+    "texts": ["{\"my_field\":\"sensitive\",\"other\":\"keep\"}"],
+    "skip_keys": ["other"]
+  }' \
+  localhost:8910 pii_redactor.PiiRedactorService/Redact
 ```
 
 ### Python
@@ -264,14 +343,21 @@ import pii_redactor_pb2_grpc
 #     --python_out=. --grpc_python_out=. \
 #     pii-redactor/proto/pii_redactor.proto
 
+import json
+
 ch = grpc.insecure_channel("localhost:8910")
 stub = pii_redactor_pb2_grpc.PiiRedactorServiceStub(ch)
-resp = stub.Redact(pii_redactor_pb2.RedactRequest(texts=[
-    "Hi, my name is Jane Doe and my email is jane@example.com.",
-    "Call me at +1-415-555-0123.",
-]))
-for t in resp.texts:
-    print(t)
+
+# Each entry MUST be a stringified JSON value.
+payloads = [
+    {"content": "Hi, my name is Jane Doe. Call me at +1-415-555-0123."},
+    {"messages": [{"role": "user", "content": "Email me at jane@example.com"}]},
+]
+resp = stub.Redact(pii_redactor_pb2.RedactRequest(
+    texts=[json.dumps(p) for p in payloads],
+))
+for raw in resp.texts:
+    print(json.loads(raw))  # back to dict, structurally identical
 ```
 
 ### Smoke test that the service comes up
