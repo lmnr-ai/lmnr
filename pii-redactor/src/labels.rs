@@ -52,9 +52,14 @@ impl LabelMap {
     }
 
     pub fn lookup(&self, id: u32) -> &str {
-        self.id_to_label
-            .get(id as usize)
-            .map(String::as_str)
-            .unwrap_or("O")
+        // Out-of-bounds and in-bounds-but-unmapped (gap) ids both fall back
+        // to "O"; the gap case would otherwise be the empty-string default
+        // from vec![String::new(); max_id + 1] and split_bioes would
+        // misclassify it as an unprefixed PII label, redacting to
+        // "[REDACTED_]".
+        match self.id_to_label.get(id as usize).map(String::as_str) {
+            Some(s) if !s.is_empty() => s,
+            _ => "O",
+        }
     }
 }
