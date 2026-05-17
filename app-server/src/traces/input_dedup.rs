@@ -7,7 +7,7 @@
 //! ## Producer-side dedup (LAM-1608)
 //!
 //! Hashing + Redis-existence checks run on the producer (HTTP/gRPC ingest)
-//! BEFORE the message hits Rabbit. The producer emits an [`LlmInputDedupPlan`]
+//! BEFORE the message hits Rabbit. The producer emits an [`LlmInputDedup`]
 //! per LLM span: full ordered hash list, plus only the contents the consumer
 //! actually needs to insert (i.e. messages we haven't seen recently). Already-
 //! seen messages ride the queue as 32-byte hash references — the wire savings
@@ -85,19 +85,19 @@ fn canonical_json(value: &Value) -> String {
 /// hash. The consumer never tries to read them back — the existing
 /// `llm_messages_dict` lookup at view-read time is the only reader path.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LlmInputDedupPlan {
+pub struct LlmInputDedup {
     pub hashes: Vec<[u8; 32]>,
     pub new_indices: Vec<u16>,
     pub new_contents: Vec<String>,
 }
 
 /// Producer-side: walk an LLM span's array `input`, hash each message,
-/// stamp Redis-already-seen entries as drop-content, and return a plan.
-/// Returns `None` when the span isn't an LLM span or its input isn't a JSON
-/// array — no dedup applies. Redis errors are best-effort: on failure we
-/// treat the message as new (insert path), matching the consumer's prior
-/// behaviour.
-pub async fn build_producer_plan(span: &Span, cache: Arc<Cache>) -> Option<LlmInputDedupPlan> {
+/// stamp Redis-already-seen entries as drop-content, and return the dedup
+/// verdict. Returns `None` when the span isn't an LLM span or its input
+/// isn't a JSON array — no dedup applies. Redis errors are best-effort: on
+/// failure we treat the message as new (insert path), matching the
+/// consumer's prior behaviour.
+pub async fn build_dedup(span: &Span, cache: Arc<Cache>) -> Option<LlmInputDedup> {
     if !span.is_llm_span() {
         return None;
     }
@@ -136,7 +136,7 @@ pub async fn build_producer_plan(span: &Span, cache: Arc<Cache>) -> Option<LlmIn
         }
     }
 
-    Some(LlmInputDedupPlan {
+    Some(LlmInputDedup {
         hashes,
         new_indices,
         new_contents,
@@ -163,7 +163,7 @@ pub struct DedupBatch {
     pub span_new_message_values: Vec<Vec<Value>>,
 }
 
-/// Consume the per-span [`LlmInputDedupPlan`]s the producer attached and
+/// Consume the per-span [`LlmInputDedup`]s the producer attached and
 /// build the cross-span insert batch. Across spans we still dedupe by
 /// `(project_id, trace_id, hash)` — the producer's per-span Redis check
 /// can't know about other spans in the same flush, but two spans in one
@@ -171,13 +171,13 @@ pub struct DedupBatch {
 /// `llm_messages` row (RMT would merge them anyway, but skipping the
 /// duplicate write avoids transient double-counting in `span_content_bytes`).
 ///
-/// Spans without a plan (legacy producers, non-LLM, non-array input) emit
+/// Spans without a dedup (legacy producers, non-LLM, non-array input) emit
 /// empty hashes — same fall-through as the original consumer-side path.
-pub fn build_dedup_batch_from_plans(
+pub fn build_dedup_batch(
     spans: &[&Span],
-    plans: &[Option<LlmInputDedupPlan>],
+    dedups: &[Option<LlmInputDedup>],
 ) -> DedupBatch {
-    debug_assert_eq!(spans.len(), plans.len());
+    debug_assert_eq!(spans.len(), dedups.len());
 
     let mut messages: Vec<CHLlmMessage> = Vec::new();
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
@@ -188,8 +188,8 @@ pub fn build_dedup_batch_from_plans(
     let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
 
-    for (span, plan) in spans.iter().zip(plans.iter()) {
-        let Some(plan) = plan else {
+    for (span, dedup) in spans.iter().zip(dedups.iter()) {
+        let Some(dedup) = dedup else {
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
             span_new_indices.push(Vec::new());
@@ -199,24 +199,24 @@ pub fn build_dedup_batch_from_plans(
 
         // Insertable rows are the producer's `new_indices` filtered to those
         // that haven't already been emitted earlier in this flush.
-        let mut new_indices: Vec<u16> = Vec::with_capacity(plan.new_indices.len());
+        let mut new_indices: Vec<u16> = Vec::with_capacity(dedup.new_indices.len());
         let mut content_bytes_for_span: usize = 0;
         // Quickwit indexing reconstructs Values from the producer's stored
         // ingest-order JSON strings — `span.input` is `None` on the producer
         // path. Malformed JSON falls through silently; the worst case is an
         // unindexed message, never a panic.
-        let mut new_values: Vec<Value> = Vec::with_capacity(plan.new_indices.len());
-        // Defensive: if a malformed plan arrives over the wire (out-of-bounds
+        let mut new_values: Vec<Value> = Vec::with_capacity(dedup.new_indices.len());
+        // Defensive: if a malformed dedup arrives over the wire (out-of-bounds
         // `new_indices` / mismatched `new_contents` length), we skip the bad
         // entries rather than panic and requeue the entire batch forever.
-        // Producer-built plans are always well-formed today; this guards
+        // Producer-built dedups are always well-formed today; this guards
         // against future bugs and against the rare corruption-on-deserialise
         // case.
-        for (i, &pos) in plan.new_indices.iter().enumerate() {
-            let Some(&hash) = plan.hashes.get(pos as usize) else {
+        for (i, &pos) in dedup.new_indices.iter().enumerate() {
+            let Some(&hash) = dedup.hashes.get(pos as usize) else {
                 continue;
             };
-            let Some(content) = plan.new_contents.get(i) else {
+            let Some(content) = dedup.new_contents.get(i) else {
                 continue;
             };
             if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
@@ -236,7 +236,7 @@ pub fn build_dedup_batch_from_plans(
             new_indices.push(pos);
         }
 
-        span_hashes.push(plan.hashes.clone());
+        span_hashes.push(dedup.hashes.clone());
         span_content_bytes.push(content_bytes_for_span);
         span_new_indices.push(new_indices);
         span_new_message_values.push(new_values);
@@ -326,14 +326,14 @@ mod tests {
     }
 
     #[test]
-    fn build_dedup_batch_from_plans_dedupes_across_spans_in_one_flush() {
+    fn build_dedup_batch_dedupes_across_spans_in_one_flush() {
         // Two spans sharing the same trace, both shipping the same never-seen
         // message — the second span must NOT re-insert it; its bytes attribute
         // to the first referrer only.
         let project_id = Uuid::nil();
         let trace_id = Uuid::nil();
         let hash = [7u8; 32];
-        let plan = LlmInputDedupPlan {
+        let dedup = LlmInputDedup {
             hashes: vec![hash],
             new_indices: vec![0],
             new_contents: vec![r#"{"role":"user","content":"hi"}"#.to_string()],
@@ -350,8 +350,8 @@ mod tests {
             ..Default::default()
         };
         let spans: Vec<&Span> = vec![&span_a, &span_b];
-        let plans = vec![Some(plan.clone()), Some(plan)];
-        let batch = build_dedup_batch_from_plans(&spans, &plans);
+        let dedups = vec![Some(dedup.clone()), Some(dedup)];
+        let batch = build_dedup_batch(&spans, &dedups);
 
         assert_eq!(batch.messages.len(), 1, "shared message inserted once");
         assert_eq!(batch.span_hashes[0], vec![hash]);

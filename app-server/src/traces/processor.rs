@@ -29,8 +29,7 @@ use crate::{
     },
     traces::{
         input_dedup::{
-            LlmInputDedupPlan, build_dedup_batch_from_plans, build_producer_plan, mark_seen,
-            unmark_seen,
+            LlmInputDedup, build_dedup, build_dedup_batch, mark_seen, unmark_seen,
         },
         provider::convert_span_to_provider_format,
         realtime::{
@@ -60,56 +59,43 @@ pub async fn process_span_messages(
     // and `convert_span_to_provider_format` for `pre_processed` messages.
     // Re-running on the consumer would double-apply the LangChain rewrite
     // and double-copy attributes into `span.input`, breaking dedup identity.
-    // Split the wire tuple into parallel `Vec`s keyed by index so plans /
-    // pre-processed flags stay aligned with spans.
-    #[derive(Default)]
-    struct Decoded {
-        span: Span,
-        plan: Option<LlmInputDedupPlan>,
-        pre_processed: bool,
-    }
-    let mut decoded: Vec<Decoded> = messages
+    let mut messages: Vec<RabbitMqSpanMessage> = messages
         .into_par_iter()
-        .map(|message| {
-            let mut span = message.span;
+        .map(|mut message| {
             if !message.pre_processed {
-                span.parse_and_enrich_attributes();
+                message.span.parse_and_enrich_attributes();
             }
-            Decoded {
-                span,
-                plan: message.input_dedup,
-                pre_processed: message.pre_processed,
-            }
+            message
         })
         .collect();
 
     // Enrich spans with usage info
-    let mut span_usage_vec = Vec::with_capacity(decoded.len());
+    let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    for d in &mut decoded {
+    for m in &mut messages {
         let span_usage = get_llm_usage_for_span(
-            &mut d.span.attributes,
+            &mut m.span.attributes,
             db.clone(),
             cache.clone(),
-            &d.span.name,
-            &d.span.project_id,
+            &m.span.name,
+            &m.span.project_id,
         )
         .await;
 
-        prepare_span_for_recording(&mut d.span, &span_usage);
-        if !d.pre_processed {
-            convert_span_to_provider_format(&mut d.span);
+        prepare_span_for_recording(&mut m.span, &span_usage);
+        if !m.pre_processed {
+            convert_span_to_provider_format(&mut m.span);
         }
         // Must run AFTER provider conversion — LangChain rewrites `input`.
-        d.span.estimate_size_bytes();
+        m.span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
 
-    // Re-split now that mutation is done — downstream code reads `spans`
-    // and `plans` as separate slices.
-    let (mut spans, mut plans): (Vec<Span>, Vec<Option<LlmInputDedupPlan>>) =
-        decoded.into_iter().map(|d| (d.span, d.plan)).unzip();
+    // Split into parallel `Vec`s — downstream code reads `spans` and
+    // `dedups` as separate slices keyed by index.
+    let (mut spans, mut dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) =
+        messages.into_iter().map(|m| (m.span, m.input_dedup)).unzip();
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
@@ -148,28 +134,28 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    // Mint plans on the consumer for any recordable span that arrived
+    // Mint dedups on the consumer for any recordable span that arrived
     // without one (legacy producers, the `routes/spans.rs::create_span`
     // path that still bypasses `publish_span_messages`, or any future
     // bypass). With this normalization the dedup batch sees a uniform
-    // `Vec<Option<LlmInputDedupPlan>>` — no risk of a `None`-plan span
+    // `Vec<Option<LlmInputDedup>>` — no risk of a `None`-dedup span
     // getting silently dropped when batched alongside pre-processed
     // spans, because every recordable LLM span with array input now has
-    // a plan regardless of which producer path it took. Non-LLM /
+    // a dedup regardless of which producer path it took. Non-LLM /
     // non-array-input spans still get `None` (correctly — they have no
     // dedup work to do).
     for &idx in &recordable_indices {
-        if plans[idx].is_none() {
-            plans[idx] = build_producer_plan(&spans[idx], cache.clone()).await;
+        if dedups[idx].is_none() {
+            dedups[idx] = build_dedup(&spans[idx], cache.clone()).await;
         }
     }
     let dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-        let dedup_plans: Vec<Option<LlmInputDedupPlan>> = recordable_indices
+        let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
             .iter()
-            .map(|&i| plans[i].clone())
+            .map(|&i| dedups[i].clone())
             .collect();
-        build_dedup_batch_from_plans(&dedup_input, &dedup_plans)
+        build_dedup_batch(&dedup_input, &recordable_dedups)
     };
 
     if !dedup.messages.is_empty() {

@@ -6,7 +6,7 @@
 //! drop already-seen LLM input messages BEFORE the message hits Rabbit.
 //! Already-seen messages ride the wire as 32-byte hashes only, so the queue
 //! payload shrinks proportionally with conversation history depth. The
-//! consumer trusts the producer's plan and never re-hashes.
+//! consumer trusts the producer's dedup verdict and never re-hashes.
 
 use std::sync::Arc;
 
@@ -17,7 +17,7 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_ROUTING_KEY,
-    input_dedup::{LlmInputDedupPlan, build_producer_plan},
+    input_dedup::{LlmInputDedup, build_dedup},
     provider::convert_span_to_provider_format,
     utils::is_top_span,
 };
@@ -42,13 +42,13 @@ use crate::{
 ///   1. parse + enrich attributes (input/output extraction from OTel attrs)
 ///   2. provider conversion (LangChain rewrites `input`)
 ///   3. prompt-hash extraction (system message → `lmnr.span.prompt_hash`)
-///   4. structural input dedup plan vs Redis
+///   4. structural input dedup verdict vs Redis
 ///
-/// On success, replaces `span.input` with `None` whenever a plan is produced
-/// — the plan carries everything the consumer needs (full hash list, new
+/// On success, replaces `span.input` with `None` whenever a dedup is produced
+/// — the verdict carries everything the consumer needs (full hash list, new
 /// indices, new contents). For non-LLM spans / non-array inputs `input` is
 /// untouched.
-async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmInputDedupPlan> {
+async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmInputDedup> {
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
 
@@ -62,11 +62,11 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
         }
     }
 
-    let plan = build_producer_plan(span, cache).await;
-    if plan.is_some() && span.parent_span_id.is_some() && !is_top_span(span, &span.attributes) {
-        // The plan is the source of truth from here on; the consumer rebuilds
+    let dedup = build_dedup(span, cache).await;
+    if dedup.is_some() && span.parent_span_id.is_some() && !is_top_span(span, &span.attributes) {
+        // The dedup is the source of truth from here on; the consumer rebuilds
         // any per-message Value it needs (Quickwit indexing) from
-        // `plan.new_contents`. Dropping `input` is the wire savings.
+        // `dedup.new_contents`. Dropping `input` is the wire savings.
         //
         // Carve-outs both protect `TraceAggregation::from_spans`'s
         // `root_span_input` preview:
@@ -79,7 +79,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
         // tail of nested LLM spans either way.
         span.input = None;
     }
-    plan
+    dedup
 }
 
 /// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
@@ -102,9 +102,9 @@ pub async fn publish_span_messages(
         if msg.pre_processed {
             continue;
         }
-        let plan = preprocess_for_queue(&mut msg.span, cache.clone()).await;
+        let dedup = preprocess_for_queue(&mut msg.span, cache.clone()).await;
         msg.pre_processed = true;
-        msg.input_dedup = plan;
+        msg.input_dedup = dedup;
     }
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
