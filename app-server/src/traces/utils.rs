@@ -226,7 +226,14 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
         span.parent_span_id = None;
     }
 
-    if span.is_llm_span() {
+    // Skip if the producer already wrote the hash; legacy / bypass
+    // ingest paths still rely on this fallback.
+    if span.is_llm_span()
+        && !span
+            .attributes
+            .raw_attributes
+            .contains_key(SPAN_PROMPT_HASH)
+    {
         if let Some(hash) = compute_prompt_hash(&span.input) {
             span.attributes
                 .raw_attributes

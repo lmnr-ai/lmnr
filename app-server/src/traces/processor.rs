@@ -28,9 +28,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{
-            LlmInputDedup, build_dedup, build_dedup_batch, mark_seen, unmark_seen,
-        },
+        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen, unmark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -94,8 +92,10 @@ pub async fn process_span_messages(
 
     // Split into parallel `Vec`s — downstream code reads `spans` and
     // `dedups` as separate slices keyed by index.
-    let (mut spans, mut dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) =
-        messages.into_iter().map(|m| (m.span, m.input_dedup)).unzip();
+    let (mut spans, dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) = messages
+        .into_iter()
+        .map(|m| (m.span, m.input_dedup))
+        .unzip();
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
@@ -134,21 +134,6 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    // Mint dedups on the consumer for any recordable span that arrived
-    // without one (legacy producers, the `routes/spans.rs::create_span`
-    // path that still bypasses `publish_span_messages`, or any future
-    // bypass). With this normalization the dedup batch sees a uniform
-    // `Vec<Option<LlmInputDedup>>` — no risk of a `None`-dedup span
-    // getting silently dropped when batched alongside pre-processed
-    // spans, because every recordable LLM span with array input now has
-    // a dedup regardless of which producer path it took. Non-LLM /
-    // non-array-input spans still get `None` (correctly — they have no
-    // dedup work to do).
-    for &idx in &recordable_indices {
-        if dedups[idx].is_none() {
-            dedups[idx] = build_dedup(&spans[idx], cache.clone()).await;
-        }
-    }
     let dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices

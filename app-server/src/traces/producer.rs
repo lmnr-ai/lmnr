@@ -64,17 +64,13 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
 
     let dedup = build_dedup(span, cache).await;
     if dedup.is_some() && span.parent_span_id.is_some() && !is_top_span(span, &span.attributes) {
-        // The dedup is the source of truth from here on; the consumer rebuilds
-        // any per-message Value it needs (Quickwit indexing) from
-        // `dedup.new_contents`. Dropping `input` is the wire savings.
-        //
-        // Carve-outs both protect `TraceAggregation::from_spans`'s
-        // `root_span_input` preview:
+        // Keep `input` on any span that is (or will become) the trace root —
+        // the consumer's `TraceAggregation::from_spans` reads it for the
+        // `root_span_input` preview shown in the trace list:
         //   - `parent_span_id.is_none()` — natural OTel root.
-        //   - `is_top_span(...)` — Laminar SDK top span that has an OTel
-        //     parent now, but `prepare_span_for_recording` will null
-        //     `parent_span_id` on the consumer. If we stripped here,
-        //     the trace's `root_span_input` would silently disappear.
+        //   - `is_top_span(...)` — Laminar SDK top span; arrives with an OTel
+        //     parent but `prepare_span_for_recording` will null it on the
+        //     consumer, promoting the span to root.
         // Root spans are 1 per trace; dedup savings come from the long
         // tail of nested LLM spans either way.
         span.input = None;
