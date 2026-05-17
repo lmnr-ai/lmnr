@@ -133,14 +133,22 @@ impl ResilientRedisConnection {
     /// Periodic PING — catches silent socket death between command bursts so
     /// `is_connected()` (and hence `/ready`) stays accurate even when no
     /// caller has tripped on a stale handle yet.
+    ///
+    /// Only writes `false` on detected failure. The supervisor is the sole
+    /// writer of `true` — an unconditional `swap(ok, ...)` here would race
+    /// with a just-completed reconnect (we'd PING the old handle grabbed
+    /// before the swap and clobber the supervisor's `true` back to `false`,
+    /// causing a transient `/ready` false-negative).
     async fn health_check_loop(self: Arc<Self>) {
         let mut ticker = tokio::time::interval(Duration::from_secs(30));
         ticker.tick().await; // skip the immediate tick — initial state is known-good
         loop {
             ticker.tick().await;
-            let ok = ping(&mut self.current_clone()).await;
-            let was = self.connected.swap(ok, Ordering::AcqRel);
-            if was && !ok {
+            if ping(&mut self.current_clone()).await {
+                continue;
+            }
+            let was = self.connected.swap(false, Ordering::AcqRel);
+            if was {
                 log::warn!("Redis {} health check failed", self.label);
                 self.reconnect_notify.notify_one();
             }
