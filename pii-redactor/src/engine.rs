@@ -198,6 +198,12 @@ impl Engine {
                 "expected logits shape [batch, seq, num_labels], got {dims:?}"
             ));
         }
+        if dims[0] != batch {
+            return Err(anyhow!(
+                "expected logits batch dim {batch}, got {} (shape {dims:?})",
+                dims[0]
+            ));
+        }
         let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
 
         let mut out = Vec::with_capacity(batch);
