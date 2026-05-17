@@ -66,6 +66,7 @@ Set via flag or env var:
 | `--port`              | `PII_PORT`            | `8910`  | gRPC listen port |
 | `--max-seq-len`       | `PII_MAX_SEQ_LEN`     | `512`   | longer texts are truncated |
 | `--max-batch-size`    | `PII_MAX_BATCH_SIZE`  | `32`    | sub-batch size per inference |
+| `--max-texts-per-request` | `PII_MAX_TEXTS_PER_REQUEST` | `1024` | reject `Redact` calls with more texts than this |
 | `--intra-threads`     | `PII_INTRA_THREADS`   | `0`     | ORT op-level threads (0 = ORT default) |
 | `--inter-threads`     | `PII_INTER_THREADS`   | `1`     | ORT inter-op threads |
 | `--num-sessions`      | `PII_NUM_SESSIONS`    | `1`     | parallel ORT sessions (one per concurrent request) |

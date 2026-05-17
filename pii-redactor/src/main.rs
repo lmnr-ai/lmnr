@@ -33,6 +33,11 @@ struct Args {
     #[arg(long, env = "PII_MAX_BATCH_SIZE", default_value_t = 32)]
     max_batch_size: usize,
 
+    /// Reject requests carrying more than this many texts in a single RPC.
+    /// Guards against runaway memory allocation from a misbehaving client.
+    #[arg(long, env = "PII_MAX_TEXTS_PER_REQUEST", default_value_t = 1024)]
+    max_texts_per_request: usize,
+
     /// Threads for op-level parallelism inside one inference. 0 = ORT default.
     #[arg(long, env = "PII_INTRA_THREADS", default_value_t = 0)]
     intra_threads: usize,
@@ -49,6 +54,7 @@ struct Args {
 
 struct GrpcServer {
     engine: Arc<Engine>,
+    max_texts_per_request: usize,
 }
 
 #[tonic::async_trait]
@@ -58,6 +64,13 @@ impl PiiRedactorService for GrpcServer {
         request: Request<RedactRequest>,
     ) -> Result<Response<RedactResponse>, Status> {
         let req = request.into_inner();
+        if req.texts.len() > self.max_texts_per_request {
+            return Err(Status::resource_exhausted(format!(
+                "texts length {} exceeds PII_MAX_TEXTS_PER_REQUEST ({})",
+                req.texts.len(),
+                self.max_texts_per_request
+            )));
+        }
         let placeholder = req
             .placeholder_format
             .filter(|s| !s.is_empty())
@@ -96,7 +109,10 @@ async fn main() -> Result<()> {
     let engine = Engine::load(cfg)?;
 
     let addr = format!("0.0.0.0:{}", args.port).parse()?;
-    let svc = PiiRedactorServiceServer::new(GrpcServer { engine });
+    let svc = PiiRedactorServiceServer::new(GrpcServer {
+        engine,
+        max_texts_per_request: args.max_texts_per_request,
+    });
 
     info!("listening on {addr}");
     if let Err(e) = Server::builder().add_service(svc).serve(addr).await {
