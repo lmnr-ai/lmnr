@@ -5,10 +5,11 @@ with PII redacted.
 
 It loads any HuggingFace token-classification model exported to ONNX:
 
-- `model.onnx` — the exported model
+- `model.onnx` — the exported model (plus any sibling `model.onnx_data*`
+  external-data shards)
 - `tokenizer.json` — the matching fast tokenizer
-- `config.json` — must contain `id2label` (BIO scheme: `O`, `B-<TYPE>`,
-  `I-<TYPE>`)
+- `config.json` — must contain `id2label` in either BIO (`O`, `B-X`, `I-X`)
+  or BIOES (`O`, `B-X`, `I-X`, `E-X`, `S-X`) scheme
 
 The service has no opinions about which model — bring the OpenAI privacy
 filter, a Piiranha checkpoint, an in-house model, anything that fits the
@@ -30,6 +31,7 @@ pii-redactor/
 │   └── proto.rs
 └── models/             # (gitignored) put weights here before docker build
     ├── model.onnx
+    ├── model.onnx_data  # optional: external data shard(s), if the export uses them
     ├── tokenizer.json
     └── config.json
 ```
@@ -51,7 +53,7 @@ message RedactResponse {
 }
 ```
 
-`{LABEL}` is substituted with the BIO base label uppercased
+`{LABEL}` is substituted with the base label uppercased
 (e.g. `EMAIL_ADDRESS`).
 
 ## Performance knobs
@@ -105,11 +107,47 @@ any external resources.
 
 ## Preparing weights
 
-Most HuggingFace token-classification models can be exported with one
-command. Example — Piiranha (CC0, ~280 MB):
+The service expects three files (plus optional ONNX external-data shards)
+under `./models/`. There are two recommended sources.
+
+### Option A — OpenAI privacy filter (BIOES, ~1.5 GB MoE)
+
+The HuggingFace repo `openai/privacy-filter` already ships an ONNX export
+under `onnx/`. Pick one of the precision variants — the smaller ones are
+the right call on CPU:
+
+| File                       | Size    | Notes                            |
+|----------------------------|---------|----------------------------------|
+| `onnx/model.onnx` + `model.onnx_data*` | ~5.5 GB | full FP32 weights      |
+| `onnx/model_fp16.onnx`     | ~2.8 GB | half precision                   |
+| `onnx/model_quantized.onnx` + `model_quantized.onnx_data` | ~1.6 GB | int8 dynamic — recommended for CPU |
+| `onnx/model_q4.onnx`       | ~917 MB | int4 — smallest, slight accuracy hit |
 
 ```bash
-pip install --upgrade transformers optimum[onnxruntime] onnx onnxruntime
+pip install -U "huggingface_hub[cli]"
+mkdir -p models
+huggingface-cli download openai/privacy-filter \
+  tokenizer.json config.json \
+  onnx/model_quantized.onnx onnx/model_quantized.onnx_data \
+  --local-dir ./hf_download
+
+cp ./hf_download/tokenizer.json ./hf_download/config.json models/
+cp ./hf_download/onnx/model_quantized.onnx        models/model.onnx
+cp ./hf_download/onnx/model_quantized.onnx_data   models/model.onnx_data
+```
+
+Note: ONNX external-data files (`*.onnx_data`, `*.onnx_data_1`, …) MUST sit
+next to `model.onnx` with their original filenames — the `.onnx` graph
+references them by name, so don't rename them. The Dockerfile's `COPY models
+/models` already picks up everything in the directory.
+
+OpenAI's privacy filter uses a **BIOES** tag scheme (8 PII categories ×
+4 boundary tags + O = 33 labels). The service handles BIOES natively.
+
+### Option B — Piiranha (BIO, ~280 MB)
+
+```bash
+pip install -U transformers "optimum[onnxruntime]" onnx onnxruntime
 mkdir -p models
 optimum-cli export onnx \
   --model iiiorg/piiranha-v1-detect-personal-information \
@@ -117,7 +155,7 @@ optimum-cli export onnx \
   --opset 17 \
   models/
 
-# For smaller / faster artefacts you can quantise to int8:
+# Optional int8 dynamic quantisation (~3-4x CPU speedup):
 python -c "
 from optimum.onnxruntime import ORTQuantizer
 from optimum.onnxruntime.configuration import AutoQuantizationConfig
@@ -127,19 +165,16 @@ q.quantize(save_dir='models', quantization_config=AutoQuantizationConfig.avx512_
 mv models/model_quantized.onnx models/model.onnx  # only if you ran the quantiser
 ```
 
-After this, `./models/` should contain at minimum:
+### After either option
 
-- `model.onnx`
+`./models/` should contain at minimum:
+
+- `model.onnx` (+ any `model.onnx_data*` shards from the export)
 - `tokenizer.json`
 - `config.json`
 
 Other files (`tokenizer_config.json`, `special_tokens_map.json`, etc.) are
 fine to leave; the service ignores them.
-
-For the OpenAI privacy filter, follow whatever export instructions ship
-with the release and drop the resulting three files into `./models/` —
-the service does not care which model produced them as long as the
-config exposes a BIO `id2label`.
 
 ## Testing the service
 

@@ -193,7 +193,7 @@ impl Engine {
             let enc = &encodings[i];
             let row = logits.index_axis(Axis(0), i);
             let token_labels = argmax_per_token(row);
-            let spans = bio_spans(&token_labels, &self.labels);
+            let spans = bioes_spans(&token_labels, &self.labels);
             let char_spans = map_to_char_spans(text, enc, &spans, self.cfg.max_seq_len);
             out.push(redact_text(text, &char_spans, placeholder_fmt));
         }
@@ -224,12 +224,15 @@ struct LabelSpan {
     label: String,
 }
 
-fn bio_spans(token_labels: &[u32], labels: &LabelMap) -> Vec<LabelSpan> {
+// Handles both BIO and BIOES schemes. BIO emitters never produce E-/S- so the
+// E-/S- arms simply don't fire for them; BIOES emitters (e.g. the OpenAI
+// privacy filter) get correct single-token and end-of-span handling.
+fn bioes_spans(token_labels: &[u32], labels: &LabelMap) -> Vec<LabelSpan> {
     let mut out = Vec::new();
     let mut current: Option<LabelSpan> = None;
     for (i, id) in token_labels.iter().enumerate() {
         let raw = labels.lookup(*id);
-        let (prefix, base) = split_bio(raw);
+        let (prefix, base) = split_bioes(raw);
         match prefix {
             "O" => {
                 if let Some(s) = current.take() {
@@ -246,6 +249,35 @@ fn bio_spans(token_labels: &[u32], labels: &LabelMap) -> Vec<LabelSpan> {
                     label: base.to_string(),
                 });
             }
+            "S" => {
+                if let Some(s) = current.take() {
+                    out.push(s);
+                }
+                out.push(LabelSpan {
+                    start_token: i,
+                    end_token: i + 1,
+                    label: base.to_string(),
+                });
+            }
+            "E" => match current.take() {
+                Some(mut s) if s.label == base => {
+                    s.end_token = i + 1;
+                    out.push(s);
+                }
+                Some(s) => {
+                    out.push(s);
+                    out.push(LabelSpan {
+                        start_token: i,
+                        end_token: i + 1,
+                        label: base.to_string(),
+                    });
+                }
+                None => out.push(LabelSpan {
+                    start_token: i,
+                    end_token: i + 1,
+                    label: base.to_string(),
+                }),
+            },
             // "I-" continuation: extend if same base, else start a new span.
             // "X" (un-prefixed labels): treat the same as I-.
             _ => match current.as_mut() {
@@ -269,7 +301,7 @@ fn bio_spans(token_labels: &[u32], labels: &LabelMap) -> Vec<LabelSpan> {
     out
 }
 
-fn split_bio(label: &str) -> (&str, &str) {
+fn split_bioes(label: &str) -> (&str, &str) {
     if label == "O" {
         return ("O", "");
     }
@@ -278,6 +310,12 @@ fn split_bio(label: &str) -> (&str, &str) {
     }
     if let Some(rest) = label.strip_prefix("I-") {
         return ("I", rest);
+    }
+    if let Some(rest) = label.strip_prefix("E-") {
+        return ("E", rest);
+    }
+    if let Some(rest) = label.strip_prefix("S-") {
+        return ("S", rest);
     }
     ("X", label)
 }
