@@ -40,7 +40,7 @@ class JsonToSqlConverter:
         if isinstance(value, bool):
             return str(value).upper()
 
-        return f"'{value}'"
+        return sqlglot.exp.Literal.string(str(value)).sql(dialect="clickhouse")
 
     def _get_interval_expr(self, time_range: dict[str, Any]) -> str:
         if 'interval_value' in time_range and 'interval_unit' in time_range:

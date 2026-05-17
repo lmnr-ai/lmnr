@@ -219,6 +219,36 @@ LIMIT 5"""
         sql = convert_json_to_sql(query_json)
         assert "(countIf(path LIKE '--%'))" in sql
 
+    def test_filter_string_values_are_escaped(self):
+        """Test that filter strings are serialized as valid ClickHouse literals"""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "name", "op": "eq", "string_value": "worker's span"},
+                {"field": "path", "op": "ne", "string_value": "x'); DROP TABLE spans; --"},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "name = 'worker''s span'" in sql
+        assert "path != 'x''); DROP TABLE spans; --'" in sql
+
+    def test_includes_filter_string_values_are_escaped(self):
+        """Test that includes filters escape array member strings"""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "tags", "op": "includes", "string_value": "owner's-tag"},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "has(tags, 'owner''s-tag')" in sql
+
     def test_metric_alias_does_not_shadow_filter_column(self):
         """Test that aggregating and filtering the same column does not produce
         an alias that shadows the column name, which would cause ClickHouse
@@ -425,4 +455,3 @@ class TestRoundTripConversion:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
