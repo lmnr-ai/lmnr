@@ -41,18 +41,19 @@ pub struct Engine {
     permits: Arc<Semaphore>,
     needs_token_type_ids: bool,
     cfg: EngineConfig,
+    /// `chunk_size` minus the tokens the tokenizer adds when called with
+    /// `add_special_tokens=true` (e.g. CLS/SEP for BERT-family models).
+    /// Inference always re-encodes with special tokens, so the chunk
+    /// decision must reserve room for them — feeding the model
+    /// `chunk_size` content tokens would produce `chunk_size + overhead`
+    /// inputs and overflow positional embeddings on models whose
+    /// `max_position_embeddings` matches `chunk_size`.
+    effective_chunk_size: usize,
     next_session: AtomicUsize,
 }
 
 impl Engine {
     pub fn load(cfg: EngineConfig) -> Result<Arc<Self>> {
-        if cfg.chunk_overlap >= cfg.chunk_size {
-            return Err(anyhow!(
-                "chunk_overlap ({}) must be < chunk_size ({})",
-                cfg.chunk_overlap,
-                cfg.chunk_size
-            ));
-        }
         let tokenizer_path = cfg.model_dir.join("tokenizer.json");
         let model_path = cfg.model_dir.join("model.onnx");
         let config_path = cfg.model_dir.join("config.json");
@@ -60,6 +61,36 @@ impl Engine {
         let tokenizer = Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| anyhow!("loading tokenizer.json: {e}"))?;
         let labels = LabelMap::from_config_json(&config_path)?;
+
+        // Probe the tokenizer for its per-encode special-token count so the
+        // chunking math matches what the model actually sees at inference.
+        let with_specials = tokenizer
+            .encode("", true)
+            .map_err(|e| anyhow!("probe tokenize with specials: {e}"))?
+            .get_ids()
+            .len();
+        let without_specials = tokenizer
+            .encode("", false)
+            .map_err(|e| anyhow!("probe tokenize without specials: {e}"))?
+            .get_ids()
+            .len();
+        let special_overhead = with_specials.saturating_sub(without_specials);
+        if special_overhead >= cfg.chunk_size {
+            return Err(anyhow!(
+                "chunk_size ({}) must be > tokenizer special-token overhead ({})",
+                cfg.chunk_size,
+                special_overhead
+            ));
+        }
+        let effective_chunk_size = cfg.chunk_size - special_overhead;
+        if cfg.chunk_overlap >= effective_chunk_size {
+            return Err(anyhow!(
+                "chunk_overlap ({}) must be < chunk_size ({}) - special-token overhead ({})",
+                cfg.chunk_overlap,
+                cfg.chunk_size,
+                special_overhead
+            ));
+        }
 
         let _ = ort::init().commit();
 
@@ -98,6 +129,7 @@ impl Engine {
             permits,
             needs_token_type_ids,
             cfg,
+            effective_chunk_size,
             next_session: AtomicUsize::new(0),
         }))
     }
@@ -171,7 +203,7 @@ impl Engine {
         if total_tokens == 0 {
             return Ok(Vec::new());
         }
-        if total_tokens <= self.cfg.chunk_size {
+        if total_tokens <= self.effective_chunk_size {
             // Single window: re-encode with special tokens so the model gets
             // its expected BOS/EOS pad.
             let enc = self
@@ -186,12 +218,12 @@ impl Engine {
         // (a) lets the tokenizer add its own special tokens automatically and
         // (b) keeps the offsets table aligned with what the model actually
         // saw for that window.
-        let stride = self.cfg.chunk_size - self.cfg.chunk_overlap;
+        let stride = self.effective_chunk_size - self.cfg.chunk_overlap;
         let offsets = full_enc.get_offsets();
         let mut all_spans: Vec<Span> = Vec::new();
         let mut tok_start = 0;
         while tok_start < total_tokens {
-            let tok_end = (tok_start + self.cfg.chunk_size).min(total_tokens);
+            let tok_end = (tok_start + self.effective_chunk_size).min(total_tokens);
             let (char_start, _) = offsets[tok_start];
             let (_, char_end) = offsets[tok_end - 1];
             // Defensive: ensure we slice on UTF-8 boundaries.
