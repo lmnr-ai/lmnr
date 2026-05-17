@@ -45,7 +45,7 @@ impl Engine {
         let _ = ort::init().commit();
 
         let mut sessions = Vec::with_capacity(cfg.num_sessions);
-        let mut needs_token_type_ids = false;
+        let mut needs_token_type_ids: Option<bool> = None;
         for _ in 0..cfg.num_sessions {
             // ort's builder errors wrap the (non-Send) builder, so they don't
             // implement Send/Sync — convert with map_err and `{e:#}` rather
@@ -67,9 +67,13 @@ impl Engine {
             let session = builder
                 .commit_from_file(&model_path)
                 .with_context(|| format!("loading {}", model_path.display()))?;
-            needs_token_type_ids = session.inputs.iter().any(|i| i.name == "token_type_ids");
+            // All sessions load the same model.onnx, so input shape is
+            // identical across the pool — record once on the first session.
+            needs_token_type_ids
+                .get_or_insert_with(|| session.inputs.iter().any(|i| i.name == "token_type_ids"));
             sessions.push(std::sync::Mutex::new(session));
         }
+        let needs_token_type_ids = needs_token_type_ids.unwrap_or(false);
 
         let permits = Arc::new(Semaphore::new(cfg.num_sessions));
 
