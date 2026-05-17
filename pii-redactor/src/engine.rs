@@ -106,7 +106,10 @@ impl Engine {
             let fmt = placeholder_fmt.clone();
             let permits = self.permits.clone();
             tasks.push(tokio::task::spawn(async move {
-                let permit = permits.acquire_owned().await.unwrap();
+                let permit = permits
+                    .acquire_owned()
+                    .await
+                    .map_err(|e| anyhow!("semaphore closed: {e}"))?;
                 let result = tokio::task::spawn_blocking(move || {
                     let r = this.redact_chunk_blocking(&chunk, &fmt);
                     drop(permit);
