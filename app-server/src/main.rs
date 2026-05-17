@@ -1085,6 +1085,7 @@ fn main() -> anyhow::Result<()> {
         );
 
         let queue_for_health = mq_for_http.clone();
+        let cache_for_health = cache_for_http.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
@@ -1538,6 +1539,7 @@ fn main() -> anyhow::Result<()> {
                         App::new()
                             .wrap(NormalizePath::trim())
                             .app_data(web::Data::new(queue_for_health.clone()))
+                            .app_data(web::Data::new(cache_for_health.clone()))
                             .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)
