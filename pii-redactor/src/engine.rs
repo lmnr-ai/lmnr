@@ -70,7 +70,7 @@ impl Engine {
             // All sessions load the same model.onnx, so input shape is
             // identical across the pool — record once on the first session.
             needs_token_type_ids
-                .get_or_insert_with(|| session.inputs.iter().any(|i| i.name == "token_type_ids"));
+                .get_or_insert_with(|| session.inputs().iter().any(|i| i.name() == "token_type_ids"));
             sessions.push(std::sync::Mutex::new(session));
         }
         let needs_token_type_ids = needs_token_type_ids.unwrap_or(false);

@@ -78,10 +78,66 @@ and competes for cores), or run multiple replicas behind a load balancer.
 
 ## Build & run
 
-You don't have weights yet — get them first (see below), then either
-build & run locally, or via Docker.
+### Docker (weights baked in from HuggingFace — no prep needed)
 
-### Local
+```bash
+cd pii-redactor
+docker build -t lmnr/pii-redactor:latest .
+docker run --rm -p 8910:8910 lmnr/pii-redactor:latest
+```
+
+The `Dockerfile` pulls the int8-quantized OpenAI privacy-filter ONNX export
+(~1.6 GB) plus tokenizer & config from HuggingFace at build time, pinned to
+a specific commit for reproducibility. The final image embeds the weights
+and `libonnxruntime.so`, so it boots without any external resources.
+
+To bake in a different model variant (FP16 / Q4 / FP32), override the build
+args. Example for the Q4 variant (~917 MB):
+
+```bash
+docker build -t lmnr/pii-redactor:latest \
+  --build-arg HF_MODEL_FILE=onnx/model_q4.onnx \
+  --build-arg HF_MODEL_DATA_FILES=onnx/model_q4.onnx_data \
+  .
+```
+
+To bake in a different model entirely (e.g. Piiranha), override `HF_MODEL`
++ `HF_REVISION` and point `HF_MODEL_FILE` / `HF_MODEL_DATA_FILES` /
+`HF_TOKENIZER_FILE` / `HF_CONFIG_FILE` at the right paths in that repo.
+Set `HF_MODEL_DATA_FILES=""` for models that have no external-data shards.
+
+To override the baked-in weights at runtime without rebuilding, bind-mount
+your own model directory over `/models`:
+
+```bash
+docker run --rm -p 8910:8910 \
+  -v "$(pwd)/models:/models:ro" \
+  lmnr/pii-redactor:latest
+```
+
+### Cross-building for a different target arch
+
+The Dockerfile is `TARGETARCH`-aware: it auto-downloads the matching
+ONNX Runtime build (`x64` for `amd64`, `aarch64` for `arm64`). To cross-build
+for AWS x86 deploy from an Apple Silicon Mac:
+
+```bash
+docker buildx build --platform linux/amd64 -t lmnr/pii-redactor:latest .
+```
+
+Same for arm64 servers (Graviton, etc.):
+
+```bash
+docker buildx build --platform linux/arm64 -t lmnr/pii-redactor:latest .
+```
+
+Both ONNX Runtime tarballs are SHA-256 verified per arch (see `ORT_SHA256_AMD64`
+/ `ORT_SHA256_ARM64` in the Dockerfile).
+
+### Local (no Docker)
+
+For local dev you do need to populate `./models/` yourself — see the
+[Preparing weights](#preparing-weights) section below.
 
 ```bash
 cd pii-redactor
@@ -91,20 +147,6 @@ cargo run --release -- --model-dir ./models
 
 The `ort` crate downloads ONNX Runtime binaries automatically at build time.
 For air-gapped builds set `ORT_DYLIB_PATH=/path/to/libonnxruntime.so`.
-
-### Docker (weights baked in)
-
-```bash
-cd pii-redactor
-# 1. populate ./models/ with model.onnx, tokenizer.json, config.json
-# 2. build
-docker build -t lmnr/pii-redactor:latest .
-# 3. run
-docker run --rm -p 8910:8910 lmnr/pii-redactor:latest
-```
-
-The image embeds the weights and `libonnxruntime.so`, so it boots without
-any external resources.
 
 ## Preparing weights
 
@@ -134,13 +176,14 @@ huggingface-cli download openai/privacy-filter \
 
 cp ./hf_download/tokenizer.json ./hf_download/config.json models/
 cp ./hf_download/onnx/model_quantized.onnx        models/model.onnx
-cp ./hf_download/onnx/model_quantized.onnx_data   models/model.onnx_data
+cp ./hf_download/onnx/model_quantized.onnx_data   models/model_quantized.onnx_data
 ```
 
 Note: ONNX external-data files (`*.onnx_data`, `*.onnx_data_1`, …) MUST sit
-next to `model.onnx` with their original filenames — the `.onnx` graph
-references them by name, so don't rename them. The Dockerfile's `COPY models
-/models` already picks up everything in the directory.
+next to `model.onnx` with their **original** filenames — the `.onnx` graph
+references them by name, so don't rename them. The `.onnx` graph file
+itself is fine to rename to `model.onnx` (which is what the engine looks
+for); only the external-data shards must keep their export-time basenames.
 
 OpenAI's privacy filter uses a **BIOES** tag scheme (8 PII categories ×
 4 boundary tags + O = 33 labels). The service handles BIOES natively.

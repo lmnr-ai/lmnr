@@ -10,8 +10,10 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = {version = "4", features = ["derive", "env"]}
-ndarray = "0.16"
-ort = {version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic"]}
+ndarray = "0.17"
+# `api-24` pins the runtime to ONNX Runtime 1.24.x — required by the int8
+# `model_quantized.onnx` op set (GatherBlockQuantized.bits, added in 1.23).
+ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"]}
 prost = "0.14"
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
