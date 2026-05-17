@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package pii_redactor;
+
+message RedactRequest {
+    repeated string texts = 1;
+    // Optional override for the placeholder format.
+    // When empty, defaults to "[REDACTED_{LABEL}]".
+    optional string placeholder_format = 2;
+}
+
+message RedactResponse {
+    repeated string texts = 1;
+}
+
+service PiiRedactorService {
+    rpc Redact(RedactRequest) returns (RedactResponse);
+}

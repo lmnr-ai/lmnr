@@ -13,6 +13,7 @@ This is a multi-service monorepo with three main components:
 - **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC)
 - **frontend/** - Next.js/TypeScript web UI
 - **query-engine/** - Python gRPC service for SQL query processing
+- **pii-redactor/** - optional Rust gRPC service that runs a HuggingFace token-classification PII model on CPU via ONNX Runtime. Standalone — not linked from app-server. See `pii-redactor/README.md` for the gRPC contract, model layout (`model.onnx` + `tokenizer.json` + `config.json` with BIO `id2label`), and the weight-baking Dockerfile.
 
 ## Development Commands
 
