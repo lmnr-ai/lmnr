@@ -22,6 +22,7 @@ use crate::{
     },
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -42,7 +43,7 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
+#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -51,6 +52,7 @@ pub async fn process_span_messages(
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
+    pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
     // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
@@ -78,10 +80,22 @@ pub async fn process_span_messages(
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
-        // Must run AFTER provider conversion — LangChain rewrites `input`.
-        span.estimate_size_bytes();
-
         span_usage_vec.push(span_usage);
+    }
+
+    // Per-span PII redaction. Runs after provider conversion (so the redactor
+    // sees the canonical input/output shape downstream consumers see) and
+    // before size accounting / dedup / CH insert / Quickwit indexing, so
+    // every storage tier holds the redacted content. Best-effort: failures
+    // are logged inside `redact_spans_in_place` and do not fail the batch.
+    if let Some(redactor) = pii_redactor.as_ref() {
+        redact_spans_in_place(redactor, &mut spans).await;
+    }
+
+    for span in &mut spans {
+        // Must run AFTER provider conversion — LangChain rewrites `input` —
+        // and AFTER PII redaction, so the size reflects redacted content.
+        span.estimate_size_bytes();
     }
 
     // Process trace aggregations and update trace statistics
