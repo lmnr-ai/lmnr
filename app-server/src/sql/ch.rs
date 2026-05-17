@@ -14,7 +14,6 @@ use crate::sql::{ClickhouseReadonlyClient, SqlQueryError};
 
 const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
 const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
-const DEFAULT_SQL_QUERY_MAX_MEMORY_USAGE: &str = "268435456"; // 256MB
 
 #[derive(Deserialize)]
 pub struct ClickhouseBadResponseError {
@@ -50,13 +49,6 @@ pub async fn query(
                 .as_ref()
                 .map(|s| s.as_str())
                 .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
-        )
-        .with_option(
-            "max_memory_usage",
-            env::var("SQL_QUERY_MAX_MEMORY_USAGE")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_MEMORY_USAGE),
         );
 
     for (key, value) in parameters {
