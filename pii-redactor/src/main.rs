@@ -100,8 +100,8 @@ async fn main() -> Result<()> {
 
     let cfg = EngineConfig {
         model_dir: args.model_dir,
-        max_seq_len: args.max_seq_len,
-        max_batch_size: args.max_batch_size,
+        max_seq_len: args.max_seq_len.max(1),
+        max_batch_size: args.max_batch_size.max(1),
         intra_threads: args.intra_threads,
         inter_threads: args.inter_threads,
         num_sessions: args.num_sessions.max(1),
