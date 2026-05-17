@@ -1539,7 +1539,7 @@ fn main() -> anyhow::Result<()> {
                         App::new()
                             .wrap(NormalizePath::trim())
                             .app_data(web::Data::new(queue_for_health.clone()))
-                            .app_data(web::Data::new(cache_for_health.clone()))
+                            .app_data(web::Data::from(cache_for_health.clone()))
                             .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)

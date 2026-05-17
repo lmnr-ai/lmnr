@@ -21,15 +21,14 @@ pub async fn check_health() -> impl Responder {
 #[get("/ready")]
 pub async fn check_ready(
     queue: web::Data<Arc<MessageQueue>>,
-    cache: web::Data<Arc<Cache>>,
+    cache: web::Data<Cache>,
 ) -> impl Responder {
     let queue_ref: &MessageQueue = queue.get_ref().as_ref();
     if !queue_ref.is_healthy() {
         return HttpResponse::ServiceUnavailable().body("Message queue unhealthy");
     }
 
-    let cache_ref: &Cache = cache.get_ref().as_ref();
-    if !cache_ref.is_healthy() {
+    if !cache.is_healthy() {
         return HttpResponse::ServiceUnavailable().body("Cache unhealthy");
     }
 
