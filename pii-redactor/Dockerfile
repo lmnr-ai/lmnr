@@ -31,12 +31,15 @@ RUN cargo build --release \
 FROM debian:trixie-slim
 
 # ONNX Runtime CPU shared library — pinned to match `ort` 2.0.0-rc.10.
+# SHA-256 verifies the GitHub release asset hasn't been tampered with.
 ARG ORT_VERSION=1.20.0
+ARG ORT_SHA256=aa70d48b22e264b82e83f63245b51ddc9a47ae4a3a66903efaff1ba68b7b5930
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/* \
  && curl -L -o /tmp/ort.tgz \
       "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" \
+ && echo "${ORT_SHA256}  /tmp/ort.tgz" | sha256sum -c - \
  && tar -xzf /tmp/ort.tgz -C /tmp \
  && cp /tmp/onnxruntime-linux-x64-${ORT_VERSION}/lib/libonnxruntime.so* /usr/local/lib/ \
  && ldconfig \

@@ -164,7 +164,12 @@ impl Engine {
         }
 
         let session_idx = self.next_session.fetch_add(1, Ordering::Relaxed) % self.sessions.len();
-        let mut session = self.sessions[session_idx].lock().unwrap();
+        // Recover from a prior panic-poisoned mutex — ORT sessions are
+        // re-usable, and we'd rather serve the next request than turn one
+        // panic into a permanent outage of this slot.
+        let mut session = self.sessions[session_idx]
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
 
         let input_ids_t = TensorRef::from_array_view(&input_ids)?;
         let mask_t = TensorRef::from_array_view(&attention_mask)?;
