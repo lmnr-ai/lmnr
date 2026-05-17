@@ -102,7 +102,10 @@ pub async fn build_dedup(span: &Span, cache: Arc<Cache>) -> Option<LlmInputDedup
         return None;
     }
     let items = match span.input.as_ref()? {
-        Value::Array(items) => items,
+        Value::Array(items) if !items.is_empty() => items,
+        // Empty array: skip dedup so `preprocess_for_queue` keeps the
+        // `Some(Value::Array([]))` on the wire. Stripping to `None` would
+        // round-trip as `CHSpan.input = ""` instead of `"[]"`.
         _ => return None,
     };
 
@@ -272,7 +275,13 @@ pub async fn unmark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::in_memory::InMemoryCache;
+    use crate::db::spans::SpanType;
     use serde_json::json;
+
+    fn make_cache() -> Arc<Cache> {
+        Arc::new(Cache::InMemory(InMemoryCache::new(None)))
+    }
 
     #[test]
     fn top_level_key_order_is_normalized() {
@@ -323,6 +332,19 @@ mod tests {
         let ha = blake3::hash(canonical_json(&a).as_bytes());
         let hb = blake3::hash(canonical_json(&b).as_bytes());
         assert_eq!(ha.as_bytes(), hb.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn build_dedup_returns_none_for_empty_input_array() {
+        // Empty `Some([])` must NOT produce a dedup verdict — otherwise
+        // `preprocess_for_queue` strips the input to `None` and the
+        // round-trip would serialize as `CHSpan.input = ""` instead of `"[]"`.
+        let span = Span {
+            span_type: SpanType::LLM,
+            input: Some(json!([])),
+            ..Default::default()
+        };
+        assert!(build_dedup(&span, make_cache()).await.is_none());
     }
 
     #[test]
