@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::{Context, Result, anyhow};
 use ndarray::{Array2, ArrayView, Axis};
@@ -37,7 +36,12 @@ pub struct Span {
 pub struct Engine {
     tokenizer: Tokenizer,
     labels: LabelMap,
-    sessions: Vec<std::sync::Mutex<Session>>,
+    /// Pool of pre-loaded ORT sessions. Acquiring a permit from `permits`
+    /// guarantees a session is available, so the permitted task pops a
+    /// session under a short Mutex lock and pushes it back when done. This
+    /// avoids the round-robin / permit-count divergence where a permitted
+    /// task could pick a still-busy session while another sat idle.
+    sessions: std::sync::Mutex<Vec<Session>>,
     permits: Arc<Semaphore>,
     needs_token_type_ids: bool,
     cfg: EngineConfig,
@@ -49,7 +53,6 @@ pub struct Engine {
     /// inputs and overflow positional embeddings on models whose
     /// `max_position_embeddings` matches `chunk_size`.
     effective_chunk_size: usize,
-    next_session: AtomicUsize,
 }
 
 impl Engine {
@@ -116,7 +119,7 @@ impl Engine {
                 .with_context(|| format!("loading {}", model_path.display()))?;
             needs_token_type_ids
                 .get_or_insert_with(|| session.inputs().iter().any(|i| i.name() == "token_type_ids"));
-            sessions.push(std::sync::Mutex::new(session));
+            sessions.push(session);
         }
         let needs_token_type_ids = needs_token_type_ids.unwrap_or(false);
 
@@ -125,12 +128,11 @@ impl Engine {
         Ok(Arc::new(Self {
             tokenizer,
             labels,
-            sessions,
+            sessions: std::sync::Mutex::new(sessions),
             permits,
             needs_token_type_ids,
             cfg,
             effective_chunk_size,
-            next_session: AtomicUsize::new(0),
         }))
     }
 
@@ -278,36 +280,53 @@ impl Engine {
             token_type_ids[(0, j)] = types[j] as i64;
         }
 
-        let session_idx = self.next_session.fetch_add(1, Ordering::Relaxed) % self.sessions.len();
-        let mut session = self.sessions[session_idx]
+        // Caller holds a session permit, so the pool always has one to lend.
+        let mut session = {
+            let mut pool = self
+                .sessions
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
+            pool.pop().ok_or_else(|| {
+                anyhow!("session pool empty despite holding a permit (invariant violation)")
+            })?
+        };
+
+        let result = (|| -> Result<Vec<Span>> {
+            let input_ids_t = TensorRef::from_array_view(&input_ids)?;
+            let mask_t = TensorRef::from_array_view(&attention_mask)?;
+            let token_type_t = TensorRef::from_array_view(&token_type_ids)?;
+            let mut inputs: Vec<(&str, SessionInputValue<'_>)> = vec![
+                ("input_ids", input_ids_t.into()),
+                ("attention_mask", mask_t.into()),
+            ];
+            if self.needs_token_type_ids {
+                inputs.push(("token_type_ids", token_type_t.into()));
+            }
+
+            let outputs = session.run(inputs)?;
+            let logits_value = &outputs[0];
+            let (shape, data) = logits_value.try_extract_tensor::<f32>()?;
+            let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
+            if dims.len() != 3 {
+                return Err(anyhow!(
+                    "expected logits shape [batch, seq, num_labels], got {dims:?}"
+                ));
+            }
+            let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
+            let row = logits.index_axis(Axis(0), 0);
+            let token_labels = argmax_per_token(row);
+            let label_spans = bioes_spans(&token_labels, &self.labels);
+            Ok(map_to_char_spans(enc, &label_spans))
+        })();
+
+        // Always return the session so a single inference error doesn't shrink
+        // the pool (the permit count would then over-promise availability).
+        self.sessions
             .lock()
-            .unwrap_or_else(|p| p.into_inner());
+            .unwrap_or_else(|p| p.into_inner())
+            .push(session);
 
-        let input_ids_t = TensorRef::from_array_view(&input_ids)?;
-        let mask_t = TensorRef::from_array_view(&attention_mask)?;
-        let token_type_t = TensorRef::from_array_view(&token_type_ids)?;
-        let mut inputs: Vec<(&str, SessionInputValue<'_>)> = vec![
-            ("input_ids", input_ids_t.into()),
-            ("attention_mask", mask_t.into()),
-        ];
-        if self.needs_token_type_ids {
-            inputs.push(("token_type_ids", token_type_t.into()));
-        }
-
-        let outputs = session.run(inputs)?;
-        let logits_value = &outputs[0];
-        let (shape, data) = logits_value.try_extract_tensor::<f32>()?;
-        let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
-        if dims.len() != 3 {
-            return Err(anyhow!(
-                "expected logits shape [batch, seq, num_labels], got {dims:?}"
-            ));
-        }
-        let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
-        let row = logits.index_axis(Axis(0), 0);
-        let token_labels = argmax_per_token(row);
-        let label_spans = bioes_spans(&token_labels, &self.labels);
-        Ok(map_to_char_spans(enc, &label_spans))
+        result
     }
 }
 
