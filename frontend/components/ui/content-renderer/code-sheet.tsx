@@ -7,9 +7,12 @@ import { createImageDecorationPlugin, modes, renderText, theme } from "@/compone
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import TemplateRenderer from "@/components/ui/template-renderer";
+import {
+  TemplatePickerActions,
+  TemplatePickerPreview,
+  TemplatePickerView,
+} from "@/components/ui/template-renderer/template-picker";
 
 interface CodeSheetProps {
   renderedValue: string;
@@ -20,7 +23,7 @@ interface CodeSheetProps {
   presetKey?: string | null;
 }
 
-const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder, presetKey }: CodeSheetProps) => {
+const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
   // Process the value using the new renderText function
   const {
     text: processedText,
@@ -47,19 +50,9 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
         <div className="flex flex-col h-full bg-muted/50">
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
-            <div className="flex justify-start">
-              <Select value={mode} onValueChange={onModeChange}>
-                <SelectTrigger className="h-4 px-1.5 font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
-                  <SelectValue placeholder="Select tag type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modes.map((mode) => (
-                    <SelectItem key={mode} value={mode.toLowerCase()}>
-                      {mode}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-1">
+              <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={modes} />
+              {mode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">
               <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
@@ -73,7 +66,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           <ScrollArea className="grow">
             <div className="flex flex-col">
               {mode === "custom" ? (
-                <TemplateRenderer data={renderedValue} presetKey={presetKey} />
+                <TemplatePickerPreview data={renderedValue} />
               ) : (
                 <CodeMirror
                   placeholder={placeholder}

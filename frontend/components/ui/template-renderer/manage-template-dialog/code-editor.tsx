@@ -13,8 +13,8 @@ const CodeEditor = () => {
   } = useFormContext<ManageTemplateForm>();
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col gap-2 p-3">
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border bg-muted/30">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-muted/30">
         <Controller
           name="code"
           control={control}
@@ -30,7 +30,11 @@ const CodeEditor = () => {
           )}
         />
       </div>
-      {errors.code && <p className="mt-1 text-xs text-red-500">{errors.code.message}</p>}
+      {errors.code && (
+        <p className="border-t border-destructive/30 bg-destructive/5 px-3 py-1 text-xs text-destructive">
+          {errors.code.message}
+        </p>
+      )}
     </div>
   );
 };

@@ -9,7 +9,7 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
+import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import RenderTemplateDialog from "./render-template-dialog";
@@ -17,6 +17,7 @@ import RenderTemplateDialog from "./render-template-dialog";
 interface TemplateInfo {
   id: string;
   name: string;
+  createdAt: string;
 }
 
 export default function RenderTemplates() {
@@ -72,7 +73,7 @@ export default function RenderTemplates() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Render templates"
-        description="JSX templates used to visualize trace, span and evaluation data across the platform. Each template is scoped to this project."
+        description="JSX templates used to visualize data in a custom way."
       />
       <Button variant="outline" icon="plus" className="w-fit" onClick={openCreate}>
         New template
@@ -81,12 +82,13 @@ export default function RenderTemplates() {
         isLoading={isLoading}
         isEmpty={isEmpty(templates)}
         emptyMessage="No render templates yet."
-        headers={["Name", ""]}
-        colSpan={2}
+        headers={["Name", "Created", ""]}
+        colSpan={3}
       >
         {templates?.map((template) => (
           <SettingsTableRow key={template.id}>
             <td className="px-4 text-sm font-medium">{template.name}</td>
+            <td className="px-4 text-sm font-medium">{formatTimestamp(template.createdAt)}</td>
             <td className="px-4">
               <div className="flex justify-end gap-1">
                 <Button

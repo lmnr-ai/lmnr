@@ -66,9 +66,12 @@ export default function RenderTemplateDialog({ open, onOpenChange, templateId }:
     return () => controller.abort();
   }, [open, templateId, projectId, methods, toast, onOpenChange]);
 
+  const mode = open ? (templateId ? "edit" : "create") : null;
+  const close = () => onOpenChange(false);
+
   return (
     <FormProvider {...methods}>
-      <ManageTemplateDialog open={open} onOpenChange={onOpenChange} />
+      <ManageTemplateDialog mode={mode} onCancel={close} onSaved={close} />
     </FormProvider>
   );
 }

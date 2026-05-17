@@ -1,36 +1,30 @@
-import { DialogTrigger } from "@radix-ui/react-dialog";
-import { Loader2, X } from "lucide-react";
+import { Copy, Loader2, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { type PropsWithChildren, useCallback, useEffect, useState } from "react";
-import { Controller, useFormContext, useWatch } from "react-hook-form";
+import { useCallback, useState } from "react";
+import { Controller, useFormContext } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RENDER_TEMPLATE_AI_PROMPT } from "@/lib/actions/render-template/prompts";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 import { type ManageTemplateForm, type Template } from "../index";
 import JsxRenderer from "../jsx-renderer";
-import AiPanel from "./ai-panel";
+import { type ManageTemplateMode } from "../template-picker";
 import CodeEditor from "./code-editor";
 import DataPanel from "./data-panel";
-import StreamingPreview from "./streaming-preview";
-import { useTemplateChat } from "./use-stream-template";
 
-const ManageTemplateDialog = ({
-  open,
-  onOpenChange,
-  children,
-}: PropsWithChildren<{
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}>) => {
-  const [isSaving, setIsSaving] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
+interface Props {
+  mode: ManageTemplateMode;
+  onCancel: () => void;
+  onSaved: () => void;
+}
+
+const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
   const { projectId } = useParams();
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
@@ -38,57 +32,32 @@ const ManageTemplateDialog = ({
   const {
     control,
     handleSubmit,
-    getValues,
-    setValue,
     watch,
     reset,
     formState: { errors },
   } = useFormContext<ManageTemplateForm>();
 
-  const id = useWatch({ name: "id", control });
-  const name = useWatch({ name: "name", control });
+  const [isSaving, setIsSaving] = useState(false);
 
-  const {
-    state: aiState,
-    send,
-    abort,
-    reset: resetAi,
-  } = useTemplateChat({
-    projectId,
-    onTurnComplete: (code) => setValue("code", code, { shouldDirty: true }),
-    onError: (message) => toast({ variant: "destructive", title: "Generation failed", description: message }),
-  });
-
-  useEffect(() => {
-    if (!open) {
-      setAiPrompt("");
-      resetAi();
+  const handleCopyPrompt = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(RENDER_TEMPLATE_AI_PROMPT);
+      toast({ title: "AI prompt copied", description: "Paste it into your AI tool of choice." });
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't copy", description: "Clipboard access was blocked." });
     }
-  }, [open, resetAi]);
-
-  const handleSend = useCallback(() => {
-    const trimmed = aiPrompt.trim();
-    if (!trimmed) return;
-    send({
-      prompt: trimmed,
-      currentCode: getValues("code") || undefined,
-      testData: getValues("testData") || undefined,
-    });
-    setAiPrompt("");
-  }, [aiPrompt, send, getValues]);
+  }, [toast]);
 
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
+      const isUpdate = !!data.id;
       try {
         setIsSaving(true);
-        const isUpdate = !!data.id;
         const url = isUpdate
           ? `/api/projects/${projectId}/render-templates/${data.id}`
           : `/api/projects/${projectId}/render-templates`;
-        const method = isUpdate ? "PUT" : "POST";
-
         const res = await fetch(url, {
-          method,
+          method: isUpdate ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: data.name, code: data.code }),
         });
@@ -106,58 +75,57 @@ const ManageTemplateDialog = ({
           return;
         }
 
+        // Preserve testData — the API response only carries {id, name, code, ...}.
         const result = (await res.json()) as Template;
         await mutate(`/api/projects/${projectId}/render-templates`);
-        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} template` });
-        onOpenChange(false);
-        reset(result);
+        reset({ ...result, testData: data.testData });
+        toast({ title: `Template ${isUpdate ? "updated" : "created"}` });
+        onSaved();
       } catch (e) {
         toast({
           variant: "destructive",
           title: "Error",
-          description:
-            e instanceof Error
-              ? e.message
-              : `Failed to ${data.id ? "update" : "create"} the template. Please try again.`,
+          description: e instanceof Error ? e.message : `Failed to ${isUpdate ? "update" : "create"} the template`,
         });
       } finally {
         setIsSaving(false);
       }
     },
-    [projectId, mutate, toast, onOpenChange, reset]
+    [projectId, mutate, toast, reset, onSaved]
   );
 
-  const isStreaming = aiState.status === "loading";
-  const latestUserPrompt = [...aiState.messages].reverse().find((m) => m.role === "user")?.content;
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) onCancel();
+    },
+    [onCancel]
+  );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+    <Dialog open={mode !== null} onOpenChange={handleOpenChange}>
       <DialogContent
         className="flex h-full w-full max-h-[92vh] max-w-[92vw] lg:max-w-[80vw] flex-col gap-0 overflow-hidden p-0 outline-0"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader className="relative space-y-0.5 border-b px-5 py-3 pr-12">
-          <DialogTitle className="text-base">{id ? name || "Edit template" : "New render template"}</DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            {id
-              ? "Refine the look with AI, or fine-tune the code directly."
-              : "Describe the UI you want, generate it with AI, then tweak if needed."}
-          </p>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            aria-label="Close"
-            className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="size-4" />
-          </button>
-        </DialogHeader>
-
         <form onSubmit={handleSubmit(submit)} className="flex flex-1 flex-col overflow-hidden">
+          <DialogHeader className="relative space-y-0.5 border-b px-5 py-3 pr-12">
+            <DialogTitle className="text-base">Render template</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Write JSX that renders your data, or copy the AI prompt for a head start.
+            </p>
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Close"
+              className="absolute right-3 top-3 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="size-4" />
+            </button>
+          </DialogHeader>
+
           <div className="grid flex-1 grid-cols-[minmax(0,1.4fr)_minmax(360px,1fr)] gap-4 overflow-hidden">
-            <div className="flex min-h-0 min-w-0 flex-col pl-4 py-4">
+            <div className="flex min-h-0 min-w-0 flex-col pl-4 pb-4 pt-6">
               <Tabs
                 defaultValue="preview"
                 className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden rounded-lg border bg-muted/30"
@@ -168,11 +136,7 @@ const ManageTemplateDialog = ({
                 </TabsList>
                 <TabsContent value="preview" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
                   <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
-                    {isStreaming ? (
-                      <StreamingPreview prompt={latestUserPrompt} />
-                    ) : (
-                      <JsxRenderer code={watch("code")} data={watch("testData")} />
-                    )}
+                    <JsxRenderer code={watch("code")} data={watch("testData")} />
                   </div>
                 </TabsContent>
                 <TabsContent value="data" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
@@ -186,54 +150,53 @@ const ManageTemplateDialog = ({
                 <Label htmlFor="template-name" className="text-xs tracking-wide text-muted-foreground">
                   Name
                 </Label>
-                <Controller
-                  rules={{ required: "Template name is required" }}
-                  name="name"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="template-name"
-                      className="mt-1 h-8 w-full"
-                      placeholder="e.g. Trace summary card"
-                      autoFocus
-                      {...field}
-                    />
-                  )}
-                />
+                <div className="mt-1 flex items-center gap-2">
+                  <Controller
+                    rules={{ required: "Template name is required" }}
+                    name="name"
+                    control={control}
+                    render={({ field }) => (
+                      <Input
+                        id="template-name"
+                        className="h-8 flex-1"
+                        placeholder="e.g. Trace summary card"
+                        autoFocus
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                    {mode === "edit" ? "Save" : "Create"}
+                  </Button>
+                </div>
                 {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
               </div>
 
-              <Tabs
-                defaultValue="chat"
-                className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden rounded-lg border bg-card"
-              >
-                <TabsList className="m-2 self-start">
-                  <TabsTrigger value="chat">Chat</TabsTrigger>
-                  <TabsTrigger value="code">Code</TabsTrigger>
-                </TabsList>
-                <TabsContent value="chat" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
-                  <AiPanel
-                    prompt={aiPrompt}
-                    onPromptChange={setAiPrompt}
-                    onSend={handleSend}
-                    onStop={abort}
-                    onClear={resetAi}
-                    state={aiState}
-                  />
-                </TabsContent>
-                <TabsContent value="code" className="flex min-h-0 min-w-0 flex-col border-t outline-none">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card">
+                <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <Sparkles className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate">Generate templates with your AI tool</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyPrompt}
+                    title="Copies a self-contained prompt with Laminar's style guide and the function({ data }) contract. Paste it into your AI tool with your data and request, then drop the returned JSX into the editor below."
+                    className="h-7 shrink-0 gap-1.5 text-xs"
+                  >
+                    <Copy className="size-3" />
+                    Copy prompt
+                  </Button>
+                </div>
+                <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                   <CodeEditor />
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </div>
           </div>
-
-          <DialogFooter className="gap-2 border-t px-5 py-3">
-            <Button type="submit" disabled={isSaving}>
-              <Loader2 className={cn("mr-2 hidden size-4", isSaving && "block animate-spin")} />
-              {id ? "Save" : "Create template"}
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

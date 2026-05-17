@@ -244,7 +244,14 @@ const parseData = (data: any): any => {
   }
 };
 
-const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
+interface JsxRendererProps {
+  code: string;
+  data: any;
+  className?: string;
+  autoHeight?: boolean;
+}
+
+const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingDataRef = useRef<any>(null);
   const iframeReadyRef = useRef(false);
@@ -290,10 +297,48 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
     }
   }, [data]);
 
+  // Auto-resize the iframe to its content height by observing the template's
+  // mount point (#root) from the host document (allowed by `allow-same-origin`).
+  // Observing body/documentElement does NOT work: the HTML spec transfers
+  // `overflow-y: auto` from body to the iframe viewport, clamping their own
+  // contentRects to the (initially 0px) viewport — ResizeObserver never sees
+  // the content grow. `#root` is a plain div, free of that quirk.
+  // Height is set imperatively (not through React's style prop) so re-renders
+  // don't clobber the measured value.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !autoHeight) return;
+
+    iframe.style.height = "0px";
+
+    let observer: ResizeObserver | null = null;
+
+    const attach = () => {
+      observer?.disconnect();
+      const doc = iframe.contentDocument;
+      const root = doc?.getElementById("root");
+      if (!root) return;
+      const update = () => {
+        iframe.style.height = `${root.scrollHeight}px`;
+      };
+      update();
+      observer = new ResizeObserver(update);
+      observer.observe(root);
+    };
+
+    iframe.addEventListener("load", attach);
+    if (iframe.contentDocument?.readyState === "complete") attach();
+
+    return () => {
+      iframe.removeEventListener("load", attach);
+      observer?.disconnect();
+    };
+  }, [autoHeight]);
+
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full h-full", className)}
+      className={cn("w-full", autoHeight ? null : "h-full", className)}
       style={{ contain: "layout style", isolation: "isolate" }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"

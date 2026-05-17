@@ -16,6 +16,7 @@ export async function getRenderTemplates(input: z.infer<typeof GetRenderTemplate
     columns: {
       id: true,
       name: true,
+      createdAt: true,
     },
   });
 
