@@ -192,6 +192,14 @@ pub async fn process_span_messages(
                     .as_ref()
                     .map_or(0, crate::utils::estimate_json_size)
             }
+        } else if let Some(d) = dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            // Non-recordable LLM span (e.g. CC Bash-tool `anthropic.messages`)
+            // whose `span.input` was stripped to None on the producer. Without
+            // this branch the fall-through would bill 0 bytes, regressing the
+            // "non-recorded spans contribute input bytes to workspace usage"
+            // invariant. Closest post-dedup analogue: 32B per hash + the
+            // Redis-miss content the producer carried.
+            d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
             span.input
                 .as_ref()
