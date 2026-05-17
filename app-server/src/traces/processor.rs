@@ -84,37 +84,11 @@ pub async fn process_span_messages(
         span_usage_vec.push(span_usage);
     }
 
-    // Process trace aggregations and update trace statistics
+    // Process trace aggregations
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
-    // Upsert trace statistics in PostgreSQL
-    let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-        Ok(updated_traces) => {
-            let ch_traces: Vec<CHTrace> = updated_traces
-                .iter()
-                .map(|trace| CHTrace::from_db_trace(trace))
-                .collect();
-
-            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                log::error!(
-                    "Failed to upsert {} traces to ClickHouse: {:?}",
-                    ch_traces.len(),
-                    e
-                );
-            }
-
-            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-            Some(updated_traces)
-        }
-        Err(e) => {
-            log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-            None
-        }
-    };
-
-    // Dedup LLM span inputs: insert unique messages first, then stamp hashes
-    // onto each span. If the messages insert fails, unmark Redis and retry.
+    // Build the dedup batch up front so the size-bytes loop and CHSpans build
+    // can run before we kick off the parallel inserts.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -125,27 +99,6 @@ pub async fn process_span_messages(
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         build_dedup_batch(&dedup_input, cache.clone()).await
     };
-
-    if !dedup.messages.is_empty() {
-        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
-            .messages
-            .iter()
-            .map(|m| (m.project_id, m.trace_id, m.message_hash))
-            .collect();
-        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
-            log::error!(
-                "Failed to insert {} llm_messages to ClickHouse: {:?}",
-                dedup.messages.len(),
-                e
-            );
-            unmark_seen(&keys, cache.clone()).await;
-            return Err(HandlerError::transient(anyhow::anyhow!(
-                "Failed to insert llm_messages to Clickhouse: {:?}",
-                e
-            )));
-        }
-        mark_seen(&keys, cache.clone()).await;
-    }
 
     // Charge each span for its input: dedup'd LLM spans pay for the hash
     // array + any newly-inserted `llm_messages.content` (shared messages are
@@ -183,7 +136,7 @@ pub async fn process_span_messages(
         span.increment_size_bytes(added);
     }
 
-    // Build CHSpans with embedded events and insert to ClickHouse
+    // Build CHSpans with embedded events to insert to ClickHouse
     let ch_spans: Vec<CHSpan> = recordable_indices
         .iter()
         .enumerate()
@@ -209,18 +162,77 @@ pub async fn process_span_messages(
         })
         .collect();
 
-    // Record spans to clickhouse
-    if let Err(e) = ch.insert_batch(&ch_spans, config).await {
-        log::error!(
-            "Failed to record {} spans to clickhouse: {:?}",
-            ch_spans.len(),
-            e
-        );
-        return Err(HandlerError::transient(anyhow::anyhow!(
-            "Failed to insert spans to Clickhouse: {:?}",
-            e
-        )));
-    }
+    // Parallelize the three CH inserts. The trace insert is independent of
+    // the span path; within the span branch the strict order
+    // llm_messages -> mark_seen -> spans must be preserved (see CLAUDE.md
+    // "Ingest order in process_span_messages").
+    let ch = &ch;
+
+    let trace_branch = async {
+        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+            Ok(updated_traces) => {
+                let ch_traces: Vec<CHTrace> = updated_traces
+                    .iter()
+                    .map(|trace| CHTrace::from_db_trace(trace))
+                    .collect();
+
+                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                    log::error!(
+                        "Failed to upsert {} traces to ClickHouse: {:?}",
+                        ch_traces.len(),
+                        e
+                    );
+                }
+
+                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+
+                Some(updated_traces)
+            }
+            Err(e) => {
+                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                None
+            }
+        }
+    };
+
+    let span_branch = async {
+        if !dedup.messages.is_empty() {
+            let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+                .messages
+                .iter()
+                .map(|m| (m.project_id, m.trace_id, m.message_hash))
+                .collect();
+            if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+                log::error!(
+                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                    dedup.messages.len(),
+                    e
+                );
+                unmark_seen(&keys, cache.clone()).await;
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    e
+                )));
+            }
+            mark_seen(&keys, cache.clone()).await;
+        }
+
+        if let Err(e) = ch.insert_batch(&ch_spans, config).await {
+            log::error!(
+                "Failed to record {} spans to clickhouse: {:?}",
+                ch_spans.len(),
+                e
+            );
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert spans to Clickhouse: {:?}",
+                e
+            )));
+        }
+        Ok(())
+    };
+
+    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    span_result?;
 
     // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {
