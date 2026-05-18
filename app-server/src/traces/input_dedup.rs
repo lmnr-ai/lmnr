@@ -203,12 +203,11 @@ pub fn build_dedup_batch(
 
         // Insertable rows are the producer's `new_indices` filtered to those
         // that haven't already been emitted earlier in this flush.
+        // `new_indices` and `new_values` MUST stay aligned (the struct doc
+        // promises `span_new_message_values[i]` matches the messages at
+        // `span_new_indices[i]`); parse failure has to drop both or skip both.
         let mut new_indices: Vec<u16> = Vec::with_capacity(dedup.new_indices.len());
         let mut content_bytes_for_span: usize = 0;
-        // Quickwit indexing reconstructs Values from the producer's stored
-        // ingest-order JSON strings — `span.input` is `None` on the producer
-        // path. Malformed JSON falls through silently; the worst case is an
-        // unindexed message, never a panic.
         let mut new_values: Vec<Value> = Vec::with_capacity(dedup.new_indices.len());
         // Defensive: if a malformed dedup arrives over the wire (out-of-bounds
         // `new_indices` / mismatched `new_contents` length), we skip the bad
@@ -226,11 +225,15 @@ pub fn build_dedup_batch(
             if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
                 continue;
             }
+            // Skip the entry entirely on parse failure — pushing to
+            // `new_indices` without a matching `new_values` entry would break
+            // the documented alignment invariant.
+            let Ok(value) = serde_json::from_str::<Value>(content) else {
+                continue;
+            };
             let content = content.clone();
             content_bytes_for_span += content.len();
-            if let Ok(v) = serde_json::from_str::<Value>(&content) {
-                new_values.push(v);
-            }
+            new_values.push(value);
             messages.push(CHLlmMessage {
                 project_id: span.project_id,
                 trace_id: span.trace_id,
