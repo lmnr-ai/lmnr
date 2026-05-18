@@ -280,53 +280,78 @@ impl Engine {
             token_type_ids[(0, j)] = types[j] as i64;
         }
 
-        // Caller holds a session permit, so the pool always has one to lend.
-        let mut session = {
-            let mut pool = self
-                .sessions
-                .lock()
-                .unwrap_or_else(|p| p.into_inner());
-            pool.pop().ok_or_else(|| {
+        // RAII guard pushes the session back on Drop, covering normal exit,
+        // `?`-propagated errors, AND panics inside `session.run()` — without
+        // it, an unwind would skip the manual push and permanently shrink the
+        // pool while the semaphore kept handing out permits for it.
+        let mut guard = SessionGuard::acquire(&self.sessions)?;
+        let session = guard.session_mut();
+
+        let input_ids_t = TensorRef::from_array_view(&input_ids)?;
+        let mask_t = TensorRef::from_array_view(&attention_mask)?;
+        let token_type_t = TensorRef::from_array_view(&token_type_ids)?;
+        let mut inputs: Vec<(&str, SessionInputValue<'_>)> = vec![
+            ("input_ids", input_ids_t.into()),
+            ("attention_mask", mask_t.into()),
+        ];
+        if self.needs_token_type_ids {
+            inputs.push(("token_type_ids", token_type_t.into()));
+        }
+
+        let outputs = session.run(inputs)?;
+        let logits_value = &outputs[0];
+        let (shape, data) = logits_value.try_extract_tensor::<f32>()?;
+        let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
+        if dims.len() != 3 {
+            return Err(anyhow!(
+                "expected logits shape [batch, seq, num_labels], got {dims:?}"
+            ));
+        }
+        let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
+        let row = logits.index_axis(Axis(0), 0);
+        let token_labels = argmax_per_token(row);
+        let label_spans = bioes_spans(&token_labels, &self.labels);
+        Ok(map_to_char_spans(enc, &label_spans))
+    }
+}
+
+/// RAII handle on a borrowed `Session`. Pushes the session back to the pool
+/// on `Drop` so the pool size stays in sync with the semaphore permit count
+/// regardless of how the borrow ends.
+struct SessionGuard<'a> {
+    pool: &'a std::sync::Mutex<Vec<Session>>,
+    session: Option<Session>,
+}
+
+impl<'a> SessionGuard<'a> {
+    fn acquire(pool: &'a std::sync::Mutex<Vec<Session>>) -> Result<Self> {
+        let session = {
+            let mut locked = pool.lock().unwrap_or_else(|p| p.into_inner());
+            locked.pop().ok_or_else(|| {
                 anyhow!("session pool empty despite holding a permit (invariant violation)")
             })?
         };
+        Ok(Self {
+            pool,
+            session: Some(session),
+        })
+    }
 
-        let result = (|| -> Result<Vec<Span>> {
-            let input_ids_t = TensorRef::from_array_view(&input_ids)?;
-            let mask_t = TensorRef::from_array_view(&attention_mask)?;
-            let token_type_t = TensorRef::from_array_view(&token_type_ids)?;
-            let mut inputs: Vec<(&str, SessionInputValue<'_>)> = vec![
-                ("input_ids", input_ids_t.into()),
-                ("attention_mask", mask_t.into()),
-            ];
-            if self.needs_token_type_ids {
-                inputs.push(("token_type_ids", token_type_t.into()));
-            }
+    fn session_mut(&mut self) -> &mut Session {
+        self.session
+            .as_mut()
+            .expect("session present until Drop runs")
+    }
+}
 
-            let outputs = session.run(inputs)?;
-            let logits_value = &outputs[0];
-            let (shape, data) = logits_value.try_extract_tensor::<f32>()?;
-            let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
-            if dims.len() != 3 {
-                return Err(anyhow!(
-                    "expected logits shape [batch, seq, num_labels], got {dims:?}"
-                ));
-            }
-            let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
-            let row = logits.index_axis(Axis(0), 0);
-            let token_labels = argmax_per_token(row);
-            let label_spans = bioes_spans(&token_labels, &self.labels);
-            Ok(map_to_char_spans(enc, &label_spans))
-        })();
-
-        // Always return the session so a single inference error doesn't shrink
-        // the pool (the permit count would then over-promise availability).
-        self.sessions
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .push(session);
-
-        result
+impl Drop for SessionGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(session) = self.session.take() {
+            self.pool
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .push(session);
+        }
     }
 }
 
