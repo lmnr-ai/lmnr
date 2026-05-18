@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import signalTemplates from "@/components/signals/prompts";
 import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
@@ -74,6 +75,44 @@ const GetLastEventSchema = z.object({
   projectId: z.guid(),
   signalId: z.guid(),
 });
+
+const SetTemplateSignalsSchema = z.object({
+  projectId: z.guid(),
+  templateNames: z.array(z.string()),
+});
+
+// Replaces the project's template signals with `templateNames`. Scope is
+// limited to template-named rows; custom user signals are never touched.
+export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignalsSchema>) {
+  const { projectId, templateNames } = SetTemplateSignalsSchema.parse(input);
+
+  const templatesByName = new Map(signalTemplates.map((t) => [t.name, t]));
+  const selected = new Set(templateNames.filter((n) => templatesByName.has(n)));
+
+  const existing = await db
+    .select({ id: signals.id, name: signals.name })
+    .from(signals)
+    .where(and(eq(signals.projectId, projectId), inArray(signals.name, Array.from(templatesByName.keys()))));
+
+  const existingNames = new Set(existing.map((s) => s.name));
+  const toCreate = Array.from(selected).filter((n) => !existingNames.has(n));
+  const toDeleteIds = existing.filter((s) => !selected.has(s.name)).map((s) => s.id);
+
+  await Promise.all([
+    ...toCreate.map((name) => {
+      const template = templatesByName.get(name)!;
+      return createSignal({
+        projectId,
+        name: template.name,
+        prompt: template.prompt,
+        structuredOutput: JSON.parse(template.structuredOutputSchema) as Record<string, unknown>,
+      });
+    }),
+    toDeleteIds.length > 0 ? deleteSignals({ projectId, ids: toDeleteIds }) : Promise.resolve(),
+  ]);
+
+  return { created: toCreate.length, deleted: toDeleteIds.length };
+}
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;

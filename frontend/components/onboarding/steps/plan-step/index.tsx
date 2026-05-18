@@ -12,7 +12,6 @@ import { useOnboardingActions } from "@/components/onboarding/use-onboarding-act
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { Feature } from "@/lib/features/features";
-import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 interface PlanStepProps {
@@ -24,10 +23,9 @@ interface PlanStepProps {
 export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProps) {
   const router = useRouter();
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
-  const { resources, waitForMountPersist } = useOnboardingContext();
+  const { resources } = useOnboardingContext();
   const flags = useFeatureFlags();
-  const { isSubmitting, finishFreeTier, beginSubmitting, endSubmitting } = useOnboardingActions();
-  const { toast } = useToast();
+  const { isSubmitting, finishFreeTier, beginSubmitting } = useOnboardingActions();
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
@@ -44,80 +42,38 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       lookupKey: config.lookupKey,
       workspaceId: resources.workspaceId,
       workspaceName,
+      // Tells /checkout to set Stripe's success_url back to /onboarding so the
+      // wizard can run a single unified finalize path (DELETE cookie + route
+      // to project) for both free and paid tiers. Without this, paid users
+      // land on the workspace billing page where the subscription.created
+      // webhook may not have fired yet, showing a stale tier.
+      returnTo: "onboarding",
     });
     return `/checkout?${sp}`;
   };
 
   const finishAndGoToProject = async () => {
-    // Gate navigation on the DELETE succeeding. `fetch` resolves on any HTTP
-    // status, so a 401/500 response would leave the cookie live — navigating
-    // into the (authenticated) tree then bounces back through the layout
-    // gate to /onboarding, looping. finishFreeTier toasts on failure, so we
-    // just bail here and let the user retry.
-    const ok = await finishFreeTier();
-    if (!ok) return;
-    if (resources.projectId) {
-      router.push(`/project/${resources.projectId}/traces?onboarding=true`);
-    } else {
-      router.push("/projects");
-    }
+    if (!(await finishFreeTier())) return;
+    router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
   };
 
   const handleNext = async () => {
     const checkoutUrl = buildCheckoutUrl();
-    if (checkoutUrl) {
-      // Stripe's success/cancel URLs land on the workspace billing page,
-      // not back on /onboarding — so onboarding terminates here. We MUST
-      // await the DELETE before navigating: keepalive would keep the
-      // request in flight, but the response's Set-Cookie header only
-      // updates the browser's cookie jar while the current document is
-      // still alive. If the cookie survives, the (authenticated) layout
-      // on /workspace/.../billing bounces the paid user straight back
-      // into the wizard.
-      //
-      // beginSubmitting disables the StepShell button across the await +
-      // navigation window so a double-click can't fire two DELETEs or two
-      // window.location.href assignments. On the success path we
-      // deliberately do NOT endSubmitting: window.location.href tears the
-      // document down, so releasing the flag would only let the user click
-      // again during the brief unload. On the failure path we MUST release
-      // the flag so the user can retry — otherwise a transient 500/401
-      // would wedge the Finish button forever.
-      //
-      // Gate the redirect on res.ok, not just on fetch resolving: a non-2xx
-      // response (e.g. 401 on session expiry) resolves without throwing, so
-      // if we navigated unconditionally the cookie would still be live and
-      // the (authenticated) billing page would bounce back to /onboarding.
-      beginSubmitting();
-      // Await the wizard's mount-POST so the DELETE can't race it. A
-      // resume at step 4 lets the user click Finish before that POST
-      // lands — its Set-Cookie would otherwise arrive after the DELETE
-      // and resurrect the cookie, bouncing the paid user back to
-      // /onboarding via the layout gate on the billing page.
-      await waitForMountPersist();
-      let ok = false;
-      try {
-        const res = await fetch("/api/onboarding/state", { method: "DELETE" });
-        ok = res.ok;
-      } catch {
-        ok = false;
-      }
-      if (!ok) {
-        endSubmitting();
-        toast({
-          variant: "destructive",
-          title: "Couldn't finish onboarding",
-          description: "Please try again.",
-        });
-        return;
-      }
-      // Fire `completed` only after the DELETE confirms. Firing before the
-      // gate would inflate the metric on every failed retry.
-      track("onboarding", "completed", { tier: selectedTier });
-      window.location.href = checkoutUrl;
+    if (!checkoutUrl) {
+      await finishAndGoToProject();
       return;
     }
-    await finishAndGoToProject();
+
+    // Keep the onboarding cookie alive across the Stripe redirect — Stripe's
+    // success_url comes back to /onboarding?upgraded=true, where the wizard
+    // finalizes onboarding (DELETE cookie + route to project). If we cleared
+    // the cookie here, the post-payment landing on /onboarding would just
+    // bounce to /projects via the legacy-redirect gate.
+    track("onboarding", "checkout_started", { tier: selectedTier });
+    beginSubmitting();
+    // Keep isSubmitting true through navigation — window.location.href tears
+    // the document down, so releasing it would only let the user click during unload.
+    window.location.href = checkoutUrl;
   };
 
   if (!subscriptionEnabled) {
@@ -140,7 +96,7 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Pick a plan"
-      description="Free is pre-selected. You can always upgrade or downgrade later from billing."
+      description="Match the plan to your expected usage."
       onNext={handleNext}
       onBack={onBack}
       nextLabel={nextLabel}
@@ -158,7 +114,8 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Selecting a paid plan takes you to Stripe checkout. After payment, you'll land on your workspace billing page.
+        Hobby is our most popular plan - unlocks unlimited projects and teammates. Pro adds longer retention and private
+        Slack support.
       </p>
     </StepShell>
   );

@@ -1,13 +1,27 @@
 "use client";
 
-import { Mail } from "lucide-react";
-import { Controller, useFormContext } from "react-hook-form";
+import { CheckCircle2, Mail } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useMemo } from "react";
+import { useFormContext } from "react-hook-form";
+import useSWR from "swr";
 
+import slackLogo from "@/assets/logo/slack.png";
+import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
+import { getReportDescription, REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
+import { Feature } from "@/lib/features/features";
+import { track } from "@/lib/posthog";
+import { swrFetcher } from "@/lib/utils";
+
+const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 
 interface NotificationsStepProps {
   stepIndex: number;
@@ -17,55 +31,151 @@ interface NotificationsStepProps {
 }
 
 export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, onBack }: NotificationsStepProps) {
-  const { control } = useFormContext<OnboardingFormValues>();
+  const { watch, setValue, formState } = useFormContext<OnboardingFormValues>();
   const { email } = useUserContext();
+  const flags = useFeatureFlags();
+  const { resources, slackClientId, slackRedirectUri } = useOnboardingContext();
   const { isSubmitting, saveNotifications } = useOnboardingActions();
 
+  const slackConnected = watch("slackConnected");
+  const subscribedReportIds = watch("subscribedReportIds");
+  const subscribed = useMemo(() => new Set(subscribedReportIds), [subscribedReportIds]);
+
+  const { data: reports, isLoading } = useSWR<ReportWithDetails[]>(
+    resources.workspaceId ? `/api/workspaces/${resources.workspaceId}/reports` : null,
+    swrFetcher
+  );
+
+  // Mirror the user's current EMAIL targets while they haven't toggled anything,
+  // so fresh-create flow (form initialized before workspace existed) shows the
+  // auto-subscribed defaults checked.
+  useEffect(() => {
+    if (!reports || formState.dirtyFields.subscribedReportIds) return;
+    const fromDb = reports.filter((r) => r.targets.some((t) => t.type === REPORT_TARGET_TYPE.EMAIL)).map((r) => r.id);
+    setValue("subscribedReportIds", fromDb, { shouldDirty: false });
+  }, [reports, formState.dirtyFields.subscribedReportIds, setValue]);
+
+  const slackUrl = useMemo(() => {
+    if (!slackClientId || !slackRedirectUri || !resources.workspaceId) return undefined;
+    // returnPath is /onboarding with NO status param — the callback appends
+    // slack=success|error itself. Embedding ?slack=success here would mask
+    // errors because URLSearchParams.get() returns the first occurrence.
+    const state = `${resources.workspaceId}:/onboarding`;
+    const sp = new URLSearchParams({
+      scope: SLACK_SCOPES.join(","),
+      client_id: slackClientId,
+      state,
+      redirect_uri: slackRedirectUri,
+    });
+    return `https://slack.com/oauth/v2/authorize?${sp}`;
+  }, [slackClientId, slackRedirectUri, resources.workspaceId]);
+
+  const slackAvailable = flags[Feature.SLACK] && !!slackUrl;
+
+  const toggleReport = (reportId: string, checked: boolean) => {
+    const next = new Set(subscribed);
+    if (checked) next.add(reportId);
+    else next.delete(reportId);
+    setValue("subscribedReportIds", Array.from(next), { shouldDirty: true });
+  };
+
   const handleNext = async () => {
-    const ok = await saveNotifications();
-    if (ok) onAdvance();
+    if (await saveNotifications()) onAdvance();
   };
 
   return (
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Set up notifications"
-      description="Decide how you want to hear about the signals you just set up."
+      title="Notifications"
+      description="Pick which digests land in your inbox and connect Slack for live alerts."
       onNext={handleNext}
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
-      <Controller
-        name="emailNotificationsEnabled"
-        control={control}
-        render={({ field }) => (
-          <label
-            htmlFor="email-notifications"
-            className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3 cursor-pointer"
-          >
-            <Checkbox
-              id="email-notifications"
-              checked={field.value}
-              onCheckedChange={(checked) => field.onChange(checked === true)}
-              className="mt-0.5"
-            />
-            <div className="flex flex-col gap-0.5 flex-1">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-secondary-foreground">Email</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Weekday and weekly digests of signal events delivered to{" "}
-                <span className="font-medium text-foreground">{email ?? "your email"}</span>.
-              </span>
+      <div className="rounded-lg border border-border bg-background">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <Mail className="h-5 w-5 text-muted-foreground" />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-sm font-medium text-secondary-foreground">Email digests</span>
+            <span className="text-xs text-muted-foreground truncate">
+              Sent to <span className="font-medium text-foreground">{email ?? "your email"}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col">
+          {isLoading || !reports ? (
+            <div className="flex flex-col gap-2 p-4">
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-5 w-1/2" />
             </div>
-          </label>
-        )}
-      />
+          ) : reports.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-muted-foreground">No scheduled digests for this workspace yet.</p>
+          ) : (
+            reports.map((report) => {
+              const checked = subscribed.has(report.id);
+              const inputId = `report-${report.id}`;
+              const description = getReportDescription(report.schedule);
+              return (
+                <label
+                  key={report.id}
+                  htmlFor={inputId}
+                  className="flex items-start gap-3 px-4 py-3 cursor-pointer border-t border-border first:border-t-0 hover:bg-muted/30"
+                >
+                  <Checkbox
+                    id={inputId}
+                    checked={checked}
+                    onCheckedChange={(value) => toggleReport(report.id, value === true)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-secondary-foreground">{description.title}</span>
+                      <span className="text-xs text-muted-foreground">{description.schedule}</span>
+                    </div>
+                    {description.detail && <span className="text-xs text-muted-foreground">{description.detail}</span>}
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3">
+        <Image src={slackLogo} alt="Slack" width={24} height={24} className="mt-0.5 shrink-0" unoptimized />
+        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+          <span className="text-sm font-medium text-secondary-foreground">Slack alerts</span>
+          <span className="text-xs text-muted-foreground">
+            {slackConnected
+              ? "Connected, you can later configure which channels to receive notifications in."
+              : slackAvailable
+                ? "Get notifications in a Slack channel. You'll authorize the Laminar Slack app and come right back."
+                : "Slack integration is not configured in this environment."}
+          </span>
+        </div>
+        <div className="my-auto shrink-0">
+          {slackConnected ? (
+            <Button className="border-success bg-success/80 gap-1 hover:bg-success/80">
+              <CheckCircle2 className="h-4 w-4" />
+              Connected
+            </Button>
+          ) : (
+            slackAvailable && (
+              <Button asChild variant="outlinePrimary">
+                <a href={slackUrl} onClick={() => track("onboarding", "slack_connect_clicked")}>
+                  Connect
+                </a>
+              </Button>
+            )
+          )}
+        </div>
+      </div>
 
       <p className="text-xs text-muted-foreground">
-        You can always tweak notification targets for each signal later from the project settings.
+        Email digests go only to you. Other workspace members can opt in from their own settings. Slack notifications
+        can be adjusted anytime from workspace/project settings.
       </p>
     </StepShell>
   );

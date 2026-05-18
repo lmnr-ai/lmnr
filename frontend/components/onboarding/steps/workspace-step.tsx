@@ -32,6 +32,13 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
     if (result) onAdvance();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (nextDisabled || isSubmitting) return;
+    void handleNext();
+  };
+
   return (
     <StepShell
       stepIndex={stepIndex}
@@ -43,7 +50,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
       isSubmitting={isSubmitting}
       nextLabel="Create workspace"
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3" onKeyDown={handleKeyDown}>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="workspace-name" className="text-sm font-medium">
             Workspace name

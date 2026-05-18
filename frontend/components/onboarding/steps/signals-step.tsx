@@ -4,7 +4,6 @@ import { AlertCircle, Brain, Check, CheckCircle, CloudOff, Frown, Shield, Target
 import { type ComponentType } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 
-import { SIGNAL_OPTIONS } from "@/components/onboarding/signal-options";
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
@@ -22,10 +21,6 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   target: Target,
 };
 
-const ICON_BY_ID: Record<string, ComponentType<{ className?: string }>> = Object.fromEntries(
-  signalTemplates.map((t) => [t.name, ICONS[t.icon] ?? AlertCircle])
-);
-
 interface SignalsStepProps {
   stepIndex: number;
   totalSteps: number;
@@ -33,12 +28,12 @@ interface SignalsStepProps {
 }
 
 export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: SignalsStepProps) {
-  const { control } = useFormContext<OnboardingFormValues>();
+  const { control, watch } = useFormContext<OnboardingFormValues>();
   const { isSubmitting, saveSignals } = useOnboardingActions();
+  const selectedCount = watch("selectedTemplateNames")?.length ?? 0;
 
   const handleNext = async () => {
-    const ok = await saveSignals();
-    if (ok) onAdvance();
+    if (await saveSignals()) onAdvance();
   };
 
   return (
@@ -46,32 +41,34 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Choose what to monitor"
-      description="Signals run on every trace to surface issues automatically. Pick one or more to set up — you can always change this later."
+      description="Signals run on every trace to surface issues automatically. Pick at least one to set up — you can always change this later."
       onNext={handleNext}
+      nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
     >
       <Controller
-        name="selectedSignalIds"
+        name="selectedTemplateNames"
         control={control}
         render={({ field }) => {
           const selected = new Set(field.value);
-          const toggle = (id: string) => {
+          const toggle = (name: string) => {
             const next = new Set(selected);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(name)) next.delete(name);
+            else next.add(name);
             field.onChange(Array.from(next));
           };
 
           return (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
-              {SIGNAL_OPTIONS.map((opt) => {
-                const Icon = ICON_BY_ID[opt.id] ?? AlertCircle;
-                const isSelected = selected.has(opt.id);
+              {signalTemplates.map((template) => {
+                const Icon = ICONS[template.icon] ?? AlertCircle;
+                const isSelected = selected.has(template.name);
                 return (
                   <button
-                    key={opt.id}
+                    key={template.name}
                     type="button"
-                    onClick={() => toggle(opt.id)}
+                    onClick={() => toggle(template.name)}
+                    aria-pressed={isSelected}
                     className={cn(
                       "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors",
                       isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
@@ -87,12 +84,12 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                       >
                         {isSelected && <Check className="h-3 w-3" />}
                       </span>
-                      <Icon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-sm font-medium text-secondary-foreground">{opt.name}</span>
-                      <span className="text-xs text-muted-foreground line-clamp-2">{opt.description}</span>
+                      <span className="text-sm font-medium text-secondary-foreground">{template.name}</span>
+                      <span className="text-xs text-muted-foreground line-clamp-2">{template.description}</span>
                     </div>
+                    <Icon className="h-4 w-4 min-w-4 text-muted-foreground" />
                   </button>
                 );
               })}

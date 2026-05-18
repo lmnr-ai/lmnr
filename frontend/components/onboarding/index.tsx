@@ -1,14 +1,15 @@
 "use client";
 
+import { CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
+import StepShell from "@/components/onboarding/step-shell";
 import NotificationsStep from "@/components/onboarding/steps/notifications-step";
 import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
-import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
 import { useUserContext } from "@/contexts/user-context";
@@ -49,13 +50,6 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
 
   useEffect(() => {
     track("onboarding", "page_viewed");
-    // Note: the mount POST to /api/onboarding/state that marks the user as
-    // in-progress lives inside OnboardingProvider so its promise can be
-    // awaited by finishFreeTier / the paid-tier branch. If it fired from
-    // here, a resume at step 4 could let the user click Finish before the
-    // POST lands, and the POST's Set-Cookie would race the DELETE —
-    // resurrecting the cookie and looping via the (authenticated) gate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Slack OAuth callback returns with ?slack=success|error appended by
@@ -87,15 +81,78 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
         initialResources={{ workspaceId: initial.workspaceId, projectId: initial.projectId }}
-        initialStep={initial.step}
       >
-        <WizardSteps initialStep={initial.step} />
+        <WizardSteps initialStep={initial.step} projectId={initial.projectId} />
       </OnboardingProvider>
     </FormProvider>
   );
 }
 
-function WizardSteps({ initialStep }: { initialStep: number }) {
+function PaidFinalize({ projectId }: { projectId: string | null }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { getValues } = useFormContext<OnboardingFormValues>();
+  const [isFinishing, setIsFinishing] = useState(false);
+
+  const tier = getValues("selectedTier");
+  const tierLabel = tier === "pro" ? "Pro" : tier === "hobby" ? "Hobby" : "paid";
+
+  const handleComplete = async () => {
+    if (!projectId) {
+      router.replace("/projects");
+      return;
+    }
+    setIsFinishing(true);
+    let ok = false;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/onboarding/state`, { method: "DELETE" });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      setIsFinishing(false);
+      toast({
+        variant: "destructive",
+        title: "Couldn't finish onboarding",
+        description: "Please try again.",
+      });
+      return;
+    }
+    track("onboarding", "completed", { tier });
+    router.replace(`/project/${projectId}/traces?onboarding=true`);
+  };
+
+  return (
+    <StepShell
+      stepIndex={ONBOARDING_STEPS.length - 1}
+      totalSteps={ONBOARDING_STEPS.length}
+      title="You're all set"
+      description={`Your ${tierLabel} subscription is active. Time to start tracing.`}
+      onNext={handleComplete}
+      nextLabel="Complete"
+      isSubmitting={isFinishing}
+    >
+      <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
+        <CheckCircle2 className="size-10 text-emerald-500" />
+        <div className="flex flex-col gap-1">
+          <div className="text-sm font-medium text-secondary-foreground">Payment received</div>
+          <div className="text-xs text-muted-foreground">You can manage billing anytime from workspace settings.</div>
+        </div>
+      </div>
+    </StepShell>
+  );
+}
+
+function WizardSteps({ initialStep, projectId }: { initialStep: number; projectId: string | null }) {
+  const searchParams = useSearchParams();
+  if (searchParams.get("upgraded") === "true") {
+    return <PaidFinalize projectId={projectId} />;
+  }
+  return <WizardStepsInner initialStep={initialStep} />;
+}
+
+function WizardStepsInner({ initialStep }: { initialStep: number }) {
   const [stepIndex, setStepIndex] = useState(initialStep);
   const advance = useCallback(() => setStepIndex((i) => Math.min(TOTAL_STEPS - 1, i + 1)), []);
   const back = useCallback(() => setStepIndex((i) => Math.max(0, i - 1)), []);
@@ -110,9 +167,7 @@ function WizardSteps({ initialStep }: { initialStep: number }) {
     case 2:
       return <NotificationsStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
     case 3:
-      return <SlackStep stepIndex={3} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
-    case 4:
-      return <PlanStep stepIndex={4} totalSteps={TOTAL_STEPS} onBack={back} />;
+      return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} />;
     default:
       return null;
   }

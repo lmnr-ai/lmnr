@@ -39,7 +39,7 @@ export default function StepShell({
 }: PropsWithChildren<StepShellProps>) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background px-4 py-6 overflow-y-auto">
-      <div className="w-full max-w-2xl flex flex-col gap-6 my-auto">
+      <div className="w-full max-w-xl flex flex-col gap-6 my-auto">
         <div className="flex flex-col items-center gap-4">
           <LaminarLogo className="h-7 w-auto" fill="#b5b5b5" />
           <div className="w-full flex items-center gap-1.5 mt-2">
@@ -50,21 +50,26 @@ export default function StepShell({
               />
             ))}
           </div>
-          <span className="text-sm text-muted-foreground">
-            Step {stepIndex + 1} of {totalSteps}
-          </span>
         </div>
 
-        <div className={cn("rounded-xl border bg-secondary shadow-md overflow-hidden", className)}>
+        <div
+          className={cn("rounded-2xl min-h-100 border bg-secondary shadow-md overflow-hidden flex flex-col", className)}
+        >
           <div className="flex flex-col gap-1.5 px-6 pt-6 pb-2">
             <h1 className="text-lg font-semibold text-secondary-foreground">{title}</h1>
             {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
-          <div className="flex flex-col gap-5 px-6 py-5">{children}</div>
+          <div className="flex flex-col gap-5 px-6 py-5 flex-1">{children}</div>
           <div className="flex items-center justify-between gap-2 border-t px-6 py-4 bg-background/30">
             <div>
               {onBack && (
-                <Button type="button" variant="ghost" onClick={onBack} disabled={isSubmitting}>
+                <Button
+                  className="text-muted-foreground"
+                  type="button"
+                  variant="ghost"
+                  onClick={onBack}
+                  disabled={isSubmitting}
+                >
                   <ArrowLeft className="h-4 w-4 mr-1" />
                   {backLabel}
                 </Button>
