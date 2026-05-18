@@ -28,7 +28,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen, unmark_seen},
+        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -126,8 +126,9 @@ pub async fn process_span_messages(
         }
     };
 
-    // Dedup LLM span inputs: insert unique messages first, then stamp hashes
-    // onto each span. If the messages insert fails, unmark Redis and retry.
+    // Dedup LLM span inputs: insert unique messages first, then stamp Redis.
+    // On insert failure we return transient; nothing to undo in Redis since
+    // `mark_seen` only runs after a successful insert.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -155,7 +156,6 @@ pub async fn process_span_messages(
                 dedup.messages.len(),
                 e
             );
-            unmark_seen(&keys, cache.clone()).await;
             return Err(HandlerError::transient(anyhow::anyhow!(
                 "Failed to insert llm_messages to Clickhouse: {:?}",
                 e

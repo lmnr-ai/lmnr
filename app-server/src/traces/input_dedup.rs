@@ -13,9 +13,10 @@
 //! seen messages ride the queue as 32-byte hash references — the wire savings
 //! grow linearly with conversation history depth.
 //!
-//! Redis is still stamped on the consumer side, AFTER the `llm_messages`
-//! insert succeeds, so the "stamp only after success / unmark on failure"
-//! invariant is preserved exactly. Producer never writes to Redis.
+//! Redis is stamped on the consumer side, AFTER the `llm_messages` insert
+//! succeeds — `mark_seen` is the only writer. On insert failure there's
+//! nothing to undo (we never stamped), so the handler just returns
+//! transient and lets Rabbit redeliver. Producer never writes Redis.
 
 use std::sync::Arc;
 
@@ -261,14 +262,6 @@ pub async fn mark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
         let _ = cache
             .insert_with_ttl(&key, "1", MESSAGE_SEEN_TTL_SECONDS)
             .await;
-    }
-}
-
-/// Clear markers so a retry of the failed insert re-emits the rows.
-pub async fn unmark_seen(keys: &[(Uuid, Uuid, [u8; 32])], cache: Arc<Cache>) {
-    for (project_id, trace_id, hash) in keys {
-        let key = message_seen_key(*project_id, *trace_id, hash);
-        let _ = cache.remove(&key).await;
     }
 }
 
