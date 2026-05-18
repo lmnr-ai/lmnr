@@ -3,6 +3,7 @@ use lapin::{
     acker::Acker,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
 };
+pub mod connection;
 pub mod rabbit;
 pub mod tokio_mpsc;
 pub mod utils;
