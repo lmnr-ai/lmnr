@@ -10,7 +10,7 @@ use crate::{
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::producer::push_spans_to_queue,
+    traces::{input_dedup::LlmInputDedup, producer::push_spans_to_queue},
     utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use prost::Message;
@@ -18,6 +18,19 @@ use prost::Message;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
     pub span: Span,
+    /// Producer-side preprocessing applied: `parse_and_enrich_attributes` +
+    /// `convert_span_to_provider_format` already ran. Consumer skips them.
+    /// Older agents emit messages without this field; default `false` keeps
+    /// the legacy on-consumer pipeline working unchanged.
+    #[serde(default)]
+    pub pre_processed: bool,
+    /// Pre-computed dedup verdict for an LLM span's input messages. Producer
+    /// hashes each message and consults Redis: messages already seen in this
+    /// `(project_id, trace_id)` are stripped from `span.input` and ride the
+    /// queue as hash references only. The consumer treats this as
+    /// authoritative — it does not re-hash or re-check Redis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_dedup: Option<LlmInputDedup>,
 }
 
 // /v1/traces
