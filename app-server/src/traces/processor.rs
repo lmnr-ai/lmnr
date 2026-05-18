@@ -186,6 +186,7 @@ pub async fn process_span_messages(
                     .get(dedup_idx)
                     .copied()
                     .unwrap_or(0);
+                // 32 bytes per BLAKE3-256 hash + new `llm_messages.content` bytes.
                 hashes * 32 + content_bytes
             } else {
                 span.input
@@ -199,6 +200,7 @@ pub async fn process_span_messages(
             // "non-recorded spans contribute input bytes to workspace usage"
             // invariant. Closest post-dedup analogue: 32B per hash + the
             // Redis-miss content the producer carried.
+            // 32 bytes per BLAKE3-256 hash + producer's Redis-miss content bytes.
             d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
             span.input
