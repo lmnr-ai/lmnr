@@ -147,24 +147,24 @@ pub async fn build_dedup(span: &Span, cache: Arc<Cache>) -> Option<LlmInputDedup
     })
 }
 
-/// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` align
-/// with the span order passed in. `span_content_bytes[i]` is the bytes of
-/// `llm_messages.content` span `i` caused to be newly inserted — shared
-/// messages contribute 0 (billed once). `span_new_indices[i]` lists the
-/// 0-based positions inside `span_hashes[i]` that this span was first to
-/// introduce; Quickwit indexing only sees these new messages.
+/// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` /
+/// `span_new_message_indices[i]` align with the span order passed in.
+/// `span_content_bytes[i]` is the bytes of `llm_messages.content` span `i`
+/// caused to be newly inserted — shared messages contribute 0 (billed once).
+/// `span_new_indices[i]` lists the 0-based positions inside `span_hashes[i]`
+/// that this span was first to introduce; Quickwit indexing only sees these
+/// new messages.
 ///
-/// `span_new_message_values[i]` is the Quickwit-ready `Vec<Value>` for span
-/// `i` — exactly the messages at `span_new_indices[i]`, aligned. Pre-built
-/// here because the producer-side path drops `span.input` and the consumer
-/// has no way to recover the originals otherwise; the legacy path mirrors
-/// the same shape from `span.input` for code-path symmetry.
+/// `span_new_message_indices[i]` lists positions into `messages` that belong
+/// to span `i` — Quickwit indexing reads its per-span message slice through
+/// this redirection rather than slicing `messages` by layout. Same length as
+/// `span_new_indices[i]`.
 pub struct DedupBatch {
     pub messages: Vec<CHLlmMessage>,
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
     pub span_new_indices: Vec<Vec<u16>>,
-    pub span_new_message_values: Vec<Vec<Value>>,
+    pub span_new_message_indices: Vec<Vec<usize>>,
 }
 
 /// Consume the per-span [`LlmInputDedup`]s the producer attached and
@@ -187,7 +187,7 @@ pub fn build_dedup_batch(
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
     let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
-    let mut span_new_message_values: Vec<Vec<Value>> = Vec::with_capacity(spans.len());
+    let mut span_new_message_indices: Vec<Vec<usize>> = Vec::with_capacity(spans.len());
     // Key must match `llm_messages` ORDER BY — batches can mix projects.
     let mut emitted_in_batch: std::collections::HashSet<(Uuid, Uuid, [u8; 32])> =
         std::collections::HashSet::new();
@@ -197,18 +197,17 @@ pub fn build_dedup_batch(
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
             span_new_indices.push(Vec::new());
-            span_new_message_values.push(Vec::new());
+            span_new_message_indices.push(Vec::new());
             continue;
         };
 
         // Insertable rows are the producer's `new_indices` filtered to those
-        // that haven't already been emitted earlier in this flush.
-        // `new_indices` and `new_values` MUST stay aligned (the struct doc
-        // promises `span_new_message_values[i]` matches the messages at
-        // `span_new_indices[i]`); parse failure has to drop both or skip both.
+        // that haven't already been emitted earlier in this flush. For each
+        // row we push, we record its position in `messages` so readers can
+        // recover this span's slice without depending on the Vec's layout.
         let mut new_indices: Vec<u16> = Vec::with_capacity(dedup.new_indices.len());
+        let mut new_message_indices: Vec<usize> = Vec::with_capacity(dedup.new_indices.len());
         let mut content_bytes_for_span: usize = 0;
-        let mut new_values: Vec<Value> = Vec::with_capacity(dedup.new_indices.len());
         // Defensive: if a malformed dedup arrives over the wire (out-of-bounds
         // `new_indices` / mismatched `new_contents` length), we skip the bad
         // entries rather than panic and requeue the entire batch forever.
@@ -225,15 +224,9 @@ pub fn build_dedup_batch(
             if !emitted_in_batch.insert((span.project_id, span.trace_id, hash)) {
                 continue;
             }
-            // Skip the entry entirely on parse failure — pushing to
-            // `new_indices` without a matching `new_values` entry would break
-            // the documented alignment invariant.
-            let Ok(value) = serde_json::from_str::<Value>(content) else {
-                continue;
-            };
             let content = content.clone();
             content_bytes_for_span += content.len();
-            new_values.push(value);
+            let msg_idx = messages.len();
             messages.push(CHLlmMessage {
                 project_id: span.project_id,
                 trace_id: span.trace_id,
@@ -241,12 +234,13 @@ pub fn build_dedup_batch(
                 content,
             });
             new_indices.push(pos);
+            new_message_indices.push(msg_idx);
         }
 
         span_hashes.push(dedup.hashes.clone());
         span_content_bytes.push(content_bytes_for_span);
         span_new_indices.push(new_indices);
-        span_new_message_values.push(new_values);
+        span_new_message_indices.push(new_message_indices);
     }
 
     DedupBatch {
@@ -254,7 +248,7 @@ pub fn build_dedup_batch(
         span_hashes,
         span_content_bytes,
         span_new_indices,
-        span_new_message_values,
+        span_new_message_indices,
     }
 }
 

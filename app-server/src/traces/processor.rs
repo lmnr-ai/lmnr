@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use rayon::prelude::*;
+use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -277,11 +278,14 @@ pub async fn process_span_messages(
         .enumerate()
         .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
         .map(|(dedup_idx, s)| {
-            // For LLM spans: hand the indexer the pre-built new-messages
-            // `Vec<Value>` from the dedup batch — works for both the producer
-            // path (where `span.input` is `None`) and the legacy path. A span
-            // with no hashes (non-array input or empty plan) gets `None`, so
-            // `from_span` falls through to raw `span.input` for indexing.
+            // For LLM spans: parse this span's new messages into `Vec<Value>`
+            // for the indexer. `span_new_message_indices[dedup_idx]` points
+            // into `dedup.messages` — no layout assumption. Works for both
+            // the producer path (where `span.input` is `None`) and the
+            // legacy path. Unparseable JSON is dropped (filter_map) — the
+            // row still went to llm_messages, it just isn't searchable.
+            // A span with no hashes (non-array input or empty plan) gets
+            // `None`, so `from_span` falls through to raw `span.input`.
             let new_messages = if s.is_llm_span()
                 && dedup
                     .span_hashes
@@ -289,7 +293,12 @@ pub async fn process_span_messages(
                     .map(|h| !h.is_empty())
                     .unwrap_or(false)
             {
-                dedup.span_new_message_values.get(dedup_idx).cloned()
+                dedup.span_new_message_indices.get(dedup_idx).map(|idxs| {
+                    idxs.iter()
+                        .filter_map(|&i| dedup.messages.get(i))
+                        .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                        .collect::<Vec<Value>>()
+                })
             } else {
                 None
             };
