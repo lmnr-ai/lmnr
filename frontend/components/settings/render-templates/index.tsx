@@ -7,11 +7,10 @@ import { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
+import DeleteRenderTemplateDialog from "./delete-render-template-dialog";
 import RenderTemplateDialog from "./render-template-dialog";
 
 interface TemplateInfo {
@@ -22,7 +21,6 @@ interface TemplateInfo {
 
 export default function RenderTemplates() {
   const { projectId } = useParams();
-  const { toast } = useToast();
   const {
     data: templates,
     isLoading,
@@ -32,7 +30,6 @@ export default function RenderTemplates() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<TemplateInfo | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const openCreate = useCallback(() => {
     setEditingTemplateId(null);
@@ -43,31 +40,6 @@ export default function RenderTemplates() {
     setEditingTemplateId(templateId);
     setDialogOpen(true);
   }, []);
-
-  const handleDelete = useCallback(async () => {
-    if (!templateToDelete) return;
-    setIsDeleting(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/render-templates/${templateToDelete.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? "Failed to delete template");
-      }
-      await mutate();
-      toast({ title: "Template deleted" });
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to delete template",
-      });
-    } finally {
-      setIsDeleting(false);
-      setTemplateToDelete(null);
-    }
-  }, [templateToDelete, projectId, mutate, toast]);
 
   return (
     <SettingsSection>
@@ -117,14 +89,10 @@ export default function RenderTemplates() {
 
       <RenderTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} templateId={editingTemplateId} />
 
-      <ConfirmDialog
-        open={!!templateToDelete}
-        onOpenChange={(open) => !open && setTemplateToDelete(null)}
-        title="Delete template"
-        description={`Are you sure you want to delete "${templateToDelete?.name ?? ""}"? This cannot be undone.`}
-        confirmText={isDeleting ? "Deleting..." : "Delete"}
-        cancelText="Cancel"
-        onConfirm={handleDelete}
+      <DeleteRenderTemplateDialog
+        template={templateToDelete}
+        onClose={() => setTemplateToDelete(null)}
+        onDeleted={() => mutate()}
       />
     </SettingsSection>
   );
