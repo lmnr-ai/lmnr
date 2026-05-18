@@ -83,21 +83,6 @@ pub async fn process_span_messages(
         span_usage_vec.push(span_usage);
     }
 
-    // Per-span PII redaction. Runs after provider conversion (so the redactor
-    // sees the canonical input/output shape downstream consumers see) and
-    // before size accounting / dedup / CH insert / Quickwit indexing, so
-    // every storage tier holds the redacted content. Best-effort: failures
-    // are logged inside `redact_spans_in_place` and do not fail the batch.
-    if let Some(redactor) = pii_redactor.as_ref() {
-        redact_spans_in_place(redactor, &mut spans).await;
-    }
-
-    for span in &mut spans {
-        // Must run AFTER provider conversion — LangChain rewrites `input` —
-        // and AFTER PII redaction, so the size reflects redacted content.
-        span.estimate_size_bytes();
-    }
-
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
@@ -135,10 +120,31 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    let dedup = {
+    let mut dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         build_dedup_batch(&dedup_input, cache.clone()).await
     };
+
+    // Per-span PII redaction. Runs AFTER dedup so we don't pay redaction
+    // compute for input messages already seen earlier in the trace, and
+    // BEFORE the `llm_messages` insert / size accounting / Quickwit indexing
+    // so every storage tier holds the redacted content. For dedup'd LLM
+    // spans this redacts only the `span_new_indices` slice of `span.input`
+    // (and the matching `dedup.messages[k].content` rows that are about to
+    // be inserted); for non-LLM spans it redacts the whole input + output.
+    // Best-effort: failures are logged inside `redact_spans_in_place` and
+    // do not fail the batch.
+    if let Some(redactor) = pii_redactor.as_ref() {
+        redact_spans_in_place(redactor, &mut spans, &mut dedup, &recordable_indices).await;
+    }
+
+    for span in &mut spans {
+        // Must run AFTER provider conversion (LangChain rewrites `input`)
+        // and AFTER PII redaction so the size reflects redacted content.
+        // Input is excluded here — the post-dedup input-bytes loop below
+        // owns that charge.
+        span.estimate_size_bytes();
+    }
 
     if !dedup.messages.is_empty() {
         let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
