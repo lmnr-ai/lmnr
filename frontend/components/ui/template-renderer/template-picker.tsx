@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import DeleteTemplateDialog from "@/components/ui/template-renderer/delete-template-dialog";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -39,7 +38,6 @@ interface TemplatePickerContextValue {
   selectTemplate: (templateId: string) => Promise<void>;
   openCreate: () => void;
   openEdit: () => void;
-  openDelete: () => void;
 }
 
 const TemplatePickerContext = createContext<TemplatePickerContextValue | null>(null);
@@ -76,7 +74,6 @@ export const TemplatePickerProvider = ({
 
   const [manageMode, setManageMode] = useState<ManageTemplateMode>(null);
   const [backup, setBackup] = useState<ManageTemplateForm | null>(null);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
 
   const fetchTemplate = useCallback(
@@ -160,8 +157,6 @@ export const TemplatePickerProvider = ({
     setManageMode(null);
   }, []);
 
-  const openDelete = useCallback(() => setIsDeleteOpen(true), []);
-
   const selectedTemplate = useMemo<Template | null>(() => {
     if (!form?.id || !form?.name || !form?.code) return null;
     return { id: form.id, name: form.name, code: form.code };
@@ -175,9 +170,8 @@ export const TemplatePickerProvider = ({
       selectTemplate,
       openCreate,
       openEdit,
-      openDelete,
     }),
-    [templates, selectedTemplate, isLoadingTemplate, selectTemplate, openCreate, openEdit, openDelete]
+    [templates, selectedTemplate, isLoadingTemplate, selectTemplate, openCreate, openEdit]
   );
 
   return (
@@ -185,14 +179,6 @@ export const TemplatePickerProvider = ({
       <TemplatePickerContext.Provider value={contextValue}>
         {children}
         <ManageTemplateDialog mode={manageMode} onCancel={cancelManage} onSaved={completeSave} />
-        {selectedTemplate && (
-          <DeleteTemplateDialog
-            open={isDeleteOpen}
-            onOpenChange={setIsDeleteOpen}
-            template={{ id: selectedTemplate.id, name: selectedTemplate.name }}
-            onDeleted={() => reset(defaultTemplateValues)}
-          />
-        )}
       </TemplatePickerContext.Provider>
     </FormProvider>
   );

@@ -266,7 +266,7 @@ const PureContentRenderer = ({
   );
 
   return (
-    <TemplatePickerProvider presetKey={presetKey} testData={value}>
+    <TemplatePickerProvider presetKey={presetKey ?? null} testData={value}>
       <div
         className={cn("size-full min-h-7 flex flex-col border relative overflow-hidden", className)}
         onMouseEnter={handleMouseEnter}
