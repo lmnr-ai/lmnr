@@ -1,15 +1,7 @@
-import { ChevronDown } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { MessageWrapper } from "@/components/traces/span-view/common";
-import {
-  buildToolNameMap,
-  type ProcessedMessages,
-  processMessages,
-  renderMessageContent,
-  responsesItemRole,
-} from "@/components/traces/span-view/messages";
-import { Button } from "@/components/ui/button";
+import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -42,43 +34,12 @@ const fetchPayload = async (raw: unknown): Promise<unknown> => {
   return response.json();
 };
 
-function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; presetKey: string }) {
-  const toolNameMap = useMemo(() => buildToolNameMap(result), [result]);
-  return result.messages.map((message: any, i: number) => {
-    const role = result.type === "openai-responses" ? responsesItemRole(message) : message?.role;
-    return (
-      <MessageWrapper
-        key={`overview-${presetKey}-${i}`}
-        role={role}
-        presetKey={`collapse-${i}-${presetKey}`}
-        maxHeight={560}
-      >
-        {renderMessageContent(result, i, presetKey, toolNameMap)}
-      </MessageWrapper>
-    );
-  });
-}
-
-const SCROLL_THRESHOLD = 100;
-
 const PureSpanOverview = ({ span }: { span: Span }) => {
   const { toast } = useToast();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const [inputData, setInputData] = useState<unknown>(span.input);
   const [outputData, setOutputData] = useState<unknown>(span.output);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, []);
 
   const loadData = useCallback(async () => {
     const hasInputUrl = extractPayloadUrl(span.input);
@@ -101,21 +62,20 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
     loadData();
   }, [loadData]);
 
-  const inputResult = useMemo(() => {
-    const normalized = normalize(inputData);
-    const messages = Array.isArray(normalized) ? normalized : [];
-    const lastTwo = messages.slice(-2);
-    return lastTwo.length > 0 ? processMessages(lastTwo) : null;
-  }, [inputData]);
-
-  const outputResult = useMemo(() => {
-    const normalized = normalize(outputData);
-    return normalized != null ? processMessages(normalized) : null;
-  }, [outputData]);
+  // Overview = last 2 input messages stitched with the output, rendered through
+  // the same ContentRenderer the I/O tabs use so users get the mode toggle
+  // (MESSAGES / JSON / YAML / TEXT / CUSTOM) and search/copy/expand for free.
+  const mergedValue = useMemo(() => {
+    const input = normalize(inputData);
+    const output = normalize(outputData);
+    const inputArray = Array.isArray(input) ? input.slice(-2) : [];
+    const outputTail = output == null ? [] : Array.isArray(output) ? output : [output];
+    return JSON.stringify([...inputArray, ...outputTail]);
+  }, [inputData, outputData]);
 
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
-  const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
-  const presetKey = `overview-${spanPathArray.join(".")}`;
+  const spanPathString = (typeof spanPath === "string" ? spanPath.split(".") : spanPath).join(".");
+  const presetKey = `overview-${spanPathString}`;
 
   if (isLoading) {
     return (
@@ -128,42 +88,17 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
   }
 
   return (
-    <div className="relative w-full h-full">
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex flex-col w-full h-full overflow-y-auto styled-scrollbar divide-y"
-      >
-        {inputResult && (
-          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-            <span className="text-base font-medium text-secondary-foreground px-1">
-              Input <span className="text-sm text-muted-foreground">(last 2 messages)</span>
-            </span>
-            <div className="flex flex-col gap-4">
-              <OverviewMessages result={inputResult} presetKey={`${presetKey}-input`} />
-            </div>
-          </div>
-        )}
-        {outputResult && (
-          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-            <span className="text-base font-medium text-secondary-foreground px-1">Output</span>
-            <div className="flex flex-col gap-4">
-              <OverviewMessages result={outputResult} presetKey={`${presetKey}-output`} />
-            </div>
-          </div>
-        )}
-      </div>
-      {!isAtBottom && (
-        <Button
-          aria-label="Scroll to bottom"
-          size="icon"
-          className="absolute bottom-3 right-3 rounded-full z-40"
-          onClick={scrollToBottom}
-        >
-          <ChevronDown className="w-4 h-4" />
-        </Button>
-      )}
-    </div>
+    <ContentRenderer
+      className="rounded-none border-0"
+      codeEditorClassName="rounded-none border-none bg-background contain-strict"
+      readOnly
+      value={mergedValue}
+      defaultMode="messages"
+      modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
+      presetKey={presetKey}
+      customTheme={spanViewTheme}
+      messageMaxHeight={560}
+    />
   );
 };
 
