@@ -237,13 +237,29 @@ class JsonToSqlConverter:
         if col == '*':
             return col
         try:
-            parsed = sqlglot.parse_one(f"SELECT {col} FROM t", read="clickhouse")
+            statements = sqlglot.parse(f"SELECT {col} FROM t", read="clickhouse")
         except sqlglot.errors.ParseError as e:
             raise QueryBuilderError(f"Invalid column expression: {e}")
+
+        if len(statements) != 1:
+            raise QueryBuilderError("Column must be a single expression")
+
+        parsed = statements[0]
+        for node in parsed.find_all(sqlglot.exp.Expression):
+            if node.comments:
+                raise QueryBuilderError("SQL comments are not allowed in column expressions")
 
         select_exprs = parsed.args.get("expressions", [])
         if len(select_exprs) != 1:
             raise QueryBuilderError("Column must be a single expression")
+
+        for node in parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select):
+            if node is not parsed:
+                raise QueryBuilderError("Subqueries are not allowed in column expressions")
+
+        blocked = QueryValidator.check_for_blocked_functions(parsed)
+        if blocked:
+            raise QueryBuilderError(f"Function '{blocked}' is not allowed in column expressions")
 
         return select_exprs[0].sql(dialect="clickhouse")
 
@@ -272,7 +288,7 @@ class JsonToSqlConverter:
         return f"{fn}({safe_col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
-        field = filter_spec['field']
+        field = self._safe_column_expr(filter_spec['field'])
         op = filter_spec['op']
 
         if 'string_value' in filter_spec:

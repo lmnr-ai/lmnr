@@ -249,6 +249,38 @@ LIMIT 5"""
 
         assert "has(tags, 'owner''s-tag')" in sql
 
+    @pytest.mark.parametrize("op", ["eq", "includes"])
+    def test_filter_field_names_reject_injected_sql(self, op):
+        """Test that filter fields are parsed as single column expressions."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {
+                    "field": "name; DROP TABLE spans; --",
+                    "op": op,
+                    "string_value": "x",
+                },
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="Column must be a single expression"):
+            convert_json_to_sql(query_json)
+
+    def test_filter_field_expressions_are_regenerated(self):
+        """Test that supported filter expressions are normalized through sqlglot."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "end_time - start_time", "op": "gt", "number_value": 1000},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "end_time - start_time > 1000" in sql
+
     def test_metric_alias_does_not_shadow_filter_column(self):
         """Test that aggregating and filtering the same column does not produce
         an alias that shadows the column name, which would cause ClickHouse
