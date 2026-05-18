@@ -1,15 +1,16 @@
-import { Copy, Loader2, Sparkles, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RENDER_TEMPLATE_AI_PROMPT } from "@/lib/actions/render-template/prompts";
+import { buildRenderTemplatePrompt } from "@/lib/actions/render-template/prompts";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { type ManageTemplateForm, type Template } from "../index";
@@ -38,15 +39,6 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
   } = useFormContext<ManageTemplateForm>();
 
   const [isSaving, setIsSaving] = useState(false);
-
-  const handleCopyPrompt = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(RENDER_TEMPLATE_AI_PROMPT);
-      toast({ title: "AI prompt copied", description: "Paste it into your AI tool of choice." });
-    } catch {
-      toast({ variant: "destructive", title: "Couldn't copy", description: "Clipboard access was blocked." });
-    }
-  }, [toast]);
 
   const submit = useCallback(
     async (data: ManageTemplateForm) => {
@@ -177,19 +169,20 @@ const ManageTemplateDialog = ({ mode, onCancel, onSaved }: Props) => {
                 <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
                   <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                     <Sparkles className="size-3.5 shrink-0 text-primary" />
-                    <span className="truncate">Generate templates with your AI tool</span>
+                    <span className="truncate">
+                      Generate with your AI tool - prompt includes Laminar style guide
+                      {watch("testData")?.trim() ? " + your test data" : ""}
+                    </span>
                   </div>
-                  <Button
+                  <CopyButton
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyPrompt}
-                    title="Copies a self-contained prompt with Laminar's style guide and the function({ data }) contract. Paste it into your AI tool with your data and request, then drop the returned JSX into the editor below."
-                    className="h-7 shrink-0 gap-1.5 text-xs"
+                    variant="secondaryLight"
+                    text={buildRenderTemplatePrompt(watch("testData"))}
+                    className="shrink-0 text-xs"
+                    iconClassName="size-3"
                   >
-                    <Copy className="size-3" />
                     Copy prompt
-                  </Button>
+                  </CopyButton>
                 </div>
                 <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                   <CodeEditor />

@@ -37,6 +37,7 @@ export const LAMINAR_IFRAME_THEME = {
     tool: "#E5A209",
     llm: { DEFAULT: "#8B5CF6", foreground: "#BC92F8" },
     subagent: "#0EB7D6",
+    user: "#60A5FA",
   },
   fontFamily: {
     sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Inter", "sans-serif"],

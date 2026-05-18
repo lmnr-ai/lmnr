@@ -64,11 +64,11 @@ const createIframeContent = (templateCode: string): string => {
       overflow-x: hidden;
       overflow-y: auto;
     }
-    body::-webkit-scrollbar { width: 8px; height: 8px; }
-    body::-webkit-scrollbar-track { background: transparent; }
-    body::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 4px; }
-    body::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.muted.DEFAULT}; }
-    body { scrollbar-width: thin; scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} transparent; }
+    *::-webkit-scrollbar { width: 6px; height: 1px; }
+    *::-webkit-scrollbar-track { background: ${LAMINAR_IFRAME_THEME.colors.secondary.DEFAULT}; }
+    *::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 10px; }
+    *::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.border}CC; }
+    html, body { scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} ${LAMINAR_IFRAME_THEME.colors.border}33; }
     .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>

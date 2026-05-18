@@ -3,7 +3,7 @@ import { Maximize, Minimize } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { createImageDecorationPlugin, modes, renderText, theme } from "@/components/ui/content-renderer/utils";
+import { createImageDecorationPlugin, renderText, theme } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,18 +18,20 @@ interface CodeSheetProps {
   renderedValue: string;
   mode: string;
   onModeChange: (mode: string) => void;
+  modes: string[];
   extensions: Extension[];
   placeholder?: string;
-  presetKey?: string | null;
 }
 
-const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
-  // Process the value using the new renderText function
+const PureCodeSheet = ({ mode, modes, renderedValue, extensions, onModeChange, placeholder }: CodeSheetProps) => {
+  const sheetModes = useMemo(() => modes.filter((m) => m.toLowerCase() !== "messages"), [modes]);
+  const sheetMode = mode === "messages" ? "text" : mode;
+
   const {
     text: processedText,
     imageMap,
     hasImages,
-  } = useMemo(() => renderText(mode, renderedValue, true), [mode, renderedValue]);
+  } = useMemo(() => renderText(sheetMode, renderedValue, true), [sheetMode, renderedValue]);
 
   // Add image rendering extensions if images are found
   const combinedExtensions = useMemo(() => {
@@ -51,8 +53,8 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           <DialogTitle className="hidden"></DialogTitle>
           <div className="flex-none items-center flex px-2 justify-between">
             <div className="flex items-center gap-1">
-              <TemplatePickerView mode={mode} onModeChange={onModeChange} modes={modes} />
-              {mode === "custom" && <TemplatePickerActions />}
+              <TemplatePickerView mode={sheetMode} onModeChange={onModeChange} modes={sheetModes} />
+              {sheetMode === "custom" && <TemplatePickerActions />}
             </div>
             <div className="flex items-center">
               <CopyButton iconClassName="h-3.5 w-3.5" size="icon" variant="ghost" text={renderedValue} />
@@ -65,7 +67,7 @@ const PureCodeSheet = ({ mode, renderedValue, extensions, onModeChange, placehol
           </div>
           <ScrollArea className="grow">
             <div className="flex flex-col">
-              {mode === "custom" ? (
+              {sheetMode === "custom" ? (
                 <TemplatePickerPreview data={renderedValue} />
               ) : (
                 <CodeMirror

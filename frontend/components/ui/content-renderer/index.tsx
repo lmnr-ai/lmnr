@@ -231,9 +231,9 @@ const PureContentRenderer = ({
           renderedValue={value}
           mode={mode}
           onModeChange={handleModeChange}
+          modes={modes}
           extensions={extensions}
           placeholder={placeholder}
-          presetKey={presetKey}
         />
       </div>
       {isCodeMode && (

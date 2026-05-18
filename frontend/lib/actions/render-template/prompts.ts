@@ -11,11 +11,30 @@ names — they automatically match the current Laminar theme. (Stock Tailwind cl
 \`text-sky-400\` or \`bg-neutral-900\` still work but will visually drift from the rest of
 the platform; avoid them.)
 
-Surfaces
+Available semantic tokens (exhaustive — these are what twind knows about; nothing else is wired)
+- Surface / foreground pairs (use as \`bg-<name>\` for the background, \`text-<name>-foreground\` for legible text on top):
+  - \`background\` / \`foreground\` — the page itself.
+  - \`card\` / \`card-foreground\` — main content card.
+  - \`popover\` / \`popover-foreground\` — floating surfaces.
+  - \`secondary\` / \`secondary-foreground\` — subtle inset surface (nested rows, kv blocks).
+  - \`muted\` / \`muted-foreground\` — slightly more pronounced inset (hover rows, side panels).
+  - \`accent\` / \`accent-foreground\` — selected / highlighted items.
+  - \`primary\` / \`primary-foreground\` — primary-action surfaces (CTA chips, key callouts). \`text-primary\` is also the highlight text colour.
+  - \`destructive\` / \`destructive-foreground\` — error banners.
+  - \`success\` / \`success-foreground\` — success banners.
+- Plain text colours (no companion surface — use on top of \`bg-background\` / \`bg-card\` / etc.):
+  - \`text-foreground\` (primary text) · \`text-secondary-foreground\` (one notch down) · \`text-muted-foreground\` (de-emphasised) · \`text-card-foreground\` / \`text-popover-foreground\` / \`text-accent-foreground\` / \`text-primary-foreground\` / \`text-destructive-foreground\` / \`text-success-foreground\` (each pairs with its matching \`bg-*\`).
+  - Signal text: \`text-primary\` (highlight), \`text-success\`, \`text-destructive\`, \`text-destructive-bright\`, \`text-success-bright\`.
+  - Domain-only text (see "Domain signal tokens" below): \`text-user\`, \`text-llm\` (+ \`text-llm-foreground\`), \`text-tool\`, \`text-subagent\`.
+- Borders / rings: \`border-border\`, \`border-input\`, \`ring-ring\`.
+- HARD RULE: NEVER use a surface DEFAULT as a TEXT colour. \`text-card\`, \`text-popover\`, \`text-secondary\`, \`text-muted\`, \`text-accent\` are all dark surface fills and will be invisible on a dark background. Use the matching \`*-foreground\` for text and reserve the bare name for \`bg-*\` / \`border-*\`.
+
+Surfaces (recipes)
 - Root container: \`w-full min-h-full p-4 text-sm text-foreground bg-background\` (use \`min-h-full\`, NOT \`h-full\`, so taller content can scroll vertically)
 - Cards / panels: \`rounded-md border border-border bg-card text-card-foreground p-3\`
 - Popovers / floating surfaces: \`rounded-md border border-border bg-popover text-popover-foreground\`
-- Muted surfaces (subtle backgrounds for hovered rows, side panels): \`bg-muted text-muted-foreground\`
+- Subtle inset surfaces (nested rows, kv-style blocks): \`bg-secondary text-secondary-foreground\`
+- Muted surfaces (hovered rows, side panels): \`bg-muted text-muted-foreground\`
 - Accent surfaces (for selected items): \`bg-accent text-accent-foreground\`
 
 Text
@@ -24,20 +43,24 @@ Text
 - Values: \`text-sm text-foreground\`
 - Code / ids / JSON / numbers: \`font-mono text-xs text-foreground\`
 - Inline JSON / quoted-reference text: \`text-secondary-foreground\` (one notch below \`text-foreground\`)
-- Secondary / de-emphasised: \`text-muted-foreground\`
+- Secondary / de-emphasised: \`text-muted-foreground\` or \`text-secondary-foreground\`
 - Use ONLY Tailwind's named scale: \`text-xs\` (12px) and \`text-sm\` (14px) cover 99% of cases; \`text-base\` for emphasised values, \`text-lg\` only for hero numbers. NEVER write arbitrary pixel sizes like \`text-[10px]\` — they look broken next to the rest of the platform.
 
-Accent tokens (use sparingly — these are signal, not decoration)
-- \`text-primary\` — user input / key highlights
-- \`text-llm\` — LLM / model output
-- \`text-tool\` — tool / function calls (warm amber)
-- \`text-subagent\` — nested agent spans (cyan)
-- \`text-success\` — successful states
-- \`text-destructive\` — errors / failed states
-- \`text-muted-foreground\` — system messages / secondary info
+Domain signal tokens — RESERVED for LLM / agent content. Do NOT use these for generic styling, decoration, or to introduce visual variety. Their meaning is structural; using them on unrelated content (e.g. a JSON key, a generic label, a metadata row) misleads the reader.
+- \`text-user\` / \`bg-user\` — ONLY for user / human input content (role: "user" chat messages, the user's prompt, trace "input" markers). This is the same blue Laminar uses to mark user input across the platform.
+- \`text-llm\` / \`bg-llm\` — ONLY for assistant / model-generated content (a chat bubble with role: "assistant", an LLM-output span header). Never on user content, never on generic JSON.
+- \`text-tool\` / \`bg-tool\` — ONLY for tool / function-call content (role: "tool" messages, tool-call span headers, the name of the tool that ran).
+- \`text-subagent\` / \`bg-subagent\` — ONLY for nested agent / subagent identification (a span whose kind is "subagent", an agent-handoff marker).
+- If the input does NOT contain chat messages, tool calls, or agent spans, do NOT use \`user\` / \`llm\` / \`tool\` / \`subagent\` colours at all. Lean on \`text-foreground\` / \`text-secondary-foreground\` / \`text-muted-foreground\` / \`text-primary\` for the whole template.
 
-Role / category color mapping (use for chat roles, span kinds, etc.):
-- \`user\` → primary  ·  \`assistant\` → llm  ·  \`tool\` → tool  ·  \`system\` → muted-foreground
+Generic signal tokens (safe to use anywhere their semantics apply)
+- \`text-primary\` — key highlights, CTA accents (orange brand colour — NOT for user content; use \`text-user\` instead)
+- \`text-success\` — successful states, passing checks, completed work
+- \`text-destructive\` — errors, failures, blocking conditions
+- \`text-muted-foreground\` — system messages, less-important metadata, empty states
+
+Role / category colour mapping (apply ONLY when rendering chat messages / span lists):
+- \`user\` → user  ·  \`assistant\` → llm  ·  \`tool\` → tool  ·  \`subagent\` → subagent  ·  \`system\` → muted-foreground
 
 For status / role / category labels, use plain coloured uppercase text (\`text-xs font-medium uppercase tracking-wide text-<accent>\`) — NOT pills, badges, dots, or chips. The colour already carries the signal.
 DO NOT render decorative dot indicators (\`<span className="size-1.5 rounded-full bg-..." />\`) or bordered pill wrappers around labels. Keep labels as text only.
@@ -94,20 +117,27 @@ const INTRO = `You are generating a JSX template for Laminar, an open-source obs
 
 Read the style guide and output contract below, then produce ONE JSX template function for the data and request at the bottom. Reply with the function wrapped in a single \`\`\`jsx fenced code block and nothing else.`;
 
-const USER_INPUT_TEMPLATE = `<your_data>
-// Paste a sample of the JSON payload your template will receive as \`data\`.
-{ "example": "replace me" }
-</your_data>
+const DATA_PLACEHOLDER = `// Paste a sample of the JSON payload your template will receive as \`data\`.
+{ "example": "replace me" }`;
 
-<what_to_render>
+const WHAT_TO_RENDER = `<what_to_render>
 // Describe what you want the template to show.
 // Example: "Render the messages array as a chat conversation with role-coloured headers."
 </what_to_render>`;
 
-export const RENDER_TEMPLATE_AI_PROMPT = `${INTRO}
+export const buildRenderTemplatePrompt = (testData?: string): string => {
+  const trimmed = testData?.trim();
+  const dataBlock = `<your_data>\n${trimmed && trimmed.length > 0 ? trimmed : DATA_PLACEHOLDER}\n</your_data>`;
+
+  return `${INTRO}
 
 ${STYLE_GUIDE}
 
 ${OUTPUT_CONTRACT}
 
-${USER_INPUT_TEMPLATE}`;
+${dataBlock}
+
+${WHAT_TO_RENDER}`;
+};
+
+export const RENDER_TEMPLATE_AI_PROMPT = buildRenderTemplatePrompt();

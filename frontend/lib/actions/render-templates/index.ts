@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -18,6 +18,7 @@ export async function getRenderTemplates(input: z.infer<typeof GetRenderTemplate
       name: true,
       createdAt: true,
     },
+    orderBy: desc(renderTemplates.createdAt),
   });
 
   return templates;

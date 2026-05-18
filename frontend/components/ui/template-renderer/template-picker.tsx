@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, ChevronDown, Loader2, PencilIcon, Plus, TrashIcon } from "lucide-react";
+import { Check, ChevronDown, Loader2, PencilIcon, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
@@ -15,6 +15,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import DeleteTemplateDialog from "@/components/ui/template-renderer/delete-template-dialog";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
@@ -50,9 +51,7 @@ export const useTemplatePicker = () => {
 };
 
 interface TemplatePickerProviderProps {
-  /** Stable key used to persist the user's last-picked template per host. */
-  presetKey?: string | null;
-  /** Current rendered text passed into the AI panel / preview when editing. */
+  presetKey: string | null;
   testData: string;
 }
 
@@ -211,6 +210,8 @@ interface TemplatePickerViewProps {
 const GROUP_CLASS =
   "[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-[0.65rem] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-muted-foreground";
 
+const formatLabel = (m: string) => (m.toLowerCase() === "messages" ? "LLM Messages" : m);
+
 export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName }: TemplatePickerViewProps) => {
   const { templates, selectedTemplate, selectTemplate, openCreate } = useTemplatePicker();
   const [open, setOpen] = useState(false);
@@ -233,7 +234,7 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
   const inCustomMode = mode === "custom";
   const triggerLabel = inCustomMode
     ? (selectedTemplate?.name ?? "Select template")
-    : (modes.find((m) => m.toLowerCase() === mode) ?? mode.toUpperCase());
+    : formatLabel(modes.find((m) => m.toLowerCase() === mode) ?? mode.toUpperCase());
 
   const handlePickFormat = useCallback(
     (m: string) => {
@@ -264,70 +265,74 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
           size="sm"
           variant="ghost"
           className={cn(
-            "h-5 gap-1 rounded-sm border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
+            "h-5 gap-1 rounded-md border border-secondary-foreground/20 bg-muted px-1.5 text-[0.7rem] font-medium text-secondary-foreground hover:bg-muted",
             triggerClassName
           )}
         >
-          <span className="truncate max-w-[160px]">{triggerLabel}</span>
+          <span className={cn("truncate max-w-[160px]")}>
+            {triggerLabel} {inCustomMode && <span className="font-semibold">(custom)</span>}
+          </span>
           <ChevronDown className="size-3 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[280px] p-0" onWheel={(e) => e.stopPropagation()}>
         <Command shouldFilter={false}>
-          <CommandList className="max-h-[360px]">
-            <CommandGroup heading="Default" className={GROUP_CLASS}>
-              {formats.map((m) => {
-                const value = m.toLowerCase();
-                const active = !inCustomMode && mode === value;
-                return (
-                  <CommandItem
-                    key={m}
-                    value={`format:${value}`}
-                    onSelect={() => handlePickFormat(m)}
-                    className="text-xs"
-                  >
-                    <span className="flex-1 truncate uppercase tracking-wide">{m}</span>
-                    {active && <Check className="ml-2 size-3.5 shrink-0" />}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-            <CommandSeparator />
-            <CommandInput
-              placeholder="Search templates…"
-              value={search}
-              onValueChange={setSearch}
-              className="h-7 py-1 text-xs"
-            />
-            <CommandGroup heading="Custom" className={GROUP_CLASS}>
-              {filteredTemplates.length === 0 ? (
-                <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-                  {templates?.length ? "No matches." : "No templates yet."}
-                </div>
-              ) : (
-                filteredTemplates.map((t) => {
-                  const active = inCustomMode && selectedTemplate?.id === t.id;
+          <CommandList className="max-h-none overflow-visible">
+            <ScrollArea className="max-h-[360px] [&>div]:max-h-[360px]">
+              <CommandGroup heading="Default" className={GROUP_CLASS}>
+                {formats.map((m) => {
+                  const value = m.toLowerCase();
+                  const active = !inCustomMode && mode === value;
                   return (
                     <CommandItem
-                      key={t.id}
-                      value={`template:${t.id}`}
-                      onSelect={() => handlePickTemplate(t.id)}
+                      key={m}
+                      value={`format:${value}`}
+                      onSelect={() => handlePickFormat(m)}
                       className="text-xs"
                     >
-                      <span className="flex-1 truncate">{t.name}</span>
+                      <span className="flex-1 truncate uppercase tracking-wide">{formatLabel(m)}</span>
                       {active && <Check className="ml-2 size-3.5 shrink-0" />}
                     </CommandItem>
                   );
-                })
-              )}
-            </CommandGroup>
-            <CommandSeparator />
-            <CommandGroup className={GROUP_CLASS}>
-              <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
-                <Plus className="mr-1.5 size-3.5" />
-                New template
-              </CommandItem>
-            </CommandGroup>
+                })}
+              </CommandGroup>
+              <CommandSeparator alwaysRender />
+              <CommandInput
+                placeholder="Search templates…"
+                value={search}
+                onValueChange={setSearch}
+                className="h-8 py-1 text-xs"
+              />
+              <CommandGroup heading="Custom" className={GROUP_CLASS}>
+                {filteredTemplates.length === 0 ? (
+                  <div className="px-2 py-3 text-center text-xs text-muted-foreground">
+                    {templates?.length ? "No matches." : "No templates yet."}
+                  </div>
+                ) : (
+                  filteredTemplates.map((t) => {
+                    const active = inCustomMode && selectedTemplate?.id === t.id;
+                    return (
+                      <CommandItem
+                        key={t.id}
+                        value={`template:${t.id}`}
+                        onSelect={() => handlePickTemplate(t.id)}
+                        className="text-xs"
+                      >
+                        <span className="flex-1 truncate">{t.name}</span>
+                        {active && <Check className="ml-2 size-3.5 shrink-0" />}
+                      </CommandItem>
+                    );
+                  })
+                )}
+              </CommandGroup>
+              <CommandSeparator alwaysRender />
+              <CommandGroup className={GROUP_CLASS}>
+                <CommandItem onSelect={handleCreate} className="text-xs text-muted-foreground">
+                  <Plus className="mr-1.5 size-3.5" />
+                  New template
+                </CommandItem>
+              </CommandGroup>
+            </ScrollArea>
           </CommandList>
         </Command>
       </PopoverContent>
@@ -336,27 +341,19 @@ export const TemplatePickerView = ({ mode, onModeChange, modes, triggerClassName
 };
 
 export const TemplatePickerActions = ({ className }: { className?: string }) => {
-  const { selectedTemplate, openEdit, openDelete } = useTemplatePicker();
+  const { selectedTemplate, openEdit } = useTemplatePicker();
   if (!selectedTemplate) return null;
   return (
     <div className={cn("flex items-center gap-0.5", className)}>
       <Button
-        size="icon"
+        size="sm"
         variant="ghost"
-        className="h-6 w-6 text-muted-foreground"
+        className="h-6 gap-1 px-1.5 text-xs text-muted-foreground"
         onClick={openEdit}
         title="Edit template"
       >
         <PencilIcon className="size-3.5" />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-        onClick={openDelete}
-        title="Delete template"
-      >
-        <TrashIcon className="size-3.5" />
+        Edit template
       </Button>
     </div>
   );
@@ -372,8 +369,8 @@ export const TemplatePickerPreview = ({ data, className }: TemplatePickerPreview
 
   if (isLoadingTemplate) {
     return (
-      <div className={cn("flex flex-1 items-center justify-center text-muted-foreground", className)}>
-        <Loader2 className="size-4 animate-spin" />
+      <div className={cn("flex flex-1 items-center justify-center text-muted-foreground min-h-40", className)}>
+        <Loader2 className="size-5 animate-spin" />
       </div>
     );
   }
