@@ -109,6 +109,16 @@ pub struct CHSpan {
     /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
     #[serde(default)]
     pub events: Vec<(i64, String, String)>,
+    /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
+    /// left empty and the view reconstructs the input JSON array by joining
+    /// against the `llm_messages` table.
+    #[serde(default)]
+    pub input_message_hashes: Vec<[u8; 32]>,
+    /// 0-based positions into `input_message_hashes` for messages this span
+    /// was first to introduce in its trace. Used by the search snippet query
+    /// to scope input matching to the new-messages subset only.
+    #[serde(default)]
+    pub input_new_message_indices: Vec<u16>,
 }
 
 impl CHSpan {
@@ -184,6 +194,8 @@ impl CHSpan {
                     )
                 })
                 .collect(),
+            input_message_hashes: Vec::new(),
+            input_new_message_indices: Vec::new(),
         }
     }
 }

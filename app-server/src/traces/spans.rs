@@ -1055,31 +1055,27 @@ impl Span {
         }
     }
 
-    /// This function MUST to be called right after we deserialize or create a span object.
+    /// Must run after `parse_and_enrich_attributes` + `convert_span_to_provider_format`.
+    /// Input is charged separately via `increment_size_bytes` (dedup'd LLM spans pay
+    /// for the hash array; everyone else pays for the raw JSON), so it's excluded here.
+    /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
+    /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
+    /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
+    /// so counting them here would double-bill against the input charge.
     pub fn estimate_size_bytes(&mut self) {
-        // 16 bytes for span_id,
-        // 16 bytes for trace_id,
-        // 16 bytes for parent_span_id,
-        // 8 bytes for start_time,
-        // 8 bytes for end_time,
-
-        // For OTel spans, input/output start inside raw_attributes and are
-        // parsed out later, so raw_attributes alone captures the payload.
-        // For /v1/spans, input/output are set directly on the Span and must
-        // be counted separately.
-        let size_bytes = 16
-            + 16
-            + 16
-            + 8
-            + 8
+        let size_bytes = 16 // span_id
+            + 16 // trace_id
+            + 16 // parent_span_id
+            + 8  // start_time
+            + 8  // end_time
             + self.name.len()
             + self
                 .attributes
                 .raw_attributes
                 .iter()
+                .filter(|(k, _)| should_keep_attribute(k))
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self.input.as_ref().map_or(0, |v| estimate_json_size(v))
             + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
@@ -1087,6 +1083,10 @@ impl Span {
                 .map(|event| event.estimate_size_bytes())
                 .sum::<usize>();
         self.size_bytes = size_bytes;
+    }
+
+    pub fn increment_size_bytes(&mut self, added: usize) {
+        self.size_bytes = self.size_bytes.saturating_add(added);
     }
 
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf

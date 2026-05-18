@@ -25,7 +25,6 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 interface TraceViewProps {
@@ -76,10 +75,6 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
     return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
   }, [spans, condensedTimelineVisibleSpanIds]);
-  const llmSpanIds = useMemo(
-    () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
-    [spans]
-  );
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -160,16 +155,18 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                     />
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      className={cn("h-6 px-1.5 text-xs", {
-                        "border-primary text-primary": browserSession,
-                      })}
-                      variant="outline"
-                      onClick={() => setBrowserSession(!browserSession)}
-                    >
-                      <CirclePlay size={14} className="mr-1" />
-                      Media
-                    </Button>
+                    {hasBrowserSession && (
+                      <Button
+                        className={cn("h-6 px-1.5 text-xs", {
+                          "border-primary text-primary": browserSession,
+                        })}
+                        variant="outline"
+                        onClick={() => setBrowserSession(!browserSession)}
+                      >
+                        <CirclePlay size={14} className="mr-1" />
+                        Media
+                      </Button>
+                    )}
                     {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
                   </div>
                 </div>
@@ -185,16 +182,11 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                 </div>
               )}
             </ResizablePanel>
-            {browserSession && (
+            {browserSession && hasBrowserSession && (
               <>
                 <ResizableHandle className="z-50" withHandle />
                 <ResizablePanel>
-                  <SessionPlayer
-                    onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={hasBrowserSession}
-                    traceId={trace.id}
-                    llmSpanIds={llmSpanIds}
-                  />
+                  <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />
                 </ResizablePanel>
               </>
             )}

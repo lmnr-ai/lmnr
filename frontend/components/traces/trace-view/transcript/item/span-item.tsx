@@ -137,7 +137,7 @@ export default function SpanItem({
       }}
     >
       {cachingEnabled && fullSpan && (
-        <div className="flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5">
+        <div className="flex items-start justify-center shrink-0 w-10 p-0.5 self-stretch">
           <DebuggerCheckpoint span={fullSpan} />
         </div>
       )}

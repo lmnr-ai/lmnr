@@ -1,6 +1,9 @@
 pub mod consumer;
 pub mod data_plane_consumer;
 pub mod grpc_service;
+pub mod input_dedup;
+#[cfg(feature = "signals")]
+pub mod previews;
 pub mod processor;
 pub mod producer;
 pub mod prompt_hash;

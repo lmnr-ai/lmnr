@@ -1,3 +1,4 @@
+import { type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
@@ -42,6 +43,11 @@ interface ContentRendererProps {
   hideScrollToBottom?: boolean;
   messageMaxHeight?: number;
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
+  /**
+   * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
+   * for keymap injections that need to win over `defaultKeymap` from `basicSetup`.
+   */
+  extraExtensions?: Extension[];
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -75,6 +81,7 @@ const PureContentRenderer = ({
   hideScrollToBottom,
   messageMaxHeight,
   customTheme,
+  extraExtensions,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const editorId = useId();
@@ -165,8 +172,11 @@ const PureContentRenderer = ({
     if (readOnly) {
       extensions.push(EditorView.editable.of(false));
     }
+    if (extraExtensions && extraExtensions.length > 0) {
+      extensions.push(...extraExtensions);
+    }
     return extensions;
-  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap]);
+  }, [mode, shouldRenderImages, hasImages, readOnly, imageMap, extraExtensions]);
 
   const handleCreateEditor = useCallback((view: EditorView) => {
     currentViewRef.current = view;

@@ -10,7 +10,6 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
-import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
@@ -67,10 +66,6 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
     return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
   }, [spans, condensedTimelineVisibleSpanIds]);
-  const llmSpanIds = useMemo(
-    () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
-    [spans]
-  );
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
@@ -132,17 +127,19 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                   )}
                 </div>
                 <div className="flex items-center gap-1 min-w-0">
-                  <Button
-                    disabled={!trace}
-                    className={cn("h-6 px-1.5 text-xs overflow-hidden", {
-                      "border-primary text-primary": browserSession,
-                    })}
-                    variant="outline"
-                    onClick={() => setBrowserSession(!browserSession)}
-                  >
-                    <CirclePlay size={14} className="flex-shrink-0" />
-                    <span className="ml-1 truncate">Media</span>
-                  </Button>
+                  {hasBrowserSession && (
+                    <Button
+                      disabled={!trace}
+                      className={cn("h-6 px-1.5 text-xs overflow-hidden", {
+                        "border-primary text-primary": browserSession,
+                      })}
+                      variant="outline"
+                      onClick={() => setBrowserSession(!browserSession)}
+                    >
+                      <CirclePlay size={14} className="flex-shrink-0" />
+                      <span className="ml-1 truncate">Media</span>
+                    </Button>
+                  )}
                   {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
                 </div>
               </div>
@@ -158,18 +155,11 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
               </div>
             )}
           </ResizablePanel>
-          {browserSession && (
+          {browserSession && hasBrowserSession && (
             <>
               <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
               <ResizablePanel>
-                {!isLoading && (
-                  <SessionPlayer
-                    onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={hasBrowserSession}
-                    traceId={traceId}
-                    llmSpanIds={llmSpanIds}
-                  />
-                )}
+                {!isLoading && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={traceId} />}
               </ResizablePanel>
             </>
           )}

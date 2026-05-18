@@ -26,7 +26,7 @@ use clustering::queue::{
 };
 use features::{Feature, is_feature_enabled};
 use lapin::{
-    Connection, ConnectionProperties, ExchangeKind,
+    ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
 };
@@ -34,7 +34,7 @@ use logs::{
     LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
     grpc_service::ProcessLogsService,
 };
-use mq::MessageQueue;
+use mq::{MessageQueue, connection::ResilientConnection};
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
@@ -260,27 +260,29 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(inner_db);
 
     // === 3. Message queues ===
-    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
-    // Create publisher connection always (needed for both modes)
-    // Create consumer connection only if consumer mode is enabled
+    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set.
+    // Connections are wrapped in ResilientConnection: lapin's Connection has no
+    // auto-reconnect, so we register an on_error handler and a supervisor task
+    // that redials with exponential backoff and atomically swaps the live
+    // connection in. Callers (channel pool, get_receiver, is_healthy) read the
+    // current connection through `ResilientConnection::current()` and never see
+    // the swap.
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
             runtime_handle.block_on(async {
-                let publisher_conn = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                        .await
-                        .unwrap(),
-                );
+                let publisher_conn = ResilientConnection::connect(rabbitmq_url.clone(), "publisher")
+                    .await
+                    .unwrap();
 
                 // Only create consumer connection if consumer mode is enabled
                 let consumer_conn = if enable_consumer() {
                     log::info!("Consumer mode enabled - creating consumer connection");
-                    Some(Arc::new(
-                        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                    Some(
+                        ResilientConnection::connect(rabbitmq_url.clone(), "consumer")
                             .await
                             .unwrap(),
-                    ))
+                    )
                 } else {
                     log::info!("Producer-only mode - skipping consumer connection");
                     None
@@ -294,7 +296,7 @@ fn main() -> anyhow::Result<()> {
 
     let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
         runtime_handle.block_on(async {
-            let channel = publisher_conn.create_channel().await.unwrap();
+            let channel = publisher_conn.current().create_channel().await.unwrap();
 
             // Create quorum queue arguments (reused for all queues)
             let mut quorum_queue_args = FieldTable::default();
@@ -938,6 +940,25 @@ fn main() -> anyhow::Result<()> {
         ));
     }
 
+    // == LLM Client ==
+    let llm_provider_client: Option<Arc<llm::LlmClient>> = if is_feature_enabled(Feature::Signals) {
+        log::info!("Initializing LLM client");
+        match runtime_handle.block_on(llm::LlmClient::new()) {
+            Ok(client) => Some(Arc::new(client)),
+            Err(e) => {
+                log::warn!(
+                    "Failed to create LLM client (signals will be disabled): {:?}",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        log::info!("Signals feature disabled - skipping LLM client initialization");
+        None
+    };
+    let llm_provider_client_for_http = llm_provider_client.clone();
+
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
 
@@ -960,25 +981,6 @@ fn main() -> anyhow::Result<()> {
 
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
-
-        // == LLM Client ==
-        let llm_provider_client: Option<Arc<llm::LlmClient>> =
-            if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM client");
-                match runtime_handle.block_on(llm::LlmClient::new()) {
-                    Ok(client) => Some(Arc::new(client)),
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to create LLM client (signals will be disabled): {:?}",
-                            e
-                        );
-                        None
-                    }
-                }
-            } else {
-                log::info!("Signals feature disabled - skipping LLM client initialization");
-                None
-            };
 
         let num_spans_workers = env::var("NUM_SPANS_WORKERS")
             .unwrap_or(String::from("4"))
@@ -1617,7 +1619,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()));
+                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(llm_provider_client_for_http.clone()));
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(web::Data::new(limiter.clone()));
@@ -1712,7 +1715,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::get_skeleton_hashes);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
-                                    .service(crate::signals::private::routes::submit_signal_job);
+                                    .service(crate::signals::private::routes::submit_signal_job)
+                                    .service(crate::signals::private::routes::test_signal);
                                 scope
                             })
                             .service(routes::probes::check_health)

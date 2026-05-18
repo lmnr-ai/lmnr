@@ -2,7 +2,7 @@ use backoff::ExponentialBackoffBuilder;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    BasicProperties, Channel, Connection, Consumer,
+    BasicProperties, Channel, Consumer,
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
     types::{FieldTable, ShortString},
@@ -11,11 +11,11 @@ use std::sync::Arc;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
-    MessageQueueReceiverTrait, MessageQueueTrait,
+    MessageQueueReceiverTrait, MessageQueueTrait, connection::ResilientConnection,
 };
 
 struct RabbitChannelManager {
-    connection: Arc<Connection>,
+    connection: Arc<ResilientConnection>,
 }
 
 impl Manager for RabbitChannelManager {
@@ -24,10 +24,17 @@ impl Manager for RabbitChannelManager {
 
     async fn create(&self) -> Result<Channel, Self::Error> {
         let create_channel = || async {
-            self.connection.create_channel().await.map_err(|e| {
-                log::warn!("Failed to create channel: {:?}", e);
-                backoff::Error::transient(anyhow::Error::from(e))
-            })
+            // Read the latest connection on every attempt: if the supervisor
+            // swapped a fresh one in mid-backoff we pick it up automatically.
+            self.connection
+                .current()
+                .create_channel()
+                .await
+                .map_err(|e| {
+                    log::warn!("Failed to create channel: {:?}", e);
+                    self.connection.notify_error();
+                    backoff::Error::transient(anyhow::Error::from(e))
+                })
         };
 
         let backoff = ExponentialBackoffBuilder::new()
@@ -68,8 +75,8 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    publisher_connection: Arc<Connection>,
-    consumer_connection: Option<Arc<Connection>>,
+    publisher_connection: Arc<ResilientConnection>,
+    consumer_connection: Option<Arc<ResilientConnection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
@@ -119,8 +126,8 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 
 impl RabbitMQ {
     pub fn new(
-        publisher_connection: Arc<Connection>,
-        consumer_connection: Option<Arc<Connection>>,
+        publisher_connection: Arc<ResilientConnection>,
+        consumer_connection: Option<Arc<ResilientConnection>>,
         max_channel_pool_size: usize,
     ) -> Self {
         let manager = RabbitChannelManager {
@@ -163,6 +170,7 @@ impl MessageQueueTrait for RabbitMQ {
                 Ok(channel) => channel,
                 Err(PoolError::Backend(e)) => {
                     log::warn!("Failed to get channel from pool: {}", e);
+                    self.publisher_connection.notify_error();
                     return Err(backoff::Error::transient(anyhow::anyhow!(
                         "Failed to get channel from pool: {}",
                         e
@@ -180,6 +188,7 @@ impl MessageQueueTrait for RabbitMQ {
             // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
+                self.publisher_connection.notify_error();
                 return Err(backoff::Error::transient(anyhow::anyhow!(
                     "Channel is not connected"
                 )));
@@ -199,11 +208,13 @@ impl MessageQueueTrait for RabbitMQ {
                     Ok(_confirmation) => Ok(()),
                     Err(e) => {
                         log::warn!("Failed to publish message promise: {:?}", e);
+                        self.publisher_connection.notify_error();
                         Err(backoff::Error::transient(anyhow::Error::from(e)))
                     }
                 },
                 Err(e) => {
                     log::warn!("Failed to get call promise from basic_publish: {:?}", e);
+                    self.publisher_connection.notify_error();
                     Err(backoff::Error::transient(anyhow::Error::from(e)))
                 }
             }
@@ -242,15 +253,22 @@ impl MessageQueueTrait for RabbitMQ {
             )
         })?;
 
-        // Check connection health before attempting to create channel
-        if !consumer_conn.status().connected() {
+        let connection = consumer_conn.current();
+        if !connection.status().connected() {
+            consumer_conn.notify_error();
             return Err(anyhow::anyhow!(
                 "Consumer connection is not in connected state: {:?}",
-                consumer_conn.status().state()
+                connection.status().state()
             ));
         }
 
-        let channel = consumer_conn.create_channel().await?;
+        let channel = match connection.create_channel().await {
+            Ok(channel) => channel,
+            Err(e) => {
+                consumer_conn.notify_error();
+                return Err(anyhow::Error::from(e));
+            }
+        };
 
         // We want to limit the number of unacknowledged messages RabbitMQ will deliver,
         // preventing unbounded memory growth of rabbitmq pod
@@ -281,29 +299,28 @@ impl MessageQueueTrait for RabbitMQ {
     }
 
     fn is_healthy(&self) -> bool {
-        // Check publisher connection (always exists)
-        let publisher_ok = self.publisher_connection.status().connected();
+        let publisher_ok = self.publisher_connection.is_connected();
         if !publisher_ok {
             log::error!(
-                "RabbitMQ health check failed - publisher connection not connected. State: {:?}",
-                self.publisher_connection.status().state()
+                "RabbitMQ readiness: publisher connection is not connected (state: {:?})",
+                self.publisher_connection.current().status().state()
             );
         }
 
-        // Check consumer connection (only if it exists)
-        let consumer_ok = self.consumer_connection
+        let consumer_ok = self
+            .consumer_connection
             .as_ref()
             .map(|c| {
-                let connected = c.status().connected();
+                let connected = c.is_connected();
                 if !connected {
                     log::error!(
-                        "RabbitMQ health check failed - consumer connection not connected. State: {:?}",
-                        c.status().state()
+                        "RabbitMQ readiness: consumer connection is not connected (state: {:?})",
+                        c.current().status().state()
                     );
                 }
                 connected
             })
-            .unwrap_or(true); // No consumer connection = healthy (producer-only mode)
+            .unwrap_or(true);
 
         publisher_ok && consumer_ok
     }

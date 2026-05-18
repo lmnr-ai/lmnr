@@ -1,46 +1,33 @@
-import { Html, Link, Preview, Text } from "@react-email/components";
-
-import { type ItemDescription } from "@/lib/actions/checkout/types";
+import { Button, Html, Preview, Text } from "@react-email/components";
 
 interface SubscriptionUpdatedEmailProps {
-  itemDescriptions: ItemDescription[];
+  total: string;
   date: string;
   billedTo: string;
+  billingPortalUrl: string;
 }
 
-const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
-  if (itemDescriptions.length === 1) {
-    const { productDescription, shortDescription } = itemDescriptions[0];
-    return `Payment for ${shortDescription ?? productDescription} is received.`;
-  }
-  return "Thanks for your payment!";
-};
-
-export default function SubscriptionUpdatedEmail({ itemDescriptions, date, billedTo }: SubscriptionUpdatedEmailProps) {
+export default function SubscriptionUpdatedEmail({
+  total,
+  date,
+  billedTo,
+  billingPortalUrl,
+}: SubscriptionUpdatedEmailProps) {
   return (
     <Html lang="en">
-      <Preview>{renderPreviewString(itemDescriptions)}</Preview>
+      <Preview>Payment received — thanks for using Laminar.</Preview>
       <div style={container}>
-        <Text style={heading}>Payment details</Text>
-        <Text style={text}>The payment has been received.</Text>
-        <Text style={label}>Products</Text>
-        {itemDescriptions.map(({ productDescription }, index) => (
-          <Text style={value} key={index}>
-            {productDescription}
-          </Text>
-        ))}
+        <Text style={heading}>Payment received</Text>
+        <Text style={text}>Thanks for your payment. A detailed invoice is available in your billing portal.</Text>
+        <Text style={label}>Total</Text>
+        <Text style={value}>{total}</Text>
         <Text style={label}>Date</Text>
         <Text style={value}>{date}</Text>
         <Text style={label}>Billed to</Text>
         <Text style={value}>{billedTo}</Text>
-        <Text style={text}>
-          Read more about the tier limits at
-          <Link style={link} href="https://www.laminar.sh/pricing" target="_blank">
-            {" our pricing page"}
-          </Link>
-          .
-        </Text>
-        <Text style={text}>Thank you for choosing Laminar.</Text>
+        <Button style={button} href={billingPortalUrl}>
+          View invoice
+        </Button>
         <Text style={footer}>LMNR AI, INC. 2026</Text>
       </div>
     </Html>
@@ -67,11 +54,6 @@ const heading = {
   marginBottom: "24px",
 };
 
-const link = {
-  color: "#2563eb",
-  textDecoration: "none",
-};
-
 const label = {
   ...text,
   fontWeight: "600",
@@ -81,6 +63,19 @@ const label = {
 const value = {
   ...text,
   marginTop: "0px",
+};
+
+const button = {
+  display: "inline-block",
+  marginTop: "16px",
+  padding: "10px 20px",
+  backgroundColor: "#111827",
+  color: "#ffffff",
+  borderRadius: "6px",
+  fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
+  fontSize: "14px",
+  fontWeight: "600",
+  textDecoration: "none",
 };
 
 const footer = {

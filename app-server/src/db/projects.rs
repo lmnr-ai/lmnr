@@ -23,7 +23,7 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub custom_signal_steps_limit: Option<i64>,
 }
 
-#[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone, Debug)]
 pub enum WorkspaceTierName {
     Free,
     Pro,
@@ -47,6 +47,41 @@ impl WorkspaceTierName {
 
     pub fn is_free(&self) -> bool {
         *self == WorkspaceTierName::Free
+    }
+
+    /// Bytes included in this tier's monthly plan. Must stay in sync with the
+    /// `TIER_CONFIG.includedBytes` values in `frontend/lib/actions/checkout/types.ts`.
+    /// Used to detect when a usage warning was hit at the tier's included
+    /// allowance (vs. a user-configured custom warning) so we can tailor the
+    /// warning email.
+    pub fn included_bytes(&self) -> Option<i64> {
+        match self {
+            // Free tier: spec keeps the free plan at its historical 1 GiB allowance.
+            Self::Free => Some(1024i64.pow(3)),
+            Self::Hobby => Some(3 * 1024i64.pow(3)),
+            Self::Pro => Some(10 * 1024i64.pow(3)),
+            Self::Other => None,
+        }
+    }
+
+    /// Signal steps included in this tier's monthly plan. Must stay in sync
+    /// with `TIER_CONFIG.includedSignalSteps` values in the frontend.
+    pub fn included_signal_steps(&self) -> Option<i64> {
+        match self {
+            Self::Free => Some(500),
+            Self::Hobby => Some(5_000),
+            Self::Pro => Some(50_000),
+            Self::Other => None,
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Free => "Free",
+            Self::Hobby => "Hobby",
+            Self::Pro => "Pro",
+            Self::Other => "your",
+        }
     }
 }
 

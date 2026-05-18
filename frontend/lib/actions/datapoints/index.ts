@@ -138,6 +138,7 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
   }));
 
   const result = await pushQueueItems({
+    projectId,
     queueId,
     items: queueItems,
   });
