@@ -4,7 +4,7 @@
 
 ![Laminar banner](./images/laminar-banner.png)
 
-# Laminar
+# Laminar Platform
 
 [Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
 
