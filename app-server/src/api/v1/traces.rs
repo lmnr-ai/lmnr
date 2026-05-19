@@ -10,7 +10,10 @@ use crate::{
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::{input_dedup::LlmInputDedup, producer::push_spans_to_queue},
+    traces::{
+        input_dedup::LlmInputDedup,
+        {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
+    },
     utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use prost::Message;
@@ -46,9 +49,7 @@ pub async fn process_traces(
 ) -> ResponseResult {
     let db = db.into_inner();
     let cache = cache.into_inner();
-    let request = ExportTraceServiceRequest::decode(body).map_err(|e| {
-        anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
-    })?;
+    let request = decode_export_trace_request(&req, body)?;
     let spans_message_queue = spans_message_queue.as_ref().clone();
 
     if is_feature_enabled(Feature::UsageLimit) {
@@ -87,5 +88,28 @@ pub async fn process_traces(
         Ok(HttpResponse::Ok().keep_alive().finish())
     } else {
         Ok(HttpResponse::Ok().finish())
+    }
+}
+
+/// Dispatch on `Content-Type`: `application/json` is OTLP/HTTP+JSON, anything else
+/// (including missing) falls through to OTLP/HTTP+protobuf — matches what every
+/// existing SDK sends today.
+fn decode_export_trace_request(
+    req: &HttpRequest,
+    body: Bytes,
+) -> Result<ExportTraceServiceRequest, anyhow::Error> {
+    let content_type = req
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if content_type.starts_with("application/json") {
+        decode_export_trace_service_request(&body).map_err(|e| {
+            anyhow::anyhow!("Failed to decode OTLP/JSON ExportTraceServiceRequest: {e}")
+        })
+    } else {
+        ExportTraceServiceRequest::decode(body).map_err(|e| {
+            anyhow::anyhow!("Failed to decode ExportTraceServiceRequest from bytes. {e}")
+        })
     }
 }
