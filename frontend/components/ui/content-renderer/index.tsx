@@ -19,9 +19,13 @@ import {
 } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import TemplateRenderer from "@/components/ui/template-renderer";
+import {
+  TemplatePickerActions,
+  TemplatePickerPreview,
+  TemplatePickerProvider,
+  TemplatePickerView,
+} from "@/components/ui/template-renderer/template-picker";
 import { cn, tryParseJson } from "@/lib/utils";
 
 interface ContentRendererProps {
@@ -193,20 +197,20 @@ const PureContentRenderer = ({
     }
   }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
 
+  // Settings popover only applies to the CodeMirror branch.
+  const isCodeMode = mode !== "custom" && mode !== "messages";
+
   const renderHeaderContent = () => (
     <>
-      <Select value={mode} onValueChange={handleModeChange}>
-        <SelectTrigger className="h-4 px-1.5 bg-muted font-medium text-secondary-foreground border-secondary-foreground/20 w-fit text-[0.7rem] outline-hidden focus:ring-0">
-          <SelectValue className="w-fit" placeholder="Select mode" />
-        </SelectTrigger>
-        <SelectContent>
-          {modes.map((mode) => (
-            <SelectItem key={mode} value={mode.toLowerCase()} className="text-xs">
-              {mode}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <TemplatePickerView mode={mode} onModeChange={handleModeChange} modes={modes} />
+      {mode === "custom" && (
+        <TemplatePickerActions
+          className={cn(
+            "transition-opacity data-[state=open]:opacity-100",
+            isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
       <CopyButton
         className={cn(
           "ml-auto text-foreground/80 transition-opacity data-[state=open]:opacity-100",
@@ -227,80 +231,84 @@ const PureContentRenderer = ({
           renderedValue={value}
           mode={mode}
           onModeChange={handleModeChange}
+          modes={modes}
           extensions={extensions}
           placeholder={placeholder}
-          presetKey={presetKey}
         />
       </div>
-      <Popover onOpenChange={setIsSettingsOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "text-foreground/70 transition-opacity data-[state=open]:opacity-100",
-              isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
-            )}
-          >
-            <Settings size={16} />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="p-2 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Show line numbers</span>
-            <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Render base64 images</span>
-            <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
-          </div>
-        </PopoverContent>
-      </Popover>
+      {isCodeMode && (
+        <Popover onOpenChange={setIsSettingsOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "text-foreground/70 transition-opacity data-[state=open]:opacity-100",
+                isHovered || isSettingsOpen ? "opacity-100" : "opacity-0"
+              )}
+            >
+              <Settings size={16} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="p-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Show line numbers</span>
+              <Switch checked={showLineNumbers} onCheckedChange={toggleLineNumbers} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Render base64 images</span>
+              <Switch checked={shouldRenderImages} onCheckedChange={toggleImageRendering} />
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
     </>
   );
 
   return (
-    <div
-      className={cn("size-full min-h-7 flex flex-col border relative overflow-hidden", className)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <div className={cn("flex justify-end items-center pl-2 pr-1 w-full rounded-t bg-transparent")}>
-        {renderHeaderContent()}
+    <TemplatePickerProvider presetKey={presetKey ?? null} testData={value}>
+      <div
+        className={cn("size-full min-h-7 flex flex-col border relative overflow-hidden", className)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className={cn("flex justify-end items-center gap-1 pl-2 pr-1 w-full rounded-t bg-transparent")}>
+          {renderHeaderContent()}
+        </div>
+        {mode === "custom" ? (
+          <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
+            <TemplatePickerPreview data={renderedValue} />
+          </div>
+        ) : mode === "messages" ? (
+          <div className="flex-1 flex w-full min-h-0">
+            <Messages
+              messages={tryParseJson(value) ?? []}
+              presetKey={presetKey ?? ""}
+              hideScrollToBottom={hideScrollToBottom}
+              maxHeight={messageMaxHeight}
+            />
+          </div>
+        ) : (
+          <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
+            <CodeMirror
+              ref={editorRef}
+              className="w-full"
+              placeholder={placeholder}
+              onChange={handleChange}
+              theme={customTheme ?? defaultTheme}
+              basicSetup={{
+                lineNumbers: showLineNumbers,
+                foldGutter: showLineNumbers,
+              }}
+              extensions={extensions}
+              value={renderedValue}
+              readOnly={readOnly}
+              onCreateEditor={handleCreateEditor}
+            />
+          </div>
+        )}
       </div>
-      {mode === "custom" ? (
-        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
-          <TemplateRenderer data={renderedValue} presetKey={presetKey} />
-        </div>
-      ) : mode === "messages" ? (
-        <div className="flex-1 flex w-full min-h-0">
-          <Messages
-            messages={tryParseJson(value) ?? []}
-            presetKey={presetKey ?? ""}
-            hideScrollToBottom={hideScrollToBottom}
-            maxHeight={messageMaxHeight}
-          />
-        </div>
-      ) : (
-        <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
-          <CodeMirror
-            ref={editorRef}
-            className="w-full"
-            placeholder={placeholder}
-            onChange={handleChange}
-            theme={customTheme ?? defaultTheme}
-            basicSetup={{
-              lineNumbers: showLineNumbers,
-              foldGutter: showLineNumbers,
-            }}
-            extensions={extensions}
-            value={renderedValue}
-            readOnly={readOnly}
-            onCreateEditor={handleCreateEditor}
-          />
-        </div>
-      )}
-    </div>
+    </TemplatePickerProvider>
   );
 };
 

@@ -177,7 +177,7 @@ pub fn skip_span_name(name: &str) -> bool {
     SKIP_SPAN_NAME_REGEX.is_match(name)
 }
 
-fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
+pub(crate) fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     let first_in_ids = span.span_id
         == attributes
             .ids_path()
@@ -226,7 +226,14 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
         span.parent_span_id = None;
     }
 
-    if span.is_llm_span() {
+    // Skip if the producer already wrote the hash; legacy / bypass
+    // ingest paths still rely on this fallback.
+    if span.is_llm_span()
+        && !span
+            .attributes
+            .raw_attributes
+            .contains_key(SPAN_PROMPT_HASH)
+    {
         if let Some(hash) = compute_prompt_hash(&span.input) {
             span.attributes
                 .raw_attributes
