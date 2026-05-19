@@ -70,6 +70,10 @@ struct GrpcServer {
     engine: Arc<Engine>,
     max_texts_per_request: usize,
     max_tokens_per_text: usize,
+    /// Max number of texts dispatched to `detect_spans_batch` in one go.
+    /// Bounds peak in-flight task / per-text memory; concurrency within a
+    /// sub-batch is still gated by the session permit pool.
+    max_batch_size: usize,
 }
 
 #[tonic::async_trait]
@@ -117,11 +121,19 @@ impl PiiRedactorService for GrpcServer {
 
         // Stage 2: detect spans in the rendered text for each input
         // (concurrent across inputs, chunked per-input if needed).
-        let engine = self.engine.clone();
-        let all_spans = engine
-            .detect_spans_batch(rendered)
-            .await
-            .map_err(|e| Status::internal(format!("detect failed: {e:#}")))?;
+        // Sub-batch by `max_batch_size` so a request near the per-RPC cap
+        // can't spawn its full text count as concurrent tasks at once —
+        // bounds peak memory under load. Concurrency within a sub-batch
+        // is still gated by the session permit pool.
+        let mut all_spans: Vec<Vec<engine::Span>> = Vec::with_capacity(rendered.len());
+        for chunk in rendered.chunks(self.max_batch_size.max(1)) {
+            let engine = self.engine.clone();
+            let chunk_spans = engine
+                .detect_spans_batch(chunk.to_vec())
+                .await
+                .map_err(|e| Status::internal(format!("detect failed: {e:#}")))?;
+            all_spans.extend(chunk_spans);
+        }
 
         // Stage 3: route spans → leaves → rewrite tree → serialize.
         let mut out_texts = Vec::with_capacity(walked.len());
@@ -155,9 +167,6 @@ async fn main() -> Result<()> {
         inter_threads: args.inter_threads,
         num_sessions: args.num_sessions.max(1),
     };
-    // `max_batch_size` is plumbed through CLI for forward-compat; not yet
-    // used by the chunked single-text inference path.
-    let _ = args.max_batch_size;
     let engine = Engine::load(cfg)?;
 
     let addr = format!("0.0.0.0:{}", args.port).parse()?;
@@ -165,6 +174,7 @@ async fn main() -> Result<()> {
         engine,
         max_texts_per_request: args.max_texts_per_request,
         max_tokens_per_text: args.max_tokens_per_text,
+        max_batch_size: args.max_batch_size.max(1),
     });
 
     info!("listening on {addr}");
