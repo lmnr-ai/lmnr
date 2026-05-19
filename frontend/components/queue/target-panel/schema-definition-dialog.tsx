@@ -10,6 +10,7 @@ import { theme } from "@/components/ui/content-renderer/utils";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { useQueueStore } from "../queue-store";
 
@@ -107,6 +108,15 @@ export default function SchemaDefinitionDialog({
       }
 
       setAnnotationSchema(parsedSchema);
+      if (parsedSchema !== null) {
+        const fieldsCount =
+          typeof parsedSchema.properties === "object" && parsedSchema.properties !== null
+            ? Object.keys(parsedSchema.properties).length
+            : 0;
+        track("labeling_queues", "annotation_schema_saved", { fieldsCount });
+      } else {
+        track("labeling_queues", "annotation_schema_cleared");
+      }
       setIsOpen(false);
       toast({
         title: "Success",

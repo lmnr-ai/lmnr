@@ -7,6 +7,7 @@ import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type QueueItemState, type QueueItemStateRow } from "@/lib/actions/queue";
+import { track } from "@/lib/posthog";
 import { type LabelingQueue, type LabelingQueueItem } from "@/lib/queue/types";
 
 import {
@@ -465,6 +466,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 };
               });
               const after = get();
+              track("labeling_queues", "item_approved");
               if (after.currentIndex < after.idsList.length - 1) after.step(1);
               return { ok: true };
             } catch {
@@ -515,6 +517,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                   progress: computeProgress(nextStates),
                 };
               });
+              track("labeling_queues", "item_unapproved");
               return { ok: true };
             } catch {
               return { ok: false, error: "Failed to unapprove item" };
@@ -548,6 +551,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: errMessage ?? "Failed to discard item" };
               }
               removeItemLocal(current.id);
+              track("labeling_queues", "item_discarded");
               await revalidate?.();
               return { ok: true };
             } catch {
@@ -585,8 +589,15 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: errMessage ?? "Failed to push approved items" };
               }
               const result = await res.json();
+              const pushed = result?.pushed ?? 0;
+              if (pushed > 0) {
+                track("labeling_queues", "items_pushed_to_dataset", {
+                  scope: opts?.includeUnlabelled ? "all" : "approved",
+                  count: pushed,
+                });
+              }
               await revalidate?.();
-              return { ok: true, pushed: result?.pushed ?? 0 };
+              return { ok: true, pushed };
             } catch {
               return { ok: false, error: "Failed to push approved items" };
             } finally {
@@ -632,6 +643,10 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: "Item was not pushed — approve it first" };
               }
               removeItemLocal(current.id);
+              track("labeling_queues", "items_pushed_to_dataset", {
+                scope: opts?.includeUnlabelled ? "current_unlabelled" : "current",
+                count: result.pushed,
+              });
               await revalidate?.();
               return { ok: true, pushed: result.pushed };
             } catch {
