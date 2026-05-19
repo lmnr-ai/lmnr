@@ -33,11 +33,6 @@ export default function QueueContent() {
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  useEffect(() => {
-    track("labeling_queues", "queue_page_viewed", { count: itemsLen });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
   }
@@ -46,16 +41,21 @@ export default function QueueContent() {
     return <EmptyState />;
   }
 
-  return <QueueContentInner />;
+  return <QueueContentInner count={itemsLen} />;
 }
 
-function QueueContentInner() {
+function QueueContentInner({ count }: { count: number }) {
   const { projectId } = useParams<{ projectId: string }>();
   const queue = useQueueStore((s) => s.queue);
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `queue-layout-${queue.id}`,
   });
+
+  useEffect(() => {
+    track("labeling_queues", "queue_page_viewed", { count });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
