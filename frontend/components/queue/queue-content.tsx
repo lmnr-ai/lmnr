@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
@@ -33,17 +33,10 @@ export default function QueueContent() {
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 
-  // Wait for the first index hydration before tracking — `idsList` is empty
-  // until QueueDataLoader's SWR fetch resolves, so an empty-deps effect would
-  // always emit count: 0. The ref guard prevents the event re-firing when
-  // items are removed (approve/discard/push) post-hydration.
-  const trackedRef = useRef(false);
   useEffect(() => {
-    if (!isInitialLoaded || trackedRef.current) return;
-    trackedRef.current = true;
     track("labeling_queues", "queue_page_viewed", { count: itemsLen });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialLoaded]);
+  }, []);
 
   if (!isInitialLoaded || !isClient) {
     return <LoadingState name={queue.name} />;
