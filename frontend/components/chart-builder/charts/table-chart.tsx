@@ -1,12 +1,46 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { isNil, isObject } from "lodash";
-import React, { useCallback, useMemo } from "react";
+import { isEqual, isNil, isObject } from "lodash";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type TableColumnConfig } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { type ColumnConfig, DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import {
+  type ColumnConfig,
+  DataTableStateProvider,
+  useColumnConfig,
+} from "@/components/ui/infinite-datatable/model/datatable-store";
 import { formatRelativeTime } from "@/lib/utils";
+
+// Forwards column-state changes from the store back to the caller. Lives here
+// (a child of DataTableStateProvider) so the provider stays a pure state
+// container — no useRef + subscribe plumbing inside the model layer.
+const ColumnConfigEmitter = ({
+  initial,
+  onChange,
+}: {
+  initial: ColumnConfig;
+  onChange: (config: ColumnConfig) => void;
+}) => {
+  const config = useColumnConfig();
+  // Capture the seed once so the first emit is suppressed; otherwise the parent
+  // would persist a no-op write on mount (problematic for the dashboard chart's
+  // debounced PATCH to the backend).
+  const [seed] = useState(() => initial);
+
+  useEffect(() => {
+    if (
+      isEqual(config.columnOrder, seed.columnOrder) &&
+      isEqual(config.columnSizing, seed.columnSizing) &&
+      isEqual(config.columnVisibility, seed.columnVisibility)
+    ) {
+      return;
+    }
+    onChange(config);
+  }, [config, onChange, seed]);
+
+  return null;
+};
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}[T ]/;
 
@@ -127,10 +161,12 @@ const TableChart = ({
       <DataTableStateProvider
         defaultColumnOrder={visibleColumnNames}
         initialColumnConfig={initialColumnConfig}
-        onColumnConfigChange={handleColumnConfigChange}
         pageSize={PAGE_SIZE}
         disableHideColumn
       >
+        {onColumnConfigChange && (
+          <ColumnConfigEmitter initial={initialColumnConfig} onChange={handleColumnConfigChange} />
+        )}
         <InfiniteDataTable
           columns={tableColumns}
           data={data}

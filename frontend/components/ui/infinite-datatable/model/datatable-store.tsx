@@ -1,9 +1,11 @@
 "use client";
 
 import { intersection, pick, uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type CustomColumn } from "@/components/ui/columns-menu";
 
@@ -332,7 +334,6 @@ export interface DataTableStateProviderProps {
   initialColumnConfig?: ColumnConfig;
   lockedColumns?: string[];
   disableHideColumn?: boolean;
-  onColumnConfigChange?: (config: ColumnConfig) => void;
 }
 
 export function DataTableStateProvider<TData>({
@@ -344,7 +345,6 @@ export function DataTableStateProvider<TData>({
   initialColumnConfig,
   lockedColumns,
   disableHideColumn,
-  onColumnConfigChange,
 }: DataTableStateProviderProps) {
   const [store] = useState(() =>
     createDataTableStore<TData>({
@@ -357,27 +357,6 @@ export function DataTableStateProvider<TData>({
       disableHideColumn,
     })
   );
-  const onChangeRef = useRef(onColumnConfigChange);
-  useEffect(() => {
-    onChangeRef.current = onColumnConfigChange;
-  }, [onColumnConfigChange]);
-
-  useEffect(() => {
-    if (!onColumnConfigChange) return;
-    return store.subscribe((state, prev) => {
-      if (
-        state.columnOrder !== prev.columnOrder ||
-        state.columnSizing !== prev.columnSizing ||
-        state.columnVisibility !== prev.columnVisibility
-      ) {
-        onChangeRef.current?.({
-          columnOrder: state.columnOrder,
-          columnSizing: state.columnSizing,
-          columnVisibility: state.columnVisibility,
-        });
-      }
-    });
-  }, [store, onColumnConfigChange]);
 
   return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
 }
@@ -388,4 +367,20 @@ export function useDataTableStore<TData>() {
     throw new Error("useDataTableStore must be used within DataTableStateProvider");
   }
   return store as DataTableStoreApi<TData>;
+}
+
+/** Memoized selector for the persisted column config. Use shallow equality so
+ * the returned object is stable when none of the four fields change. */
+export function useColumnConfig(): Required<ColumnConfig> {
+  const store = useDataTableStore();
+  return useStoreWithEqualityFn(
+    store,
+    (s) => ({
+      columnOrder: s.columnOrder,
+      columnSizing: s.columnSizing,
+      columnVisibility: s.columnVisibility,
+      customColumns: s.customColumns,
+    }),
+    shallow
+  );
 }
