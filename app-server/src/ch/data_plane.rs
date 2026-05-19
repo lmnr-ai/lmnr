@@ -13,6 +13,7 @@ use crate::cache::Cache;
 use crate::data_plane::client::DataPlaneClient;
 use crate::db::workspaces::WorkspaceDeployment;
 
+use super::llm_messages::CHLlmMessage;
 use super::notification_deliveries::CHNotificationDelivery;
 use super::notifications::CHNotification;
 use super::spans::CHSpan;
@@ -28,6 +29,7 @@ pub enum DataPlaneBatch {
     Traces(Vec<CHTrace>),
     NotificationDeliveries(Vec<CHNotificationDelivery>),
     Notifications(Vec<CHNotification>),
+    LlmMessages(Vec<CHLlmMessage>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.
@@ -45,7 +47,10 @@ impl DataPlaneClickhouse {
 
 #[async_trait]
 impl ClickhouseTrait for DataPlaneClickhouse {
-    #[instrument(skip(self, items, config))]
+    #[instrument(
+        skip(self, items, config),
+        fields(table = T::TABLE.as_str(), batch_size = items.len())
+    )]
     async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         items: &[T],

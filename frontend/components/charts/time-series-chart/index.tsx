@@ -33,6 +33,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   onZoom,
   formatValue = numberFormatter.format,
   showTotal = true,
+  showTooltip = true,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -128,16 +129,18 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             ticks={smartTicksResult?.ticks}
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelKey="timestamp"
-                labelFormatter={(_, payload) =>
-                  payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                }
-              />
-            }
-          />
+          {showTooltip && (
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelKey="timestamp"
+                  labelFormatter={(_, payload) =>
+                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
+                  }
+                />
+              }
+            />
+          )}
           {fields.map((fieldKey) => {
             const config = chartConfig[fieldKey];
             if (!config) return null;

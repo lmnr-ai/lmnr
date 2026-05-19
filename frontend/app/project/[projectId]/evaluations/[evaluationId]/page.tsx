@@ -3,6 +3,7 @@ import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import Evaluation from "@/components/evaluation/evaluation";
+import { getEvaluationScoreNames } from "@/lib/actions/evaluation";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
@@ -26,16 +27,20 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
     return notFound();
   }
 
-  const evaluationsByGroupId = await db.query.evaluations.findMany({
-    where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
-    orderBy: desc(evaluations.createdAt),
-  });
+  const [evaluationsByGroupId, scoreNames] = await Promise.all([
+    db.query.evaluations.findMany({
+      where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
+      orderBy: desc(evaluations.createdAt),
+    }),
+    getEvaluationScoreNames({ projectId: params.projectId, evaluationId: params.evaluationId }),
+  ]);
 
   return (
     <Evaluation
       evaluationId={params.evaluationId}
       evaluations={evaluationsByGroupId as EvaluationType[]}
       evaluationName={evaluationInfo.name}
+      initialScoreNames={scoreNames}
     />
   );
 }

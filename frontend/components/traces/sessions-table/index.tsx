@@ -145,7 +145,7 @@ function SessionsTableContent() {
             filters={filters}
             placeholder="Search by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"
-            storageKey="sessions"
+            storageKey={`sessions-${projectId}`}
             resource="sessions"
           />
         </div>

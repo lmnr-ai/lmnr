@@ -16,7 +16,7 @@ async function generateAgentName(systemPrompt: string): Promise<string | null> {
   try {
     const { text } = await observe({ name: "generate-agent-name" }, async () =>
       generateText({
-        model: getLanguageModel("lite"),
+        model: getLanguageModel("small"),
         system:
           "Given a system prompt for an AI agent, generate a short 1-2 word name that describes the agent's role or purpose. " +
           "Return ONLY the name, nothing else. Examples: 'Code Review', 'Web Search', 'Data Analyst', 'Summarizer', 'Router'.",

@@ -75,23 +75,28 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: PropsWithChildren) {
   const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
-  const session = await getServerSession(authOptions).catch(() => null);
+  const posthogEnabled = featureFlags[Feature.POSTHOG];
+  const session = posthogEnabled ? await getServerSession(authOptions).catch(() => null) : null;
   const email = session?.user?.email ?? undefined;
+
+  const body = (
+    <body className="flex flex-col h-full">
+      <NuqsAdapter>
+        <div className="flex">
+          <div className="flex flex-col grow max-w-full min-h-screen">
+            <main className="z-10 flex flex-col grow">{children}</main>
+            <Toaster />
+          </div>
+        </div>
+      </NuqsAdapter>
+    </body>
+  );
 
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]} email={email}>
-          <body className="flex flex-col h-full">
-            <NuqsAdapter>
-              <div className="flex">
-                <div className="flex flex-col grow max-w-full min-h-screen">
-                  <main className="z-10 flex flex-col grow">{children}</main>
-                  <Toaster />
-                </div>
-              </div>
-            </NuqsAdapter>
-          </body>
+        <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
+          {body}
         </PostHogProvider>
       </FeatureFlagsProvider>
     </html>

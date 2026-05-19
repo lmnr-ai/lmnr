@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::db::events::Event;
 use crate::db::spans::Span;
 use crate::utils::json_value_to_string;
-use preprocess::preprocess_text;
+use preprocess::{clean_for_indexing, preprocess_text};
 use utils::extract_text_from_json_value;
 
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
@@ -39,20 +39,52 @@ pub struct QuickwitIndexedSpan {
     pub attributes: Option<String>,
 }
 
-impl From<&Span> for QuickwitIndexedSpan {
-    fn from(span: &Span) -> Self {
+impl QuickwitIndexedSpan {
+    /// Build a span document for Quickwit indexing.
+    ///
+    /// `new_input_messages`: when provided (LLM spans only), `input` is the
+    /// JSON array of just those messages — the search index sees only the new
+    /// turn, so older repeated history doesn't dominate matches. Pass `None`
+    /// for non-LLM spans / non-array inputs to fall through to raw `span.input`.
+    ///
+    /// Cleaning runs here (base64 / signature stripping, role-key stripping
+    /// for LLM input/output, whitespace collapse) so the Quickwit consumer
+    /// doesn't have to know about provider-specific shapes.
+    pub fn from_span(span: &Span, new_input_messages: Option<&[Value]>) -> Self {
+        // `is_llm_span()` matches the dedup / new-messages-subset predicate so
+        // cached LLM spans get role-key stripping like regular LLM spans.
+        let is_llm = span.is_llm_span();
+
+        let raw_input = match new_input_messages {
+            Some(msgs) => Some(Value::Array(msgs.to_vec())),
+            None => span.input.clone(),
+        };
+        let input = raw_input
+            .as_ref()
+            .map(json_value_to_string)
+            .map(|s| clean_for_indexing(&s, is_llm));
+
+        let output = span
+            .output
+            .as_ref()
+            .map(json_value_to_string)
+            .map(|s| clean_for_indexing(&s, is_llm));
+
         let attributes = if span.attributes.raw_attributes.is_empty() {
             None
         } else {
-            serde_json::to_string(&span.attributes.raw_attributes).ok()
+            serde_json::to_string(&span.attributes.raw_attributes)
+                .ok()
+                .map(|s| clean_for_indexing(&s, false))
         };
+
         Self {
             span_id: span.span_id,
             project_id: span.project_id,
             trace_id: span.trace_id,
             start_time: span.start_time,
-            input: span.input.as_ref().map(json_value_to_string),
-            output: span.output.as_ref().map(json_value_to_string),
+            input,
+            output,
             attributes,
         }
     }
@@ -119,17 +151,8 @@ pub trait PreprocessForIndexing {
 }
 
 impl PreprocessForIndexing for QuickwitIndexedSpan {
-    fn preprocess_for_indexing(&mut self) {
-        if let Some(ref input) = self.input {
-            self.input = Some(preprocess_text(input));
-        }
-        if let Some(ref output) = self.output {
-            self.output = Some(preprocess_text(output));
-        }
-        if let Some(ref attributes) = self.attributes {
-            self.attributes = Some(preprocess_text(attributes));
-        }
-    }
+    // Spans are cleaned at build time via `clean_for_indexing` in `from_span`.
+    fn preprocess_for_indexing(&mut self) {}
 }
 
 impl PreprocessForIndexing for QuickwitIndexedEvent {

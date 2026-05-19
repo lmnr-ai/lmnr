@@ -1,4 +1,4 @@
-import { type Row } from "@tanstack/react-table";
+import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { useMemo } from "react";
 
 import { useEvalStore } from "@/components/evaluation/store";
@@ -13,6 +13,7 @@ export interface EvaluationDatapointsTableProps {
   datapointId?: string;
   data: EvalRow[] | undefined;
   scores: string[];
+  columnDefs: ColumnDef<EvalRow>[];
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
   hasMore: boolean;

@@ -3,14 +3,15 @@ pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
 pub mod evaluation_datapoints;
+pub mod labeling_queue_items;
 pub mod limits;
+pub mod llm_messages;
 pub mod logs;
 pub mod notification_deliveries;
 pub mod notifications;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;
-pub mod signal_runs;
 pub mod spans;
 pub mod traces;
 pub mod utils;
@@ -31,6 +32,7 @@ pub enum Table {
     Traces,
     NotificationDeliveries,
     Notifications,
+    LlmMessages,
 }
 
 impl Table {
@@ -40,6 +42,7 @@ impl Table {
             Table::Traces => "traces_replacing",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
+            Table::LlmMessages => "llm_messages",
         }
     }
 }

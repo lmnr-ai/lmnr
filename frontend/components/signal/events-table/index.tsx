@@ -254,7 +254,6 @@ function PureEventsTable() {
 
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
-
   const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (

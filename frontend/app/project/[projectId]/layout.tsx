@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
+import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
@@ -15,8 +16,6 @@ import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { PostHogIdentifier } from "@/lib/posthog";
-import PostHogClient from "@/lib/posthog/server";
 
 const projectSidebarCookieName = "project-sidebar-state";
 
@@ -38,12 +37,6 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     projectDetails.gbLimit > 0 &&
     projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
 
-  const posthog = PostHogClient();
-
-  if (posthog) {
-    posthog.identify({ distinctId: user.email ?? "" });
-  }
-
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(projectSidebarCookieName)
     ? cookieStore.get(projectSidebarCookieName)?.value === "true"
@@ -52,8 +45,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   return (
     <UserContextProvider user={user}>
       <SessionSyncProvider>
-        <PostHogIdentifier email={user.email} />
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
+          <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
           <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar details={projectDetails} />

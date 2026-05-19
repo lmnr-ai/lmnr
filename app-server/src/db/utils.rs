@@ -8,6 +8,7 @@ pub fn span_id_to_uuid(span_id: &[u8]) -> Uuid {
     Uuid::from_slice(&padded_vec).unwrap()
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterOperator {
@@ -19,6 +20,7 @@ pub enum FilterOperator {
     Lte,
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Filter {
     pub column: String,
@@ -26,6 +28,7 @@ pub struct Filter {
     pub value: Value,
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Value) -> bool {
     let target = match value {
         Value::Number(n) => match n.as_f64() {
@@ -49,6 +52,7 @@ pub fn evaluate_number_filter(actual: f64, operator: &FilterOperator, value: &Va
     }
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn evaluate_string_filter(actual: &str, operator: &FilterOperator, value: &Value) -> bool {
     let target = value.as_str().unwrap_or("");
 
@@ -65,6 +69,7 @@ pub fn evaluate_string_filter(actual: &str, operator: &FilterOperator, value: &V
     }
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn evaluate_array_contains_filter(
     array: &[String],
     operator: &FilterOperator,

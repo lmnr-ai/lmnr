@@ -43,8 +43,16 @@ const extractFirstUserMessage = (contents: z.infer<typeof GeminiContentsSchema>)
   return [];
 };
 
-const renderGeminiMessage = (msg: GeminiContent): string =>
-  joinNonEmpty(msg.parts.map((part) => ("text" in part ? part.text : null)));
+const renderGeminiMessage = (msg: GeminiContent): string => {
+  const textParts: (string | undefined)[] = [];
+  const thoughtParts: (string | undefined)[] = [];
+  for (const part of msg.parts) {
+    if (!("text" in part)) continue;
+    if (part.thought) thoughtParts.push(part.text);
+    else textParts.push(part.text);
+  }
+  return joinNonEmpty(textParts.length > 0 ? textParts : thoughtParts);
+};
 
 const renderOutputTextGemini = (data: unknown): string | null => {
   const messages = parseGeminiOutput(data);

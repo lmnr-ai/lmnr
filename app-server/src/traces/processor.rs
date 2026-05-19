@@ -3,17 +3,13 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use rayon::prelude::*;
+use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::sampling::{get_sampling_factors_cached, should_sample_trace};
-use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::{
-        Cache, CacheTrait, autocomplete::populate_autocomplete_cache,
-        keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-    },
+    cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
         spans::CHSpan,
@@ -21,8 +17,8 @@ use crate::{
     },
     db::{
         DB,
-        spans::{Span, SpanType},
-        trace::{Trace, TraceType, upsert_trace_statistics_batch},
+        spans::Span,
+        trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -33,18 +29,18 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
+        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
-        utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
+        utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    utils::limits::{get_workspace_signal_runs_limit_exceeded, update_workspace_bytes_ingested},
+    utils::limits::update_workspace_bytes_ingested,
     worker::HandlerError,
 };
 
-const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
 #[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
@@ -58,35 +54,49 @@ pub async fn process_span_messages(
     ch: impl ClickhouseTrait,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
-    // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
-    let mut spans: Vec<Span> = messages
+    // Producer-side preprocessing already ran `parse_and_enrich_attributes`
+    // and `convert_span_to_provider_format` for `pre_processed` messages.
+    // Re-running on the consumer would double-apply the LangChain rewrite
+    // and double-copy attributes into `span.input`, breaking dedup identity.
+    let mut messages: Vec<RabbitMqSpanMessage> = messages
         .into_par_iter()
-        .map(|message| {
-            let mut span = message.span;
-            span.estimate_size_bytes();
-            span.parse_and_enrich_attributes();
-            span
+        .map(|mut message| {
+            if !message.pre_processed {
+                message.span.parse_and_enrich_attributes();
+            }
+            message
         })
         .collect();
 
     // Enrich spans with usage info
-    let mut span_usage_vec = Vec::with_capacity(spans.len());
+    let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    for span in &mut spans {
+    for m in &mut messages {
         let span_usage = get_llm_usage_for_span(
-            &mut span.attributes,
+            &mut m.span.attributes,
             db.clone(),
             cache.clone(),
-            &span.name,
-            &span.project_id,
+            &m.span.name,
+            &m.span.project_id,
         )
         .await;
 
-        prepare_span_for_recording(span, &span_usage);
-        convert_span_to_provider_format(span);
+        prepare_span_for_recording(&mut m.span, &span_usage);
+        if !m.pre_processed {
+            convert_span_to_provider_format(&mut m.span);
+        }
+        // Must run AFTER provider conversion — LangChain rewrites `input`.
+        m.span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
+
+    // Split into parallel `Vec`s — downstream code reads `spans` and
+    // `dedups` as separate slices keyed by index.
+    let (mut spans, dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) = messages
+        .into_iter()
+        .map(|m| (m.span, m.input_dedup))
+        .unzip();
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
@@ -117,12 +127,114 @@ pub async fn process_span_messages(
         }
     };
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
+    // Dedup LLM span inputs: insert unique messages first, then stamp Redis.
+    // On insert failure we return transient; nothing to undo in Redis since
+    // `mark_seen` only runs after a successful insert.
+    let recordable_indices: Vec<usize> = spans
         .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
+        .enumerate()
+        .filter(|(_, s)| s.should_record_to_clickhouse())
+        .map(|(i, _)| i)
+        .collect();
+    let dedup = {
+        let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
+        let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
+            .iter()
+            .map(|&i| dedups[i].clone())
+            .collect();
+        build_dedup_batch(&dedup_input, &recordable_dedups)
+    };
+
+    if !dedup.messages.is_empty() {
+        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+            .messages
+            .iter()
+            .map(|m| (m.project_id, m.trace_id, m.message_hash))
+            .collect();
+        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+            log::error!(
+                "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                dedup.messages.len(),
+                e
+            );
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert llm_messages to Clickhouse: {:?}",
+                e
+            )));
+        }
+        mark_seen(&keys, cache.clone()).await;
+    }
+
+    // Charge each span for its input: dedup'd LLM spans pay for the hash
+    // array + any newly-inserted `llm_messages.content` (shared messages are
+    // billed once, to the first referrer); everything else pays for the raw
+    // JSON. `estimate_size_bytes` intentionally excludes input so this loop
+    // owns the accounting.
+    let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
+    for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+        dedup_lookup.insert(span_idx, dedup_idx);
+    }
+    for (span_idx, span) in spans.iter_mut().enumerate() {
+        let added = if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .map(|h| h.len())
+                .unwrap_or(0);
+            if hashes > 0 {
+                let content_bytes = dedup
+                    .span_content_bytes
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                // 32 bytes per BLAKE3-256 hash + new `llm_messages.content` bytes.
+                hashes * 32 + content_bytes
+            } else {
+                span.input
+                    .as_ref()
+                    .map_or(0, crate::utils::estimate_json_size)
+            }
+        } else if let Some(d) = dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            // Non-recordable LLM span (e.g. CC Bash-tool `anthropic.messages`)
+            // whose `span.input` was stripped to None on the producer. Without
+            // this branch the fall-through would bill 0 bytes, regressing the
+            // "non-recorded spans contribute input bytes to workspace usage"
+            // invariant. Closest post-dedup analogue: 32B per hash + the
+            // Redis-miss content the producer carried.
+            // 32 bytes per BLAKE3-256 hash + producer's Redis-miss content bytes.
+            d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
+        } else {
+            span.input
+                .as_ref()
+                .map_or(0, crate::utils::estimate_json_size)
+        };
+        span.increment_size_bytes(added);
+    }
+
+    // Build CHSpans with embedded events and insert to ClickHouse
+    let ch_spans: Vec<CHSpan> = recordable_indices
+        .iter()
+        .enumerate()
+        .map(|(dedup_idx, &span_idx)| {
+            let span = &spans[span_idx];
+            let usage = &span_usage_vec[span_idx];
+            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .cloned()
+                .unwrap_or_default();
+            if !hashes.is_empty() {
+                ch_span.input = String::new();
+                ch_span.input_message_hashes = hashes;
+                ch_span.input_new_message_indices = dedup
+                    .span_new_indices
+                    .get(dedup_idx)
+                    .cloned()
+                    .unwrap_or_default();
+            }
+            ch_span
+        })
         .collect();
 
     // Record spans to clickhouse
@@ -138,51 +250,62 @@ pub async fn process_span_messages(
         )));
     }
 
-    // Check signal triggers AFTER spans are inserted into ClickHouse
-    // so the signal agent can see the trace data when processing.
+    // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {
-        if is_feature_enabled(Feature::Signals) {
-            let default_trace_type: i16 = Into::<u8>::into(TraceType::DEFAULT) as i16;
-            let default_traces: Vec<Trace> = updated_traces
-                .iter()
-                .filter(|trace| trace.trace_type() == default_trace_type)
-                .cloned()
-                .collect();
-            let traces_by_project = group_traces_by_project(&default_traces);
-            for (project_id, project_traces) in &traces_by_project {
-                check_and_push_signals(
-                    *project_id,
-                    project_traces,
-                    &spans,
-                    db.clone(),
-                    cache.clone(),
-                    clickhouse.clone(),
-                    queue.clone(),
-                )
-                .await;
-            }
-        }
+        crate::signals::check_and_push_signals(
+            updated_traces,
+            &spans,
+            db.clone(),
+            cache.clone(),
+            clickhouse.clone(),
+            queue.clone(),
+        )
+        .await;
     }
 
     // Send realtime span updates
-    let recordable: Vec<&Span> = spans
-        .iter()
-        .filter(|span| span.should_record_to_clickhouse())
-        .collect();
+    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
 
-    let spans_for_realtime: Vec<Span> = recordable.iter().map(|s| (*s).clone()).collect();
+    let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    // Non-LLM spans are only indexed if their size is <= 5KB
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+    // Non-LLM spans are only indexed if their size is <= 5KB.
+    // For LLM spans, only the deduped "new messages" subset is indexed —
+    // older repeated history already searchable via the prior step's span.
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
-        .filter(|s| {
-            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        .enumerate()
+        .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
+        .map(|(dedup_idx, s)| {
+            // For LLM spans: parse this span's new messages into `Vec<Value>`
+            // for the indexer. `span_new_message_indices[dedup_idx]` points
+            // into `dedup.messages` — no layout assumption. Works for both
+            // the producer path (where `span.input` is `None`) and the
+            // legacy path. Unparseable JSON is dropped (filter_map) — the
+            // row still went to llm_messages, it just isn't searchable.
+            // A span with no hashes (non-array input or empty plan) gets
+            // `None`, so `from_span` falls through to raw `span.input`.
+            let new_messages = if s.is_llm_span()
+                && dedup
+                    .span_hashes
+                    .get(dedup_idx)
+                    .map(|h| !h.is_empty())
+                    .unwrap_or(false)
+            {
+                dedup.span_new_message_indices.get(dedup_idx).map(|idxs| {
+                    idxs.iter()
+                        .filter_map(|&i| dedup.messages.get(i))
+                        .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                        .collect::<Vec<Value>>()
+                })
+            } else {
+                None
+            };
+            QuickwitIndexedSpan::from_span(s, new_messages.as_deref())
         })
-        .map(|s| (*s).into())
         .collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
+    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
         .collect();
@@ -249,11 +372,7 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn dispatch_trace_realtime_updates(
-    traces: &[Trace],
-    cache: Arc<Cache>,
-    pubsub: &PubSub,
-) {
+async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
     if traces.is_empty() {
         return;
     }
@@ -297,168 +416,5 @@ async fn dispatch_trace_realtime_updates(
     for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
         let key = format!("rollout_session_{}", rollout_session_id);
         send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
-    }
-}
-
-async fn check_and_push_signals(
-    project_id: Uuid,
-    traces: &[&Trace],
-    spans: &[Span],
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-) {
-    let triggers = match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
-        Ok(triggers) => triggers,
-        Err(e) => {
-            log::error!(
-                "Failed to get signals triggers for project {}: {:?}",
-                project_id,
-                e
-            );
-            return;
-        }
-    };
-
-    if triggers.is_empty() {
-        return;
-    }
-
-    if is_feature_enabled(Feature::UsageLimit) {
-        let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
-            db.clone(),
-            clickhouse.clone(),
-            cache.clone(),
-            project_id,
-        )
-        .await;
-        if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
-            log::debug!(
-                "Workspace signal runs limit exceeded for project [{}]. Skipping triggers.",
-                project_id,
-            );
-            return;
-        }
-    }
-
-    // Lazily fetch pre-computed sampling factors only if any trigger has sampling enabled
-    let any_has_sampling = triggers.iter().any(|t| t.signal.sample_rate.is_some());
-    let sampling_factors = if any_has_sampling {
-        match get_sampling_factors_cached(cache.clone(), &clickhouse, project_id).await {
-            Ok(factors) => Some(factors),
-            Err(e) => {
-                log::error!(
-                    "Failed to get sampling factors for project {}: {:?}. \
-                     Sampled signals will be skipped; non-sampled signals proceed normally.",
-                    project_id,
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    for trigger in &triggers {
-        let matching_traces = traces
-            .iter()
-            .filter(|trace| trace.matches_filters(spans, &trigger.filters));
-
-        for trace in matching_traces {
-            // Check sampling if enabled for this signal
-            if let Some(sample_rate) = trigger.signal.sample_rate {
-                if let Some(ref factors) = sampling_factors {
-                    if !should_sample_trace(sample_rate, &trace.user_id(), factors) {
-                        log::debug!(
-                            "Skipping trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                        continue;
-                    } else {
-                        log::debug!(
-                            "Processing trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                    }
-                } else {
-                    // Sampling factors failed to load — skip sampled triggers
-                    // to avoid processing all traces unsampled (over-billing)
-                    continue;
-                }
-            }
-
-            // Filters matched - try to acquire lock to prevent duplicate triggers
-            let lock_key = format!(
-                "{}:{}:{}:{}",
-                SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-                project_id,
-                trigger.signal.id,
-                trace.id(),
-            );
-
-            match cache.exists(&lock_key).await {
-                Ok(true) => {
-                    continue;
-                }
-                Ok(false) => {
-                    // Lock doesn't exist, try to acquire it
-                }
-                Err(e) => {
-                    log::warn!(
-                        "[Signal trigger] Failed to check lock existence (key {}): {:?}",
-                        lock_key,
-                        e
-                    );
-                    // Continue to try acquiring lock
-                }
-            }
-
-            // Try to acquire the lock
-            let lock_acquired = match cache
-                .try_acquire_lock(&lock_key, SIGNAL_TRIGGER_LOCK_TTL_SECONDS)
-                .await
-            {
-                Ok(acquired) => acquired,
-                Err(e) => {
-                    // On lock error, still try to push (fail-open behavior)
-                    log::error!(
-                        "Failed to acquire lock for signal '{}' on trace {}: {:?}",
-                        trigger.signal.name,
-                        trace.id(),
-                        e
-                    );
-                    true // Proceed anyway
-                }
-            };
-
-            if !lock_acquired {
-                // Lock was already held by another processor
-                continue;
-            }
-
-            // Lock acquired - enqueue signal trigger run
-            if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
-                trace.id(),
-                trace.project_id(),
-                trigger.id,
-                trigger.signal.clone(),
-                clickhouse.clone(),
-                queue.clone(),
-                trigger.mode.as_u8(),
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to enqueue signal trigger run: trace_id={}, project_id={}, trigger_id={}, signal={}, error={:?}",
-                    trace.id(),
-                    trace.project_id(),
-                    trigger.id,
-                    trigger.signal.name,
-                    e
-                );
-            }
-        }
     }
 }

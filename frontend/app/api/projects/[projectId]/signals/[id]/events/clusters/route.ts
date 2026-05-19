@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getEventClusters } from "@/lib/actions/clusters";
+import { hasClusteringAccessForProject } from "@/lib/actions/usage/utils";
+import { PAYWALL_CLUSTER_NAME } from "@/lib/features/clustering";
 
 export async function GET(
   req: NextRequest,
@@ -10,13 +12,15 @@ export async function GET(
   try {
     const { projectId, id: signalId } = await params;
 
-    const result = await getEventClusters({
-      projectId,
-      signalId,
-    });
+    const [result, hasAccess] = await Promise.all([
+      getEventClusters({ projectId, signalId }),
+      hasClusteringAccessForProject(projectId),
+    ]);
+
+    const items = hasAccess ? result.items : result.items.map((item) => ({ ...item, name: PAYWALL_CLUSTER_NAME }));
 
     return NextResponse.json({
-      items: result.items,
+      items,
       totalEventCount: result.totalEventCount,
       clusteredEventCount: result.clusteredEventCount,
     });

@@ -386,10 +386,9 @@ export default function SessionList() {
       className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar px-2"
     >
       <div
-        className="relative"
+        className="relative mx-auto w-full max-w-4xl 2xl:max-w-6xl"
         style={{
           height: virtualizer.getTotalSize(),
-          width: "100%",
           position: "relative",
         }}
       >

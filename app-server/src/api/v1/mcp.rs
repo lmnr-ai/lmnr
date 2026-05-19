@@ -18,7 +18,7 @@ use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
-    signals::spans::get_trace_structure_as_string,
+    signals::get_trace_structure_as_string,
     sql::{self, ClickhouseReadonlyClient},
 };
 

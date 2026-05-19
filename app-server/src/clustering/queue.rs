@@ -14,6 +14,7 @@ pub const EVENT_CLUSTERING_BATCH_EXCHANGE: &str = "event_clustering_batch_exchan
 pub const EVENT_CLUSTERING_BATCH_QUEUE: &str = "event_clustering_batch_queue";
 pub const EVENT_CLUSTERING_BATCH_ROUTING_KEY: &str = "event_clustering_batch_routing_key";
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn push_to_event_clustering_queue(
     project_id: Uuid,
     signal_event: CHSignalEvent,

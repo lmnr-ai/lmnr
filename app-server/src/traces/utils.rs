@@ -14,7 +14,7 @@ use crate::{
     language_model::costs::{
         ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
-    signals::{spans::extract_system_message, utils::structural_skeleton_hash},
+    traces::prompt_hash::{extract_system_message, structural_skeleton_hash},
 };
 
 use super::span_attributes::{
@@ -177,7 +177,7 @@ pub fn skip_span_name(name: &str) -> bool {
     SKIP_SPAN_NAME_REGEX.is_match(name)
 }
 
-fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
+pub(crate) fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     let first_in_ids = span.span_id
         == attributes
             .ids_path()
@@ -226,7 +226,14 @@ pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
         span.parent_span_id = None;
     }
 
-    if span.is_llm_span() {
+    // Skip if the producer already wrote the hash; legacy / bypass
+    // ingest paths still rely on this fallback.
+    if span.is_llm_span()
+        && !span
+            .attributes
+            .raw_attributes
+            .contains_key(SPAN_PROMPT_HASH)
+    {
         if let Some(hash) = compute_prompt_hash(&span.input) {
             span.attributes
                 .raw_attributes
@@ -306,6 +313,7 @@ pub fn convert_any_value_to_json_value(
 }
 
 /// Groups traces by their project_id.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
     let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
     for trace in traces {
