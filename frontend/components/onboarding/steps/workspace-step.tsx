@@ -16,11 +16,7 @@ interface WorkspaceStepProps {
 }
 
 export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: WorkspaceStepProps) {
-  const {
-    control,
-    watch,
-    formState: { errors },
-  } = useFormContext<OnboardingFormValues>();
+  const { control, watch } = useFormContext<OnboardingFormValues>();
   const { isSubmitting, createWorkspace } = useOnboardingActions();
 
   const workspaceName = watch("workspaceName");
@@ -50,7 +46,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
       isSubmitting={isSubmitting}
       nextLabel="Create workspace"
     >
-      <div className="flex flex-col gap-3" onKeyDown={handleKeyDown}>
+      <div className="flex flex-col flex-1 gap-3" onKeyDown={handleKeyDown}>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="workspace-name" className="text-sm font-medium">
             Workspace name
@@ -98,10 +94,11 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
               </>
             )}
           />
-          {!errors.projectName && (
-            <p className="text-xs text-muted-foreground">Projects organize your traces, signals, and evaluations.</p>
-          )}
         </div>
+        <p className="text-xs text-muted-foreground mt-auto">
+          Workspaces hold your team, billing, and access; projects organize traces, signals, and evaluations. You can
+          rename either one anytime in settings.
+        </p>
       </div>
     </StepShell>
   );

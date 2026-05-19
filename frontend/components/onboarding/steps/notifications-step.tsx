@@ -87,8 +87,8 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Notifications"
-      description="Pick which digests land in your inbox and connect Slack for live alerts."
+      title="Stay in the loop"
+      description="Laminar pings you when a signal catches an issue or a new pattern shows up, and emails a weekly recap of everything that happened."
       onNext={handleNext}
       onBack={onBack}
       isSubmitting={isSubmitting}
@@ -99,17 +99,25 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-sm font-medium text-secondary-foreground">Email digests</span>
             <span className="text-xs text-muted-foreground truncate">
-              Sent to <span className="font-medium text-foreground">{email ?? "your email"}</span>
+              Weekly recaps sent to <span className="font-medium text-foreground">{email ?? "your email"}</span>
             </span>
           </div>
         </div>
 
         <div className="flex flex-col">
           {isLoading || !reports ? (
-            <div className="flex flex-col gap-2 p-4">
-              <Skeleton className="h-5 w-2/3" />
-              <Skeleton className="h-5 w-1/2" />
-            </div>
+            Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 px-4 py-3 border-t border-border first:border-t-0">
+                <Skeleton className="size-4 mt-0.5 shrink-0" />
+                <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                  <div className="flex h-5 items-center gap-2">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                  <Skeleton className="h-4 w-3/5" />
+                </div>
+              </div>
+            ))
           ) : reports.length === 0 ? (
             <p className="px-4 py-3 text-xs text-muted-foreground">No scheduled digests for this workspace yet.</p>
           ) : (
@@ -149,10 +157,10 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
           <span className="text-sm font-medium text-secondary-foreground">Slack alerts</span>
           <span className="text-xs text-muted-foreground">
             {slackConnected
-              ? "Connected, you can later configure which channels to receive notifications in."
+              ? "Connected. Pick channels later in workspace settings."
               : slackAvailable
-                ? "Get notifications in a Slack channel. You'll authorize the Laminar Slack app and come right back."
-                : "Slack integration is not configured in this environment."}
+                ? "Real-time pings when a signal catches an issue or a new pattern emerges. One click to authorize."
+                : "Slack integration isn't configured in this environment."}
           </span>
         </div>
         <div className="my-auto shrink-0">
@@ -174,8 +182,8 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Email digests go only to you. Other workspace members can opt in from their own settings. Slack notifications
-        can be adjusted anytime from workspace/project settings.
+        Email digests only go to you — teammates can opt in from their own settings. Everything here can be changed
+        anytime in workspace settings.
       </p>
     </StepShell>
   );

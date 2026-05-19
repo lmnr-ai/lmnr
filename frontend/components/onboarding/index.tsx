@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -152,23 +153,40 @@ function WizardSteps({ initialStep, projectId }: { initialStep: number; projectI
   return <WizardStepsInner initialStep={initialStep} />;
 }
 
+const STEP_MOTION_STYLE = { willChange: "opacity" } as const;
+const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
+
 function WizardStepsInner({ initialStep }: { initialStep: number }) {
   const [stepIndex, setStepIndex] = useState(initialStep);
   const advance = useCallback(() => setStepIndex((i) => Math.min(TOTAL_STEPS - 1, i + 1)), []);
   const back = useCallback(() => setStepIndex((i) => Math.max(0, i - 1)), []);
 
-  switch (stepIndex) {
-    case 0:
-      return <WorkspaceStep stepIndex={0} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
-    case 1:
-      // Step 0 created a workspace and project — those are irreversible, so
-      // we deliberately don't expose a back button on step 1.
-      return <SignalsStep stepIndex={1} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
-    case 2:
-      return <NotificationsStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
-    case 3:
-      return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} />;
-    default:
-      return null;
-  }
+  const renderStep = () => {
+    switch (stepIndex) {
+      case 0:
+        return <WorkspaceStep stepIndex={0} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
+      case 1:
+        // Step 0 created a workspace and project — those are irreversible, so
+        // we deliberately don't expose a back button on step 1.
+        return <SignalsStep stepIndex={1} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
+      case 2:
+        return <NotificationsStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
+      case 3:
+        return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <motion.div
+      key={stepIndex}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={STEP_TRANSITION}
+      style={STEP_MOTION_STYLE}
+    >
+      {renderStep()}
+    </motion.div>
+  );
 }

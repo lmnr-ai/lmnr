@@ -41,7 +41,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Choose what to monitor"
-      description="Signals run on every trace to surface issues automatically. Pick at least one to set up — you can always change this later."
+      description="Signals analyze the traces and search for the patterns you define. Every detected pattern is surfaced as an event."
       onNext={handleNext}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
