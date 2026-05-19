@@ -29,7 +29,6 @@ export const PLANS: PlanOption[] = [
     name: "Pro",
     price: "$150",
     priceSubtext: "/ mo",
-    highlight: true,
     features: ["10 GB data", "50,000 Signals steps", "90 day retention", "Slack support"],
   },
 ];

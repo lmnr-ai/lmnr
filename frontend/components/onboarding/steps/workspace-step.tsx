@@ -4,28 +4,33 @@ import { Controller, useFormContext } from "react-hook-form";
 
 import StepShell from "@/components/onboarding/step-shell";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
+import { type CreateWorkspaceOptions, useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-interface WorkspaceStepProps {
+interface WorkspaceStepProps extends CreateWorkspaceOptions {
   stepIndex: number;
   totalSteps: number;
-  onAdvance: () => void;
+  // Cloud bumps the step index; OSS routes to /projects.
+  onComplete: (result: { workspaceId: string; projectId: string }) => void;
 }
 
-export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: WorkspaceStepProps) {
+export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, onComplete }: WorkspaceStepProps) {
   const { control, watch } = useFormContext<OnboardingFormValues>();
-  const { isSubmitting, createWorkspace } = useOnboardingActions();
+  const { isSubmitting, createWorkspace, beginSubmitting } = useOnboardingActions();
 
   const workspaceName = watch("workspaceName");
   const projectName = watch("projectName");
   const nextDisabled = !workspaceName?.trim() || !projectName?.trim();
 
   const handleNext = async () => {
-    const result = await createWorkspace();
-    if (result) onAdvance();
+    const result = await createWorkspace({ isCloud });
+    if (!result) return;
+    // Hold the loading state through onComplete's navigation so the button
+    // can't be re-clicked while the next route mounts.
+    beginSubmitting();
+    onComplete(result);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -41,6 +46,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
       totalSteps={totalSteps}
       title="Welcome to Laminar"
       description="Let's start by creating your first workspace and project."
+      hint="Workspaces hold your team, billing, and access; projects organize traces, signals, and evaluations. You can rename either one anytime in settings."
       onNext={handleNext}
       nextDisabled={nextDisabled}
       isSubmitting={isSubmitting}
@@ -95,10 +101,6 @@ export default function WorkspaceStep({ stepIndex, totalSteps, onAdvance }: Work
             )}
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-auto">
-          Workspaces hold your team, billing, and access; projects organize traces, signals, and evaluations. You can
-          rename either one anytime in settings.
-        </p>
       </div>
     </StepShell>
   );

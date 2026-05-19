@@ -54,6 +54,9 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
 
   const finishAndGoToProject = async () => {
     if (!(await finishFreeTier())) return;
+    // Hold the loading state through router.push so the button can't be
+    // re-clicked while the project route mounts.
+    beginSubmitting();
     router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
   };
 
@@ -97,12 +100,13 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       totalSteps={totalSteps}
       title="Pick a plan"
       description="Match the plan to your expected usage."
+      hint="Hobby is our most popular plan - unlocks unlimited projects and teammates. Pro adds longer retention and private Slack support."
       onNext={handleNext}
       onBack={onBack}
       nextLabel={nextLabel}
       isSubmitting={isSubmitting}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:gap-4 2xl:gap-5">
         {PLANS.map((plan) => (
           <PlanCard
             key={plan.id}
@@ -112,11 +116,6 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
           />
         ))}
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Hobby is our most popular plan - unlocks unlimited projects and teammates. Pro adds longer retention and private
-        Slack support.
-      </p>
     </StepShell>
   );
 }

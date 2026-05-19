@@ -13,7 +13,9 @@ import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -137,8 +139,10 @@ function PaidFinalize({ projectId }: { projectId: string | null }) {
       <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
         <CheckCircle2 className="size-10 text-emerald-500" />
         <div className="flex flex-col gap-1">
-          <div className="text-sm font-medium text-secondary-foreground">Payment received</div>
-          <div className="text-xs text-muted-foreground">You can manage billing anytime from workspace settings.</div>
+          <div className="text-sm 2xl:text-base font-medium text-secondary-foreground">Payment received</div>
+          <div className="text-xs 2xl:text-sm text-muted-foreground">
+            You can manage billing anytime from workspace settings.
+          </div>
         </div>
       </div>
     </StepShell>
@@ -147,10 +151,26 @@ function PaidFinalize({ projectId }: { projectId: string | null }) {
 
 function WizardSteps({ initialStep, projectId }: { initialStep: number; projectId: string | null }) {
   const searchParams = useSearchParams();
+  const flags = useFeatureFlags();
+  // OSS collapses to a single workspace+project step; Stripe finalize is cloud-only.
+  if (!flags[Feature.LAMINAR_CLOUD]) {
+    return <OssWorkspaceOnly />;
+  }
   if (searchParams.get("upgraded") === "true") {
     return <PaidFinalize projectId={projectId} />;
   }
   return <WizardStepsInner initialStep={initialStep} />;
+}
+
+function OssWorkspaceOnly() {
+  const router = useRouter();
+  return (
+    <WorkspaceStep
+      stepIndex={0}
+      totalSteps={1}
+      onComplete={({ projectId }) => router.replace(`/project/${projectId}/traces?onboarding=true`)}
+    />
+  );
 }
 
 const STEP_MOTION_STYLE = { willChange: "opacity" } as const;
@@ -164,10 +184,9 @@ function WizardStepsInner({ initialStep }: { initialStep: number }) {
   const renderStep = () => {
     switch (stepIndex) {
       case 0:
-        return <WorkspaceStep stepIndex={0} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
+        return <WorkspaceStep stepIndex={0} totalSteps={TOTAL_STEPS} isCloud onComplete={advance} />;
       case 1:
-        // Step 0 created a workspace and project — those are irreversible, so
-        // we deliberately don't expose a back button on step 1.
+        // No back button: workspace+project creation in step 0 is irreversible.
         return <SignalsStep stepIndex={1} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
       case 2:
         return <NotificationsStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;

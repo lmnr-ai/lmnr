@@ -41,7 +41,8 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Choose what to monitor"
-      description="Signals analyze the traces and search for the patterns you define. Every detected pattern is surfaced as an event."
+      description="Pick the patterns to watch in traces. Matches surface as events, and similar ones cluster into trends to spot at glance."
+      hint="Pick a few to start - you can tweak prompts, add custom signals, or remove these anytime from the Signals page in your project."
       onNext={handleNext}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
@@ -59,7 +60,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
           };
 
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2 overflow-y-auto pr-1">
               {signalTemplates.map((template) => {
                 const Icon = ICONS[template.icon] ?? AlertCircle;
                 const isSelected = selected.has(template.name);
@@ -70,7 +71,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                     onClick={() => toggle(template.name)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors",
+                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full",
                       isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
                     )}
                   >
@@ -86,10 +87,14 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                       </span>
                     </div>
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-sm font-medium text-secondary-foreground">{template.name}</span>
-                      <span className="text-xs text-muted-foreground line-clamp-2">{template.description}</span>
+                      <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">
+                        {template.name}
+                      </span>
+                      <span className="text-xs 2xl:text-sm text-muted-foreground line-clamp-3">
+                        {template.description}
+                      </span>
                     </div>
-                    <Icon className="h-4 w-4 min-w-4 text-muted-foreground" />
+                    <Icon className="ml-auto h-4 w-4 min-w-4 2xl:h-5 2xl:w-5 2xl:min-w-5 text-muted-foreground" />
                   </button>
                 );
               })}

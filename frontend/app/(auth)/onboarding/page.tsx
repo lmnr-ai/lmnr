@@ -16,6 +16,7 @@ import { type OnboardingState } from "@/lib/actions/onboarding/types";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Get Started - Laminar",
@@ -107,6 +108,11 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     resolveResume(saved, user.id),
     countWorkspaceMemberships(user.id),
   ]);
+
+  // OSS doesn't write resume cookies; a stale one here is from the old multi-step build.
+  if (!isFeatureEnabled(Feature.LAMINAR_CLOUD) && saved && saved.userId === user.id) {
+    return redirect("/api/onboarding?to=/projects");
+  }
 
   if (resume.stale && workspaceCount > 0) {
     return redirect("/api/onboarding?to=/projects");

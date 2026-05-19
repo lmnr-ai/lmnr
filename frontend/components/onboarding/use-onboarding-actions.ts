@@ -9,9 +9,14 @@ import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
+export interface CreateWorkspaceOptions {
+  // Cloud-only: server-side seed defaults + write resume cookie. OSS leaves off.
+  isCloud?: boolean;
+}
+
 interface UseOnboardingActions {
   isSubmitting: boolean;
-  createWorkspace: () => Promise<{ workspaceId: string; projectId: string } | null>;
+  createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
   saveNotifications: () => Promise<boolean>;
   finishFreeTier: () => Promise<boolean>;
@@ -49,44 +54,51 @@ export function useOnboardingActions(): UseOnboardingActions {
     [toast]
   );
 
-  const createWorkspace = useCallback(async () => {
-    if (!(await form.trigger(["workspaceName", "projectName"]))) return null;
-    if (resources.workspaceId && resources.projectId) {
-      return { workspaceId: resources.workspaceId, projectId: resources.projectId };
-    }
+  const createWorkspace = useCallback(
+    async ({ isCloud = false }: CreateWorkspaceOptions = {}) => {
+      if (!(await form.trigger(["workspaceName", "projectName"]))) return null;
+      if (resources.workspaceId && resources.projectId) {
+        return { workspaceId: resources.workspaceId, projectId: resources.projectId };
+      }
 
-    const { workspaceName, projectName } = form.getValues();
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(
-        "/api/workspaces",
-        jsonRequest("POST", {
-          name: workspaceName.trim(),
-          projectName: projectName.trim(),
-          isFirstProject: true,
-        })
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        errorToast(err?.error ?? "Failed to create workspace");
+      const { workspaceName, projectName } = form.getValues();
+      setIsSubmitting(true);
+      try {
+        const res = await fetch(
+          "/api/workspaces",
+          jsonRequest("POST", {
+            name: workspaceName.trim(),
+            projectName: projectName.trim(),
+            // Server-side: seed Failure Detector signal + email targets on default reports.
+            isFirstProject: isCloud,
+          })
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          errorToast(err?.error ?? "Failed to create workspace");
+          return null;
+        }
+        const json = (await res.json()) as { id: string; projectId?: string };
+        if (!json.projectId) {
+          errorToast("Workspace created without a project");
+          return null;
+        }
+        track("onboarding", "first_project_created");
+        setResources({ workspaceId: json.id, projectId: json.projectId });
+        // Cookie only matters when more wizard steps follow.
+        if (isCloud) {
+          await persistOnboardingStep(json.projectId, 1);
+        }
+        return { workspaceId: json.id, projectId: json.projectId };
+      } catch {
+        errorToast("Something went wrong");
         return null;
+      } finally {
+        setIsSubmitting(false);
       }
-      const json = (await res.json()) as { id: string; projectId?: string };
-      if (!json.projectId) {
-        errorToast("Workspace created without a project");
-        return null;
-      }
-      track("onboarding", "first_project_created");
-      setResources({ workspaceId: json.id, projectId: json.projectId });
-      await persistOnboardingStep(json.projectId, 1);
-      return { workspaceId: json.id, projectId: json.projectId };
-    } catch {
-      errorToast("Something went wrong");
-      return null;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [form, resources.projectId, resources.workspaceId, setResources, errorToast]);
+    },
+    [form, resources.projectId, resources.workspaceId, setResources, errorToast]
+  );
 
   const saveSignals = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;

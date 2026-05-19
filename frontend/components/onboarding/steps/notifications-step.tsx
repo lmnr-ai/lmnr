@@ -89,16 +89,17 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
       totalSteps={totalSteps}
       title="Stay in the loop"
       description="Laminar pings you when a signal catches an issue or a new pattern shows up, and emails a weekly recap of everything that happened."
+      hint="Email digests only go to you - teammates can opt in from their own settings. Everything here can be changed anytime in workspace and project settings."
       onNext={handleNext}
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
       <div className="rounded-lg border border-border bg-background">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-          <Mail className="h-5 w-5 text-muted-foreground" />
+        <div className="flex items-start gap-2 px-4 py-3 border-b border-border">
+          <Mail className="h-5 w-5 2xl:h-6 2xl:w-6 text-muted-foreground" />
           <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-sm font-medium text-secondary-foreground">Email digests</span>
-            <span className="text-xs text-muted-foreground truncate">
+            <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">Email digests</span>
+            <span className="text-xs 2xl:text-sm text-muted-foreground truncate">
               Weekly recaps sent to <span className="font-medium text-foreground">{email ?? "your email"}</span>
             </span>
           </div>
@@ -119,7 +120,9 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
               </div>
             ))
           ) : reports.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-muted-foreground">No scheduled digests for this workspace yet.</p>
+            <p className="px-4 py-3 text-xs 2xl:text-sm text-muted-foreground">
+              No scheduled digests for this workspace yet.
+            </p>
           ) : (
             reports.map((report) => {
               const checked = subscribed.has(report.id);
@@ -139,10 +142,14 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
                   />
                   <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                     <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-secondary-foreground">{description.title}</span>
-                      <span className="text-xs text-muted-foreground">{description.schedule}</span>
+                      <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">
+                        {description.title}
+                      </span>
+                      <span className="text-xs 2xl:text-sm text-muted-foreground">{description.schedule}</span>
                     </div>
-                    {description.detail && <span className="text-xs text-muted-foreground">{description.detail}</span>}
+                    {description.detail && (
+                      <span className="text-xs 2xl:text-sm text-muted-foreground">{description.detail}</span>
+                    )}
                   </div>
                 </label>
               );
@@ -152,10 +159,10 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
       </div>
 
       <div className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3">
-        <Image src={slackLogo} alt="Slack" width={24} height={24} className="mt-0.5 shrink-0" unoptimized />
+        <Image src={slackLogo} alt="Slack" className="mt-0.5 shrink-0 h-6 w-6 2xl:h-7 2xl:w-7" unoptimized />
         <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <span className="text-sm font-medium text-secondary-foreground">Slack alerts</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-sm 2xl:text-base font-medium text-secondary-foreground">Slack alerts</span>
+          <span className="text-xs 2xl:text-sm text-muted-foreground">
             {slackConnected
               ? "Connected. Pick channels later in workspace settings."
               : slackAvailable
@@ -166,7 +173,7 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
         <div className="my-auto shrink-0">
           {slackConnected ? (
             <Button className="border-success bg-success/80 gap-1 hover:bg-success/80">
-              <CheckCircle2 className="h-4 w-4" />
+              <CheckCircle2 className="h-4 w-4 2xl:h-5 2xl:w-5" />
               Connected
             </Button>
           ) : (
@@ -180,11 +187,6 @@ export default function NotificationsStep({ stepIndex, totalSteps, onAdvance, on
           )}
         </div>
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Email digests only go to you — teammates can opt in from their own settings. Everything here can be changed
-        anytime in workspace settings.
-      </p>
     </StepShell>
   );
 }
