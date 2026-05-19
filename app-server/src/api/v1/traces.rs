@@ -51,11 +51,10 @@ pub async fn process_traces(
     let cache = cache.into_inner();
     let request = match decode_export_trace_request(&req, body) {
         Ok(request) => request,
-        Err(DecodeError::Json(e)) => {
+        Err(e) => {
             return Ok(HttpResponse::BadRequest()
-                .body(format!("Failed to decode OTLP/JSON ExportTraceServiceRequest: {e}")));
+                .body(format!("Failed to decode ExportTraceServiceRequest: {e}")));
         }
-        Err(DecodeError::Proto(e)) => return Err(e.into()),
     };
     let spans_message_queue = spans_message_queue.as_ref().clone();
 
@@ -98,33 +97,23 @@ pub async fn process_traces(
     }
 }
 
-/// Caller-actionable JSON decode failures vs. internal protobuf decode failures.
-/// Kept separate so the handler can return 400 for the former without growing
-/// the shared `routes::error::Error` enum.
-enum DecodeError {
-    Json(crate::traces::opentelemetry_json::JsonDecodeError),
-    Proto(anyhow::Error),
-}
-
 /// Dispatch on `Content-Type`: `application/json` is OTLP/HTTP+JSON, anything else
 /// (including missing) falls through to OTLP/HTTP+protobuf — matches what every
 /// existing SDK sends today.
 fn decode_export_trace_request(
     req: &HttpRequest,
     body: Bytes,
-) -> Result<ExportTraceServiceRequest, DecodeError> {
+) -> Result<ExportTraceServiceRequest, anyhow::Error> {
     let content_type = req
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if content_type.starts_with("application/json") {
-        decode_export_trace_service_request(&body).map_err(DecodeError::Json)
+        decode_export_trace_service_request(&body)
+            .map_err(|e| anyhow::anyhow!("OTLP/JSON decode failed: {e}"))
     } else {
-        ExportTraceServiceRequest::decode(body).map_err(|e| {
-            DecodeError::Proto(anyhow::anyhow!(
-                "Failed to decode ExportTraceServiceRequest from bytes. {e}"
-            ))
-        })
+        ExportTraceServiceRequest::decode(body)
+            .map_err(|e| anyhow::anyhow!("OTLP/protobuf decode failed: {e}"))
     }
 }
