@@ -328,9 +328,20 @@ fn redact_string(text: &str, mut spans: Vec<(usize, usize, String)>, fmt: &str) 
     let mut out = String::with_capacity(text.len());
     let mut cursor = 0;
     for (s, e, lbl) in merged {
-        if s < cursor || s > bytes.len() || e > bytes.len() {
+        if e > bytes.len() {
             continue;
         }
+        // Different-label overlaps: when the sliding-window chunker labels
+        // the same range differently in adjacent windows, two spans can
+        // overlap after same-label merging. Skip only when the span is
+        // fully behind the cursor; otherwise clip its start to `cursor` so
+        // the un-redacted tail of the overlapping span is still covered.
+        // Dropping the whole span would let those tail bytes pass through
+        // the final drain unredacted.
+        if e <= cursor {
+            continue;
+        }
+        let s = cursor.max(s);
         if !text.is_char_boundary(s) || !text.is_char_boundary(e) {
             continue;
         }
@@ -622,6 +633,40 @@ mod tests {
         let out = apply_spans_and_serialize(w, vec![span], "[X]").unwrap();
         let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed, json!({"john@example.com": "[X]"}));
+    }
+
+    #[test]
+    fn overlapping_different_label_spans_cover_full_union() {
+        // Sliding-window decoders can label the same byte range differently
+        // in adjacent windows: e.g. an email tagged `private_email` in one
+        // window and `private_personal_information` in the next. After
+        // same-label merging the two ranges still overlap. The whole union
+        // must end up redacted — dropping the second span entirely would
+        // leave the un-covered tail bytes in the output.
+        let text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let spans = vec![
+            (0, 10, "private_email".to_string()),
+            (5, 25, "private_personal_information".to_string()),
+        ];
+        let out = redact_string(text, spans, "[{LABEL}]");
+        // Only byte 25 ("Z") should remain — `[0..25]` is fully redacted by
+        // the union of the two overlapping spans.
+        assert_eq!(out, "[PRIVATE_EMAIL][PRIVATE_PERSONAL_INFORMATION]Z");
+    }
+
+    #[test]
+    fn fully_subsumed_span_is_dropped_not_double_redacted() {
+        // The reverse case: a wider span landed first, a fully-subsumed
+        // narrower span follows. The narrower span has nothing left to
+        // contribute (`e <= cursor`) and must be dropped, not emit a second
+        // placeholder over already-redacted bytes.
+        let text = "ABCDEFGHIJ";
+        let spans = vec![
+            (0, 10, "private_email".to_string()),
+            (3, 7, "private_personal_information".to_string()),
+        ];
+        let out = redact_string(text, spans, "[{LABEL}]");
+        assert_eq!(out, "[PRIVATE_EMAIL]");
     }
 
     #[test]
