@@ -7,11 +7,11 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";

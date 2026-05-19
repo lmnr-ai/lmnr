@@ -15,10 +15,10 @@ import {
 } from "@/components/signal/triggers-table/columns.tsx";
 import ManageTriggerDialog from "@/components/signals/manage-trigger-dialog";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";

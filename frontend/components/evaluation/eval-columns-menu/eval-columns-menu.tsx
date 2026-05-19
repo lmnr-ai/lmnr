@@ -50,9 +50,8 @@ export default function EvalColumnsMenu({ columnDefs, lockedColumns = [], column
     <ColumnsMenu
       lockedColumns={lockedColumns}
       columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-      showCreateButton={!isShared}
+      panelConfig={isShared ? undefined : panelConfig}
+      columnActions={isShared ? undefined : columnActions}
     />
   );
 }

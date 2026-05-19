@@ -6,12 +6,12 @@ import { useParams, useRouter } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";

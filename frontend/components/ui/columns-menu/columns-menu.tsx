@@ -14,11 +14,9 @@ interface ColumnsMenuProps {
   lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
   /** Configuration for the custom column panel (schema, test query, etc.). */
-  panelConfig: CustomColumnPanelConfig;
+  panelConfig?: CustomColumnPanelConfig;
   /** Store actions for managing custom columns. */
-  columnActions: ColumnActions;
-  /** Whether to show the "Create column with SQL" button. Defaults to true. */
-  showCreateButton?: boolean;
+  columnActions?: ColumnActions;
 }
 
 export default function ColumnsMenu({
@@ -26,7 +24,6 @@ export default function ColumnsMenu({
   columnLabels = [],
   panelConfig,
   columnActions,
-  showCreateButton = true,
 }: ColumnsMenuProps) {
   const store = useDataTableStore();
   const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(
@@ -40,6 +37,7 @@ export default function ColumnsMenu({
     })
   );
 
+  const supportsCustomColumns = !!panelConfig && !!columnActions;
   const [isOpen, setIsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"list" | "form">("list");
   const [editingColumn, setEditingColumn] = useState<CustomColumn | null>(null);
@@ -54,6 +52,7 @@ export default function ColumnsMenu({
   }
 
   const handleEditColumn = (columnId: string) => {
+    if (!columnActions) return;
     const col = columnActions.getColumnDef(columnId);
     if (col?.meta?.isCustom) {
       setEditingColumn({
@@ -66,6 +65,7 @@ export default function ColumnsMenu({
   };
 
   const handleSave = (column: CustomColumn) => {
+    if (!columnActions) return;
     if (editingColumn) {
       columnActions.updateCustomColumn(editingColumn.name, column);
     } else {
@@ -103,7 +103,7 @@ export default function ColumnsMenu({
         }}
       >
         <AnimatePresence mode="wait" initial={false}>
-          {activePanel === "list" ? (
+          {activePanel === "list" || !supportsCustomColumns ? (
             <ColumnsListPanel
               columnOrder={columnOrder}
               columnVisibility={columnVisibility}
@@ -116,8 +116,8 @@ export default function ColumnsMenu({
                 setEditingColumn(null);
                 setActivePanel("form");
               }}
-              onEditColumn={handleEditColumn}
-              showCreateButton={showCreateButton}
+              onEditColumn={supportsCustomColumns ? handleEditColumn : undefined}
+              showCreateButton={supportsCustomColumns}
             />
           ) : (
             <CustomColumnPanel
@@ -128,7 +128,7 @@ export default function ColumnsMenu({
               }}
               onSave={handleSave}
               editingColumn={editingColumn ?? undefined}
-              config={panelConfig}
+              config={panelConfig!}
             />
           )}
         </AnimatePresence>

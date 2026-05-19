@@ -15,12 +15,12 @@ import {
   filters as tableFilters,
 } from "@/components/traces/traces-table/columns.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
