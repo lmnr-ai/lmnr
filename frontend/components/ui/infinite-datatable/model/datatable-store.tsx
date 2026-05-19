@@ -36,6 +36,9 @@ export interface SelectionState {
   columnOrder: string[];
   columnSizing: Record<string, number>;
   draggingColumnId: string | null;
+  // Static per-table config — set once at create time, never mutated.
+  lockedColumns: string[];
+  disableHideColumn: boolean;
 }
 
 export interface CustomColumnsState {
@@ -69,13 +72,25 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
   CustomColumnsState &
   CustomColumnsActions;
 
-function createDataTableStore<TData>(
-  uniqueKey: string = "id",
-  storageKey?: string,
-  defaultColumnOrder: string[] = [],
-  pageSize: number = 50,
-  initialColumnConfig?: ColumnConfig
-): StoreApi<DataTableStore<TData>> {
+interface CreateDataTableStoreOptions {
+  uniqueKey?: string;
+  storageKey?: string;
+  defaultColumnOrder?: string[];
+  pageSize?: number;
+  initialColumnConfig?: ColumnConfig;
+  lockedColumns?: string[];
+  disableHideColumn?: boolean;
+}
+
+function createDataTableStore<TData>({
+  uniqueKey = "id",
+  storageKey,
+  defaultColumnOrder = [],
+  pageSize = 50,
+  initialColumnConfig,
+  lockedColumns = [],
+  disableHideColumn = false,
+}: CreateDataTableStoreOptions = {}): StoreApi<DataTableStore<TData>> {
   const storeConfig = (
     set: StoreApi<DataTableStore<TData>>["setState"],
     get: StoreApi<DataTableStore<TData>>["getState"]
@@ -92,6 +107,8 @@ function createDataTableStore<TData>(
     columnOrder: initialColumnConfig?.columnOrder ?? defaultColumnOrder,
     columnSizing: initialColumnConfig?.columnSizing ?? {},
     draggingColumnId: null,
+    lockedColumns,
+    disableHideColumn,
     customColumns: [],
 
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
@@ -275,6 +292,8 @@ export interface DataTableStateProviderProps {
   storageKey?: string;
   defaultColumnOrder?: string[];
   initialColumnConfig?: ColumnConfig;
+  lockedColumns?: string[];
+  disableHideColumn?: boolean;
   onColumnConfigChange?: (config: ColumnConfig) => void;
 }
 
@@ -285,10 +304,20 @@ export function DataTableStateProvider<TData>({
   pageSize = 50,
   defaultColumnOrder = [],
   initialColumnConfig,
+  lockedColumns,
+  disableHideColumn,
   onColumnConfigChange,
 }: DataTableStateProviderProps) {
   const [store] = useState(() =>
-    createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize, initialColumnConfig)
+    createDataTableStore<TData>({
+      uniqueKey,
+      storageKey,
+      defaultColumnOrder,
+      pageSize,
+      initialColumnConfig,
+      lockedColumns,
+      disableHideColumn,
+    })
   );
   const onChangeRef = useRef(onColumnConfigChange);
   useEffect(() => {

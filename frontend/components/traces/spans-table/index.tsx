@@ -22,7 +22,12 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" defaultColumnOrder={defaultSpansColumnOrder}>
+    <DataTableStateProvider
+      storageKey="spans-table"
+      uniqueKey="spanId"
+      defaultColumnOrder={defaultSpansColumnOrder}
+      lockedColumns={["status"]}
+    >
       <SpansTableContent />
     </DataTableStateProvider>
   );
@@ -156,12 +161,10 @@ function SpansTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        lockedColumns={["status"]}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
-            lockedColumns={["status"]}
             columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,

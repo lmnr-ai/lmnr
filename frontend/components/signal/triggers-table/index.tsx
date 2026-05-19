@@ -151,7 +151,6 @@ function TriggersTableContent() {
         columns={columns}
         data={triggers}
         getRowId={(trigger) => trigger.id}
-        lockedColumns={["__row_selection"]}
         hasMore={false}
         isFetching={isLoading}
         isLoading={isLoading}
@@ -168,7 +167,6 @@ function TriggersTableContent() {
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={triggersFilters} filters={storeTriggersFilters} onAddFilter={handleAddFilter} />
           <ColumnsMenu
-            lockedColumns={["__row_selection"]}
             columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
@@ -187,7 +185,10 @@ function TriggersTableContent() {
 
 export default function TriggersTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTriggersColumnOrder]}>
+    <DataTableStateProvider
+      defaultColumnOrder={["__row_selection", ...defaultTriggersColumnOrder]}
+      lockedColumns={["__row_selection"]}
+    >
       <TriggersTableContent />
     </DataTableStateProvider>
   );

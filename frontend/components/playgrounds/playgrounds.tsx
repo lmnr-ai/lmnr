@@ -212,7 +212,6 @@ const PlaygroundsContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -251,7 +250,6 @@ const PlaygroundsContent = () => {
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
-              lockedColumns={["__row_selection"]}
             />
             <DataTableSearch className="mr-0.5" placeholder="Search by playground name..." />
           </div>
@@ -264,7 +262,11 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider storageKey="playgrounds-table" defaultColumnOrder={defaultPlaygroundsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="playgrounds-table"
+      defaultColumnOrder={defaultPlaygroundsColumnOrder}
+      lockedColumns={["__row_selection"]}
+    >
       <PlaygroundsContent />
     </DataTableStateProvider>
   );

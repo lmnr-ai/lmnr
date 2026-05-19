@@ -1,6 +1,7 @@
 import { AnimatePresence } from "framer-motion";
 import React, { useState } from "react";
 import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { Button } from "@/components/ui/button.tsx";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
@@ -11,7 +12,6 @@ import { CustomColumnPanel } from "./custom-column-panel";
 import type { ColumnActions, CustomColumn, CustomColumnPanelConfig } from "./types";
 
 interface ColumnsMenuProps {
-  lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
   /** Configuration for the custom column panel (schema, test query, etc.). */
   panelConfig?: CustomColumnPanelConfig;
@@ -19,14 +19,9 @@ interface ColumnsMenuProps {
   columnActions?: ColumnActions;
 }
 
-export default function ColumnsMenu({
-  lockedColumns = [],
-  columnLabels = [],
-  panelConfig,
-  columnActions,
-}: ColumnsMenuProps) {
+export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActions }: ColumnsMenuProps) {
   const store = useDataTableStore();
-  const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(
+  const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, lockedColumns } = useStore(
     store,
     (state) => ({
       resetColumns: state.resetColumns,
@@ -34,7 +29,9 @@ export default function ColumnsMenu({
       setColumnOrder: state.setColumnOrder,
       columnVisibility: state.columnVisibility,
       setColumnVisibility: state.setColumnVisibility,
-    })
+      lockedColumns: state.lockedColumns,
+    }),
+    shallow
   );
 
   const supportsCustomColumns = !!panelConfig && !!columnActions;

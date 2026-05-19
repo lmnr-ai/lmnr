@@ -261,7 +261,6 @@ const QueuesContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -300,7 +299,6 @@ const QueuesContent = () => {
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
-              lockedColumns={["__row_selection"]}
             />
           </div>
           <div className="w-full">
@@ -319,7 +317,11 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider storageKey="queues-table" defaultColumnOrder={defaultQueuesColumnOrder}>
+    <DataTableStateProvider
+      storageKey="queues-table"
+      defaultColumnOrder={defaultQueuesColumnOrder}
+      lockedColumns={["__row_selection"]}
+    >
       <QueuesContent />
     </DataTableStateProvider>
   );

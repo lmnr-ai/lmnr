@@ -15,8 +15,6 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   data: TData[];
   columns: TableOptions<TData>["columns"];
 
-  lockedColumns?: string[];
-  disableHideColumn?: boolean;
   hasMore: boolean;
   isFetching: boolean;
   isLoading: boolean;
@@ -49,10 +47,6 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
 
 export interface InfiniteDataTableHeaderProps<TData extends RowData> {
   table: Table<TData>;
-  columnOrder: string[];
-  onHideColumn?: (columnId: string) => void;
-
-  lockedColumns?: string[];
 }
 
 export interface InfiniteDataTableBodyProps<TData extends RowData> {

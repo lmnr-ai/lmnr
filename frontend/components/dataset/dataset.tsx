@@ -313,7 +313,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             }}
             onRowSelectionChange={setRowSelection}
             className="flex-1"
-            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -325,7 +324,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             )}
           >
             <ColumnsMenu
-              lockedColumns={["__row_selection"]}
               columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
@@ -364,7 +362,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider storageKey="dataset-table" defaultColumnOrder={defaultDatasetColumnOrder}>
+    <DataTableStateProvider
+      storageKey="dataset-table"
+      defaultColumnOrder={defaultDatasetColumnOrder}
+      lockedColumns={["__row_selection"]}
+    >
       <DatasetContent {...props} />
     </DataTableStateProvider>
   );

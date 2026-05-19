@@ -96,7 +96,11 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider storageKey="evaluations-table" defaultColumnOrder={defaultEvaluationsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="evaluations-table"
+      defaultColumnOrder={defaultEvaluationsColumnOrder}
+      lockedColumns={["__row_selection"]}
+    >
       <EvaluationsContent />
     </DataTableStateProvider>
   );
@@ -253,7 +257,6 @@ function EvaluationsContent() {
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
-                lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -267,7 +270,6 @@ function EvaluationsContent() {
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
                   <ColumnsMenu
-                    lockedColumns={["__row_selection"]}
                     columnLabels={columns.map((column) => ({
                       id: column.id!,
                       label: typeof column.header === "string" ? column.header : column.id!,

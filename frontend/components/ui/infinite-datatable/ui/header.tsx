@@ -1,17 +1,40 @@
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { type RowData } from "@tanstack/react-table";
-import { forwardRef } from "react";
+import { forwardRef, useCallback } from "react";
+import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { TableHeader, TableRow } from "@/components/ui/table.tsx";
 
+import { useDataTableStore } from "../model/datatable-store.tsx";
 import { type InfiniteDataTableHeaderProps } from "../model/types.ts";
 import { InfiniteTableHead } from "./head.tsx";
 
 export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, InfiniteDataTableHeaderProps<RowData>>(
   function InfiniteDatatableHeader<TData extends RowData>(
-    { table, columnOrder, onHideColumn, lockedColumns }: InfiniteDataTableHeaderProps<TData>,
+    { table }: InfiniteDataTableHeaderProps<TData>,
     ref: React.Ref<HTMLTableSectionElement>
   ) {
+    const store = useDataTableStore();
+    const { columnOrder, lockedColumns, disableHideColumn, columnVisibility, setColumnVisibility } = useStore(
+      store,
+      (state) => ({
+        columnOrder: state.columnOrder,
+        lockedColumns: state.lockedColumns,
+        disableHideColumn: state.disableHideColumn,
+        columnVisibility: state.columnVisibility,
+        setColumnVisibility: state.setColumnVisibility,
+      }),
+      shallow
+    );
+
+    const onHideColumn = useCallback(
+      (columnId: string) => {
+        setColumnVisibility({ ...columnVisibility, [columnId]: false });
+      },
+      [columnVisibility, setColumnVisibility]
+    );
+
     return (
       <TableHeader
         ref={ref}
@@ -30,8 +53,8 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
                 <InfiniteTableHead
                   key={header.id}
                   header={header}
-                  onHideColumn={onHideColumn}
-                  isControllable={!lockedColumns?.includes(header.column.id)}
+                  onHideColumn={disableHideColumn ? undefined : onHideColumn}
+                  isControllable={!lockedColumns.includes(header.column.id)}
                 />
               ))}
             </SortableContext>

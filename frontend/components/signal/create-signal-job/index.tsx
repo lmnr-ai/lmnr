@@ -306,11 +306,9 @@ const CreateSignalJobContent = () => {
           }}
           onRowSelectionChange={onRowSelectionChange}
           getRowHref={getRowHref}
-          lockedColumns={["__row_selection", "status"]}
         >
           <div className="flex flex-1 w-full h-full gap-2">
             <ColumnsMenu
-              lockedColumns={["__row_selection", "status"]}
               columnLabels={columns.map((column) => ({
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
@@ -375,7 +373,10 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }, []);
 
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+    <DataTableStateProvider
+      defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}
+      lockedColumns={["__row_selection", "status"]}
+    >
       <CreateSignalJobContent />
     </DataTableStateProvider>
   );

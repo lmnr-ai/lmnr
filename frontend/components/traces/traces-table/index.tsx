@@ -42,7 +42,11 @@ export default function TracesTable() {
   const { projectId } = useParams();
 
   return (
-    <DataTableStateProvider storageKey={`traces-table-${projectId}`} defaultColumnOrder={defaultTracesColumnOrder}>
+    <DataTableStateProvider
+      storageKey={`traces-table-${projectId}`}
+      defaultColumnOrder={defaultTracesColumnOrder}
+      lockedColumns={["status", "preview"]}
+    >
       <TracesTableContent />
     </DataTableStateProvider>
   );
@@ -438,18 +442,13 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status", "preview"]}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={allFilters} />
-          <TracesColumnsMenu
-            lockedColumns={["status", "preview"]}
-            columnLabels={columnLabels}
-            columnDefs={columnDefs}
-          />
+          <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

@@ -9,16 +9,11 @@ import { useDataTableStore } from "@/components/ui/infinite-datatable/model/data
 import { type TraceRow } from "@/lib/traces/types";
 
 interface TracesColumnsMenuProps {
-  lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
   columnDefs: ColumnDef<TraceRow>[];
 }
 
-export default function TracesColumnsMenu({
-  lockedColumns = [],
-  columnLabels = [],
-  columnDefs,
-}: TracesColumnsMenuProps) {
+export default function TracesColumnsMenu({ columnLabels = [], columnDefs }: TracesColumnsMenuProps) {
   const datatableStore = useDataTableStore();
   const { addCustomColumn, updateCustomColumn } = useStore(datatableStore, (s) => ({
     addCustomColumn: s.addCustomColumn,
@@ -48,12 +43,5 @@ export default function TracesColumnsMenu({
     [addCustomColumn, updateCustomColumn, columnDefs]
   );
 
-  return (
-    <ColumnsMenu
-      lockedColumns={lockedColumns}
-      columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-    />
-  );
+  return <ColumnsMenu columnLabels={columnLabels} panelConfig={panelConfig} columnActions={columnActions} />;
 }

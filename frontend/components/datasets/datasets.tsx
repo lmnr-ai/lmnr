@@ -225,7 +225,6 @@ function DatasetsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
-            lockedColumns={["__row_selection"]}
             emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
@@ -240,7 +239,6 @@ function DatasetsContent() {
             <div className="flex flex-1 w-full space-x-2 pt-1">
               <DataTableFilter columns={datasetsTableFilters} />
               <ColumnsMenu
-                lockedColumns={["__row_selection"]}
                 columnLabels={columns.map((column) => ({
                   id: column.id!,
                   label: typeof column.header === "string" ? column.header : column.id!,
@@ -258,7 +256,11 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="datasets-table"
+      defaultColumnOrder={defaultDatasetsColumnOrder}
+      lockedColumns={["__row_selection"]}
+    >
       <DatasetsContent />
     </DataTableStateProvider>
   );

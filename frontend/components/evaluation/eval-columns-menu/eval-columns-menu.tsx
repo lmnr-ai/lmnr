@@ -11,11 +11,10 @@ import { type EvalRow } from "@/lib/evaluation/types";
 interface EvalColumnsMenuProps {
   /** Derived column defs from the parent — see EvaluationDatapointsTableProps. */
   columnDefs: ColumnDef<EvalRow>[];
-  lockedColumns?: string[];
   columnLabels?: { id: string; label: string; onDelete?: () => void }[];
 }
 
-export default function EvalColumnsMenu({ columnDefs, lockedColumns = [], columnLabels = [] }: EvalColumnsMenuProps) {
+export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalColumnsMenuProps) {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
   const addCustomColumn = useEvalStore((s) => s.addCustomColumn);
@@ -48,7 +47,6 @@ export default function EvalColumnsMenu({ columnDefs, lockedColumns = [], column
 
   return (
     <ColumnsMenu
-      lockedColumns={lockedColumns}
       columnLabels={columnLabels}
       panelConfig={isShared ? undefined : panelConfig}
       columnActions={isShared ? undefined : columnActions}

@@ -83,7 +83,6 @@ const RunsContent = () => {
       isLoading={isHistoryLoading}
       fetchNextPage={noop}
       estimatedRowHeight={36}
-      lockedColumns={["status"]}
     >
       <div className="flex gap-2 w-full items-center">
         <RefreshButton onClick={fetchHistory} variant="outline" />
@@ -94,7 +93,11 @@ const RunsContent = () => {
 
 export default function RunsTab() {
   return (
-    <DataTableStateProvider defaultColumnOrder={tracePickerColumnOrder} pageSize={FETCH_SIZE}>
+    <DataTableStateProvider
+      defaultColumnOrder={tracePickerColumnOrder}
+      pageSize={FETCH_SIZE}
+      lockedColumns={["status"]}
+    >
       <RunsContent />
     </DataTableStateProvider>
   );

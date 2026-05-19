@@ -50,8 +50,6 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
-  lockedColumns = EMPTY_ARRAY as string[],
-  disableHideColumn = false,
 
   // Styling
   className,
@@ -287,19 +285,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
               }}
             >
-              <InfiniteDatatableHeader
-                ref={headerRef}
-                table={table as any}
-                columnOrder={columnOrder}
-                onHideColumn={
-                  disableHideColumn
-                    ? undefined
-                    : (columnId) => {
-                        setColumnVisibility({ ...columnVisibility, [columnId]: false });
-                      }
-                }
-                lockedColumns={lockedColumns}
-              />
+              <InfiniteDatatableHeader ref={headerRef} table={table as any} />
               <InfiniteDatatableBody
                 table={table}
                 rowVirtualizer={rowVirtualizer}

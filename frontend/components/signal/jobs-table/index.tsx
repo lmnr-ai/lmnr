@@ -100,7 +100,6 @@ const JobsTableContent = () => {
         columns={signalJobsColumns}
         data={jobs}
         getRowId={(job) => job.id}
-        lockedColumns={["id"]}
         hasMore={false}
         isFetching={isLoading}
         isLoading={isLoading}
@@ -116,7 +115,6 @@ const JobsTableContent = () => {
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
-            lockedColumns={["id"]}
           />
         </div>
         <FilterList className="py-[3px] text-xs px-1" filters={jobsFilters} onRemoveFilter={handleRemoveFilter} />
@@ -127,7 +125,7 @@ const JobsTableContent = () => {
 
 export default function SignalJobsTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))}>
+    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))} lockedColumns={["id"]}>
       <JobsTableContent />
     </DataTableStateProvider>
   );

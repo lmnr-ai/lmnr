@@ -129,6 +129,7 @@ const TableChart = ({
         initialColumnConfig={initialColumnConfig}
         onColumnConfigChange={handleColumnConfigChange}
         pageSize={PAGE_SIZE}
+        disableHideColumn
       >
         <InfiniteDataTable
           columns={tableColumns}
@@ -141,7 +142,6 @@ const TableChart = ({
           className="h-full"
           scrollContentClassName="border rounded-md"
           hideSelectionPanel
-          disableHideColumn
           estimatedRowHeight={35}
         />
       </DataTableStateProvider>
