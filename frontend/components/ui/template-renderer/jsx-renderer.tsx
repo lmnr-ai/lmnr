@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { LAMINAR_IFRAME_THEME, laminarIframeThemeJson } from "./theme";
+
 const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
 
 const createIframeContent = (templateCode: string): string => {
@@ -11,13 +13,31 @@ const createIframeContent = (templateCode: string): string => {
     .replace(/\$/g, "\\$")
     .replace(/<\\\/script>/gi, "<\\\\/script>");
 
+  const themeJson = laminarIframeThemeJson();
+  const bodyFontFamily = LAMINAR_IFRAME_THEME.fontFamily.sans.map((f) => (f.includes(" ") ? `'${f}'` : f)).join(", ");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline';">
-  
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://esm.sh; style-src 'self' 'unsafe-inline'; connect-src https://esm.sh; img-src data: blob:;">
+
+  <script>
+    (function blockNetworkApis() {
+      const blocked = () => { throw new Error('Network requests are disabled inside template renderers.'); };
+      try { window.fetch = blocked; } catch {}
+      try { window.XMLHttpRequest = function() { blocked(); }; } catch {}
+      try { window.WebSocket = function() { blocked(); }; } catch {}
+      try { window.EventSource = function() { blocked(); }; } catch {}
+      try {
+        if (navigator && typeof navigator.sendBeacon === 'function') {
+          navigator.sendBeacon = () => { blocked(); };
+        }
+      } catch {}
+    })();
+  </script>
+
   <script type="importmap">
   {
     "imports": {
@@ -33,15 +53,23 @@ const createIframeContent = (templateCode: string): string => {
   
   <style>
     * { box-sizing: border-box; }
-    html, body, #root { height: 100%; }
+    html, body { min-height: 100%; }
+    #root { min-height: 100%; }
     body { 
       margin: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: ${bodyFontFamily};
       line-height: 1.5;
-      background: #0A0A0A;
-      color: #FAFAFA;
+      background: ${LAMINAR_IFRAME_THEME.colors.background};
+      color: ${LAMINAR_IFRAME_THEME.colors.foreground};
+      overflow-x: hidden;
+      overflow-y: auto;
     }
-    .error { color: #CC3333; }
+    *::-webkit-scrollbar { width: 6px; height: 1px; }
+    *::-webkit-scrollbar-track { background: ${LAMINAR_IFRAME_THEME.colors.secondary.DEFAULT}; }
+    *::-webkit-scrollbar-thumb { background: ${LAMINAR_IFRAME_THEME.colors.border}; border-radius: 10px; }
+    *::-webkit-scrollbar-thumb:hover { background: ${LAMINAR_IFRAME_THEME.colors.border}CC; }
+    html, body { scrollbar-color: ${LAMINAR_IFRAME_THEME.colors.border} ${LAMINAR_IFRAME_THEME.colors.border}33; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
 </head>
@@ -50,6 +78,7 @@ const createIframeContent = (templateCode: string): string => {
   
   <script type="module">
     const parentOrigin = window.origin;
+    const LAMINAR_THEME = ${themeJson};
 
     class TemplateRenderer {
       constructor() {
@@ -84,7 +113,15 @@ const createIframeContent = (templateCode: string): string => {
         const tailwind = presetTailwind.default || presetTailwind;
         const autoprefix = presetAutoprefix.default || presetAutoprefix;
         const { install, observe } = core;
-        const tw = install({ presets: [tailwind(), autoprefix()] });
+        const tw = install({
+          presets: [tailwind(), autoprefix()],
+          theme: {
+            extend: {
+              colors: LAMINAR_THEME.colors,
+              fontFamily: LAMINAR_THEME.fontFamily,
+            },
+          },
+        });
 
         return {
           preact: preactModule,
@@ -172,8 +209,8 @@ const createErrorContent = (message: string): string => `
 <head>
   <meta charset="utf-8">
   <style>
-    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FAFAFA; }
-    .error { color: #dc2626; background: #fef2f2; padding: 1rem; border-radius: 0.375rem; border: 1px solid #fecaca; }
+    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: ${LAMINAR_IFRAME_THEME.colors.background}; color: ${LAMINAR_IFRAME_THEME.colors.foreground}; }
+    .error { color: ${LAMINAR_IFRAME_THEME.colors.destructive.DEFAULT}; background: rgba(204, 51, 51, 0.08); padding: 1rem; border-radius: 0.375rem; border: 1px solid ${LAMINAR_IFRAME_THEME.colors.border}; }
   </style>
 </head>
 <body>
@@ -207,7 +244,14 @@ const parseData = (data: any): any => {
   }
 };
 
-const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
+interface JsxRendererProps {
+  code: string;
+  data: any;
+  className?: string;
+  autoHeight?: boolean;
+}
+
+const JsxRenderer = ({ code, data, className, autoHeight = false }: JsxRendererProps) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const pendingDataRef = useRef<any>(null);
   const iframeReadyRef = useRef(false);
@@ -253,10 +297,48 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
     }
   }, [data]);
 
+  // Auto-resize the iframe to its content height by observing the template's
+  // mount point (#root) from the host document (allowed by `allow-same-origin`).
+  // Observing body/documentElement does NOT work: the HTML spec transfers
+  // `overflow-y: auto` from body to the iframe viewport, clamping their own
+  // contentRects to the (initially 0px) viewport — ResizeObserver never sees
+  // the content grow. `#root` is a plain div, free of that quirk.
+  // Height is set imperatively (not through React's style prop) so re-renders
+  // don't clobber the measured value.
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !autoHeight) return;
+
+    iframe.style.height = "0px";
+
+    let observer: ResizeObserver | null = null;
+
+    const attach = () => {
+      observer?.disconnect();
+      const doc = iframe.contentDocument;
+      const root = doc?.getElementById("root");
+      if (!root) return;
+      const update = () => {
+        iframe.style.height = `${root.scrollHeight}px`;
+      };
+      update();
+      observer = new ResizeObserver(update);
+      observer.observe(root);
+    };
+
+    iframe.addEventListener("load", attach);
+    if (iframe.contentDocument?.readyState === "complete") attach();
+
+    return () => {
+      iframe.removeEventListener("load", attach);
+      observer?.disconnect();
+    };
+  }, [autoHeight]);
+
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full h-full", className)}
+      className={cn("w-full", autoHeight ? null : "h-full", className)}
       style={{ contain: "layout style", isolation: "isolate" }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"

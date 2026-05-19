@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use rayon::prelude::*;
+use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -16,7 +17,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::{Span, SpanType},
+        spans::Span,
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -28,7 +29,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{build_dedup_batch, mark_seen, unmark_seen},
+        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -53,36 +54,49 @@ pub async fn process_span_messages(
     ch: impl ClickhouseTrait,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
-    // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
-    let mut spans: Vec<Span> = messages
+    // Producer-side preprocessing already ran `parse_and_enrich_attributes`
+    // and `convert_span_to_provider_format` for `pre_processed` messages.
+    // Re-running on the consumer would double-apply the LangChain rewrite
+    // and double-copy attributes into `span.input`, breaking dedup identity.
+    let mut messages: Vec<RabbitMqSpanMessage> = messages
         .into_par_iter()
-        .map(|message| {
-            let mut span = message.span;
-            span.parse_and_enrich_attributes();
-            span
+        .map(|mut message| {
+            if !message.pre_processed {
+                message.span.parse_and_enrich_attributes();
+            }
+            message
         })
         .collect();
 
     // Enrich spans with usage info
-    let mut span_usage_vec = Vec::with_capacity(spans.len());
+    let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    for span in &mut spans {
+    for m in &mut messages {
         let span_usage = get_llm_usage_for_span(
-            &mut span.attributes,
+            &mut m.span.attributes,
             db.clone(),
             cache.clone(),
-            &span.name,
-            &span.project_id,
+            &m.span.name,
+            &m.span.project_id,
         )
         .await;
 
-        prepare_span_for_recording(span, &span_usage);
-        convert_span_to_provider_format(span);
+        prepare_span_for_recording(&mut m.span, &span_usage);
+        if !m.pre_processed {
+            convert_span_to_provider_format(&mut m.span);
+        }
         // Must run AFTER provider conversion — LangChain rewrites `input`.
-        span.estimate_size_bytes();
+        m.span.estimate_size_bytes();
 
         span_usage_vec.push(span_usage);
     }
+
+    // Split into parallel `Vec`s — downstream code reads `spans` and
+    // `dedups` as separate slices keyed by index.
+    let (mut spans, dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) = messages
+        .into_iter()
+        .map(|m| (m.span, m.input_dedup))
+        .unzip();
 
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
@@ -113,8 +127,9 @@ pub async fn process_span_messages(
         }
     };
 
-    // Dedup LLM span inputs: insert unique messages first, then stamp hashes
-    // onto each span. If the messages insert fails, unmark Redis and retry.
+    // Dedup LLM span inputs: insert unique messages first, then stamp Redis.
+    // On insert failure we return transient; nothing to undo in Redis since
+    // `mark_seen` only runs after a successful insert.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -123,7 +138,11 @@ pub async fn process_span_messages(
         .collect();
     let dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-        build_dedup_batch(&dedup_input, cache.clone()).await
+        let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
+            .iter()
+            .map(|&i| dedups[i].clone())
+            .collect();
+        build_dedup_batch(&dedup_input, &recordable_dedups)
     };
 
     if !dedup.messages.is_empty() {
@@ -138,7 +157,6 @@ pub async fn process_span_messages(
                 dedup.messages.len(),
                 e
             );
-            unmark_seen(&keys, cache.clone()).await;
             return Err(HandlerError::transient(anyhow::anyhow!(
                 "Failed to insert llm_messages to Clickhouse: {:?}",
                 e
@@ -169,12 +187,22 @@ pub async fn process_span_messages(
                     .get(dedup_idx)
                     .copied()
                     .unwrap_or(0);
+                // 32 bytes per BLAKE3-256 hash + new `llm_messages.content` bytes.
                 hashes * 32 + content_bytes
             } else {
                 span.input
                     .as_ref()
                     .map_or(0, crate::utils::estimate_json_size)
             }
+        } else if let Some(d) = dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            // Non-recordable LLM span (e.g. CC Bash-tool `anthropic.messages`)
+            // whose `span.input` was stripped to None on the producer. Without
+            // this branch the fall-through would bill 0 bytes, regressing the
+            // "non-recorded spans contribute input bytes to workspace usage"
+            // invariant. Closest post-dedup analogue: 32B per hash + the
+            // Redis-miss content the producer carried.
+            // 32 bytes per BLAKE3-256 hash + producer's Redis-miss content bytes.
+            d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
             span.input
                 .as_ref()
@@ -199,6 +227,11 @@ pub async fn process_span_messages(
             if !hashes.is_empty() {
                 ch_span.input = String::new();
                 ch_span.input_message_hashes = hashes;
+                ch_span.input_new_message_indices = dedup
+                    .span_new_indices
+                    .get(dedup_idx)
+                    .cloned()
+                    .unwrap_or_default();
             }
             ch_span
         })
@@ -237,13 +270,40 @@ pub async fn process_span_messages(
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    // Non-LLM spans are only indexed if their size is <= 5KB
+    // Non-LLM spans are only indexed if their size is <= 5KB.
+    // For LLM spans, only the deduped "new messages" subset is indexed —
+    // older repeated history already searchable via the prior step's span.
     let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
-        .filter(|s| {
-            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        .enumerate()
+        .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
+        .map(|(dedup_idx, s)| {
+            // For LLM spans: parse this span's new messages into `Vec<Value>`
+            // for the indexer. `span_new_message_indices[dedup_idx]` points
+            // into `dedup.messages` — no layout assumption. Works for both
+            // the producer path (where `span.input` is `None`) and the
+            // legacy path. Unparseable JSON is dropped (filter_map) — the
+            // row still went to llm_messages, it just isn't searchable.
+            // A span with no hashes (non-array input or empty plan) gets
+            // `None`, so `from_span` falls through to raw `span.input`.
+            let new_messages = if s.is_llm_span()
+                && dedup
+                    .span_hashes
+                    .get(dedup_idx)
+                    .map(|h| !h.is_empty())
+                    .unwrap_or(false)
+            {
+                dedup.span_new_message_indices.get(dedup_idx).map(|idxs| {
+                    idxs.iter()
+                        .filter_map(|&i| dedup.messages.get(i))
+                        .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                        .collect::<Vec<Value>>()
+                })
+            } else {
+                None
+            };
+            QuickwitIndexedSpan::from_span(s, new_messages.as_deref())
         })
-        .map(|s| (*s).into())
         .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
