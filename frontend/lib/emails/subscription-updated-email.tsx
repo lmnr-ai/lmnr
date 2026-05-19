@@ -18,15 +18,16 @@ export default function SubscriptionUpdatedEmail({
       <Preview>Payment received — thanks for using Laminar.</Preview>
       <div style={container}>
         <Text style={heading}>Payment received</Text>
-        <Text style={text}>Thanks for your payment. A detailed invoice is available in your billing portal.</Text>
+        <Text style={text}>Thanks for your payment.</Text>
         <Text style={label}>Total</Text>
         <Text style={value}>{total}</Text>
         <Text style={label}>Date</Text>
         <Text style={value}>{date}</Text>
         <Text style={label}>Billed to</Text>
         <Text style={value}>{billedTo}</Text>
+        <Text style={text}>You can view and download invoices in your Stripe billing portal.</Text>
         <Button style={button} href={billingPortalUrl}>
-          View invoice
+          View billing portal
         </Button>
         <Text style={footer}>LMNR AI, INC. 2026</Text>
       </div>
