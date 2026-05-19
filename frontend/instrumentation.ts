@@ -102,6 +102,11 @@ export async function register() {
       // `CREATE OR REPLACE` so credential rotation is picked up on next boot
       // without tripping the clickhouse-migrations MD5 checksum guard (which is
       // why this lives here instead of in `43_llm_messages.sql`).
+      // Multi-replica boots race the DDL — CH serialises it, but each replace
+      // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
+      // Acceptable: layout is lazy (no preload), source lookups hit the
+      // `llm_messages` PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
+      // evicts/refreshes every minute under normal operation.
       const ensureLlmMessagesDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
