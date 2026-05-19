@@ -1,45 +1,47 @@
-import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
-import { useEvalStore } from "@/components/evaluation/store";
+import { consumeLegacyEvalCustomColumns, useEvalStore } from "@/components/evaluation/store";
+import { type CustomColumn } from "@/components/ui/columns-menu";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { type EvalRow } from "@/lib/evaluation/types";
 
-import EvalTableSkeleton from "./eval-table-skeleton";
-import EvaluationDatapointsTableContent from "./evaluation-datapoints-table-content";
+import EvaluationDatapointsTableContent, {
+  type EvaluationDatapointsTableContentProps,
+} from "./evaluation-datapoints-table-content";
 
-export interface EvaluationDatapointsTableProps {
-  isLoading: boolean;
-  datapointId?: string;
-  data: EvalRow[] | undefined;
-  scores: string[];
-  columnDefs: ColumnDef<EvalRow>[];
-  handleRowClick: (row: Row<EvalRow>) => void;
-  getRowHref?: (row: Row<EvalRow>) => string;
-  hasMore: boolean;
-  isFetching: boolean;
-  fetchNextPage: () => void;
+export interface EvaluationDatapointsTableProps extends EvaluationDatapointsTableContentProps {
+  /** Server-seeded score names. Used to compute the initial column order. */
+  initialScoreNames: string[];
+  /** Storage key for column persistence. Use a different key for shared eval to
+   * avoid customColumns leaking from a non-shared session into the shared view. */
+  storageKey?: string;
 }
 
 const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { scores, isLoading } = props;
-  const customColumns = useEvalStore((s) => s.customColumns);
+const EvaluationDatapointsTable = ({
+  storageKey = "evaluation-datapoints-table",
+  ...props
+}: EvaluationDatapointsTableProps) => {
+  const scoreNames = useEvalStore((s) => s.scoreNames);
+  const isShared = useEvalStore((s) => s.isShared);
   const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [scores, customColumns]
+    () => [...baseColumnOrder, ...scoreNames.map((s) => `score:${s}`)],
+    [scoreNames]
   );
 
-  // Delay mounting the store until scores are known, otherwise the store
-  // is created with an incomplete defaultColumnOrder and score columns
-  // won't be reorderable.
-  if (isLoading) {
-    return <EvalTableSkeleton />;
-  }
+  // One-shot migration: drain customColumns from the legacy "evaluation-store"
+  // localStorage blob into the non-shared DataTableStore. Shared eval skips
+  // this — its column store is browser-isolated by storageKey already.
+  const [seedCustomColumns] = useState<CustomColumn[]>(() =>
+    isShared ? [] : consumeLegacyEvalCustomColumns()
+  );
 
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+    <DataTableStateProvider
+      storageKey={storageKey}
+      defaultColumnOrder={defaultColumnOrder}
+      initialColumnConfig={seedCustomColumns.length > 0 ? { customColumns: seedCustomColumns } : undefined}
+    >
       <EvaluationDatapointsTableContent {...props} />
     </DataTableStateProvider>
   );

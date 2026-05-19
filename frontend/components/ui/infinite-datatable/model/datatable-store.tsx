@@ -143,7 +143,7 @@ function createDataTableStore<TData>({
     draggingColumnId: null,
     lockedColumns,
     disableHideColumn,
-    customColumns: [],
+    customColumns: initialColumnConfig?.customColumns ?? [],
 
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
@@ -284,8 +284,11 @@ function createDataTableStore<TData>({
               Pick<CustomColumnsState, "customColumns">
           >;
 
-          const persistedCustomColumns = persisted?.customColumns ?? [];
-          const customColumnIds = persistedCustomColumns.map((cc) => `custom:${cc.name}`);
+          // Persisted state wins; fall through to seeded state (initialColumnConfig)
+          // when the persisted blob is missing a key — required for one-shot
+          // migrations that seed customColumns from a different storage key.
+          const customColumns = persisted?.customColumns ?? currentState.customColumns;
+          const customColumnIds = customColumns.map((cc) => `custom:${cc.name}`);
           const fullDefaultOrder = [...defaultColumnOrder, ...customColumnIds];
 
           const validColumns = intersection(persisted?.columnOrder ?? [], fullDefaultOrder);
@@ -296,7 +299,7 @@ function createDataTableStore<TData>({
 
           return {
             ...currentState,
-            customColumns: persistedCustomColumns,
+            customColumns,
             columnVisibility: filteredColumnVisibility,
             columnOrder: mergedColumnOrder,
             columnSizing: filteredColumnSizing,
@@ -317,6 +320,7 @@ export interface ColumnConfig {
   columnOrder?: string[];
   columnSizing?: Record<string, number>;
   columnVisibility?: Record<string, boolean>;
+  customColumns?: CustomColumn[];
 }
 
 export interface DataTableStateProviderProps {

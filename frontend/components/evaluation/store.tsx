@@ -15,6 +15,32 @@ import { type EvalRow } from "@/lib/evaluation/types";
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
 
+/** Legacy localStorage blob shape (pre-LAM-1627). One-shot migration reads
+ * `customColumns` from here and seeds the DataTableStore for the
+ * "evaluation-datapoints-table" key, then strips the field from the legacy blob. */
+export const LEGACY_EVAL_STORE_KEY = "evaluation-store";
+
+/** Drains the legacy customColumns from `evaluation-store` localStorage so they
+ * can seed a DataTableStore. Returns [] if no legacy blob, the field is missing,
+ * or anything throws (private browsing, malformed JSON). Strips the field from
+ * the legacy blob on success so subsequent loads return []. */
+export function consumeLegacyEvalCustomColumns(): CustomColumn[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(LEGACY_EVAL_STORE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { state?: { customColumns?: CustomColumn[] } };
+    const customColumns = parsed?.state?.customColumns;
+    if (!Array.isArray(customColumns) || customColumns.length === 0) return [];
+    delete parsed.state!.customColumns;
+    window.localStorage.setItem(LEGACY_EVAL_STORE_KEY, JSON.stringify(parsed));
+    return customColumns;
+  } catch {
+    return [];
+  }
+}
+
+
 interface RawUrlParams {
   search: string | null;
   filter: string[];
@@ -41,7 +67,6 @@ export interface EvalStoreState {
   heatmapEnabled: boolean;
   isComparison: boolean;
   isShared: boolean;
-  customColumns: CustomColumn[];
   /**
    * Single source of truth for the list of score names belonging to the
    * current evaluation. Seeded by the page (server-side
@@ -56,9 +81,6 @@ export interface EvalStoreState {
   setHeatmapEnabled: (enabled: boolean) => void;
   setIsComparison: (value: boolean) => void;
   addScoreName: (name: string) => void;
-  addCustomColumn: (column: CustomColumn) => void;
-  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
-  removeCustomColumn: (name: string) => void;
 }
 
 export const selectVisibleColumnDefs = (
@@ -192,7 +214,6 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
         heatmapEnabled: false,
         isComparison: false,
         isShared,
-        customColumns: [],
         scoreNames: initialScoreNames,
 
         setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
@@ -204,28 +225,11 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
           if (scoreNames.includes(name)) return;
           set({ scoreNames: [...scoreNames, name] });
         },
-
-        addCustomColumn: (column) => {
-          const { customColumns } = get();
-          if (customColumns.some((cc) => cc.name === column.name)) return;
-          set({ customColumns: [...customColumns, column] });
-        },
-
-        updateCustomColumn: (oldName, column) => {
-          set({
-            customColumns: get().customColumns.map((cc) => (cc.name === oldName ? column : cc)),
-          });
-        },
-
-        removeCustomColumn: (name) => {
-          set({ customColumns: get().customColumns.filter((cc) => cc.name !== name) });
-        },
       }),
       {
-        name: "evaluation-store",
+        name: LEGACY_EVAL_STORE_KEY,
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
-          customColumns: state.customColumns,
         }),
       }
     )

@@ -1,35 +1,19 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { debounce } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useMemo, useState } from "react";
 
 import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import {
-  buildColumnDefs,
-  buildFetchParams,
-  buildStatsParams,
-  EvalStoreProvider,
-  useEvalStore,
-} from "@/components/evaluation/store";
-import {
-  type EvaluationStatsPayload,
-  flattenScores,
-  mergeDatapointUpsertIntoRows,
-  mergeTraceUpdateIntoRows,
-} from "@/components/evaluation/utils";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { EvalStoreProvider } from "@/components/evaluation/store";
+import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
-import { useRealtime } from "@/lib/hooks/use-realtime.ts";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { type EvalRow, type Evaluation as EvaluationType } from "@/lib/evaluation/types";
+import { formatTimestamp } from "@/lib/utils";
 
 import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";
@@ -42,128 +26,43 @@ interface EvaluationProps {
   initialScoreNames: string[];
 }
 
-const pageSize = 50;
-
 function EvaluationContent({ evaluations, evaluationId, evaluationName, initialScoreNames }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
   const targetId = searchParams.get("targetId");
-  const search = searchParams.get("search");
-  const filter = searchParams.getAll("filter");
-  const sortBy = searchParams.get("sortBy");
-  const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(() => initialScoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
   );
+  const [selectedRow, setSelectedRow] = useState<EvalRow | undefined>(undefined);
+  const [statsData, setStatsData] = useState<EvaluationStatsPayload | undefined>(undefined);
+  const [targetStatsData, setTargetStatsData] = useState<EvaluationStatsPayload | undefined>(undefined);
 
-  const addScoreName = useEvalStore((s) => s.addScoreName);
-  const setIsComparison = useEvalStore((s) => s.setIsComparison);
-  const scoreNames = useEvalStore((s) => s.scoreNames);
-  const customColumns = useEvalStore((s) => s.customColumns);
-  const isShared = useEvalStore((s) => s.isShared);
+  const isStatsLoading = statsData === undefined;
 
-  const columnDefs = useMemo(
-    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
-    [scoreNames, customColumns, isShared]
+  const buildDatapointsUrl = useCallback(
+    (qs: string) => `/api/projects/${params.projectId}/evaluations/${evaluationId}?${qs}`,
+    [params.projectId, evaluationId]
   );
-
-  const statsUrl = useMemo(() => {
-    const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
-    const qs = urlParams.toString();
-    return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
-
-  const {
-    data: statsData,
-    isLoading: isStatsLoading,
-    mutate: mutateStats,
-  } = useSWR<EvaluationStatsPayload>(statsUrl, swrFetcher, {
-    revalidateOnFocus: false,
-  });
-
-  // Target statistics URL (if comparing)
-  const targetStatsUrl = useMemo(() => {
-    if (!targetId) return null;
-    const base = `/api/projects/${params.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
-    const qs = urlParams.toString();
-    return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
-
-  const { data: targetStatsData } = useSWR<EvaluationStatsPayload>(targetStatsUrl, swrFetcher, {
-    revalidateOnFocus: false,
-  });
-
-  // Sync comparison state from URL
-  useEffect(() => {
-    setIsComparison(!!targetId);
-  }, [targetId, setIsComparison]);
-
-  // SQL strings from column defs — only changes when columns structurally change.
-  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
-  // produce the same string → no spurious re-fetch.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const buildStatsUrl = useCallback(
+    (qs: string) => {
+      const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
+      return qs ? `${base}?${qs}` : base;
+    },
+    [params.projectId, evaluationId]
+  );
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("traceId");
-    params.delete("spanId");
-    push(`${pathName}?${params}`);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("traceId");
+    next.delete("spanId");
+    push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
-
-  // Fetch function for datapoints — single query handles comparison via targetId
-  const fetchDatapoints = useCallback(
-    async (pageNumber: number) => {
-      const urlParams = buildFetchParams(
-        {
-          search,
-          filter,
-          sortBy,
-          sortDirection,
-          targetId,
-          pageNumber,
-          pageSize,
-        },
-        columnDefs
-      );
-
-      const url = `/api/projects/${params.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Failed to fetch datapoints.");
-      }
-      const data: EvaluationResultsInfo = await response.json();
-
-      return { items: data.results, count: 0 };
-    },
-    [search, filter, params.projectId, evaluationId, sortBy, sortDirection, targetId, columnDefs]
-  );
-
-  // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
-  const {
-    data: allDatapoints,
-    hasMore: hasMorePages,
-    isFetching: isFetchingPage,
-    isLoading: isLoadingDatapoints,
-    fetchNextPage,
-    updateData,
-  } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
-    enabled: !isStatsLoading,
-    deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
-  });
-
-  const selectedRow = useMemo<EvalRow | undefined>(
-    () => allDatapoints?.find((row) => row["id"] === searchParams.get("datapointId")),
-    [searchParams, allDatapoints]
-  );
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
@@ -172,83 +71,32 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original["traceId"] as string);
-      params.set("datapointId", row.original["id"] as string);
-      return `${pathName}?${params.toString()}`;
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("traceId", row.original["traceId"] as string);
+      next.set("datapointId", row.original["id"] as string);
+      return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
   );
 
   const handleTraceChange = (id: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set("traceId", id);
-    push(`${pathName}?${params}`);
+    const next = new URLSearchParams(searchParams);
+    next.set("traceId", id);
+    push(`${pathName}?${next}`);
     setTraceId(id);
   };
+
+  const scoreNames = statsData?.evaluation
+    ? Object.keys(statsData.allStatistics ?? {}).length > 0
+      ? Object.keys(statsData.allStatistics)
+      : initialScoreNames
+    : initialScoreNames;
 
   if (!selectedScore && scoreNames.length > 0) {
     setSelectedScore(scoreNames[0]);
   }
 
-  const debouncedRevalidateStats = useMemo(
-    () => debounce(() => mutateStats(), 1000, { leading: false, trailing: true }),
-    [mutateStats]
-  );
-  useEffect(() => () => debouncedRevalidateStats.cancel(), [debouncedRevalidateStats]);
-
-  const mergeDatapointUpsert = useCallback(
-    (incoming: EvalRow & { id: string }) => {
-      if (targetId) return;
-      const flattened = flattenScores(incoming["scores"]);
-      updateData((rows) => mergeDatapointUpsertIntoRows(rows, incoming, flattened));
-      if (Object.keys(flattened).length === 0) return;
-
-      Object.keys(flattened).forEach((key) => addScoreName(key.slice("score:".length)));
-      debouncedRevalidateStats();
-    },
-    [updateData, targetId, addScoreName, debouncedRevalidateStats]
-  );
-
-  // Realtime merge of trace stats (cost/duration/status/tokens) onto the row
-  const mergeTraceUpdate = useCallback(
-    (trace: Record<string, unknown> & { id: string }) => {
-      if (targetId) return;
-      updateData((rows) => mergeTraceUpdateIntoRows(rows, trace));
-    },
-    [updateData, targetId]
-  );
-
-  const realtimeHandlers = useMemo(
-    () => ({
-      datapoint_upsert: (event: MessageEvent) => {
-        try {
-          const payload = JSON.parse(event.data) as { datapoints?: Array<EvalRow & { id: string }> };
-          payload.datapoints?.forEach(mergeDatapointUpsert);
-        } catch (e) {
-          console.warn("Failed to parse realtime datapoint_upsert:", e);
-        }
-      },
-      trace_update: (event: MessageEvent) => {
-        try {
-          const payload = JSON.parse(event.data) as {
-            traces?: Array<Record<string, unknown> & { id: string }>;
-          };
-          payload.traces?.forEach(mergeTraceUpdate);
-        } catch (e) {
-          console.warn("Failed to parse realtime trace_update:", e);
-        }
-      },
-    }),
-    [mergeDatapointUpsert, mergeTraceUpdate]
-  );
-
-  useRealtime({
-    key: `evaluation_${evaluationId}`,
-    projectId: params.projectId,
-    enabled: !targetId,
-    eventHandlers: realtimeHandlers,
-  });
+  const statsUrl = useMemo(() => buildStatsUrl(""), [buildStatsUrl]);
 
   return (
     <>
@@ -302,16 +150,16 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isStatsLoading || isLoadingDatapoints}
-            datapointId={datapointId}
-            data={allDatapoints}
-            scores={scoreNames}
-            columnDefs={columnDefs}
+            evaluationId={evaluationId}
+            initialScoreNames={initialScoreNames}
+            buildDatapointsUrl={buildDatapointsUrl}
+            buildStatsUrl={buildStatsUrl}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
-            hasMore={hasMorePages}
-            isFetching={isFetchingPage}
-            fetchNextPage={fetchNextPage}
+            datapointId={datapointId}
+            onStatsLoaded={setStatsData}
+            onTargetStatsLoaded={setTargetStatsData}
+            onSelectedRowChange={setSelectedRow}
           />
         </div>
       </div>
@@ -357,9 +205,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialS
 export default function Evaluation(props: EvaluationProps) {
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames}>
-      <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
-        <EvaluationContent {...props} />
-      </DataTableStateProvider>
+      <EvaluationContent {...props} />
     </EvalStoreProvider>
   );
 }

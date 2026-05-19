@@ -3,9 +3,12 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
+import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 interface EvalColumnsMenuProps {
@@ -17,8 +20,12 @@ interface EvalColumnsMenuProps {
 export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalColumnsMenuProps) {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
-  const addCustomColumn = useEvalStore((s) => s.addCustomColumn);
-  const updateCustomColumn = useEvalStore((s) => s.updateCustomColumn);
+  const datatableStore = useDataTableStore();
+  const { addCustomColumn, updateCustomColumn } = useStore(
+    datatableStore,
+    (s) => ({ addCustomColumn: s.addCustomColumn, updateCustomColumn: s.updateCustomColumn }),
+    shallow
+  );
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({

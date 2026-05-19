@@ -5,33 +5,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useState } from "react";
 
 import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import {
-  buildColumnDefs,
-  buildFetchParams,
-  buildStatsParams,
-  EvalStoreProvider,
-  useEvalStore,
-} from "@/components/evaluation/store";
+import { EvalStoreProvider } from "@/components/evaluation/store";
+import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  type EvalRow,
-  type Evaluation,
-  type EvaluationResultsInfo,
-  type EvaluationScoreDistributionBucket,
-  type EvaluationScoreStatistics,
-} from "@/lib/evaluation/types";
+import { type EvalRow } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
-import { swrFetcher } from "@/lib/utils";
 
 interface SharedEvaluationProps {
   evaluationId: string;
@@ -39,97 +24,44 @@ interface SharedEvaluationProps {
   initialScoreNames: string[];
 }
 
-function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEvaluationProps, "initialScoreNames">) {
+function SharedEvaluationContent({
+  evaluationId,
+  evaluationName,
+  initialScoreNames,
+}: SharedEvaluationProps) {
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const pathName = usePathname();
-  const search = searchParams.get("search");
-  const filter = searchParams.getAll("filter");
-  const sortBy = searchParams.get("sortBy");
-  const sortDirection = searchParams.get("sortDirection");
 
-  // Store — seeded with `initialScoreNames` and `isShared: true` at
-  // provider creation. `columnDefs` is derived in-render via useMemo.
-  const scoreNames = useEvalStore((s) => s.scoreNames);
-  const customColumns = useEvalStore((s) => s.customColumns);
-  const isShared = useEvalStore((s) => s.isShared);
-
-  const columnDefs = useMemo(
-    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
-    [scoreNames, customColumns, isShared]
-  );
-
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => initialScoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
   );
+  const [statsData, setStatsData] = useState<EvaluationStatsPayload | undefined>(undefined);
+  const isStatsLoading = statsData === undefined;
 
-  const pageSize = 50;
-
-  const statsUrl = useMemo(() => {
-    const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
-    const qs = urlParams.toString();
-    return qs ? `${base}?${qs}` : base;
-  }, [evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
-
-  const { data: statsData, isLoading: isStatsLoading } = useSWR<{
-    evaluation: Evaluation;
-    allStatistics: Record<string, EvaluationScoreStatistics>;
-    allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-  }>(statsUrl, swrFetcher);
-
-  // SQL strings from column defs — only changes when columns structurally change.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const buildDatapointsUrl = useCallback(
+    (qs: string) => `/api/shared/evals/${evaluationId}?${qs}`,
+    [evaluationId]
+  );
+  const buildStatsUrl = useCallback(
+    (qs: string) => {
+      const base = `/api/shared/evals/${evaluationId}/stats`;
+      return qs ? `${base}?${qs}` : base;
+    },
+    [evaluationId]
+  );
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
     setDatapointId(undefined);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("traceId");
-    params.delete("datapointId");
-    params.delete("spanId");
-    push(`${pathName}?${params}`);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("traceId");
+    next.delete("datapointId");
+    next.delete("spanId");
+    push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
-
-  const fetchDatapoints = useCallback(
-    async (pageNumber: number) => {
-      const urlParams = buildFetchParams(
-        {
-          search,
-          filter,
-          sortBy,
-          sortDirection,
-          pageNumber,
-          pageSize,
-        },
-        columnDefs
-      );
-
-      const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Failed to fetch datapoints.");
-      }
-      const data: EvaluationResultsInfo = await response.json();
-
-      return { items: data.results, count: 0 };
-    },
-    [search, filter, evaluationId, pageSize, sortBy, sortDirection, columnDefs]
-  );
-
-  const {
-    data: allDatapoints,
-    hasMore: hasMorePages,
-    isFetching: isFetchingPage,
-    isLoading: isLoadingDatapoints,
-    fetchNextPage,
-  } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
-    enabled: !isStatsLoading,
-    deps: [search, filter, evaluationId, sortBy, sortDirection, columnSqls],
-  });
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
@@ -138,17 +70,20 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original["traceId"] as string);
-      params.set("datapointId", row.original["id"] as string);
-      return `${pathName}?${params.toString()}`;
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("traceId", row.original["traceId"] as string);
+      next.set("datapointId", row.original["id"] as string);
+      return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
   );
 
-  // Shared evals don't get realtime updates, so `scoreNames` never grows;
-  // but if the seed list was empty (eval has no scored datapoints yet) and
-  // somehow becomes non-empty later, fall through to picking the first.
+  const scoreNames = statsData?.allStatistics
+    ? Object.keys(statsData.allStatistics).length > 0
+      ? Object.keys(statsData.allStatistics)
+      : initialScoreNames
+    : initialScoreNames;
+
   if (!selectedScore && scoreNames.length > 0) {
     setSelectedScore(scoreNames[0]);
   }
@@ -207,16 +142,16 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
           )}
         </div>
         <EvaluationDatapointsTable
-          isLoading={isStatsLoading || isLoadingDatapoints}
-          datapointId={datapointId}
-          data={allDatapoints}
-          scores={scoreNames}
-          columnDefs={columnDefs}
+          evaluationId={evaluationId}
+          initialScoreNames={initialScoreNames}
+          storageKey="shared-evaluation-datapoints"
+          buildDatapointsUrl={buildDatapointsUrl}
+          buildStatsUrl={buildStatsUrl}
+          enableRealtime={false}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
-          hasMore={hasMorePages}
-          isFetching={isFetchingPage}
-          fetchNextPage={fetchNextPage}
+          datapointId={datapointId}
+          onStatsLoaded={setStatsData}
         />
       </div>
       {traceId && (
@@ -243,9 +178,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
 export default function SharedEvaluation(props: SharedEvaluationProps) {
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames} isShared>
-      <DataTableStateProvider storageKey="shared-evaluation-datapoints">
-        <SharedEvaluationContent evaluationId={props.evaluationId} evaluationName={props.evaluationName} />
-      </DataTableStateProvider>
+      <SharedEvaluationContent {...props} />
     </EvalStoreProvider>
   );
 }
