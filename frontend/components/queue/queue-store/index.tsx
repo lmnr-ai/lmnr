@@ -592,10 +592,8 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
               const pushed = result?.pushed ?? 0;
               if (pushed > 0) {
                 track("labeling_queues", "items_pushed_to_dataset", {
-                  queueId,
-                  datasetId: state.dataset,
                   scope: opts?.includeUnlabelled ? "all" : "approved",
-                  itemsCount: pushed,
+                  count: pushed,
                 });
               }
               await revalidate?.();
@@ -646,10 +644,8 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
               }
               removeItemLocal(current.id);
               track("labeling_queues", "items_pushed_to_dataset", {
-                queueId,
-                datasetId: state.dataset,
                 scope: opts?.includeUnlabelled ? "current_unlabelled" : "current",
-                itemsCount: result.pushed,
+                count: result.pushed,
               });
               await revalidate?.();
               return { ok: true, pushed: result.pushed };
