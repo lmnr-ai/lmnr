@@ -466,7 +466,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 };
               });
               const after = get();
-              track("labeling_queues", "item_approved", { queueId, itemId: current.id });
+              track("labeling_queues", "item_approved");
               if (after.currentIndex < after.idsList.length - 1) after.step(1);
               return { ok: true };
             } catch {
@@ -517,7 +517,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                   progress: computeProgress(nextStates),
                 };
               });
-              track("labeling_queues", "item_unapproved", { queueId, itemId: current.id });
+              track("labeling_queues", "item_unapproved");
               return { ok: true };
             } catch {
               return { ok: false, error: "Failed to unapprove item" };
@@ -551,7 +551,7 @@ const createQueueStore = ({ queue, projectId }: QueueStoreInit) => {
                 return { ok: false, error: errMessage ?? "Failed to discard item" };
               }
               removeItemLocal(current.id);
-              track("labeling_queues", "item_discarded", { queueId, itemId: current.id });
+              track("labeling_queues", "item_discarded");
               await revalidate?.();
               return { ok: true };
             } catch {
