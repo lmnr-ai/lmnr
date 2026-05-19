@@ -99,6 +99,38 @@ export async function register() {
         }
       };
 
+      // `CREATE OR REPLACE` so credential rotation is picked up on next boot
+      // without tripping the clickhouse-migrations MD5 checksum guard (which is
+      // why this lives here instead of in `43_llm_messages.sql`).
+      const ensureLlmMessagesDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const user = escape(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escape(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escape(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY llm_messages_dict
+            (
+                project_id UUID,
+                trace_id UUID,
+                message_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, trace_id, message_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'llm_messages'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
       const initializeClickHouse = async () => {
         try {
           const { migration } = await import("clickhouse-migrations");
@@ -115,6 +147,8 @@ export async function register() {
             "ENGINE=Atomic", // db_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
+
+          await ensureLlmMessagesDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;

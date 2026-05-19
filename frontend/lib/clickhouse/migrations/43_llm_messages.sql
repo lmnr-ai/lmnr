@@ -22,19 +22,10 @@ ALTER TABLE spans
 ALTER TABLE spans
     ADD COLUMN IF NOT EXISTS span_kind UInt8 DEFAULT span_type;
 
-CREATE DICTIONARY IF NOT EXISTS llm_messages_dict
-(
-    project_id UUID,
-    trace_id UUID,
-    message_hash String,
-    content String
-)
-PRIMARY KEY project_id, trace_id, message_hash
-SOURCE(CLICKHOUSE(
-    TABLE 'llm_messages'
-))
-LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
-LIFETIME(MIN 30 MAX 60);
+-- `llm_messages_dict` is created in the frontend startup hook
+-- (`ensureLlmMessagesDict` in `frontend/instrumentation.ts`), not here, so the
+-- dict's CLICKHOUSE source can carry the connection credentials from env. The
+-- view below references the dict by name; CH resolves it lazily at query time.
 
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
