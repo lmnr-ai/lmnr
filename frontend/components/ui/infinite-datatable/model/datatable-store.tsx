@@ -286,9 +286,9 @@ function createDataTableStore<TData>({
               Pick<CustomColumnsState, "customColumns">
           >;
 
-          // Persisted state wins; fall through to seeded state (initialColumnConfig)
-          // when the persisted blob is missing a key — required for one-shot
-          // migrations that seed customColumns from a different storage key.
+          // Persisted state wins; otherwise fall through to whatever was seeded
+          // via initialColumnConfig. Lets a fresh table mount carry a default
+          // set of custom columns until the user mutates them.
           const customColumns = persisted?.customColumns ?? currentState.customColumns;
           const customColumnIds = customColumns.map((cc) => `custom:${cc.name}`);
           const fullDefaultOrder = [...defaultColumnOrder, ...customColumnIds];

@@ -7,39 +7,12 @@ import { persist } from "zustand/middleware";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type ScoreRanges } from "@/components/evaluation/utils";
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
-
-/** Legacy localStorage blob shape (pre-LAM-1627). One-shot migration reads
- * `customColumns` from here and seeds the DataTableStore for the
- * "evaluation-datapoints-table" key, then strips the field from the legacy blob. */
-export const LEGACY_EVAL_STORE_KEY = "evaluation-store";
-
-/** Drains the legacy customColumns from `evaluation-store` localStorage so they
- * can seed a DataTableStore. Returns [] if no legacy blob, the field is missing,
- * or anything throws (private browsing, malformed JSON). Strips the field from
- * the legacy blob on success so subsequent loads return []. */
-export function consumeLegacyEvalCustomColumns(): CustomColumn[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(LEGACY_EVAL_STORE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as { state?: { customColumns?: CustomColumn[] } };
-    const customColumns = parsed?.state?.customColumns;
-    if (!Array.isArray(customColumns) || customColumns.length === 0) return [];
-    delete parsed.state!.customColumns;
-    window.localStorage.setItem(LEGACY_EVAL_STORE_KEY, JSON.stringify(parsed));
-    return customColumns;
-  } catch {
-    return [];
-  }
-}
-
 
 interface RawUrlParams {
   search: string | null;
@@ -63,9 +36,7 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
 
 export interface EvalStoreState {
   // Data
-  scoreRanges: ScoreRanges;
   heatmapEnabled: boolean;
-  isComparison: boolean;
   isShared: boolean;
   /**
    * Single source of truth for the list of score names belonging to the
@@ -77,9 +48,7 @@ export interface EvalStoreState {
   scoreNames: string[];
 
   // Actions
-  setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
-  setIsComparison: (value: boolean) => void;
   addScoreName: (name: string) => void;
 }
 
@@ -210,15 +179,11 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
   return createStore<EvalStoreState>()(
     persist(
       (set, get) => ({
-        scoreRanges: {},
         heatmapEnabled: false,
-        isComparison: false,
         isShared,
         scoreNames: initialScoreNames,
 
-        setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
         setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
-        setIsComparison: (value) => set({ isComparison: value }),
 
         addScoreName: (name) => {
           const { scoreNames } = get();
@@ -227,7 +192,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
         },
       }),
       {
-        name: LEGACY_EVAL_STORE_KEY,
+        name: "evaluation-store",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
         }),
