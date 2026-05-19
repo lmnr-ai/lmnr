@@ -134,17 +134,22 @@ impl ResilientRedisConnection {
     /// `is_connected()` (and hence `/ready`) stays accurate even when no
     /// caller has tripped on a stale handle yet.
     ///
-    /// Only writes `false` on detected failure. The supervisor is the sole
-    /// writer of `true` — an unconditional `swap(ok, ...)` here would race
-    /// with a just-completed reconnect (we'd PING the old handle grabbed
-    /// before the swap and clobber the supervisor's `true` back to `false`,
-    /// causing a transient `/ready` false-negative).
+    /// Only writes `false` on detected failure, AND only when the failed PING
+    /// was on the current handle. The supervisor is the sole writer of `true`,
+    /// so we must not clobber it: if a reconnect swapped `inner` while our
+    /// PING was in flight, the failure is on a now-stale handle and the new
+    /// one is presumed live (the supervisor's own post-redial PING gates the
+    /// `true` write). Pointer-compare the Arc before vs after to detect that.
     async fn health_check_loop(self: Arc<Self>) {
         let mut ticker = tokio::time::interval(Duration::from_secs(30));
         ticker.tick().await; // skip the immediate tick — initial state is known-good
         loop {
             ticker.tick().await;
-            if ping(&mut self.current_clone()).await {
+            let snapshot = self.inner.load_full();
+            if ping(&mut (*snapshot).clone()).await {
+                continue;
+            }
+            if !Arc::ptr_eq(&snapshot, &self.inner.load_full()) {
                 continue;
             }
             let was = self.connected.swap(false, Ordering::AcqRel);
