@@ -130,6 +130,12 @@ pub async fn redact_spans_in_place(
 
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
+    // `dedup.span_content_bytes[dedup_idx]` was computed from pre-redaction
+    // `content.len()` in `build_dedup_batch`. Redaction mutates `content` in
+    // place, so any opted-in span's entry must be corrected before the
+    // post-dedup input-bytes loop reads it. Track the message → dedup_idx
+    // back-reference here so we can apply the delta on write-back.
+    let mut msg_to_dedup_idx: HashMap<usize, usize> = HashMap::new();
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         if !*opt_in_for_span.get(&span_idx).unwrap_or(&false) {
@@ -148,6 +154,7 @@ pub async fn redact_spans_in_place(
             let Some(msg) = dedup.messages.get(msg_idx) else {
                 continue;
             };
+            msg_to_dedup_idx.insert(msg_idx, dedup_idx);
             targets.push(Target::DedupMessage(msg_idx));
             texts.push(msg.content.clone());
         }
@@ -215,7 +222,19 @@ pub async fn redact_spans_in_place(
                 if let Some(msg) = dedup.messages.get_mut(idx) {
                     // The redactor returns stringified JSON; sanitize to
                     // match the non-redact path's `sanitize_string(&item.to_string())`.
-                    msg.content = sanitize_string(&text);
+                    let new_content = sanitize_string(&text);
+                    let old_len = msg.content.len();
+                    let new_len = new_content.len();
+                    msg.content = new_content;
+                    // Refresh the byte attribution `build_dedup_batch` baked
+                    // in pre-redaction so the post-dedup input-bytes loop
+                    // bills the redacted size, matching the comment on
+                    // `estimate_size_bytes` ("size reflects redacted content").
+                    if let Some(&dedup_idx) = msg_to_dedup_idx.get(&idx)
+                        && let Some(slot) = dedup.span_content_bytes.get_mut(dedup_idx)
+                    {
+                        *slot = slot.saturating_sub(old_len).saturating_add(new_len);
+                    }
                 }
             }
         }
