@@ -4,6 +4,7 @@ import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
+import { truncate } from "lodash";
 import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import rrwebPlayer from "rrweb-player";
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { CopyButton } from "@/components/ui/copy-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -238,7 +240,7 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 min-w-0">
         <div ref={browserContentRef} className="h-full min-w-0 overflow-hidden flex flex-col">
           <div className="flex flex-row items-center justify-center gap-2 px-3 h-8 border-b shrink-0">
             <button onClick={handlePlayPause} className="text-white py-1 rounded">
@@ -271,16 +273,23 @@ const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
           </div>
 
           {currentUrl && (
-            <div className="flex items-center px-4 py-1 border-b shrink-0">
+            <div className="flex items-center gap-2 px-2 py-1 border-b shrink-0 min-w-0 w-full overflow-hidden">
               <a
                 href={currentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground transition-colors truncate min-w-0 flex-1"
                 title={currentUrl}
               >
-                {currentUrl}
+                {truncate(currentUrl, { length: 56, omission: "…" })}
               </a>
+              <CopyButton
+                text={currentUrl}
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 text-secondary-foreground hover:text-foreground"
+                iconClassName="h-3 w-3"
+              />
             </div>
           )}
 

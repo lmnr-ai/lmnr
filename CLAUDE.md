@@ -327,6 +327,11 @@ The frontend uses Husky with lint-staged. Before commits:
 - Liveness (`/health`) is process-only and always returns 200 (`app-server/src/routes/probes.rs`). Readiness (`/ready`) gates on `MessageQueue::is_healthy()` and returns 503 when the connection is mid-reconnect — so k8s steers traffic away during a blip but does NOT kill the pod. Do not re-couple `/health` to MQ state: a 3-replica cluster losing one node would otherwise crashloop the entire app-server fleet while ResilientConnection is doing its job.
 - Quorum queues are already declared (`x-queue-type=quorum` in `main.rs`) so message data survives node loss; the resilience work is purely about client-side reconnect, not durability.
 
+## CSP and rrweb Browser Session Replay
+
+- The site-wide CSP in `frontend/next.config.ts` deliberately omits `base-uri`. rrweb-player rebuilds captured DOM by injecting `<base href="<recorded-origin>">` so relative URLs in the snapshot resolve against the original site. `base-uri 'self'` blocks that and the replay loses every relative asset (LAM-1622). Do NOT add `base-uri` back without first moving the player into a CSP-relaxed iframe.
+- The `Blocked script execution ... 'allow-scripts' is not set` console warnings during replay are NOT a bug — rrweb-player intentionally creates its replay iframe with a sandbox that omits `allow-scripts` so captured `<script>` tags can't execute inside lmnr.ai. They render as warnings in dev tools but the replay itself is unaffected.
+
 ## Frontend Best Practices
 
 ### One component per file
