@@ -28,6 +28,9 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   estimatedRowHeight?: number;
   overscan?: number;
 
+  /** Optional ids forced to the front of the column order at render time. */
+  pinnedColumns?: string[];
+
   onRowClick?: (row: Row<TData>) => void;
   focusedRowId?: string | null;
 

@@ -72,6 +72,40 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
   CustomColumnsState &
   CustomColumnsActions;
 
+// Pure helper: derive the effective render-time column order from persisted state.
+// Pinned ids (intersected with available) come first, then persisted order,
+// then any newly-available ids appended in their input order.
+export function computeEffectiveOrder(
+  persistedOrder: string[],
+  availableIds: string[],
+  pinned: string[]
+): string[] {
+  const availableSet = new Set(availableIds);
+  const pinnedSet = new Set(pinned);
+  const placed = new Set<string>();
+
+  const result: string[] = [];
+  for (const id of pinned) {
+    if (availableSet.has(id) && !placed.has(id)) {
+      result.push(id);
+      placed.add(id);
+    }
+  }
+  for (const id of persistedOrder) {
+    if (availableSet.has(id) && !pinnedSet.has(id) && !placed.has(id)) {
+      result.push(id);
+      placed.add(id);
+    }
+  }
+  for (const id of availableIds) {
+    if (!placed.has(id)) {
+      result.push(id);
+      placed.add(id);
+    }
+  }
+  return result;
+}
+
 interface CreateDataTableStoreOptions {
   uniqueKey?: string;
   storageKey?: string;

@@ -16,10 +16,9 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
     ref: React.Ref<HTMLTableSectionElement>
   ) {
     const store = useDataTableStore();
-    const { columnOrder, lockedColumns, disableHideColumn, columnVisibility, setColumnVisibility } = useStore(
+    const { lockedColumns, disableHideColumn, columnVisibility, setColumnVisibility } = useStore(
       store,
       (state) => ({
-        columnOrder: state.columnOrder,
         lockedColumns: state.lockedColumns,
         disableHideColumn: state.disableHideColumn,
         columnVisibility: state.columnVisibility,
@@ -46,20 +45,23 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
           zIndex: 20,
         }}
       >
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr flex" key={headerGroup.id}>
-            <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
-              {headerGroup.headers.map((header) => (
-                <InfiniteTableHead
-                  key={header.id}
-                  header={header}
-                  onHideColumn={disableHideColumn ? undefined : onHideColumn}
-                  isControllable={!lockedColumns.includes(header.column.id)}
-                />
-              ))}
-            </SortableContext>
-          </TableRow>
-        ))}
+        {table.getHeaderGroups().map((headerGroup) => {
+          const sortableIds = headerGroup.headers.map((h) => h.column.id);
+          return (
+            <TableRow className="p-0 m-0 w-full rounded-tl rounded-tr flex" key={headerGroup.id}>
+              <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
+                {headerGroup.headers.map((header) => (
+                  <InfiniteTableHead
+                    key={header.id}
+                    header={header}
+                    onHideColumn={disableHideColumn ? undefined : onHideColumn}
+                    isControllable={!lockedColumns.includes(header.column.id)}
+                  />
+                ))}
+              </SortableContext>
+            </TableRow>
+          );
+        })}
       </TableHeader>
     );
   }

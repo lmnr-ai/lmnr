@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { useDataTableStore } from "./model/datatable-store.tsx";
+import { computeEffectiveOrder, useDataTableStore } from "./model/datatable-store.tsx";
 import { type InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
@@ -50,6 +50,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
+  pinnedColumns,
 
   // Styling
   className,
@@ -88,6 +89,11 @@ export function InfiniteDataTable<TData extends RowData>({
     [sortBy, sortDirection]
   );
 
+  // Persisted state may diverge from currently-available columns (custom columns
+  // added/removed, search-only columns toggled in). Reconcile at render time
+  // rather than syncing back into the store via an effect.
+  const availableIds = useMemo(() => finalColumns.map((c) => c.id!).filter(Boolean), [finalColumns]);
+
   const store = useDataTableStore();
   const {
     columnOrder,
@@ -109,6 +115,11 @@ export function InfiniteDataTable<TData extends RowData>({
     setDraggingColumnId: state.setDraggingColumnId,
   }));
 
+  const effectiveColumnOrder = useMemo(
+    () => computeEffectiveOrder(columnOrder, availableIds, pinnedColumns ?? (EMPTY_ARRAY as string[])),
+    [columnOrder, availableIds, pinnedColumns]
+  );
+
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {
     setDraggingColumnId(event.active.id as string);
@@ -125,10 +136,12 @@ export function InfiniteDataTable<TData extends RowData>({
     setDraggingColumnId(null);
 
     if (active && over && active.id !== over.id) {
-      const oldIndex = columnOrder.indexOf(active.id as string);
-      const newIndex = columnOrder.indexOf(over.id as string);
+      // Drag indices come from effective order (what the user sees), but persist
+      // the new full order so the next render's reconciliation respects it.
+      const oldIndex = effectiveColumnOrder.indexOf(active.id as string);
+      const newIndex = effectiveColumnOrder.indexOf(over.id as string);
       if (oldIndex !== -1 && newIndex !== -1) {
-        setColumnOrder(arrayMove(columnOrder, oldIndex, newIndex) as string[]);
+        setColumnOrder(arrayMove(effectiveColumnOrder, oldIndex, newIndex) as string[]);
       }
     }
   }
@@ -184,7 +197,7 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-    state: { ...state, columnVisibility, columnOrder, columnSizing, sorting },
+    state: { ...state, columnVisibility, columnOrder: effectiveColumnOrder, columnSizing, sorting },
     onColumnSizingChange: (updater) => {
       const next = typeof updater === "function" ? updater(columnSizing) : updater;
       setColumnSizing(next);

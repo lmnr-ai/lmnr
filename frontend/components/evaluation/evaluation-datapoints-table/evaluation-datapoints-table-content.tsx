@@ -1,7 +1,6 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
-import { useStore } from "zustand";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
@@ -15,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -51,27 +49,6 @@ const EvaluationDatapointsTableContent = ({
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
   const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
-
-  // Datatable store for column sync
-  const datatableStore = useDataTableStore();
-  const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
-
-  useEffect(() => {
-    const visibleIds = columns.filter((c) => !c.meta?.hidden).map((c) => c.id!);
-    const currentSet = new Set(columnOrder);
-    const defSet = new Set(visibleIds);
-
-    const toAdd = visibleIds.filter((id) => !currentSet.has(id));
-    const toRemove = columnOrder.filter((id) => !defSet.has(id));
-
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      const filtered = columnOrder.filter((id) => defSet.has(id));
-      setColumnOrder([...filtered, ...toAdd]);
-    }
-  }, [columns, columnOrder, setColumnOrder]);
 
   // Compute and set score ranges from data
   useEffect(() => {

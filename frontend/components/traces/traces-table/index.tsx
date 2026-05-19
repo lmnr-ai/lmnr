@@ -94,11 +94,9 @@ function TracesTableContent() {
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
   const datatableStore = useDataTableStore();
-  const { customColumns, removeCustomColumn, columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
+  const { customColumns, removeCustomColumn } = useStore(datatableStore, (s) => ({
     customColumns: s.customColumns,
     removeCustomColumn: s.removeCustomColumn,
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
   }));
 
   const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
@@ -133,22 +131,8 @@ function TracesTableContent() {
     return cols;
   }, [columnDefs, isSearchActive]);
 
-  useEffect(() => {
-    if (effectiveColumns.length === 0) return;
-
-    const pinned = new Set(["status", "preview"]);
-    const visibleIds = new Set(effectiveColumns.map((c) => c.id!));
-    const hasPreview = visibleIds.has("preview");
-
-    const rest = columnOrder.filter((id) => visibleIds.has(id) && !pinned.has(id));
-    const newIds = [...visibleIds].filter((id) => !new Set(columnOrder).has(id) && !pinned.has(id));
-
-    const newOrder = ["status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
-
-    if (newOrder.length !== columnOrder.length || newOrder.some((id, i) => columnOrder[i] !== id)) {
-      setColumnOrder(newOrder);
-    }
-  }, [effectiveColumns, columnOrder, setColumnOrder]);
+  // "preview" is only mounted when search is active, so the pin list is conditional.
+  const pinnedColumns = useMemo(() => (isSearchActive ? ["status", "preview"] : ["status"]), [isSearchActive]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -442,6 +426,7 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
+        pinnedColumns={pinnedColumns}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
