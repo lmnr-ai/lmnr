@@ -7,9 +7,9 @@ export const PUT = apiHandler<{ projectId: string; queueId: string }>(async (req
   const body = await request.json();
 
   const updatedQueue = await updateQueueAnnotationSchema({
+    ...body,
     queueId: params.queueId,
     projectId: params.projectId,
-    ...body,
   });
 
   return Response.json(updatedQueue);
