@@ -381,7 +381,10 @@ export default function SessionList() {
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
   return (
-    <div ref={scrollRef} className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar">
+    <div
+      ref={scrollRef}
+      className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar px-2"
+    >
       <div
         className="relative mx-auto w-full max-w-4xl 2xl:max-w-6xl"
         style={{
