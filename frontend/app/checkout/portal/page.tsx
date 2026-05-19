@@ -10,13 +10,17 @@ export const metadata: Metadata = {
   description: "Redirecting to your Stripe billing portal.",
 };
 
+// Guard against path-traversal-style values flowing into the
+// `/workspace/${workspaceId}?tab=billing` fallback in the catch branch.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function CheckoutPortalPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
   const workspaceId = typeof searchParams?.workspaceId === "string" ? searchParams.workspaceId : undefined;
 
-  if (!workspaceId) {
+  if (!workspaceId || !UUID_REGEX.test(workspaceId)) {
     redirect("/projects");
   }
 
