@@ -146,17 +146,24 @@ pub async fn process_span_messages(
         build_dedup_batch(&dedup_input, &recordable_dedups)
     };
 
-    // Per-span PII redaction. Runs AFTER dedup so we don't pay redaction
-    // compute for input messages already seen earlier in the trace, and
-    // BEFORE the `llm_messages` insert / size accounting / Quickwit indexing
-    // so every storage tier holds the redacted content. For dedup'd LLM
-    // spans this redacts only the `span_new_indices` slice of `span.input`
-    // (and the matching `dedup.messages[k].content` rows that are about to
-    // be inserted); for non-LLM spans it redacts the whole input + output.
-    // Best-effort: failures are logged inside `redact_spans_in_place` and
-    // do not fail the batch.
+    // Project-level PII redaction. Triggered by `projects.remove_pii=true`
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
+    // redacted bytes flow into both the `llm_messages` insert and Quickwit
+    // indexing through the same `dedup.messages` buffer; runs BEFORE the
+    // insert / size accounting so every storage tier holds the redacted
+    // content. Already-seen messages were redacted on first emit and ride
+    // the wire as hashes only. Best-effort: failures are logged inside
+    // `redact_spans_in_place` and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
-        redact_spans_in_place(redactor, &mut spans, &mut dedup, &recordable_indices).await;
+        redact_spans_in_place(
+            redactor,
+            &mut spans,
+            &mut dedup,
+            &recordable_indices,
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
     }
 
     for span in &mut spans {

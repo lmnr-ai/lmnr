@@ -918,9 +918,9 @@ fn main() -> anyhow::Result<()> {
         };
 
     // == PII redactor ==
-    // Optional: when `PII_REDACTOR_URL` is set, span input/output fields will
-    // be redacted via the pii-redactor gRPC service for spans that carry the
-    // `lmnr.should_remove_pii` attribute. Failure to connect at startup
+    // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
+    // redacted via the pii-redactor gRPC service for projects whose
+    // `projects.remove_pii` toggle is on. Failure to connect at startup
     // disables the feature without blocking app-server boot.
     let pii_redactor: Option<pii_redactor::PiiRedactorClient> =
         if is_feature_enabled(Feature::PiiRedaction) {

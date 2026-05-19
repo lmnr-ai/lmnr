@@ -179,6 +179,7 @@ export const projects = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
+    removePii: boolean("remove_pii").default(false).notNull(),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),

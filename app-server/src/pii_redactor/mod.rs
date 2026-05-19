@@ -1,10 +1,15 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use tonic::transport::Channel;
+use uuid::Uuid;
 
+use crate::cache::Cache;
+use crate::db::DB;
 use crate::db::spans::Span;
 use crate::traces::input_dedup::DedupBatch;
+use crate::utils::limits::get_workspace_info_for_project_id;
 use crate::utils::sanitize_string;
 
 #[allow(clippy::all)]
@@ -13,9 +18,6 @@ pub mod pii_redactor;
 use pii_redactor::{
     RedactRequest, pii_redactor_service_client::PiiRedactorServiceClient,
 };
-
-/// Span attribute that opts a single span in to PII redaction.
-pub const SHOULD_REMOVE_PII_ATTR: &str = "lmnr.should_remove_pii";
 
 #[derive(Clone)]
 pub struct PiiRedactorClient {
@@ -52,119 +54,131 @@ impl PiiRedactorClient {
 
 /// What field a redacted text should be written back to.
 enum Target {
-    /// Whole `span.input` (non-LLM PII span).
+    /// Whole `span.input`. For root LLM spans this carries the
+    /// `root_span_input` preview surfaced in the trace list; for non-LLM
+    /// spans it's the only input we have. Either way the producer kept
+    /// `span.input` populated for these — see `preprocess_for_queue`.
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One newly-deduped LLM input message: positions inside both the span's
-    /// `input` array AND `dedup.messages`. We must update both so Quickwit
-    /// indexing (which projects `span_new_indices` back onto `span.input`)
-    /// and the `llm_messages` insert (which uses `dedup.messages[k].content`)
-    /// see the same redacted bytes.
-    LlmNewMessage {
-        span_idx: usize,
-        item_idx: usize,
-        dedup_msg_idx: usize,
-    },
+    /// One newly-deduped LLM input message — written back into the
+    /// `dedup.messages[k].content` row that's about to be inserted into
+    /// `llm_messages`. Quickwit indexing reads from the same row, so a
+    /// single update covers both storage tiers.
+    DedupMessage(usize),
 }
 
-/// Redact `span.input` / `span.output` for spans whose attributes carry
-/// `lmnr.should_remove_pii = true`. For LLM spans the redaction targets only
-/// the **newly-deduped** input messages (those about to be inserted into
-/// `llm_messages`), avoiding paying redaction compute for messages that were
-/// already seen earlier in the trace. Both fields per span are sent in the
-/// same RPC so the caller pays one round-trip for the whole batch.
+/// Resolve `remove_pii` for every unique project in `recordable_indices`,
+/// going through the cached billing-info path so repeat batches are free.
+/// Returns the set of opted-in project ids — empty set means "no work".
+async fn resolve_opted_in_projects(
+    spans: &[Span],
+    recordable_indices: &[usize],
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) -> HashSet<Uuid> {
+    let unique: HashSet<Uuid> = recordable_indices
+        .iter()
+        .map(|&i| spans[i].project_id)
+        .collect();
+    let mut opted_in: HashSet<Uuid> = HashSet::with_capacity(unique.len());
+    for project_id in unique {
+        match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
+            Ok(Some(info)) if info.remove_pii => {
+                opted_in.insert(project_id);
+            }
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!("pii-redactor: lookup project[{project_id}] remove_pii: {e:#}");
+            }
+        }
+    }
+    opted_in
+}
+
+/// Redact `span.input` / `span.output` for every span whose project has
+/// `remove_pii=true`. For dedup'd LLM spans the new-message slice of the
+/// `dedup.messages` batch is redacted in place — Quickwit and `llm_messages`
+/// share that buffer, so one update covers both. Already-seen messages are
+/// not in the batch and are not redacted (they were redacted on first
+/// emit). All redaction happens in a single batched RPC.
 ///
 /// MUST run after `build_dedup_batch` and BEFORE the `llm_messages`
-/// ClickHouse insert, so the dedup'd content reaching CH (and the span input
-/// projected into Quickwit via `span_new_indices`) is the redacted version.
+/// ClickHouse insert.
 ///
-/// Best-effort: any RPC failure is logged and the spans are left untouched —
+/// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
     dedup: &mut DedupBatch,
     recordable_indices: &[usize],
+    db: Arc<DB>,
+    cache: Arc<Cache>,
 ) {
+    let opted_in = resolve_opted_in_projects(spans, recordable_indices, db, cache).await;
+    if opted_in.is_empty() {
+        return;
+    }
+
+    // Map project_id → whether it's opted in, then map span_idx → opted-in
+    // bool once so the inner loops don't re-borrow.
+    let opt_in_for_span: HashMap<usize, bool> = recordable_indices
+        .iter()
+        .map(|&i| (i, opted_in.contains(&spans[i].project_id)))
+        .collect();
+
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
 
-    // `dedup.span_new_indices[dedup_idx]` holds the positions inside the LLM
-    // span's `input` array that this span was first to introduce. They are
-    // pushed in the same order as `dedup.messages` (within this span's slice
-    // of it), so we can walk them in lockstep with the messages cursor.
-    let mut dedup_msg_cursor: usize = 0;
-
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+        if !*opt_in_for_span.get(&span_idx).unwrap_or(&false) {
+            continue;
+        }
         let span = &spans[span_idx];
-        let opted_in = span.attributes.bool_attr(SHOULD_REMOVE_PII_ATTR) == Some(true);
-        let new_indices = dedup
-            .span_new_indices
-            .get(dedup_idx)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[]);
-        // `span_hashes[i]` is non-empty iff dedup actually replaced this
-        // span's input with hashes. In that case `ch_span.input` is forced
-        // to empty downstream and Quickwit only sees `new_indices` — so
-        // redacting the whole `span.input` would be wasted work; only the
-        // new-message slice is worth processing.
-        let is_dedup_llm = dedup
-            .span_hashes
-            .get(dedup_idx)
-            .is_some_and(|h| !h.is_empty());
 
-        if opted_in {
-            if is_dedup_llm {
-                // Dedup'd LLM span: redact only the newly-introduced messages.
-                if let Some(serde_json::Value::Array(items)) = span.input.as_ref() {
-                    for (offset, &i) in new_indices.iter().enumerate() {
-                        let item_idx = i as usize;
-                        let Some(item) = items.get(item_idx) else {
-                            continue;
-                        };
-                        match serde_json::to_string(item) {
-                            Ok(s) => {
-                                targets.push(Target::LlmNewMessage {
-                                    span_idx,
-                                    item_idx,
-                                    dedup_msg_idx: dedup_msg_cursor + offset,
-                                });
-                                texts.push(s);
-                            }
-                            Err(e) => log::warn!(
-                                "pii-redactor: serialize span[{span_idx}].input[{item_idx}]: {e:#}"
-                            ),
-                        }
-                    }
-                }
-            } else if let Some(input) = span.input.as_ref() {
-                // Non-LLM (or LLM with non-array input): redact the whole input.
-                match serde_json::to_string(input) {
-                    Ok(s) => {
-                        targets.push(Target::Input(span_idx));
-                        texts.push(s);
-                    }
-                    Err(e) => log::warn!(
-                        "pii-redactor: serialize span[{span_idx}].input: {e:#}"
-                    ),
-                }
-            }
+        // Dedup'd LLM span: redact each new message via the dedup batch,
+        // which is the same buffer Quickwit indexing reads.
+        let new_msg_indices = dedup
+            .span_new_message_indices
+            .get(dedup_idx)
+            .cloned()
+            .unwrap_or_default();
+        for msg_idx in new_msg_indices {
+            let Some(msg) = dedup.messages.get(msg_idx) else {
+                continue;
+            };
+            targets.push(Target::DedupMessage(msg_idx));
+            texts.push(msg.content.clone());
+        }
 
-            if let Some(output) = span.output.as_ref() {
-                match serde_json::to_string(output) {
-                    Ok(s) => {
-                        targets.push(Target::Output(span_idx));
-                        texts.push(s);
-                    }
-                    Err(e) => log::warn!(
-                        "pii-redactor: serialize span[{span_idx}].output: {e:#}"
-                    ),
+        // Whole `span.input`. Producer-side dedup strips this to `None` for
+        // nested LLM spans (those ride the wire as hashes only), so this
+        // covers (a) root LLM spans whose `input` was kept for the trace
+        // list preview and (b) non-LLM / non-array-input spans.
+        if let Some(input) = span.input.as_ref() {
+            match serde_json::to_string(input) {
+                Ok(s) => {
+                    targets.push(Target::Input(span_idx));
+                    texts.push(s);
                 }
+                Err(e) => log::warn!(
+                    "pii-redactor: serialize span[{span_idx}].input: {e:#}"
+                ),
             }
         }
 
-        dedup_msg_cursor += new_indices.len();
+        if let Some(output) = span.output.as_ref() {
+            match serde_json::to_string(output) {
+                Ok(s) => {
+                    targets.push(Target::Output(span_idx));
+                    texts.push(s);
+                }
+                Err(e) => log::warn!(
+                    "pii-redactor: serialize span[{span_idx}].output: {e:#}"
+                ),
+            }
+        }
     }
 
     if texts.is_empty() {
@@ -197,33 +211,11 @@ pub async fn redact_spans_in_place(
                 Ok(v) => spans[idx].output = Some(v),
                 Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].output: {e:#}"),
             },
-            Target::LlmNewMessage {
-                span_idx,
-                item_idx,
-                dedup_msg_idx,
-            } => {
-                let parsed: serde_json::Value = match serde_json::from_str(&text) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        log::warn!(
-                            "pii-redactor: parse redacted span[{span_idx}].input[{item_idx}]: {e:#}"
-                        );
-                        continue;
-                    }
-                };
-                // Mirror update: the span's input array (read by Quickwit
-                // indexing via `span_new_indices`) AND the dedup batch's
-                // CH row content (pre-insert, hash-keyed). Both must reflect
-                // the redacted bytes — a divergence would surface unredacted
-                // content in either search snippets or `llm_messages`.
-                if let Some(serde_json::Value::Array(items)) =
-                    spans[span_idx].input.as_mut()
-                    && let Some(slot) = items.get_mut(item_idx)
-                {
-                    *slot = parsed.clone();
-                }
-                if let Some(msg) = dedup.messages.get_mut(dedup_msg_idx) {
-                    msg.content = sanitize_string(&parsed.to_string());
+            Target::DedupMessage(idx) => {
+                if let Some(msg) = dedup.messages.get_mut(idx) {
+                    // The redactor returns stringified JSON; sanitize to
+                    // match the non-redact path's `sanitize_string(&item.to_string())`.
+                    msg.content = sanitize_string(&text);
                 }
             }
         }

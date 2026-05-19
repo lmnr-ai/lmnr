@@ -21,6 +21,7 @@ import {
 import AlertsSettings from "./alerts";
 import CustomModelCosts from "./custom-model-costs";
 import DeleteProject from "./delete-project";
+import PiiRedaction from "./pii-redaction";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
@@ -65,6 +66,7 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
             <SettingsSectionHeader title="General" description="Manage your project settings and preferences" />
             <div className="flex flex-col gap-8">
               <RenameProject />
+              <PiiRedaction />
               <DeleteProject />
             </div>
           </>

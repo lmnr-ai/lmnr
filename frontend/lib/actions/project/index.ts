@@ -19,6 +19,11 @@ export const UpdateProjectSchema = z.object({
   name: z.string().min(1, { error: "Project name is required" }),
 });
 
+export const UpdateProjectRemovePiiSchema = z.object({
+  projectId: z.guid(),
+  removePii: z.boolean(),
+});
+
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
 
@@ -64,6 +69,39 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
   }
 
   return { success: true, message: "Project renamed successfully" };
+}
+
+export async function updateProjectRemovePii(input: z.infer<typeof UpdateProjectRemovePiiSchema>) {
+  const { projectId, removePii } = UpdateProjectRemovePiiSchema.parse(input);
+
+  // Pro-tier gate: keep this server-side so a forged request can't toggle
+  // the flag from a Free / Hobby workspace. UI greys the same control.
+  if (removePii) {
+    const rows = await db
+      .select({ tierName: subscriptionTiers.name })
+      .from(projects)
+      .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
+      .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+      .where(eq(projects.id, projectId))
+      .limit(1);
+    if (rows.length === 0) {
+      throw new Error("Project not found");
+    }
+    const tierName = rows[0].tierName?.toLowerCase().trim();
+    if (tierName !== "pro" && tierName !== "enterprise") {
+      throw new Error("PII redaction requires the Pro tier");
+    }
+  }
+
+  const result = await db.update(projects).set({ removePii }).where(eq(projects.id, projectId));
+  if (result.count === 0) {
+    throw new Error("Project not found");
+  }
+  // App-server caches `ProjectWithWorkspaceBillingInfo` per project id; the
+  // redaction toggle lives on that row, so invalidate before returning.
+  await deleteProjectWorkspaceInfoFromCache(projectId);
+
+  return { success: true };
 }
 
 async function deleteProjectDataFromClickHouse(
@@ -177,6 +215,7 @@ export interface ProjectDetails {
   signalStepsLimit: number;
   logRetentionDays: number;
   isFreeTier: boolean;
+  removePii: boolean;
 }
 
 export const getProjectDetails = async (projectId: string): Promise<ProjectDetails> => {
@@ -185,6 +224,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       id: projects.id,
       name: projects.name,
       workspaceId: projects.workspaceId,
+      removePii: projects.removePii,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -243,6 +283,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       signalStepsLimit,
       signalStepsUsedThisMonth: 0,
       isFreeTier,
+      removePii: project.removePii,
     };
   }
 
@@ -260,6 +301,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     signalStepsUsedThisMonth: signalStepsUsedThisMonth,
     signalStepsLimit: signalStepsLimit,
     isFreeTier,
+    removePii: project.removePii,
   };
 };
 

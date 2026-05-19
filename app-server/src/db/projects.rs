@@ -21,6 +21,10 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_signal_steps_limit: Option<i64>,
+    /// PII redaction toggle. Enabling routes every span on this project
+    /// through the pii-redactor before storage. Pro-tier gated in the UI.
+    #[serde(default)]
+    pub remove_pii: bool,
 }
 
 #[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone, Debug)]
@@ -102,6 +106,10 @@ pub struct ProjectWithWorkspaceBillingInfo {
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_signal_steps_limit: Option<i64>,
+    /// PII redaction toggle. Enabling routes every span on this project
+    /// through the pii-redactor before storage. Pro-tier gated in the UI.
+    #[serde(default)]
+    pub remove_pii: bool,
 }
 
 impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDbRow {
@@ -117,6 +125,7 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             signal_steps_limit: self.signal_steps_limit,
             custom_bytes_limit: self.custom_bytes_limit,
             custom_signal_steps_limit: self.custom_signal_steps_limit,
+            remove_pii: self.remove_pii,
         }
     }
 }
@@ -162,7 +171,8 @@ pub async fn get_project_and_workspace_billing_info(
             subscription_tiers.bytes_ingested as bytes_limit,
             subscription_tiers.signal_steps_processed as signal_steps_limit,
             wul_bytes.limit_value as custom_bytes_limit,
-            wul_signal_steps.limit_value as custom_signal_steps_limit
+            wul_signal_steps.limit_value as custom_signal_steps_limit,
+            projects.remove_pii
         FROM
             projects
             join workspaces on projects.workspace_id = workspaces.id

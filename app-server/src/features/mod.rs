@@ -23,7 +23,7 @@ pub enum Feature {
     Reports,
     RateLimiter,
     /// Strip PII from span input/output via the pii-redactor gRPC service,
-    /// per-span gated by the `lmnr.should_remove_pii` attribute.
+    /// gated per project by the `projects.remove_pii` toggle.
     PiiRedaction,
 }
 
