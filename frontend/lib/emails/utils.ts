@@ -13,7 +13,8 @@ const RESEND = new Resend(process.env.RESEND_API_KEY ?? "_RESEND_API_KEY_PLACEHO
 // /checkout/portal mints a Stripe billing portal session and redirects, so the
 // user lands directly on the Stripe-hosted billing portal (with invoices) instead
 // of having to navigate workspace settings → billing → "Billing portal".
-const billingPortalUrl = (workspaceId: string) => `https://lmnr.ai/checkout/portal?workspaceId=${workspaceId}`;
+const billingPortalUrl = (workspaceId: string) =>
+  `https://lmnr.ai/checkout/portal?workspaceId=${encodeURIComponent(workspaceId)}`;
 
 interface InvoiceEmailArgs {
   email: string;
