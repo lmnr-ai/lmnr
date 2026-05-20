@@ -23,8 +23,8 @@ impl Manager for RabbitChannelManager {
 
     async fn create(&self) -> Result<Channel, Self::Error> {
         let create_channel = || async {
-            // Read the latest connection on every attempt: if the supervisor
-            // swapped a fresh one in mid-backoff we pick it up automatically.
+            // Read the connection handle on every attempt; lapin auto-recover
+            // keeps it alive across broker blips so the same Arc is always current.
             let connection = self.connection.current();
             let attempt = connection.create_channel();
             match tokio::time::timeout(std::time::Duration::from_secs(10), attempt).await {
