@@ -34,7 +34,7 @@ futures-util = "0.3"
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
-lapin = "3.7"
+lapin = "4.7"
 log = "0.4.29"
 moka = {version = "0.12", features = ["sync", "future"]}
 num_cpus = "1.17.0"
