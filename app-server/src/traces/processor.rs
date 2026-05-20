@@ -4,7 +4,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use rayon::prelude::*;
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -71,25 +71,30 @@ pub async fn process_span_messages(
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    for m in &mut messages {
-        let span_usage = get_llm_usage_for_span(
-            &mut m.span.attributes,
-            db.clone(),
-            cache.clone(),
-            &m.span.name,
-            &m.span.project_id,
-        )
-        .await;
+    let usage_span = tracing::info_span!("preprocess.usage_lookup", span_count = messages.len());
+    async {
+        for m in &mut messages {
+            let span_usage = get_llm_usage_for_span(
+                &mut m.span.attributes,
+                db.clone(),
+                cache.clone(),
+                &m.span.name,
+                &m.span.project_id,
+            )
+            .await;
 
-        prepare_span_for_recording(&mut m.span, &span_usage);
-        if !m.pre_processed {
-            convert_span_to_provider_format(&mut m.span);
+            prepare_span_for_recording(&mut m.span, &span_usage);
+            if !m.pre_processed {
+                convert_span_to_provider_format(&mut m.span);
+            }
+            // Must run AFTER provider conversion — LangChain rewrites `input`.
+            m.span.estimate_size_bytes();
+
+            span_usage_vec.push(span_usage);
         }
-        // Must run AFTER provider conversion — LangChain rewrites `input`.
-        m.span.estimate_size_bytes();
-
-        span_usage_vec.push(span_usage);
     }
+    .instrument(usage_span)
+    .await;
 
     // Split into parallel `Vec`s — downstream code reads `spans` and
     // `dedups` as separate slices keyed by index.
@@ -99,7 +104,10 @@ pub async fn process_span_messages(
         .unzip();
 
     // Process trace aggregations
-    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
+    let trace_aggregations = {
+        let _g = tracing::info_span!("preprocess.trace_agg", span_count = spans.len()).entered();
+        TraceAggregation::from_spans(&spans, &span_usage_vec)
+    };
 
     // Build the dedup batch up front so the size-bytes loop and CHSpans build
     // can run before we kick off the parallel inserts.
@@ -110,6 +118,11 @@ pub async fn process_span_messages(
         .map(|(i, _)| i)
         .collect();
     let dedup = {
+        let _g = tracing::info_span!(
+            "preprocess.dedup_batch",
+            recordable = recordable_indices.len()
+        )
+        .entered();
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
             .iter()
@@ -165,30 +178,37 @@ pub async fn process_span_messages(
     }
 
     // Build CHSpans with embedded events to insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = recordable_indices
-        .iter()
-        .enumerate()
-        .map(|(dedup_idx, &span_idx)| {
-            let span = &spans[span_idx];
-            let usage = &span_usage_vec[span_idx];
-            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-            let hashes = dedup
-                .span_hashes
-                .get(dedup_idx)
-                .cloned()
-                .unwrap_or_default();
-            if !hashes.is_empty() {
-                ch_span.input = String::new();
-                ch_span.input_message_hashes = hashes;
-                ch_span.input_new_message_indices = dedup
-                    .span_new_indices
+    let ch_spans: Vec<CHSpan> = {
+        let _g: tracing::span::EnteredSpan = tracing::info_span!(
+            "preprocess.ch_span_build",
+            recordable = recordable_indices.len()
+        )
+        .entered();
+        recordable_indices
+            .iter()
+            .enumerate()
+            .map(|(dedup_idx, &span_idx)| {
+                let span = &spans[span_idx];
+                let usage = &span_usage_vec[span_idx];
+                let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+                let hashes = dedup
+                    .span_hashes
                     .get(dedup_idx)
                     .cloned()
                     .unwrap_or_default();
-            }
-            ch_span
-        })
-        .collect();
+                if !hashes.is_empty() {
+                    ch_span.input = String::new();
+                    ch_span.input_message_hashes = hashes;
+                    ch_span.input_new_message_indices = dedup
+                        .span_new_indices
+                        .get(dedup_idx)
+                        .cloned()
+                        .unwrap_or_default();
+                }
+                ch_span
+            })
+            .collect()
+    };
 
     // Parallelize trace upsert against the span path. Within the span path
     // the strict order llm_messages -> mark_seen -> spans must be preserved
