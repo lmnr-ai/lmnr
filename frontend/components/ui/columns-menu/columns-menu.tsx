@@ -4,7 +4,7 @@ import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import { Button } from "@/components/ui/button.tsx";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
 import { ColumnsListPanel } from "./columns-list-panel";
@@ -20,14 +20,14 @@ interface ColumnsMenuProps {
 }
 
 export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActions }: ColumnsMenuProps) {
-  const store = useDataTableStore();
+  const store = useTableConfigStore();
   const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, lockedColumns } = useStore(
     store,
     (state) => ({
       resetColumns: state.resetColumns,
-      columnOrder: state.columnOrder,
+      columnOrder: state.config.columnOrder,
       setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.columnVisibility,
+      columnVisibility: state.config.columnVisibility,
       setColumnVisibility: state.setColumnVisibility,
       lockedColumns: state.lockedColumns,
     }),

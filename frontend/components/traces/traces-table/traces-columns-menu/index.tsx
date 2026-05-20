@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { type TraceRow } from "@/lib/traces/types";
 
 interface TracesColumnsMenuProps {
@@ -14,8 +14,8 @@ interface TracesColumnsMenuProps {
 }
 
 export default function TracesColumnsMenu({ columnLabels = [], columnDefs }: TracesColumnsMenuProps) {
-  const datatableStore = useDataTableStore();
-  const { addCustomColumn, updateCustomColumn } = useStore(datatableStore, (s) => ({
+  const configStore = useTableConfigStore();
+  const { addCustomColumn, updateCustomColumn } = useStore(configStore, (s) => ({
     addCustomColumn: s.addCustomColumn,
     updateCustomColumn: s.updateCustomColumn,
   }));

@@ -11,7 +11,7 @@ import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -362,12 +362,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider
-      storageKey="dataset-table"
-      defaultColumnOrder={defaultDatasetColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultDatasetColumnOrder }}
       lockedColumns={["__row_selection"]}
     >
       <DatasetContent {...props} />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

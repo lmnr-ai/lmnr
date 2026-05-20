@@ -20,7 +20,7 @@ import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
@@ -373,11 +373,11 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }, []);
 
   return (
-    <DataTableStateProvider
-      defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: ["__row_selection", ...defaultTracesColumnOrder] }}
       lockedColumns={["__row_selection", "status"]}
     >
       <CreateSignalJobContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
@@ -262,12 +262,11 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider
-      storageKey="playgrounds-table"
-      defaultColumnOrder={defaultPlaygroundsColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultPlaygroundsColumnOrder }}
       lockedColumns={["__row_selection"]}
     >
       <PlaygroundsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

@@ -28,7 +28,8 @@ import {
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -60,12 +61,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const sortDirection = searchParams.get("sortDirection");
   const targetId = searchParams.get("targetId");
 
-  // Column config layer: customColumns are read from the DataTableStore (the
-  // persisted-config layer) and threaded into the columnDefs / URLs below.
-  const datatableStore = useDataTableStore<EvalRow>();
+  // Column config layer: customColumns are read from the config store and
+  // threaded into the columnDefs / URLs below.
+  const configStore = useTableConfigStore();
   const { customColumns, removeCustomColumn } = useStore(
-    datatableStore,
-    (s) => ({ customColumns: s.customColumns, removeCustomColumn: s.removeCustomColumn }),
+    configStore,
+    (s) => ({ customColumns: s.config.customColumns, removeCustomColumn: s.removeCustomColumn }),
     shallow
   );
 
@@ -394,9 +395,9 @@ export default function Evaluation(props: EvaluationProps) {
 
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames}>
-      <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }}>
         <EvaluationContent {...props} />
-      </DataTableStateProvider>
+      </InfiniteDataTableProvider>
     </EvalStoreProvider>
   );
 }

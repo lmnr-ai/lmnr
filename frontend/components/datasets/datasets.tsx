@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
@@ -256,12 +256,11 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider
-      storageKey="datasets-table"
-      defaultColumnOrder={defaultDatasetsColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultDatasetsColumnOrder }}
       lockedColumns={["__row_selection"]}
     >
       <DatasetsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

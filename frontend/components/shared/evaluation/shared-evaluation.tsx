@@ -25,7 +25,8 @@ import {
 import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
@@ -53,10 +54,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   // Shared eval ignores customColumns at render time (buildColumnDefs's isShared
   // branch returns []) but still reads the store via the same selector for
   // structural symmetry with the non-shared page.
-  const datatableStore = useDataTableStore<EvalRow>();
+  const configStore = useTableConfigStore();
   const { customColumns } = useStore(
-    datatableStore,
-    (s) => ({ customColumns: s.customColumns }),
+    configStore,
+    (s) => ({ customColumns: s.config.customColumns }),
     shallow
   );
 
@@ -269,9 +270,9 @@ export default function SharedEvaluation(props: SharedEvaluationProps) {
 
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames} isShared>
-      <DataTableStateProvider storageKey="shared-evaluation-datapoints" defaultColumnOrder={defaultColumnOrder}>
+      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }}>
         <SharedEvaluationContent {...props} />
-      </DataTableStateProvider>
+      </InfiniteDataTableProvider>
     </EvalStoreProvider>
   );
 }

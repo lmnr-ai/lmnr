@@ -30,7 +30,8 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { computeEffectiveOrder, useDataTableStore } from "./model/datatable-store.tsx";
+import { computeEffectiveOrder, useTableConfigStore } from "./model/table-config-store.tsx";
+import { useTableStore } from "./model/table-store.tsx";
 import { type InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
@@ -94,23 +95,21 @@ export function InfiniteDataTable<TData extends RowData>({
   // rather than syncing back into the store via an effect.
   const availableIds = useMemo(() => finalColumns.map((c) => c.id!).filter(Boolean), [finalColumns]);
 
-  const store = useDataTableStore();
-  const {
-    columnOrder,
-    setColumnOrder,
-    columnVisibility,
-    setColumnVisibility,
-    columnSizing,
-    setColumnSizing,
-    draggingColumnId,
-    setDraggingColumnId,
-  } = useStore(store, (state) => ({
-    columnOrder: state.columnOrder,
-    setColumnOrder: state.setColumnOrder,
-    columnVisibility: state.columnVisibility,
-    setColumnVisibility: state.setColumnVisibility,
-    columnSizing: state.columnSizing,
-    setColumnSizing: state.setColumnSizing,
+  const configStore = useTableConfigStore();
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, columnSizing, setColumnSizing } = useStore(
+    configStore,
+    (state) => ({
+      columnOrder: state.config.columnOrder,
+      setColumnOrder: state.setColumnOrder,
+      columnVisibility: state.config.columnVisibility,
+      setColumnVisibility: state.setColumnVisibility,
+      columnSizing: state.config.columnSizing,
+      setColumnSizing: state.setColumnSizing,
+    })
+  );
+
+  const tableStore = useTableStore();
+  const { draggingColumnId, setDraggingColumnId } = useStore(tableStore, (state) => ({
     draggingColumnId: state.draggingColumnId,
     setDraggingColumnId: state.setDraggingColumnId,
   }));

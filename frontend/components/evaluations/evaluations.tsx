@@ -10,7 +10,7 @@ import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
@@ -96,13 +96,12 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider
-      storageKey="evaluations-table"
-      defaultColumnOrder={defaultEvaluationsColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
       lockedColumns={["__row_selection"]}
     >
       <EvaluationsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 

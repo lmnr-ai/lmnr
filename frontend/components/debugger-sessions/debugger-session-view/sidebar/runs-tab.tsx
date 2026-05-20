@@ -7,7 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import { FETCH_SIZE, tracePickerColumnOrder, tracePickerColumns } from "@/components/traces/trace-picker/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import type { TraceRow } from "@/lib/traces/types";
 
@@ -93,12 +93,12 @@ const RunsContent = () => {
 
 export default function RunsTab() {
   return (
-    <DataTableStateProvider
-      defaultColumnOrder={tracePickerColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: tracePickerColumnOrder }}
       pageSize={FETCH_SIZE}
       lockedColumns={["status"]}
     >
       <RunsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

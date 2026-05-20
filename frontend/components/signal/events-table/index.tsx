@@ -18,7 +18,7 @@ import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -257,8 +257,8 @@ export default function EventsTable() {
   const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (
-    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
+    <InfiniteDataTableProvider uniqueKey="id" defaults={{ columnOrder }}>
       <PureEventsTable />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

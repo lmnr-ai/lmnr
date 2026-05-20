@@ -8,7 +8,7 @@ import { shallow } from "zustand/shallow";
 
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 interface EvalColumnsMenuProps {
@@ -20,9 +20,9 @@ interface EvalColumnsMenuProps {
 export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalColumnsMenuProps) {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
-  const datatableStore = useDataTableStore();
+  const configStore = useTableConfigStore();
   const { addCustomColumn, updateCustomColumn } = useStore(
-    datatableStore,
+    configStore,
     (s) => ({ addCustomColumn: s.addCustomColumn, updateCustomColumn: s.updateCustomColumn }),
     shallow
   );

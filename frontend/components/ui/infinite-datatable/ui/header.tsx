@@ -6,7 +6,7 @@ import { shallow } from "zustand/shallow";
 
 import { TableHeader, TableRow } from "@/components/ui/table.tsx";
 
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableConfigStore } from "../model/table-config-store.tsx";
 import { type InfiniteDataTableHeaderProps } from "../model/types.ts";
 import { InfiniteTableHead } from "./head.tsx";
 
@@ -15,13 +15,13 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
     { table }: InfiniteDataTableHeaderProps<TData>,
     ref: React.Ref<HTMLTableSectionElement>
   ) {
-    const store = useDataTableStore();
+    const configStore = useTableConfigStore();
     const { lockedColumns, disableHideColumn, columnVisibility, setColumnVisibility } = useStore(
-      store,
+      configStore,
       (state) => ({
         lockedColumns: state.lockedColumns,
         disableHideColumn: state.disableHideColumn,
-        columnVisibility: state.columnVisibility,
+        columnVisibility: state.config.columnVisibility,
         setColumnVisibility: state.setColumnVisibility,
       }),
       shallow

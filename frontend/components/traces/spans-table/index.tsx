@@ -12,7 +12,7 @@ import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -22,14 +22,13 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider
-      storageKey="spans-table"
+    <InfiniteDataTableProvider
       uniqueKey="spanId"
-      defaultColumnOrder={defaultSpansColumnOrder}
+      defaults={{ columnOrder: defaultSpansColumnOrder }}
       lockedColumns={["status"]}
     >
       <SpansTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 

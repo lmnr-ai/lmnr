@@ -11,7 +11,7 @@ import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
@@ -203,11 +203,8 @@ function DebuggerSessionsContent() {
 
 export default function DebuggerSessions() {
   return (
-    <DataTableStateProvider
-      storageKey="debugger-sessions-table"
-      defaultColumnOrder={defaultDebuggerSessionsColumnOrder}
-    >
+    <InfiniteDataTableProvider defaults={{ columnOrder: defaultDebuggerSessionsColumnOrder }}>
       <DebuggerSessionsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

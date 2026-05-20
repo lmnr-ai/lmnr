@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { computeEffectiveOrder } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { computeEffectiveOrder } from "@/components/ui/infinite-datatable/model/table-config-store";
 
 describe("computeEffectiveOrder", () => {
   it("returns available ids in input order when no persisted state", () => {

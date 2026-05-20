@@ -12,7 +12,7 @@ import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -125,8 +125,11 @@ const JobsTableContent = () => {
 
 export default function SignalJobsTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))} lockedColumns={["id"]}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: signalJobsColumns.map((c) => String(c.id)) }}
+      lockedColumns={["id"]}
+    >
       <JobsTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

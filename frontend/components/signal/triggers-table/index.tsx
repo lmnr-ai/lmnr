@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -185,11 +185,11 @@ function TriggersTableContent() {
 
 export default function TriggersTable() {
   return (
-    <DataTableStateProvider
-      defaultColumnOrder={["__row_selection", ...defaultTriggersColumnOrder]}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: ["__row_selection", ...defaultTriggersColumnOrder] }}
       lockedColumns={["__row_selection"]}
     >
       <TriggersTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

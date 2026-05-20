@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
@@ -317,12 +317,11 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider
-      storageKey="queues-table"
-      defaultColumnOrder={defaultQueuesColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultQueuesColumnOrder }}
       lockedColumns={["__row_selection"]}
     >
       <QueuesContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

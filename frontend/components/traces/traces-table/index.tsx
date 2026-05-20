@@ -25,7 +25,8 @@ import {
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
@@ -39,16 +40,13 @@ const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
-  const { projectId } = useParams();
-
   return (
-    <DataTableStateProvider
-      storageKey={`traces-table-${projectId}`}
-      defaultColumnOrder={defaultTracesColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultTracesColumnOrder }}
       lockedColumns={["status", "preview"]}
     >
       <TracesTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
@@ -93,9 +91,9 @@ function TracesTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const datatableStore = useDataTableStore();
-  const { customColumns, removeCustomColumn } = useStore(datatableStore, (s) => ({
-    customColumns: s.customColumns,
+  const configStore = useTableConfigStore();
+  const { customColumns, removeCustomColumn } = useStore(configStore, (s) => ({
+    customColumns: s.config.customColumns,
     removeCustomColumn: s.removeCustomColumn,
   }));
 

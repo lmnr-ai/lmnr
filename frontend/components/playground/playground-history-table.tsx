@@ -9,7 +9,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Trace } from "@/lib/traces/types";
@@ -148,13 +148,12 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <DataTableStateProvider
-      storageKey="playground-history-table"
+    <InfiniteDataTableProvider
       uniqueKey="id"
-      defaultColumnOrder={defaultPlaygroundHistoryColumnOrder}
+      defaults={{ columnOrder: defaultPlaygroundHistoryColumnOrder }}
     >
       <PlaygroundHistoryTableContent {...props} />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
