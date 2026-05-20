@@ -190,10 +190,11 @@ pub async fn process_span_messages(
         })
         .collect();
 
-    // Parallelize the three CH inserts. Inside the messages branch
-    // `mark_seen` is still strictly ordered AFTER a successful
-    // `llm_messages` insert (see CLAUDE.md "Ingest order in
-    // process_span_messages").
+    // Parallelize trace upsert against the span path. Within the span path
+    // the strict order llm_messages -> mark_seen -> spans must be preserved
+    // (`spans` is plain MergeTree, so a retry after a successful spans
+    // insert + failed llm_messages insert would duplicate every span row).
+    // See CLAUDE.md "Ingest order in process_span_messages".
     let ch = &ch;
 
     let trace_branch = async {
@@ -223,34 +224,27 @@ pub async fn process_span_messages(
         }
     };
 
-    // On `llm_messages` insert failure we return transient; nothing to undo
-    // in Redis since `mark_seen` only runs after a successful insert (and
-    // the producer-side Redis stamp is best-effort, mirrored by RMT merge).
-    let messages_branch = async {
-        if dedup.messages.is_empty() {
-            return Ok(());
+    let span_branch = async {
+        if !dedup.messages.is_empty() {
+            let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+                .messages
+                .iter()
+                .map(|m| (m.project_id, m.trace_id, m.message_hash))
+                .collect();
+            if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+                log::error!(
+                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                    dedup.messages.len(),
+                    e
+                );
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    e
+                )));
+            }
+            mark_seen(&keys, cache.clone()).await;
         }
-        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
-            .messages
-            .iter()
-            .map(|m| (m.project_id, m.trace_id, m.message_hash))
-            .collect();
-        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
-            log::error!(
-                "Failed to insert {} llm_messages to ClickHouse: {:?}",
-                dedup.messages.len(),
-                e
-            );
-            return Err(HandlerError::transient(anyhow::anyhow!(
-                "Failed to insert llm_messages to Clickhouse: {:?}",
-                e
-            )));
-        }
-        mark_seen(&keys, cache.clone()).await;
-        Ok(())
-    };
 
-    let spans_branch = async {
         if let Err(e) = ch.insert_batch(&ch_spans, config).await {
             log::error!(
                 "Failed to record {} spans to clickhouse: {:?}",
@@ -265,10 +259,8 @@ pub async fn process_span_messages(
         Ok(())
     };
 
-    let (updated_traces, messages_result, spans_result) =
-        tokio::join!(trace_branch, messages_branch, spans_branch);
-    messages_result?;
-    spans_result?;
+    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    span_result?;
 
     // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {
