@@ -130,12 +130,19 @@ const processContentPart = (
       const toolCallId = part.toolCallId || message?.tool_call_id || "-";
       const toolName = store.get(toolCallId) || part.toolName || "-";
       const rawOutput = part.output;
-      const outputValue = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput ?? null);
+      // Pass AI SDK v7 envelopes ({type: "text"|"json"|..., value}) through
+      // verbatim; wrap bare values so the ToolResultPart shape stays consistent.
+      const output =
+        rawOutput && typeof rawOutput === "object" && "type" in rawOutput && "value" in rawOutput
+          ? rawOutput
+          : typeof rawOutput === "string"
+            ? { type: "text" as const, value: rawOutput }
+            : { type: "json" as const, value: rawOutput ?? null };
       return {
         type: "tool-result" as const,
         toolCallId,
         toolName,
-        output: { type: "text", value: outputValue },
+        output,
       };
     }
 

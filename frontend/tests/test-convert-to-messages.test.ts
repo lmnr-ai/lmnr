@@ -41,10 +41,11 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     assert.deepStrictEqual(toolResult.output, { type: "text", value: "65F and sunny" });
   });
 
-  it("JSON-stringifies a structured-object tool-result output", () => {
-    // Mirror what backend serialises when `output` is a JSON object. Output value
-    // must be a JSON string of the object (not the original object), since the
-    // generic renderer reads `output.value` as a printable string.
+  it("wraps a bare JSON object output as a json envelope (not double-stringified)", () => {
+    // Backend may serialise `output` as a bare JSON object when the AI SDK
+    // emitted a non-tagged value. Wrap it as `{type: "json", value: <obj>}` so
+    // the renderer's pretty-print path receives the original object rather than
+    // a stringified copy of an envelope.
     const messages = [
       {
         role: "tool",
@@ -67,9 +68,60 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     assert.strictEqual(toolResult.toolCallId, "call_2");
     assert.strictEqual(toolResult.toolName, "get_weather");
     assert.deepStrictEqual(toolResult.output, {
-      type: "text",
-      value: JSON.stringify({ temp: 65, conditions: "sunny" }),
+      type: "json",
+      value: { temp: 65, conditions: "sunny" },
     });
+  });
+
+  it("passes an AI SDK v7 LanguageModelV2ToolResultOutput envelope through verbatim", () => {
+    // The backend's ChatMessageAISDKToolResult.output is `serde_json::Value`, so
+    // when the AI SDK emits the tagged envelope (`{type: "text", value: "65F"}`)
+    // it arrives unchanged. The previous code unconditionally JSON.stringify'd
+    // the envelope and re-wrapped it, surfacing `{"type":"text","value":"65F"}`
+    // as the rendered output. Pass through verbatim so the renderer unwraps
+    // exactly one level.
+    const textEnvelope = [
+      {
+        role: "tool",
+        content: [
+          { type: "text", text: "" },
+          {
+            type: "tool-result",
+            toolCallId: "call_text",
+            toolName: "get_weather",
+            output: { type: "text", value: "65F" },
+          },
+        ],
+      },
+    ] as any;
+
+    const textResult = convertToMessages(textEnvelope);
+    const textParts = textResult[0].content as any[];
+    const textToolResult = textParts.find((p) => p.type === "tool-result");
+    assert.ok(textToolResult);
+    assert.deepStrictEqual(textToolResult.output, { type: "text", value: "65F" });
+
+    // Same for the json envelope variant.
+    const jsonEnvelope = [
+      {
+        role: "tool",
+        content: [
+          { type: "text", text: "" },
+          {
+            type: "tool-result",
+            toolCallId: "call_json",
+            toolName: "get_weather",
+            output: { type: "json", value: { temp: 65 } },
+          },
+        ],
+      },
+    ] as any;
+
+    const jsonResult = convertToMessages(jsonEnvelope);
+    const jsonParts = jsonResult[0].content as any[];
+    const jsonToolResult = jsonParts.find((p) => p.type === "tool-result");
+    assert.ok(jsonToolResult);
+    assert.deepStrictEqual(jsonToolResult.output, { type: "json", value: { temp: 65 } });
   });
 
   it("resolves toolName from the prior tool_call store when the part omits it", () => {
@@ -127,10 +179,9 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     assert.deepStrictEqual(toolResult.output, { type: "text", value: "raw" });
   });
 
-  it("emits a string output.value when part.output is undefined", () => {
-    // `JSON.stringify(undefined)` returns `undefined` (not the string "undefined"),
-    // which would set `output.value` to `undefined` and propagate downstream.
-    // Guard with `?? null` so the value is always a serialisable string.
+  it("falls back to a json-null envelope when part.output is undefined", () => {
+    // `output` of `undefined` (missing key) is coerced to a `{type: "json", value: null}`
+    // envelope so the renderer always receives a defined, serialisable value.
     const messages = [
       {
         role: "assistant",
@@ -149,7 +200,6 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     const parts = result[0].content as any[];
     const toolResult = parts.find((p) => p.type === "tool-result");
     assert.ok(toolResult);
-    assert.strictEqual(typeof toolResult.output.value, "string");
-    assert.strictEqual(toolResult.output.value, "null");
+    assert.deepStrictEqual(toolResult.output, { type: "json", value: null });
   });
 });
