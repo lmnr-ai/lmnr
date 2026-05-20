@@ -18,7 +18,7 @@ const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
     <Header hasSession={hasSession} className="w-full max-w-[880px] pt-4 px-6 md:px-0" isIncludePadding />
 
-    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[40vh] justify-start gap-[10vh]">
+    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[80vh] justify-start gap-[10vh] shrink-0">
       <div className="flex flex-col items-start gap-8 w-full max-w-[880px]">
         <div className="flex flex-col items-start gap-4">
           <h1 className={mainTitle}>Open-source Agent Monitoring</h1>
