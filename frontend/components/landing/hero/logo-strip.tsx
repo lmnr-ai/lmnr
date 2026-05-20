@@ -15,7 +15,7 @@ const LOGOS = [
 const LogoStrip = ({ className }: Props) => (
   <div className={cn("grid grid-cols-2 md:grid-cols-4 gap-2 w-full max-w-[960px]", className)}>
     {LOGOS.map(({ id, Component, className: logoClassName }) => (
-      <div key={id} className="flex items-center justify-center h-13 rounded bg-landing-surface-700">
+      <div key={id} className="flex items-center justify-center h-13 rounded bg-landing-surface-550">
         <Component className={cn("opacity-50", logoClassName)} />
       </div>
     ))}

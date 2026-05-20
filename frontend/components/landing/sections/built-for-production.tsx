@@ -11,11 +11,11 @@ const ComparisonRow = ({ title }: { title: string }) => (
   <div className="flex flex-col gap-6 w-full pr-[80px]">
     <p className="text-lg leading-6 text-white">{title}</p>
     <div className="flex flex-col gap-2 w-full">
-      <div className="flex items-end w-full">
+      <div className="flex items-center w-full">
         <p className="w-[100px] text-xs text-landing-text-300">Laminar</p>
         <div className="flex-1 h-1.5 bg-landing-text-600" />
       </div>
-      <div className="flex items-end w-full">
+      <div className="flex items-center w-full">
         <p className="w-[100px] text-xs text-landing-text-300">Competition</p>
         <div className="flex-1">
           <div className="h-1.5 w-[10%] bg-landing-text-600" />
@@ -32,7 +32,11 @@ const BuiltForProduction = () => (
       <div className="flex flex-col gap-[52px] items-start w-full">
         <p className="text-lg leading-6 max-w-[440px]">
           <span className="text-white">10x </span>
-          <span className="text-landing-text-300">{"ingestion speed and data\ncompression ratio vs competition"}</span>
+          <span className="text-landing-text-300">
+            ingestion speed and data
+            <br />
+            compression ratio vs competition
+          </span>
         </p>
         <div className="flex flex-col gap-[52px] items-start w-full">
           <ComparisonRow title="Ingestion speed" />

@@ -158,24 +158,20 @@ const TraceBento = ({ stage, morphProgress, trace, spans, onAllPanelsOpenChange 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  // Stage transitions set the *default* visibility of the signal card. The
-  // store is the source of truth, so a user click on the Signals header
-  // button can override between transitions. Each stage transition re-fires
-  // this effect (story-beat reset), which clobbers a prior user toggle by
-  // design — once the narrative moves on, the next beat's intended layout
-  // wins.
+  // Open the signal panel once on mount and never touch it again — the user
+  // is the only writer after that (Signals header button). No "story-beat
+  // reset" on stage transitions: if the user closes the panel at any stage,
+  // it stays closed; if they reopen it, it stays open. Equivalent to a
+  // store-level default of `signalsPanelOpen: true`, but applied here so the
+  // shared trace-view store base default stays `false`.
   //
-  // Media/browser-session is NOT stage-driven anymore — only the Media
-  // header button opens/closes it. The recording stage was removed.
+  // Media/browser-session is similarly user-only — no stage sync.
   //
-  // FLAG: if this effect ever fights a different writer to signalsPanelOpen
-  // (e.g. if we add network-driven signal data that opens the panel), we'll
-  // get a flicker. Right now the landing-page store is the only writer.
+  // Fires once: `setSignalsPanelOpen` is referentially stable (zustand
+  // setter), so this effect's dep array is effectively empty.
   useEffect(() => {
-    // Signals panel stays open through the timeline reveal (stage 4); it
-    // only auto-closes at stage 5 so the span + ask-ai panels have room.
-    setSignalsPanelOpen(stage <= 4);
-  }, [stage, setSignalsPanelOpen]);
+    setSignalsPanelOpen(true);
+  }, [setSignalsPanelOpen]);
 
   const llmSpanIds = useMemo(() => spans.filter((s) => s.spanType === SpanType.LLM).map((s) => s.spanId), [spans]);
 

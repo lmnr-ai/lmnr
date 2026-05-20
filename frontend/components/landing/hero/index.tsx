@@ -15,7 +15,7 @@ interface Props {
 // all live inside the same 880px centered column. Title block is left-aligned;
 // CTA row sits below at gap-32. Logo strip is a 4-col grid below.
 const Hero = ({ className, hasSession }: Props) => (
-  <div className={cn("flex flex-col items-center w-full bg-landing-surface-800", className)}>
+  <div className={cn("flex flex-col items-center w-full", className)}>
     <Header hasSession={hasSession} className="w-full max-w-[880px] pt-4 px-6 md:px-0" isIncludePadding />
 
     <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[40vh] justify-start gap-[10vh]">

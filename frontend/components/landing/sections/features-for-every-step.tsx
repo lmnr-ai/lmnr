@@ -1,94 +1,68 @@
-import Image from "next/image";
-
-import { cn } from "@/lib/utils";
+import { ArrowUpRight, Bug, Database, LayoutDashboard, type LucideIcon, MonitorPlay, Tags } from "lucide-react";
+import Link from "next/link";
 
 import { subSection } from "../class-names";
-import LearnMoreLink from "./learn-more-link";
 
 interface CardProps {
+  Icon: LucideIcon;
   title: string;
   description: string;
-  imageSrc: string;
-  imageAlt: string;
-  learnMoreLabel: string;
-  learnMoreHref: string;
-  /** Where the screenshot's preserved corner anchors. "top" keeps the app header visible; "bottom" keeps the bottom area visible. */
-  anchor?: "top" | "bottom";
+  href: string;
 }
 
-const Card = ({ title, description, imageSrc, imageAlt, learnMoreLabel, learnMoreHref, anchor = "top" }: CardProps) => (
-  <div className="flex min-w-0 flex-col items-start gap-6">
-    <div
-      className={cn(
-        "w-full h-[240px] bg-landing-surface-700 border border-landing-surface-500 rounded overflow-hidden flex",
-        anchor === "top" ? "items-start" : "items-end"
-      )}
-      style={anchor === "top" ? { paddingLeft: 40, paddingTop: 32 } : { paddingLeft: 40, paddingBottom: 32 }}
-    >
-      <Image
-        src={imageSrc}
-        alt={imageAlt}
-        width={1200}
-        height={800}
-        style={{ aspectRatio: "auto" }}
-        className={cn(
-          "max-w-none w-[450px] h-auto border-l border-[#2b2b31]",
-          anchor === "top" ? "border-t rounded-tl" : "border-b rounded-bl"
-        )}
-      />
+const Card = ({ Icon, title, description, href }: CardProps) => (
+  <div className="bg-landing-surface-550 flex flex-col h-[200px] px-5 py-4 justify-between rounded">
+    <div className="flex items-start justify-between w-full">
+      <Icon className="size-10 text-landing-text-300" strokeWidth={0.5} />
+      <Link
+        href={href}
+        target="_blank"
+        aria-label={`Learn more about ${title}`}
+        className="text-landing-text-300 hover:text-landing-text-200 transition-colors"
+      >
+        <ArrowUpRight className="size-6" strokeWidth={1.5} />
+      </Link>
     </div>
-    <div className="flex flex-col items-start gap-2 w-full">
-      <p className="font-sans text-landing-text-100 text-lg leading-6">{title}</p>
-      <p className="font-sans text-landing-text-300 text-lg leading-6">{description}</p>
+    <div className="flex flex-col gap-2">
+      <p className="leading-6 text-white">{title}</p>
+      <p className="text-landing-text-200">{description}</p>
     </div>
-    <LearnMoreLink label={learnMoreLabel} href={learnMoreHref} />
   </div>
 );
 
 const FeaturesForEveryStep = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
     <h2 className={subSection}>{"Features for every step of agent development"}</h2>
-    <div className="grid grid-cols-2 gap-[52px] w-full">
+    <div className="grid grid-cols-2 gap-6 w-full">
       <Card
+        Icon={Bug}
         title="True Agent Debugger"
-        description="Rapid, seamless agent development. Rerun your agent from any step instantly, instantly reflect changes as you save."
-        imageSrc="/assets/landing/debugger.png"
-        imageAlt="Laminar debugger session"
-        learnMoreLabel="Learn more about debugger"
-        learnMoreHref="https://laminar.sh/docs/debugger"
+        description="Rapid, seamless agent development. Rerun your agent from any step instantly."
+        href="https://laminar.sh/docs/debugger"
       />
       <Card
-        title="Platform-wide SQL"
-        description="Query SQL in browser, feed Eval datasets straight from SQL queries, and give your coding agent SQL query access via MCP or CLI."
-        imageSrc="/assets/landing/sql.png"
-        imageAlt="Laminar SQL editor"
-        learnMoreLabel="Learn more about SQL"
-        learnMoreHref="https://laminar.sh/docs/sql"
-      />
-      <Card
+        Icon={LayoutDashboard}
         title="Custom Dashboards"
         description="Build dashboards to track anything with custom SQL queries."
-        imageSrc="/assets/landing/dashboards-overview.png"
-        imageAlt="Laminar custom dashboards"
-        learnMoreLabel="Learn more about dashboards"
-        learnMoreHref="https://laminar.sh/docs/dashboards"
+        href="https://laminar.sh/docs/dashboards"
       />
       <Card
+        Icon={Database}
+        title="Platform-wide SQL"
+        description="Build datasets from SQL queries, and have your agent query your data via MCP or CLI."
+        href="https://laminar.sh/docs/sql"
+      />
+      <Card
+        Icon={Tags}
         title="Labeling queue"
         description="Build labeled datasets from traces, dataset rows, or SQL results for evals and fine-tuning."
-        imageSrc="/assets/landing/labeling-queue.png"
-        imageAlt="Laminar labeling queue"
-        learnMoreLabel="Learn more about labeling queues"
-        learnMoreHref="https://laminar.sh/docs/queues/quickstart"
+        href="https://laminar.sh/docs/queues/quickstart"
       />
       <Card
+        Icon={MonitorPlay}
         title="Browser screen recording"
-        description="Replay your agent's browser session alongside the trace. See exactly what the model saw at every step."
-        imageSrc="/assets/landing/browser-session.png"
-        imageAlt="Laminar browser session recording"
-        learnMoreLabel="Learn more about browser recordings"
-        learnMoreHref="https://laminar.sh/docs/tracing/browser-sessions"
-        anchor="bottom"
+        description="Replay your agent's browser session alongside the trace."
+        href="https://laminar.sh/docs/tracing/browser-sessions"
       />
     </div>
   </section>

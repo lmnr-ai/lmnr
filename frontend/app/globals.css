@@ -88,6 +88,7 @@
   --color-landing-primary-400: rgb(208 117 78);
   --color-landing-surface-400: rgb(46 46 47);
   --color-landing-surface-500: rgb(37 37 38);
+  --color-landing-surface-550: rgb(32 32 33);
   --color-landing-surface-600: rgb(27 27 28);
   --color-landing-surface-700: rgb(22 22 23);
   --color-landing-surface-800: rgb(15 15 15);
@@ -225,4 +226,3 @@
     color: white;
   }
 }
-
