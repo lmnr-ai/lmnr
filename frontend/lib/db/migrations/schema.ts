@@ -994,6 +994,37 @@ export const notificationReads = pgTable(
   ]
 );
 
+export const views = pgTable(
+  "views",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    resourceType: text("resource_type").notNull(),
+    name: text().notNull(),
+    config: jsonb().default({}).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("views_name_uniq").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("text_ops"),
+      table.resourceType.asc().nullsLast().op("uuid_ops"),
+      table.name.asc().nullsLast().op("uuid_ops")
+    ),
+    index("views_project_resource_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.resourceType.asc().nullsLast().op("text_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "views_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const tagClasses = pgTable(
   "tag_classes",
   {

@@ -6,7 +6,6 @@ import { createStore, type StoreApi } from "zustand";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { Button } from "@/components/ui/button.tsx";
 import { type CustomColumn } from "@/components/ui/columns-menu";
 
 export interface TableConfig {
@@ -16,7 +15,7 @@ export interface TableConfig {
   columnSizing: Record<string, number>;
 }
 
-export type TableConfigStatus = "idle" | "loading" | "ready" | "saving" | "error";
+export type TableConfigStatus = "idle" | "loading" | "ready" | "error";
 
 const EMPTY_CONFIG: TableConfig = {
   customColumns: [],
@@ -28,11 +27,7 @@ const EMPTY_CONFIG: TableConfig = {
 // Pure helper: derive the effective render-time column order from persisted state.
 // Pinned ids (intersected with available) come first, then persisted order,
 // then any newly-available ids appended in their input order.
-export function computeEffectiveOrder(
-  persistedOrder: string[],
-  availableIds: string[],
-  pinned: string[]
-): string[] {
+export function computeEffectiveOrder(persistedOrder: string[], availableIds: string[], pinned: string[]): string[] {
   const availableSet = new Set(availableIds);
   const pinnedSet = new Set(pinned);
   const placed = new Set<string>();
@@ -61,19 +56,37 @@ export function computeEffectiveOrder(
 
 // Pure helper: merge a loaded config blob with defaults. Filters columnOrder /
 // visibility / sizing down to ids known by the union of defaults + custom
-// columns, and appends any new defaults at the end.
-export function reconcileConfig(loaded: Partial<TableConfig>, defaults: Partial<TableConfig>): TableConfig {
+// columns, and appends any new defaults at the end. `purged` is true when the
+// loaded blob carried ids unknown to the current schema (drift) — appending
+// new defaults at the end is NOT a purge.
+export function reconcileConfig(
+  loaded: Partial<TableConfig>,
+  defaults: Partial<TableConfig>
+): { config: TableConfig; purged: boolean } {
   const customColumns = loaded.customColumns ?? defaults.customColumns ?? [];
   const customColumnIds = customColumns.map((cc) => `custom:${cc.name}`);
   const fullDefaultOrder = [...(defaults.columnOrder ?? []), ...customColumnIds];
+  const knownSet = new Set(fullDefaultOrder);
 
-  const validColumns = intersection(loaded.columnOrder ?? [], fullDefaultOrder);
+  const loadedOrder = loaded.columnOrder ?? [];
+  const validColumns = intersection(loadedOrder, fullDefaultOrder);
   const newColumns = fullDefaultOrder.filter((col) => !validColumns.includes(col));
   const columnOrder = [...validColumns, ...newColumns];
-  const columnVisibility = pick(loaded.columnVisibility ?? defaults.columnVisibility ?? {}, fullDefaultOrder);
-  const columnSizing = pick(loaded.columnSizing ?? defaults.columnSizing ?? {}, fullDefaultOrder);
 
-  return { customColumns, columnOrder, columnVisibility, columnSizing };
+  const loadedVisibility = loaded.columnVisibility ?? defaults.columnVisibility ?? {};
+  const loadedSizing = loaded.columnSizing ?? defaults.columnSizing ?? {};
+  const columnVisibility = pick(loadedVisibility, fullDefaultOrder);
+  const columnSizing = pick(loadedSizing, fullDefaultOrder);
+
+  const purged =
+    loadedOrder.some((id) => !knownSet.has(id)) ||
+    Object.keys(loadedVisibility).some((id) => !knownSet.has(id)) ||
+    Object.keys(loadedSizing).some((id) => !knownSet.has(id));
+
+  return {
+    config: { customColumns, columnOrder, columnVisibility, columnSizing },
+    purged,
+  };
 }
 
 export interface TableConfigStoreState {
@@ -84,6 +97,8 @@ export interface TableConfigStoreState {
   // Static — set at provider mount, never mutates.
   lockedColumns: string[];
   disableHideColumn: boolean;
+  // Currently selected view id. `null` = no view (defaults).
+  currentViewId: string | null;
 }
 
 export interface TableConfigStoreActions {
@@ -95,9 +110,10 @@ export interface TableConfigStoreActions {
   removeCustomColumn: (name: string) => void;
   resetColumns: () => void;
   load: () => Promise<void>;
-  save: () => Promise<void>;
   discard: () => void;
   isDirty: () => boolean;
+  selectView: (viewId: string | null, config: Partial<TableConfig>) => void;
+  markSavedAs: (viewId: string | null) => void;
 }
 
 export type TableConfigStore = TableConfigStoreState & TableConfigStoreActions;
@@ -107,7 +123,7 @@ interface CreateOptions {
   lockedColumns: string[];
   disableHideColumn: boolean;
   loadConfig?: () => Promise<Partial<TableConfig>>;
-  saveConfig?: (config: TableConfig) => Promise<void>;
+  enableDirtyTracking?: boolean;
 }
 
 function createTableConfigStore({
@@ -115,17 +131,14 @@ function createTableConfigStore({
   lockedColumns,
   disableHideColumn,
   loadConfig,
-  saveConfig,
+  enableDirtyTracking = false,
 }: CreateOptions): StoreApi<TableConfigStore> {
-  // Closure-scoped controller — aborted by a subsequent save() call.
-  let saveAbort: AbortController | null = null;
-
-  // When saveConfig is omitted, every mutation is treated as immediately persisted
-  // so isDirty() stays false and no Save/Discard UI ever surfaces.
-  const promoteBaseline = !saveConfig;
+  // Without dirty tracking, every mutation is auto-promoted to baseline so
+  // isDirty() stays false and no Save/Discard UI ever surfaces.
+  const promoteBaseline = !enableDirtyTracking;
 
   return createStore<TableConfigStore>()((set, get) => {
-    const initial = reconcileConfig(defaults, defaults);
+    const initial = reconcileConfig(defaults, defaults).config;
 
     const writeConfig = (next: TableConfig) => {
       if (promoteBaseline) {
@@ -142,6 +155,7 @@ function createTableConfigStore({
       error: null,
       lockedColumns,
       disableHideColumn,
+      currentViewId: null,
 
       setColumnOrder: (order) => writeConfig({ ...get().config, columnOrder: order }),
       setColumnVisibility: (visibility) => writeConfig({ ...get().config, columnVisibility: visibility }),
@@ -205,39 +219,25 @@ function createTableConfigStore({
         set({ status: "loading", error: null });
         try {
           const loaded = await loadConfig();
-          const next = reconcileConfig(loaded, defaults);
+          const { config: next } = reconcileConfig(loaded, defaults);
           set({ config: next, baseline: next, status: "ready" });
         } catch (err) {
           set({ status: "error", error: err instanceof Error ? err : new Error(String(err)) });
         }
       },
 
-      save: async () => {
-        if (!saveConfig) return;
-
-        // Replace any in-flight save — the new snapshot supersedes it.
-        if (saveAbort) saveAbort.abort();
-        const controller = new AbortController();
-        saveAbort = controller;
-
-        const snapshot = get().config;
-        set({ status: "saving", error: null });
-        try {
-          await saveConfig(snapshot);
-          if (controller.signal.aborted) return;
-          // Don't promote `get().config` — user may have edited during the request.
-          set({ baseline: snapshot, status: "ready" });
-        } catch (err) {
-          if (controller.signal.aborted) return;
-          set({ status: "error", error: err instanceof Error ? err : new Error(String(err)) });
-        } finally {
-          if (saveAbort === controller) saveAbort = null;
-        }
-      },
-
       discard: () => set({ config: get().baseline, status: "ready", error: null }),
 
       isDirty: () => !isEqual(get().config, get().baseline),
+
+      selectView: (viewId, loaded) => {
+        const { config: next } = reconcileConfig(loaded, defaults);
+        set({ currentViewId: viewId, config: next, baseline: next, status: "ready", error: null });
+      },
+
+      markSavedAs: (viewId) => {
+        set({ currentViewId: viewId, baseline: get().config, status: "ready", error: null });
+      },
     };
   });
 }
@@ -252,7 +252,7 @@ export interface TableConfigProviderProps {
   lockedColumns?: string[];
   disableHideColumn?: boolean;
   loadConfig?: () => Promise<Partial<TableConfig>>;
-  saveConfig?: (config: TableConfig) => Promise<void>;
+  enableDirtyTracking?: boolean;
   fallback?: ReactNode;
 }
 
@@ -262,11 +262,11 @@ export function TableConfigProvider({
   lockedColumns = [],
   disableHideColumn = false,
   loadConfig,
-  saveConfig,
+  enableDirtyTracking,
   fallback,
 }: TableConfigProviderProps) {
   const [store] = useState(() =>
-    createTableConfigStore({ defaults, lockedColumns, disableHideColumn, loadConfig, saveConfig })
+    createTableConfigStore({ defaults, lockedColumns, disableHideColumn, loadConfig, enableDirtyTracking })
   );
   // Track whether the first load has completed so subsequent reloads keep
   // children mounted (only the very first load gates rendering).
@@ -306,34 +306,4 @@ export function useTableConfigStore(): TableConfigStoreApi {
 export function useColumnConfig(): TableConfig {
   const store = useTableConfigStore();
   return useStoreWithEqualityFn(store, (s) => s.config, shallow);
-}
-
-interface ConfigDirtyBarProps {
-  className?: string;
-}
-
-/** Save / Discard pair that surfaces when config diverges from baseline.
- * Not mounted by any caller in this PR — wire up once a saveConfig backend exists. */
-export function ConfigDirtyBar({ className }: ConfigDirtyBarProps) {
-  const store = useTableConfigStore();
-  const { status, dirty, save, discard } = useStoreWithEqualityFn(
-    store,
-    (s) => ({ status: s.status, dirty: s.isDirty(), save: s.save, discard: s.discard }),
-    shallow
-  );
-
-  if (!dirty) return null;
-  const isSaving = status === "saving";
-
-  return (
-    <div className={className} role="region" aria-label="Unsaved column changes">
-      <span className="text-xs text-secondary-foreground mr-2">Unsaved changes</span>
-      <Button size="sm" variant="ghost" disabled={isSaving} onClick={discard}>
-        Discard
-      </Button>
-      <Button size="sm" disabled={isSaving} onClick={save}>
-        {isSaving ? "Saving…" : "Save"}
-      </Button>
-    </div>
-  );
 }

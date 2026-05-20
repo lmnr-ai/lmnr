@@ -30,6 +30,7 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -39,11 +40,17 @@ import { type TraceRow } from "@/lib/traces/types";
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
+const RESOURCE_TYPE = "traces";
+
+const loadEmptyConfig = async () => ({});
+
 export default function TracesTable() {
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultTracesColumnOrder }}
       lockedColumns={["status", "preview"]}
+      loadConfig={loadEmptyConfig}
+      enableDirtyTracking
     >
       <TracesTableContent />
     </InfiniteDataTableProvider>
@@ -432,6 +439,7 @@ function TracesTableContent() {
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={allFilters} />
           <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
+          <ViewsToolbar projectId={String(projectId)} resourceType={RESOURCE_TYPE} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

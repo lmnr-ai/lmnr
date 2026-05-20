@@ -4,11 +4,7 @@ import { uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 
-import {
-  type TableConfig,
-  TableConfigProvider,
-  type TableConfigProviderProps,
-} from "./table-config-store.tsx";
+import { type TableConfig, TableConfigProvider, type TableConfigProviderProps } from "./table-config-store.tsx";
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
@@ -57,10 +53,9 @@ interface CreateTableStoreOptions {
   pageSize?: number;
 }
 
-function createTableStore<TData>({
-  uniqueKey = "id",
-  pageSize = 50,
-}: CreateTableStoreOptions = {}): StoreApi<TableStore<TData>> {
+function createTableStore<TData>({ uniqueKey = "id", pageSize = 50 }: CreateTableStoreOptions = {}): StoreApi<
+  TableStore<TData>
+> {
   return createStore<TableStore<TData>>()((set) => ({
     data: [],
     currentPage: 0,
@@ -169,7 +164,7 @@ export function InfiniteDataTableProvider({
   lockedColumns,
   disableHideColumn,
   loadConfig,
-  saveConfig,
+  enableDirtyTracking,
   fallback,
   uniqueKey,
   pageSize,
@@ -180,7 +175,7 @@ export function InfiniteDataTableProvider({
       lockedColumns={lockedColumns}
       disableHideColumn={disableHideColumn}
       loadConfig={loadConfig}
-      saveConfig={saveConfig}
+      enableDirtyTracking={enableDirtyTracking}
       fallback={fallback}
     >
       <TableProvider uniqueKey={uniqueKey} pageSize={pageSize}>
