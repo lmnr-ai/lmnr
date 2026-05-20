@@ -94,7 +94,7 @@ const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPar
   // fields instead of being unwrapped down to just `value`.
   const resolved =
     output && typeof output === "object" && "type" in output && "value" in output ? output.value : output;
-  const content = typeof resolved === "string" ? resolved : JSON.stringify(resolved ?? "", null, 2);
+  const content = typeof resolved === "string" ? resolved : JSON.stringify(resolved ?? null, null, 2);
   return (
     <ToolResultContentPart
       toolCallId={part.toolCallId}
