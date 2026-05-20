@@ -288,32 +288,33 @@ fn main() -> anyhow::Result<()> {
     // connection in. Callers (channel pool, get_receiver, is_healthy) read the
     // current connection through `ResilientConnection::current()` and never see
     // the swap.
-    let (publisher_connection, consumer_connection) =
-        if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
-            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            runtime_handle.block_on(async {
-                let publisher_conn = ResilientConnection::connect(rabbitmq_url.clone(), "publisher")
-                    .await
-                    .unwrap();
+    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ)
+        && is_feature_enabled(Feature::FullBuild)
+    {
+        let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+        runtime_handle.block_on(async {
+            let publisher_conn = ResilientConnection::connect(rabbitmq_url.clone(), "publisher")
+                .await
+                .unwrap();
 
-                // Only create consumer connection if consumer mode is enabled
-                let consumer_conn = if enable_consumer() {
-                    log::info!("Consumer mode enabled - creating consumer connection");
-                    Some(
-                        ResilientConnection::connect(rabbitmq_url.clone(), "consumer")
-                            .await
-                            .unwrap(),
-                    )
-                } else {
-                    log::info!("Producer-only mode - skipping consumer connection");
-                    None
-                };
+            // Only create consumer connection if consumer mode is enabled
+            let consumer_conn = if enable_consumer() {
+                log::info!("Consumer mode enabled - creating consumer connection");
+                Some(
+                    ResilientConnection::connect(rabbitmq_url.clone(), "consumer")
+                        .await
+                        .unwrap(),
+                )
+            } else {
+                log::info!("Producer-only mode - skipping consumer connection");
+                None
+            };
 
-                (Some(publisher_conn), consumer_conn)
-            })
-        } else {
-            (None, None)
-        };
+            (Some(publisher_conn), consumer_conn)
+        })
+    } else {
+        (None, None)
+    };
 
     let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
         runtime_handle.block_on(async {
@@ -330,7 +331,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1 Spans message queue ====
             channel
                 .exchange_declare(
-                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -343,7 +344,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    OBSERVATIONS_QUEUE,
+                    OBSERVATIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -356,7 +357,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1a Spans data plane message queue ====
             channel
                 .exchange_declare(
-                    SPANS_DATA_PLANE_EXCHANGE,
+                    SPANS_DATA_PLANE_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -369,7 +370,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SPANS_DATA_PLANE_QUEUE,
+                    SPANS_DATA_PLANE_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -382,7 +383,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1b Spans indexer message queue ====
             channel
                 .exchange_declare(
-                    SPANS_INDEXER_EXCHANGE,
+                    SPANS_INDEXER_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -395,7 +396,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SPANS_INDEXER_QUEUE,
+                    SPANS_INDEXER_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -408,7 +409,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.2 Browser events message queue ====
             channel
                 .exchange_declare(
-                    BROWSER_SESSIONS_EXCHANGE,
+                    BROWSER_SESSIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -421,7 +422,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    BROWSER_SESSIONS_QUEUE,
+                    BROWSER_SESSIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -436,7 +437,7 @@ fn main() -> anyhow::Result<()> {
             {
                 channel
                     .exchange_declare(
-                        SIGNALS_EXCHANGE,
+                        SIGNALS_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -449,7 +450,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNALS_QUEUE,
+                        SIGNALS_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -463,7 +464,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.6 Notifications message queue ====
             channel
                 .exchange_declare(
-                    NOTIFICATIONS_EXCHANGE,
+                    NOTIFICATIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -476,7 +477,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    NOTIFICATIONS_QUEUE,
+                    NOTIFICATIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -489,7 +490,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.6b Notification Deliveries message queue ====
             channel
                 .exchange_declare(
-                    NOTIFICATION_DELIVERIES_EXCHANGE,
+                    NOTIFICATION_DELIVERIES_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -502,7 +503,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    NOTIFICATION_DELIVERIES_QUEUE,
+                    NOTIFICATION_DELIVERIES_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -515,7 +516,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
-                    EVENT_CLUSTERING_EXCHANGE,
+                    EVENT_CLUSTERING_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -528,7 +529,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    EVENT_CLUSTERING_QUEUE,
+                    EVENT_CLUSTERING_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -541,7 +542,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.7b Event Clustering Batch message queue ====
             channel
                 .exchange_declare(
-                    EVENT_CLUSTERING_BATCH_EXCHANGE,
+                    EVENT_CLUSTERING_BATCH_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -554,7 +555,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    EVENT_CLUSTERING_BATCH_QUEUE,
+                    EVENT_CLUSTERING_BATCH_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -569,7 +570,7 @@ fn main() -> anyhow::Result<()> {
             {
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -582,7 +583,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -595,7 +596,7 @@ fn main() -> anyhow::Result<()> {
                 // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -608,7 +609,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                        SIGNAL_JOB_PENDING_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -621,7 +622,7 @@ fn main() -> anyhow::Result<()> {
                 // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -640,7 +641,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -653,9 +654,9 @@ fn main() -> anyhow::Result<()> {
                 // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
                 channel
                     .queue_bind(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
+                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY.into(),
                         lapin::options::QueueBindOptions::default(),
                         FieldTable::default(),
                     )
@@ -664,7 +665,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .exchange_declare(
-                        SIGNALS_REALTIME_EXCHANGE,
+                        SIGNALS_REALTIME_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -677,7 +678,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNALS_REALTIME_QUEUE,
+                        SIGNALS_REALTIME_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -691,7 +692,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.11 Logs message queue ====
             channel
                 .exchange_declare(
-                    LOGS_EXCHANGE,
+                    LOGS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -704,7 +705,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    LOGS_QUEUE,
+                    LOGS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -717,7 +718,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.12 Reports message queue ====
             channel
                 .exchange_declare(
-                    REPORT_TRIGGERS_EXCHANGE,
+                    REPORT_TRIGGERS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -730,7 +731,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    REPORT_TRIGGERS_QUEUE,
+                    REPORT_TRIGGERS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()

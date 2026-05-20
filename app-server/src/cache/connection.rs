@@ -161,16 +161,36 @@ impl ResilientRedisConnection {
     }
 }
 
+/// Initial-handshake bound. Caps app-server startup if Redis is slow at pod
+/// init — without this, a wedged `get_multiplexed_async_connection()` blocks
+/// process startup forever.
+const DIAL_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// PING bound. Both the supervisor's coalesce check and the periodic health
+/// loop use this to decide whether the connection is dead. Without it a silent
+/// socket wedges the supervisor before it ever reaches the redial branch.
+const PING_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Per-command bound applied to every operation through the returned
+/// `MultiplexedConnection`. Without it, any cache get/set against a half-dead
+/// socket hangs the request that triggered it. With it, the command errors
+/// out and the call site's existing `notify_error()` path takes over.
+const COMMAND_RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
+
 async fn dial(client: &redis::Client) -> anyhow::Result<MultiplexedConnection> {
-    client
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(anyhow::Error::from)
+    let mut conn =
+        match tokio::time::timeout(DIAL_TIMEOUT, client.get_multiplexed_async_connection()).await {
+            Ok(Ok(conn)) => conn,
+            Ok(Err(e)) => return Err(anyhow::Error::from(e)),
+            Err(_) => return Err(anyhow::anyhow!("Redis dial timed out")),
+        };
+    conn.set_response_timeout(COMMAND_RESPONSE_TIMEOUT);
+    Ok(conn)
 }
 
 async fn ping(conn: &mut MultiplexedConnection) -> bool {
-    redis::cmd("PING")
-        .query_async::<String>(conn)
-        .await
-        .is_ok()
+    matches!(
+        tokio::time::timeout(PING_TIMEOUT, redis::cmd("PING").query_async::<String>(conn),).await,
+        Ok(Ok(_))
+    )
 }
