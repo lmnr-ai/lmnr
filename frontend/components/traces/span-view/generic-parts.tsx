@@ -6,7 +6,6 @@ import {
   type ToolCallPart,
   type ToolResultPart,
 } from "ai";
-import { omit } from "lodash";
 import React, { memo } from "react";
 
 import {
@@ -81,21 +80,26 @@ const GenericToolCallContentPart = ({
   <ToolCallContentPart
     toolName={part.toolName}
     toolCallId={part.toolCallId}
-    content={omit(part, "type")}
+    content={part.input ?? {}}
     presetKey={presetKey}
     messageIndex={messageIndex}
     contentPartIndex={contentPartIndex}
   />
 );
 
-const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => (
-  <ToolResultContentPart
-    toolCallId={part.toolCallId}
-    toolName={part.toolName}
-    content={omit(part, "type")}
-    presetKey={presetKey}
-  />
-);
+const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => {
+  const output = part.output as { type?: string; value?: unknown } | undefined;
+  const resolved = output && typeof output === "object" && "value" in output ? output.value : output;
+  const content = typeof resolved === "string" ? resolved : JSON.stringify(resolved ?? "", null, 2);
+  return (
+    <ToolResultContentPart
+      toolCallId={part.toolCallId}
+      toolName={part.toolName}
+      content={content}
+      presetKey={presetKey}
+    />
+  );
+};
 
 const PureContentParts = ({
   message,

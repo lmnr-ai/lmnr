@@ -126,6 +126,19 @@ const processContentPart = (
       };
     }
 
+    case "tool-result": {
+      const toolCallId = part.toolCallId || message?.tool_call_id || "-";
+      const toolName = store.get(toolCallId) || part.toolName || "-";
+      const rawOutput = part.output;
+      const outputValue = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput);
+      return {
+        type: "tool-result" as const,
+        toolCallId,
+        toolName,
+        output: { type: "text", value: outputValue },
+      };
+    }
+
     default:
       if (role === "tool") {
         const toolCallId = part.toolCallId || message?.tool_call_id || "-";
