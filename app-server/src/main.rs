@@ -72,7 +72,9 @@ use traces::{
     data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
 };
 
-use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
+use cache::{
+    Cache, connection::ResilientRedisConnection, in_memory::InMemoryCache, redis::RedisCache,
+};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
@@ -217,11 +219,15 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Redis client (shared for cache and pub/sub) ===
+    // === 1. Redis client + resilient connection (shared by cache and pub/sub) ===
+    // The redis crate's MultiplexedConnection has no auto-reconnect, so we wrap
+    // it in ResilientRedisConnection which PINGs periodically, listens for
+    // op-level error notifications from callers, and atomically swaps in a
+    // fresh connection on failure with uncapped exponential backoff.
     let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
         log::info!("Initializing Redis client");
         match redis::Client::open(redis_url.as_str()) {
-            Ok(client) => Some(Arc::new(client)),
+            Ok(client) => Some(client),
             Err(e) => {
                 log::warn!("Failed to create Redis client: {:?}", e);
                 None
@@ -232,13 +238,25 @@ fn main() -> anyhow::Result<()> {
         None
     };
 
-    // === 2. Cache ===
-    let cache = if let Some(ref client) = redis_client {
-        log::info!("Using Redis cache");
+    let redis_connection = redis_client.as_ref().and_then(|client| {
         runtime_handle.block_on(async {
-            let redis_cache = RedisCache::new(client).await.unwrap();
-            Cache::Redis(redis_cache)
+            match ResilientRedisConnection::connect(client.clone(), "shared").await {
+                Ok(conn) => Some(conn),
+                Err(e) => {
+                    log::warn!(
+                        "Failed initial Redis connection, falling back to in-memory: {:?}",
+                        e
+                    );
+                    None
+                }
+            }
         })
+    });
+
+    // === 2. Cache ===
+    let cache = if let Some(ref conn) = redis_connection {
+        log::info!("Using Redis cache");
+        Cache::Redis(RedisCache::new(Arc::clone(conn)))
     } else {
         log::info!("Using in-memory cache");
         Cache::InMemory(InMemoryCache::new(None))
@@ -246,12 +264,15 @@ fn main() -> anyhow::Result<()> {
     let cache = Arc::new(cache);
 
     // === 3. Pub/Sub ===
-    let pubsub = if let Some(ref client) = redis_client {
-        log::info!("Using Redis pub/sub");
-        PubSub::Redis(runtime_handle.block_on(RedisPubSub::new(client)).unwrap())
-    } else {
-        log::info!("Using in-memory pub/sub");
-        PubSub::InMemory(InMemoryPubSub::new())
+    let pubsub = match (redis_client, redis_connection) {
+        (Some(client), Some(conn)) => {
+            log::info!("Using Redis pub/sub");
+            PubSub::Redis(RedisPubSub::new(client, conn))
+        }
+        _ => {
+            log::info!("Using in-memory pub/sub");
+            PubSub::InMemory(InMemoryPubSub::new())
+        }
     };
     let pubsub = Arc::new(pubsub);
 
@@ -1064,6 +1085,7 @@ fn main() -> anyhow::Result<()> {
         );
 
         let queue_for_health = mq_for_http.clone();
+        let cache_for_health = cache_for_http.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
@@ -1517,6 +1539,7 @@ fn main() -> anyhow::Result<()> {
                         App::new()
                             .wrap(NormalizePath::trim())
                             .app_data(web::Data::new(queue_for_health.clone()))
+                            .app_data(web::Data::from(cache_for_health.clone()))
                             .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)

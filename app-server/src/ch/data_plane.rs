@@ -47,7 +47,10 @@ impl DataPlaneClickhouse {
 
 #[async_trait]
 impl ClickhouseTrait for DataPlaneClickhouse {
-    #[instrument(skip(self, items, config))]
+    #[instrument(
+        skip(self, items, config),
+        fields(table = T::TABLE.as_str(), batch_size = items.len())
+    )]
     async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         items: &[T],
