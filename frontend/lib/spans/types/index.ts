@@ -5,6 +5,16 @@ import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 import { type ChatMessage, type ChatMessageContentPart, type ChatMessageImage } from "@/lib/types";
 
+// AI SDK v7 LanguageModelV2ToolResultOutput is one of these tagged variants.
+const AI_SDK_TOOL_RESULT_ENVELOPE_TYPES = ["text", "json", "error-text", "error-json", "content"] as const;
+
+export const isAISDKToolResultEnvelope = (value: unknown): value is { type: string; value: unknown } =>
+  !!value &&
+  typeof value === "object" &&
+  "type" in value &&
+  "value" in value &&
+  (AI_SDK_TOOL_RESULT_ENVELOPE_TYPES as readonly string[]).includes((value as { type: unknown }).type as string);
+
 /**
  * Downloads images of internal messages format
  */
@@ -132,12 +142,11 @@ const processContentPart = (
       const rawOutput = part.output;
       // Pass AI SDK v7 envelopes ({type: "text"|"json"|..., value}) through
       // verbatim; wrap bare values so the ToolResultPart shape stays consistent.
-      const output =
-        rawOutput && typeof rawOutput === "object" && "type" in rawOutput && "value" in rawOutput
-          ? rawOutput
-          : typeof rawOutput === "string"
-            ? { type: "text" as const, value: rawOutput }
-            : { type: "json" as const, value: rawOutput ?? null };
+      const output = isAISDKToolResultEnvelope(rawOutput)
+        ? rawOutput
+        : typeof rawOutput === "string"
+          ? { type: "text" as const, value: rawOutput }
+          : { type: "json" as const, value: rawOutput ?? null };
       return {
         type: "tool-result" as const,
         toolCallId,

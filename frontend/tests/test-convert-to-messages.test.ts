@@ -179,6 +179,37 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     assert.deepStrictEqual(toolResult.output, { type: "text", value: "raw" });
   });
 
+  it("does not unwrap non-AI-SDK objects that coincidentally have type+value keys", () => {
+    // A raw user payload like `{type: "user", value: 100, name: "Jane"}` shares
+    // shape with the envelope but uses an unrecognised `type`. It must NOT be
+    // unwrapped — siblings (`name`) would silently disappear. The processor
+    // wraps such objects as a `json` envelope so the renderer pretty-prints
+    // the whole thing.
+    const messages = [
+      {
+        role: "tool",
+        content: [
+          { type: "text", text: "" },
+          {
+            type: "tool-result",
+            toolCallId: "call_5",
+            toolName: "lookup",
+            output: { type: "user", value: 100, name: "Jane" },
+          },
+        ],
+      },
+    ] as any;
+
+    const result = convertToMessages(messages);
+    const parts = result[0].content as any[];
+    const toolResult = parts.find((p) => p.type === "tool-result");
+    assert.ok(toolResult);
+    assert.deepStrictEqual(toolResult.output, {
+      type: "json",
+      value: { type: "user", value: 100, name: "Jane" },
+    });
+  });
+
   it("falls back to a json-null envelope when part.output is undefined", () => {
     // `output` of `undefined` (missing key) is coerced to a `{type: "json", value: null}`
     // envelope so the renderer always receives a defined, serialisable value.

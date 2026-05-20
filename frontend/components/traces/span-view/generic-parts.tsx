@@ -8,6 +8,8 @@ import {
 } from "ai";
 import React, { memo } from "react";
 
+import { isAISDKToolResultEnvelope } from "@/lib/spans/types";
+
 import {
   FileContentPart,
   ImageContentPart,
@@ -88,12 +90,10 @@ const GenericToolCallContentPart = ({
 );
 
 const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => {
-  const output = part.output as { type?: string; value?: unknown } | undefined;
-  // Match `processContentPart`'s envelope detection — both `type` and `value`
-  // must be present, so a raw `{key, value}`-shaped output keeps its sibling
-  // fields instead of being unwrapped down to just `value`.
-  const resolved =
-    output && typeof output === "object" && "type" in output && "value" in output ? output.value : output;
+  // Only unwrap recognised AI SDK v7 envelopes (`{type: "text"|"json"|..., value}`).
+  // Raw outputs that coincidentally have `{type, value}` keys keep their sibling
+  // fields instead of being collapsed to `value`.
+  const resolved = isAISDKToolResultEnvelope(part.output) ? part.output.value : part.output;
   const content = typeof resolved === "string" ? resolved : JSON.stringify(resolved ?? null, null, 2);
   return (
     <ToolResultContentPart
