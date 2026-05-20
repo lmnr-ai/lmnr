@@ -130,7 +130,7 @@ const processContentPart = (
       const toolCallId = part.toolCallId || message?.tool_call_id || "-";
       const toolName = store.get(toolCallId) || part.toolName || "-";
       const rawOutput = part.output;
-      const outputValue = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput);
+      const outputValue = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput ?? null);
       return {
         type: "tool-result" as const,
         toolCallId,

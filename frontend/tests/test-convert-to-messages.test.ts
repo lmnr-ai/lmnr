@@ -126,4 +126,30 @@ describe("convertToMessages — AI SDK v7 tool-result parts", () => {
     assert.strictEqual(toolResult.toolName, "-");
     assert.deepStrictEqual(toolResult.output, { type: "text", value: "raw" });
   });
+
+  it("emits a string output.value when part.output is undefined", () => {
+    // `JSON.stringify(undefined)` returns `undefined` (not the string "undefined"),
+    // which would set `output.value` to `undefined` and propagate downstream.
+    // Guard with `?? null` so the value is always a serialisable string.
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "preamble" },
+          {
+            type: "tool-result",
+            toolCallId: "call_4",
+            toolName: "noop",
+          },
+        ],
+      },
+    ] as any;
+
+    const result = convertToMessages(messages);
+    const parts = result[0].content as any[];
+    const toolResult = parts.find((p) => p.type === "tool-result");
+    assert.ok(toolResult);
+    assert.strictEqual(typeof toolResult.output.value, "string");
+    assert.strictEqual(toolResult.output.value, "null");
+  });
 });
