@@ -81,7 +81,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
 /// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
 ///
 /// Returns the number of rejected spans (0 on success).
-#[instrument(skip(messages, queue, db, cache))]
+#[instrument(skip(messages, queue, db, cache), fields(batch_size = messages.len()))]
 pub async fn publish_span_messages(
     mut messages: Vec<RabbitMqSpanMessage>,
     project_id: Uuid,
