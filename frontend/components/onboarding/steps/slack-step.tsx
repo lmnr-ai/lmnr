@@ -57,22 +57,24 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Get pinged in Slack"
-      description="Real-time alerts when a Signal catches an issue or a new pattern emerges. Optional - connect now or wire it up later from workspace settings."
+      title="Get Slack alerts when your agent breaks"
+      description="Laminar can send Slack notifications (we send email alerts by default) when a critical Signal event is detected, and when new event clusters form. Connect now, or set it up later from workspace settings."
       nextLabel={slackConnected ? "Continue" : "Skip for now"}
       onNext={handleNext}
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
       <div className="flex items-start gap-3 rounded-lg border border-border bg-background px-4 py-3">
-        <Image src={slackLogo} alt="Slack" className="mt-0.5 shrink-0 h-7.5 w-7.5 2xl:h-8 2xl:w-8" unoptimized />
-        <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <span className="text-base font-medium text-secondary-foreground">Slack alerts</span>
+        <div className="my-auto">
+          <Image src={slackLogo} alt="Slack" className="mt-0.5 shrink-0 h-7.5 w-7.5 2xl:h-8 2xl:w-8" />
+        </div>
+        <div className="flex flex-col gap-0 flex-1 min-w-0">
+          <span className="text-base font-medium text-secondary-foreground">Slack</span>
           <span className="text-sm text-muted-foreground">
             {slackConnected
               ? "Connected. Pick channels later in workspace settings."
               : slackAvailable
-                ? "Real-time pings when a Signal catches an issue or a new pattern emerges. One click to authorize."
+                ? "Connect Slack to your workspace to recieve signal notifications."
                 : "Slack integration isn't configured in this environment."}
           </span>
         </div>
