@@ -378,12 +378,15 @@ const columnEnumMap: Map<string, Set<EnumType>> = (() => {
 const enumColumnNamesPattern = Array.from(columnEnumMap.keys())
   .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|");
+// Anchored to end-of-string so multi-condition queries
+// (`WHERE status = 'x' AND mode = '`) resolve to the column nearest the cursor,
+// not the first one in the text. Group 1 captures the column name and is
+// reused by both `isInEnumContext` and `getEnumColumn`.
 const enumContextRegex = new RegExp(`\\b(${enumColumnNamesPattern})\\s*=\\s*[^=\\n]*$`, "i");
-const enumColumnRegex = new RegExp(`\\b(${enumColumnNamesPattern})(?=\\s*=)`, "i");
 
 const isInEnumContext = (textBefore: string): boolean => enumContextRegex.test(textBefore);
 const getEnumColumn = (textBefore: string): string | null => {
-  const match = textBefore.match(enumColumnRegex);
+  const match = textBefore.match(enumContextRegex);
   return match ? match[1].toLowerCase() : null;
 };
 
