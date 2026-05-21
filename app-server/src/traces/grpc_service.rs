@@ -69,7 +69,7 @@ impl TraceService for ProcessTracesService {
                     // retry policies treat `resource_exhausted` as retriable
                     // only when the server attaches `RetryInfo`, so legitimate
                     // exporters would otherwise drop the batch on the floor.
-                    return Err(Status::cancelled("Rate limit exceeded"));
+                    return Err(Status::resource_exhausted("Rate limit exceeded"));
                 }
                 Err(e) => {
                     log::error!("Rate limiter error, allowing request: {:?}", e);
