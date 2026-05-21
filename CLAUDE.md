@@ -122,6 +122,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 Keep comments short. Don't write multi-paragraph rationale blocks — a single terse line covering the WHY (non-obvious constraint, invariant, workaround) is enough. ClickHouse migration files especially should not carry prose explaining why a statement exists; the SQL is the source of truth. Prefer removing a comment over rewriting it once the identifier names make the intent obvious.
 
+## SQL Editor Schema (autocomplete + AI generation)
+
+- `frontend/components/sql/utils.ts` (`tableSchemas`, `enumValues`) is the frontend source of truth for the SQL editor's autocomplete AND for the schema embedded in the AI-generation system prompt (`frontend/lib/actions/sql/prompts.ts` consumes both). Backend allowlist lives in `query-engine/src/query_validator.py` → `TableRegistry._setup_default_tables`; the two MUST stay in sync — adding a column to the v0 view + the registry without updating `tableSchemas` leaves it absent from autocomplete and invisible to the AI generator.
+- Columns whose runtime CH type is `String` but whose values are constrained (status, span_type, trace_type, signal_runs.status / .mode) carry an `enumType: keyof typeof enumValues` field. The prompt builder appends `Allowed values: '...'` to the column's description, and the editor's `<column> = ` autocomplete filters to those literals. Without `enumType`, the model invents values (the original LAM-1636 bug: AI generated `status = 'OK'` because nothing pinned the status column to `'success' | 'error'`).
+- `enumValues` is keyed by enum NAME, not column name. A single column can map to one enum (`spans.status` → `status`) or different enums in different tables (`signal_runs.status` → `signal_run_status`). The autocomplete `columnEnumMap` is built by walking `tableSchemas` once at module load, so column→enum wiring stays declarative — never add column names to a hardcoded regex; just set `enumType` on the schema entry.
+
 ## Labeling Queue Items (ClickHouse)
 
 - Queue metadata (`labeling_queues`) still lives in Postgres. Per-item rows (`labeling_queue_items`) live in ClickHouse as a `ReplacingMergeTree(updated_at)` keyed `(project_id, queue_id, id)` — see `frontend/lib/clickhouse/migrations/42_labeling_queue_items.sql`. The migration also creates `labeling_queue_items_v0`, the SQL view that ad-hoc queries hit (registered in `query-engine/src/query_validator.py`).
