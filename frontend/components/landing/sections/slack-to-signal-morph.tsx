@@ -14,12 +14,17 @@ interface Props {
   className?: string;
 }
 
-// Outer card colors at the two endpoints. Framer can interpolate between rgb
-// strings, so we keep them in this format rather than using CSS color-mix.
+// Outer card colors at the two endpoints. Framer interpolates rgb/hex
+// strings, but NOT CSS `var(...)` references — must use literal color
+// values here. FLAG: if you ever update --color-landing-surface-* tokens
+// in globals.css, sync these constants by hand (or this morph will drift
+// from the rest of the page).
 const SLACK_BORDER = "rgb(37 37 38)"; // landing-surface-500
-const SLACK_BG = "rgb(22 22 23)"; // landing-surface-600
+const SLACK_BG = "rgb(22 22 23)"; // landing-surface-700 (was mis-commented)
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
+// Midpoint background — exact hex of --color-landing-surface-600.
+const MIDPOINT_BG = "#1b1b1c";
 
 // Morphs from a Slack notification (progress=0) to a Signal event card
 // (progress=1). The content swaps at the midpoint; the wrapper's height is
@@ -48,11 +53,7 @@ const SlackToSignalMorph = ({ progress, className }: Props) => {
   // interpolation doesn't flash bright (e.g. opaque slack-gray → 60% blue
   // would peak at ~80% alpha mid-transition). The midpoint clamps alpha down.
   const borderColor = useTransform(progress, [0, 0.5, 1], [SLACK_BORDER, "rgb(49 134 255 / 0.25)", SIGNAL_BORDER]);
-  const backgroundColor = useTransform(
-    progress,
-    [0, 0.5, 1],
-    [SLACK_BG, "var(--color-landing-surface-600)", SIGNAL_BG]
-  );
+  const backgroundColor = useTransform(progress, [0, 0.5, 1], [SLACK_BG, MIDPOINT_BG, SIGNAL_BG]);
 
   return (
     <motion.div
