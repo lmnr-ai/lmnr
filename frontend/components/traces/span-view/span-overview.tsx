@@ -73,7 +73,11 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
     const outputTail = output == null ? [] : Array.isArray(output) ? output : [output];
     const labels: MessageLabel[] = [];
     if (inputArray.length > 0) {
-      labels.push({ beforeIndex: 0, text: "Input", subtext: "(last 2 messages)" });
+      labels.push({
+        beforeIndex: 0,
+        text: "Input",
+        subtext: inputArray.length === 1 ? "(last message)" : "(last 2 messages)",
+      });
     }
     if (outputTail.length > 0) {
       labels.push({ beforeIndex: inputArray.length, text: "Output" });
