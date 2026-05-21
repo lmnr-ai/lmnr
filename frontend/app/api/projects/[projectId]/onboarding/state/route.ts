@@ -60,7 +60,13 @@ export async function DELETE() {
   }
   await clearOnboardingState();
   if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
-    await sendWelcomeEmail(session.user.email);
+    // Cookie is already cleared; an email failure must NOT propagate to a 500
+    // or finishFreeTier / PaidFinalize would block navigation on `res.ok`.
+    try {
+      await sendWelcomeEmail(session.user.email);
+    } catch (e) {
+      console.error("Failed to send welcome email:", e);
+    }
   }
   return NextResponse.json({ success: true });
 }
