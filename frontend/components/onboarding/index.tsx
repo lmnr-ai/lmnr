@@ -167,12 +167,7 @@ function OssWorkspaceOnly() {
     <WorkspaceStep
       stepIndex={0}
       totalSteps={1}
-      onComplete={async ({ projectId }) => {
-        // OSS has no cookie to clear, but the DELETE handler is the unified
-        // last-step site that triggers the welcome email when SEND_EMAIL is on.
-        await fetch(`/api/projects/${projectId}/onboarding/state`, { method: "DELETE" }).catch(() => null);
-        router.replace(`/project/${projectId}/traces?onboarding=true`);
-      }}
+      onComplete={({ projectId }) => router.replace(`/project/${projectId}/traces?onboarding=true`)}
     />
   );
 }
