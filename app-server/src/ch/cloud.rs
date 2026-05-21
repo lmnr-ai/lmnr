@@ -24,7 +24,10 @@ impl CloudClickhouse {
 
 #[async_trait]
 impl ClickhouseTrait for CloudClickhouse {
-    #[instrument(skip(self, items, _config))]
+    #[instrument(
+        skip(self, items, _config),
+        fields(table = T::TABLE.as_str(), batch_size = items.len())
+    )]
     async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         items: &[T],

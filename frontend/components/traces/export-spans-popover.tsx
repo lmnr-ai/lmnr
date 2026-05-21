@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type Dataset } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Span } from "@/lib/traces/types";
 
 import DatasetSelect from "../ui/dataset-select";
@@ -44,6 +45,7 @@ export default function ExportSpansPopover({ children, span }: PropsWithChildren
           variant: "destructive",
         });
       } else {
+        track("datasets", "span_added", { source: "span_view" });
         toast({
           title: `Added span to dataset`,
           description: (

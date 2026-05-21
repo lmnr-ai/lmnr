@@ -2,7 +2,7 @@
 
 import { motion, type MotionValue, type Transition } from "framer-motion";
 import { ChevronDown, ChevronsRight, CirclePlay, Maximize, Radio, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionPlayer from "@/components/shared/traces/session-player";
@@ -14,7 +14,6 @@ import Transcript from "@/components/traces/trace-view/transcript";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
-import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import SlackToSignalMorph from "../slack-to-signal-morph";
@@ -190,8 +189,6 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     setBrowserSession(false);
   }, [setSignalsPanelOpen, setBrowserSession]);
 
-  const llmSpanIds = useMemo(() => spans.filter((s) => s.spanType === SpanType.LLM).map((s) => s.spanId), [spans]);
-
   // Spans only become clickable at phase ≥ 4 (ask-ai open or beyond); stored
   // in a ref so the callback identity doesn't change across phase
   // transitions. Scrolling back below phase 4 clears the selection so the
@@ -324,7 +321,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             className="w-full flex items-center justify-between gap-2 px-2 border-b "
           >
             <div className="flex items-center gap-2 min-w-0">
-              <ViewDropdown isDisableHint />
+              <ViewDropdown />
               {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
             </div>
             <Button
@@ -355,14 +352,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           className="overflow-hidden shrink-0"
         >
           <div style={{ height: RECORDING_HEIGHT }} className="w-full border-t">
-            {browserSession && trace && (
-              <SessionPlayer
-                onClose={noop}
-                hasBrowserSession={!!trace.hasBrowserSession}
-                traceId={trace.id}
-                llmSpanIds={llmSpanIds}
-              />
-            )}
+            {browserSession && trace && <SessionPlayer onClose={noop} traceId={trace.id} />}
           </div>
         </motion.div>
       </div>

@@ -1,25 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use actix_web::{HttpResponse, post, web};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    db::{self, DB, labeling_queues::NewLabelingQueueItem, project_api_keys::ProjectApiKey},
+    ch::labeling_queue_items::{CHLabelingQueueItem, insert_labeling_queue_items},
+    db::{self, DB, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
 };
 
-/// Request structure for a single labeling queue item.
-/// For API ingestion, items are created manually without a source reference.
+/// `edit` is deliberately absent — the handler seeds it from `target` on insert.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LabelingQueueItemRequest {
     pub data: serde_json::Value,
     pub target: serde_json::Value,
-    /// Optional metadata for the payload (not the queue item metadata).
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,
-    /// Optional idempotency key to prevent duplicate items in the queue.
     pub idempotency_key: Option<String>,
 }
 
@@ -42,14 +40,15 @@ pub async fn create_labeling_queues_items(
     path: web::Path<Uuid>,
     body: web::Json<CreateLabelingQueueItemsRequest>,
     db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let queue_id = path.into_inner();
     let request = body.into_inner();
     let db = db.into_inner();
+    let clickhouse = clickhouse.as_ref().clone();
     let project_id = project_api_key.project_id;
 
-    // Verify queue exists and belongs to the project
     if !db::labeling_queues::queue_exists(&db.pool, queue_id, project_id).await? {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({
             "error": "Queue not found"
@@ -62,33 +61,56 @@ pub async fn create_labeling_queues_items(
         })));
     }
 
-    // Convert request items to LabelingQueueItemData for DB insertion
-    // Queue item metadata is empty for API-ingested items (no source)
-    let items: Vec<NewLabelingQueueItem> = request
-        .items
-        .into_iter()
-        .map(|item| NewLabelingQueueItem {
-            id: Uuid::now_v7(),
-            metadata: serde_json::json!({}),
-            payload: serde_json::json!({
-                "data": item.data,
-                "target": item.target,
-                "metadata": item.metadata,
-            }),
-            idempotency_key: item.idempotency_key,
-        })
-        .collect();
+    let now_dt = chrono::Utc::now();
+    let now_ms = now_dt.timestamp_millis() as u64;
 
-    let created_items =
-        db::labeling_queues::insert_labeling_queue_items(&db.pool, queue_id, items).await?;
+    let mut ch_items: Vec<CHLabelingQueueItem> = Vec::with_capacity(request.items.len());
+    let mut response: Vec<LabelingQueueItemResponse> = Vec::with_capacity(request.items.len());
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
-    let response: Vec<LabelingQueueItemResponse> = created_items
-        .into_iter()
-        .map(|item| LabelingQueueItemResponse {
-            id: item.id,
-            created_at: item.created_at,
+    for item in request.items {
+        let idempotency_key = item.idempotency_key.unwrap_or_default();
+
+        // UUIDv5 over (queue_id, idempotency_key) so same-key retries collapse on RMT FINAL.
+        // In-batch dedupe avoids emitting the same id twice in one response; cross-batch
+        // retries collapse naturally via the deterministic id + ReplacingMergeTree.
+        let id = if idempotency_key.is_empty() {
+            Uuid::now_v7()
+        } else {
+            if !seen_keys.insert(idempotency_key.clone()) {
+                continue;
+            }
+            Uuid::new_v5(&queue_id, idempotency_key.as_bytes())
+        };
+
+        let payload = serde_json::json!({
+            "data": item.data,
+            "target": item.target,
+            "metadata": item.metadata,
         })
-        .collect();
+        .to_string();
+        let edit = serde_json::to_string(&item.target).unwrap_or_else(|_| "null".to_string());
+
+        ch_items.push(CHLabelingQueueItem {
+            id,
+            queue_id,
+            project_id,
+            payload,
+            edit,
+            metadata: "{}".to_string(),
+            status: 0,
+            idempotency_key,
+            created_at: now_ms,
+            updated_at: now_ms,
+        });
+
+        response.push(LabelingQueueItemResponse {
+            id,
+            created_at: now_dt,
+        });
+    }
+
+    insert_labeling_queue_items(clickhouse, ch_items).await?;
 
     Ok(HttpResponse::Created().json(response))
 }

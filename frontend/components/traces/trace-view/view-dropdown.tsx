@@ -1,7 +1,6 @@
 import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import TranscriptHintPopover from "@/components/traces/trace-view/transcript-hint-popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +31,7 @@ const viewOptions: Record<
 
 const viewTabs: ViewTab[] = ["tree", "transcript"];
 
-export default function ViewDropdown({ isDisableHint = false }: { isDisableHint?: boolean } = {}) {
+export default function ViewDropdown() {
   const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -55,30 +54,21 @@ export default function ViewDropdown({ isDisableHint = false }: { isDisableHint?
     setTab(next);
   };
 
-  const renderTrigger = (hintOpen: boolean) => (
-    <DropdownMenuTrigger asChild>
-      <button
-        className={cn(
-          "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
-          isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary",
-          hintOpen && "border-primary ring-1 ring-primary/40"
-        )}
-      >
-        <CurrentIcon size={14} className="mr-1" />
-        <span className="capitalize">{currentView.label}</span>
-        <ChevronDown size={14} className="ml-1" />
-      </button>
-    </DropdownMenuTrigger>
-  );
-
   return (
     <div className="flex items-center min-w-0">
       <DropdownMenu>
-        {isDisableHint ? (
-          renderTrigger(false)
-        ) : (
-          <TranscriptHintPopover>{({ open: hintOpen }) => renderTrigger(hintOpen)}</TranscriptHintPopover>
-        )}
+        <DropdownMenuTrigger asChild>
+          <button
+            className={cn(
+              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
+              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
+            )}
+          >
+            <CurrentIcon size={14} className="mr-1" />
+            <span className="capitalize">{currentView.label}</span>
+            <ChevronDown size={14} className="ml-1" />
+          </button>
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           {viewTabs.map((option) => {
             const view = viewOptions[option];

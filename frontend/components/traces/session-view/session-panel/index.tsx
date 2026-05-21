@@ -58,7 +58,7 @@ export default function SessionPanel() {
   const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
+    <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {/* Header */}
       <div className="flex flex-col gap-1.5 px-2 py-2 shrink-0">
         <div className="flex h-7 items-center justify-start gap-2">

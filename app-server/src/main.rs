@@ -26,7 +26,7 @@ use clustering::queue::{
 };
 use features::{Feature, is_feature_enabled};
 use lapin::{
-    Connection, ConnectionProperties, ExchangeKind,
+    ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
 };
@@ -34,7 +34,7 @@ use logs::{
     LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
     grpc_service::ProcessLogsService,
 };
-use mq::MessageQueue;
+use mq::{MessageQueue, connection::ResilientConnection};
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
@@ -72,7 +72,9 @@ use traces::{
     data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
 };
 
-use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
+use cache::{
+    Cache, connection::ResilientRedisConnection, in_memory::InMemoryCache, redis::RedisCache,
+};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
@@ -217,11 +219,15 @@ fn main() -> anyhow::Result<()> {
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
     // == Stuff that is needed both for HTTP and gRPC servers ==
-    // === 1. Redis client (shared for cache and pub/sub) ===
+    // === 1. Redis client + resilient connection (shared by cache and pub/sub) ===
+    // The redis crate's MultiplexedConnection has no auto-reconnect, so we wrap
+    // it in ResilientRedisConnection which PINGs periodically, listens for
+    // op-level error notifications from callers, and atomically swaps in a
+    // fresh connection on failure with uncapped exponential backoff.
     let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
         log::info!("Initializing Redis client");
         match redis::Client::open(redis_url.as_str()) {
-            Ok(client) => Some(Arc::new(client)),
+            Ok(client) => Some(client),
             Err(e) => {
                 log::warn!("Failed to create Redis client: {:?}", e);
                 None
@@ -232,13 +238,25 @@ fn main() -> anyhow::Result<()> {
         None
     };
 
-    // === 2. Cache ===
-    let cache = if let Some(ref client) = redis_client {
-        log::info!("Using Redis cache");
+    let redis_connection = redis_client.as_ref().and_then(|client| {
         runtime_handle.block_on(async {
-            let redis_cache = RedisCache::new(client).await.unwrap();
-            Cache::Redis(redis_cache)
+            match ResilientRedisConnection::connect(client.clone(), "shared").await {
+                Ok(conn) => Some(conn),
+                Err(e) => {
+                    log::warn!(
+                        "Failed initial Redis connection, falling back to in-memory: {:?}",
+                        e
+                    );
+                    None
+                }
+            }
         })
+    });
+
+    // === 2. Cache ===
+    let cache = if let Some(ref conn) = redis_connection {
+        log::info!("Using Redis cache");
+        Cache::Redis(RedisCache::new(Arc::clone(conn)))
     } else {
         log::info!("Using in-memory cache");
         Cache::InMemory(InMemoryCache::new(None))
@@ -246,12 +264,15 @@ fn main() -> anyhow::Result<()> {
     let cache = Arc::new(cache);
 
     // === 3. Pub/Sub ===
-    let pubsub = if let Some(ref client) = redis_client {
-        log::info!("Using Redis pub/sub");
-        PubSub::Redis(runtime_handle.block_on(RedisPubSub::new(client)).unwrap())
-    } else {
-        log::info!("Using in-memory pub/sub");
-        PubSub::InMemory(InMemoryPubSub::new())
+    let pubsub = match (redis_client, redis_connection) {
+        (Some(client), Some(conn)) => {
+            log::info!("Using Redis pub/sub");
+            PubSub::Redis(RedisPubSub::new(client, conn))
+        }
+        _ => {
+            log::info!("Using in-memory pub/sub");
+            PubSub::InMemory(InMemoryPubSub::new())
+        }
     };
     let pubsub = Arc::new(pubsub);
 
@@ -260,41 +281,44 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(inner_db);
 
     // === 3. Message queues ===
-    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set
-    // Create publisher connection always (needed for both modes)
-    // Create consumer connection only if consumer mode is enabled
-    let (publisher_connection, consumer_connection) =
-        if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
-            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            runtime_handle.block_on(async {
-                let publisher_conn = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set.
+    // Connections are wrapped in ResilientConnection: lapin's Connection has no
+    // auto-reconnect, so we register an on_error handler and a supervisor task
+    // that redials with exponential backoff and atomically swaps the live
+    // connection in. Callers (channel pool, get_receiver, is_healthy) read the
+    // current connection through `ResilientConnection::current()` and never see
+    // the swap.
+    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ)
+        && is_feature_enabled(Feature::FullBuild)
+    {
+        let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+        runtime_handle.block_on(async {
+            let publisher_conn = ResilientConnection::connect(rabbitmq_url.clone(), "publisher")
+                .await
+                .unwrap();
+
+            // Only create consumer connection if consumer mode is enabled
+            let consumer_conn = if enable_consumer() {
+                log::info!("Consumer mode enabled - creating consumer connection");
+                Some(
+                    ResilientConnection::connect(rabbitmq_url.clone(), "consumer")
                         .await
                         .unwrap(),
-                );
+                )
+            } else {
+                log::info!("Producer-only mode - skipping consumer connection");
+                None
+            };
 
-                // Only create consumer connection if consumer mode is enabled
-                let consumer_conn = if enable_consumer() {
-                    log::info!("Consumer mode enabled - creating consumer connection");
-                    Some(Arc::new(
-                        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                            .await
-                            .unwrap(),
-                    ))
-                } else {
-                    log::info!("Producer-only mode - skipping consumer connection");
-                    None
-                };
-
-                (Some(publisher_conn), consumer_conn)
-            })
-        } else {
-            (None, None)
-        };
+            (Some(publisher_conn), consumer_conn)
+        })
+    } else {
+        (None, None)
+    };
 
     let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
         runtime_handle.block_on(async {
-            let channel = publisher_conn.create_channel().await.unwrap();
+            let channel = publisher_conn.current().create_channel().await.unwrap();
 
             // Create quorum queue arguments (reused for all queues)
             let mut quorum_queue_args = FieldTable::default();
@@ -307,7 +331,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1 Spans message queue ====
             channel
                 .exchange_declare(
-                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -320,7 +344,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    OBSERVATIONS_QUEUE,
+                    OBSERVATIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -333,7 +357,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1a Spans data plane message queue ====
             channel
                 .exchange_declare(
-                    SPANS_DATA_PLANE_EXCHANGE,
+                    SPANS_DATA_PLANE_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -346,7 +370,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SPANS_DATA_PLANE_QUEUE,
+                    SPANS_DATA_PLANE_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -359,7 +383,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.1b Spans indexer message queue ====
             channel
                 .exchange_declare(
-                    SPANS_INDEXER_EXCHANGE,
+                    SPANS_INDEXER_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -372,7 +396,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    SPANS_INDEXER_QUEUE,
+                    SPANS_INDEXER_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -385,7 +409,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.2 Browser events message queue ====
             channel
                 .exchange_declare(
-                    BROWSER_SESSIONS_EXCHANGE,
+                    BROWSER_SESSIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -398,7 +422,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    BROWSER_SESSIONS_QUEUE,
+                    BROWSER_SESSIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -413,7 +437,7 @@ fn main() -> anyhow::Result<()> {
             {
                 channel
                     .exchange_declare(
-                        SIGNALS_EXCHANGE,
+                        SIGNALS_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -426,7 +450,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNALS_QUEUE,
+                        SIGNALS_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -440,7 +464,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.6 Notifications message queue ====
             channel
                 .exchange_declare(
-                    NOTIFICATIONS_EXCHANGE,
+                    NOTIFICATIONS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -453,7 +477,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    NOTIFICATIONS_QUEUE,
+                    NOTIFICATIONS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -466,7 +490,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.6b Notification Deliveries message queue ====
             channel
                 .exchange_declare(
-                    NOTIFICATION_DELIVERIES_EXCHANGE,
+                    NOTIFICATION_DELIVERIES_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -479,7 +503,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    NOTIFICATION_DELIVERIES_QUEUE,
+                    NOTIFICATION_DELIVERIES_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -492,7 +516,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
-                    EVENT_CLUSTERING_EXCHANGE,
+                    EVENT_CLUSTERING_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -505,7 +529,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    EVENT_CLUSTERING_QUEUE,
+                    EVENT_CLUSTERING_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -518,7 +542,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.7b Event Clustering Batch message queue ====
             channel
                 .exchange_declare(
-                    EVENT_CLUSTERING_BATCH_EXCHANGE,
+                    EVENT_CLUSTERING_BATCH_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -531,7 +555,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    EVENT_CLUSTERING_BATCH_QUEUE,
+                    EVENT_CLUSTERING_BATCH_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -546,7 +570,7 @@ fn main() -> anyhow::Result<()> {
             {
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                        SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -559,7 +583,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                        SIGNAL_JOB_SUBMISSION_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -572,7 +596,7 @@ fn main() -> anyhow::Result<()> {
                 // ==== 3.9 Trace Analysis LLM Batch Pending message queue ====
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                        SIGNAL_JOB_PENDING_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -585,7 +609,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                        SIGNAL_JOB_PENDING_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -598,7 +622,7 @@ fn main() -> anyhow::Result<()> {
                 // ==== 3.10 Trace Analysis LLM Batch Waiting message queue ====
                 channel
                     .exchange_declare(
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -617,7 +641,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -630,9 +654,9 @@ fn main() -> anyhow::Result<()> {
                 // Bind waiting queue to its exchange (no consumer, messages expire via TTL to DLX)
                 channel
                     .queue_bind(
-                        SIGNAL_JOB_WAITING_BATCH_QUEUE,
-                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
-                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY,
+                        SIGNAL_JOB_WAITING_BATCH_QUEUE.into(),
+                        SIGNAL_JOB_WAITING_BATCH_EXCHANGE.into(),
+                        SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY.into(),
                         lapin::options::QueueBindOptions::default(),
                         FieldTable::default(),
                     )
@@ -641,7 +665,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .exchange_declare(
-                        SIGNALS_REALTIME_EXCHANGE,
+                        SIGNALS_REALTIME_EXCHANGE.into(),
                         ExchangeKind::Fanout,
                         ExchangeDeclareOptions {
                             durable: true,
@@ -654,7 +678,7 @@ fn main() -> anyhow::Result<()> {
 
                 channel
                     .queue_declare(
-                        SIGNALS_REALTIME_QUEUE,
+                        SIGNALS_REALTIME_QUEUE.into(),
                         QueueDeclareOptions {
                             durable: true,
                             ..Default::default()
@@ -668,7 +692,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.11 Logs message queue ====
             channel
                 .exchange_declare(
-                    LOGS_EXCHANGE,
+                    LOGS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -681,7 +705,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    LOGS_QUEUE,
+                    LOGS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -694,7 +718,7 @@ fn main() -> anyhow::Result<()> {
             // ==== 3.12 Reports message queue ====
             channel
                 .exchange_declare(
-                    REPORT_TRIGGERS_EXCHANGE,
+                    REPORT_TRIGGERS_EXCHANGE.into(),
                     ExchangeKind::Fanout,
                     ExchangeDeclareOptions {
                         durable: true,
@@ -707,7 +731,7 @@ fn main() -> anyhow::Result<()> {
 
             channel
                 .queue_declare(
-                    REPORT_TRIGGERS_QUEUE,
+                    REPORT_TRIGGERS_QUEUE.into(),
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -938,6 +962,25 @@ fn main() -> anyhow::Result<()> {
         ));
     }
 
+    // == LLM Client ==
+    let llm_provider_client: Option<Arc<llm::LlmClient>> = if is_feature_enabled(Feature::Signals) {
+        log::info!("Initializing LLM client");
+        match runtime_handle.block_on(llm::LlmClient::new()) {
+            Ok(client) => Some(Arc::new(client)),
+            Err(e) => {
+                log::warn!(
+                    "Failed to create LLM client (signals will be disabled): {:?}",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        log::info!("Signals feature disabled - skipping LLM client initialization");
+        None
+    };
+    let llm_provider_client_for_http = llm_provider_client.clone();
+
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
 
@@ -960,25 +1003,6 @@ fn main() -> anyhow::Result<()> {
 
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
-
-        // == LLM Client ==
-        let llm_provider_client: Option<Arc<llm::LlmClient>> =
-            if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM client");
-                match runtime_handle.block_on(llm::LlmClient::new()) {
-                    Ok(client) => Some(Arc::new(client)),
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to create LLM client (signals will be disabled): {:?}",
-                            e
-                        );
-                        None
-                    }
-                }
-            } else {
-                log::info!("Signals feature disabled - skipping LLM client initialization");
-                None
-            };
 
         let num_spans_workers = env::var("NUM_SPANS_WORKERS")
             .unwrap_or(String::from("4"))
@@ -1062,6 +1086,7 @@ fn main() -> anyhow::Result<()> {
         );
 
         let queue_for_health = mq_for_http.clone();
+        let cache_for_health = cache_for_http.clone();
         let runtime_handle_for_consumer = runtime_handle_for_http.clone();
         let db_for_consumer = db_for_http.clone();
         let cache_for_consumer = cache_for_http.clone();
@@ -1515,6 +1540,7 @@ fn main() -> anyhow::Result<()> {
                         App::new()
                             .wrap(NormalizePath::trim())
                             .app_data(web::Data::new(queue_for_health.clone()))
+                            .app_data(web::Data::from(cache_for_health.clone()))
                             .app_data(web::Data::new(worker_pool_clone.clone()))
                             .app_data(web::Data::new(sse_connections.clone()))
                             .service(routes::probes::check_ready)
@@ -1617,7 +1643,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()));
+                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(llm_provider_client_for_http.clone()));
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(web::Data::new(limiter.clone()));
@@ -1712,7 +1739,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::get_skeleton_hashes);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
-                                    .service(crate::signals::private::routes::submit_signal_job);
+                                    .service(crate::signals::private::routes::submit_signal_job)
+                                    .service(crate::signals::private::routes::test_signal);
                                 scope
                             })
                             .service(routes::probes::check_health)

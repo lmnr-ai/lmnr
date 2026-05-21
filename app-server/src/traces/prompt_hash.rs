@@ -9,8 +9,7 @@ use serde_json::Value;
 use sha3::{Digest, Sha3_256};
 use std::sync::LazyLock;
 
-static XML_TAG_NAME_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+static XML_TAG_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
 
 // Matches the Claude Code billing header, e.g.
 // `x-anthropic-billing-header: cc_version=2.1.104.8ec; cc_entrypoint=sdk-ts; cch=00000;`
@@ -366,10 +365,7 @@ Do not fabricate data.
     fn test_structural_skeleton_hash_stable_across_cc_versions() {
         let v1 = "x-anthropic-billing-header: cc_version=2.1.112.186; cc_entrypoint=sdk-ts; You are Claude Code.";
         let v2 = "x-anthropic-billing-header: cc_version=2.2.0.1; cc_entrypoint=cli; You are Claude Code.";
-        assert_eq!(
-            structural_skeleton_hash(v1),
-            structural_skeleton_hash(v2)
-        );
+        assert_eq!(structural_skeleton_hash(v1), structural_skeleton_hash(v2));
     }
 
     #[test]

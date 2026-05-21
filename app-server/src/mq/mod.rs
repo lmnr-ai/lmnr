@@ -1,8 +1,9 @@
 use enum_dispatch::enum_dispatch;
 use lapin::{
-    acker::Acker,
+    Acker,
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
 };
+pub mod connection;
 pub mod rabbit;
 pub mod tokio_mpsc;
 pub mod utils;

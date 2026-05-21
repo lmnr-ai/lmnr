@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
+import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
@@ -74,6 +75,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   return (
     <WorkspaceMenuProvider>
+      <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
           <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />

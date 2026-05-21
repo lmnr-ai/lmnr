@@ -11,14 +11,23 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { defaultTracesColumnOrder, filters, PREVIEW_COLUMN } from "@/components/traces/traces-table/columns";
+import {
+  defaultTracesColumnOrder,
+  filters as staticFilters,
+  PREVIEW_COLUMN,
+} from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
-import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
+import {
+  buildColumnDefs,
+  buildFetchParams,
+  toColumnsPayload,
+} from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
@@ -30,14 +39,10 @@ const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
-  const customColumns = useTracesTableStore((s) => s.customColumns);
-  const defaultColumnOrder = useMemo(
-    () => [...defaultTracesColumnOrder, ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [customColumns]
-  );
+  const { projectId } = useParams();
 
   return (
-    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultColumnOrder}>
+    <DataTableStateProvider storageKey={`traces-table-${projectId}`} defaultColumnOrder={defaultTracesColumnOrder}>
       <TracesTableContent />
     </DataTableStateProvider>
   );
@@ -84,17 +89,30 @@ function TracesTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  // Initialize column defs (rebuild when store hydrates custom columns)
-  const rebuildColumns = useTracesTableStore((s) => s.rebuildColumns);
-  const columnDefs = useTracesTableStore((s) => s.columnDefs);
-  const removeCustomColumn = useTracesTableStore((s) => s.removeCustomColumn);
-  const buildFetchParams = useTracesTableStore((s) => s.buildFetchParams);
+  const datatableStore = useDataTableStore();
+  const { customColumns, removeCustomColumn, columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
+    customColumns: s.customColumns,
+    removeCustomColumn: s.removeCustomColumn,
+    columnOrder: s.columnOrder,
+    setColumnOrder: s.setColumnOrder,
+  }));
 
-  const customColumns = useTracesTableStore((s) => s.customColumns);
+  const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
 
-  useEffect(() => {
-    rebuildColumns();
-  }, [customColumns, rebuildColumns]);
+  // Merge static filter definitions with custom column filters
+  const allFilters = useMemo<ColumnFilter[]>(() => {
+    const customColumnFilters: ColumnFilter[] = customColumns.map((cc) => ({
+      name: cc.name,
+      key: `custom:${cc.name}`,
+      dataType: cc.dataType === "number" ? ("number" as const) : ("string" as const),
+    }));
+    return [...staticFilters, ...customColumnFilters];
+  }, [customColumns]);
+
+  const advancedSearchKey = useMemo(
+    () => customColumns.map((cc) => `${cc.name}:${cc.dataType}`).join("|"),
+    [customColumns]
+  );
 
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
@@ -110,13 +128,6 @@ function TracesTableContent() {
     cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
     return cols;
   }, [columnDefs, isSearchActive]);
-
-  // Sync datatable columnOrder with traces store columnDefs
-  const datatableStore = useDataTableStore();
-  const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
 
   useEffect(() => {
     if (effectiveColumns.length === 0) return;
@@ -152,6 +163,13 @@ function TracesTableContent() {
     };
   }, [setChartContainerWidth]);
 
+  // Build custom columns JSON for the stats endpoint so custom column filters
+  // can be resolved server-side.
+  const customColumnsJson = useMemo(() => {
+    const customCols = toColumnsPayload(columnDefs.filter((c) => c.meta?.isCustom));
+    return customCols.length > 0 ? JSON.stringify(customCols) : undefined;
+  }, [columnDefs]);
+
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${projectId}/traces/stats`,
     chartContainerWidth,
@@ -162,6 +180,7 @@ function TracesTableContent() {
     additionalParams: {
       ...(textSearchFilter && { search: textSearchFilter }),
       ...(searchIn.length > 0 && { searchIn }),
+      ...(customColumnsJson && { customColumns: customColumnsJson }),
     },
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
@@ -169,13 +188,16 @@ function TracesTableContent() {
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
       try {
-        const urlParams = buildFetchParams({
-          pageNumber,
-          pageSize: FETCH_SIZE,
-          filter,
-          sortBy: sortBy ?? null,
-          sortDirection: sortDirection?.toUpperCase() as string | null,
-        });
+        const urlParams = buildFetchParams(
+          {
+            pageNumber,
+            pageSize: FETCH_SIZE,
+            filter,
+            sortBy: sortBy ?? null,
+            sortDirection: sortDirection?.toUpperCase() as string | null,
+          },
+          columnDefs
+        );
 
         if (pastHours != null) urlParams.set("pastHours", pastHours);
         if (startDate != null) urlParams.set("startDate", startDate);
@@ -226,7 +248,7 @@ function TracesTableContent() {
       }
     },
     [
-      buildFetchParams,
+      columnDefs,
       endDate,
       filter,
       pastHours,
@@ -422,8 +444,12 @@ function TracesTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
-          <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
+          <DataTableFilter columns={allFilters} />
+          <TracesColumnsMenu
+            lockedColumns={["status", "preview"]}
+            columnLabels={columnLabels}
+            columnDefs={columnDefs}
+          />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
@@ -433,8 +459,9 @@ function TracesTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
-            storageKey="traces"
-            filters={filters}
+            key={advancedSearchKey}
+            filters={allFilters}
+            storageKey={`traces-${projectId}`}
             resource="traces"
             placeholder="Search by root span name, tokens, tags, full text and more..."
             className="w-full flex-1"
