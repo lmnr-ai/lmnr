@@ -93,7 +93,7 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
     name: "Ask AI",
     body: "Long complex run? Dig deep into your trace with AI.",
     gapHeight: 800,
-    paddingTopVh: 21,
+    paddingTopVh: 16,
     learnMoreHref: "https://laminar.sh/docs/signals",
   },
 };
