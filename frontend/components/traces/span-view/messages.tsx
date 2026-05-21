@@ -465,7 +465,8 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     <>
       <div className="size-full relative">
         <div
-          className="absolute top-0 left-0 right-0 z-20 bg-background transition-opacity duration-150"
+          // adjust for scrollbar on the right
+          className="absolute top-0 left-0 right-[15px] z-20 bg-background transition-opacity duration-150"
           ref={overlayRef}
           style={{ opacity: 0, pointerEvents: "none" }}
         >
