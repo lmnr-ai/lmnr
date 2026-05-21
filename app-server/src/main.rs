@@ -34,7 +34,7 @@ use logs::{
     LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
     grpc_service::ProcessLogsService,
 };
-use mq::{MessageQueue, connection::ResilientConnection};
+use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
