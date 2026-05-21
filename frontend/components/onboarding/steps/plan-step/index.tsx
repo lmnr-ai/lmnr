@@ -25,7 +25,7 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
   const { resources } = useOnboardingContext();
   const flags = useFeatureFlags();
-  const { isSubmitting, finishFreeTier, beginSubmitting } = useOnboardingActions();
+  const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
@@ -57,7 +57,7 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   };
 
   const finishAndGoToProject = async () => {
-    if (!(await finishFreeTier())) return;
+    if (!(await finishOnboarding())) return;
     beginSubmitting();
     router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
   };

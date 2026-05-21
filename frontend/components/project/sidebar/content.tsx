@@ -8,7 +8,6 @@ import React, { useMemo } from "react";
 import { getSidebarMenus } from "@/components/project/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Progress } from "@/components/ui/progress.tsx";
-import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import {
   SidebarContent,
   SidebarGroup,
@@ -106,36 +105,34 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
 
   return (
     <SidebarContent>
-      <ScrollArea>
-        <SidebarGroup>
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {options.map((option) => (
+              <SidebarMenuItem className="h-7" key={option.name}>
+                <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
+                  <Link href={option.href}>
+                    <option.icon />
+                    <span>{option.name}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && (open || openMobile) && (
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>
-              {options.map((option) => (
-                <SidebarMenuItem className="h-7" key={option.name}>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith(option.href)} tooltip={option.name}>
-                    <Link href={option.href}>
-                      <option.icon />
-                      <span>{option.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <UsageDisplay usageDetails={details} open={open || openMobile} />
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && (open || openMobile) && (
-          <SidebarGroup className="mt-auto">
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <UsageDisplay usageDetails={details} open={open || openMobile} />
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-      </ScrollArea>
+      )}
     </SidebarContent>
   );
 };

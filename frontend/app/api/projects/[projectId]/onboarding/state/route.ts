@@ -8,6 +8,8 @@ import { ONBOARDING_COOKIE_VERSION } from "@/lib/actions/onboarding/types";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { projects } from "@/lib/db/migrations/schema";
+import { sendWelcomeEmail } from "@/lib/emails/utils";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const StateSchema = z.object({
   step: z.number().int().min(0).max(10),
@@ -57,5 +59,15 @@ export async function DELETE() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   await clearOnboardingState();
+  if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
+    // Cookie is already cleared; an email failure must NOT propagate to a 500
+    // or finishOnboarding (called from both PlanStep free-tier branch and
+    // PaidFinalize) would block navigation on `res.ok`.
+    try {
+      await sendWelcomeEmail(session.user.email);
+    } catch (e) {
+      console.error("Failed to send welcome email:", e);
+    }
+  }
   return NextResponse.json({ success: true });
 }

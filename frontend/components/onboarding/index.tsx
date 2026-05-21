@@ -13,6 +13,7 @@ import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
+import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
@@ -93,37 +94,22 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
 
 function PaidFinalize({ projectId }: { projectId: string | null }) {
   const router = useRouter();
-  const { toast } = useToast();
   const { getValues } = useFormContext<OnboardingFormValues>();
-  const [isFinishing, setIsFinishing] = useState(false);
+  const { isSubmitting, finishOnboarding } = useOnboardingActions();
 
   const tier = getValues("selectedTier");
   const tierLabel = tier === "pro" ? "Pro" : tier === "hobby" ? "Hobby" : "paid";
 
   const handleComplete = async () => {
+    // Stripe-paid users must never strand on /onboarding even if the cookie or
+    // project ref is gone — fall through to /projects rather than toasting.
     if (!projectId) {
       router.replace("/projects");
       return;
     }
-    setIsFinishing(true);
-    let ok = false;
-    try {
-      const res = await fetch(`/api/projects/${projectId}/onboarding/state`, { method: "DELETE" });
-      ok = res.ok;
-    } catch {
-      ok = false;
+    if (await finishOnboarding()) {
+      router.replace(`/project/${projectId}/traces?onboarding=true`);
     }
-    if (!ok) {
-      setIsFinishing(false);
-      toast({
-        variant: "destructive",
-        title: "Couldn't finish onboarding",
-        description: "Please try again.",
-      });
-      return;
-    }
-    track("onboarding", "completed", { tier });
-    router.replace(`/project/${projectId}/traces?onboarding=true`);
   };
 
   return (
@@ -134,7 +120,7 @@ function PaidFinalize({ projectId }: { projectId: string | null }) {
       description={`Your ${tierLabel} subscription is active. Time to start tracing.`}
       onNext={handleComplete}
       nextLabel="Complete"
-      isSubmitting={isFinishing}
+      isSubmitting={isSubmitting}
       centerContent
     >
       <CheckCircle2 className="size-10 text-emerald-500" />
@@ -167,7 +153,12 @@ function OssWorkspaceOnly() {
     <WorkspaceStep
       stepIndex={0}
       totalSteps={1}
-      onComplete={({ projectId }) => router.replace(`/project/${projectId}/traces?onboarding=true`)}
+      onComplete={async ({ projectId }) => {
+        // OSS has no cookie to clear; this DELETE is fire-and-forget purely to
+        // fire the welcome email when SEND_EMAIL is on. Different semantics from
+        await fetch(`/api/projects/${projectId}/onboarding/state`, { method: "DELETE" }).catch(() => null);
+        router.replace(`/project/${projectId}/traces?onboarding=true`);
+      }}
     />
   );
 }

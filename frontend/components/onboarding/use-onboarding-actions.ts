@@ -18,7 +18,7 @@ interface UseOnboardingActions {
   createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
   saveSlack: () => Promise<boolean>;
-  finishFreeTier: () => Promise<boolean>;
+  finishOnboarding: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
 }
@@ -152,7 +152,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources, errorToast]);
 
-  const finishFreeTier = useCallback(async (): Promise<boolean> => {
+  const finishOnboarding = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
     if (!projectId) {
       errorToast("Couldn't finish onboarding", "Please refresh and try again.");
@@ -180,7 +180,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     createWorkspace,
     saveSignals,
     saveSlack,
-    finishFreeTier,
+    finishOnboarding,
     beginSubmitting,
     endSubmitting,
   };
