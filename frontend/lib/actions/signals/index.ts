@@ -10,7 +10,7 @@ import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export type SignalRow = {
@@ -51,6 +51,9 @@ const CreateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  // When provided, the creator is auto-subscribed via EMAIL alert targets on
+  // every alert created for this signal.
+  subscriberEmail: z.email().optional(),
 });
 
 const UpdateSignalSchema = z.object({
@@ -79,12 +82,13 @@ const GetLastEventSchema = z.object({
 const SetTemplateSignalsSchema = z.object({
   projectId: z.guid(),
   templateNames: z.array(z.string()),
+  subscriberEmail: z.email().optional(),
 });
 
 // Replaces the project's template signals with `templateNames`. Scope is
 // limited to template-named rows; custom user signals are never touched.
 export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignalsSchema>) {
-  const { projectId, templateNames } = SetTemplateSignalsSchema.parse(input);
+  const { projectId, templateNames, subscriberEmail } = SetTemplateSignalsSchema.parse(input);
 
   const templatesByName = new Map(signalTemplates.map((t) => [t.name, t]));
   const selected = new Set(templateNames.filter((n) => templatesByName.has(n)));
@@ -106,6 +110,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
         name: template.name,
         prompt: template.prompt,
         structuredOutput: JSON.parse(template.structuredOutputSchema) as Record<string, unknown>,
+        subscriberEmail,
       });
     }),
     toDeleteIds.length > 0 ? deleteSignals({ projectId, ids: toDeleteIds }) : Promise.resolve(),
@@ -261,7 +266,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate, subscriberEmail } = CreateSignalSchema.parse(input);
 
   const result = await db.transaction(async (tx) => {
     const [signal] = await tx
@@ -302,7 +307,18 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       });
     }
 
-    await tx.insert(alerts).values(alertsToInsert);
+    const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
+
+    if (subscriberEmail && insertedAlerts.length > 0) {
+      await tx.insert(alertTargets).values(
+        insertedAlerts.map((a) => ({
+          alertId: a.id,
+          projectId,
+          type: "EMAIL",
+          email: subscriberEmail,
+        }))
+      );
+    }
 
     return signal;
   });

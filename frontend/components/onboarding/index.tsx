@@ -8,9 +8,9 @@ import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
-import NotificationsStep from "@/components/onboarding/steps/notifications-step";
 import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
+import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -135,14 +135,13 @@ function PaidFinalize({ projectId }: { projectId: string | null }) {
       onNext={handleComplete}
       nextLabel="Complete"
       isSubmitting={isFinishing}
+      centerContent
     >
-      <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-        <CheckCircle2 className="size-10 text-emerald-500" />
-        <div className="flex flex-col gap-1">
-          <div className="text-sm 2xl:text-base font-medium text-secondary-foreground">Payment received</div>
-          <div className="text-xs 2xl:text-sm text-muted-foreground">
-            You can manage billing anytime from workspace settings.
-          </div>
+      <CheckCircle2 className="size-10 text-emerald-500" />
+      <div className="flex flex-col gap-1 text-center">
+        <div className="text-base 2xl:text-lg font-medium text-secondary-foreground">Payment received</div>
+        <div className="text-sm 2xl:text-base text-muted-foreground">
+          You can manage billing anytime from workspace settings.
         </div>
       </div>
     </StepShell>
@@ -189,7 +188,7 @@ function WizardStepsInner({ initialStep }: { initialStep: number }) {
         // No back button: workspace+project creation in step 0 is irreversible.
         return <SignalsStep stepIndex={1} totalSteps={TOTAL_STEPS} onAdvance={advance} />;
       case 2:
-        return <NotificationsStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
+        return <SlackStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
       case 3:
         return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} />;
       default:

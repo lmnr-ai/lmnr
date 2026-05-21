@@ -5,7 +5,6 @@ import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
 import { type OnboardingFormValues } from "@/components/onboarding/types";
-import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -18,7 +17,7 @@ interface UseOnboardingActions {
   isSubmitting: boolean;
   createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
-  saveNotifications: () => Promise<boolean>;
+  saveSlack: () => Promise<boolean>;
   finishFreeTier: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
@@ -44,7 +43,6 @@ const persistOnboardingStep = (projectId: string, step: number) =>
 
 export function useOnboardingActions(): UseOnboardingActions {
   const { resources, setResources } = useOnboardingContext();
-  const user = useUserContext();
   const { toast } = useToast();
   const form = useFormContext<OnboardingFormValues>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,38 +118,12 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources.projectId, errorToast]);
 
-  const saveNotifications = useCallback(async (): Promise<boolean> => {
-    const { workspaceId, projectId } = resources;
-    const subscribedReportIds = form.getValues("subscribedReportIds");
-    const slackConnected = form.getValues("slackConnected");
-    const trackEvent = () =>
-      track("onboarding", "notifications_configured", {
-        slackConnected,
-        subscribedReportCount: subscribedReportIds.length,
-      });
-
-    // OAuth without an email scope leaves session.user.email empty — skip the
-    // reconcile rather than POST `email: ""`.
-    if (!workspaceId || !projectId || !user.email) {
-      trackEvent();
-      if (projectId) await persistOnboardingStep(projectId, 3);
-      return true;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const ok = await requestOk(`/api/workspaces/${workspaceId}/reports`, jsonRequest("PUT", { subscribedReportIds }));
-      if (!ok) {
-        errorToast("Couldn't update email notifications", "You can change this later from workspace settings.");
-        return false;
-      }
-      trackEvent();
-      await persistOnboardingStep(projectId, 3);
-      return true;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [form, resources, errorToast, user.email]);
+  const saveSlack = useCallback(async (): Promise<boolean> => {
+    const { projectId } = resources;
+    track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
+    if (projectId) await persistOnboardingStep(projectId, 3);
+    return true;
+  }, [form, resources]);
 
   const finishFreeTier = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
@@ -180,7 +152,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     isSubmitting,
     createWorkspace,
     saveSignals,
-    saveNotifications,
+    saveSlack,
     finishFreeTier,
     beginSubmitting,
     endSubmitting,

@@ -6,6 +6,7 @@ import React, { type PropsWithChildren, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { Feature } from "@/lib/features/features.ts";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ interface StepShellProps {
   isSubmitting?: boolean;
   secondaryAction?: ReactNode;
   className?: string;
+  centerContent?: boolean;
 }
 
 export default function StepShell({
@@ -43,6 +45,7 @@ export default function StepShell({
   isSubmitting,
   secondaryAction,
   className,
+  centerContent,
   children,
 }: PropsWithChildren<StepShellProps>) {
   const featureFlags = useFeatureFlags();
@@ -50,9 +53,9 @@ export default function StepShell({
   const isCloud = featureFlags[Feature.LAMINAR_CLOUD];
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center bg-background px-4 py-10 overflow-y-auto">
-      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-6 xl:gap-8 my-auto">
-        <div className="flex items-center justify-between gap-3 px-0.5">
+    <div className="relative h-svh w-full flex items-stretch md:items-center justify-center bg-background py-4 md:py-6 lg:py-8 overflow-hidden">
+      <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 md:gap-6 xl:gap-8 md:h-[40rem] xl:h-[44rem] 2xl:h-[48rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-7rem)]">
+        <div className="flex items-center justify-between gap-3 px-4 shrink-0">
           <LaminarLogo className="h-6 xl:h-7 2xl:h-8 w-auto text-muted-foreground/70" fill="currentColor" />
           {isCloud && (
             <span className="text-[11px] xl:text-xs uppercase tracking-[0.08em] text-muted-foreground/80 tabular-nums">
@@ -63,7 +66,7 @@ export default function StepShell({
         </div>
 
         {isCloud && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 px-4 shrink-0">
             {Array.from({ length: totalSteps }).map((_, i) => (
               <div
                 key={i}
@@ -75,18 +78,33 @@ export default function StepShell({
             ))}
           </div>
         )}
-        <div className={cn("min-h-96 2xl:min-h-[28rem] flex flex-col", className)}>
-          <div className="flex flex-col gap-2 pt-2 pb-1 xl:pt-3 xl:pb-2">
+        <div className={cn("flex-1 min-h-0 flex flex-col", className)}>
+          <div className="flex flex-col gap-2 pt-2 pb-1 xl:pt-3 xl:pb-2 px-4 shrink-0">
             <h1 className="text-xl md:text-2xl 2xl:text-3xl font-semibold tracking-tight text-secondary-foreground">
               {title}
             </h1>
             {description && <p className="text-sm 2xl:text-base text-secondary-foreground">{description}</p>}
           </div>
-          <div className="flex flex-col gap-5 xl:gap-6 py-6 xl:py-8 flex-1">{children}</div>
+          <ScrollArea
+            className={cn(
+              "flex-1 min-h-0 px-4 py-4 sm:py-6 xl:py-8",
+              centerContent && "[&>[data-radix-scroll-area-viewport]>div]:!h-full"
+            )}
+          >
+            <div
+              className={cn(
+                centerContent
+                  ? "flex h-full flex-col items-center justify-center gap-3"
+                  : "flex flex-col gap-5 xl:gap-6"
+              )}
+            >
+              {children}
+            </div>
+          </ScrollArea>
           {isCloud && hint && (
-            <p className="text-[13px] xl:text-sm text-muted-foreground leading-relaxed pb-3">{hint}</p>
+            <p className="text-[13px] xl:text-sm text-muted-foreground leading-relaxed pb-3 px-4 shrink-0">{hint}</p>
           )}
-          <div className="flex items-center justify-between gap-2 border-t pt-3 xl:pt-4">
+          <div className="flex items-center justify-between gap-2 border-t pt-3 xl:pt-4 mx-4 shrink-0">
             {onBack && (
               <Button
                 className="h-8 text-muted-foreground hover:text-foreground xl:h-9 xl:text-sm"

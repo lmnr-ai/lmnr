@@ -9,25 +9,26 @@ interface PlanCardProps {
   plan: PlanOption;
   selected: boolean;
   onSelect: () => void;
+  disabled?: boolean;
+  isCurrent?: boolean;
 }
 
-export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
+export default function PlanCard({ plan, selected, onSelect, disabled = false, isCurrent = false }: PlanCardProps) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       aria-pressed={selected}
+      aria-disabled={disabled}
       className={cn(
         "relative text-left rounded-xl border p-4 xl:p-5 2xl:p-6 flex flex-col gap-3 2xl:gap-4 transition-all",
-        "hover:border-primary/60 hover:shadow-sm",
-        selected
-          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-sm"
-          : plan.highlight
-            ? "border-primary/40 bg-background"
-            : "border-border bg-background"
+        !disabled && "hover:border-primary/60 hover:shadow-sm",
+        selected && "border-primary bg-primary/5 shadow-sm",
+        disabled && "opacity-50 cursor-not-allowed"
       )}
     >
-      {plan.highlight && !selected && (
+      {plan.highlight && !selected && !disabled && (
         <span className="absolute -top-2 right-3 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] 2xl:text-xs font-medium text-primary-foreground shadow-sm">
           <Sparkles className="h-2.5 w-2.5 2xl:h-3 2xl:w-3" />
           Most popular
@@ -38,10 +39,16 @@ export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
         <span className="text-sm xl:text-base 2xl:text-lg font-semibold tracking-tight text-secondary-foreground">
           {plan.name}
         </span>
-        {selected && (
-          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">
-            Selected
+        {isCurrent ? (
+          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium border">
+            Current
           </span>
+        ) : (
+          selected && (
+            <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">
+              Selected
+            </span>
+          )
         )}
       </div>
 

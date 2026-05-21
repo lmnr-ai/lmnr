@@ -59,7 +59,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
           };
 
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-2 overflow-y-auto">
               {signalTemplates.map((template) => {
                 const Icon = ICONS[template.icon] ?? AlertCircle;
                 const isSelected = selected.has(template.name);
@@ -70,7 +70,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                     onClick={() => toggle(template.name)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full pb-8 pt-4",
+                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full pb-4 xl:pb-8 pt-4",
                       isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
                     )}
                   >
@@ -93,7 +93,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                         {template.description}
                       </span>
                     </div>
-                    <Icon className="ml-auto h-4 w-4 min-w-4 2xl:h-5 2xl:w-5 2xl:min-w-5 text-muted-foreground" />
+                    <Icon className="ml-auto sm:h-4 sm:w-4 sm:min-w-4 md:min-w-5 md:h-5 md:w-5 2xl:h-5 2xl:w-5 2xl:min-w-5 text-muted-foreground" />
                   </button>
                 );
               })}

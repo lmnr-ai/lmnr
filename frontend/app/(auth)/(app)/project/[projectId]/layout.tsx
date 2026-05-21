@@ -42,6 +42,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     ? cookieStore.get(projectSidebarCookieName)?.value === "true"
     : true;
 
+  console.log("projectDetails", projectDetails);
   return (
     <UserContextProvider user={user}>
       <SessionSyncProvider>

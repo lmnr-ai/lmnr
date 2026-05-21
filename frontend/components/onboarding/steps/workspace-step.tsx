@@ -49,8 +49,9 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
         <>
           Let&apos;s start by creating your first workspace and project.
           <br />
-          Workspaces manage your team and billing. Projects hold your traces, signals, and evaluations. You can rename
-          either anytime.
+          {isCloud &&
+            "Workspaces manage your team and billing. Projects hold your traces, signals, and evaluations. You can rename\n" +
+              "          either anytime."}
         </>
       }
       onNext={handleNext}
@@ -76,7 +77,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                   {...field}
                   id="workspace-name"
                   placeholder="e.g. Acme Inc."
-                  className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                  className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
                 />
                 {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
               </>
@@ -100,7 +101,7 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
                   {...field}
                   id="project-name"
                   placeholder="e.g. My AI Agent"
-                  className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
+                  className={cn("h-8", fieldState.error && "border-destructive focus-visible:ring-destructive")}
                 />
                 {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
               </>

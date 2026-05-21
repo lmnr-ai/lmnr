@@ -31,9 +31,9 @@ const EMPTY_DEFAULTS: OnboardingFormValues = {
   workspaceName: "",
   projectName: "",
   selectedTemplateNames: [...DEFAULT_SELECTED_TEMPLATE_NAMES],
-  subscribedReportIds: [],
   slackConnected: false,
   selectedTier: "free",
+  currentTier: "free",
 };
 
 interface ResumeResolution {
@@ -92,9 +92,9 @@ function buildDefaults(resumeDefaults: OnboardingResumeDefaults | null): Onboard
     ...EMPTY_DEFAULTS,
     workspaceName: resumeDefaults.workspaceName ?? EMPTY_DEFAULTS.workspaceName,
     selectedTemplateNames: resumeDefaults.selectedTemplateNames,
-    subscribedReportIds: resumeDefaults.subscribedReportIds,
     slackConnected: resumeDefaults.slackConnected,
     selectedTier: resumeDefaults.selectedTier,
+    currentTier: resumeDefaults.selectedTier,
   };
 }
 
@@ -132,7 +132,6 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     ? await loadOnboardingResumeDefaults({
         workspaceId: resume.point.workspaceId,
         projectId: resume.point.projectId,
-        userEmail: user.email ?? null,
       })
     : null;
 

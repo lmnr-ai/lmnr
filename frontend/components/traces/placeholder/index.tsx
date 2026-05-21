@@ -1,16 +1,14 @@
 "use client";
 
-import { ArrowUpRight, Sparkles, Terminal } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
-import { AutomaticTab } from "./automatic-tab";
 import { ManualTab } from "./manual-tab";
 
 export default function TracesPagePlaceholder() {
@@ -75,31 +73,32 @@ export default function TracesPagePlaceholder() {
             )}
           </div>
 
-          <Tabs
-            defaultValue="manual"
-            className="gap-7"
-            onValueChange={(value) => {
-              track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });
-            }}
-          >
-            <TabsList className="border-none">
-              <TabsTrigger value="automatic" className="gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                Set up with AI
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="gap-1.5">
-                <Terminal className="w-3.5 h-3.5" />
-                Manual
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="automatic">
-              <AutomaticTab isFromOnboarding={isFromOnboarding} />
-            </TabsContent>
-            <TabsContent value="manual">
-              <ManualTab />
-            </TabsContent>
-          </Tabs>
+          {/*  TODO: Temporary hide automatic setup*/}
+          {/*<Tabs*/}
+          {/*  defaultValue="manual"*/}
+          {/*  className="gap-7"*/}
+          {/*  onValueChange={(value) => {*/}
+          {/*    track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });*/}
+          {/*  }}*/}
+          {/*>*/}
+          {/*  <TabsList className="border-none">*/}
+          {/*    <TabsTrigger value="automatic" className="gap-1.5">*/}
+          {/*      <Sparkles className="w-3.5 h-3.5" />*/}
+          {/*      Set up with AI*/}
+          {/*    </TabsTrigger>*/}
+          {/*    <TabsTrigger value="manual" className="gap-1.5">*/}
+          {/*      <Terminal className="w-3.5 h-3.5" />*/}
+          {/*      Manual*/}
+          {/*    </TabsTrigger>*/}
+          {/*  </TabsList>*/}
+          {/*  <TabsContent value="automatic">*/}
+          {/*    <AutomaticTab isFromOnboarding={isFromOnboarding} />*/}
+          {/*  </TabsContent>*/}
+          {/*  <TabsContent value="manual">*/}
+          {/*  </TabsContent>*/}
+          {/*</Tabs>*/}
 
+          <ManualTab />
           <div className="flex items-center gap-6 text-sm">
             <a
               href="https://docs.lmnr.ai/tracing/introduction"

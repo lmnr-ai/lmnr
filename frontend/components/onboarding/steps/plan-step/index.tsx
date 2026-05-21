@@ -7,7 +7,7 @@ import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
 import PlanCard from "@/components/onboarding/steps/plan-step/plan-card";
 import { PLANS } from "@/components/onboarding/steps/plan-step/plans";
-import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { type OnboardingFormValues, TIER_RANK } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
@@ -29,24 +29,28 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
+  const currentTier = watch("currentTier");
   const workspaceName = watch("workspaceName");
 
-  const nextLabel = selectedTier === "free" || !subscriptionEnabled ? "Finish and go to project" : "Upgrade & continue";
+  const alreadyOnPaidTier = currentTier !== "free";
+  const isUpgrade = TIER_RANK[selectedTier] > TIER_RANK[currentTier];
+
+  const getNextLabel = () => {
+    if (!subscriptionEnabled) return "Finish and go to project";
+    if (isUpgrade) return "Upgrade & continue";
+    if (alreadyOnPaidTier) return "Continue to project";
+    return "Finish and go to project";
+  };
 
   const buildCheckoutUrl = () => {
-    if (selectedTier === "free" || !resources.workspaceId) return null;
-    const tier = selectedTier as keyof typeof TIER_CONFIG;
-    const config = TIER_CONFIG[tier];
+    if (!isUpgrade || !resources.workspaceId) return null;
+    const config = TIER_CONFIG[selectedTier as keyof typeof TIER_CONFIG];
     if (!config) return null;
     const sp = new URLSearchParams({
       lookupKey: config.lookupKey,
       workspaceId: resources.workspaceId,
       workspaceName,
-      // Tells /checkout to set Stripe's success_url back to /onboarding so the
-      // wizard can run a single unified finalize path (DELETE cookie + route
-      // to project) for both free and paid tiers. Without this, paid users
-      // land on the workspace billing page where the subscription.created
-      // webhook may not have fired yet, showing a stale tier.
+      // Returns to /onboarding after Stripe so PaidFinalize can clear the cookie.
       returnTo: "onboarding",
     });
     return `/checkout?${sp}`;
@@ -54,8 +58,6 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
 
   const finishAndGoToProject = async () => {
     if (!(await finishFreeTier())) return;
-    // Hold the loading state through router.push so the button can't be
-    // re-clicked while the project route mounts.
     beginSubmitting();
     router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
   };
@@ -66,16 +68,8 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       await finishAndGoToProject();
       return;
     }
-
-    // Keep the onboarding cookie alive across the Stripe redirect — Stripe's
-    // success_url comes back to /onboarding?upgraded=true, where the wizard
-    // finalizes onboarding (DELETE cookie + route to project). If we cleared
-    // the cookie here, the post-payment landing on /onboarding would just
-    // bounce to /projects via the legacy-redirect gate.
-    track("onboarding", "checkout_started", { tier: selectedTier });
+    track("onboarding", "checkout_started", { tier: selectedTier, from_tier: currentTier });
     beginSubmitting();
-    // Keep isSubmitting true through navigation — window.location.href tears
-    // the document down, so releasing it would only let the user click during unload.
     window.location.href = checkoutUrl;
   };
 
@@ -94,26 +88,40 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
     );
   }
 
+  const title = alreadyOnPaidTier ? "Your plan" : "Pick a plan";
+  const description = alreadyOnPaidTier
+    ? "You're already on a paid plan. Continue to your project."
+    : "Match the plan to your expected usage.";
+
   return (
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Pick a plan"
-      description="Match the plan to your expected usage."
+      title={title}
+      description={description}
       onNext={handleNext}
       onBack={onBack}
-      nextLabel={nextLabel}
+      nextLabel={getNextLabel()}
       isSubmitting={isSubmitting}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:gap-4 2xl:gap-5">
-        {PLANS.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            selected={selectedTier === plan.id}
-            onSelect={() => setValue("selectedTier", plan.id)}
-          />
-        ))}
+        {PLANS.map((plan) => {
+          const isCurrent = plan.id === currentTier;
+          const isLocked = alreadyOnPaidTier && !isCurrent;
+          return (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              selected={selectedTier === plan.id}
+              disabled={isLocked}
+              isCurrent={isCurrent}
+              onSelect={() => {
+                if (isLocked) return;
+                setValue("selectedTier", plan.id);
+              }}
+            />
+          );
+        })}
       </div>
     </StepShell>
   );
