@@ -1,21 +1,15 @@
-import { and, eq, sql } from "drizzle-orm";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import OnboardingWizard, { type OnboardingInitialValues } from "@/components/onboarding";
-import {
-  DEFAULT_SELECTED_TEMPLATE_NAMES,
-  ONBOARDING_STEPS,
-  type OnboardingFormValues,
-} from "@/components/onboarding/types";
+import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
 import { UserContextProvider } from "@/contexts/user-context";
 import { getOnboardingState } from "@/lib/actions/onboarding";
+import { resolveResume } from "@/lib/actions/onboarding/resolve-resume";
 import { loadOnboardingResumeDefaults, type OnboardingResumeDefaults } from "@/lib/actions/onboarding/resume-defaults";
-import { type OnboardingState } from "@/lib/actions/onboarding/types";
+import { countWorkspaceMemberships } from "@/lib/actions/workspace/utils";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
@@ -35,56 +29,6 @@ const EMPTY_DEFAULTS: OnboardingFormValues = {
   selectedTier: "free",
   currentTier: "free",
 };
-
-interface ResumeResolution {
-  point: { workspaceId: string; projectId: string; step: number } | null;
-  // True when an in-progress cookie owned by this user exists, even if it has
-  // no resources yet. Suppresses the "user already has workspaces" redirect.
-  inProgress: boolean;
-  // True when the cookie references a workspace/project the user can no longer access.
-  stale: boolean;
-}
-
-async function resolveResume(saved: OnboardingState | null, userId: string): Promise<ResumeResolution> {
-  if (!saved || saved.userId !== userId) {
-    return { point: null, inProgress: false, stale: false };
-  }
-  if (!saved.workspaceId || !saved.projectId) {
-    return { point: null, inProgress: true, stale: false };
-  }
-  const owned = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .innerJoin(membersOfWorkspaces, eq(projects.workspaceId, membersOfWorkspaces.workspaceId))
-    .where(
-      and(
-        eq(membersOfWorkspaces.userId, userId),
-        eq(projects.id, saved.projectId),
-        eq(projects.workspaceId, saved.workspaceId)
-      )
-    )
-    .limit(1);
-  if (owned.length === 0) {
-    return { point: null, inProgress: true, stale: true };
-  }
-  // Clamp the persisted step against the current step count so an old cookie
-  // from a longer wizard (e.g. when "slack" was its own step) still resolves
-  // to a valid index after we collapse steps.
-  const step = Math.min(Math.max(0, saved.step), ONBOARDING_STEPS.length - 1);
-  return {
-    point: { workspaceId: saved.workspaceId, projectId: saved.projectId, step },
-    inProgress: true,
-    stale: false,
-  };
-}
-
-async function countWorkspaceMemberships(userId: string): Promise<number> {
-  const [{ count }] = await db
-    .select({ count: sql`count(*)`.mapWith(Number) })
-    .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.userId, userId));
-  return count;
-}
 
 function buildDefaults(resumeDefaults: OnboardingResumeDefaults | null): OnboardingFormValues {
   if (!resumeDefaults) return EMPTY_DEFAULTS;
@@ -109,7 +53,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
     countWorkspaceMemberships(user.id),
   ]);
 
-  // OSS doesn't write resume cookies; a stale one here is from the old multi-step build.
+  // OSS never writes the cookie — any cookie here is from the old multi-step build.
   if (!isFeatureEnabled(Feature.LAMINAR_CLOUD) && saved && saved.userId === user.id) {
     return redirect("/api/onboarding?to=/projects");
   }
@@ -119,10 +63,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
   }
 
   const returningFromSlack = searchParams?.slack !== undefined;
-  // Stripe success_url lands here with ?upgraded=true so the wizard's
-  // PaidFinalize can run the DELETE-cookie + route-to-project sequence.
-  // Suppress the "user already has workspaces" redirect so a transiently
-  // cleared cookie can't strand the user on /projects without finalizing.
+  // Stripe lands here with ?upgraded=true; let PaidFinalize own the DELETE + nav.
   const returningFromStripe = searchParams?.upgraded === "true";
   if (workspaceCount > 0 && !resume.inProgress && !returningFromSlack && !returningFromStripe) {
     return redirect("/projects");

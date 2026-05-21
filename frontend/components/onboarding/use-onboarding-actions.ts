@@ -55,39 +55,49 @@ export function useOnboardingActions(): UseOnboardingActions {
   const createWorkspace = useCallback(
     async ({ isCloud = false }: CreateWorkspaceOptions = {}) => {
       if (!(await form.trigger(["workspaceName", "projectName"]))) return null;
-      if (resources.workspaceId && resources.projectId) {
-        return { workspaceId: resources.workspaceId, projectId: resources.projectId };
-      }
 
-      const { workspaceName, projectName } = form.getValues();
       setIsSubmitting(true);
       try {
-        const res = await fetch(
-          "/api/workspaces",
-          jsonRequest("POST", {
-            name: workspaceName.trim(),
-            projectName: projectName.trim(),
-            // Server-side: seed Failure Detector signal + email targets on default reports.
-            isFirstProject: isCloud,
-          })
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => null);
-          errorToast(err?.error ?? "Failed to create workspace");
-          return null;
+        let workspaceId = resources.workspaceId;
+        let projectId = resources.projectId;
+
+        // Skip server-side creation on retry, but still re-attempt the cookie write below.
+        if (!workspaceId || !projectId) {
+          const { workspaceName, projectName } = form.getValues();
+          const res = await fetch(
+            "/api/workspaces",
+            jsonRequest("POST", {
+              name: workspaceName.trim(),
+              projectName: projectName.trim(),
+              // Server-side: seed Failure Detector signal + email targets on default reports.
+              isFirstProject: isCloud,
+            })
+          );
+          if (!res.ok) {
+            const err = await res.json().catch(() => null);
+            errorToast(err?.error ?? "Failed to create workspace");
+            return null;
+          }
+          const json = (await res.json()) as { id: string; projectId?: string };
+          if (!json.projectId) {
+            errorToast("Workspace created without a project");
+            return null;
+          }
+          track("onboarding", "first_project_created");
+          workspaceId = json.id;
+          projectId = json.projectId;
+          setResources({ workspaceId, projectId });
         }
-        const json = (await res.json()) as { id: string; projectId?: string };
-        if (!json.projectId) {
-          errorToast("Workspace created without a project");
-          return null;
-        }
-        track("onboarding", "first_project_created");
-        setResources({ workspaceId: json.id, projectId: json.projectId });
+
         // Cookie only matters when more wizard steps follow.
         if (isCloud) {
-          await persistOnboardingStep(json.projectId, 1);
+          const persisted = await persistOnboardingStep(projectId, 1);
+          if (!persisted) {
+            errorToast("Couldn't save your progress", "Please try again.");
+            return null;
+          }
         }
-        return { workspaceId: json.id, projectId: json.projectId };
+        return { workspaceId, projectId };
       } catch {
         errorToast("Something went wrong");
         return null;
@@ -110,8 +120,12 @@ export function useOnboardingActions(): UseOnboardingActions {
         errorToast("Couldn't save your signals", "Please try again.");
         return false;
       }
+      const persisted = await persistOnboardingStep(projectId, 2);
+      if (!persisted) {
+        errorToast("Couldn't save your progress", "Please try again.");
+        return false;
+      }
       track("onboarding", "signals_selected", { count: templateNames.length });
-      await persistOnboardingStep(projectId, 2);
       return true;
     } finally {
       setIsSubmitting(false);
@@ -120,10 +134,23 @@ export function useOnboardingActions(): UseOnboardingActions {
 
   const saveSlack = useCallback(async (): Promise<boolean> => {
     const { projectId } = resources;
-    track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
-    if (projectId) await persistOnboardingStep(projectId, 3);
-    return true;
-  }, [form, resources]);
+    if (!projectId) {
+      track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
+      return true;
+    }
+    setIsSubmitting(true);
+    try {
+      const persisted = await persistOnboardingStep(projectId, 3);
+      if (!persisted) {
+        errorToast("Couldn't save your progress", "Please try again.");
+        return false;
+      }
+      track("onboarding", "slack_step_completed", { slackConnected: form.getValues("slackConnected") });
+      return true;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, resources, errorToast]);
 
   const finishFreeTier = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
