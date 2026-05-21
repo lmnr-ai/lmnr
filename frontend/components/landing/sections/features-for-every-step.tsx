@@ -11,7 +11,7 @@ interface CardProps {
 }
 
 const Card = ({ Icon, title, description, href }: CardProps) => (
-  <div className="bg-landing-surface-550 flex flex-col h-[200px] px-5 py-4 justify-between rounded">
+  <div className="bg-landing-surface-550 flex flex-col h-[180px] px-5 py-4 justify-between rounded">
     <div className="flex items-start justify-between w-full">
       <Icon className="size-10 text-landing-text-300" strokeWidth={0.5} />
       <Link
@@ -23,16 +23,16 @@ const Card = ({ Icon, title, description, href }: CardProps) => (
         <ArrowUpRight className="size-6" strokeWidth={1.5} />
       </Link>
     </div>
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1">
       <p className="leading-6 text-white">{title}</p>
-      <p className="text-landing-text-200">{description}</p>
+      <p className="text-landing-text-200 text-sm">{description}</p>
     </div>
   </div>
 );
 
 const FeaturesForEveryStep = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
-    <h2 className={subSection}>{"Features for every step of agent development"}</h2>
+    <h2 className={subSection}>{"Features for every step\nof agent development"}</h2>
     <div className="grid grid-cols-2 gap-6 w-full">
       <Card
         Icon={Bug}

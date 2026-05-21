@@ -92,7 +92,7 @@ const FooterColumn = ({
 );
 
 const Footer = ({ className }: Props) => (
-  <div className={cn("bg-landing-surface-800 flex flex-col items-center w-full", className)}>
+  <div className={cn("flex flex-col items-center w-full", className)}>
     <div
       className={cn(
         "w-full max-w-[880px] border-t border-landing-surface-500",

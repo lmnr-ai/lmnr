@@ -71,7 +71,7 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
     title: "Get alerts when your agent breaks",
     body: "Describe what you want to track in plain English. Laminar analyzes traces of\nyour agent and pings you in Slack the moment a trace matches.",
     gapHeight: 400,
-    paddingTopVh: 32,
+    paddingTopVh: 34,
     learnMoreHref: "https://laminar.sh/docs/signals",
   },
   2: {
@@ -185,21 +185,21 @@ const UnderstandWhyTraceView = () => {
 
                 {/* GAP — top/bottom gradients fade the bento into the band
                     bg; learn-more row sits above them via relative+z-20. */}
-                <div style={{ height: config.gapHeight }} className="relative w-full">
+                <div style={{ height: config.gapHeight }} className="relative w-full flex items-end">
                   <div className="absolute top-0 left-0 right-0 h-[80px] z-10 bg-gradient-to-b from-landing-surface-550/50 to-transparent pointer-events-none" />
                   <div className="absolute bottom-0 left-0 right-0 h-[120px] z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none" />
-                  <div className="relative z-20 flex justify-between w-full px-2 py-2 text-xs text-landing-text-400">
+                  <div className="relative z-20 flex justify-between w-full pl-3 pr-2 py-2 text-xs tracking-wider text-landing-text-400">
                     <span className="flex gap-2">
                       <span>0{n}.</span>
-                      <span>{config.name}</span>
+                      <span>{config.name.toUpperCase()}</span>
                     </span>
                     <Link
                       href={config.learnMoreHref}
                       target="_blank"
                       className="inline-flex items-center gap-1 hover:text-landing-text-300 transition-colors"
                     >
-                      Learn more
-                      <ArrowUpRight className="size-3" strokeWidth={2} />
+                      LEARN MORE
+                      <ArrowUpRight className="size-4.5" strokeWidth={1.5} />
                     </Link>
                   </div>
                 </div>
