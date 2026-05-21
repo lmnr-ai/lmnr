@@ -6,12 +6,24 @@ use lapin::{
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
     types::{FieldTable, ShortString},
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait, connection::ResilientConnection,
 };
+
+/// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
+/// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
+/// can leave channel ops stalled for tens of seconds before the alarm clears.
+static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| {
+    let secs = std::env::var("RABBITMQ_CONSUMER_SETUP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60);
+    Duration::from_secs(secs)
+});
 
 struct RabbitChannelManager {
     connection: Arc<ResilientConnection>,
@@ -304,7 +316,7 @@ impl MessageQueueTrait for RabbitMQ {
             anyhow::Ok(consumer)
         };
 
-        let consumer = match tokio::time::timeout(std::time::Duration::from_secs(60), setup).await {
+        let consumer = match tokio::time::timeout(*CONSUMER_SETUP_TIMEOUT, setup).await {
             Ok(Ok(consumer)) => consumer,
             Ok(Err(e)) => return Err(e),
             Err(_) => {
