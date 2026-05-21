@@ -375,7 +375,9 @@ const columnEnumMap: Map<string, Set<EnumType>> = (() => {
   return map;
 })();
 
-const enumColumnNamesPattern = Array.from(columnEnumMap.keys()).join("|");
+const enumColumnNamesPattern = Array.from(columnEnumMap.keys())
+  .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .join("|");
 const enumContextRegex = new RegExp(`\\b(${enumColumnNamesPattern})\\s*=\\s*[^=\\n]*$`, "i");
 const enumColumnRegex = new RegExp(`\\b(${enumColumnNamesPattern})(?=\\s*=)`, "i");
 
