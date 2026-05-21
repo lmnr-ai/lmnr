@@ -58,12 +58,8 @@ export async function DELETE() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  // Cookie-presence is the idempotency guard: any second DELETE for the same user
-  // (PaidFinalize remount, browser retry, future re-entry) sees no cookie and skips
-  // the send. clearOnboardingState() runs unconditionally because it's already idempotent.
-  const wasFinalizing = (await getOnboardingState())?.userId === session.user.id;
   await clearOnboardingState();
-  if (wasFinalizing && isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
+  if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
     // Cookie is already cleared; an email failure must NOT propagate to a 500
     // or finishFreeTier / PaidFinalize would block navigation on `res.ok`.
     try {
