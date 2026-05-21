@@ -61,7 +61,8 @@ export async function DELETE() {
   await clearOnboardingState();
   if (isFeatureEnabled(Feature.SEND_EMAIL) && session.user.email) {
     // Cookie is already cleared; an email failure must NOT propagate to a 500
-    // or finishFreeTier / PaidFinalize would block navigation on `res.ok`.
+    // or finishOnboarding (called from both PlanStep free-tier branch and
+    // PaidFinalize) would block navigation on `res.ok`.
     try {
       await sendWelcomeEmail(session.user.email);
     } catch (e) {
