@@ -26,11 +26,30 @@ import {
 } from "@/components/ui/content-renderer/lang-clickhouse";
 import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 
+// Enum values for columns whose runtime CH type is `String` but whose
+// values are drawn from a known finite set. The keys here are the enum
+// names referenced from `ColumnSchema.enumType`; declaring this BEFORE
+// `ColumnSchema` lets us type `enumType` as `keyof typeof enumValues`.
+export const enumValues = {
+  span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
+  trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
+  status: ["success", "error"],
+  signal_run_status: ["PENDING", "COMPLETED", "FAILED", "UNKNOWN"],
+  signal_run_mode: ["BATCH", "REALTIME", "UNKNOWN"],
+} as const satisfies Record<string, readonly string[]>;
+
+export type EnumType = keyof typeof enumValues;
+
 // Types for schema configuration
 export interface ColumnSchema {
   name: string;
   type: string;
   description: string;
+  // When set, the column's `type` is `String` (or `UInt8`, etc.) but values
+  // are constrained to `enumValues[enumType]`. Used by the LLM prompt to
+  // tell the model what literals to emit, and by the editor autocomplete
+  // to suggest those literals after `<column> =`.
+  enumType?: EnumType;
 }
 
 export interface TableSchema {
@@ -52,14 +71,20 @@ export const tableSchemas: Record<string, TableSchema> = {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
     columns: [
       { name: "span_id", type: "UUID", description: "Unique identifier for the span" },
-      { name: "status", type: "String", description: "Status of the span" },
+      {
+        name: "status",
+        type: "String",
+        enumType: "status",
+        description: "Normalized status of the span. One of 'success' or 'error'",
+      },
       { name: "name", type: "String", description: "Name of the span" },
       { name: "path", type: "String", description: "Hierarchical path of the span (e.g., 'outer.inner')" },
       { name: "parent_span_id", type: "UUID", description: "ID of the parent span" },
       {
         name: "span_type",
-        type: "span_type",
-        description: "Stringified enum value of the span type (DEFAULT, LLM, EXECUTOR, EVALUATOR, EVALUATION, TOOL)",
+        type: "String",
+        enumType: "span_type",
+        description: "Stringified enum value of the span type",
       },
       { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the span started" },
       { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the span ended" },
@@ -100,8 +125,9 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "id", type: "UUID", description: "Unique identifier for the trace" },
       {
         name: "trace_type",
-        type: "trace_type",
-        description: "Stringified enum value of the trace type (DEFAULT, EVALUATION, PLAYGROUND)",
+        type: "String",
+        enumType: "trace_type",
+        description: "Stringified enum value of the trace type",
       },
       { name: "metadata", type: "String", description: "Trace metadata as stringified JSON" },
       { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
@@ -113,13 +139,48 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
       { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
       { name: "total_cost", type: "Float64", description: "Total cost of the span" },
-      { name: "status", type: "String", description: "Status of the trace" },
+      {
+        name: "status",
+        type: "String",
+        enumType: "status",
+        description:
+          "Normalized status of the trace. 'error' if any span in the trace has status 'error', otherwise 'success'",
+      },
       { name: "user_id", type: "String", description: "User ID sent with the trace" },
       { name: "session_id", type: "String", description: "Session identifier" },
       { name: "top_span_id", type: "UUID", description: "ID of the top-level span" },
       { name: "top_span_name", type: "String", description: "Name of the top-level span" },
-      { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
-      { name: "tags", type: "Array(String)", description: "Tags associated with the trace" },
+      {
+        name: "top_span_type",
+        type: "String",
+        enumType: "span_type",
+        description: "Stringified enum value of the top-level span type",
+      },
+      {
+        name: "tags",
+        type: "Array(String)",
+        description: "Union of all span-level tags from spans inside the trace",
+      },
+      {
+        name: "trace_tags",
+        type: "Array(String)",
+        description: "Tags applied directly to the trace (independent of span-level tags)",
+      },
+      {
+        name: "span_names",
+        type: "Array(String)",
+        description: "De-duplicated list of span names produced anywhere in the trace",
+      },
+      {
+        name: "root_span_input",
+        type: "String",
+        description: "Input of the trace's top span as stringified JSON or raw string",
+      },
+      {
+        name: "root_span_output",
+        type: "String",
+        description: "Output of the trace's top span as stringified JSON or raw string",
+      },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
     ],
   },
@@ -194,7 +255,12 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "input_tokens", type: "Int64", description: "Number of input tokens from associated trace" },
       { name: "output_tokens", type: "Int64", description: "Number of output tokens from associated trace" },
       { name: "total_tokens", type: "Int64", description: "Total tokens used from associated trace" },
-      { name: "trace_status", type: "String", description: "Status of the associated trace" },
+      {
+        name: "trace_status",
+        type: "String",
+        enumType: "status",
+        description: "Status of the associated trace. One of 'success' or 'error'",
+      },
       { name: "trace_metadata", type: "String", description: "Metadata from the associated trace as stringified JSON" },
       { name: "trace_tags", type: "Array(String)", description: "Tags from the associated trace" },
       { name: "top_span_id", type: "UUID", description: "ID of the top-level span of the associated trace" },
@@ -213,7 +279,18 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "trigger_id", type: "UUID", description: "Unique identifier for the trigger" },
       { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
       { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "status", type: "String", description: "Status of the signal run (PENDING, COMPLETED, FAILED, UNKNOWN)" },
+      {
+        name: "status",
+        type: "String",
+        enumType: "signal_run_status",
+        description: "Status of the signal run",
+      },
+      {
+        name: "mode",
+        type: "String",
+        enumType: "signal_run_mode",
+        description: "Mode of the signal run. 'BATCH' for historical backfill, 'REALTIME' for live triggers",
+      },
       { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
       { name: "error_message", type: "String", description: "Error message if the run failed" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the signal run was last updated" },
@@ -229,6 +306,21 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "name", type: "String", description: "Name of the signal event" },
       { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
       { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
+      {
+        name: "severity",
+        type: "UInt8",
+        description: "Numeric severity level. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
+      },
+      {
+        name: "summary",
+        type: "String",
+        description: "Short, human-readable description of the event. May be empty for older events",
+      },
+      {
+        name: "clusters",
+        type: "Array(UUID)",
+        description: "Cluster IDs this event belongs to. Excludes L0 clusters",
+      },
     ],
   },
   logs: {
@@ -249,11 +341,6 @@ export const tableSchemas: Record<string, TableSchema> = {
   },
 };
 
-export const enumValues: Record<string, string[]> = {
-  trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
-  span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL"],
-};
-
 // Helper functions for completion
 const matchesSearch = (text: string, search: string): boolean => text.toLowerCase().includes(search);
 const startsWithSearch = (text: string, search: string): boolean => text.toLowerCase().startsWith(search.toLowerCase());
@@ -263,27 +350,74 @@ const createOption = (label: string, type: string, info: string, apply?: string)
   info,
   apply: apply || label,
 });
-const isInEnumContext = (textBefore: string): boolean => /\b(span_type|trace_type)\s*=\s*[^=\n]*$/.test(textBefore);
-const getEnumType = (textBefore: string): string | null => {
-  const match = textBefore.match(/\b(span_type|trace_type)(?=\s*=)/);
-  return match ? match[1] : null;
+// column name (lowercased) -> set of enum types that column could be.
+// Built from `tableSchemas` so adding a new enum-typed column to a table
+// schema automatically wires up autocomplete for `<column> =`. A single
+// column name can map to multiple enums when the same identifier appears
+// in different tables with different value sets (e.g. `status` is
+// 'success' | 'error' on spans/traces but PENDING/COMPLETED/FAILED/UNKNOWN
+// on signal_runs).
+const columnEnumMap: Map<string, Set<EnumType>> = (() => {
+  const map = new Map<string, Set<EnumType>>();
+  Object.values(tableSchemas).forEach((tableData) => {
+    tableData.columns.forEach((col) => {
+      if (col.enumType) {
+        const key = col.name.toLowerCase();
+        let set = map.get(key);
+        if (!set) {
+          set = new Set();
+          map.set(key, set);
+        }
+        set.add(col.enumType);
+      }
+    });
+  });
+  return map;
+})();
+
+const enumColumnNamesPattern = Array.from(columnEnumMap.keys()).join("|");
+const enumContextRegex = new RegExp(`\\b(${enumColumnNamesPattern})\\s*=\\s*[^=\\n]*$`, "i");
+const enumColumnRegex = new RegExp(`\\b(${enumColumnNamesPattern})(?=\\s*=)`, "i");
+
+const isInEnumContext = (textBefore: string): boolean => enumContextRegex.test(textBefore);
+const getEnumColumn = (textBefore: string): string | null => {
+  const match = textBefore.match(enumColumnRegex);
+  return match ? match[1].toLowerCase() : null;
 };
 
-const generateEnumCompletions = (enumType: string, partialValue: string) => {
-  const values = enumValues[enumType as keyof typeof enumValues];
-  if (!values) return [];
+const generateEnumCompletions = (columnName: string, partialValue: string) => {
+  const enumTypes = columnEnumMap.get(columnName.toLowerCase());
+  if (!enumTypes) return [];
 
-  return values
-    .filter((value) => matchesSearch(value, partialValue))
-    .map((value) => createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
+  const seen = new Set<string>();
+  const completions: ReturnType<typeof createOption>[] = [];
+  for (const enumType of enumTypes) {
+    for (const value of enumValues[enumType]) {
+      if (seen.has(value)) continue;
+      seen.add(value);
+      if (matchesSearch(value, partialValue)) {
+        completions.push(createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
+      }
+    }
+  }
+  return completions;
 };
 
-const generateEnumValueCompletions = (searchTerm: string) =>
-  Object.entries(enumValues).flatMap(([enumType, values]) =>
-    values
-      .filter((value) => matchesSearch(value, searchTerm))
-      .map((value) => createOption(value, "enum", `${enumType} enum value`, `'${value}'`))
-  );
+const generateEnumValueCompletions = (searchTerm: string) => {
+  const seen = new Set<string>();
+  const completions: ReturnType<typeof createOption>[] = [];
+  for (const [enumType, values] of Object.entries(enumValues) as [EnumType, readonly string[]][]) {
+    for (const value of values) {
+      const key = `${enumType}:${value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (matchesSearch(value, searchTerm)) {
+        completions.push(createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
+      }
+    }
+  }
+  return completions;
+};
 
 const generateClickhouseFunctionCompletions = (searchTerm: string) =>
   clickhouseFunctions
@@ -315,9 +449,9 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
 
 const generateCompletions = (textBefore: string, searchTerm: string) => {
   if (isInEnumContext(textBefore)) {
-    const enumType = getEnumType(textBefore);
-    if (enumType) {
-      return generateEnumCompletions(enumType, searchTerm);
+    const enumColumn = getEnumColumn(textBefore);
+    if (enumColumn) {
+      return generateEnumCompletions(enumColumn, searchTerm);
     }
   }
 
