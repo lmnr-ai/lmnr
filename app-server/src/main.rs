@@ -1591,6 +1591,11 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
+        // gRPC ingestion shares the same Redis-backed quota as HTTP via
+        // `ratelimit:<project_id>`. Limiter is Clone (inner redis::Client +
+        // Arc'd key fn), so cloning once for the gRPC thread is cheap.
+        let grpc_rate_limiter = rate_limiter.as_ref().map(|l| Arc::new(l.clone()));
+
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
             .name("http".to_string())
@@ -1759,6 +1764,7 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
+                        grpc_rate_limiter.clone(),
                     );
 
                     let process_logs_service = ProcessLogsService::new(

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use actix_limitation::{Error as LimiterError, Limiter};
+
 use crate::{
     auth::authenticate_request,
     cache::Cache,
@@ -20,6 +22,7 @@ pub struct ProcessTracesService {
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    rate_limiter: Option<Arc<Limiter>>,
 }
 
 impl ProcessTracesService {
@@ -28,12 +31,14 @@ impl ProcessTracesService {
         cache: Arc<Cache>,
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
+        rate_limiter: Option<Arc<Limiter>>,
     ) -> Self {
         Self {
             db,
             cache,
             clickhouse,
             queue,
+            rate_limiter,
         }
     }
 }
@@ -49,6 +54,24 @@ impl TraceService for ProcessTracesService {
             .map_err(|_| Status::unauthenticated("Failed to authenticate request"))?;
         let project_id = api_key.project_id;
         let request = request.into_inner();
+
+        // Per-project gRPC rate limit. Shares the same Redis key
+        // (`ratelimit:<project_id>`) and quota as the HTTP rate limiter so
+        // OTLP/HTTP and OTLP/gRPC can't bypass each other. Fail-open on Redis
+        // errors — same posture as the bytes-limit check below — so a Redis
+        // blip doesn't black-hole ingestion.
+        if let Some(ref limiter) = self.rate_limiter {
+            let key = format!("ratelimit:{}", project_id);
+            match limiter.count(key).await {
+                Ok(_) => {}
+                Err(LimiterError::LimitExceeded(_)) => {
+                    return Err(Status::resource_exhausted("Rate limit exceeded"));
+                }
+                Err(e) => {
+                    log::error!("Rate limiter error, allowing request: {:?}", e);
+                }
+            }
+        }
 
         if is_feature_enabled(Feature::UsageLimit) {
             let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
