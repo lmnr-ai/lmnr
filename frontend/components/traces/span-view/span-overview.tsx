@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
+import { type MessageLabel } from "@/components/traces/span-view/messages";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,12 +66,22 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
   // Overview = last 2 input messages stitched with the output, rendered through
   // the same ContentRenderer the I/O tabs use so users get the mode toggle
   // (MESSAGES / JSON / YAML / TEXT / CUSTOM) and search/copy/expand for free.
-  const mergedValue = useMemo(() => {
+  const { mergedValue, messageLabels } = useMemo(() => {
     const input = normalize(inputData);
     const output = normalize(outputData);
     const inputArray = Array.isArray(input) ? input.slice(-2) : [];
     const outputTail = output == null ? [] : Array.isArray(output) ? output : [output];
-    return JSON.stringify([...inputArray, ...outputTail]);
+    const labels: MessageLabel[] = [];
+    if (inputArray.length > 0) {
+      labels.push({ beforeIndex: 0, text: "Input", subtext: "(last 2 messages)" });
+    }
+    if (outputTail.length > 0) {
+      labels.push({ beforeIndex: inputArray.length, text: "Output" });
+    }
+    return {
+      mergedValue: JSON.stringify([...inputArray, ...outputTail]),
+      messageLabels: labels,
+    };
   }, [inputData, outputData]);
 
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
@@ -98,6 +109,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
       presetKey={presetKey}
       customTheme={spanViewTheme}
       messageMaxHeight={560}
+      messageLabels={messageLabels}
     />
   );
 };
