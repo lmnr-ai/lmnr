@@ -26,10 +26,8 @@ import {
 } from "@/components/ui/content-renderer/lang-clickhouse";
 import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 
-// Enum values for columns whose runtime CH type is `String` but whose
-// values are drawn from a known finite set. The keys here are the enum
-// names referenced from `ColumnSchema.enumType`; declaring this BEFORE
-// `ColumnSchema` lets us type `enumType` as `keyof typeof enumValues`.
+// Finite-set values for String/UInt8 columns. Used by both the AI prompt
+// builder and the editor autocomplete to constrain `<column> = ` literals.
 export const enumValues = {
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL", "HUMAN_EVALUATOR", "CACHED", "UNKNOWN"],
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
@@ -40,15 +38,11 @@ export const enumValues = {
 
 export type EnumType = keyof typeof enumValues;
 
-// Types for schema configuration
 export interface ColumnSchema {
   name: string;
   type: string;
   description: string;
-  // When set, the column's `type` is `String` (or `UInt8`, etc.) but values
-  // are constrained to `enumValues[enumType]`. Used by the LLM prompt to
-  // tell the model what literals to emit, and by the editor autocomplete
-  // to suggest those literals after `<column> =`.
+  // Names an entry in `enumValues` when `type` is `String`/`UInt8` but values are constrained.
   enumType?: EnumType;
 }
 
@@ -58,14 +52,11 @@ export interface TableSchema {
 }
 
 export interface SQLSchemaConfig {
-  // Tables to include in autocomplete/validation
-  // If undefined, all tables are available
   tables?: string[];
-  // Custom table schemas (for dynamic/custom tables)
   customTables?: Record<string, TableSchema>;
 }
 
-// Table schemas with descriptions - single source of truth for table metadata
+// Source of truth for the SQL editor schema (autocomplete + AI prompt schema text).
 export const tableSchemas: Record<string, TableSchema> = {
   spans: {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
@@ -341,159 +332,104 @@ export const tableSchemas: Record<string, TableSchema> = {
   },
 };
 
-// Helper functions for completion
-const matchesSearch = (text: string, search: string): boolean => text.toLowerCase().includes(search);
-const startsWithSearch = (text: string, search: string): boolean => text.toLowerCase().startsWith(search.toLowerCase());
+// --- String / option helpers -------------------------------------------------
+const matchesSearch = (text: string, search: string) => text.toLowerCase().includes(search);
+const startsWithSearch = (text: string, search: string) => text.toLowerCase().startsWith(search.toLowerCase());
 const createOption = (label: string, type: string, info: string, apply?: string) => ({
   label,
   type,
   info,
-  apply: apply || label,
+  apply: apply ?? label,
 });
-// column name (lowercased) -> set of enum types that column could be.
-// Built from `tableSchemas` so adding a new enum-typed column to a table
-// schema automatically wires up autocomplete for `<column> =`. A single
-// column name can map to multiple enums when the same identifier appears
-// in different tables with different value sets (e.g. `status` is
-// 'success' | 'error' on spans/traces but PENDING/COMPLETED/FAILED/UNKNOWN
-// on signal_runs).
-const columnEnumMap: Map<string, Set<EnumType>> = (() => {
-  const map = new Map<string, Set<EnumType>>();
-  Object.values(tableSchemas).forEach((tableData) => {
-    tableData.columns.forEach((col) => {
-      if (col.enumType) {
-        const key = col.name.toLowerCase();
-        let set = map.get(key);
-        if (!set) {
-          set = new Set();
-          map.set(key, set);
-        }
-        set.add(col.enumType);
-      }
-    });
-  });
-  return map;
-})();
 
+// --- Enum metadata derived from tableSchemas ---------------------------------
+// columnName (lc) -> enums it can be (`status` is both `status` and `signal_run_status`).
+const columnEnumMap = new Map<string, Set<EnumType>>();
+// enumName -> `table.column` sources, used for info tooltips.
+const enumUsageMap = new Map<EnumType, string[]>();
+const allEnumTypes: EnumType[] = [];
+Object.entries(tableSchemas).forEach(([table, { columns }]) => {
+  columns.forEach((col) => {
+    if (!col.enumType) return;
+    const key = col.name.toLowerCase();
+    if (!columnEnumMap.has(key)) columnEnumMap.set(key, new Set());
+    columnEnumMap.get(key)!.add(col.enumType);
+    if (!enumUsageMap.has(col.enumType)) {
+      enumUsageMap.set(col.enumType, []);
+      allEnumTypes.push(col.enumType);
+    }
+    enumUsageMap.get(col.enumType)!.push(`${table}.${col.name}`);
+  });
+});
+
+const enumValuesList = (et: EnumType) => enumValues[et].map((v) => `'${v}'`).join(", ");
+const enumInfo = (et: EnumType) => `${et} enum — used in ${(enumUsageMap.get(et) ?? []).join(", ") || et}`;
+
+// Detail / info for a single column (table-scoped path).
+const columnDetail = (col: ColumnSchema) => col.enumType ?? col.type;
+const columnInfo = (col: ColumnSchema) =>
+  col.enumType ? `${col.description}\nAllowed values: ${enumValuesList(col.enumType)}` : col.description;
+
+// --- Enum context detection: `<enum_col> = …` anchored to cursor -------------
+// Anchored to `$` so `WHERE status = 'x' AND mode = '` resolves to `mode`.
 const enumColumnNamesPattern = Array.from(columnEnumMap.keys())
   .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|");
-// Anchored to end-of-string so multi-condition queries
-// (`WHERE status = 'x' AND mode = '`) resolve to the column nearest the cursor,
-// not the first one in the text. Group 1 captures the column name and is
-// reused by both `isInEnumContext` and `getEnumColumn`.
 const enumContextRegex = new RegExp(`\\b(${enumColumnNamesPattern})\\s*=\\s*[^=\\n]*$`, "i");
+const matchEnumColumn = (textBefore: string): string | null =>
+  textBefore.match(enumContextRegex)?.[1]?.toLowerCase() ?? null;
 
-const isInEnumContext = (textBefore: string): boolean => enumContextRegex.test(textBefore);
-const getEnumColumn = (textBefore: string): string | null => {
-  const match = textBefore.match(enumContextRegex);
-  return match ? match[1].toLowerCase() : null;
-};
-
-const generateEnumCompletions = (columnName: string, partialValue: string) => {
-  const enumTypes = columnEnumMap.get(columnName.toLowerCase());
-  if (!enumTypes) return [];
-
+// Build enum-value options for one or more enum types, deduped by value.
+const buildEnumOptions = (enumTypes: Iterable<EnumType>, partial: string, apply: (value: string) => string) => {
   const seen = new Set<string>();
-  const completions: ReturnType<typeof createOption>[] = [];
-  for (const enumType of enumTypes) {
-    for (const value of enumValues[enumType]) {
-      if (seen.has(value)) continue;
+  const options: ReturnType<typeof createOption>[] = [];
+  for (const et of enumTypes) {
+    for (const value of enumValues[et]) {
+      if (seen.has(value) || !matchesSearch(value, partial)) continue;
       seen.add(value);
-      if (matchesSearch(value, partialValue)) {
-        completions.push(createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
-      }
+      options.push(createOption(value, "enum", enumInfo(et), apply(value)));
     }
   }
-  return completions;
+  return options;
 };
 
-const generateEnumValueCompletions = (searchTerm: string) => {
-  const seen = new Set<string>();
-  const completions: ReturnType<typeof createOption>[] = [];
-  for (const [enumType, values] of Object.entries(enumValues) as [EnumType, readonly string[]][]) {
-    for (const value of values) {
-      if (seen.has(value)) continue;
-      seen.add(value);
-      if (matchesSearch(value, searchTerm)) {
-        completions.push(createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
-      }
-    }
-  }
-  return completions;
-};
-
-const generateClickhouseFunctionCompletions = (searchTerm: string) =>
+// --- Misc completion sources --------------------------------------------------
+const clickhouseFunctionCompletions = (searchTerm: string) =>
   clickhouseFunctions
     .filter((fn) => matchesSearch(fn.name, searchTerm))
     .map((fn) => createOption(fn.name, "function", `ClickHouse function: ${fn.description}`));
 
-const generateCustomCompletions = (searchTerm: string) => [
-  ...generateEnumValueCompletions(searchTerm),
-  ...generateClickhouseFunctionCompletions(searchTerm),
-];
+const customCompletions = (textBefore: string, searchTerm: string) => {
+  const enumColumn = matchEnumColumn(textBefore);
+  if (enumColumn) {
+    const enumTypes = columnEnumMap.get(enumColumn);
+    if (enumTypes) return buildEnumOptions(enumTypes, searchTerm, (v) => `'${v}'`);
+  }
+  return [...buildEnumOptions(allEnumTypes, searchTerm, (v) => `'${v}'`), ...clickhouseFunctionCompletions(searchTerm)];
+};
 
-const getRelevanceScore = (label: string, searchTerm: string): number => {
-  const lowerLabel = label.toLowerCase();
-  const lowerSearch = searchTerm.toLowerCase();
-
-  if (lowerLabel === lowerSearch) return 0;
-  if (lowerLabel.startsWith(lowerSearch)) return 1;
+// --- Sorting -----------------------------------------------------------------
+const relevanceScore = (label: string, search: string) => {
+  const a = label.toLowerCase();
+  const b = search.toLowerCase();
+  if (a === b) return 0;
+  if (a.startsWith(b)) return 1;
   return 2;
 };
-
 const sortByRelevance = (options: any[], searchTerm: string) =>
-  options.sort((a, b) => {
-    const scoreA = getRelevanceScore(a.label, searchTerm);
-    const scoreB = getRelevanceScore(b.label, searchTerm);
+  options.sort(
+    (a, b) =>
+      relevanceScore(a.label, searchTerm) - relevanceScore(b.label, searchTerm) || a.label.localeCompare(b.label)
+  );
 
-    if (scoreA !== scoreB) return scoreA - scoreB;
-    return a.label.localeCompare(b.label);
-  });
-
-const generateCompletions = (textBefore: string, searchTerm: string) => {
-  if (isInEnumContext(textBefore)) {
-    const enumColumn = getEnumColumn(textBefore);
-    if (enumColumn) {
-      return generateEnumCompletions(enumColumn, searchTerm);
-    }
-  }
-
-  return generateCustomCompletions(searchTerm);
-};
-
-/**
- * Resolves the effective table schemas based on the schema config.
- * If no config is provided, returns all default table schemas.
- * If tables filter is provided, only includes those tables.
- * Custom tables are merged in addition to filtered default tables.
- */
+// Filters default tables to `config.tables` (if set) and merges `customTables`.
 export function resolveTableSchemas(config?: SQLSchemaConfig): Record<string, TableSchema> {
-  let effectiveSchemas: Record<string, TableSchema> = {};
-
-  if (config?.tables) {
-    // Filter to only specified tables
-    for (const tableName of config.tables) {
-      if (tableSchemas[tableName]) {
-        effectiveSchemas[tableName] = tableSchemas[tableName];
-      }
-    }
-  } else {
-    // Use all default tables
-    effectiveSchemas = { ...tableSchemas };
-  }
-
-  // Merge custom tables
-  if (config?.customTables) {
-    effectiveSchemas = { ...effectiveSchemas, ...config.customTables };
-  }
-
-  return effectiveSchemas;
+  const base = config?.tables
+    ? Object.fromEntries(config.tables.filter((t) => t in tableSchemas).map((t) => [t, tableSchemas[t]]))
+    : { ...tableSchemas };
+  return config?.customTables ? { ...base, ...config.customTables } : base;
 }
 
-/**
- * Creates a completion source function scoped to the given table schemas
- */
 function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>, knownIds: Set<string>) {
   const sqlSchema: SQLNamespace = Object.fromEntries(
     Object.entries(scopedSchemas).map(([tableName, tableData]) => [
@@ -503,8 +439,8 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
           ? {
               label: col.name,
               type: "property",
-              detail: col.type,
-              info: col.description,
+              detail: columnDetail(col),
+              info: columnInfo(col),
             }
           : col.name
       ),
@@ -531,69 +467,90 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
         boost: 2,
       }));
 
+  // Cross-table column completions. Renders per-enum breakdown when the same
+  // column name (e.g. `status`) carries different enums across tables.
   const generateAllColumnCompletions = (searchTerm: string) => {
-    const columnMap = new Map<string, { tables: string[]; type: string; description: string }>();
-
-    Object.entries(scopedSchemas).forEach(([tableName, tableData]) => {
-      tableData.columns
+    const grouped = new Map<string, Array<{ table: string; col: ColumnSchema }>>();
+    Object.entries(scopedSchemas).forEach(([table, { columns }]) => {
+      columns
         .filter((col) => col.name !== "*" && startsWithSearch(col.name, searchTerm))
         .forEach((col) => {
-          if (!columnMap.has(col.name)) {
-            columnMap.set(col.name, {
-              tables: [tableName],
-              type: col.type,
-              description: col.description,
-            });
-          } else {
-            const existing = columnMap.get(col.name)!;
-            if (!existing.tables.includes(tableName)) {
-              existing.tables.push(tableName);
-            }
-          }
+          const arr = grouped.get(col.name) ?? [];
+          arr.push({ table, col });
+          grouped.set(col.name, arr);
         });
     });
 
-    const allColumns: any[] = [];
-    columnMap.forEach((data, columnName) => {
-      const tableList = data.tables.join(", ");
-      allColumns.push({
-        label: columnName,
-        type: "property",
-        detail: data.type,
-        info: `Found in: ${tableList}\n${data.description}`,
-        boost: -1,
+    return Array.from(grouped.entries()).map(([name, entries]) => {
+      const tables = Array.from(new Set(entries.map((e) => e.table))).join(", ");
+      const enums = new Map<EnumType, string[]>();
+      const plain: string[] = [];
+      entries.forEach(({ table, col }) => {
+        const src = `${table}.${col.name}`;
+        if (!col.enumType) plain.push(src);
+        else {
+          if (!enums.has(col.enumType)) enums.set(col.enumType, []);
+          enums.get(col.enumType)!.push(src);
+        }
       });
-    });
 
-    return allColumns;
+      const rep = entries[0].col;
+      let detail = rep.type;
+      let info = `Found in: ${tables}\n${rep.description}`;
+      if (enums.size === 1) {
+        const [et] = enums.keys();
+        detail = et;
+        info = `Found in: ${tables}\n${columnInfo(rep)}`;
+      } else if (enums.size > 1) {
+        const lines = Array.from(enums.entries()).map(([et, srcs]) => `  ${srcs.join(", ")}: ${enumValuesList(et)}`);
+        if (plain.length > 0) lines.push(`  ${plain.join(", ")}: unconstrained`);
+        info = `Found in: ${tables}\nAllowed values vary by table:\n${lines.join("\n")}`;
+      }
+
+      return { label: name, type: "property", detail, info, boost: -1 };
+    });
   };
 
   return (context: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
+    const textBefore = context.state.doc.sliceString(0, context.pos);
+
+    // Inside `'…'`: only enum values for `<enum_col> = '<cursor>`. Append the
+    // closing `'` ourselves unless one is already there; bail on mid-word
+    // cursor (`'PEN|DING'`) so we don't splice into an existing word.
     if (isInsideString(context.state, context.pos)) {
-      return null;
+      const enumColumn = matchEnumColumn(textBefore);
+      const enumTypes = enumColumn ? columnEnumMap.get(enumColumn) : null;
+      if (!enumTypes) return null;
+      const nextChar = context.state.doc.sliceString(context.pos, context.pos + 1);
+      if (/\w/.test(nextChar)) return null;
+      const partial = context.matchBefore(/\w*/);
+      const partialText = (partial?.text ?? "").toLowerCase();
+      const suffix = nextChar === "'" ? "" : "'";
+      const options = buildEnumOptions(enumTypes, partialText, (v) => `${v}${suffix}`);
+      if (options.length === 0) return null;
+      return {
+        from: partial?.from ?? context.pos,
+        options: sortByRelevance(options, partialText),
+        validFor: /^\w*$/,
+      };
     }
 
     const word = context.matchBefore(/\w*/);
-    if (!word || (word.from === word.to && !context.explicit)) {
-      return null;
-    }
-
-    const textBefore = context.state.doc.sliceString(0, context.pos);
+    if (!word || (word.from === word.to && !context.explicit)) return null;
     const searchTerm = word.text.toLowerCase();
 
     const sqlCompletions = sqlSchemaCompletions(context);
     const keywordCompletions = sqlKeywordCompletions(context);
-
-    const customOptions = generateCompletions(textBefore, searchTerm);
-    const sortedCustomOptions = sortByRelevance(customOptions, searchTerm);
-
     const tableCompletions = generateTableCompletions(searchTerm);
     const columnCompletions = generateAllColumnCompletions(searchTerm);
+    const sortedCustom = sortByRelevance(customCompletions(textBefore, searchTerm), searchTerm);
 
-    const filterSchemaCompletions = (options: readonly { label?: string }[]) =>
-      options.filter((opt) => {
-        const label = opt.label?.toLowerCase();
-        return !Object.keys(scopedSchemas).includes(label ?? "") && !knownIds.has(label ?? "");
+    // Strip table/column entries from the SQL-package completions; we already
+    // emit our own richer versions above.
+    const filterSchemaCompletions = (opts: readonly { label?: string }[]) =>
+      opts.filter((opt) => {
+        const label = opt.label?.toLowerCase() ?? "";
+        return !(label in scopedSchemas) && !knownIds.has(label);
       });
 
     const buildResult = (
@@ -601,55 +558,31 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
       keywordOpts: readonly { label?: string }[] | null,
       validFor?: CompletionResult["validFor"]
     ): CompletionResult | null => {
-      const filteredSchema = filterSchemaCompletions(schemaOpts || []);
       const allOptions = [
         ...tableCompletions,
         ...columnCompletions,
-        ...sortedCustomOptions.slice(0, 50),
-        ...(keywordOpts || []),
-        ...filteredSchema,
+        ...sortedCustom.slice(0, 50),
+        ...(keywordOpts ?? []),
+        ...filterSchemaCompletions(schemaOpts ?? []),
       ];
-
-      if (allOptions.length > 0) {
-        return {
-          from: word.from,
-          options: allOptions,
-          validFor,
-        };
-      }
-      return null;
+      return allOptions.length > 0 ? { from: word.from, options: allOptions, validFor } : null;
     };
 
-    const schemaIsPromise = sqlCompletions instanceof Promise;
-    const keywordsIsPromise = keywordCompletions instanceof Promise;
-
-    if (schemaIsPromise || keywordsIsPromise) {
-      return Promise.all([
-        schemaIsPromise ? sqlCompletions : Promise.resolve(sqlCompletions),
-        keywordsIsPromise ? keywordCompletions : Promise.resolve(keywordCompletions),
-      ]).then(([schemaResolved, keywordsResolved]) =>
-        buildResult(schemaResolved?.options || null, keywordsResolved?.options || null, schemaResolved?.validFor)
-      );
-    } else {
-      return buildResult(
-        sqlCompletions?.options || null,
-        keywordCompletions?.options || null,
-        sqlCompletions?.validFor
+    const needsAwait = sqlCompletions instanceof Promise || keywordCompletions instanceof Promise;
+    if (needsAwait) {
+      return Promise.all([Promise.resolve(sqlCompletions), Promise.resolve(keywordCompletions)]).then(
+        ([schema, keywords]) => buildResult(schema?.options ?? null, keywords?.options ?? null, schema?.validFor)
       );
     }
+    return buildResult(sqlCompletions?.options ?? null, keywordCompletions?.options ?? null, sqlCompletions?.validFor);
   };
 }
 
-/**
- * Computes the set of known identifiers (table names and column names) from schemas
- */
 function computeKnownIdentifiers(schemas: Record<string, TableSchema>): Set<string> {
   const identifiers = new Set<string>();
-  Object.entries(schemas).forEach(([tableName, tableData]) => {
+  Object.entries(schemas).forEach(([tableName, { columns }]) => {
     identifiers.add(tableName.toLowerCase());
-    tableData.columns.forEach((col) => {
-      identifiers.add(col.name.toLowerCase());
-    });
+    columns.forEach((col) => identifiers.add(col.name.toLowerCase()));
   });
   return identifiers;
 }
@@ -916,11 +849,7 @@ export const editorTheme = EditorView.theme({
   ...signatureHelpStyles,
 });
 
-/**
- * Creates CodeMirror extensions for the SQL editor with optional scoped schema configuration.
- * @param config - Optional schema configuration to scope autocomplete to specific tables
- * @returns Array of CodeMirror extensions
- */
+// CodeMirror extension bundle for the SQL editor, optionally scoped by `config`.
 export function createExtensions(config?: SQLSchemaConfig) {
   const scopedSchemas = resolveTableSchemas(config);
   const knownIdentifiers = computeKnownIdentifiers(scopedSchemas);
