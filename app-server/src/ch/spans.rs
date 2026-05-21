@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -202,6 +203,13 @@ impl CHSpan {
 
 impl ClickhouseInsertable for CHSpan {
     const TABLE: Table = Table::Spans;
+
+    // Cap the server-side async-insert coalescing wait. The Rust batcher
+    // already coalesces upstream; without this, CH parks at the adaptive
+    // max (~1s) because per-flush byte size is well below the size cap.
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_option("async_insert_busy_timeout_max_ms", "400")
+    }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Spans(items)
