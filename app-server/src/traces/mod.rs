@@ -2,6 +2,7 @@ pub mod consumer;
 pub mod data_plane_consumer;
 pub mod grpc_service;
 pub mod input_dedup;
+pub mod opentelemetry_json;
 #[cfg(feature = "signals")]
 pub mod previews;
 pub mod processor;

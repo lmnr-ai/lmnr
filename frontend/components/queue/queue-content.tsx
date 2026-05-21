@@ -1,11 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
 import Header from "@/components/ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { track } from "@/lib/posthog";
 
 import BottomControls from "./bottom-controls";
 import DataPanel from "./data-panel";
@@ -40,16 +41,21 @@ export default function QueueContent() {
     return <EmptyState />;
   }
 
-  return <QueueContentInner />;
+  return <QueueContentInner count={itemsLen} />;
 }
 
-function QueueContentInner() {
+function QueueContentInner({ count }: { count: number }) {
   const { projectId } = useParams<{ projectId: string }>();
   const queue = useQueueStore((s) => s.queue);
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: `queue-layout-${queue.id}`,
   });
+
+  useEffect(() => {
+    track("labeling_queues", "queue_page_viewed", { count });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
