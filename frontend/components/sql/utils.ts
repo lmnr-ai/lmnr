@@ -408,9 +408,8 @@ const generateEnumValueCompletions = (searchTerm: string) => {
   const completions: ReturnType<typeof createOption>[] = [];
   for (const [enumType, values] of Object.entries(enumValues) as [EnumType, readonly string[]][]) {
     for (const value of values) {
-      const key = `${enumType}:${value}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (seen.has(value)) continue;
+      seen.add(value);
       if (matchesSearch(value, searchTerm)) {
         completions.push(createOption(value, "enum", `${enumType} enum value`, `'${value}'`));
       }
