@@ -65,7 +65,11 @@ impl TraceService for ProcessTracesService {
             match limiter.count(key).await {
                 Ok(_) => {}
                 Err(LimiterError::LimitExceeded(_)) => {
-                    return Err(Status::resource_exhausted("Rate limit exceeded"));
+                    // `cancelled` rather than `resource_exhausted`: OTel SDK
+                    // retry policies treat `resource_exhausted` as retriable
+                    // only when the server attaches `RetryInfo`, so legitimate
+                    // exporters would otherwise drop the batch on the floor.
+                    return Err(Status::cancelled("Rate limit exceeded"));
                 }
                 Err(e) => {
                     log::error!("Rate limiter error, allowing request: {:?}", e);

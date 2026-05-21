@@ -160,7 +160,7 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 
 - Per-project rate limiting is driven by a single `actix_limitation::Limiter` built in `app-server/src/main.rs` when `Feature::RateLimiter` is enabled (`REDIS_URL` + `RATE_LIMIT` + `RATE_LIMIT_PERIOD_SECS`). HTTP wraps it via `actix_limitation::RateLimiter` middleware on the relevant scopes; gRPC ingestion (`ProcessTracesService::export` in `traces/grpc_service.rs`) calls `limiter.count(format!("ratelimit:{}", project_id))` inline after auth. Both paths use the same Redis key prefix, so OTLP/HTTP and OTLP/gRPC share one quota — clients can't bypass the limit by switching transports.
 - Tonic has no actix-style middleware; the limiter is plumbed into `ProcessTracesService::new` as `Option<Arc<Limiter>>` and the gRPC thread receives a clone (`grpc_rate_limiter = rate_limiter.as_ref().map(|l| Arc::new(l.clone()))`) **before** the HTTP closure moves `rate_limiter`. Don't reorder those two clones.
-- Posture is fail-open on Redis errors (logged, request allowed) — same as the bytes-limit check in the same handler — so a Redis blip can't black-hole ingestion. `LimitExceeded` returns `Status::resource_exhausted("Rate limit exceeded")`.
+- Posture is fail-open on Redis errors (logged, request allowed) — same as the bytes-limit check in the same handler — so a Redis blip can't black-hole ingestion. `LimitExceeded` returns `Status::cancelled("Rate limit exceeded")` rather than `resource_exhausted`: OTel SDK retry policies treat `resource_exhausted` as retriable only when the server attaches `RetryInfo`, so `cancelled` is the safer "legitimate clients please retry" signal here.
 
 ## OTLP Trace Ingestion (`/v1/traces`)
 
