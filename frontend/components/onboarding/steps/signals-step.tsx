@@ -40,9 +40,8 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
     <StepShell
       stepIndex={stepIndex}
       totalSteps={totalSteps}
-      title="Choose what to monitor"
-      description="Pick the patterns to watch in traces. Matches surface as events, and similar ones cluster into trends to spot at glance."
-      hint="Pick a few to start - you can tweak prompts, add custom signals, or remove these anytime from the Signals page in your project."
+      title="Set up your first Signal"
+      description="A Signal watches every agent trace for a behavior you describe in plain text. Laminar groups recurring cases into patterns you can investigate and notifies you when a new one shows up. Pick a template to start."
       onNext={handleNext}
       nextDisabled={selectedCount === 0}
       isSubmitting={isSubmitting}
@@ -71,7 +70,7 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                     onClick={() => toggle(template.name)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full",
+                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full pb-8 pt-4",
                       isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
                     )}
                   >

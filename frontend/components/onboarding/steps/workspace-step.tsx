@@ -45,12 +45,18 @@ export default function WorkspaceStep({ stepIndex, totalSteps, isCloud = false, 
       stepIndex={stepIndex}
       totalSteps={totalSteps}
       title="Welcome to Laminar"
-      description="Let's start by creating your first workspace and project."
-      hint="Workspaces hold your team, billing, and access; projects organize traces, signals, and evaluations. You can rename either one anytime in settings."
+      description={
+        <>
+          Let&apos;s start by creating your first workspace and project.
+          <br />
+          Workspaces manage your team and billing. Projects hold your traces, signals, and evaluations. You can rename
+          either anytime.
+        </>
+      }
       onNext={handleNext}
       nextDisabled={nextDisabled}
       isSubmitting={isSubmitting}
-      nextLabel="Create workspace"
+      nextLabel="Create workspace and project"
     >
       <div className="flex flex-col flex-1 gap-3" onKeyDown={handleKeyDown}>
         <div className="flex flex-col gap-1.5">

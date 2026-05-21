@@ -52,9 +52,12 @@ export default function PlanCard({ plan, selected, onSelect }: PlanCardProps) {
 
       <ul className="flex flex-col gap-1.5 2xl:gap-2">
         {plan.features.map((f) => (
-          <li key={f} className="text-xs 2xl:text-sm text-muted-foreground flex items-start gap-2">
+          <li key={f.label} className="text-sm text-muted-foreground flex items-start gap-2">
             <Check className="h-3 w-3 2xl:h-4 2xl:w-4 text-primary shrink-0 mt-0.5" />
-            <span>{f}</span>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span>{f.label}</span>
+              {f.sub && <span className="text-xs text-muted-foreground/70">{f.sub}</span>}
+            </div>
           </li>
         ))}
       </ul>

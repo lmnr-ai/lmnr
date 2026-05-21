@@ -51,10 +51,6 @@ export default function StepShell({
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center bg-background px-4 py-10 overflow-y-auto">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[40rem] xl:h-[min(50rem,80vh)] 2xl:h-[min(60rem,85vh)] bg-[radial-gradient(ellipse_70%_55%_at_50%_0%,hsl(var(--primary)/0.22),hsl(var(--primary)/0.08)_45%,transparent_75%)] xl:bg-[radial-gradient(ellipse_75%_60%_at_50%_0%,hsl(var(--primary)/0.24),hsl(var(--primary)/0.09)_45%,transparent_75%)] 2xl:bg-[radial-gradient(ellipse_80%_65%_at_50%_0%,hsl(var(--primary)/0.26),hsl(var(--primary)/0.1)_45%,transparent_75%)]"
-      />
       <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-6 xl:gap-8 my-auto">
         <div className="flex items-center justify-between gap-3 px-0.5">
           <LaminarLogo className="h-6 xl:h-7 2xl:h-8 w-auto text-muted-foreground/70" fill="currentColor" />
@@ -84,9 +80,7 @@ export default function StepShell({
             <h1 className="text-xl md:text-2xl 2xl:text-3xl font-semibold tracking-tight text-secondary-foreground">
               {title}
             </h1>
-            {description && (
-              <p className="text-sm 2xl:text-base text-muted-foreground leading-relaxed">{description}</p>
-            )}
+            {description && <p className="text-sm 2xl:text-base text-secondary-foreground">{description}</p>}
           </div>
           <div className="flex flex-col gap-5 xl:gap-6 py-6 xl:py-8 flex-1">{children}</div>
           {isCloud && hint && (

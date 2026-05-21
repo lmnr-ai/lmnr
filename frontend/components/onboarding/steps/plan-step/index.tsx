@@ -100,7 +100,6 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       totalSteps={totalSteps}
       title="Pick a plan"
       description="Match the plan to your expected usage."
-      hint="Hobby is our most popular plan - unlocks unlimited projects and teammates. Pro adds longer retention and private Slack support."
       onNext={handleNext}
       onBack={onBack}
       nextLabel={nextLabel}
