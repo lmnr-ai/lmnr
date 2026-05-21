@@ -304,7 +304,7 @@ impl MessageQueueTrait for RabbitMQ {
             anyhow::Ok(consumer)
         };
 
-        let consumer = match tokio::time::timeout(std::time::Duration::from_secs(15), setup).await {
+        let consumer = match tokio::time::timeout(std::time::Duration::from_secs(60), setup).await {
             Ok(Ok(consumer)) => consumer,
             Ok(Err(e)) => return Err(e),
             Err(_) => {

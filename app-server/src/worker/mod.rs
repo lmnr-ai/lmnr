@@ -212,7 +212,7 @@ impl<H: MessageHandler> QueueWorker<H> {
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
-            .with_max_interval(Duration::from_secs(5))
+            .with_max_interval(Duration::from_secs(20))
             .with_max_elapsed_time(Some(Duration::from_secs(300)))
             .build();
 
