@@ -24,7 +24,7 @@ const SLACK_BG = "rgb(22 22 23)"; // landing-surface-700 (was mis-commented)
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
 // Midpoint background — exact hex of --color-landing-surface-600.
-const MIDPOINT_BG = "#1b1b1c";
+const MIDPOINT_BG = "#1b1b1c44";
 
 // Morphs from a Slack notification (progress=0) to a Signal event card
 // (progress=1). The content swaps at the midpoint; the wrapper's height is

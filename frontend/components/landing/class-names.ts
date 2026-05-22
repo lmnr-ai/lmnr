@@ -24,4 +24,4 @@ export const bodyMedium = "text-white/80 whitespace-pre-line";
 // titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
 // MORE row at the bottom of each surface-550 mock panel. Single source
 // of truth so all those labels stay visually consistent.
-export const microLabel = "text-xs text-landing-text-400";
+export const microLabel = "text-sm text-landing-text-400";

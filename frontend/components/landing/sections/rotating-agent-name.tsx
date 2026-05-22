@@ -5,9 +5,6 @@ import { useEffect, useState } from "react";
 
 const NAMES = ["Claude", "Cursor", "Codex"] as const;
 
-// Rotates through agent names with a quick opacity fade between each. Used as
-// the first word of the "Claude, fix my agent" section title — pairs with
-// `AnimatePresence mode="wait"` so the exit completes before the next enters.
 const RotatingAgentName = () => {
   const [index, setIndex] = useState(0);
 

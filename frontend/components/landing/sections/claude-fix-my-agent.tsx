@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 import { bodyMedium, microLabel, subSection } from "../class-names";
 import ClaudeCodeSessionMock from "./claude-code-session-mock";
 import RotatingAgentName from "./rotating-agent-name";
@@ -7,9 +9,9 @@ import SectionFootnote from "./section-footnote";
 // inside a landing-surface-550 panel with a footnote pinned to the bottom.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
-    <div className="flex flex-col gap-3 items-start">
-      <span className={microLabel}>04.</span>
-      <h2 className={subSection}>
+    <div className="flex flex-col items-start">
+      <span className={cn(microLabel, "mb-2")}>04.</span>
+      <h2 className={cn(subSection, "mb-2")}>
         <RotatingAgentName />
         {", fix my agent"}
       </h2>
