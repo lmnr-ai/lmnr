@@ -284,9 +284,15 @@ fn main() -> anyhow::Result<()> {
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+            let auto_reconnect =
+                env::var("RABBITMQ_AUTO_RECONNECT").is_ok_and(|v| v.to_lowercase() == "true");
+            let mut props = ConnectionProperties::default();
+            if auto_reconnect {
+                props = props.enable_auto_recover();
+            }
             runtime_handle.block_on(async {
                 let publisher_conn = Arc::new(
-                    Connection::connect(&rabbitmq_url, ConnectionProperties::default())
+                    Connection::connect(&rabbitmq_url, props.clone())
                         .await
                         .unwrap(),
                 );
@@ -295,9 +301,7 @@ fn main() -> anyhow::Result<()> {
                 let consumer_conn = if enable_consumer() {
                     log::info!("Consumer mode enabled - creating consumer connection");
                     Some(Arc::new(
-                        Connection::connect(&rabbitmq_url, ConnectionProperties::default())
-                            .await
-                            .unwrap(),
+                        Connection::connect(&rabbitmq_url, props).await.unwrap(),
                     ))
                 } else {
                     log::info!("Producer-only mode - skipping consumer connection");
