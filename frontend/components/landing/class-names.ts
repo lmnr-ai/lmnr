@@ -12,5 +12,11 @@ export const mainTitle =
 export const subSection =
   "font-manrope font-medium text-white whitespace-pre-line text-2xl leading-7 tracking-[-0.02em]";
 
+// One step smaller than `subSection` — used for sub-section titles
+// (e.g. "2.1", "2.2" under a parent subSection like "Understand why
+// in seconds"). Same weight + font, smaller scale.
+export const subSubSection =
+  "font-manrope font-medium text-white whitespace-pre-line text-xl leading-6 tracking-[-0.02em]";
+
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
 export const bodyMedium = "text-white/80 whitespace-pre-line";

@@ -13,9 +13,9 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { swrFetcher } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
-import { bodyMedium, subSection } from "../../class-names";
+import { bodyMedium, subSection, subSubSection } from "../../class-names";
 import SectionFootnote from "../section-footnote";
 import TraceViewErrorBoundary from "./error-boundary";
 import TraceBento, { type Phase } from "./trace-bento";
@@ -32,16 +32,32 @@ const BLOCK_PITCH_PX = 200;
 
 const INACTIVE_OPACITY = 0.4;
 
-const GRADIENT_FADE_PX = 128;
-
 interface BandConfig {
   /** Footnote label inside the right rectangle. Should match the bento's
    *  visual state for this phase (see Phase comment in trace-bento.tsx). */
   name: string;
-  title: string;
+  /** Top-level section title — only present on phases 1 and 2 (the
+   *  "section roots"). Phases 3 and 4 are subsections of phase 2 and
+   *  use `subtitle` instead. */
+  title?: string;
+  /** Subsection title — used by phases 3 and 4, which sit under
+   *  phase 2's "Understand why in seconds." parent. Rendered with
+   *  the `subSubSection` style (smaller than `subSection`). */
+  subtitle?: string;
   body: ReactNode;
   learnMoreHref: string;
 }
+
+// Step label shown above each block in the LEFT column. Phases 1 and 2
+// are top-level sections ("01.", "02."); phases 3 and 4 are subsections
+// of section 2 ("2.1", "2.2") — they share a parent narrative ("Understand
+// why in seconds") and just refine it with Timeline / Ask AI variants.
+const STEP_LABELS: Record<1 | 2 | 3 | 4, string> = {
+  1: "01.",
+  2: "02.",
+  3: "2.1",
+  4: "2.2",
+};
 
 // Copy follows the `copy` branch's `stage-text.tsx` shape. Phases 3 and 4
 // were title-only on that branch; the user asked for every phase to have
@@ -56,7 +72,7 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   1: {
     name: "Notifications",
     title: "Get alerts when\nyour agent breaks.",
-    body: "Describe what you want to track in plain English. Laminar pings you in Slack the moment a trace matches.",
+    body: "Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings you in Slack the moment a trace matches.",
     learnMoreHref: "https://laminar.sh/docs/signals",
   },
   2: {
@@ -67,14 +83,14 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   },
   3: {
     name: "Timeline",
-    title: "See every action\non a timeline.",
-    body: "Spot the slow step at a glance.",
+    subtitle: "See every action\non a timeline.",
+    body: "Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
     learnMoreHref: "https://laminar.sh/docs/tracing",
   },
   4: {
     name: "Ask AI",
-    title: "Long complex run?\nChat with AI about it.",
-    body: "Ask questions, get answers\ngrounded in the actual run.",
+    subtitle: "Long complex run?\nChat with AI about it.",
+    body: "Ask any question, dive deep into any agent run. Click span references to jump straight into context.",
     learnMoreHref: "https://laminar.sh/docs/tracing",
   },
 };
@@ -86,25 +102,20 @@ const progressToPhase = (p: number): Phase => {
   return 4;
 };
 
-// LEFT-stack continuous values: stack `y` and per-block opacity are
-// derived directly from `scrollYProgress` via `useTransform` (inside the
-// component), so the stack moves and dims smoothly with the scroll
-// rather than snapping at phase thresholds. The bento on the right
-// keeps the discrete `phase` state — its internal animations are
-// phase-keyed (slack → trace view → timeline → ask AI), so snapping
-// there is intentional.
+// LEFT-stack: only the stack `y` is a continuous MotionValue derived
+// from `scrollYProgress` via `useTransform` — that's what keeps the
+// stack glide smooth across phase boundaries instead of snapping.
+// Per-block opacity is driven by the discrete `phase` state (see the
+// JSX below) so it just toggles between 1 and INACTIVE_OPACITY at the
+// phase thresholds, with a CSS transition softening the change.
 //
-// Stack y endpoints: at scrollYProgress 0, block 1 is centered
-// (`y = +1.5 * pitch`); at scrollYProgress 1, block 4 is centered
-// (`y = -1.5 * pitch`). Linear interp between.
-//
-// Per-block opacity: block N peaks (opacity = 1) at scrollYProgress
-// = (N-1)/3 and fades to INACTIVE_OPACITY over a 1/3 span on either
-// side. The 1/3 span equals one block-pitch of stack movement, so
-// adjacent blocks reach INACTIVE_OPACITY when this one is at peak.
+// Stack y endpoints: at scrollYProgress 0, block 1 sits at the active
+// position (`y = STACK_Y_OFFSET + 1.5 * pitch`); at scrollYProgress 1,
+// block 4 sits there (`y = STACK_Y_OFFSET - 1.5 * pitch`). Linear
+// interp between. `STACK_Y_OFFSET` biases the whole stack up so the
+// active block lands above the box's geometric center.
 const STACK_Y_MAX = 1.5 * BLOCK_PITCH_PX;
 const STACK_Y_OFFSET = -160;
-const BLOCK_OPACITY_FADE_SPAN = 1 / 3;
 
 const UnderstandWhyTraceView = () => {
   // Single scroll observer for the whole section. Don't add a second
@@ -129,24 +140,6 @@ const UnderstandWhyTraceView = () => {
   // stack glides continuously rather than snapping at phase boundaries.
   const stackY = useTransform(scrollYProgress, [0, 1], [STACK_Y_OFFSET + STACK_Y_MAX, STACK_Y_OFFSET - STACK_Y_MAX]);
 
-  // Per-block opacity. Block N peaks at scrollYProgress (N-1)/3 and
-  // fades to INACTIVE_OPACITY over BLOCK_OPACITY_FADE_SPAN on either
-  // side. Outside the input range, useTransform clamps to the edge
-  // output (= INACTIVE_OPACITY), so far-away blocks stay dim.
-  const opacity1 = useTransform(
-    scrollYProgress,
-    [-BLOCK_OPACITY_FADE_SPAN, 0, BLOCK_OPACITY_FADE_SPAN],
-    [INACTIVE_OPACITY, 1, INACTIVE_OPACITY]
-  );
-  const opacity2 = useTransform(scrollYProgress, [0, 1 / 3, 2 / 3], [INACTIVE_OPACITY, 1, INACTIVE_OPACITY]);
-  const opacity3 = useTransform(scrollYProgress, [1 / 3, 2 / 3, 1], [INACTIVE_OPACITY, 1, INACTIVE_OPACITY]);
-  const opacity4 = useTransform(
-    scrollYProgress,
-    [2 / 3, 1, 1 + BLOCK_OPACITY_FADE_SPAN],
-    [INACTIVE_OPACITY, 1, INACTIVE_OPACITY]
-  );
-  const blockOpacities = [opacity1, opacity2, opacity3, opacity4];
-
   // Slack→signal morph progress (0 = slack, 1 = signal). Driven by phase
   // via framer's `animate` helper so `SlackToSignalMorph` keeps its
   // existing `MotionValue<number>` contract.
@@ -166,7 +159,7 @@ const UnderstandWhyTraceView = () => {
   return (
     <TraceViewErrorBoundary>
       <section ref={sectionRef} className="relative w-full max-w-[880px] mx-auto">
-        <div className="flex gap-10">
+        <div className="flex gap-18">
           {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll
               length). The sticky child pins for the entire section. */}
@@ -174,10 +167,7 @@ const UnderstandWhyTraceView = () => {
             <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
               <div className="h-[760px] w-full overflow-hidden relative">
                 {/* Top gradient — text fades into page bg at top of viewport */}
-                <div
-                  style={{ height: GRADIENT_FADE_PX }}
-                  className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-landing-surface-700 to-transparent pointer-events-none"
-                />
+                <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-landing-surface-700 to-transparent pointer-events-none h-[100px]" />
 
                 {/* Stack wrapper — vertically centered in viewport via flex
                   items-center. Inner motion.div uses `style={{ y }}` with
@@ -189,15 +179,20 @@ const UnderstandWhyTraceView = () => {
                       const config = BANDS[n];
                       return (
                         <div key={n} style={{ height: BLOCK_PITCH_PX }} className="flex flex-col justify-center">
-                          {/* Opacity is a per-block MotionValue. Wrapped on
-                            inner motion so the outer fixed-height
-                            container keeps a stable layout regardless of
-                            its child's opacity. */}
-                          <motion.div style={{ opacity: blockOpacities[n - 1] }} className="flex flex-col gap-3">
-                            <span className="text-xs tracking-wider text-landing-text-400">{`0${n}.`}</span>
-                            <h2 className={`${subSection} whitespace-pre-line`}>{config.title}</h2>
-                            <p className={bodyMedium}>{config.body}</p>
-                          </motion.div>
+                          {/* Opacity driven by the discrete `phase` state —
+                              snaps between full and INACTIVE_OPACITY on phase
+                              change, softened by a CSS opacity transition.
+                              No framer involvement; remove the transition
+                              class if you want a hard snap. */}
+                          <div
+                            style={{ opacity: phase === n ? 1 : INACTIVE_OPACITY }}
+                            className="flex flex-col gap-3 transition-opacity duration-300 ease-out"
+                          >
+                            <span className="text-xs tracking-wider text-landing-text-400">{STEP_LABELS[n]}</span>
+                            {config.title && <h2 className={subSection}>{config.title}</h2>}
+                            {config.subtitle && <h3 className={subSubSection}>{config.subtitle}</h3>}
+                            <p className={cn(bodyMedium, "text-justify")}>{config.body}</p>
+                          </div>
                         </div>
                       );
                     })}
@@ -205,10 +200,7 @@ const UnderstandWhyTraceView = () => {
                 </div>
 
                 {/* Bottom gradient — text fades into page bg at bottom of viewport */}
-                <div
-                  style={{ height: GRADIENT_FADE_PX }}
-                  className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none"
-                />
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none h-[120px]" />
               </div>
             </div>
           </div>
@@ -234,10 +226,7 @@ const UnderstandWhyTraceView = () => {
                 </div>
 
                 {/* Bottom gradient */}
-                <div
-                  style={{ height: GRADIENT_FADE_PX }}
-                  className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none"
-                />
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
 
                 <SectionFootnote step={`0${phase}`} name={activeBand.name} href={activeBand.learnMoreHref} />
               </div>
