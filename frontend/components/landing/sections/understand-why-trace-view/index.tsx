@@ -219,6 +219,16 @@ const UnderstandWhyTraceView = () => {
                 {/* Bottom gradient */}
                 <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
 
+                {/* Left gradient — only at phase 4 (ask-ai panel open).
+                    Always rendered so the CSS opacity transition can fade
+                    it in/out cleanly on phase change. */}
+                <div
+                  className={cn(
+                    "absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-landing-surface-550/80 to-transparent pointer-events-none w-[120px] transition-opacity duration-300 ease-out",
+                    phase === 4 ? "opacity-100" : "opacity-0"
+                  )}
+                />
+
                 <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
               </div>
             </div>
