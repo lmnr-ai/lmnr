@@ -1560,8 +1560,10 @@ fn main() -> anyhow::Result<()> {
         // === Rate limiter ===
         let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
             let redis_url = env::var("REDIS_URL").unwrap();
-            let limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
-            let period_secs: u64 = env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
+
+            let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
+            let http_period_secs: u64 =
+                env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
             // project_auth middleware populates ProjectApiKey in request extensions
             match Limiter::builder(&redis_url)
                 .key_by(|req: &dev::ServiceRequest| {
@@ -1569,15 +1571,15 @@ fn main() -> anyhow::Result<()> {
                         .get::<db::project_api_keys::ProjectApiKey>()
                         .map(|k| format!("ratelimit:{}", k.project_id))
                 })
-                .limit(limit)
-                .period(Duration::from_secs(period_secs))
+                .limit(http_limit)
+                .period(Duration::from_secs(http_period_secs))
                 .build()
             {
                 Ok(limiter) => {
                     log::info!(
                         "Rate limiter initialized ({} req/{} s per project)",
-                        limit,
-                        period_secs
+                        http_limit,
+                        http_period_secs
                     );
                     Some(limiter)
                 }
@@ -1591,10 +1593,37 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
-        // gRPC ingestion shares the same Redis-backed quota as HTTP via
-        // `ratelimit:<project_id>`. Limiter is Clone (inner redis::Client +
-        // Arc'd key fn), so cloning once for the gRPC thread is cheap.
-        let grpc_rate_limiter = rate_limiter.as_ref().map(|l| Arc::new(l.clone()));
+        let grpc_rate_limiter = if is_feature_enabled(Feature::GrpcRateLimiter) {
+            let redis_url = env::var("REDIS_URL").unwrap();
+
+            let grpc_limit: usize = env::var("GRPC_RATE_LIMIT").unwrap().parse().unwrap();
+            let grpc_period_secs: u64 = env::var("GRPC_RATE_LIMIT_PERIOD_SECS")
+                .unwrap()
+                .parse()
+                .unwrap();
+            // no key_by. .count() is called explicitly with a key manually
+            match Limiter::builder(&redis_url)
+                .limit(grpc_limit)
+                .period(Duration::from_secs(grpc_period_secs))
+                .build()
+            {
+                Ok(limiter) => {
+                    log::info!(
+                        "gRPC Rate limiter initialized ({} req/{} s per project)",
+                        grpc_limit,
+                        grpc_period_secs
+                    );
+                    Some(limiter)
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize gRPC rate limiter: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            log::info!("gRPC rate limiter is disabled");
+            None
+        };
 
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
@@ -1764,7 +1793,7 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
-                        grpc_rate_limiter.clone(),
+                        grpc_rate_limiter,
                     );
 
                     let process_logs_service = ProcessLogsService::new(

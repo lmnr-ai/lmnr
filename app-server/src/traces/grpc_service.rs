@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use actix_limitation::{Error as LimiterError, Limiter};
+use uuid::Uuid;
 
 use crate::{
     auth::authenticate_request,
-    cache::Cache,
+    cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_IDS_CACHE_KEY},
     db::DB,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
@@ -22,7 +23,7 @@ pub struct ProcessTracesService {
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    rate_limiter: Option<Arc<Limiter>>,
+    rate_limiter: Option<Limiter>,
 }
 
 impl ProcessTracesService {
@@ -31,7 +32,7 @@ impl ProcessTracesService {
         cache: Arc<Cache>,
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
-        rate_limiter: Option<Arc<Limiter>>,
+        rate_limiter: Option<Limiter>,
     ) -> Self {
         Self {
             db,
@@ -61,18 +62,23 @@ impl TraceService for ProcessTracesService {
         // errors — same posture as the bytes-limit check below — so a Redis
         // blip doesn't black-hole ingestion.
         if let Some(ref limiter) = self.rate_limiter {
-            let key = format!("ratelimit:{}", project_id);
-            match limiter.count(key).await {
-                Ok(_) => {}
-                Err(LimiterError::LimitExceeded(_)) => {
-                    // `cancelled` rather than `resource_exhausted`: OTel SDK
-                    // retry policies treat `resource_exhausted` as retriable
-                    // only when the server attaches `RetryInfo`, so legitimate
-                    // exporters would otherwise drop the batch on the floor.
-                    return Err(Status::resource_exhausted("Rate limit exceeded"));
-                }
-                Err(e) => {
-                    log::error!("Rate limiter error, allowing request: {:?}", e);
+            if get_limited_project_ids(self.cache.clone())
+                .await
+                .contains(&project_id)
+            {
+                let key = format!("ratelimit:{}", project_id);
+                match limiter.count(key).await {
+                    Ok(_) => {}
+                    Err(LimiterError::LimitExceeded(_)) => {
+                        // `cancelled` rather than `resource_exhausted`: OTel SDK
+                        // retry policies treat `resource_exhausted` as retriable
+                        // only when the server attaches `RetryInfo`, so legitimate
+                        // exporters would otherwise drop the batch on the floor.
+                        return Err(Status::resource_exhausted("Rate limit exceeded"));
+                    }
+                    Err(e) => {
+                        log::error!("Rate limiter error, allowing request: {:?}", e);
+                    }
                 }
             }
         }
@@ -111,5 +117,19 @@ impl TraceService for ProcessTracesService {
         })?;
 
         Ok(Response::new(response))
+    }
+}
+
+async fn get_limited_project_ids(cache: Arc<Cache>) -> Vec<Uuid> {
+    match cache
+        .get::<Vec<Uuid>>(INGESTION_RATE_LIMIT_PROJECT_IDS_CACHE_KEY)
+        .await
+    {
+        Ok(Some(v)) => v,
+        Ok(None) => vec![],
+        Err(e) => {
+            log::error!("Error getting rate limited project ids");
+            vec![]
+        }
     }
 }
