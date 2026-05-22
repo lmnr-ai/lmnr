@@ -21,7 +21,7 @@ const HasThisIssue = () => (
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
         <SignalEventClustersMock />
       </div>
-      <SectionFootnote name="Clusters" href="https://laminar.sh/docs/signals" />
+      <SectionFootnote name="Signal clusters" href="https://laminar.sh/docs/signals/clusters" />
     </div>
   </section>
 );

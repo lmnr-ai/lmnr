@@ -54,44 +54,37 @@ interface BandConfig {
   learnMoreHref: string;
 }
 
-// Step labels for phases 1 and 2 only. Phases 3 and 4 are unlabeled
-// subsections of section 02 ("Understand why in seconds") and reuse
-// the parent's number visually — no separate "2.1" / "2.2" labels,
-// per user direction. Numbering picks back up at "03." in
-// has-this-issue.tsx for the next top-level section.
-export const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
+// Phases 3 and 4 are unlabeled subsections of "Understand why in seconds" —
+// they reuse "02." visually and pick up at "03." in has-this-issue.
+const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
   1: "01.",
   2: "02.",
 };
 
-// Copy follows the `copy` branch's `stage-text.tsx` shape. Phases 3 and 4
-// were title-only on that branch; the user asked for every phase to have
-// both title + body here, so 3 and 4 get new bodies authored from the
-// bento's actual visual state ("focus on simplicity").
-export const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
+const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   1: {
     name: "Notifications",
     title: "Get alerts when\nyour agent breaks.",
     body: "Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings you in Slack the moment a trace matches.",
-    learnMoreHref: "https://laminar.sh/docs/signals",
+    learnMoreHref: "https://laminar.sh/docs/signals/alerts",
   },
   2: {
     name: "Trace view",
     title: "Understand why\nin seconds.",
     body: "Go from issue description to the\nexact step that caused it.",
-    learnMoreHref: "https://laminar.sh/docs/tracing",
+    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   3: {
     name: "Timeline",
     subtitle: "See every action on a timeline.",
     body: "Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
-    learnMoreHref: "https://laminar.sh/docs/tracing",
+    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#timeline",
   },
   4: {
     name: "Ask AI",
     subtitle: "Long complex run? Chat with AI",
     body: "Ask any question, dive deep into any agent run. Click span references to jump straight into context.",
-    learnMoreHref: "https://laminar.sh/docs/tracing",
+    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#chat-with-trace",
   },
 };
 

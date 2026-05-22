@@ -1,10 +1,6 @@
-// Shared tier data consumed by every pricing-grid layout variant.
-// Keep adjacent to pricing/index.tsx so layout exploration variants can render
-// the same source of truth in different shapes (cards, table, hybrid, etc.).
+type TierId = "free" | "hobby" | "pro" | "enterprise";
 
-export type TierId = "free" | "hobby" | "pro" | "enterprise";
-
-export interface Tier {
+interface Tier {
   id: TierId;
   name: string;
   price: string;
@@ -54,19 +50,15 @@ export const TIERS: Tier[] = [
 
 export const RECOMMENDED_TIER: TierId = "pro";
 
-// FeatureRow values per tier. A `string` renders as text in table cells, `true`
-// renders as a checkmark, `false` / `null` renders as an em-dash.
+// `false` / `null` cells render as an em-dash via the table renderer.
 export type FeatureValue = string | boolean | null;
 
-export interface FeatureRow {
+interface FeatureRow {
   label: string;
   subfeature?: string;
   values: Record<TierId, FeatureValue>;
 }
 
-// Flat feature list (no section headers). Order: Pricing rows, then Included,
-// Workspace, Support. "Monthly price" is omitted because it's already shown in
-// the per-tier header.
 export const FEATURES: FeatureRow[] = [
   {
     label: "Data overage",
@@ -106,8 +98,7 @@ export const FEATURES: FeatureRow[] = [
   },
 ];
 
-// Flat features for card layouts (one bullet per row, original copy).
-export interface CardFeature {
+interface CardFeature {
   label: string;
   subfeature?: string;
 }

@@ -126,26 +126,23 @@ function RecommendedBadge({ tooltip }: { tooltip?: string }) {
   );
 }
 
-function TierHeader({ name, isRecommended, tooltip }: { name: string; isRecommended: boolean; tooltip?: string }) {
-  const title = <span className={cn(subSection, "text-white")}>{name}</span>;
+function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      {title}
-      {isRecommended && <RecommendedBadge tooltip={tooltip} />}
+      <span className={cn(subSection, "text-white")}>{name}</span>
+      <RecommendedBadge tooltip={tooltip} />
     </div>
   );
 }
 
 function TierColumn({
   estimate,
-  isRecommended,
-  recommendationTooltip,
+  tooltip,
   dataGB,
   signalStepsProcessed,
 }: {
   estimate: TierEstimate;
-  isRecommended: boolean;
-  recommendationTooltip?: string;
+  tooltip?: string;
   dataGB: number;
   signalStepsProcessed: number;
 }) {
@@ -154,7 +151,7 @@ function TierColumn({
 
   return (
     <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
-      <TierHeader name={estimate.name} isRecommended={isRecommended} tooltip={recommendationTooltip} />
+      <TierHeader name={estimate.name} tooltip={tooltip} />
 
       <div className="space-y-2 text-sm">
         <div>
@@ -216,16 +213,10 @@ function TierColumn({
   );
 }
 
-function EnterpriseTierColumn({
-  isRecommended,
-  recommendationTooltip,
-}: {
-  isRecommended: boolean;
-  recommendationTooltip?: string;
-}) {
+function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
   return (
     <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
-      <TierHeader name="Enterprise" isRecommended={isRecommended} tooltip={recommendationTooltip} />
+      <TierHeader name="Enterprise" tooltip={tooltip} />
 
       <div className="space-y-2 text-sm">
         <div className="flex justify-between text-white">
@@ -303,7 +294,7 @@ export default function PricingCalculator() {
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 
-  const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
+  const freeTooltip = "Your usage fits within the Free tier. No payment needed.";
   const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
   const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
   const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
@@ -336,33 +327,15 @@ export default function PricingCalculator() {
   const preview = (
     <>
       {state === "free" && (
-        <TierColumn
-          estimate={free}
-          isRecommended
-          recommendationTooltip={freeTooltip}
-          dataGB={dataGB}
-          signalStepsProcessed={signalRuns}
-        />
+        <TierColumn estimate={free} tooltip={freeTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
       )}
       {state === "hobby" && (
-        <TierColumn
-          estimate={hobby}
-          isRecommended
-          recommendationTooltip={hobbyTooltip}
-          dataGB={dataGB}
-          signalStepsProcessed={signalRuns}
-        />
+        <TierColumn estimate={hobby} tooltip={hobbyTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
       )}
       {state === "pro" && (
-        <TierColumn
-          estimate={pro}
-          isRecommended
-          recommendationTooltip={proTooltip}
-          dataGB={dataGB}
-          signalStepsProcessed={signalRuns}
-        />
+        <TierColumn estimate={pro} tooltip={proTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
       )}
-      {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}
+      {state === "enterprise" && <EnterpriseTierColumn tooltip={enterpriseTooltip} />}
     </>
   );
 

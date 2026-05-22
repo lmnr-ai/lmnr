@@ -97,7 +97,7 @@ export default function Pricing() {
           </div>
 
           {/* Calculator */}
-          <div className="w-[640px] mb-[160px]">
+          <div className="w-full max-w-[640px] mb-[160px]">
             <PricingCalculator />
           </div>
 
