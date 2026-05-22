@@ -36,7 +36,6 @@ const INACTIVE_OPACITY = 0.4;
 // portion of the viewport; at progress 1 it shifts UP by the same amount
 // so block 4 takes that slot. Knob: bump STACK_Y_TRAVEL to push the
 // active block further from the geometric center.
-const STACK_Y_TRAVEL = 32;
 
 interface BandConfig {
   /** Footnote label inside the right rectangle. Should match the bento's
@@ -131,7 +130,7 @@ const UnderstandWhyTraceView = () => {
   // stack glides continuously rather than snapping at phase boundaries.
   // String values resolve as % of the motion.div's own height — works for
   // any natural block heights, no measurement needed.
-  const stackY = useTransform(scrollYProgress, [0, 1], [`${STACK_Y_TRAVEL}%`, `${-STACK_Y_TRAVEL}%`]);
+  const stackY = useTransform(scrollYProgress, [0, 1], [`${20}%`, `${-50}%`]);
 
   // Slack→signal morph progress (0 = slack, 1 = signal). Driven by phase
   // via framer's `animate` helper so `SlackToSignalMorph` keeps its
