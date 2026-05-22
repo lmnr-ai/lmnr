@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
+import { microLabel } from "../class-names";
+
 interface Props {
   label: string;
   href: string;
@@ -14,7 +16,8 @@ const LearnMoreLink = ({ label, href, className }: Props) => (
     href={href}
     target={href.startsWith("http") ? "_blank" : undefined}
     className={cn(
-      "inline-flex items-center gap-1 font-sans text-sm text-landing-text-300 no-underline hover:text-landing-text-400 transition-colors",
+      microLabel,
+      "inline-flex items-center gap-1 hover:text-landing-text-400 transition-colors",
       className
     )}
   >

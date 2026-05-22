@@ -1,8 +1,11 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
+import { cn } from "@/lib/utils";
+
+import { microLabel } from "../class-names";
+
 interface Props {
-  step: string;
   name: string;
   href: string;
 }
@@ -12,20 +15,21 @@ interface Props {
 //
 //   <div className="bg-landing-surface-550 relative ...">
 //     <Mock />
-//     <SectionFootnote step="05" name="Evals" href="..." />
+//     <SectionFootnote name="Evals" href="..." />
 //   </div>
-const SectionFootnote = ({ step, name, href }: Props) => (
-  <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-2 py-2 text-xs text-landing-text-400 tracking-wider">
-    <span className="flex gap-2">
-      <span>{step}.</span>
-      <span>{name.toUpperCase()}</span>
-    </span>
+//
+// No step number — step numbering lives ABOVE each section's title
+// (see has-this-issue.tsx etc.) so it's a single source of truth and
+// the footnote stays as just name + learn more (no uppercasing).
+const SectionFootnote = ({ name, href }: Props) => (
+  <div className={cn(microLabel, "absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-2 py-2")}>
+    <span>{name}</span>
     <Link
       href={href}
       target="_blank"
       className="inline-flex items-center gap-1 hover:text-landing-text-300 transition-colors"
     >
-      LEARN MORE
+      Learn more
       <ArrowUpRight className="size-3" strokeWidth={2} />
     </Link>
   </div>

@@ -1,4 +1,4 @@
-import { bodyMedium, subSection } from "../class-names";
+import { bodyMedium, microLabel, subSection } from "../class-names";
 import ClaudeCodeSessionMock from "./claude-code-session-mock";
 import RotatingAgentName from "./rotating-agent-name";
 import SectionFootnote from "./section-footnote";
@@ -8,6 +8,7 @@ import SectionFootnote from "./section-footnote";
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col gap-3 items-start">
+      <span className={microLabel}>04.</span>
       <h2 className={subSection}>
         <RotatingAgentName />
         {", fix my agent"}
@@ -16,7 +17,7 @@ const ClaudeFixMyAgent = () => (
     </div>
     <div className="bg-landing-surface-550 relative flex items-center justify-center w-full py-[40px]">
       <ClaudeCodeSessionMock />
-      <SectionFootnote step="06" name="MCP" href="https://laminar.sh/docs/platform/mcp" />
+      <SectionFootnote name="MCP" href="https://laminar.sh/docs/platform/mcp" />
     </div>
   </section>
 );

@@ -10,13 +10,18 @@ export const mainTitle =
   "font-manrope font-medium text-white whitespace-pre-line md:text-[32px] md:leading-tight text-[28px] leading-tight tracking-[-0.02em]";
 
 export const subSection =
-  "font-manrope font-medium text-white whitespace-pre-line text-2xl leading-7 tracking-[-0.02em]";
+  "font-manrope font-medium text-white whitespace-pre-line text-2xl leading-8 tracking-[-0.02em]";
 
 // One step smaller than `subSection` — used for sub-section titles
 // (e.g. "2.1", "2.2" under a parent subSection like "Understand why
 // in seconds"). Same weight + font, smaller scale.
-export const subSubSection =
-  "font-manrope font-medium text-white whitespace-pre-line text-xl leading-6 tracking-[-0.02em]";
+export const subSubSection = "font-manrope font-medium text-white whitespace-pre-line text-lg leading-6";
 
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
 export const bodyMedium = "text-white/80 whitespace-pre-line";
+
+// Tiny, wide-tracked muted label — used for step numbers above section
+// titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
+// MORE row at the bottom of each surface-550 mock panel. Single source
+// of truth so all those labels stay visually consistent.
+export const microLabel = "text-xs text-landing-text-400";

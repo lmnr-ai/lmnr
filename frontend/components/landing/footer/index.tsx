@@ -113,7 +113,7 @@ const Footer = ({ className }: Props) => (
         <div className="flex flex-1 min-w-0 justify-between items-start">
           <FooterColumn header="Integrations" links={INTEGRATIONS_COL_1} className="w-[140px]" />
           <FooterColumn header="Integrations" links={INTEGRATIONS_COL_2} hideHeader className="w-[140px]" />
-          <FooterColumn header="Elsewhere online" links={ELSEWHERE_LINKS} className="w-[140px]" />
+          <FooterColumn header="Connect" links={ELSEWHERE_LINKS} className="w-[140px]" />
           <FooterColumn header="More" links={MORE_LINKS} className="w-[140px]" />
         </div>
       </div>

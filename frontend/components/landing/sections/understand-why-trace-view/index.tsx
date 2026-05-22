@@ -15,7 +15,7 @@ import useSWR from "swr";
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { bodyMedium, subSection, subSubSection } from "../../class-names";
+import { bodyMedium, microLabel, subSection, subSubSection } from "../../class-names";
 import SectionFootnote from "../section-footnote";
 import TraceViewErrorBoundary from "./error-boundary";
 import TraceBento, { type Phase } from "./trace-bento";
@@ -28,7 +28,7 @@ const T_PHASE_2 = 0.25;
 const T_PHASE_3 = 0.5;
 const T_PHASE_4 = 0.75;
 
-const BLOCK_PITCH_PX = 200;
+const BLOCK_PITCH_PX = 240;
 
 const INACTIVE_OPACITY = 0.4;
 
@@ -48,15 +48,14 @@ interface BandConfig {
   learnMoreHref: string;
 }
 
-// Step label shown above each block in the LEFT column. Phases 1 and 2
-// are top-level sections ("01.", "02."); phases 3 and 4 are subsections
-// of section 2 ("2.1", "2.2") — they share a parent narrative ("Understand
-// why in seconds") and just refine it with Timeline / Ask AI variants.
-const STEP_LABELS: Record<1 | 2 | 3 | 4, string> = {
+// Step labels for phases 1 and 2 only. Phases 3 and 4 are unlabeled
+// subsections of section 02 ("Understand why in seconds") and reuse
+// the parent's number visually — no separate "2.1" / "2.2" labels,
+// per user direction. Numbering picks back up at "03." in
+// has-this-issue.tsx for the next top-level section.
+const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
   1: "01.",
   2: "02.",
-  3: "2.1",
-  4: "2.2",
 };
 
 // Copy follows the `copy` branch's `stage-text.tsx` shape. Phases 3 and 4
@@ -83,13 +82,13 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   },
   3: {
     name: "Timeline",
-    subtitle: "See every action\non a timeline.",
+    subtitle: "See every action on a timeline.",
     body: "Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
     learnMoreHref: "https://laminar.sh/docs/tracing",
   },
   4: {
     name: "Ask AI",
-    subtitle: "Long complex run?\nChat with AI about it.",
+    subtitle: "Long complex run? Chat with AI",
     body: "Ask any question, dive deep into any agent run. Click span references to jump straight into context.",
     learnMoreHref: "https://laminar.sh/docs/tracing",
   },
@@ -186,11 +185,11 @@ const UnderstandWhyTraceView = () => {
                               class if you want a hard snap. */}
                           <div
                             style={{ opacity: phase === n ? 1 : INACTIVE_OPACITY }}
-                            className="flex flex-col gap-3 transition-opacity duration-300 ease-out"
+                            className="flex flex-col transition-opacity duration-300 ease-out"
                           >
-                            <span className="text-xs tracking-wider text-landing-text-400">{STEP_LABELS[n]}</span>
-                            {config.title && <h2 className={subSection}>{config.title}</h2>}
-                            {config.subtitle && <h3 className={subSubSection}>{config.subtitle}</h3>}
+                            {STEP_LABELS[n] && <span className={cn(microLabel, "mb-4")}>{STEP_LABELS[n]}</span>}
+                            {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
+                            {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
                             <p className={cn(bodyMedium, "text-justify")}>{config.body}</p>
                           </div>
                         </div>
@@ -228,7 +227,7 @@ const UnderstandWhyTraceView = () => {
                 {/* Bottom gradient */}
                 <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
 
-                <SectionFootnote step={`0${phase}`} name={activeBand.name} href={activeBand.learnMoreHref} />
+                <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
               </div>
             </div>
           </div>

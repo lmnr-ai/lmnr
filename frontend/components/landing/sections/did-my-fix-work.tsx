@@ -1,4 +1,4 @@
-import { bodyMedium, subSection } from "../class-names";
+import { bodyMedium, microLabel, subSection } from "../class-names";
 import EvalComparisonMock from "./eval-comparison-mock";
 import SectionFootnote from "./section-footnote";
 
@@ -7,15 +7,13 @@ import SectionFootnote from "./section-footnote";
 const DidMyFixWork = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col gap-3 items-start">
+      <span className={microLabel}>05.</span>
       <h2 className={subSection}>Did my fix work?</h2>
-      <p className={bodyMedium}>
-        Evals help you verify progress, catch regressions,
-        <br className="hidden md:inline" /> and iterate with confidence
-      </p>
+      <p className={bodyMedium}>Evals help you verify progress, catch regressions, and iterate with confidence</p>
     </div>
     <div className="bg-landing-surface-550 relative flex items-center justify-center w-full py-[64px]">
       <EvalComparisonMock className="w-[720px] max-w-full" />
-      <SectionFootnote step="07" name="Evals" href="https://laminar.sh/docs/evals" />
+      <SectionFootnote name="Evals" href="https://laminar.sh/docs/evals" />
     </div>
   </section>
 );
