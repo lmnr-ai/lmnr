@@ -4,9 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { bodyMedium, mainTitle } from "../class-names";
 import Header from "../header";
-import DiamondGrid from "./diamond-grid";
-import ExtendedDiamondsOverlay, { EXTENDED_CELL_KEYS } from "./extended-diamonds";
-import GridFadeWrapper from "./grid-fade-wrapper";
+import HeroVisual from "./hero-visual";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -50,38 +48,7 @@ const Hero = ({ className, hasSession }: Props) => (
       </div>
 
       <div className="flex flex-col gap-2">
-        {/* Hero visual (Figma 4173:30043). Layered z-index plan, leaving
-            gaps so future scan lines + orange cluster can slot in cleanly:
-              z-0  radial highlight  (behind grid — subtle lift in field)
-              z-10 diamond grid
-              z-20 scan lines        (TODO)
-              z-30 orange cluster    (TODO)
-              z-40 left-edge fade    (masks grid into page bg on the left)
-              z-50 top-edge fade     (soft top vignette across full width) */}
-        <div className="relative w-[880px] h-[300px] rounded-sm overflow-hidden">
-          <GridFadeWrapper className="absolute inset-0">
-            <div
-              aria-hidden
-              className="absolute left-0 bottom-[-400px] size-[600px] opacity-40 pointer-events-none z-0"
-              style={{
-                background: "radial-gradient(circle, var(--color-landing-surface-400) 0%, transparent 60%)",
-              }}
-            />
-            <DiamondGrid
-              className="absolute left-[-274px] top-1/2 -translate-y-1/2 w-[668px] h-[1157px] z-10"
-              emptyCells={EXTENDED_CELL_KEYS}
-            />
-            <ExtendedDiamondsOverlay />
-          </GridFadeWrapper>
-          <div
-            aria-hidden
-            className="absolute left-0 top-0 bottom-0 w-[328px] opacity-80 pointer-events-none z-40 bg-gradient-to-r from-landing-surface-700 to-transparent"
-          />
-          <div
-            aria-hidden
-            className="absolute left-0 top-0 w-full size-[300px] opacity-40 pointer-events-none z-50 bg-gradient-to-b from-landing-surface-700 to-transparent"
-          />
-        </div>
+        <HeroVisual />
         <LogoStrip className="max-w-[880px]" />
       </div>
     </div>
