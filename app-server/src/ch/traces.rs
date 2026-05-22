@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::env;
 
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -101,6 +103,18 @@ impl CHTrace {
 
 impl ClickhouseInsertable for CHTrace {
     const TABLE: Table = Table::Traces;
+
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        let wait_for_async_insert: bool = env::var("TRACES_CH_WAIT_FOR_ASYNC_INSERT")
+            .unwrap_or("true".to_string())
+            .parse()
+            .unwrap_or(true);
+
+        insert.with_option(
+            "wait_for_async_insert",
+            if wait_for_async_insert { "1" } else { "0" },
+        )
+    }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Traces(items)
