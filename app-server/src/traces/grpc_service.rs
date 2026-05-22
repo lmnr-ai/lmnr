@@ -128,7 +128,7 @@ async fn get_limited_project_ids(cache: Arc<Cache>) -> Vec<Uuid> {
         Ok(Some(v)) => v,
         Ok(None) => vec![],
         Err(e) => {
-            log::error!("Error getting rate limited project ids");
+            log::error!("Error getting rate limited project ids: {:?}", e);
             vec![]
         }
     }
