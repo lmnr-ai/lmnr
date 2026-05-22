@@ -26,7 +26,7 @@ use clustering::queue::{
 };
 use features::{Feature, is_feature_enabled};
 use lapin::{
-    ExchangeKind,
+    Connection, ConnectionProperties, ExchangeKind,
     options::{ExchangeDeclareOptions, QueueDeclareOptions},
     types::FieldTable,
 };
@@ -34,7 +34,7 @@ use logs::{
     LOGS_EXCHANGE, LOGS_QUEUE, LOGS_ROUTING_KEY, consumer::LogsHandler,
     grpc_service::ProcessLogsService,
 };
-use mq::{MessageQueue, connection::ResilientConnection};
+use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
     NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
@@ -281,44 +281,42 @@ fn main() -> anyhow::Result<()> {
     let db = Arc::new(inner_db);
 
     // === 3. Message queues ===
-    // Only enable RabbitMQ if it is a full build and RabbitMQ Feature (URL) is set.
-    // Connections are wrapped in ResilientConnection: lapin's Connection has no
-    // auto-reconnect, so we register an on_error handler and a supervisor task
-    // that redials with exponential backoff and atomically swaps the live
-    // connection in. Callers (channel pool, get_receiver, is_healthy) read the
-    // current connection through `ResilientConnection::current()` and never see
-    // the swap.
-    let (publisher_connection, consumer_connection) = if is_feature_enabled(Feature::RabbitMQ)
-        && is_feature_enabled(Feature::FullBuild)
-    {
-        let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-        runtime_handle.block_on(async {
-            let publisher_conn = ResilientConnection::connect(rabbitmq_url.clone(), "publisher")
-                .await
-                .unwrap();
-
-            // Only create consumer connection if consumer mode is enabled
-            let consumer_conn = if enable_consumer() {
-                log::info!("Consumer mode enabled - creating consumer connection");
-                Some(
-                    ResilientConnection::connect(rabbitmq_url.clone(), "consumer")
+    let (publisher_connection, consumer_connection) =
+        if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
+            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
+            let auto_reconnect =
+                env::var("RABBITMQ_AUTO_RECONNECT").is_ok_and(|v| v.to_lowercase() == "true");
+            let mut props = ConnectionProperties::default();
+            if auto_reconnect {
+                props = props.enable_auto_recover();
+            }
+            runtime_handle.block_on(async {
+                let publisher_conn = Arc::new(
+                    Connection::connect(&rabbitmq_url, props.clone())
                         .await
                         .unwrap(),
-                )
-            } else {
-                log::info!("Producer-only mode - skipping consumer connection");
-                None
-            };
+                );
 
-            (Some(publisher_conn), consumer_conn)
-        })
-    } else {
-        (None, None)
-    };
+                // Only create consumer connection if consumer mode is enabled
+                let consumer_conn = if enable_consumer() {
+                    log::info!("Consumer mode enabled - creating consumer connection");
+                    Some(Arc::new(
+                        Connection::connect(&rabbitmq_url, props).await.unwrap(),
+                    ))
+                } else {
+                    log::info!("Producer-only mode - skipping consumer connection");
+                    None
+                };
+
+                (Some(publisher_conn), consumer_conn)
+            })
+        } else {
+            (None, None)
+        };
 
     let queue: Arc<MessageQueue> = if let Some(publisher_conn) = publisher_connection.as_ref() {
         runtime_handle.block_on(async {
-            let channel = publisher_conn.current().create_channel().await.unwrap();
+            let channel = publisher_conn.create_channel().await.unwrap();
 
             // Create quorum queue arguments (reused for all queues)
             let mut quorum_queue_args = FieldTable::default();
@@ -1597,6 +1595,11 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
+        // gRPC ingestion shares the same Redis-backed quota as HTTP via
+        // `ratelimit:<project_id>`. Limiter is Clone (inner redis::Client +
+        // Arc'd key fn), so cloning once for the gRPC thread is cheap.
+        let grpc_rate_limiter = rate_limiter.as_ref().map(|l| Arc::new(l.clone()));
+
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
             .name("http".to_string())
@@ -1765,6 +1768,7 @@ fn main() -> anyhow::Result<()> {
                         cache.clone(),
                         clickhouse.clone(),
                         queue.clone(),
+                        grpc_rate_limiter.clone(),
                     );
 
                     let process_logs_service = ProcessLogsService::new(
