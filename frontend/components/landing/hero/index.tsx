@@ -47,8 +47,8 @@ const Hero = ({ className, hasSession }: Props) => (
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <HeroVisual />
+      <div className="flex flex-col gap-12 w-full items-center">
+        <HeroVisual className="max-w-[880px] h-[300px]" />
         <LogoStrip className="max-w-[880px]" />
       </div>
     </div>
