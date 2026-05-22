@@ -18,7 +18,7 @@ const GridFadeWrapper = ({ children, className }: Props) => (
     className={className}
     initial={{ opacity: 0.2 }}
     animate={{ opacity: 1 }}
-    transition={{ duration: 1.6, ease: "easeOut" }}
+    transition={{ duration: 2.4, ease: "easeOut" }}
   >
     {children}
   </motion.div>

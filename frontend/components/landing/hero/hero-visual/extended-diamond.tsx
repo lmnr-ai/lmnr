@@ -4,9 +4,6 @@ import { motion, type MotionValue, useTransform } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
-const REST_COLOR = "rgb(46, 46, 47)"; // landing-surface-400 — matches resting grid cells
-const PEAK_COLOR = "rgb(208, 117, 78)"; // landing-primary-400
-
 const HEAD_SIZE = 24;
 const TAIL_HEIGHT = 1;
 const CONTAINER_HEIGHT = 42;
@@ -18,7 +15,7 @@ const CONTAINER_HEIGHT = 42;
 // Anchored to the right (head end) at render time so a partial-
 // extension tail still reads "more colored near the head."
 const STEM_GRADIENT =
-  "linear-gradient(to right, rgba(67, 68, 71, 0) 0%, #434447 27.6%, #434447 75.3%, rgba(183, 108, 77, 0.26) 100%)";
+  "linear-gradient(to right, rgba(67, 68, 71, 0) 0%, #434447 5%, #434447 75.3%, rgba(183, 108, 77, 0.26) 100%)";
 
 // Same transform DiamondGrid applies to its cells via the parent
 // wrapper. Re-applied directly here because the head lives OUTSIDE the
@@ -45,7 +42,7 @@ interface Props {
 // so no absolute math is needed.
 const ExtendedDiamond = ({ extension, maxLength, className }: Props) => {
   const tailWidth = useTransform(extension, [0, 1], [0, maxLength]);
-  const headColor = useTransform(extension, [0, 1], [REST_COLOR, PEAK_COLOR]);
+  const headColor = useTransform(extension, [0, 0.5, 1], ["#2E2E2F", "#4A372F", "#A86346"]);
 
   return (
     <div
