@@ -2,7 +2,7 @@
 
 import { useScroll, useTransform } from "framer-motion";
 
-import { EXTENDED_CELL_KEYS } from "./cells";
+import { EXTENDED_CELL_KEYS, ICON_CELL_MAP } from "./cells";
 import DiamondGrid from "./diamond-grid";
 import ExtendedDiamondsOverlay from "./extended-diamonds-overlay";
 import GridFadeWrapper from "./grid-fade-wrapper";
@@ -41,6 +41,7 @@ const HeroVisual = () => {
         <DiamondGrid
           className="absolute left-[-274px] top-1/2 -translate-y-1/2 w-[668px] h-[1157px] z-10"
           emptyCells={EXTENDED_CELL_KEYS}
+          iconCells={ICON_CELL_MAP}
         />
         <ExtendedDiamondsOverlay scrollProgress={scrollProgress} />
       </GridFadeWrapper>

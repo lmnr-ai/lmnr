@@ -3,7 +3,7 @@
 import { animate, type MotionValue, useMotionValue, useTransform } from "framer-motion";
 import { useEffect } from "react";
 
-import { cellToHero, CONTAINER_HALF, HEAD_HALF, SPRING_BOUNCE, SPRING_DURATION } from "./cells";
+import { cellToHero, CONTAINER_HALF, HEAD_HALF, ICON_CELL_MAP, SPRING_BOUNCE, SPRING_DURATION } from "./cells";
 import ExtendedDiamond from "./extended-diamond";
 
 interface Props {
@@ -41,9 +41,10 @@ const ExtendedDiamondCell = ({ row, col, maxLength, delay, zIndex, target, scrol
   const extension = useTransform([mountExt, scrollProgress], ([m, s]: number[]) => Math.min(1, m + (1 - target) * s));
 
   const { x, y } = cellToHero(row, col);
+  const variant = ICON_CELL_MAP.get(`${row}-${col}`);
   return (
     <div className="absolute pointer-events-none" style={{ left: x - HEAD_HALF, top: y - CONTAINER_HALF, zIndex }}>
-      <ExtendedDiamond extension={extension} maxLength={maxLength} />
+      <ExtendedDiamond extension={extension} maxLength={maxLength} variant={variant} />
     </div>
   );
 };

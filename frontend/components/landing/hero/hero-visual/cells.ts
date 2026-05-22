@@ -107,6 +107,115 @@ export const EXTENDED_CELLS = CELLS_RAW.map(({ row, col, clusterCol, delay, zInd
 // Exported so DiamondGrid can punch matching holes — single source of truth.
 export const EXTENDED_CELL_KEYS: ReadonlySet<string> = new Set(EXTENDED_CELLS.map(({ row, col }) => `${row}-${col}`));
 
+// Variant tiles scattered through the grid (mirror the trace-view item
+// types from frontend/components/traces/trace-view/transcript/item/).
+// Rendered as children of the same transform wrapper as the gray cells,
+// so the icon glyph inherits the skew/rotate/scale and reads as a tilted
+// sticker on the tile — no per-icon math.
+export type IconVariant = "llm" | "tool" | "input" | "subagent";
+
+// Picked by /tmp/icon_cells.py (deleted) — 90 of visible cells (extended
+// cells eligible). Picker uses slight anti-neighbor bias (weight *= 0.7
+// per already-picked 8-neighbor). Constraints satisfied: (a) all 4
+// variants represented among picked extended cells, (b) no run of >3
+// same-variant in any grid row.
+export const ICON_CELLS: ReadonlyArray<{ row: number; col: number; variant: IconVariant }> = [
+  { row: 0, col: 0, variant: "input" },
+  { row: 0, col: 1, variant: "llm" },
+  { row: 0, col: 3, variant: "llm" },
+  { row: 0, col: 4, variant: "llm" },
+  { row: 0, col: 5, variant: "llm" },
+  { row: 0, col: 6, variant: "input" },
+  { row: 1, col: 0, variant: "tool" },
+  { row: 1, col: 2, variant: "tool" },
+  { row: 1, col: 4, variant: "tool" },
+  { row: 2, col: 2, variant: "llm" },
+  { row: 2, col: 4, variant: "tool" },
+  { row: 2, col: 6, variant: "tool" },
+  { row: 2, col: 7, variant: "tool" },
+  { row: 3, col: 1, variant: "input" },
+  { row: 3, col: 2, variant: "subagent" },
+  { row: 3, col: 4, variant: "llm" },
+  { row: 3, col: 5, variant: "input" },
+  { row: 3, col: 6, variant: "subagent" },
+  { row: 3, col: 8, variant: "input" },
+  { row: 3, col: 9, variant: "llm" },
+  { row: 4, col: 0, variant: "subagent" },
+  { row: 4, col: 1, variant: "input" },
+  { row: 4, col: 2, variant: "subagent" },
+  { row: 4, col: 4, variant: "tool" },
+  { row: 4, col: 5, variant: "input" },
+  { row: 4, col: 7, variant: "input" },
+  { row: 5, col: 0, variant: "input" },
+  { row: 5, col: 3, variant: "subagent" },
+  { row: 5, col: 4, variant: "tool" },
+  { row: 5, col: 5, variant: "subagent" },
+  { row: 5, col: 8, variant: "llm" },
+  { row: 5, col: 9, variant: "llm" },
+  { row: 5, col: 10, variant: "input" },
+  { row: 5, col: 11, variant: "subagent" },
+  { row: 6, col: 0, variant: "tool" },
+  { row: 6, col: 2, variant: "subagent" },
+  { row: 6, col: 4, variant: "tool" },
+  { row: 6, col: 7, variant: "subagent" },
+  { row: 6, col: 10, variant: "tool" },
+  { row: 6, col: 12, variant: "llm" },
+  { row: 7, col: 4, variant: "subagent" },
+  { row: 7, col: 6, variant: "input" },
+  { row: 7, col: 7, variant: "tool" },
+  { row: 7, col: 8, variant: "tool" },
+  { row: 7, col: 13, variant: "subagent" },
+  { row: 8, col: 2, variant: "tool" },
+  { row: 8, col: 3, variant: "llm" },
+  { row: 8, col: 4, variant: "tool" },
+  { row: 8, col: 8, variant: "input" },
+  { row: 8, col: 10, variant: "tool" },
+  { row: 8, col: 11, variant: "llm" },
+  { row: 9, col: 4, variant: "tool" },
+  { row: 9, col: 7, variant: "llm" },
+  { row: 9, col: 9, variant: "input" },
+  { row: 9, col: 11, variant: "subagent" },
+  { row: 9, col: 14, variant: "subagent" },
+  { row: 9, col: 15, variant: "llm" },
+  { row: 10, col: 4, variant: "tool" },
+  { row: 10, col: 7, variant: "llm" },
+  { row: 10, col: 9, variant: "subagent" },
+  { row: 10, col: 10, variant: "input" },
+  { row: 10, col: 11, variant: "tool" },
+  { row: 10, col: 13, variant: "subagent" },
+  { row: 10, col: 16, variant: "llm" },
+  { row: 11, col: 6, variant: "input" },
+  { row: 11, col: 7, variant: "tool" },
+  { row: 11, col: 10, variant: "llm" },
+  { row: 11, col: 12, variant: "tool" },
+  { row: 11, col: 13, variant: "subagent" },
+  { row: 11, col: 14, variant: "subagent" },
+  { row: 11, col: 17, variant: "llm" },
+  { row: 12, col: 6, variant: "input" },
+  { row: 12, col: 7, variant: "input" },
+  { row: 12, col: 9, variant: "subagent" },
+  { row: 12, col: 10, variant: "subagent" },
+  { row: 12, col: 16, variant: "llm" },
+  { row: 13, col: 7, variant: "llm" },
+  { row: 13, col: 9, variant: "subagent" },
+  { row: 13, col: 10, variant: "input" },
+  { row: 13, col: 12, variant: "input" },
+  { row: 13, col: 15, variant: "llm" },
+  { row: 14, col: 8, variant: "input" },
+  { row: 14, col: 11, variant: "subagent" },
+  { row: 14, col: 12, variant: "input" },
+  { row: 14, col: 13, variant: "tool" },
+  { row: 14, col: 14, variant: "subagent" },
+  { row: 15, col: 11, variant: "tool" },
+  { row: 16, col: 10, variant: "llm" },
+  { row: 16, col: 11, variant: "input" },
+  { row: 16, col: 12, variant: "llm" },
+];
+
+export const ICON_CELL_MAP: ReadonlyMap<string, IconVariant> = new Map(
+  ICON_CELLS.map(({ row, col, variant }) => [`${row}-${col}`, variant])
+);
+
 // ExtendedDiamond container measures 42px tall, head sits at the LEFT
 // edge of the container (the flex row starts with the tail at width 0).
 // Offset the container so the head's center lands on cellToHero's (x, y).
