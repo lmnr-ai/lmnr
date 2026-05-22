@@ -1,4 +1,4 @@
-import { Inter, Manrope, Space_Grotesk } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
 
 export const sans = Inter({
   subsets: ["latin"],
@@ -13,11 +13,4 @@ export const manrope = Manrope({
   weight: ["500", "600"],
   style: "normal",
   variable: "--font-manrope",
-});
-
-export const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  display: "swap",
-  style: "normal",
-  variable: "--font-space-grotesk",
 });

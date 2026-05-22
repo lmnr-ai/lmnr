@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { bodyMedium, mainTitle } from "../class-names";
 import Header from "../header";
+import { LANDING_COLUMN_MAX_W } from "../layout";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -16,16 +17,15 @@ interface Props {
 // CTA row sits below at gap-32. Logo strip is a 4-col grid below.
 const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
-    <Header hasSession={hasSession} className="w-full max-w-[880px] pt-4 px-6 md:px-0" isIncludePadding />
+    <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 md:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
 
     <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[80vh] justify-start gap-[10vh] shrink-0">
-      <div className="flex flex-col items-start gap-8 w-full max-w-[880px]">
+      <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
           <h1 className={mainTitle}>Open-source Agent Monitoring</h1>
           <p className={bodyMedium}>
-            {
-              "Laminar analyzes every trace your agent produces, surfaces the behavior worth your attention,\nand turns recurring failures into regression evals. Automatically."
-            }
+            Laminar analyzes every trace your agent produces, surfaces the behavior worth your attention,
+            <br className="hidden md:block" /> and turns recurring failures into regression evals. Automatically.
           </p>
         </div>
 
@@ -46,7 +46,7 @@ const Hero = ({ className, hasSession }: Props) => (
         </div>
       </div>
 
-      <LogoStrip className="max-w-[880px]" />
+      <LogoStrip className={LANDING_COLUMN_MAX_W} />
     </div>
   </div>
 );

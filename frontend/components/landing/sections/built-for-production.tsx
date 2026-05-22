@@ -48,9 +48,10 @@ const BuiltForProduction = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
     <h2 className={subSection}>Built for production</h2>
 
-    {/* Hero metric + visual comparison. Side-by-side; items-end so the
-        "20x" subtitle and the Laminar label sit on the same baseline. */}
-    <div className="flex items-end gap-[52px] w-full">
+    {/* Hero metric + visual comparison. Side-by-side at md+; stacked
+        (20x above bars) on mobile. items-end only applies at md+ so the
+        "20x" subtitle and Laminar label share a baseline horizontally. */}
+    <div className="flex flex-col gap-8 md:flex-row md:items-end md:gap-[52px] w-full">
       <div className="flex flex-col gap-1 items-start justify-end shrink-0">
         <p className="font-manrope font-medium text-white text-[60px] leading-[60px] tracking-[-0.02em]">20x</p>
         <p className="text-sm text-landing-text-300">trace compression ratio</p>
@@ -66,8 +67,9 @@ const BuiltForProduction = () => (
       </div>
     </div>
 
-    {/* Two-column feature grid. Each row is 56px tall with a top border. */}
-    <div className="flex items-start gap-10 w-full">
+    {/* Two-column feature grid. Each row is 56px tall with a top border.
+        Stacks to one column on mobile. */}
+    <div className="flex flex-col md:flex-row md:items-start md:gap-10 w-full">
       <div className="flex flex-col flex-1 min-w-0 items-start">
         {FEATURES_LEFT.map((f) => (
           <FeatureRow key={f.label} {...f} />

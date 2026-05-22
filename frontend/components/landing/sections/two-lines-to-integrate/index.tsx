@@ -1,4 +1,4 @@
-import { subSection } from "../class-names";
+import { subSection } from "../../class-names";
 import IntegrationsGrid from "./integrations-grid";
 import LearnMoreLink from "./learn-more-link";
 

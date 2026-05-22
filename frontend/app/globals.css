@@ -31,7 +31,6 @@
 @theme {
   --font-sans: var(--font-inter);
   --font-manrope: var(--font-manrope);
-  --font-space-grotesk: var(--font-space-grotesk);
 
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));

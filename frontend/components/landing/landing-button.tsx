@@ -20,8 +20,7 @@ const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
 
     const variantStyles = {
       minimal: "hover:text-landing-text-100",
-      outline:
-        "outline outline-landing-text-600 hover:text-landing-text-100 hover:outline-landing-text-400 outline-offset-1",
+      outline: "outline outline-landing-text-600 hover:text-landing-text-100 hover:bg-primary-foreground/5",
       primary:
         "bg-landing-primary-400 text-white border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",
     };

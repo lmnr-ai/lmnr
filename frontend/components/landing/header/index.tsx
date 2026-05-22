@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Equal, X } from "lucide-react";
+import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -43,16 +43,6 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
 
   return (
     <>
-      <div className="flex items-center justify-center gap-1 sm:gap-3 bg-primary px-4 py-1 text-xs sm:text-sm text-white w-full">
-        <span className="leading-tight">Laminar raises $3M seed to build observability for long-running agents</span>
-        <Link
-          href="/blog/2026-03-16-laminar-launch"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10 shrink-0"
-        >
-          Read more
-          <ArrowRight className="size-3" />
-        </Link>
-      </div>
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
@@ -131,7 +121,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       {/* Mobile Menu Overlay - starts below header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-landing-surface-900 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[100px] z-40 bg-landing-surface-700 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
@@ -141,7 +131,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               key={link.href}
               href={link.href}
               target={link.external ? "_blank" : undefined}
-              className="font-space-grotesk text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
+              className="font-manrope text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}

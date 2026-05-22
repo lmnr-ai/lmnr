@@ -16,6 +16,7 @@ import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from 
 import { cn, swrFetcher } from "@/lib/utils";
 
 import { bodyMedium, microLabel, subSection, subSubSection } from "../../class-names";
+import { LANDING_COLUMN_MAX_W } from "../../layout";
 import SectionFootnote from "../section-footnote";
 import TraceViewErrorBoundary from "./error-boundary";
 import TraceBento, { type Phase } from "./trace-bento";
@@ -58,7 +59,7 @@ interface BandConfig {
 // the parent's number visually — no separate "2.1" / "2.2" labels,
 // per user direction. Numbering picks back up at "03." in
 // has-this-issue.tsx for the next top-level section.
-const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
+export const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
   1: "01.",
   2: "02.",
 };
@@ -67,7 +68,7 @@ const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
 // were title-only on that branch; the user asked for every phase to have
 // both title + body here, so 3 and 4 get new bodies authored from the
 // bento's actual visual state ("focus on simplicity").
-const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
+export const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   1: {
     name: "Notifications",
     title: "Get alerts when\nyour agent breaks.",
@@ -150,7 +151,7 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      <section ref={sectionRef} className="relative w-full max-w-[880px] mx-auto">
+      <section ref={sectionRef} className={cn("relative w-full mx-auto", LANDING_COLUMN_MAX_W)}>
         <div className="flex gap-18">
           {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll

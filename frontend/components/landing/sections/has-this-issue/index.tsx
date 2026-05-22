@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, microLabel, subSection } from "../class-names";
-import SectionFootnote from "./section-footnote";
+import { bodyMedium, microLabel, subSection } from "../../class-names";
+import SectionFootnote from "../section-footnote";
 import SignalEventClustersMock from "./signal-event-clusters-mock";
 
 // Vertical stack: title + subtitle on top, mock centered inside a
@@ -13,8 +13,14 @@ const HasThisIssue = () => (
       <h2 className={cn(subSection, "mb-2")}>{"Has this issue occurred before?"}</h2>
       <p className={bodyMedium}>Automatically-generated clusters of issues you care about</p>
     </div>
-    <div className="bg-landing-surface-550 relative flex items-center justify-center w-full py-[120px]">
-      <SignalEventClustersMock />
+    <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[120px] py-[70px] overflow-hidden px-8">
+      {/* mx-auto centers the mock when it fits; when it doesn't (narrow
+          viewports) the auto margins collapse to 0 so the mock sticks
+          to the start edge instead of overflowing symmetrically.
+          shrink-0 keeps the mock at its natural width. */}
+      <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
+        <SignalEventClustersMock />
+      </div>
       <SectionFootnote name="Clusters" href="https://laminar.sh/docs/signals" />
     </div>
   </section>

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 import Footer from "./footer";
 import Hero from "./hero";
+import { LANDING_COLUMN_MAX_W } from "./layout";
 import BuiltForProduction from "./sections/built-for-production";
 import ClaudeFixMyAgent from "./sections/claude-fix-my-agent";
 import CTA from "./sections/cta";
@@ -29,7 +30,7 @@ const Landing = ({ className, hasSession }: Props) => (
     <Hero hasSession={hasSession} />
     <UnderstandWhy />
     <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
-      <div className="flex flex-col items-start gap-[120px] w-full max-w-[880px]">
+      <div className={cn("flex flex-col items-start gap-[120px] w-full", LANDING_COLUMN_MAX_W)}>
         <HasThisIssue />
         <ClaudeFixMyAgent />
         <DidMyFixWork />

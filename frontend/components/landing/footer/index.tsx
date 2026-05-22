@@ -6,6 +6,8 @@ import Link from "next/link";
 import laminarLogo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
+import { LANDING_COLUMN_MAX_W } from "../layout";
+
 interface Props {
   className?: string;
 }
@@ -95,7 +97,8 @@ const Footer = ({ className }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
     <div
       className={cn(
-        "w-full max-w-[880px] border-t border-landing-surface-500",
+        "w-full border-t border-landing-surface-500",
+        LANDING_COLUMN_MAX_W,
         "md:pt-20 md:pb-[120px]",
         "pt-16 pb-20",
         "px-6 md:px-0"

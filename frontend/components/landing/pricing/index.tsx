@@ -1,23 +1,39 @@
 "use client";
 
-import Link from "next/link";
 import { usePostHog } from "posthog-js/react";
+import { useState } from "react";
 
 import Footer from "@/components/landing/footer";
-import LandingButton from "@/components/landing/landing-button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
+import { bodyMedium, subSection } from "../class-names";
+import { LANDING_COLUMN_MAX_W } from "../layout";
+import Divider from "../sections/divider";
+import VariantSwitcher, { type VariantOption } from "../variant-switcher";
+import CardsVariant from "./cards-variant";
 import PricingCalculator from "./pricing-calculator";
-import PricingCard from "./pricing-card";
+import ProFillVariant from "./pro-fill-variant";
+
+type LayoutVariant = "cards" | "pro-fill";
+
+const LAYOUT_OPTIONS: VariantOption<LayoutVariant>[] = [
+  { value: "cards", label: "Cards", hint: "4 tiers side-by-side; recommended fills primary" },
+  {
+    value: "pro-fill",
+    label: "Pro fill",
+    hint: "Comparison table with the Pro column fully filled primary top to bottom",
+  },
+];
 
 export default function Pricing() {
   const posthog = usePostHog();
+  const [layout, setLayout] = useState<LayoutVariant>("cards");
 
   const handleQuestionClick = (question: string) => {
     posthog?.capture("faq_question_clicked", { question });
   };
 
-  // Add FAQ data
   const faqItems = [
     {
       id: "data-calculation",
@@ -61,120 +77,53 @@ export default function Pricing() {
   ];
 
   return (
-    <div className="flex flex-col items-center pt-32 w-full h-full bg-landing-surface-800">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:p-16">
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Free"
-            price="$0 / month"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={[
-              "1 GB data",
-              "1,000 Signals steps processing",
-              "15 day retention",
-              "1 project",
-              "1 seat",
-              "Community support",
-            ]}
-            subfeatures={["no overage", "no overage", null, null, null, null]}
-          />
-          <Link href="/projects">
-            <LandingButton variant="outline" className="w-full">
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Hobby"
-            price="$30 / month"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={[
-              "3 GB data included",
-              "5,000 Signals steps processing included",
-              "30 day retention",
-              "Unlimited projects",
-              "Unlimited seats",
-              "Email support",
-            ]}
-            subfeatures={["then $2 / GB", "then $0.0075 / Signals step", null, null, null, null]}
-          />
-          <Link href="/projects">
-            <LandingButton variant="outline" className="w-full">
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="h-full w-full p-8 flex flex-col justify-between z-20 border border-landing-primary-400 bg-landing-primary-400 rounded-lg">
-          <PricingCard
-            className="z-20"
-            title="Pro"
-            price="$150 / month"
-            titleClassName="text-landing-text-100"
-            featureClassName="text-landing-text-100"
-            subfeatureClassName="text-landing-text-100"
-            features={[
-              "10 GB data included",
-              "50,000 Signals steps processing included",
-              "90 day retention",
-              "Unlimited projects",
-              "Unlimited seats",
-              "Slack support",
-            ]}
-            subfeatures={["then $1.50 / GB", "then $0.005 / Signals step", null, null, null, null]}
-          />
-          <Link href="/projects" className="w-full z-20">
-            <LandingButton
-              variant="primary"
-              className="w-full bg-landing-text-100 text-landing-surface-900 hover:bg-landing-text-200"
-            >
-              GET STARTED
-            </LandingButton>
-          </Link>
-        </div>
-        <div className="p-8 border border-landing-surface-400 rounded-lg flex flex-col justify-between">
-          <PricingCard
-            className="text-landing-text-200"
-            title="Enterprise"
-            price="Custom"
-            featureClassName="text-landing-text-200"
-            subfeatureClassName="text-landing-text-400"
-            features={["Custom limits", "On-premise", "Unlimited projects", "Unlimited seats", "Dedicated support"]}
-          />
-          <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
-            <LandingButton variant="outline" className="w-full">
-              CONTACT US
-            </LandingButton>
-          </Link>
+    <div className="flex flex-col w-full overflow-x-clip">
+      <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[180px] pb-[72px] md:pb-[120px]">
+        <div className={cn("flex flex-col items-center w-full max-w-[1100px]")}>
+          {/* Layout variant switcher (remove with state once a layout is picked) */}
+          <div className="w-full mb-8">
+            <VariantSwitcher
+              label="TODO: REMOVE LAYOUT PICKER"
+              value={layout}
+              options={LAYOUT_OPTIONS}
+              onChange={setLayout}
+            />
+          </div>
+
+          {/* Tier grid */}
+          <div className="w-full mb-[160px]">
+            {layout === "cards" && <CardsVariant />}
+            {layout === "pro-fill" && <ProFillVariant />}
+          </div>
+
+          {/* Calculator */}
+          <div className="w-[640px] mb-[160px]">
+            <PricingCalculator />
+          </div>
+
+          <div className={cn("w-full", LANDING_COLUMN_MAX_W)}>
+            <Divider />
+          </div>
+
+          {/* FAQ — constrained to the landing column */}
+          <div className={cn("w-full mt-[160px] flex flex-col gap-10", LANDING_COLUMN_MAX_W)}>
+            <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
+            <Accordion type="single" collapsible className="w-full">
+              {faqItems.map((item) => (
+                <AccordionItem key={item.id} value={item.id} className="border-landing-surface-500">
+                  <AccordionTrigger
+                    className={cn("text-white text-lg leading-6 py-6")}
+                    onClick={() => handleQuestionClick(item.question)}
+                  >
+                    {item.question}
+                  </AccordionTrigger>
+                  <AccordionContent className={cn(bodyMedium, "text-base pb-6")}>{item.answer}</AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
         </div>
       </div>
-
-      {/* Calculator Section */}
-      <PricingCalculator />
-
-      <div className="w-full max-w-3xl mt-[180px] mb-32 px-4">
-        <h2 className="text-2xl font-semibold mb-6 text-center font-space-grotesk text-landing-text-100">
-          Frequently Asked Questions
-        </h2>
-        <Accordion type="single" collapsible className="w-full">
-          {faqItems.map((item) => (
-            <AccordionItem key={item.id} value={item.id} className="border-landing-surface-400">
-              <AccordionTrigger
-                className="text-xl text-landing-text-100"
-                onClick={() => handleQuestionClick(item.question)}
-              >
-                {item.question}
-              </AccordionTrigger>
-              <AccordionContent className="text-landing-text-200">{item.answer}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </div>
-      <div className="grow"></div>
       <Footer />
     </div>
   );

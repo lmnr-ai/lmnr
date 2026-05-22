@@ -10,7 +10,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
+import { manrope, sans } from "@/lib/fonts";
 import { PostHogProvider } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +93,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   );
 
   return (
-    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
+    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
         <PostHogProvider telemetryEnabled={posthogEnabled} email={email}>
           {body}

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-import { microLabel } from "../class-names";
+import { microLabel } from "../../class-names";
 
 interface Props {
   label: string;
