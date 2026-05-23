@@ -63,7 +63,7 @@ impl TraceService for ProcessTracesService {
         // blip doesn't black-hole ingestion.
         if let Some(ref limiter) = self.rate_limiter {
             if is_project_id_rate_limited(self.cache.clone(), project_id).await {
-                let key = format!("ratelimit:{}", project_id);
+                let key = format!("grpc_ratelimit:{}", project_id);
                 match limiter.count(key).await {
                     Ok(_) => {}
                     Err(LimiterError::LimitExceeded(_)) => {
