@@ -22,6 +22,7 @@ pub enum Feature {
     Signals,
     Reports,
     RateLimiter,
+    GrpcRateLimiter,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -75,6 +76,11 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("REDIS_URL").is_ok()
                 && env::var("RATE_LIMIT").is_ok()
                 && env::var("RATE_LIMIT_PERIOD_SECS").is_ok()
+        }
+        Feature::GrpcRateLimiter => {
+            env::var("REDIS_URL").is_ok()
+                && env::var("GRPC_RATE_LIMIT").is_ok()
+                && env::var("GRPC_RATE_LIMIT_PERIOD_SECS").is_ok()
         }
     }
 }
