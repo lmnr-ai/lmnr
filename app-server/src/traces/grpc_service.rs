@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::authenticate_request,
-    cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_IDS_CACHE_KEY},
+    cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY},
     db::DB,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
@@ -62,10 +62,7 @@ impl TraceService for ProcessTracesService {
         // errors — same posture as the bytes-limit check below — so a Redis
         // blip doesn't black-hole ingestion.
         if let Some(ref limiter) = self.rate_limiter {
-            if get_limited_project_ids(self.cache.clone())
-                .await
-                .contains(&project_id)
-            {
+            if is_project_id_rate_limited(self.cache.clone(), project_id).await {
                 let key = format!("ratelimit:{}", project_id);
                 match limiter.count(key).await {
                     Ok(_) => {}
@@ -116,16 +113,19 @@ impl TraceService for ProcessTracesService {
     }
 }
 
-async fn get_limited_project_ids(cache: Arc<Cache>) -> Vec<Uuid> {
+async fn is_project_id_rate_limited(cache: Arc<Cache>, project_id: Uuid) -> bool {
     match cache
-        .get::<Vec<Uuid>>(INGESTION_RATE_LIMIT_PROJECT_IDS_CACHE_KEY)
+        .get::<i8>(&format!(
+            "{INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY}:{}",
+            project_id.to_string()
+        ))
         .await
     {
-        Ok(Some(v)) => v,
-        Ok(None) => vec![],
+        Ok(Some(v)) => v != 0,
+        Ok(None) => false,
         Err(e) => {
             log::error!("Error getting rate limited project ids: {:?}", e);
-            vec![]
+            false
         }
     }
 }
