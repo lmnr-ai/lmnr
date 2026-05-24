@@ -150,3 +150,28 @@ To learn more about instrumenting your code, check out our client libraries:
 
  <a href="https://www.npmjs.com/package/@lmnr-ai/lmnr"> ![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837) </a>
  <a href="https://pypi.org/project/lmnr/"> ![PyPI - Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9) </a>
+## ❓ FAQ (常见问题)
+
+### What is LMNR?
+
+**LMNR** (pronounced "laminar") is an AI agent orchestration platform that helps developers build, deploy, and monitor AI agents with ease.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🤖 **Agent Orchestration** | Build complex multi-agent workflows |
+| 📊 **Monitoring & Observability** | Track agent performance and behavior |
+| 🔧 **Tool Integration** | Connect agents with external APIs and services |
+| 🔄 **Workflow Automation** | Automate repetitive tasks with AI |
+
+### Getting Started
+
+Visit the repository for installation instructions and documentation.
+
+### Help Resources
+
+| Resource | Link |
+|----------|------|
+| 📖 Repository | https://github.com/lmnr-ai/lmnr |
+| 🐛 Issues | https://github.com/lmnr-ai/lmnr/issues |
