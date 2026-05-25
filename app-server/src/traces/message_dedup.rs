@@ -69,7 +69,12 @@ pub fn canonical_json(value: &Value) -> String {
                 if i > 0 {
                     out.push(',');
                 }
-                out.push_str(&serde_json::to_string(k).unwrap());
+                // Object keys are always plain strings — `serde_json::to_string`
+                // on a `&String` is infallible.
+                out.push_str(
+                    &serde_json::to_string(k)
+                        .expect("serde_json::to_string of a String is infallible"),
+                );
                 out.push(':');
                 out.push_str(&canonical_json(v));
             }
@@ -87,7 +92,10 @@ pub fn canonical_json(value: &Value) -> String {
             out.push(']');
             out
         }
-        _ => serde_json::to_string(value).unwrap(),
+        // Only `Number`/`Bool`/`Null`/`String` reach this arm (Object/Array
+        // are handled above). All four are infallible to serialize.
+        _ => serde_json::to_string(value)
+            .expect("serde_json::to_string of a JSON scalar is infallible"),
     }
 }
 
