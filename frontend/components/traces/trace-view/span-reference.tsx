@@ -1,8 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
+import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+import { SpanType } from "@/lib/traces/types";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 /**
  * Matches XML-like span references in text:
@@ -12,65 +15,100 @@ import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g;
 
 export interface SpanReferenceCallbacks {
-  resolveSpanId: (sequentialId: string) => Promise<string | null>;
+  /** XML refs: resolve sequential id → uuid + type via the agent endpoint. */
+  resolveSpanId: (sequentialId: string) => Promise<{ uuid: string; type: SpanType } | null>;
+  /** Markdown refs: sync lookup of type from already-loaded store spans. */
+  getSpanType: (uuid: string) => SpanType | undefined;
   onSelectSpan: (spanUuid: string) => void;
 }
 
-interface SpanBadgeProps {
-  spanId: string;
-  spanName: string;
-  referenceText?: string;
-  callbacks: SpanReferenceCallbacks;
-}
-
-/** Badge for markdown-style span links — spanUuid is already resolved */
-function MarkdownSpanBadge({
-  label,
-  spanUuid,
-  onSelectSpan,
+/**
+ * Shared chip rendering: 16px icon container colored by span type, plus the
+ * span name in muted text. Used by both XML and markdown badges.
+ */
+function SpanChip({
+  name,
+  spanType,
+  onClick,
+  loading,
 }: {
-  label: string;
-  spanUuid: string;
-  onSelectSpan: (spanUuid: string) => void;
+  name: string;
+  spanType: SpanType | undefined;
+  onClick: () => void;
+  loading?: boolean;
 }) {
+  const resolvedType = spanType ?? SpanType.DEFAULT;
   return (
-    <button onClick={() => onSelectSpan(spanUuid)}>
-      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{label}</span>{" "}
-      span
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded border border-landing-text-300/20 bg-landing-text-300/20 pl-1 pr-1.5 align-middle hover:bg-landing-text-300/30 transition-colors"
+    >
+      <span
+        className="inline-flex items-center justify-center rounded size-3.5 shrink-0"
+        style={{ backgroundColor: SPAN_TYPE_TO_COLOR[resolvedType] ?? SPAN_TYPE_TO_COLOR[SpanType.DEFAULT] }}
+      >
+        {createSpanTypeIcon(resolvedType, "w-3 h-3 text-white", 12)}
+      </span>
+      <span className={`text-xs text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
     </button>
   );
 }
 
-function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProps) {
-  const handleClick = async () => {
-    const spanUuid = await callbacks.resolveSpanId(spanId);
-    if (spanUuid) {
-      callbacks.onSelectSpan(spanUuid);
-    }
+/** Badge for XML span refs — resolves sequential id → uuid+type on mount. */
+function SpanBadge({
+  spanId,
+  spanName,
+  referenceText,
+  callbacks,
+}: {
+  spanId: string;
+  spanName: string;
+  referenceText?: string;
+  callbacks: SpanReferenceCallbacks;
+}) {
+  const [resolved, setResolved] = useState<{ uuid: string; type: SpanType } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    callbacks.resolveSpanId(spanId).then((r) => {
+      if (!cancelled) setResolved(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [spanId, callbacks]);
+
+  const handleClick = () => {
+    if (resolved) callbacks.onSelectSpan(resolved.uuid);
   };
 
   if (referenceText) {
     const unescaped = referenceText.replace(/\\"/g, '"');
     const previewLength = 24;
     const textPreview = unescaped.length > previewLength ? unescaped.slice(0, previewLength) + "..." : unescaped;
-
     return (
-      <button onClick={handleClick}>
-        <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs mr-1">
-          {spanName}
-        </span>
-        span
+      <>
+        <SpanChip name={spanName} spanType={resolved?.type} onClick={handleClick} loading={!resolved} />
         <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-      </button>
+      </>
     );
   }
 
-  return (
-    <button onClick={handleClick}>
-      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span>{" "}
-      span
-    </button>
-  );
+  return <SpanChip name={spanName} spanType={resolved?.type} onClick={handleClick} loading={!resolved} />;
+}
+
+/** Badge for markdown span refs — uuid known, type resolved sync from store. */
+function MarkdownSpanBadge({
+  label,
+  spanUuid,
+  callbacks,
+}: {
+  label: string;
+  spanUuid: string;
+  callbacks: SpanReferenceCallbacks;
+}) {
+  const spanType = callbacks.getSpanType(spanUuid);
+  return <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan(spanUuid)} />;
 }
 
 /**
@@ -118,7 +156,7 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
           key={`md-ref-${link.index}`}
           label={link.label}
           spanUuid={link.spanId}
-          onSelectSpan={callbacks.onSelectSpan}
+          callbacks={callbacks}
         />
       ),
     });

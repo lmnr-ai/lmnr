@@ -2,6 +2,7 @@ import { groupBy } from "lodash";
 import YAML from "yaml";
 
 import { executeQuery } from "@/lib/actions/sql";
+import { SpanType } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
 
 const TRUNCATE_THRESHOLD = 64;
@@ -357,18 +358,33 @@ ${traceYaml}
   return { traceString };
 };
 
+// Mirrors the `multiIf` in `spans_v0` and the matching mapping in
+// `clickhouse/migrations`. Missing numeric values fall back to DEFAULT — the
+// chip just renders with the default icon. Keep in sync if a new SpanType is added.
+const SPAN_TYPE_INT_TO_STRING: Record<number, SpanType> = {
+  0: SpanType.DEFAULT,
+  1: SpanType.LLM,
+  2: SpanType.EVENT,
+  3: SpanType.EXECUTOR,
+  4: SpanType.EVALUATOR,
+  5: SpanType.EVALUATION,
+  6: SpanType.TOOL,
+  7: SpanType.HUMAN_EVALUATOR,
+  8: SpanType.CACHED,
+};
+
 /**
- * Resolves a sequential span ID (1-indexed) to the actual span UUID.
+ * Resolves a sequential span ID (1-indexed) to the actual span UUID + type.
  */
 export const resolveSpanId = async (
   projectId: string,
   traceId: string,
   sequentialId: number
-): Promise<string | null> => {
+): Promise<{ spanId: string; spanType: SpanType } | null> => {
   const spans = await executeQuery({
     projectId,
     query: `
-      SELECT span_id
+      SELECT span_id, span_type
       FROM spans
       WHERE trace_id = {trace_id: UUID}
       ORDER BY start_time ASC
@@ -384,5 +400,9 @@ export const resolveSpanId = async (
     return null;
   }
 
-  return (spans[0] as { span_id: string }).span_id;
+  const row = spans[0] as { span_id: string; span_type: number };
+  return {
+    spanId: row.span_id,
+    spanType: SPAN_TYPE_INT_TO_STRING[row.span_type] ?? SpanType.DEFAULT,
+  };
 };

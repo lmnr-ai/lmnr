@@ -10,12 +10,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ExpandedContent from "./expanded-content";
-import { usePanelAccent } from "./utils";
 
 interface Props {
   traceId: string;
   onClose: () => void;
+  /** Active signal's display color, or null when no signal. Used for
+   *  header bg + active tab bg. Owned by `index.tsx` so the trigger and
+   *  the portal stay in sync. */
+  baseColor: string | null;
 }
 
 /** The shared inner shell of the panel — used identically by both the
@@ -23,7 +27,7 @@ interface Props {
  *  The only thing that changes between the two is the `PanelHoverContext`
  *  value, which `ExpandedContent` reads to decide whether to show the
  *  toolbar. Outer border / background / sizing are owned by `index.tsx`. */
-export default function PanelBody({ traceId, onClose }: Props) {
+export default function PanelBody({ traceId, onClose, baseColor }: Props) {
   const { traceSignals, isTraceSignalsLoading, activeSignalTabId, setActiveSignalTabId, initialSignalId } =
     useTraceViewStore(
       (state) => ({
@@ -46,7 +50,10 @@ export default function PanelBody({ traceId, onClose }: Props) {
     return traceSignals[0]?.signalId ?? "";
   }, [activeSignalTabId, initialSignalId, traceSignals]);
 
-  const { tabActiveBg } = usePanelAccent();
+  const isSingleSignal = traceSignals.length === 1;
+  const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
+  const clusterPath = activeSignal?.clusterPath ?? [];
+  const isUnclustered = clusterPath.length === 0;
 
   if (isTraceSignalsLoading) {
     return (
@@ -58,33 +65,54 @@ export default function PanelBody({ traceId, onClose }: Props) {
 
   return (
     <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col flex-1 min-h-0 gap-0">
-      <div className="flex items-center gap-2 pl-2 pr-3 py-2 shrink-0">
-        <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
-          {traceSignals.map((signal) => {
-            const isActive = signal.signalId === effectiveTabId;
-            return (
-              <TabsTrigger
-                key={signal.signalId}
-                value={signal.signalId}
-                style={isActive ? { backgroundColor: tabActiveBg } : undefined}
-                className={cn(
-                  "flex-1 min-w-0 h-auto px-2 py-0.5 text-xs rounded",
-                  "data-[state=active]:shadow-none data-[state=active]:text-foreground",
-                  "text-secondary-foreground hover:text-foreground"
-                )}
-              >
-                {/* `block w-full truncate` — `truncate` only renders ellipsis
-                    on block-level boxes with constrained width. The default
-                    inline span lets text overflow visibly even after the
-                    trigger has shrunk via `flex-1 min-w-0`. */}
-                <span className="block w-full truncate text-center">{signal.signalName}</span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-        <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
-          <X className="size-3.5" />
-        </Button>
+      <div
+        className="shrink-0 flex flex-col gap-2 px-1.5 py-1.5"
+        style={{
+          backgroundColor: baseColor ? `${baseColor}10` : undefined,
+        }}
+      >
+        <div className="flex items-center gap-2">
+          {isSingleSignal && isUnclustered && (
+            <span className="flex-1 min-w-0 truncate text-xs text-primary-foreground pl-2.5">
+              {activeSignal?.signalName ?? ""}
+            </span>
+          )}
+          {isSingleSignal && !isUnclustered && (
+            <ClusterBreadcrumb clusterPath={clusterPath} signalName={activeSignal?.signalName} className="pl-1.5" />
+          )}
+          {!isSingleSignal && (
+            <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
+              {traceSignals.map((signal) => {
+                const isActive = signal.signalId === effectiveTabId;
+                return (
+                  <TabsTrigger
+                    key={signal.signalId}
+                    value={signal.signalId}
+                    style={isActive && baseColor ? { backgroundColor: `${baseColor}40` } : undefined}
+                    className={cn(
+                      "flex-1 min-w-0 h-auto px-2 py-0.5 text-xs rounded",
+                      "data-[state=active]:shadow-none data-[state=active]:text-foreground",
+                      "text-secondary-foreground hover:text-foreground"
+                    )}
+                  >
+                    {/* `block w-full truncate` — `truncate` only renders
+                        ellipsis on block-level boxes with constrained width.
+                        The default inline span lets text overflow visibly
+                        even after the trigger has shrunk via `flex-1 min-w-0`. */}
+                    <span className="block w-full truncate text-center">{signal.signalName}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          )}
+
+          <Button variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
+            <X className="size-3.5" />
+          </Button>
+        </div>
+        {!isSingleSignal && !isUnclustered && (
+          <ClusterBreadcrumb clusterPath={clusterPath} signalName={activeSignal?.signalName} className="pl-1" />
+        )}
       </div>
       {/* `[&>div>div]:!block` — Radix wraps Viewport children in a div with
           inline `display:table; min-width:100%`, which lets long content force

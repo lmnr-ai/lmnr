@@ -13,13 +13,13 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
   }
 
   try {
-    const spanUuid = await resolveSpanId(projectId, traceId, parseInt(sequentialId, 10));
+    const resolved = await resolveSpanId(projectId, traceId, parseInt(sequentialId, 10));
 
-    if (!spanUuid) {
+    if (!resolved) {
       return Response.json({ error: "Span not found" }, { status: 404 });
     }
 
-    return Response.json({ spanId: spanUuid });
+    return Response.json(resolved);
   } catch (error) {
     console.error(error);
     return Response.json(

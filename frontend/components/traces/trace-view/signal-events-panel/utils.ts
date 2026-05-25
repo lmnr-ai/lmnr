@@ -1,5 +1,3 @@
-import { createContext, useContext } from "react";
-
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { getClusterColorById } from "@/lib/clusters/colors";
 
@@ -12,42 +10,6 @@ export function getSignalDisplayColor(signal: TraceSignal): string {
   const leaf = signal.clusterPath[signal.clusterPath.length - 1];
   return leaf ? getClusterColorById(leaf.id) : UNCLUSTERED_BASE_COLOR;
 }
-
-/** Resolved accent palette for the panel — derived once from the active
- *  signal's display color, then shared across the trigger/portal/body via
- *  context so trigger and portal stay in sync without recomputing. */
-export type PanelAccent = {
-  /** Outer container border. */
-  borderColor: string;
-  /** Active tab background. */
-  tabActiveBg: string;
-  /** Toolbar buttons + category badge border. */
-  accentBorder: string;
-  /** Subtle panel background tint, undefined when no leaf cluster. */
-  panelTint: string | undefined;
-};
-
-export function deriveAccent(activeSignal: TraceSignal | undefined): PanelAccent {
-  const base = activeSignal ? getSignalDisplayColor(activeSignal) : null;
-  return {
-    borderColor: base ? `${base}60` : "hsl(var(--border))",
-    tabActiveBg: base ? `${base}40` : "transparent",
-    accentBorder: base ? `${base}66` : "hsl(var(--border))",
-    panelTint: base ? `${base}1a` : undefined,
-  };
-}
-
-const FALLBACK_ACCENT: PanelAccent = {
-  borderColor: "hsl(var(--border))",
-  tabActiveBg: "transparent",
-  accentBorder: "hsl(var(--border))",
-  panelTint: undefined,
-};
-
-const PanelAccentContext = createContext<PanelAccent>(FALLBACK_ACCENT);
-
-export const PanelAccentProvider = PanelAccentContext.Provider;
-export const usePanelAccent = () => useContext(PanelAccentContext);
 
 export function schemaFieldsToStructuredOutput(fields: TraceSignal["schemaFields"]): {
   type: string;

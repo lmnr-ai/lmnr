@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 import { PanelHoverContext } from "./hover-context";
 import PanelBody from "./panel-body";
-import { deriveAccent, PanelAccentProvider } from "./utils";
+import { getSignalDisplayColor } from "./utils";
 
 const PANEL_HEIGHT = 160;
 const HOVER_OPEN_DELAY_MS = 300;
@@ -38,17 +38,18 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
 
   const [hovered, setHovered] = useState(false);
 
-  // Resolve active signal so we can derive the accent palette once and share
-  // it via context (so the trigger, the portal, and ExpandedContent all read
-  // identical colors without re-deriving from the store).
-  const accent = useMemo(() => {
+  // Resolve the active signal's base color once and share it with the
+  // trigger, the portal, and ExpandedContent. Alpha modifiers are inlined
+  // at each usage site.
+  const baseColor = useMemo(() => {
     const id =
       activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)
         ? activeSignalTabId
         : initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)
           ? initialSignalId
           : (traceSignals[0]?.signalId ?? "");
-    return deriveAccent(traceSignals.find((s) => s.signalId === id));
+    const active = traceSignals.find((s) => s.signalId === id);
+    return active ? getSignalDisplayColor(active) : null;
   }, [traceSignals, activeSignalTabId, initialSignalId]);
 
   const handleClose = useCallback(() => {
@@ -61,14 +62,14 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
   // Two-layer background: a solid `bg-background` underneath (provided by
   // className) and the semi-transparent accent tint on top via background-image.
   // Without the solid back, the popover is see-through over the trigger.
-  const tintLayer = accent.panelTint ?? "hsl(var(--muted) / 0.4)";
+  const tintLayer = baseColor ? `${baseColor}10` : "hsl(var(--muted) / 0.4)";
   const outerStyle = {
-    borderColor: accent.borderColor,
+    borderColor: baseColor ? `${baseColor}40` : "hsl(var(--border))",
     backgroundImage: `linear-gradient(${tintLayer}, ${tintLayer})`,
   };
 
   return (
-    <PanelAccentProvider value={accent}>
+    <>
       <HoverCard
         openDelay={HOVER_OPEN_DELAY_MS}
         closeDelay={HOVER_CLOSE_DELAY_MS}
@@ -85,7 +86,7 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
           >
             <PanelHoverContext.Provider value={false}>
-              <PanelBody traceId={traceId} onClose={handleClose} />
+              <PanelBody traceId={traceId} onClose={handleClose} baseColor={baseColor} />
             </PanelHoverContext.Provider>
           </motion.div>
         </HoverCardTrigger>
@@ -107,21 +108,22 @@ export default function SignalEventsPanel({ traceId, onClose, className }: Props
           }}
         >
           <motion.div
-            // Bottom edge slides down from the trigger height to the natural
-            // content height (capped). No flex-1 here — that fights the
-            // explicit height we're animating.
-            initial={{ height: PANEL_HEIGHT }}
-            animate={{ height: "auto" }}
+            // Animating `maxHeight` (not `height`) keeps the box naturally
+            // sized to its content while capping growth. Framer never writes
+            // an inline `height`, so `height: auto` survives the animation and
+            // the inner ScrollArea's `flex-1 min-h-0` resolves correctly
+            // against the capped box when content overflows.
+            initial={{ maxHeight: PANEL_HEIGHT }}
+            animate={{ maxHeight: POPOVER_MAX_HEIGHT }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="flex flex-col overflow-hidden"
-            style={{ maxHeight: POPOVER_MAX_HEIGHT }}
           >
             <PanelHoverContext.Provider value={hovered}>
-              <PanelBody traceId={traceId} onClose={handleClose} />
+              <PanelBody traceId={traceId} onClose={handleClose} baseColor={baseColor} />
             </PanelHoverContext.Provider>
           </motion.div>
         </HoverCardContent>
       </HoverCard>
-    </PanelAccentProvider>
+    </>
   );
 }
