@@ -311,29 +311,33 @@ pub async fn process_span_messages(
                 .map_or(0, crate::utils::estimate_json_size)
         };
 
-        // Output bytes — symmetric with input. `estimate_size_bytes` is
-        // already counting `span.output` for non-dedup'd cases, so to avoid
-        // double-counting we ONLY add bytes here when the span has an output
-        // dedup verdict (recordable or not).
-        if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
-            let hashes = output_batch
-                .span_hashes
-                .get(dedup_idx)
-                .map(|h| h.len())
-                .unwrap_or(0);
-            if hashes > 0 {
-                // Subtract the output bytes `estimate_size_bytes` already
-                // counted (zero, since `span.output` was stripped to None on
-                // dedup) and add the dedup'd accounting.
-                let content_bytes = output_batch
-                    .span_content_bytes
+        // Output bytes. `estimate_size_bytes` already counted `self.output`
+        // (unlike input, which it deliberately skips). Only add dedup'd
+        // accounting when the producer actually stripped `span.output` to
+        // `None` — for root / top spans the producer keeps `output`
+        // populated for `TraceAggregation::from_spans`, and adding hash +
+        // content bytes on top of the JSON `estimate_size_bytes` already
+        // counted would double-bill those spans.
+        if span.output.is_none() {
+            if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+                let hashes = output_batch
+                    .span_hashes
                     .get(dedup_idx)
-                    .copied()
+                    .map(|h| h.len())
                     .unwrap_or(0);
-                added += hashes * 32 + content_bytes;
+                if hashes > 0 {
+                    let content_bytes = output_batch
+                        .span_content_bytes
+                        .get(dedup_idx)
+                        .copied()
+                        .unwrap_or(0);
+                    added += hashes * 32 + content_bytes;
+                }
+            } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
+                // Non-recordable LLM span whose `span.output` was stripped to
+                // None on the producer.
+                added += d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
             }
-        } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
-            added += d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
         }
 
         // Tool-definition bytes. `should_keep_attribute` already filters the
