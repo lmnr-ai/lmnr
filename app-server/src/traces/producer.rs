@@ -17,8 +17,9 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_ROUTING_KEY,
-    input_dedup::{LlmInputDedup, build_dedup},
+    message_dedup::{MessageDedup, MessageField, build_message_dedup},
     provider::convert_span_to_provider_format,
+    tool_dedup::{ToolDedup, build_tool_dedup},
     utils::is_top_span,
 };
 use crate::{
@@ -36,19 +37,30 @@ use crate::{
     },
 };
 
+/// Producer's per-span dedup verdicts. Each is `None` when the span isn't
+/// an LLM span, the field isn't present, or the field isn't a non-empty
+/// JSON array.
+struct DedupVerdicts {
+    input: Option<MessageDedup>,
+    output: Option<MessageDedup>,
+    tools: Option<ToolDedup>,
+}
+
 /// Run the producer-side preprocessing pipeline that the consumer would
 /// otherwise run in-process:
 ///
 ///   1. parse + enrich attributes (input/output extraction from OTel attrs)
 ///   2. provider conversion (LangChain rewrites `input`)
 ///   3. prompt-hash extraction (system message → `lmnr.span.prompt_hash`)
-///   4. structural input dedup verdict vs Redis
+///   4. project-scoped dedup verdicts: input messages, output messages,
+///      tool definitions (LAM-1634)
 ///
-/// On success, replaces `span.input` with `None` whenever a dedup is produced
-/// — the verdict carries everything the consumer needs (full hash list, new
-/// indices, new contents). For non-LLM spans / non-array inputs `input` is
-/// untouched.
-async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmInputDedup> {
+/// On success, replaces `span.input` / `span.output` with `None` whenever a
+/// dedup verdict was produced — the verdict carries the full hash list, the
+/// storage-miss content, and the trace-new positions for search. Root spans
+/// keep their `input` / `output` populated so `TraceAggregation::from_spans`
+/// can build the trace-list preview.
+async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdicts {
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
 
@@ -62,8 +74,15 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
         }
     }
 
-    let dedup = build_dedup(span, cache).await;
-    if dedup.is_some() && span.parent_span_id.is_some() && !is_top_span(span, &span.attributes) {
+    // Tool dedup runs first so its source attributes are stripped before
+    // anything else looks at `raw_attributes`.
+    let tools = build_tool_dedup(span, cache.clone()).await;
+    let input = build_message_dedup(span, MessageField::Input, cache.clone()).await;
+    let output = build_message_dedup(span, MessageField::Output, cache).await;
+
+    let keep_root_payload = span.parent_span_id.is_none() || is_top_span(span, &span.attributes);
+
+    if input.is_some() && !keep_root_payload {
         // Keep `input` on any span that is (or will become) the trace root —
         // the consumer's `TraceAggregation::from_spans` reads it for the
         // `root_span_input` preview shown in the trace list:
@@ -75,7 +94,17 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> Option<LlmI
         // tail of nested LLM spans either way.
         span.input = None;
     }
-    dedup
+    if output.is_some() && !keep_root_payload {
+        // Same carve-out for output: root span's `root_span_output` preview
+        // is built from `span.output`.
+        span.output = None;
+    }
+
+    DedupVerdicts {
+        input,
+        output,
+        tools,
+    }
 }
 
 /// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
@@ -98,9 +127,11 @@ pub async fn publish_span_messages(
         if msg.pre_processed {
             continue;
         }
-        let dedup = preprocess_for_queue(&mut msg.span, cache.clone()).await;
+        let verdicts = preprocess_for_queue(&mut msg.span, cache.clone()).await;
         msg.pre_processed = true;
-        msg.input_dedup = dedup;
+        msg.input_dedup = verdicts.input;
+        msg.output_dedup = verdicts.output;
+        msg.tool_dedup = verdicts.tools;
     }
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
@@ -169,6 +200,8 @@ pub async fn push_spans_to_queue(
                                 span,
                                 pre_processed: false,
                                 input_dedup: None,
+                                output_dedup: None,
+                                tool_dedup: None,
                             })
                         } else {
                             None

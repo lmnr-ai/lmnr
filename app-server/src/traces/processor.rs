@@ -12,6 +12,7 @@ use crate::{
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
+        messages::CHMessage,
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
     },
@@ -32,12 +33,13 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
+        message_dedup::{MessageDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
             send_span_updates, send_trace_updates,
         },
+        tool_dedup::{ToolDedup, resolve_tool_dedup},
         utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
     utils::limits::update_workspace_bytes_ingested,
@@ -132,46 +134,125 @@ pub async fn process_span_messages(
         span_usage_vec.push(span_usage);
     }
 
-    // Split into parallel `Vec`s — downstream code reads `spans` and
-    // `dedups` as separate slices keyed by index.
-    let (mut spans, dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) = messages
+    // Split into parallel `Vec`s — downstream code reads `spans`, `dedups`
+    // (input messages), `output_dedups`, and `tool_dedups` as separate slices
+    // keyed by index. All three dedup paths share the project-scoped
+    // `messages` table (LAM-1634).
+    let (mut spans, dedup_triples): (
+        Vec<Span>,
+        Vec<(
+            Option<MessageDedup>,
+            Option<MessageDedup>,
+            Option<ToolDedup>,
+        )>,
+    ) = messages
         .into_iter()
-        .map(|m| (m.span, m.input_dedup))
+        .map(|m| (m.span, (m.input_dedup, m.output_dedup, m.tool_dedup)))
         .unzip();
+    let (input_dedups, output_dedups, tool_dedups): (
+        Vec<Option<MessageDedup>>,
+        Vec<Option<MessageDedup>>,
+        Vec<Option<ToolDedup>>,
+    ) = {
+        let mut a = Vec::with_capacity(dedup_triples.len());
+        let mut b = Vec::with_capacity(dedup_triples.len());
+        let mut c = Vec::with_capacity(dedup_triples.len());
+        for (i, o, t) in dedup_triples {
+            a.push(i);
+            b.push(o);
+            c.push(t);
+        }
+        (a, b, c)
+    };
 
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
-    // Build the dedup batch up front so the size-bytes loop and CHSpans build
-    // can run before we kick off the parallel inserts.
+    // Build the unified dedup batch up front so the size-bytes loop and
+    // CHSpans build can run before we kick off the parallel inserts. Input,
+    // output, and tool dedups all share the project-scoped `messages` table
+    // (LAM-1634). The `seen_storage_in_batch` HashSet collapses
+    // `(project_id, hash)` across all three paths so a hash that appears as
+    // input in span A, output in span B, and as part of a tool definition
+    // in span C emits exactly one `messages` row.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    let mut dedup = {
-        let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
-        let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
+    let (mut ch_messages, mut input_batch, mut output_batch, tool_content_bytes_per_recordable) = {
+        let _g = tracing::info_span!(
+            "preprocess.dedup_batch",
+            recordable = recordable_indices.len()
+        )
+        .entered();
+        let dedup_spans: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
+        let recordable_input_dedups: Vec<Option<MessageDedup>> = recordable_indices
             .iter()
-            .map(|&i| dedups[i].clone())
+            .map(|&i| input_dedups[i].clone())
             .collect();
-        build_dedup_batch(&dedup_input, &recordable_dedups)
+        let recordable_output_dedups: Vec<Option<MessageDedup>> = recordable_indices
+            .iter()
+            .map(|&i| output_dedups[i].clone())
+            .collect();
+        let recordable_tool_dedups: Vec<Option<ToolDedup>> = recordable_indices
+            .iter()
+            .map(|&i| tool_dedups[i].clone())
+            .collect();
+
+        let mut messages: Vec<CHMessage> = Vec::new();
+        let mut seen_storage_in_batch: std::collections::HashSet<(Uuid, [u8; 32])> =
+            std::collections::HashSet::new();
+
+        let input_batch = build_dedup_batch(
+            &dedup_spans,
+            &recordable_input_dedups,
+            &mut seen_storage_in_batch,
+            &mut messages,
+        );
+        let output_batch = build_dedup_batch(
+            &dedup_spans,
+            &recordable_output_dedups,
+            &mut seen_storage_in_batch,
+            &mut messages,
+        );
+
+        let mut tool_content_bytes: Vec<usize> = vec![0; recordable_indices.len()];
+        for (dedup_idx, span) in dedup_spans.iter().enumerate() {
+            if let Some(td) = recordable_tool_dedups[dedup_idx].as_ref() {
+                tool_content_bytes[dedup_idx] =
+                    resolve_tool_dedup(span, td, &mut seen_storage_in_batch, &mut messages);
+            }
+        }
+
+        (messages, input_batch, output_batch, tool_content_bytes)
     };
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
-    // redacted bytes flow into both the `llm_messages` insert and Quickwit
-    // indexing through the same `dedup.messages` buffer; runs BEFORE the
-    // input-bytes accounting / `llm_messages` CH insert / Quickwit indexing
+    // redacted bytes flow into both the `messages` insert and Quickwit
+    // indexing through the same shared `ch_messages` buffer; runs BEFORE
+    // the input-bytes accounting / `messages` CH insert / Quickwit indexing
     // so every storage tier holds the redacted content. Already-seen
     // messages were redacted on first emit and ride the wire as hashes only.
-    // Best-effort: failures are logged inside `redact_spans_in_place` and
-    // do not fail the batch.
+    // Tool-definition blobs share the same `ch_messages` buffer but the
+    // redactor walks only the input + output `span_new_message_indices`
+    // slices, so tool defs are not redacted (they're schemas, not user
+    // text). Best-effort: failures are logged inside `redact_spans_in_place`
+    // and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
         redact_spans_in_place(
             redactor,
             &mut spans,
-            &mut dedup,
+            &mut ch_messages,
+            crate::pii_redactor::DedupRedactionView {
+                span_new_message_indices: &input_batch.span_new_message_indices,
+                span_content_bytes: &mut input_batch.span_content_bytes,
+            },
+            crate::pii_redactor::DedupRedactionView {
+                span_new_message_indices: &output_batch.span_new_message_indices,
+                span_content_bytes: &mut output_batch.span_content_bytes,
+            },
             &recordable_indices,
             db.clone(),
             cache.clone(),
@@ -182,82 +263,152 @@ pub async fn process_span_messages(
     for span in &mut spans {
         // Must run AFTER provider conversion (LangChain rewrites `input`)
         // and AFTER PII redaction so the size reflects redacted content.
-        // Input is excluded here — the post-dedup input-bytes loop below
-        // owns that charge.
+        // Input/output are excluded here — the post-dedup input-bytes loop
+        // below owns those charges.
         span.estimate_size_bytes();
     }
 
-    // Charge each span for its input: dedup'd LLM spans pay for the hash
-    // array + any newly-inserted `llm_messages.content` (shared messages are
-    // billed once, to the first referrer); everything else pays for the raw
-    // JSON. `estimate_size_bytes` intentionally excludes input so this loop
-    // owns the accounting.
+    // Charge each span for its input + output + tool definitions. Dedup'd
+    // fields pay 32B per hash + any newly-inserted `messages.content`
+    // (shared content billed once to the first referrer in the batch);
+    // non-dedup'd or empty fields pay for the raw JSON. `estimate_size_bytes`
+    // intentionally excludes these so this loop owns the accounting.
     let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         dedup_lookup.insert(span_idx, dedup_idx);
     }
     for (span_idx, span) in spans.iter_mut().enumerate() {
-        let added = if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
-            let hashes = dedup
+        let mut added: usize = 0;
+
+        // Input bytes
+        added += if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = input_batch
                 .span_hashes
                 .get(dedup_idx)
                 .map(|h| h.len())
                 .unwrap_or(0);
             if hashes > 0 {
-                let content_bytes = dedup
+                let content_bytes = input_batch
                     .span_content_bytes
                     .get(dedup_idx)
                     .copied()
                     .unwrap_or(0);
-                // 32 bytes per BLAKE3-256 hash + new `llm_messages.content` bytes.
                 hashes * 32 + content_bytes
             } else {
                 span.input
                     .as_ref()
                     .map_or(0, crate::utils::estimate_json_size)
             }
-        } else if let Some(d) = dedups.get(span_idx).and_then(|d| d.as_ref()) {
-            // Non-recordable LLM span (e.g. CC Bash-tool `anthropic.messages`)
-            // whose `span.input` was stripped to None on the producer. Without
-            // this branch the fall-through would bill 0 bytes, regressing the
-            // "non-recorded spans contribute input bytes to workspace usage"
-            // invariant. Closest post-dedup analogue: 32B per hash + the
-            // Redis-miss content the producer carried.
-            // 32 bytes per BLAKE3-256 hash + producer's Redis-miss content bytes.
+        } else if let Some(d) = input_dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            // Non-recordable LLM span whose `span.input` was stripped to None
+            // on the producer. Without this branch the fall-through would
+            // bill 0 bytes, regressing the "non-recorded spans contribute
+            // input bytes to workspace usage" invariant.
             d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
             span.input
                 .as_ref()
                 .map_or(0, crate::utils::estimate_json_size)
         };
+
+        // Output bytes — symmetric with input. `estimate_size_bytes` is
+        // already counting `span.output` for non-dedup'd cases, so to avoid
+        // double-counting we ONLY add bytes here when the span has an output
+        // dedup verdict (recordable or not).
+        if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = output_batch
+                .span_hashes
+                .get(dedup_idx)
+                .map(|h| h.len())
+                .unwrap_or(0);
+            if hashes > 0 {
+                // Subtract the output bytes `estimate_size_bytes` already
+                // counted (zero, since `span.output` was stripped to None on
+                // dedup) and add the dedup'd accounting.
+                let content_bytes = output_batch
+                    .span_content_bytes
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                added += hashes * 32 + content_bytes;
+            }
+        } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            added += d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
+        }
+
+        // Tool-definition bytes. `should_keep_attribute` already filters the
+        // source `ai.prompt.tools` / `llm.request.functions.*` /
+        // `gen_ai.tool.definitions` keys out of `CHSpan.attributes`, so
+        // `estimate_size_bytes` doesn't double-count them. Charge 32B for
+        // the hash plus any newly-inserted content (first referrer in batch).
+        if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            if tool_dedups.get(span_idx).and_then(|d| d.as_ref()).is_some() {
+                let content_bytes = tool_content_bytes_per_recordable
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                added += 32 + content_bytes;
+            }
+        } else if let Some(td) = tool_dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            added += 32 + td.content.as_ref().map(|c| c.len()).unwrap_or(0);
+        }
+
         span.increment_size_bytes(added);
     }
 
     // Build CHSpans with embedded events to insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = recordable_indices
-        .iter()
-        .enumerate()
-        .map(|(dedup_idx, &span_idx)| {
-            let span = &spans[span_idx];
-            let usage = &span_usage_vec[span_idx];
-            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-            let hashes = dedup
-                .span_hashes
-                .get(dedup_idx)
-                .cloned()
-                .unwrap_or_default();
-            if !hashes.is_empty() {
-                ch_span.input = String::new();
-                ch_span.input_message_hashes = hashes;
-                ch_span.input_new_message_indices = dedup
-                    .span_new_indices
+    let ch_spans: Vec<CHSpan> = {
+        let _g: tracing::span::EnteredSpan = tracing::info_span!(
+            "preprocess.ch_span_build",
+            recordable = recordable_indices.len()
+        )
+        .entered();
+        recordable_indices
+            .iter()
+            .enumerate()
+            .map(|(dedup_idx, &span_idx)| {
+                let span = &spans[span_idx];
+                let usage = &span_usage_vec[span_idx];
+                let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+
+                let input_hashes = input_batch
+                    .span_hashes
                     .get(dedup_idx)
                     .cloned()
                     .unwrap_or_default();
-            }
-            ch_span
-        })
-        .collect();
+                if !input_hashes.is_empty() {
+                    ch_span.input = String::new();
+                    ch_span.input_message_hashes = input_hashes;
+                    ch_span.input_new_message_indices = input_batch
+                        .span_new_indices
+                        .get(dedup_idx)
+                        .cloned()
+                        .unwrap_or_default();
+                }
+
+                let output_hashes = output_batch
+                    .span_hashes
+                    .get(dedup_idx)
+                    .cloned()
+                    .unwrap_or_default();
+                if !output_hashes.is_empty() {
+                    ch_span.output = String::new();
+                    ch_span.output_message_hashes = output_hashes;
+                    ch_span.output_new_message_indices = output_batch
+                        .span_new_indices
+                        .get(dedup_idx)
+                        .cloned()
+                        .unwrap_or_default();
+                }
+
+                if let Some(td) = tool_dedups.get(span_idx).and_then(|d| d.as_ref()) {
+                    ch_span.tool_definition_hash = td.hash;
+                }
+
+                ch_span
+            })
+            .collect()
+    };
 
     // Parallelize trace upsert against the span path. Within the span path
     // the strict order llm_messages -> mark_seen -> spans must be preserved
@@ -369,26 +520,64 @@ pub async fn process_span_messages(
         }
     };
 
+    // Trace-new keys for search "first occurrence per trace" semantic.
+    // Project-scoped storage keys for content presence. Both must be stamped
+    // on the consumer ONLY after a successful `messages` insert (LAM-1634).
+    let storage_keys: Vec<(Uuid, [u8; 32])> = ch_messages
+        .iter()
+        .map(|m| (m.project_id, m.message_hash))
+        .collect();
+    let trace_new_keys: Vec<(Uuid, Uuid, [u8; 32])> = {
+        let mut acc: Vec<(Uuid, Uuid, [u8; 32])> = Vec::new();
+        for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+            let span = &spans[span_idx];
+            if let Some(hashes) = input_batch.span_hashes.get(dedup_idx) {
+                if let Some(positions) = input_batch.span_new_indices.get(dedup_idx) {
+                    for &pos in positions {
+                        if let Some(h) = hashes.get(pos as usize) {
+                            acc.push((span.project_id, span.trace_id, *h));
+                        }
+                    }
+                }
+            }
+            if let Some(hashes) = output_batch.span_hashes.get(dedup_idx) {
+                if let Some(positions) = output_batch.span_new_indices.get(dedup_idx) {
+                    for &pos in positions {
+                        if let Some(h) = hashes.get(pos as usize) {
+                            acc.push((span.project_id, span.trace_id, *h));
+                        }
+                    }
+                }
+            }
+        }
+        acc
+    };
+
     let span_branch = async {
-        if !dedup.messages.is_empty() {
-            let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
-                .messages
-                .iter()
-                .map(|m| (m.project_id, m.trace_id, m.message_hash))
-                .collect();
-            if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+        // Strict order: messages -> mark_seen -> spans. `spans` is plain
+        // MergeTree, so a retry after a successful spans insert + failed
+        // messages insert would duplicate every span row. See CLAUDE.md.
+        if !ch_messages.is_empty() {
+            if let Err(e) = ch.insert_batch(&ch_messages, config).await {
                 log::error!(
-                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
-                    dedup.messages.len(),
+                    "Failed to insert {} messages to ClickHouse: {:?}",
+                    ch_messages.len(),
                     e
                 );
                 return Err(HandlerError::transient(anyhow::anyhow!(
-                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    "Failed to insert messages to Clickhouse: {:?}",
                     e
                 )));
             }
-            mark_seen(&keys, cache.clone()).await;
         }
+        // Stamp Redis after the insert succeeded — even when `ch_messages`
+        // was empty, trace-new keys may be non-empty (storage hits across
+        // traces still need their trace-new positions recorded for search).
+        if !storage_keys.is_empty() || !trace_new_keys.is_empty() {
+            mark_seen(&storage_keys, &trace_new_keys, cache.clone()).await;
+        }
+        // Tool-definition Redis keys share the `s:` namespace — already
+        // covered by `storage_keys`. No separate tool mark needed.
 
         if let Err(e) = ch.insert_batch(&ch_spans, config).await {
             log::error!(
@@ -435,27 +624,33 @@ pub async fn process_span_messages(
         .enumerate()
         .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
         .map(|(dedup_idx, s)| {
-            // For LLM spans: parse this span's new messages into `Vec<Value>`
-            // for the indexer. `span_new_message_indices[dedup_idx]` points
-            // into `dedup.messages` — no layout assumption. Works for both
-            // the producer path (where `span.input` is `None`) and the
-            // legacy path. Unparseable JSON is dropped (filter_map) — the
-            // row still went to llm_messages, it just isn't searchable.
-            // A span with no hashes (non-array input or empty plan) gets
-            // `None`, so `from_span` falls through to raw `span.input`.
+            // For LLM spans: parse this span's new INPUT messages into
+            // `Vec<Value>` for the indexer. Output messages flow through
+            // `span.output` directly — they're stripped only on dedup, and
+            // the index path here picks the right slice from the unified
+            // batch. `span_new_message_indices[dedup_idx]` points into
+            // `ch_messages` — no layout assumption. Works for both the
+            // producer path (where `span.input` is `None`) and the legacy
+            // path. Unparseable JSON is dropped (filter_map) — the row
+            // still went to `messages`, it just isn't searchable. A span
+            // with no hashes (non-array input) gets `None`, so `from_span`
+            // falls through to raw `span.input`.
             let new_messages = if s.is_llm_span()
-                && dedup
+                && input_batch
                     .span_hashes
                     .get(dedup_idx)
                     .map(|h| !h.is_empty())
                     .unwrap_or(false)
             {
-                dedup.span_new_message_indices.get(dedup_idx).map(|idxs| {
-                    idxs.iter()
-                        .filter_map(|&i| dedup.messages.get(i))
-                        .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
-                        .collect::<Vec<Value>>()
-                })
+                input_batch
+                    .span_new_message_indices
+                    .get(dedup_idx)
+                    .map(|idxs| {
+                        idxs.iter()
+                            .filter_map(|&i| ch_messages.get(i))
+                            .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                            .collect::<Vec<Value>>()
+                    })
             } else {
                 None
             };

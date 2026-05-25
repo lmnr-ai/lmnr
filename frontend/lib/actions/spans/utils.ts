@@ -72,6 +72,11 @@ export const spansSelectColumns = [
   "path",
   "model",
   "duration",
+  // LAM-1634: dedup'd tool definitions reconstructed from `messages_dict` by
+  // the spans_v0 view. Empty string when the span has no tools (or for
+  // legacy spans whose definitions still live in the attributes blob — the
+  // frontend's `extractToolsFromAttributes` is the fallback).
+  "tools",
 ];
 
 // Subset of attribute keys actually consumed by the trace-view transcript/tree.

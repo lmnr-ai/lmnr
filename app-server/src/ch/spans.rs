@@ -115,14 +115,34 @@ pub struct CHSpan {
     pub events: Vec<(i64, String, String)>,
     /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
     /// left empty and the view reconstructs the input JSON array by joining
-    /// against the `llm_messages` table.
+    /// against the `messages` (project-scoped, LAM-1634) or legacy
+    /// `llm_messages` (trace-scoped) table via `messages_dict` /
+    /// `llm_messages_dict`.
     #[serde(default)]
     pub input_message_hashes: Vec<[u8; 32]>,
     /// 0-based positions into `input_message_hashes` for messages this span
     /// was first to introduce in its trace. Used by the search snippet query
-    /// to scope input matching to the new-messages subset only.
+    /// to scope input matching to the new-messages subset only. Trace-scoped
+    /// even though storage is project-scoped — search "first occurrence per
+    /// trace" semantic must be preserved.
     #[serde(default)]
     pub input_new_message_indices: Vec<u16>,
+    /// Hashes of deduplicated LLM output messages (LAM-1634). When non-empty,
+    /// `output` is left empty and the view reconstructs the array via
+    /// `messages_dict`. Project-scoped — output of span A and input of span B
+    /// in the same project collapse to the same row when content matches.
+    #[serde(default)]
+    pub output_message_hashes: Vec<[u8; 32]>,
+    /// Trace-scoped first-occurrence positions for output messages. Mirrors
+    /// `input_new_message_indices` semantics for the output array.
+    #[serde(default)]
+    pub output_new_message_indices: Vec<u16>,
+    /// Single hash for the span's normalized tool-definition array
+    /// (LAM-1634). Empty when the span has no tools or is a legacy span.
+    /// Reconstructed by the view as a virtual `tools` column via
+    /// `messages_dict`.
+    #[serde(default)]
+    pub tool_definition_hash: [u8; 32],
 }
 
 impl CHSpan {
@@ -200,6 +220,9 @@ impl CHSpan {
                 .collect(),
             input_message_hashes: Vec::new(),
             input_new_message_indices: Vec::new(),
+            output_message_hashes: Vec::new(),
+            output_new_message_indices: Vec::new(),
+            tool_definition_hash: [0u8; 32],
         }
     }
 }

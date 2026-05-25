@@ -101,18 +101,19 @@ export async function register() {
 
       // `CREATE OR REPLACE` so credential rotation is picked up on next boot
       // without tripping the clickhouse-migrations MD5 checksum guard (which is
-      // why this lives here instead of in `43_llm_messages.sql`).
+      // why these live here instead of in their migrations).
       // Multi-replica boots race the DDL — CH serialises it, but each replace
       // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
-      // Acceptable: layout is lazy (no preload), source lookups hit the
-      // `llm_messages` PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
+      // Acceptable: layout is lazy (no preload), source lookups hit each
+      // table's PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
       // evicts/refreshes every minute under normal operation.
+      const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
       const ensureLlmMessagesDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-        const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-        const user = escape(process.env.CLICKHOUSE_USER || "ch_user");
-        const password = escape(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
-        const db = escape(process.env.CLICKHOUSE_DB || "default");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
 
         await clickhouseClient.command({
           query: `
@@ -129,6 +130,36 @@ export async function register() {
                 PASSWORD '${password}'
                 DB '${db}'
                 TABLE 'llm_messages'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
+      // Project-scoped dedup dict (LAM-1634). Backs `messages` table for both
+      // input/output messages and tool definitions. The `spans_v0` view tries
+      // this dict first and falls back to `llm_messages_dict` for legacy spans.
+      const ensureMessagesDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY messages_dict
+            (
+                project_id UUID,
+                message_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, message_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'messages'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
             LIFETIME(MIN 30 MAX 60)
@@ -154,6 +185,7 @@ export async function register() {
           );
 
           await ensureLlmMessagesDict();
+          await ensureMessagesDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;

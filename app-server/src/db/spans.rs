@@ -495,19 +495,14 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Verify function metadata is PRESERVED
-        assert_eq!(
-            attrs.get("llm.request.functions.0.name"),
-            Some(&json!("get_weather"))
-        );
-        assert_eq!(
-            attrs.get("llm.request.functions.1.name"),
-            Some(&json!("get_time"))
-        );
-        assert_eq!(
-            attrs.get("llm.request.functions.2.name"),
-            Some(&json!("get_city_population"))
-        );
+        // Tool-definition attributes are now stripped (LAM-1634): the
+        // producer extracts them into the dedup'd `tool_definition_hash`
+        // column, and `should_keep_attribute` filters them defensively for
+        // the legacy / non-preprocessed path so the attributes tab doesn't
+        // surface duplicates and bytes aren't double-counted.
+        assert!(!attrs.contains_key("llm.request.functions.0.name"));
+        assert!(!attrs.contains_key("llm.request.functions.1.name"));
+        assert!(!attrs.contains_key("llm.request.functions.2.name"));
 
         // Verify path and instrumentation metadata are PRESERVED
         assert_eq!(

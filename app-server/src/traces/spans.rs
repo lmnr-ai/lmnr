@@ -1242,6 +1242,14 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
         return false;
     }
 
+    // Tool-definition attributes (LAM-1634): producer extracts these into the
+    // dedup'd `tool_definition_hash` column. Filtering here covers legacy
+    // spans that were never producer-preprocessed, so the bytes don't get
+    // billed twice and the attributes tab doesn't surface duplicates.
+    if crate::traces::tool_dedup::is_tool_definition_attribute(attribute) {
+        return false;
+    }
+
     // Newer AI SDK operation-prefixed attributes that have been normalized to
     // standard `ai.*` / `gen_ai.*` keys. Remove the originals to save storage.
     const AISDK_NORMALIZED_SUFFIXES: &[&str] = &[
@@ -4276,10 +4284,8 @@ mod tests {
     #[test]
     fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
         // No tool name attribute → name unchanged.
-        let mut attributes = HashMap::from([(
-            "gen_ai.operation.name".to_string(),
-            json!("execute_tool"),
-        )]);
+        let mut attributes =
+            HashMap::from([("gen_ai.operation.name".to_string(), json!("execute_tool"))]);
         let mut span = Span {
             span_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),

@@ -7,9 +7,9 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
+use crate::ch::messages::CHMessage;
 use crate::db::DB;
 use crate::db::spans::Span;
-use crate::traces::input_dedup::DedupBatch;
 use crate::utils::limits::get_workspace_info_for_project_id;
 use crate::utils::sanitize_string;
 
@@ -97,22 +97,36 @@ async fn resolve_opted_in_projects(
     opted_in
 }
 
+/// Per-direction (input or output) view of the dedup batch the redactor
+/// needs to walk: which positions in the unified `messages` buffer belong
+/// to span `dedup_idx`, plus a parallel `span_content_bytes` slot that gets
+/// fixed up when redaction changes the byte length. Indexed by `dedup_idx`
+/// (matching `recordable_indices`).
+pub struct DedupRedactionView<'a> {
+    pub span_new_message_indices: &'a [Vec<usize>],
+    pub span_content_bytes: &'a mut [usize],
+}
+
 /// Redact `span.input` / `span.output` for every span whose project has
 /// `remove_pii=true`. For dedup'd LLM spans the new-message slice of the
-/// `dedup.messages` batch is redacted in place — Quickwit and `llm_messages`
-/// share that buffer, so one update covers both. Already-seen messages are
-/// not in the batch and are not redacted (they were redacted on first
-/// emit). All redaction happens in a single batched RPC.
+/// shared `messages` buffer is redacted in place — Quickwit and the
+/// `messages` CH table share that buffer, so one update covers both.
+/// Already-seen messages are not in the buffer and are not redacted (they
+/// were redacted on first emit). Tool-definition blobs share the same
+/// buffer too but are NOT walked here (tool definitions are schemas, not
+/// user text). All redaction happens in a single batched RPC.
 ///
-/// MUST run after `build_dedup_batch` and BEFORE the `llm_messages`
-/// ClickHouse insert.
+/// MUST run after `build_dedup_batch` (input + output) and BEFORE the
+/// `messages` ClickHouse insert.
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
-    dedup: &mut DedupBatch,
+    messages: &mut Vec<CHMessage>,
+    input_view: DedupRedactionView<'_>,
+    output_view: DedupRedactionView<'_>,
     recordable_indices: &[usize],
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -131,12 +145,17 @@ pub async fn redact_spans_in_place(
 
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
-    // `dedup.span_content_bytes[dedup_idx]` was computed from pre-redaction
-    // `content.len()` in `build_dedup_batch`. Redaction mutates `content` in
-    // place, so any opted-in span's entry must be corrected before the
-    // post-dedup input-bytes loop reads it. Track the message → dedup_idx
-    // back-reference here so we can apply the delta on write-back.
-    let mut msg_to_dedup_idx: HashMap<usize, usize> = HashMap::new();
+    // `input_view`/`output_view`'s `span_content_bytes[dedup_idx]` was
+    // computed from pre-redaction `content.len()` in `build_dedup_batch`.
+    // Redaction mutates `content` in place, so any opted-in span's entry
+    // must be corrected before the post-dedup input-bytes loop reads it.
+    // Track per-message which (direction, dedup_idx) it belongs to so we
+    // can apply the delta on write-back.
+    enum Dir {
+        Input,
+        Output,
+    }
+    let mut msg_to_dedup: HashMap<usize, (Dir, usize)> = HashMap::new();
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         if !*opt_in_for_span.get(&span_idx).unwrap_or(&false) {
@@ -144,20 +163,29 @@ pub async fn redact_spans_in_place(
         }
         let span = &spans[span_idx];
 
-        // Dedup'd LLM span: redact each new message via the dedup batch,
-        // which is the same buffer Quickwit indexing reads.
-        let new_msg_indices = dedup
-            .span_new_message_indices
-            .get(dedup_idx)
-            .cloned()
-            .unwrap_or_default();
-        for msg_idx in new_msg_indices {
-            let Some(msg) = dedup.messages.get(msg_idx) else {
-                continue;
-            };
-            msg_to_dedup_idx.insert(msg_idx, dedup_idx);
-            targets.push(Target::DedupMessage(msg_idx));
-            texts.push(msg.content.clone());
+        // Dedup'd LLM input: redact each new input message via the shared
+        // buffer, which is the same buffer Quickwit indexing reads.
+        if let Some(idxs) = input_view.span_new_message_indices.get(dedup_idx) {
+            for &msg_idx in idxs {
+                let Some(msg) = messages.get(msg_idx) else {
+                    continue;
+                };
+                msg_to_dedup.insert(msg_idx, (Dir::Input, dedup_idx));
+                targets.push(Target::DedupMessage(msg_idx));
+                texts.push(msg.content.clone());
+            }
+        }
+
+        // Dedup'd LLM output: same shape as input.
+        if let Some(idxs) = output_view.span_new_message_indices.get(dedup_idx) {
+            for &msg_idx in idxs {
+                let Some(msg) = messages.get(msg_idx) else {
+                    continue;
+                };
+                msg_to_dedup.insert(msg_idx, (Dir::Output, dedup_idx));
+                targets.push(Target::DedupMessage(msg_idx));
+                texts.push(msg.content.clone());
+            }
         }
 
         // Whole `span.input`. Producer-side dedup strips this to `None` for
@@ -229,6 +257,14 @@ pub async fn redact_spans_in_place(
         return;
     }
 
+    let DedupRedactionView {
+        span_new_message_indices: _,
+        span_content_bytes: input_bytes,
+    } = input_view;
+    let DedupRedactionView {
+        span_new_message_indices: _,
+        span_content_bytes: output_bytes,
+    } = output_view;
     for (target, text) in targets.into_iter().zip(redacted.into_iter()) {
         match target {
             Target::Input(idx) => match serde_json::from_str(&text) {
@@ -240,7 +276,7 @@ pub async fn redact_spans_in_place(
                 Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].output: {e:#}"),
             },
             Target::DedupMessage(idx) => {
-                if let Some(msg) = dedup.messages.get_mut(idx) {
+                if let Some(msg) = messages.get_mut(idx) {
                     // The redactor returns stringified JSON; sanitize to
                     // match the non-redact path's `sanitize_string(&item.to_string())`.
                     let new_content = sanitize_string(&text);
@@ -251,10 +287,14 @@ pub async fn redact_spans_in_place(
                     // in pre-redaction so the post-dedup input-bytes loop
                     // bills the redacted size, matching the comment on
                     // `estimate_size_bytes` ("size reflects redacted content").
-                    if let Some(&dedup_idx) = msg_to_dedup_idx.get(&idx)
-                        && let Some(slot) = dedup.span_content_bytes.get_mut(dedup_idx)
-                    {
-                        *slot = slot.saturating_sub(old_len).saturating_add(new_len);
+                    if let Some(&(ref dir, dedup_idx)) = msg_to_dedup.get(&idx) {
+                        let slot = match dir {
+                            Dir::Input => input_bytes.get_mut(dedup_idx),
+                            Dir::Output => output_bytes.get_mut(dedup_idx),
+                        };
+                        if let Some(slot) = slot {
+                            *slot = slot.saturating_sub(old_len).saturating_add(new_len);
+                        }
                     }
                 }
             }
