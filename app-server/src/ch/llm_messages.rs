@@ -3,7 +3,9 @@ use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ClickhouseInsertable, DataPlaneBatch, Table};
+use super::{
+    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
+};
 
 /// Row for the `llm_messages` table that backs the structural dedup of LLM
 /// span input messages. Each row is a single message's canonical-JSON content
@@ -24,7 +26,10 @@ impl ClickhouseInsertable for CHLlmMessage {
     const TABLE: Table = Table::LlmMessages;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_option("async_insert_busy_timeout_max_ms", "400")
+        insert.with_option(
+            "async_insert_busy_timeout_max_ms",
+            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
+        )
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
