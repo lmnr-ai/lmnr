@@ -358,20 +358,24 @@ ${traceYaml}
   return { traceString };
 };
 
-// Mirrors the `multiIf` in `spans_v0` and the matching mapping in
-// `clickhouse/migrations`. Missing numeric values fall back to DEFAULT — the
-// chip just renders with the default icon. Keep in sync if a new SpanType is added.
-const SPAN_TYPE_INT_TO_STRING: Record<number, SpanType> = {
-  0: SpanType.DEFAULT,
-  1: SpanType.LLM,
-  2: SpanType.EVENT,
-  3: SpanType.EXECUTOR,
-  4: SpanType.EVALUATOR,
-  5: SpanType.EVALUATION,
-  6: SpanType.TOOL,
-  7: SpanType.HUMAN_EVALUATOR,
-  8: SpanType.CACHED,
+// Source of truth for the `SpanType` enum ↔ CH `span_type` UInt8 mapping.
+// `Record<SpanType, ...>` forces a compile error if a new variant is added to
+// the enum without an int assignment here. The reverse map is derived, so the
+// two stay in sync automatically. Mirrors the `multiIf` in `spans_v0`.
+const INT_BY_SPAN_TYPE: Record<SpanType, number> = {
+  [SpanType.DEFAULT]: 0,
+  [SpanType.LLM]: 1,
+  [SpanType.EVENT]: 2,
+  [SpanType.EXECUTOR]: 3,
+  [SpanType.EVALUATOR]: 4,
+  [SpanType.EVALUATION]: 5,
+  [SpanType.TOOL]: 6,
+  [SpanType.HUMAN_EVALUATOR]: 7,
+  [SpanType.CACHED]: 8,
 };
+const SPAN_TYPE_BY_INT: Record<number, SpanType> = Object.fromEntries(
+  Object.entries(INT_BY_SPAN_TYPE).map(([k, v]) => [v, k as SpanType])
+);
 
 /**
  * Resolves a sequential span ID (1-indexed) to the actual span UUID + type.
@@ -403,6 +407,6 @@ export const resolveSpanId = async (
   const row = spans[0] as { span_id: string; span_type: number };
   return {
     spanId: row.span_id,
-    spanType: SPAN_TYPE_INT_TO_STRING[row.span_type] ?? SpanType.DEFAULT,
+    spanType: SPAN_TYPE_BY_INT[row.span_type] ?? SpanType.DEFAULT,
   };
 };

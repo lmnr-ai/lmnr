@@ -78,8 +78,15 @@ function SpanBadge({
     };
   }, [spanId, callbacks]);
 
-  const handleClick = () => {
-    if (resolved) callbacks.onSelectSpan(resolved.uuid);
+  const handleClick = async () => {
+    if (resolved) {
+      callbacks.onSelectSpan(resolved.uuid);
+      return;
+    }
+    // Mount-fetch still in flight (or not yet started) — resolve inline so
+    // clicks before the icon backdrop appears don't silently no-op.
+    const r = await callbacks.resolveSpanId(spanId);
+    if (r) callbacks.onSelectSpan(r.uuid);
   };
 
   if (referenceText) {

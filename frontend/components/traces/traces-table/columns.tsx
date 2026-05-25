@@ -52,8 +52,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
-          "": row.getValue() === "info", // temporary color values
-          "bg-yellow-400": row.getValue() === "warning", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning",
         })}
       />
     ),
@@ -231,7 +230,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.signals,
     cell: (row) => {
-      const sigs = row.getValue() as { name: string; color: string | null }[] | undefined;
+      const sigs = row.getValue() as { name: string }[] | undefined;
       if (sigs && sigs.length > 0) return <SignalsCell signals={sigs} />;
       return "-";
     },

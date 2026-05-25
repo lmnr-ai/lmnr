@@ -3,17 +3,17 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { renderSpanReferences } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { useSpanRefCallbacks } from "@/components/traces/trace-view/use-span-ref-callbacks";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { track } from "@/lib/posthog";
-import { type SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,32 +58,6 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
     shallow
   );
 
-  // Resolve sequential span ID to UUID + type on-demand
-  const resolveSpanId = useCallback(
-    async (sequentialId: string): Promise<{ uuid: string; type: SpanType } | null> => {
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
-        );
-        if (response.ok) {
-          const data = (await response.json()) as { spanId: string; spanType: SpanType };
-          return { uuid: data.spanId, type: data.spanType };
-        }
-      } catch (error) {
-        console.error("Error resolving span ID:", error);
-      }
-      return null;
-    },
-    [projectId, traceId]
-  );
-
-  const spanTypeByUuid = useMemo(() => {
-    const m = new Map<string, SpanType>();
-    for (const s of spans) m.set(s.spanId, s.spanType);
-    return m;
-  }, [spans]);
-  const getSpanType = useCallback((uuid: string) => spanTypeByUuid.get(uuid), [spanTypeByUuid]);
-
   const handleExampleClick = (question: string) => {
     track("traces", "chat_message_sent", { source: "example" });
     sendMessage({
@@ -92,14 +66,12 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
     });
   };
 
-  const spanRefCallbacks = useMemo<SpanReferenceCallbacks>(
-    () => ({
-      resolveSpanId,
-      getSpanType,
-      onSelectSpan: onSetSpanId,
-    }),
-    [resolveSpanId, getSpanType, onSetSpanId]
-  );
+  const spanRefCallbacks = useSpanRefCallbacks({
+    projectId: projectId as string,
+    traceId,
+    spans,
+    onSelectSpan: onSetSpanId,
+  });
 
   const components = useMemo(
     () => ({

@@ -4,15 +4,15 @@ import { motion } from "framer-motion";
 import { ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
+import { useSpanRefCallbacks } from "@/components/traces/trace-view/use-span-ref-callbacks";
 import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
-import { type SpanType } from "@/lib/traces/types";
 
 import { usePanelHover } from "./hover-context";
 import { getSignalDisplayColor, schemaFieldsToStructuredOutput } from "./utils";
@@ -96,35 +96,12 @@ export default function ExpandedContent({ traceId, signal }: Props) {
   const validFields = useMemo(() => schemaFields.filter((f) => f.name.trim()), [schemaFields]);
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
 
-  const resolveSpanId = useCallback(
-    async (sequentialId: string): Promise<{ uuid: string; type: SpanType } | null> => {
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
-        );
-        if (response.ok) {
-          const data = (await response.json()) as { spanId: string; spanType: SpanType };
-          return { uuid: data.spanId, type: data.spanType };
-        }
-      } catch (error) {
-        console.error("Error resolving span ID:", error);
-      }
-      return null;
-    },
-    [projectId, traceId]
-  );
-
-  const spanTypeByUuid = useMemo(() => {
-    const m = new Map<string, SpanType>();
-    for (const s of spans) m.set(s.spanId, s.spanType);
-    return m;
-  }, [spans]);
-  const getSpanType = useCallback((uuid: string) => spanTypeByUuid.get(uuid), [spanTypeByUuid]);
-
-  const spanRefCallbacks = useMemo<SpanReferenceCallbacks>(
-    () => ({ resolveSpanId, getSpanType, onSelectSpan: selectSpanById }),
-    [resolveSpanId, getSpanType, selectSpanById]
-  );
+  const spanRefCallbacks = useSpanRefCallbacks({
+    projectId: projectId as string,
+    traceId,
+    spans,
+    onSelectSpan: selectSpanById,
+  });
 
   const handleOpenInChat = () => {
     const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
