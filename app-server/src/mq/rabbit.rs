@@ -298,8 +298,10 @@ impl MessageQueueTrait for RabbitMQ {
         match tokio::time::timeout(budget, attempt).await {
             Ok(res) => res,
             Err(_) => Err(anyhow::anyhow!(
-                "Best-effort publish exceeded {}ms ceiling",
-                budget.as_millis()
+                "Best-effort publish exceeded {}ms budget (exchange={}, routing_key={})",
+                budget.as_millis(),
+                exchange,
+                routing_key
             )),
         }
     }
