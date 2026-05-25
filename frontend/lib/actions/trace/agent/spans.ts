@@ -2,7 +2,7 @@ import { groupBy } from "lodash";
 import YAML from "yaml";
 
 import { executeQuery } from "@/lib/actions/sql";
-import { SpanType } from "@/lib/traces/types";
+import { type SpanType } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
 
 const TRUNCATE_THRESHOLD = 64;
@@ -358,27 +358,11 @@ ${traceYaml}
   return { traceString };
 };
 
-// Source of truth for the `SpanType` enum ↔ CH `span_type` UInt8 mapping.
-// `Record<SpanType, ...>` forces a compile error if a new variant is added to
-// the enum without an int assignment here. The reverse map is derived, so the
-// two stay in sync automatically. Mirrors the `multiIf` in `spans_v0`.
-const INT_BY_SPAN_TYPE: Record<SpanType, number> = {
-  [SpanType.DEFAULT]: 0,
-  [SpanType.LLM]: 1,
-  [SpanType.EVENT]: 2,
-  [SpanType.EXECUTOR]: 3,
-  [SpanType.EVALUATOR]: 4,
-  [SpanType.EVALUATION]: 5,
-  [SpanType.TOOL]: 6,
-  [SpanType.HUMAN_EVALUATOR]: 7,
-  [SpanType.CACHED]: 8,
-};
-const SPAN_TYPE_BY_INT: Record<number, SpanType> = Object.fromEntries(
-  Object.entries(INT_BY_SPAN_TYPE).map(([k, v]) => [v, k as SpanType])
-);
-
 /**
  * Resolves a sequential span ID (1-indexed) to the actual span UUID + type.
+ * `span_type` comes back as the string form (e.g. "LLM") because the
+ * query-engine rewrites `FROM spans` → `FROM spans_v0(...)` whose `multiIf`
+ * does the int → string mapping.
  */
 export const resolveSpanId = async (
   projectId: string,
@@ -404,9 +388,6 @@ export const resolveSpanId = async (
     return null;
   }
 
-  const row = spans[0] as { span_id: string; span_type: number };
-  return {
-    spanId: row.span_id,
-    spanType: SPAN_TYPE_BY_INT[row.span_type] ?? SpanType.DEFAULT,
-  };
+  const row = spans[0] as { span_id: string; span_type: string };
+  return { spanId: row.span_id, spanType: row.span_type as SpanType };
 };

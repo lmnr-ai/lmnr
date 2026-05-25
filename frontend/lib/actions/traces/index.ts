@@ -1,4 +1,3 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -14,8 +13,6 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { db } from "@/lib/db/drizzle";
-import { signals } from "@/lib/db/migrations/schema";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -153,48 +150,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
         item.attributesSnippet = hit.attributes_snippet;
       }
       item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
-    }
-  }
-
-  if (items.length > 0) {
-    const traceIdsForSignals = items.map((t) => t.id);
-    const signalEvents = await executeQuery<{ traceId: string; signalId: string }>({
-      projectId,
-      query: `
-        SELECT DISTINCT
-          trace_id as traceId,
-          signal_id as signalId
-        FROM signal_events
-        WHERE trace_id IN ({traceIds: Array(UUID)})
-      `,
-      parameters: { traceIds: traceIdsForSignals },
-    });
-
-    if (signalEvents.length > 0) {
-      const allSignalIds = [...new Set(signalEvents.map((e) => e.signalId))];
-
-      const signalRows = await db
-        .select({ id: signals.id, name: signals.name })
-        .from(signals)
-        .where(and(eq(signals.projectId, projectId), inArray(signals.id, allSignalIds)));
-
-      const signalNameById = new Map(signalRows.map((s) => [s.id, s.name]));
-
-      const traceSignals = new Map<string, { name: string }[]>();
-      for (const event of signalEvents) {
-        const name = signalNameById.get(event.signalId);
-        if (!name) continue;
-
-        const existing = traceSignals.get(event.traceId) ?? [];
-        if (!existing.some((s) => s.name === name)) {
-          existing.push({ name });
-        }
-        traceSignals.set(event.traceId, existing);
-      }
-
-      for (const item of items) {
-        item.signals = traceSignals.get(item.id) ?? [];
-      }
     }
   }
 
