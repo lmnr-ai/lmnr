@@ -132,6 +132,7 @@ export type TraceRow = {
   outputCost: number;
   totalCost: number;
 
+  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
@@ -139,6 +140,10 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
+  signals?: { name: string }[];
+  analysis_status?: string;
+  analysis_preview?: string;
+  analysis?: string;
   rootSpanInput?: string;
   rootSpanOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };

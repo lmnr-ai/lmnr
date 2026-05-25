@@ -1,3 +1,4 @@
+import { AnimatePresence } from "framer-motion";
 import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -14,11 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
-import { track } from "@/lib/posthog";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
-import ResizableSignalCard from "./resizeable-signal-card";
+import SignalEventsPanel from "../signal-events-panel";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
@@ -35,6 +36,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
+  const { toast } = useToast();
 
   const {
     trace,
@@ -67,9 +69,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     shallow
   );
 
-  // Eagerly fetch signal count when trace loads, so the button shows the correct count.
-  // Tab selection uses initialSignalId from the store (set at creation time) — see
-  // SignalEventsPanel for the same logic. Whichever fetch completes first picks the tab.
+  // Eagerly fetch signals when the trace loads, populating store + auto-opening the panel
+  // when there are any. Tab selection prefers initialSignalId from the store (set at creation).
   useEffect(() => {
     if (!traceId || !projectId) return;
 
@@ -77,13 +78,21 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       try {
         setIsTraceSignalsLoading(true);
         const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
-        if (!response.ok) return;
+        if (!response.ok) {
+          const errMessage = await response
+            .json()
+            .then((d) => d?.error)
+            .catch(() => null);
+          toast({ variant: "destructive", title: errMessage ?? "Failed to load trace signals" });
+          return;
+        }
 
         const data = (await response.json()) as Array<{
           signalId: string;
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
+          clusterPath?: Array<{ id: string; name: string; level: number }>;
           events: EventRow[];
         }>;
         if (!Array.isArray(data)) return;
@@ -92,6 +101,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalId: s.signalId,
           signalName: s.signalName,
           prompt: s.prompt ?? "",
+          clusterPath: Array.isArray(s.clusterPath) ? s.clusterPath : [],
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,
@@ -107,8 +117,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
           setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
         }
-      } catch (error) {
-        console.error("Error fetching trace signals:", error);
+      } catch {
+        toast({ variant: "destructive", title: "Failed to load trace signals" });
       } finally {
         setIsTraceSignalsLoading(false);
       }
@@ -133,7 +143,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenSession = useCallback(() => {
     if (!hasSession) return;
-    track("sessions", "detail_opened", { source: "trace_header" });
     const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
     window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
   }, [hasSession, sessionId, projectId]);
@@ -262,16 +271,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           <TraceTagsPills traceId={traceId} />
         </div>
       )}
-      {signalsPanelOpen && (
-        <ResizableSignalCard
-          traceId={traceId}
-          onClose={() => {
-            track("traces", "signals_panel_closed");
-            setSignalsPanelOpen(false);
-          }}
-          className="mt-2"
-        />
-      )}
+      <AnimatePresence>
+        {signalsPanelOpen && (
+          <SignalEventsPanel traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
+        )}
+      </AnimatePresence>
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}

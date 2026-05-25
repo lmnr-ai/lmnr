@@ -245,12 +245,7 @@ const HumanEvaluationScore = ({
             />
           </div>
           <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              variant="default"
-              handleEnter
-            >
+            <Button type="submit" disabled={isSubmitting} variant="default" handleEnter>
               {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
               <span>Save score</span>
             </Button>

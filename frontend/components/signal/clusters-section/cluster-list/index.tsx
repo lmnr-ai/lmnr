@@ -11,9 +11,9 @@ import {
   useSignalStoreContext,
 } from "@/components/signal/store";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { getClusterColor, UNCLUSTERED_COLOR } from "../colors";
 import ClusterItem, { type IconVariant } from "./cluster-item";
 
 interface ClusterListProps {
@@ -42,16 +42,13 @@ export default function ClusterList({
   const showUnclustered = drillDownDepth === 0;
 
   // Sort clusters so empty ones (0 items in selected range) sink to the bottom.
-  // Keep the source-array index attached so colors stay tied to a cluster's original position.
   const orderedClusters = useMemo(
     () =>
-      visibleClusters
-        .map((cluster, originalIndex) => ({ cluster, originalIndex }))
-        .sort((a, b) => {
-          const aEmpty = (filteredCountByCluster.get(a.cluster.id) ?? 0) > 0 ? 0 : 1;
-          const bEmpty = (filteredCountByCluster.get(b.cluster.id) ?? 0) > 0 ? 0 : 1;
-          return aEmpty - bEmpty;
-        }),
+      [...visibleClusters].sort((a, b) => {
+        const aEmpty = (filteredCountByCluster.get(a.id) ?? 0) > 0 ? 0 : 1;
+        const bEmpty = (filteredCountByCluster.get(b.id) ?? 0) > 0 ? 0 : 1;
+        return aEmpty - bEmpty;
+      }),
     [visibleClusters, filteredCountByCluster]
   );
 
@@ -62,7 +59,7 @@ export default function ClusterList({
           <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
         ) : (
           <>
-            {orderedClusters.map(({ cluster, originalIndex }) => {
+            {orderedClusters.map((cluster) => {
               const hasChildren = cluster.children.length > 0;
               const filteredCount = filteredCountByCluster.get(cluster.id);
               const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
@@ -71,7 +68,7 @@ export default function ClusterList({
                   key={cluster.id}
                   cluster={cluster}
                   iconVariant={iconVariant}
-                  color={getClusterColor(originalIndex, drillDownDepth)}
+                  color={getClusterColorById(cluster.id)}
                   isSelected={clusterId === cluster.id}
                   filteredCount={filteredCount}
                   onClick={() => onNavigateToCluster(cluster.id)}

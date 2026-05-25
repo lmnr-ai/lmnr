@@ -1,92 +1,127 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type EventRow } from "@/lib/events/types";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { cn } from "@/lib/utils";
 
-import SignalTab from "./signal-tab";
+import { PanelHoverContext } from "./hover-context";
+import PanelBody from "./panel-body";
+import { deriveAccent, PanelAccentProvider } from "./utils";
 
-export default function SignalEventsPanel({ traceId }: { traceId: string }) {
-  const traceSignals = useTraceViewStore((state) => state.traceSignals);
-  const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
-  const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
-  const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
+const PANEL_HEIGHT = 160;
+const HOVER_OPEN_DELAY_MS = 300;
+const HOVER_CLOSE_DELAY_MS = 100;
+const POPOVER_MAX_HEIGHT = 480;
 
-  if (isTraceSignalsLoading) {
-    return (
-      <div className="flex items-center justify-center py-3 text-xs text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-      </div>
-    );
-  }
+const OUTER_CLS = "flex flex-col rounded-lg border overflow-hidden relative";
 
-  if (traceSignals.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-3 text-xs text-muted-foreground">
-        No signals associated with this trace
-      </div>
-    );
-  }
+interface Props {
+  traceId: string;
+  onClose: () => void;
+  className?: string;
+}
 
-  const effectiveTabId = activeSignalTabId ?? traceSignals[0]?.signalId ?? "";
+export default function SignalEventsPanel({ traceId, onClose, className }: Props) {
+  const { traceSignals, isTraceSignalsLoading, activeSignalTabId, initialSignalId } = useTraceViewStore(
+    (state) => ({
+      traceSignals: state.traceSignals,
+      isTraceSignalsLoading: state.isTraceSignalsLoading,
+      activeSignalTabId: state.activeSignalTabId,
+      initialSignalId: state.initialSignalId,
+    }),
+    shallow
+  );
+
+  const [hovered, setHovered] = useState(false);
+
+  // Resolve active signal so we can derive the accent palette once and share
+  // it via context (so the trigger, the portal, and ExpandedContent all read
+  // identical colors without re-deriving from the store).
+  const accent = useMemo(() => {
+    const id =
+      activeSignalTabId && traceSignals.some((s) => s.signalId === activeSignalTabId)
+        ? activeSignalTabId
+        : initialSignalId && traceSignals.some((s) => s.signalId === initialSignalId)
+          ? initialSignalId
+          : (traceSignals[0]?.signalId ?? "");
+    return deriveAccent(traceSignals.find((s) => s.signalId === id));
+  }, [traceSignals, activeSignalTabId, initialSignalId]);
+
+  const handleClose = useCallback(() => {
+    setHovered(false);
+    onClose();
+  }, [onClose]);
+
+  if (!isTraceSignalsLoading && traceSignals.length === 0) return null;
+
+  // Two-layer background: a solid `bg-background` underneath (provided by
+  // className) and the semi-transparent accent tint on top via background-image.
+  // Without the solid back, the popover is see-through over the trigger.
+  const tintLayer = accent.panelTint ?? "hsl(var(--muted) / 0.4)";
+  const outerStyle = {
+    borderColor: accent.borderColor,
+    backgroundImage: `linear-gradient(${tintLayer}, ${tintLayer})`,
+  };
 
   return (
-    <Tabs
-      value={effectiveTabId}
-      onValueChange={setActiveSignalTabId}
-      className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
-    >
-      <TabsList className="flex-shrink-0 w-full h-8 bg-blue-300/10">
-        {traceSignals.map((signal) => (
-          <TooltipProvider key={signal.signalId} delayDuration={500}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex-1 min-w-0">
-                  <TabsTrigger
-                    value={signal.signalId}
-                    className="w-full text-xs overflow-hidden data-[state=active]:bg-gray-900"
-                  >
-                    <span className="block truncate">{signal.signalName}</span>
-                  </TabsTrigger>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p>{signal.signalName}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ))}
-      </TabsList>
-      {traceSignals.map((signal) => (
-        <TabsContent
-          key={signal.signalId}
-          value={signal.signalId}
-          className="flex-1 min-h-0 overflow-y-auto styled-scrollbar m-0"
+    <PanelAccentProvider value={accent}>
+      <HoverCard
+        openDelay={HOVER_OPEN_DELAY_MS}
+        closeDelay={HOVER_CLOSE_DELAY_MS}
+        open={hovered}
+        onOpenChange={setHovered}
+      >
+        <HoverCardTrigger asChild>
+          <motion.div
+            className={cn(OUTER_CLS, "bg-background", className)}
+            style={{ ...outerStyle, height: PANEL_HEIGHT }}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: PANEL_HEIGHT, opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <PanelHoverContext.Provider value={false}>
+              <PanelBody traceId={traceId} onClose={handleClose} />
+            </PanelHoverContext.Provider>
+          </motion.div>
+        </HoverCardTrigger>
+        <HoverCardContent
+          side="bottom"
+          align="start"
+          sideOffset={-PANEL_HEIGHT}
+          avoidCollisions={false}
+          // Disable Radix's default open zoom/fade so the only entrance is the
+          // inner motion.div's height grow. Keep close defaults so the popover
+          // gracefully fades out.
+          className={cn(
+            OUTER_CLS,
+            "bg-background p-0 shadow-xl data-[state=open]:zoom-in-100 data-[state=open]:fade-in-100"
+          )}
+          style={{
+            ...outerStyle,
+            width: "var(--radix-hover-card-trigger-width)",
+          }}
         >
-          <SignalTab
-            signalId={signal.signalId}
-            signalName={signal.signalName}
-            traceId={traceId}
-            prompt={signal.prompt}
-            structuredOutput={signal.schemaFields.reduce(
-              (acc, f) => {
-                if (f.name.trim()) {
-                  acc.properties[f.name] = { type: f.type, description: f.description ?? "" };
-                }
-                return acc;
-              },
-              { type: "object", properties: {} } as {
-                type: string;
-                properties: Record<string, { type: string; description: string }>;
-              }
-            )}
-            events={(signal.events as EventRow[]) ?? []}
-          />
-        </TabsContent>
-      ))}
-    </Tabs>
+          <motion.div
+            // Bottom edge slides down from the trigger height to the natural
+            // content height (capped). No flex-1 here — that fights the
+            // explicit height we're animating.
+            initial={{ height: PANEL_HEIGHT }}
+            animate={{ height: "auto" }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="flex flex-col overflow-hidden"
+            style={{ maxHeight: POPOVER_MAX_HEIGHT }}
+          >
+            <PanelHoverContext.Provider value={hovered}>
+              <PanelBody traceId={traceId} onClose={handleClose} />
+            </PanelHoverContext.Provider>
+          </motion.div>
+        </HoverCardContent>
+      </HoverCard>
+    </PanelAccentProvider>
   );
 }

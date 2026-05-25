@@ -94,3 +94,41 @@ export const jsonSchemaToSchemaFields = (schema: unknown): SchemaField[] => {
 };
 
 export const getDefaultSchemaFields = (): SchemaField[] => [{ name: "", description: "", type: "string" }];
+
+const SIGNAL_COLOR_PALETTE = [
+  "#ef4444", // red-500
+  "#f97316", // orange-500
+  "#f59e0b", // amber-500
+  "#eab308", // yellow-500
+  "#84cc16", // lime-500
+  "#22c55e", // green-500
+  "#10b981", // emerald-500
+  "#14b8a6", // teal-500
+  "#06b6d4", // cyan-500
+  "#0ea5e9", // sky-500
+  "#3b82f6", // blue-500
+  "#6366f1", // indigo-500
+  "#8b5cf6", // violet-500
+  "#a855f7", // purple-500
+  "#d946ef", // fuchsia-500
+  "#ec4899", // pink-500
+  "#f43f5e", // rose-500
+];
+
+const DEFAULT_SIGNAL_COLOR = "#3b82f6"; // blue-500
+
+// FNV-1a hash. Stable across machines so the same signal id always gets the
+// same palette color.
+function hashSeed(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export function getSignalColor(seed: string | null | undefined): string {
+  if (!seed) return DEFAULT_SIGNAL_COLOR;
+  return SIGNAL_COLOR_PALETTE[hashSeed(seed) % SIGNAL_COLOR_PALETTE.length];
+}

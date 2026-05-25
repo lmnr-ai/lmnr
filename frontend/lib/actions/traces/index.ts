@@ -1,3 +1,4 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -8,11 +9,13 @@ import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import {
   buildTracesCountQueryWithParams,
   buildTracesQueryWithParams,
-  parseCustomColumnsJson,
+  type CustomColumn,
 } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { signals } from "@/lib/db/migrations/schema";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -88,7 +91,24 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  const customColumns = parseCustomColumnsJson(customColumnsJson);
+  // Parse and validate custom columns from JSON
+  let customColumns: CustomColumn[] | undefined;
+  if (customColumnsJson) {
+    try {
+      const parsed = JSON.parse(customColumnsJson);
+      const CustomColumnSchema = z.array(
+        z.object({
+          id: z.string().min(1),
+          sql: z.string().min(1),
+          filterSql: z.string().optional(),
+          dbType: z.string().optional(),
+        })
+      );
+      customColumns = CustomColumnSchema.parse(parsed);
+    } catch {
+      // ignore malformed custom columns
+    }
+  }
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
@@ -136,6 +156,48 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
+  if (items.length > 0) {
+    const traceIdsForSignals = items.map((t) => t.id);
+    const signalEvents = await executeQuery<{ traceId: string; signalId: string }>({
+      projectId,
+      query: `
+        SELECT DISTINCT
+          trace_id as traceId,
+          signal_id as signalId
+        FROM signal_events
+        WHERE trace_id IN ({traceIds: Array(UUID)})
+      `,
+      parameters: { traceIds: traceIdsForSignals },
+    });
+
+    if (signalEvents.length > 0) {
+      const allSignalIds = [...new Set(signalEvents.map((e) => e.signalId))];
+
+      const signalRows = await db
+        .select({ id: signals.id, name: signals.name })
+        .from(signals)
+        .where(and(eq(signals.projectId, projectId), inArray(signals.id, allSignalIds)));
+
+      const signalNameById = new Map(signalRows.map((s) => [s.id, s.name]));
+
+      const traceSignals = new Map<string, { name: string }[]>();
+      for (const event of signalEvents) {
+        const name = signalNameById.get(event.signalId);
+        if (!name) continue;
+
+        const existing = traceSignals.get(event.traceId) ?? [];
+        if (!existing.some((s) => s.name === name)) {
+          existing.push({ name });
+        }
+        traceSignals.set(event.traceId, existing);
+      }
+
+      for (const item of items) {
+        item.signals = traceSignals.get(item.id) ?? [];
+      }
+    }
+  }
+
   return {
     items,
   };
@@ -151,12 +213,9 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     search,
     searchIn,
     filter: inputFilters,
-    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
-
-  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -180,7 +239,6 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     startTime,
     endTime,
     pastHours,
-    customColumns,
   });
 
   const result = await executeQuery<{ count: number }>({
