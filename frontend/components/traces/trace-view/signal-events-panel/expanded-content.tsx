@@ -131,7 +131,7 @@ export default function ExpandedContent({ traceId, signal }: Props) {
             Open in AI Chat
           </Button>
           <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
-            <Link href={`/project/${projectId}/signals/${signal.signalId}`} target="_blank">
+            <Link href={`/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
               Open in Signals
             </Link>
@@ -139,7 +139,7 @@ export default function ExpandedContent({ traceId, signal }: Props) {
           {leafCluster && (
             <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
               <Link
-                href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}`}
+                href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}&traceId=${traceId}`}
                 target="_blank"
               >
                 <ExternalLink className="size-3.5 mr-1" />
