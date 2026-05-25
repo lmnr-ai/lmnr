@@ -25,6 +25,18 @@ static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| {
     Duration::from_secs(secs)
 });
 
+/// Hard ceiling for `publish_best_effort` — secondary, reproducible payloads
+/// (Quickwit indexer, signals queue). Kept short so a broker under memory
+/// pressure surfaces failure fast and the caller can drop instead of holding
+/// the consumer pipeline open while the long primary-publish retry runs.
+static BEST_EFFORT_PUBLISH_BUDGET: LazyLock<Duration> = LazyLock::new(|| {
+    let secs = std::env::var("RABBITMQ_BEST_EFFORT_PUBLISH_BUDGET_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(3);
+    Duration::from_secs(secs)
+});
+
 struct RabbitChannelManager {
     connection: Arc<Connection>,
 }
@@ -150,18 +162,16 @@ impl RabbitMQ {
     }
 }
 
-impl MessageQueueTrait for RabbitMQ {
-    /// Publish a message to a RabbitMQ exchange.
-    /// It uses a channel from the pool to publish the message.
-    /// We use a channel from the pool to avoid creating a new channel for each message.
-    async fn publish(
+impl RabbitMQ {
+    async fn publish_with_envelope(
         &self,
         message: &[u8],
         exchange: &str,
         routing_key: &str,
         ttl_ms: Option<u64>,
+        max_interval: Duration,
+        max_elapsed_time: Duration,
     ) -> anyhow::Result<()> {
-        // Build properties with delivery_mode=2 (persistent) and optional TTL
         let properties = BasicProperties::default().with_delivery_mode(2);
         let properties = match ttl_ms {
             Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
@@ -187,7 +197,6 @@ impl MessageQueueTrait for RabbitMQ {
                 }
             };
 
-            // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
                 return Err(backoff::Error::transient(anyhow::anyhow!(
@@ -220,20 +229,78 @@ impl MessageQueueTrait for RabbitMQ {
         };
 
         let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(std::time::Duration::from_millis(100))
-            .with_max_interval(std::time::Duration::from_secs(2))
-            .with_max_elapsed_time(Some(std::time::Duration::from_secs(60)))
+            .with_initial_interval(Duration::from_millis(100))
+            .with_max_interval(max_interval)
+            .with_max_elapsed_time(Some(max_elapsed_time))
             .build();
 
         match backoff::future::retry(backoff, publish_with_retry).await {
             Ok(()) => Ok(()),
+            Err(e) => Err(anyhow::anyhow!(
+                "Failed to publish message after retries: {:?}",
+                e
+            )),
+        }
+    }
+}
+
+impl MessageQueueTrait for RabbitMQ {
+    /// Publish a message to a RabbitMQ exchange.
+    /// It uses a channel from the pool to publish the message.
+    /// We use a channel from the pool to avoid creating a new channel for each message.
+    async fn publish(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()> {
+        match self
+            .publish_with_envelope(
+                message,
+                exchange,
+                routing_key,
+                ttl_ms,
+                Duration::from_secs(2),
+                Duration::from_secs(60),
+            )
+            .await
+        {
+            Ok(()) => Ok(()),
             Err(e) => {
                 log::error!("Failed to publish message after retries: {:?}", e);
-                Err(anyhow::anyhow!(
-                    "Failed to publish message after retries: {:?}",
-                    e
-                ))
+                Err(e)
             }
+        }
+    }
+
+    /// Tight-budget publish for reproducible secondary payloads. The retry
+    /// envelope caps at `BEST_EFFORT_PUBLISH_BUDGET` and the whole call is
+    /// also wrapped in `tokio::time::timeout` as a hard ceiling — a stuck
+    /// `basic_publish` against a flow-controlled broker can't pin the
+    /// caller past that bound.
+    async fn publish_best_effort(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()> {
+        let budget = *BEST_EFFORT_PUBLISH_BUDGET;
+        let attempt = self.publish_with_envelope(
+            message,
+            exchange,
+            routing_key,
+            ttl_ms,
+            Duration::from_millis(500),
+            budget,
+        );
+        match tokio::time::timeout(budget, attempt).await {
+            Ok(res) => res,
+            Err(_) => Err(anyhow::anyhow!(
+                "Best-effort publish exceeded {}ms ceiling",
+                budget.as_millis()
+            )),
         }
     }
 
