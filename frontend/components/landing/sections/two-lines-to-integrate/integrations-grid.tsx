@@ -1,6 +1,7 @@
 import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
 
+import anthropic from "@/assets/landing/logos/anthropic.svg";
 import browserUse from "@/assets/landing/logos/browser-use.svg";
 import claude from "@/assets/landing/logos/claude.svg";
 import gemini from "@/assets/landing/logos/gemini.svg";
@@ -33,7 +34,7 @@ const integrations: Integration[] = [
   { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
   { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
   { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
-  { src: langchain, alt: "LangChain Deep Agents", href: `${DOCS_BASE}/langchain` },
+  { src: langchain, alt: "LangChain DeepAgents", href: `${DOCS_BASE}/deepagents` },
   { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode` },
   { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
   { src: openHands, alt: "OpenHands SDK", href: `${DOCS_BASE}/openhands-sdk` },
@@ -42,7 +43,7 @@ const integrations: Integration[] = [
   { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, iconClassName: "size-5" },
   { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
   { src: gemini, alt: "Gemini API", href: `${DOCS_BASE}/gemini` },
-  { src: claude, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
+  { src: anthropic, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
 ];
 
 interface Props {

@@ -17,7 +17,7 @@ const DidMyFixWork = () => (
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
         <EvalComparisonMock className="w-[720px]" />
       </div>
-      <SectionFootnote name="Evals" href="https://laminar.sh/docs/evals" />
+      <SectionFootnote name="Evals" href="https://laminar.sh/docs/evaluations/introduction" />
     </div>
   </section>
 );

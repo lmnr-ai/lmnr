@@ -18,7 +18,7 @@ export const TIERS: Tier[] = [
     priceSuffix: "/ month",
     blurb: "For solo developers exploring Laminar.",
     ctaLabel: "Get Started",
-    ctaHref: "/projects",
+    ctaHref: "/sign-up",
   },
   {
     id: "hobby",
@@ -27,7 +27,7 @@ export const TIERS: Tier[] = [
     priceSuffix: "/ month",
     blurb: "For small teams shipping their first production agent.",
     ctaLabel: "Get Started",
-    ctaHref: "/projects",
+    ctaHref: "/sign-up",
   },
   {
     id: "pro",
@@ -36,7 +36,7 @@ export const TIERS: Tier[] = [
     priceSuffix: "/ month",
     blurb: "For teams running production agents at scale.",
     ctaLabel: "Get Started",
-    ctaHref: "/projects",
+    ctaHref: "/sign-up",
   },
   {
     id: "enterprise",

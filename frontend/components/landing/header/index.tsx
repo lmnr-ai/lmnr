@@ -46,7 +46,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
-          { "md:pt-y md:pr-[48px] md:pl-[48px] py-4 pl-[32px] pr-[20px]": isIncludePadding },
+          { "md:pr-[48px] md:pl-[48px] py-4 pl-[32px] pr-[20px]": isIncludePadding },
           className
         )}
       >
