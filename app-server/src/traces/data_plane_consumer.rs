@@ -18,6 +18,7 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     pubsub::PubSub,
+    quickwit::outbox::IndexerOutbox,
     worker::HandlerError,
 };
 
@@ -29,6 +30,7 @@ pub struct DataPlaneSpanHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
+    pub indexer_outbox: Arc<IndexerOutbox>,
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: DataPlaneClickhouse,
     pub pubsub: Arc<PubSub>,
@@ -154,6 +156,7 @@ impl DataPlaneSpanHandler {
             self.clickhouse.clone(),
             self.cache.clone(),
             self.queue.clone(),
+            self.indexer_outbox.clone(),
             self.pubsub.clone(),
             self.ch.clone(),
             Some(&config),

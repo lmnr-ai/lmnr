@@ -1099,6 +1099,11 @@ fn main() -> anyhow::Result<()> {
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
+                    // Single outbox shared by Spans + DataPlaneSpans handlers; spawned
+                    // once so the bounded channel + shipper pool are global, not per-handler.
+                    let indexer_outbox =
+                        crate::quickwit::outbox::IndexerOutbox::spawn(mq_for_consumer.clone());
+
                     // Spawn spans workers using batch worker pool
                     {
                         let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 128);
@@ -1110,6 +1115,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
+                        let outbox = indexer_outbox.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
@@ -1122,6 +1128,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 queue: queue.clone(),
+                                indexer_outbox: outbox.clone(),
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
@@ -1151,6 +1158,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
+                        let outbox = indexer_outbox.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
@@ -1166,6 +1174,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 queue: queue.clone(),
+                                indexer_outbox: outbox.clone(),
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_data_plane.clone(),
                                 pubsub: pubsub.clone(),

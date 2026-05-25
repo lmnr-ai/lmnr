@@ -1,8 +1,8 @@
 pub mod client;
 pub mod consumer;
 mod doc_batch;
+pub mod outbox;
 pub mod preprocess;
-pub mod producer;
 mod proto;
 mod utils;
 
