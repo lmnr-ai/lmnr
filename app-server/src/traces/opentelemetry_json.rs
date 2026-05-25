@@ -239,10 +239,10 @@ impl TryFrom<SpanJson> for trace::Span {
 
     fn try_from(v: SpanJson) -> Result<Self, Self::Error> {
         Ok(Self {
-            trace_id: decode_id_field("trace_id", &v.trace_id, 16)?,
-            span_id: decode_id_field("span_id", &v.span_id, 8)?,
+            trace_id: decode_id_field("trace_id", &v.trace_id, 16, false)?,
+            span_id: decode_id_field("span_id", &v.span_id, 8, false)?,
             trace_state: v.trace_state,
-            parent_span_id: decode_id_field("parent_span_id", &v.parent_span_id, 8)?,
+            parent_span_id: decode_id_field("parent_span_id", &v.parent_span_id, 8, true)?,
             flags: v.flags,
             name: v.name,
             kind: v.kind,
@@ -279,8 +279,8 @@ impl TryFrom<LinkJson> for trace::span::Link {
 
     fn try_from(v: LinkJson) -> Result<Self, Self::Error> {
         Ok(Self {
-            trace_id: decode_id_field("link.trace_id", &v.trace_id, 16)?,
-            span_id: decode_id_field("link.span_id", &v.span_id, 8)?,
+            trace_id: decode_id_field("link.trace_id", &v.trace_id, 16, false)?,
+            span_id: decode_id_field("link.span_id", &v.span_id, 8, false)?,
             trace_state: v.trace_state,
             attributes: v.attributes.into_iter().map(Into::into).collect(),
             dropped_attributes_count: v.dropped_attributes_count,
@@ -355,21 +355,30 @@ fn decode_bytes_value_lenient(s: &str) -> Vec<u8> {
 }
 
 /// Decode an OTLP/JSON id (hex per spec, but real-world clients sometimes send
-/// base64 — accept both). Empty strings stay empty (parent_span_id of root spans).
-/// 16-byte trace IDs and 8-byte span IDs both have a base64 encoding length that
-/// requires `=` padding under STANDARD; some senders strip it, so fall back to
-/// STANDARD_NO_PAD before giving up.
+/// base64 — accept both). 16-byte trace IDs and 8-byte span IDs both have a
+/// base64 encoding length that requires `=` padding under STANDARD; some senders
+/// strip it, so fall back to STANDARD_NO_PAD before giving up.
 ///
 /// `expected_len` (16 for trace_id, 8 for span/parent/link span_id) is enforced
-/// only on non-empty input. Downstream `Uuid::from_slice` in `traces/spans.rs`
-/// panics on a wrong-length slice, so reject here and surface a clean 400.
+/// strictly — downstream `Uuid::from_slice` / `span_id_to_uuid` in
+/// `traces/spans.rs` panic on a wrong-length slice, so reject here and surface a
+/// clean 400. `allow_empty` is true only for `parent_span_id`, which is the sole
+/// legitimately-absent id (root spans); the consumer guards that one with an
+/// `is_empty()` check before converting to a `Uuid`.
 fn decode_id_field(
     field: &'static str,
     s: &str,
     expected_len: usize,
+    allow_empty: bool,
 ) -> Result<Vec<u8>, JsonDecodeError> {
     if s.is_empty() {
-        return Ok(Vec::new());
+        if allow_empty {
+            return Ok(Vec::new());
+        }
+        return Err(JsonDecodeError::Field {
+            field,
+            message: format!("required {expected_len}-byte id is missing or empty"),
+        });
     }
     let bytes = if let Ok(b) = hex::decode(s) {
         b
@@ -677,6 +686,67 @@ mod tests {
         let msg = format!("{err}");
         assert!(msg.contains("span_id"), "got: {msg}");
         assert!(msg.contains("expected 8 bytes"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_empty_trace_and_span_ids() {
+        // Empty `traceId` / `spanId` previously slipped through (the empty-string
+        // bypass skipped the length check), then panicked downstream in
+        // `Span::from_otel_span` via `Uuid::from_slice` / `span_id_to_uuid`.
+        // Now they must surface as a clean 400. Empty `parentSpanId` stays legal —
+        // that's root spans and the consumer guards it with an `is_empty()` check.
+        let payload = r#"{
+          "resourceSpans": [{
+            "scopeSpans": [{
+              "spans": [{
+                "traceId": "",
+                "spanId": "0102030405060708",
+                "name": "x",
+                "startTimeUnixNano": "1",
+                "endTimeUnixNano": "2"
+              }]
+            }]
+          }]
+        }"#;
+        let err = decode_export_trace_service_request(payload.as_bytes()).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("trace_id"), "got: {msg}");
+
+        let payload = r#"{
+          "resourceSpans": [{
+            "scopeSpans": [{
+              "spans": [{
+                "traceId": "0102030405060708090a0b0c0d0e0f10",
+                "spanId": "",
+                "name": "x",
+                "startTimeUnixNano": "1",
+                "endTimeUnixNano": "2"
+              }]
+            }]
+          }]
+        }"#;
+        let err = decode_export_trace_service_request(payload.as_bytes()).unwrap_err();
+        let msg = format!("{err}");
+        assert!(msg.contains("span_id"), "got: {msg}");
+
+        let payload = r#"{
+          "resourceSpans": [{
+            "scopeSpans": [{
+              "spans": [{
+                "traceId": "0102030405060708090a0b0c0d0e0f10",
+                "spanId": "0102030405060708",
+                "parentSpanId": "",
+                "name": "x",
+                "startTimeUnixNano": "1",
+                "endTimeUnixNano": "2"
+              }]
+            }]
+          }]
+        }"#;
+        let req = decode_export_trace_service_request(payload.as_bytes()).unwrap();
+        assert!(req.resource_spans[0].scope_spans[0].spans[0]
+            .parent_span_id
+            .is_empty());
     }
 
     #[test]
