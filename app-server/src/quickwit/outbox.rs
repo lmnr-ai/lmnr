@@ -70,6 +70,20 @@ impl IndexerOutbox {
         outbox
     }
 
+    /// Number of payloads dropped because the bounded channel was full.
+    /// Read-only accessor for metrics scrapers.
+    #[allow(dead_code)]
+    pub fn dropped_overflow(&self) -> u64 {
+        self.dropped_overflow.load(Ordering::Relaxed)
+    }
+
+    /// Number of payloads dropped because they exceeded the MQ payload limit.
+    /// Read-only accessor for metrics scrapers.
+    #[allow(dead_code)]
+    pub fn dropped_oversize(&self) -> u64 {
+        self.dropped_oversize.load(Ordering::Relaxed)
+    }
+
     /// Hand a payload to the outbox. Never awaits broker I/O. Drops the
     /// payload (with a counter increment) when the channel is full or the
     /// receiver is gone.
