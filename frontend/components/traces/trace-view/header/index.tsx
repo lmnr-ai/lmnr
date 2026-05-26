@@ -12,6 +12,7 @@ import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
 import { track } from "@/lib/posthog";
@@ -35,6 +36,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
+  const { project } = useProjectContext();
 
   const {
     trace,
@@ -148,9 +150,10 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     if (!hasUser) return;
     const params = new URLSearchParams();
     params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
-    params.set("pastHours", "2160");
+    const retentionDays = project?.logRetentionDays ?? 15;
+    params.set("pastHours", String(retentionDays * 24));
     window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
-  }, [hasUser, userId, projectId]);
+  }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
     <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
