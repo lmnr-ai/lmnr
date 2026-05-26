@@ -1,8 +1,21 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgPool, types::Json};
 use uuid::Uuid;
+
+/// Read-only view of `projects.settings` JSONB. Writes happen exclusively
+/// from the Next.js side; the Rust app-server only deserializes. New
+/// settings = add a `#[serde(default)]` field — no migration. Unknown keys
+/// are tolerated for forward-compat (frontend may ship a key the app-server
+/// hasn't learned about yet during a rolling deploy).
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProjectSettings {
+    /// PII redaction toggle. Enabling routes every span on this project
+    /// through the pii-redactor before storage. Pro-tier gated frontend-side.
+    pub remove_pii: bool,
+}
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -21,10 +34,10 @@ pub struct ProjectWithWorkspaceBillingInfoDbRow {
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_signal_steps_limit: Option<i64>,
-    /// PII redaction toggle. Enabling routes every span on this project
-    /// through the pii-redactor before storage. Pro-tier gated in the UI.
+    /// `projects.settings` JSONB, opaque to the SQL row binding (we hand it
+    /// to serde_json on the way into the typed `ProjectWithWorkspaceBillingInfo`).
     #[serde(default)]
-    pub remove_pii: bool,
+    pub settings: Json<serde_json::Value>,
 }
 
 #[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone, Debug)]
@@ -106,14 +119,21 @@ pub struct ProjectWithWorkspaceBillingInfo {
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
     #[serde(default)]
     pub custom_signal_steps_limit: Option<i64>,
-    /// PII redaction toggle. Enabling routes every span on this project
-    /// through the pii-redactor before storage. Pro-tier gated in the UI.
+    /// Typed view of `projects.settings`. Unknown keys are tolerated;
+    /// missing keys fall back to the field's `Default` impl.
     #[serde(default)]
-    pub remove_pii: bool,
+    pub settings: ProjectSettings,
 }
 
 impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDbRow {
     fn into(self) -> ProjectWithWorkspaceBillingInfo {
+        // Tolerate malformed JSON: log and fall back to defaults so a single
+        // hand-edited row can't poison the cache for the whole project.
+        let settings = serde_json::from_value::<ProjectSettings>(self.settings.0)
+            .unwrap_or_else(|e| {
+                log::warn!("project[{}] settings JSON malformed, using defaults: {e:#}", self.id);
+                ProjectSettings::default()
+            });
         ProjectWithWorkspaceBillingInfo {
             id: self.id,
             name: self.name,
@@ -125,7 +145,7 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
             signal_steps_limit: self.signal_steps_limit,
             custom_bytes_limit: self.custom_bytes_limit,
             custom_signal_steps_limit: self.custom_signal_steps_limit,
-            remove_pii: self.remove_pii,
+            settings,
         }
     }
 }
@@ -172,7 +192,7 @@ pub async fn get_project_and_workspace_billing_info(
             subscription_tiers.signal_steps_processed as signal_steps_limit,
             wul_bytes.limit_value as custom_bytes_limit,
             wul_signal_steps.limit_value as custom_signal_steps_limit,
-            projects.remove_pii
+            projects.settings
         FROM
             projects
             join workspaces on projects.workspace_id = workspaces.id

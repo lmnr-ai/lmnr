@@ -19,7 +19,7 @@ export default function PiiRedaction() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const [enabled, setEnabled] = useState<boolean>(project?.removePii ?? false);
+  const [enabled, setEnabled] = useState<boolean>(project?.settings.removePii ?? false);
   const [isLoading, setIsLoading] = useState(false);
 
   const isProTier = workspace ? PRO_TIERS.includes(workspace.tierName) : false;
@@ -32,10 +32,10 @@ export default function PiiRedaction() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/pii-redaction`, {
+      const res = await fetch(`/api/projects/${projectId}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ removePii: next }),
+        body: JSON.stringify({ settings: { removePii: next } }),
       });
 
       if (!res.ok) {

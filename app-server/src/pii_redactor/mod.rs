@@ -68,7 +68,7 @@ enum Target {
     DedupMessage(usize),
 }
 
-/// Resolve `remove_pii` for every unique project in `recordable_indices`,
+/// Resolve `settings.remove_pii` for every unique project in `recordable_indices`,
 /// going through the cached billing-info path so repeat batches are free.
 /// Returns the set of opted-in project ids — empty set means "no work".
 async fn resolve_opted_in_projects(
@@ -84,12 +84,12 @@ async fn resolve_opted_in_projects(
     let mut opted_in: HashSet<Uuid> = HashSet::with_capacity(unique.len());
     for project_id in unique {
         match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
-            Ok(Some(info)) if info.remove_pii => {
+            Ok(Some(info)) if info.settings.remove_pii => {
                 opted_in.insert(project_id);
             }
             Ok(_) => {}
             Err(e) => {
-                log::warn!("pii-redactor: lookup project[{project_id}] remove_pii: {e:#}");
+                log::warn!("pii-redactor: lookup project[{project_id}] settings: {e:#}");
             }
         }
     }
