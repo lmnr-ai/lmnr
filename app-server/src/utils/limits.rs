@@ -635,7 +635,7 @@ async fn get_usage_warnings(
     }
 }
 
-async fn get_workspace_info_for_project_id(
+pub async fn get_workspace_info_for_project_id(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,

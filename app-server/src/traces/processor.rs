@@ -23,6 +23,7 @@ use crate::{
     },
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -43,7 +44,7 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
+#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -52,6 +53,7 @@ pub async fn process_span_messages(
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
+    pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
     // Producer-side preprocessing already ran `parse_and_enrich_attributes`
@@ -87,8 +89,9 @@ pub async fn process_span_messages(
             if !m.pre_processed {
                 convert_span_to_provider_format(&mut m.span);
             }
-            // Must run AFTER provider conversion — LangChain rewrites `input`.
-            m.span.estimate_size_bytes();
+            // `estimate_size_bytes` is deferred until AFTER PII redaction
+            // (post-dedup loop below) so the recorded size reflects the
+            // redacted output.
 
             span_usage_vec.push(span_usage);
         }
@@ -117,7 +120,7 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    let dedup = {
+    let mut dedup = {
         let _g = tracing::info_span!(
             "preprocess.dedup_batch",
             recordable = recordable_indices.len()
@@ -130,6 +133,35 @@ pub async fn process_span_messages(
             .collect();
         build_dedup_batch(&dedup_input, &recordable_dedups)
     };
+
+    // Project-level PII redaction. Triggered by `projects.settings.removePii`
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
+    // redacted bytes flow into both the `llm_messages` insert and Quickwit
+    // indexing through the same `dedup.messages` buffer; runs BEFORE the
+    // input-bytes accounting / `llm_messages` CH insert / Quickwit indexing
+    // so every storage tier holds the redacted content. Already-seen
+    // messages were redacted on first emit and ride the wire as hashes only.
+    // Best-effort: failures are logged inside `redact_spans_in_place` and
+    // do not fail the batch.
+    if let Some(redactor) = pii_redactor.as_ref() {
+        redact_spans_in_place(
+            redactor,
+            &mut spans,
+            &mut dedup,
+            &recordable_indices,
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
+    }
+
+    for span in &mut spans {
+        // Must run AFTER provider conversion (LangChain rewrites `input`)
+        // and AFTER PII redaction so the size reflects redacted content.
+        // Input is excluded here — the post-dedup input-bytes loop below
+        // owns that charge.
+        span.estimate_size_bytes();
+    }
 
     // Charge each span for its input: dedup'd LLM spans pay for the hash
     // array + any newly-inserted `llm_messages.content` (shared messages are

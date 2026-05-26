@@ -1,0 +1,37 @@
+[package]
+edition = "2024"
+name = "pii-redactor"
+version = "0.1.0"
+
+[[bin]]
+name = "pii-redactor"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = {version = "4", features = ["derive", "env"]}
+ndarray = "0.17"
+# `api-24` pins the runtime to ONNX Runtime 1.24.x — required by the int8
+# `model_quantized.onnx` op set (GatherBlockQuantized.bits, added in 1.23).
+ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"]}
+prost = "0.14"
+serde = {version = "1", features = ["derive"]}
+# `preserve_order` keeps object-key order so round-tripped JSON looks like the
+# input (subject to whitespace/indent loss). Required for the strict-JSON
+# contract — caller expects structurally identical output.
+serde_json = {version = "1", features = ["preserve_order"]}
+tokenizers = {version = "0.21", default-features = false, features = ["onig"]}
+tokio = {version = "1", features = ["macros", "rt-multi-thread", "signal"]}
+tonic = "0.14"
+tonic-prost = "0.14"
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+strip = true
