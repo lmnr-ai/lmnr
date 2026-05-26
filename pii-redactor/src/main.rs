@@ -83,6 +83,16 @@ impl PiiRedactorService for GrpcServer {
         &self,
         request: Request<RedactRequest>,
     ) -> Result<Response<RedactResponse>, Status> {
+        // Fast-fail if the batcher thread has died. Without this check,
+        // every text would queue up on a closed channel and surface as a
+        // generic INTERNAL error; UNAVAILABLE tells the gRPC client this
+        // is a service-state problem (retry against another replica /
+        // wait for a restart) rather than a request error.
+        if !self.engine.is_healthy() {
+            return Err(Status::unavailable(
+                "pii-redactor batcher is unhealthy; pod must be restarted",
+            ));
+        }
         let req = request.into_inner();
         if req.texts.len() > self.max_texts_per_request {
             return Err(Status::resource_exhausted(format!(

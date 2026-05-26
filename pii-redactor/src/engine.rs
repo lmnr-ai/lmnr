@@ -31,8 +31,10 @@
 //!   payloads, so the redactor sees mostly-distinct texts.
 
 use std::collections::VecDeque;
+use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
@@ -117,6 +119,14 @@ pub struct Engine {
     /// `send().await` parks under sustained overload so gRPC backpressure
     /// is automatic.
     job_tx: mpsc::Sender<Job>,
+    /// Set to `false` if the batcher thread exits for any reason (clean
+    /// shutdown, ORT panic, runtime drop). `is_healthy()` reads this; once
+    /// it's `false`, every subsequent RPC will fail with "batcher channel
+    /// closed", so the readiness probe should fail the pod and let k8s
+    /// restart it. Without this signal, a panicked batcher would silently
+    /// turn every `Redact` RPC into INTERNAL errors with no observable
+    /// distinction from a transient model failure.
+    batcher_alive: Arc<AtomicBool>,
 }
 
 impl Engine {
@@ -189,19 +199,50 @@ impl Engine {
         let max_batch_size = cfg.max_batch_size;
         let max_queue_delay = cfg.max_queue_delay;
         let (job_tx, job_rx) = mpsc::channel::<Job>(max_batch_size * JOB_CHANNEL_DEPTH_PER_BATCH);
+
+        // Build the single-thread runtime BEFORE spawning so any failure
+        // (extremely rare in practice) surfaces in `Engine::load` instead
+        // of silently killing the spawned thread.
+        let batcher_runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .map_err(|e| anyhow!("build batcher runtime: {e:#}"))?;
+
+        let batcher_alive = Arc::new(AtomicBool::new(true));
+        let batcher_alive_for_thread = batcher_alive.clone();
+
         // Spawn the batcher on a dedicated OS thread (NOT a Tokio task) — ORT
         // session.run blocks the thread for tens of ms; running it in a
         // tokio task would stall every other future on that worker.
         std::thread::Builder::new()
             .name("pii-batcher".to_string())
             .spawn(move || {
-                batcher_loop(
+                // RAII guard so the alive flag flips false no matter how the
+                // thread exits — clean channel close, panic in `session.run`,
+                // anything. The guard's Drop runs even on unwind, which keeps
+                // `is_healthy()` honest.
+                struct AliveGuard(Arc<AtomicBool>);
+                impl Drop for AliveGuard {
+                    fn drop(&mut self) {
+                        self.0.store(false, Ordering::SeqCst);
+                        // FATAL-level log so an alerting pipeline picks this
+                        // up. The pod's readiness probe should also fail
+                        // once `is_healthy()` is false, so k8s will restart.
+                        tracing::error!(
+                            "pii-redactor batcher thread exiting; \
+                             redactor is now unhealthy and the pod must be restarted"
+                        );
+                    }
+                }
+                let _guard = AliveGuard(batcher_alive_for_thread);
+
+                batcher_runtime.block_on(batcher_loop(
                     session,
                     needs_token_type_ids,
                     max_batch_size,
                     max_queue_delay,
                     job_rx,
-                );
+                ));
             })
             .map_err(|e| anyhow!("spawn batcher thread: {e:#}"))?;
 
@@ -211,7 +252,18 @@ impl Engine {
             cfg,
             effective_chunk_size,
             job_tx,
+            batcher_alive,
         }))
+    }
+
+    /// Whether the batcher thread is still running. Flips to `false`
+    /// permanently if the thread exits for any reason (channel close,
+    /// panic in `session.run`, runtime error). Wire this into the gRPC
+    /// readiness probe — once unhealthy, the pod must be restarted; we
+    /// don't try to respawn the thread because the in-flight ORT session
+    /// state is unrecoverable.
+    pub fn is_healthy(&self) -> bool {
+        self.batcher_alive.load(Ordering::SeqCst)
     }
 
     /// Tokenise `text` once (no chunking) to check size up-front. Returns
@@ -377,65 +429,90 @@ impl Engine {
     }
 }
 
-/// Dedicated thread that owns the ORT session. Consumes [`Job`]s, coalesces
-/// them into `(B, L)` batches, runs one forward pass per batch, fans out
-/// per-row argmax-labels back via oneshots.
-fn batcher_loop(
+/// Dedicated thread's main loop. Consumes [`Job`]s, coalesces them into
+/// `(B, L)` batches, runs one forward pass per batch, fans out per-row
+/// argmax labels back via oneshots.
+async fn batcher_loop(
     mut session: Session,
     needs_token_type_ids: bool,
     max_batch_size: usize,
     max_queue_delay: Duration,
     mut rx: mpsc::Receiver<Job>,
 ) {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .expect("build batcher single-thread runtime");
+    let mut queue: VecDeque<(Job, Instant)> = VecDeque::with_capacity(max_batch_size);
 
-    runtime.block_on(async move {
-        let mut queue: VecDeque<(Job, Instant)> = VecDeque::with_capacity(max_batch_size);
-
-        loop {
-            // Block for at least one job. If the channel closes and the
-            // queue is empty, exit cleanly.
-            if queue.is_empty() {
-                match rx.recv().await {
-                    Some(job) => queue.push_back((job, Instant::now())),
-                    None => return,
-                }
+    loop {
+        // Block for at least one job. If the channel closes and the
+        // queue is empty, exit cleanly.
+        if queue.is_empty() {
+            match rx.recv().await {
+                Some(job) => queue.push_back((job, Instant::now())),
+                None => return,
             }
-
-            // Try to fill the batch up to `max_batch_size` without blocking
-            // longer than the remaining `max_queue_delay` budget for the
-            // oldest queued job.
-            while queue.len() < max_batch_size {
-                let oldest = queue.front().map(|(_, t)| *t).unwrap_or_else(Instant::now);
-                let elapsed = oldest.elapsed();
-                if elapsed >= max_queue_delay {
-                    break;
-                }
-                let remaining = max_queue_delay - elapsed;
-                match tokio::time::timeout(remaining, rx.recv()).await {
-                    Ok(Some(job)) => queue.push_back((job, Instant::now())),
-                    Ok(None) => break, // channel closed; drain what we have
-                    Err(_) => break,    // delay elapsed
-                }
-            }
-
-            // Drain up to max_batch_size into a flush vec.
-            let take = queue.len().min(max_batch_size);
-            let mut batch: Vec<Job> = (0..take).map(|_| queue.pop_front().unwrap().0).collect();
-
-            // Sort by descending length so padding waste is concentrated in
-            // shorter rows (which contribute fewer model FLOPs anyway).
-            // After sort we still need to remember the caller's expected
-            // result order? No — every Job carries its own oneshot, so
-            // batch row order is purely an internal detail.
-            batch.sort_by(|a, b| b.ids.len().cmp(&a.ids.len()));
-
-            run_batch(&mut session, needs_token_type_ids, batch);
         }
-    });
+
+        // Try to fill the batch up to `max_batch_size` without blocking
+        // longer than the remaining `max_queue_delay` budget for the
+        // oldest queued job.
+        while queue.len() < max_batch_size {
+            let oldest = queue.front().map(|(_, t)| *t).unwrap_or_else(Instant::now);
+            let elapsed = oldest.elapsed();
+            if elapsed >= max_queue_delay {
+                break;
+            }
+            let remaining = max_queue_delay - elapsed;
+            match tokio::time::timeout(remaining, rx.recv()).await {
+                Ok(Some(job)) => queue.push_back((job, Instant::now())),
+                Ok(None) => break, // channel closed; drain what we have
+                Err(_) => break,    // delay elapsed
+            }
+        }
+
+        // Drain up to max_batch_size into a flush vec.
+        let take = queue.len().min(max_batch_size);
+        let mut batch: Vec<Job> = (0..take).map(|_| queue.pop_front().unwrap().0).collect();
+
+        // Sort by descending length so padding waste is concentrated in
+        // shorter rows (which contribute fewer model FLOPs anyway). Every
+        // Job carries its own oneshot, so internal batch reordering is
+        // invisible to callers — the caller-visible order is the order
+        // each text's windows were submitted, not the batcher's flush
+        // order.
+        batch.sort_by(|a, b| b.ids.len().cmp(&a.ids.len()));
+
+        // `catch_unwind` so a panic inside `session.run` (an ORT internal
+        // error, ndarray shape mismatch, etc.) fails the in-flight batch
+        // cleanly instead of unwinding the batcher thread. Without this,
+        // one pathological input would take down the redactor for the
+        // pod's lifetime — every subsequent RPC would see "batcher
+        // channel closed" because the thread exited.
+        match std::panic::catch_unwind(AssertUnwindSafe(|| {
+            run_batch(&mut session, needs_token_type_ids, batch)
+        })) {
+            Ok(()) => {}
+            Err(panic_payload) => {
+                let msg = panic_message(&panic_payload);
+                // Note: `batch` was moved into the closure, so any Jobs
+                // whose oneshots weren't sent before the panic will drop
+                // here — the caller's `rx.await` then resolves with
+                // `Err(oneshot::error::RecvError)`, surfacing as
+                // "batcher dropped reply" upstream. Acceptable: panic is
+                // exceptional, callers retry.
+                tracing::error!(error = %msg, "pii-redactor batch panicked; continuing");
+            }
+        }
+    }
+}
+
+/// Best-effort extraction of a panic payload's `&str` / `String` body.
+fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        return (*s).to_string();
+    }
+    if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    "non-string panic payload".to_string()
 }
 
 /// Pad [`Job`]s to the longest sequence length in the batch, build `(B, L)`
