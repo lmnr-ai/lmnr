@@ -18,7 +18,9 @@ use crate::{
     db::{
         DB,
         spans::Span,
-        trace::{Trace, upsert_trace_statistics_batch},
+        trace::{
+            Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
+        },
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -67,6 +69,25 @@ pub async fn process_span_messages(
             message
         })
         .collect();
+
+    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
+    // the regular pipeline. They don't contribute span / token / time stats,
+    // they aren't recorded to ClickHouse, and their PG path is a metadata
+    // merge against an existing trace row — never an insert.
+    let metadata_patches: Vec<TraceMetadataPatch> = messages
+        .iter()
+        .filter(|m| m.span.attributes.is_metadata_only())
+        .filter_map(|m| {
+            let metadata = m.span.attributes.metadata()?;
+            let metadata_value = serde_json::to_value(&metadata).ok()?;
+            Some(TraceMetadataPatch {
+                trace_id: m.span.trace_id,
+                project_id: m.span.project_id,
+                metadata: metadata_value,
+            })
+        })
+        .collect();
+    messages.retain(|m| !m.span.attributes.is_metadata_only());
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -218,30 +239,46 @@ pub async fn process_span_messages(
     let ch = &ch;
 
     let trace_branch = async {
-        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-            Ok(updated_traces) => {
-                let ch_traces: Vec<CHTrace> = updated_traces
-                    .iter()
-                    .map(|trace| CHTrace::from_db_trace(trace))
-                    .collect();
-
-                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                    log::error!(
-                        "Failed to upsert {} traces to ClickHouse: {:?}",
-                        ch_traces.len(),
-                        e
-                    );
+        let mut updated_traces =
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(traces) => traces,
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    return None;
                 }
+            };
 
-                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-                Some(updated_traces)
-            }
-            Err(e) => {
-                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-                None
+        // Apply post-factum metadata patches AFTER the regular upsert. Both
+        // statements take the implicit row lock on the same `(project_id, id)`
+        // tuple, so a metadata patch that lands in the same flush as a regular
+        // span batch sees the merged metadata and the spans contributing to
+        // the trace. Patches are skipped (no row created) when the trace
+        // doesn't exist — the route handler validates existence up front.
+        if !metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+                Ok(patched) => updated_traces.extend(patched),
+                Err(e) => {
+                    log::error!("Failed to merge trace metadata patches: {:?}", e);
+                }
             }
         }
+
+        let ch_traces: Vec<CHTrace> = updated_traces
+            .iter()
+            .map(|trace| CHTrace::from_db_trace(trace))
+            .collect();
+
+        if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+            log::error!(
+                "Failed to upsert {} traces to ClickHouse: {:?}",
+                ch_traces.len(),
+                e
+            );
+        }
+
+        dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+
+        Some(updated_traces)
     };
 
     let span_branch = async {

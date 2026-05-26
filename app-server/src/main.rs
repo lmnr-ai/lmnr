@@ -1694,7 +1694,8 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/traces")
                                     .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::traces::process_traces),
+                                    .service(api::v1::traces::process_traces)
+                                    .service(api::v1::traces_metadata::update_trace_metadata),
                             )
                             .service(
                                 web::scope("/v1/spans")
