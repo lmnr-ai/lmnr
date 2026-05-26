@@ -210,6 +210,12 @@ const UnderstandWhyTraceView = () => {
                   </TraceViewStoreProvider>
                 </div>
 
+                {/* Left gradient — only in the Ask AI phase, where chat content
+                    bleeds toward the left edge and needs the fade. */}
+                {phase === 4 && (
+                  <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-landing-surface-550/80 to-transparent pointer-events-none w-[80px]" />
+                )}
+
                 {/* Bottom gradient */}
                 <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
 
