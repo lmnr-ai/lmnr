@@ -5,71 +5,59 @@ import { useSWRConfig } from "swr";
 import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useTableConfigStore } from "../model/table-config-store";
-import { useLastViewStore } from "./last-view-store";
+import { useTableConfigStore, useTableView } from "../model/table-config-store";
 import { normalizeViewConfig } from "./normalize";
-import SaveViewDialog from "./save-view-dialog";
 import { type View } from "./types";
+import ViewNameDialog from "./view-name-dialog";
 import ViewsPicker from "./views-picker";
 
 interface ViewsToolbarProps {
   projectId: string;
-  resourceType: string;
+  resource: string;
 }
 
-export default function ViewsToolbar({ projectId, resourceType }: ViewsToolbarProps) {
+export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps) {
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
-  const setLastViewId = useLastViewStore((s) => s.setLastViewId);
 
-  const store = useTableConfigStore();
-  const { currentViewId, dirty, selectView, markSavedAs, discard } = useStore(
-    store,
+  const configStore = useTableConfigStore();
+  const { columnDirty, markColumnsSaved, discardColumns } = useStore(
+    configStore,
     (s) => ({
-      currentViewId: s.currentViewId,
-      dirty: s.isDirty(),
-      selectView: s.selectView,
-      markSavedAs: s.markSavedAs,
-      discard: s.discard,
+      columnDirty: s.isDirty(),
+      markColumnsSaved: s.markColumnsSaved,
+      discardColumns: s.discard,
     }),
     shallow
   );
 
+  const { view, effective, isFormDirty, selectView: selectViewUrl, markSavedAs, discardForm } = useTableView();
+  const viewId = view?.id ?? null;
+
+  const dirty = columnDirty || isFormDirty;
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  // Aborts any in-flight Save when a newer one fires — last-write-wins so a
-  // stale response can't overwrite a fresher click's baseline.
+  // Newer save aborts the in-flight one — last-write-wins on baseline.
   const saveAbortRef = useRef<AbortController | null>(null);
 
-  const listKey = `/api/projects/${projectId}/views?resourceType=${resourceType}`;
+  const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
 
-  const handleAutoSelect = useCallback((view: View) => selectView(view.id, view.config ?? {}), [selectView]);
-
-  const handleSelect = useCallback(
-    (view: View | null) => {
-      if (view) {
-        selectView(view.id, view.config ?? {});
-      } else {
-        selectView(null, {});
-      }
-    },
-    [selectView]
-  );
+  const handleSelect = useCallback((next: View | null) => selectViewUrl(next), [selectViewUrl]);
 
   const handleSavePatch = useCallback(async () => {
-    if (currentViewId === null) return;
+    if (viewId === null) return;
 
     saveAbortRef.current?.abort();
     const controller = new AbortController();
     saveAbortRef.current = controller;
 
-    const normalized = normalizeViewConfig(store.getState().config);
+    const normalized = normalizeViewConfig(configStore.getState().config, effective);
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/views/${currentViewId}`, {
+      const res = await fetch(`/api/projects/${projectId}/views/${viewId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config: normalized }),
@@ -84,12 +72,17 @@ export default function ViewsToolbar({ projectId, resourceType }: ViewsToolbarPr
         toast({ variant: "destructive", title: errMessage ?? "Failed to save view" });
         return;
       }
-      // markSavedAs promotes baseline = current config. Subtle gotcha: if the
-      // user edited DURING the request, that newer state becomes the baseline
-      // and dirty silently flattens. Acceptable for now — toolbar disables
-      // Save while in-flight, so the user has to be racing keystrokes.
-      markSavedAs(currentViewId);
-      await mutate(listKey);
+      const savedView = (await res.json()) as View;
+      // SWR cache must update before markSavedAs clears the URL params,
+      // otherwise effective collapses to the stale baseline for one frame.
+      await mutate(
+        listKey,
+        (cached: View[] | undefined) => (cached ?? []).map((v) => (v.id === savedView.id ? savedView : v)),
+        { revalidate: false }
+      );
+      markColumnsSaved();
+      markSavedAs(viewId);
+      void mutate(listKey);
     } catch (e) {
       if (controller.signal.aborted) return;
       toast({
@@ -102,75 +95,66 @@ export default function ViewsToolbar({ projectId, resourceType }: ViewsToolbarPr
         setIsSaving(false);
       }
     }
-  }, [currentViewId, projectId, store, toast, mutate, listKey, markSavedAs]);
+  }, [viewId, projectId, configStore, toast, mutate, listKey, markColumnsSaved, markSavedAs, effective]);
 
   const handleSaveAsNew = useCallback(
-    async (name: string): Promise<{ ok: true } | { ok: false; conflict: boolean; message?: string }> => {
-      const config = normalizeViewConfig(store.getState().config);
+    async (name: string): Promise<{ ok: true } | { ok: false; message?: string }> => {
+      const config = normalizeViewConfig(configStore.getState().config, effective);
       try {
         const res = await fetch(`/api/projects/${projectId}/views`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resourceType, name, config }),
+          body: JSON.stringify({ resource, name, config }),
         });
         if (!res.ok) {
           const errMessage = await res
             .json()
             .then((d) => d?.error)
             .catch(() => null);
-          if (res.status === 409) {
-            return { ok: false, conflict: true };
-          }
-          return { ok: false, conflict: false, message: errMessage ?? "Failed to save view" };
+          return { ok: false, message: errMessage ?? "Failed to save view" };
         }
         const created = (await res.json()) as View;
+        // Same ordering invariant as handleSavePatch.
+        await mutate(listKey, (cached: View[] | undefined) => [...(cached ?? []), created], { revalidate: false });
+        markColumnsSaved();
         markSavedAs(created.id);
-        setLastViewId(projectId, resourceType, created.id);
-        await mutate(listKey);
+        void mutate(listKey);
         return { ok: true };
       } catch (e) {
         return {
           ok: false,
-          conflict: false,
           message: e instanceof Error ? e.message : "Failed to save view",
         };
       }
     },
-    [projectId, resourceType, store, markSavedAs, setLastViewId, mutate, listKey]
+    [projectId, resource, configStore, mutate, listKey, effective, markColumnsSaved, markSavedAs]
   );
+
+  const handleDiscard = useCallback(() => {
+    discardColumns();
+    discardForm();
+  }, [discardColumns, discardForm]);
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <ViewsPicker
-          projectId={projectId}
-          resourceType={resourceType}
-          onAutoSelect={handleAutoSelect}
-          onSelect={handleSelect}
-        />
-        {dirty && (
-          <>
-            <Button size="sm" variant="ghost" onClick={discard} disabled={isSaving}>
-              Discard
-            </Button>
-            {currentViewId !== null ? (
-              <>
-                <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)} disabled={isSaving}>
-                  Save as new
-                </Button>
-                <Button size="sm" onClick={handleSavePatch} disabled={isSaving}>
-                  {isSaving ? "Saving…" : "Save"}
-                </Button>
-              </>
-            ) : (
-              <Button size="sm" onClick={() => setDialogOpen(true)} disabled={isSaving}>
-                Save view
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-      <SaveViewDialog open={dialogOpen} onOpenChange={setDialogOpen} onSave={handleSaveAsNew} />
+      <ViewsPicker
+        projectId={projectId}
+        resource={resource}
+        currentViewId={viewId}
+        dirty={dirty}
+        isSaving={isSaving}
+        onSelect={handleSelect}
+        onSaveCurrent={handleSavePatch}
+        onSaveAsNew={() => setDialogOpen(true)}
+        onDiscard={handleDiscard}
+      />
+      <ViewNameDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title="Save view"
+        description="Share these table settings with the project as a named view."
+        onSave={handleSaveAsNew}
+      />
     </>
   );
 }

@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createView, ViewNameConflictError } from "@/lib/actions/view";
+import { createView } from "@/lib/actions/view";
 import { getViews } from "@/lib/actions/views";
 
 export async function GET(req: Request, props: { params: Promise<{ projectId: string }> }) {
   try {
     const { projectId } = await props.params;
     const url = new URL(req.url);
-    const resourceType = url.searchParams.get("resourceType");
+    const resource = url.searchParams.get("resource");
 
-    const views = await getViews({ projectId, resourceType: resourceType ?? "" });
+    const views = await getViews({ projectId, resource: resource ?? "" });
 
     return NextResponse.json(views);
   } catch (error) {
@@ -31,16 +31,13 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
 
     const result = await createView({
       projectId,
-      resourceType: body.resourceType,
+      resource: body.resource,
       name: body.name,
       config: body.config,
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof ViewNameConflictError) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
-    }
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }

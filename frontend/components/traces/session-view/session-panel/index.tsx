@@ -79,11 +79,10 @@ export default function SessionPanel() {
         </div>
         {/* TODO(session-view): add autocomplete suggestions from loaded/matched spans */}
         <AdvancedSearch
-          mode="state"
           filters={filterColumns}
           resource="spans"
           value={{ filters: [], search: "" }}
-          onSubmit={handleSearch}
+          onChange={({ filters, search }) => handleSearch(filters, search)}
           placeholder="Search text, name, id, tags..."
           className="w-full"
           disabled={isTracesLoading}

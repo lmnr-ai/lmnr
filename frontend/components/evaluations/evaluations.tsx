@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
@@ -109,6 +110,7 @@ function EvaluationsContent() {
   const params = useParams();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -277,6 +279,8 @@ function EvaluationsContent() {
                 </div>
                 <div className="w-full">
                   <AdvancedSearch
+                    value={searchValue}
+                    onChange={setSearchValue}
                     storageKey={`evaluations-${params?.projectId}`}
                     filters={filters}
                     placeholder="Search evaluations..."

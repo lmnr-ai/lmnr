@@ -1,10 +1,17 @@
 "use client";
 
 import { uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 
-import { type TableConfig, TableConfigProvider, type TableConfigProviderProps } from "./table-config-store.tsx";
+import { useViewState, viewStateToStorePatch } from "../views/use-table-view";
+import {
+  createTableConfigStore,
+  type TableConfig,
+  TableConfigContext,
+  TableConfigProvider,
+  type TableConfigProviderProps,
+} from "./table-config-store.tsx";
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
@@ -156,6 +163,8 @@ export function useTableStore<TData>(): TableStoreApi<TData> {
 export interface InfiniteDataTableProviderProps extends TableConfigProviderProps {
   uniqueKey?: string;
   pageSize?: number;
+  // Opt into the saved-views feature; surfaced via `useTableView()`.
+  views?: { projectId: string; resource: string };
 }
 
 export function InfiniteDataTableProvider({
@@ -163,21 +172,27 @@ export function InfiniteDataTableProvider({
   defaults,
   lockedColumns,
   disableHideColumn,
-  loadConfig,
-  enableDirtyTracking,
-  fallback,
   uniqueKey,
   pageSize,
+  views,
 }: InfiniteDataTableProviderProps) {
+  if (views) {
+    return (
+      <InfiniteDataTableProviderWithViews
+        views={views}
+        defaults={defaults}
+        lockedColumns={lockedColumns}
+        disableHideColumn={disableHideColumn}
+        uniqueKey={uniqueKey}
+        pageSize={pageSize}
+      >
+        {children}
+      </InfiniteDataTableProviderWithViews>
+    );
+  }
+
   return (
-    <TableConfigProvider
-      defaults={defaults}
-      lockedColumns={lockedColumns}
-      disableHideColumn={disableHideColumn}
-      loadConfig={loadConfig}
-      enableDirtyTracking={enableDirtyTracking}
-      fallback={fallback}
-    >
+    <TableConfigProvider defaults={defaults} lockedColumns={lockedColumns} disableHideColumn={disableHideColumn}>
       <TableProvider uniqueKey={uniqueKey} pageSize={pageSize}>
         {children}
       </TableProvider>
@@ -185,5 +200,46 @@ export function InfiniteDataTableProvider({
   );
 }
 
-// Re-export for callers that grab them via the same import path.
+interface WithViewsProps extends Omit<InfiniteDataTableProviderProps, "views"> {
+  views: { projectId: string; resource: string };
+}
+
+function InfiniteDataTableProviderWithViews({
+  children,
+  defaults,
+  lockedColumns,
+  disableHideColumn,
+  uniqueKey,
+  pageSize,
+  views,
+}: WithViewsProps) {
+  const viewState = useViewState({ projectId: views.projectId, resource: views.resource });
+
+  // Seed at creation so it lands in `getInitialState` — see InitialViewSeed.
+  const [store] = useState(() =>
+    createTableConfigStore({
+      defaults: defaults ?? {},
+      lockedColumns: lockedColumns ?? [],
+      disableHideColumn: disableHideColumn ?? false,
+      initialViewSeed: viewStateToStorePatch(viewState),
+    })
+  );
+
+  useEffect(() => {
+    store.setState(viewStateToStorePatch(viewState));
+  }, [store, viewState]);
+
+  useEffect(() => {
+    store.getState().applyColumnsFromConfig(viewState.view?.config ?? {});
+  }, [store, viewState.view]);
+
+  return (
+    <TableConfigContext.Provider value={store}>
+      <TableProvider uniqueKey={uniqueKey} pageSize={pageSize}>
+        {children}
+      </TableProvider>
+    </TableConfigContext.Provider>
+  );
+}
+
 export type { TableConfig };

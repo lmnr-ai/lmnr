@@ -1,43 +1,36 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { FilterSchemaRelaxed } from "@/lib/actions/common/filters";
 import { db } from "@/lib/db/drizzle";
-import { views } from "@/lib/db/migrations/schema";
-
-export class ViewNameConflictError extends Error {
-  constructor(message = "A view with this name already exists") {
-    super(message);
-    this.name = "ViewNameConflictError";
-  }
-}
+import { tableViews } from "@/lib/db/migrations/schema";
 
 export const ViewConfigSchema = z.object({
   columnOrder: z.array(z.string()).optional(),
   columnVisibility: z.record(z.string(), z.boolean()).optional(),
   columnSizing: z.record(z.string(), z.number()).optional(),
   customColumns: z.array(z.any()).optional(),
-  sorting: z.array(z.object({ id: z.string(), desc: z.boolean() })).optional(),
-  filters: z.unknown().optional(),
+  // View-managed runtime params persisted alongside column config. searchIn is
+  // intentionally omitted — we always search across every searchable field.
+  filters: z.array(FilterSchemaRelaxed).optional(),
+  search: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortDirection: z.enum(["asc", "desc"]).optional(),
 });
 
 export const CreateViewSchema = z.object({
   projectId: z.guid(),
-  resourceType: z.string().min(1),
+  resource: z.string().min(1),
   name: z.string().min(1).max(120),
   config: ViewConfigSchema,
 });
 
 export async function createView(input: z.infer<typeof CreateViewSchema>) {
-  const { projectId, resourceType, name, config } = CreateViewSchema.parse(input);
+  const { projectId, resource, name, config } = CreateViewSchema.parse(input);
 
-  try {
-    const [result] = await db.insert(views).values({ projectId, resourceType, name, config }).returning();
-    if (!result) throw new Error("Failed to create view");
-    return result;
-  } catch (e) {
-    if ((e as { code?: string })?.code === "23505") throw new ViewNameConflictError();
-    throw e;
-  }
+  const [result] = await db.insert(tableViews).values({ projectId, resource, name, config }).returning();
+  if (!result) throw new Error("Failed to create view");
+  return result;
 }
 
 export const GetViewSchema = z.object({
@@ -48,8 +41,8 @@ export const GetViewSchema = z.object({
 export async function getView(input: z.infer<typeof GetViewSchema>) {
   const { projectId, viewId } = GetViewSchema.parse(input);
 
-  const view = await db.query.views.findFirst({
-    where: and(eq(views.id, viewId), eq(views.projectId, projectId)),
+  const view = await db.query.tableViews.findFirst({
+    where: and(eq(tableViews.id, viewId), eq(tableViews.projectId, projectId)),
   });
   if (!view) throw new Error("View not found");
   return view;
@@ -65,22 +58,17 @@ export const UpdateViewSchema = z.object({
 export async function updateView(input: z.infer<typeof UpdateViewSchema>) {
   const { projectId, viewId, name, config } = UpdateViewSchema.parse(input);
 
-  try {
-    const [result] = await db
-      .update(views)
-      .set({
-        ...(name !== undefined && { name }),
-        ...(config !== undefined && { config }),
-        updatedAt: new Date().toISOString(),
-      })
-      .where(and(eq(views.id, viewId), eq(views.projectId, projectId)))
-      .returning();
-    if (!result) throw new Error("View not found");
-    return result;
-  } catch (e) {
-    if ((e as { code?: string })?.code === "23505") throw new ViewNameConflictError();
-    throw e;
-  }
+  const [result] = await db
+    .update(tableViews)
+    .set({
+      ...(name !== undefined && { name }),
+      ...(config !== undefined && { config }),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(eq(tableViews.id, viewId), eq(tableViews.projectId, projectId)))
+    .returning();
+  if (!result) throw new Error("View not found");
+  return result;
 }
 
 export const DeleteViewSchema = z.object({
@@ -92,8 +80,8 @@ export async function deleteView(input: z.infer<typeof DeleteViewSchema>) {
   const { projectId, viewId } = DeleteViewSchema.parse(input);
 
   const [result] = await db
-    .delete(views)
-    .where(and(eq(views.id, viewId), eq(views.projectId, projectId)))
+    .delete(tableViews)
+    .where(and(eq(tableViews.id, viewId), eq(tableViews.projectId, projectId)))
     .returning();
   if (!result) throw new Error("View not found");
   return result;

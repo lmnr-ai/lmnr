@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ScoreRanges } from "@/components/evaluation/utils";
@@ -99,6 +100,7 @@ const EvaluationDatapointsTable = ({
 
   const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
   const search = useSearchParams().get("search");
+  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
 
   if (isLoading) return <EvalTableSkeleton />;
 
@@ -157,6 +159,8 @@ const EvaluationDatapointsTable = ({
         </div>
         <div className="w-full">
           <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchValue}
             storageKey={`evaluation-datapoints-${projectId}`}
             filters={columnFilters}
             placeholder="Search in data, targets, scores and spans..."

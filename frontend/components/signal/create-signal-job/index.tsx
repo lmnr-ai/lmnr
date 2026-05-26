@@ -320,11 +320,10 @@ const CreateSignalJobContent = () => {
           <div className="w-full px-px">
             <AdvancedSearch
               storageKey="traces"
-              mode="state"
               filters={tableFilters}
               resource="traces"
               value={filters}
-              onSubmit={(filters, search) => setFilters({ filters, search })}
+              onChange={({ filters, search }) => setFilters({ filters, search })}
               placeholder="Search by root span name, tokens, tags, full text and more..."
               className="w-full flex-1"
             />

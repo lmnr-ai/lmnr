@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
@@ -44,6 +45,7 @@ function SpansTableContent() {
     setSpanId: state.setSpanId,
   }));
 
+  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
   const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
@@ -174,6 +176,8 @@ function SpansTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchValue}
             storageKey={`spans-${projectId}`}
             filters={filters}
             resource="spans"

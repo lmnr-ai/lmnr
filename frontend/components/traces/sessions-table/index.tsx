@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -34,6 +35,7 @@ function SessionsTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
+  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
   const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
@@ -138,6 +140,8 @@ function SessionsTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchValue}
             filters={filters}
             placeholder="Search by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"

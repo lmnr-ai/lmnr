@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import AdvancedSearch from "@/components/common/advanced-search";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -146,6 +147,7 @@ const QueuesContent = () => {
   const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
 
@@ -303,6 +305,8 @@ const QueuesContent = () => {
           </div>
           <div className="w-full">
             <AdvancedSearch
+              value={searchValue}
+              onChange={setSearchValue}
               storageKey={`queues-${projectId}`}
               filters={queuesTableFilters}
               placeholder="Search queues..."
@@ -317,10 +321,7 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <InfiniteDataTableProvider
-      defaults={{ columnOrder: defaultQueuesColumnOrder }}
-      lockedColumns={["__row_selection"]}
-    >
+    <InfiniteDataTableProvider defaults={{ columnOrder: defaultQueuesColumnOrder }} lockedColumns={["__row_selection"]}>
       <QueuesContent />
     </InfiniteDataTableProvider>
   );

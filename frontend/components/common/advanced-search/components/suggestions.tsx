@@ -1,7 +1,6 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -112,10 +111,6 @@ interface FilterSuggestionsProps {
 }
 
 const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
   const isOpen = useAdvancedSearchContext((state) => state.isOpen);
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
@@ -179,27 +174,27 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       if (!columnFilter) return;
 
       const defaultOperator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
-      addCompleteTag(field, defaultOperator, value, router, pathname, searchParams);
+      addCompleteTag(field, defaultOperator, value);
 
       mainInputRef.current?.focus();
     },
-    [filters, addCompleteTag, router, pathname, searchParams, mainInputRef]
+    [filters, addCompleteTag, mainInputRef]
   );
 
   const handleRawSearchSelect = useCallback(
     (value: string) => {
       setInputValue(value);
       setIsOpen(false);
-      submit(router, pathname, searchParams);
+      submit();
     },
-    [setInputValue, setIsOpen, submit, router, pathname, searchParams]
+    [setInputValue, setIsOpen, submit]
   );
 
   const handleRecentSearchSelect = useCallback(
     (recentSearch: RecentSearch) => {
-      applyRecentSearch(recentSearch, router, pathname, searchParams);
+      applyRecentSearch(recentSearch);
     },
-    [applyRecentSearch, router, pathname, searchParams]
+    [applyRecentSearch]
   );
 
   if (!isOpen || (suggestions.length === 0 && !showRecent)) return null;

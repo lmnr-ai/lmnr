@@ -43,7 +43,7 @@ import {
   notificationReads,
   tagClasses,
   traces,
-  views,
+  tableViews,
 } from "./schema";
 
 export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
@@ -53,9 +53,9 @@ export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => 
   }),
 }));
 
-export const viewsRelations = relations(views, ({ one }) => ({
+export const tableViewsRelations = relations(tableViews, ({ one }) => ({
   project: one(projects, {
-    fields: [views.projectId],
+    fields: [tableViews.projectId],
     references: [projects.id],
   }),
 }));
@@ -90,7 +90,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   datasetParquets: many(datasetParquets),
   projectApiKeys: many(projectApiKeys),
   notificationReads: many(notificationReads),
-  views: many(views),
+  tableViews: many(tableViews),
   tagClasses: many(tagClasses),
   traces: many(traces),
 }));

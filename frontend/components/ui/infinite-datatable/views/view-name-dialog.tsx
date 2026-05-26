@@ -16,52 +16,59 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
 
-interface SaveViewDialogProps {
+interface ViewNameDialogProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  onSave: (name: string) => Promise<{ ok: true } | { ok: false; conflict: boolean; message?: string }>;
+  title: string;
+  description?: string;
+  initialName?: string;
+  submitLabel?: string;
+  onSave: (name: string) => Promise<{ ok: true } | { ok: false; message?: string }>;
 }
 
-export default function SaveViewDialog({ open, onOpenChange, onSave }: SaveViewDialogProps) {
+export default function ViewNameDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  initialName = "",
+  submitLabel = "Save",
+  onSave,
+}: ViewNameDialogProps) {
   const { toast } = useToast();
-  const [name, setName] = useState("");
-  const [conflict, setConflict] = useState(false);
+  const [name, setName] = useState(initialName);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sync on open transitions only. Mid-edit initialName changes would clobber typing.
   useEffect(() => {
-    if (!open) {
-      setName("");
-      setConflict(false);
+    if (open) {
+      setName(initialName);
       setIsSaving(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const trimmed = name.trim();
+  const unchanged = trimmed === initialName.trim();
+  const canSubmit = trimmed.length > 0 && !unchanged && !isSaving;
 
   const handleSubmit = useCallback(
     async (e?: React.FormEvent) => {
       e?.preventDefault();
-      const trimmed = name.trim();
-      if (!trimmed) return;
+      if (!canSubmit) return;
       setIsSaving(true);
-      setConflict(false);
       try {
         const result = await onSave(trimmed);
         if (result.ok) {
           onOpenChange(false);
           return;
         }
-        if (result.conflict) {
-          setConflict(true);
-        } else {
-          toast({
-            variant: "destructive",
-            title: result.message ?? "Failed to save view",
-          });
-        }
+        toast({ variant: "destructive", title: result.message ?? "Failed to save" });
       } finally {
         setIsSaving(false);
       }
     },
-    [name, onSave, onOpenChange, toast]
+    [canSubmit, trimmed, onSave, onOpenChange, toast]
   );
 
   return (
@@ -69,8 +76,8 @@ export default function SaveViewDialog({ open, onOpenChange, onSave }: SaveViewD
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>Save view</DialogTitle>
-            <DialogDescription>Share these table settings with the project as a named view.</DialogDescription>
+            <DialogTitle>{title}</DialogTitle>
+            {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
 
           <div className="flex flex-col gap-2">
@@ -82,22 +89,18 @@ export default function SaveViewDialog({ open, onOpenChange, onSave }: SaveViewD
               autoFocus
               placeholder="e.g. Production traces"
               value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (conflict) setConflict(false);
-              }}
+              onChange={(e) => setName(e.target.value)}
               maxLength={120}
             />
-            {conflict && <p className="text-xs text-destructive">A view with this name already exists</p>}
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || !name.trim()}>
+            <Button type="submit" disabled={!canSubmit}>
               {isSaving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save
+              {submitLabel}
             </Button>
           </DialogFooter>
         </form>
