@@ -78,13 +78,30 @@ pub async fn process_span_messages(
         .iter()
         .filter(|m| m.span.attributes.is_metadata_only())
         .filter_map(|m| {
-            let metadata = m.span.attributes.metadata()?;
-            let metadata_value = serde_json::to_value(&metadata).ok()?;
-            Some(TraceMetadataPatch {
-                trace_id: m.span.trace_id,
-                project_id: m.span.project_id,
-                metadata: metadata_value,
-            })
+            let Some(metadata) = m.span.attributes.metadata() else {
+                log::warn!(
+                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                    m.span.span_id,
+                    m.span.trace_id
+                );
+                return None;
+            };
+            match serde_json::to_value(&metadata) {
+                Ok(metadata_value) => Some(TraceMetadataPatch {
+                    trace_id: m.span.trace_id,
+                    project_id: m.span.project_id,
+                    metadata: metadata_value,
+                }),
+                Err(e) => {
+                    log::warn!(
+                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                        m.span.span_id,
+                        m.span.trace_id,
+                        e
+                    );
+                    None
+                }
+            }
         })
         .collect();
     messages.retain(|m| !m.span.attributes.is_metadata_only());
