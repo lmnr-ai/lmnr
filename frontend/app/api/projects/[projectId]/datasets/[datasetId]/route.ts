@@ -12,7 +12,11 @@ export const GET = apiHandler<{ projectId: string; datasetId: string }>(async (r
     where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
   });
 
-  return Response.json(dataset ?? null);
+  if (!dataset) {
+    return Response.json({ error: "Dataset not found" }, { status: 404 });
+  }
+
+  return Response.json(dataset);
 });
 
 export const PATCH = apiHandler<{ projectId: string; datasetId: string }>(async (req, ctx) => {
