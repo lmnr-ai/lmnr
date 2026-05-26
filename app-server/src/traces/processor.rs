@@ -242,16 +242,21 @@ pub async fn process_span_messages(
         // The aggregation upsert and the metadata-patch UPDATE target the same
         // `(project_id, id)` row lock, but their failure modes are independent:
         // a single flush can mix span ingestion for trace A with a metadata
-        // patch for trace B, and an aggregation upsert error must not drop the
-        // unrelated patch. Run each step independently and collect whatever
-        // succeeds for the CH / realtime dispatch.
-        let mut updated_traces: Vec<Trace> = Vec::new();
-        let aggregation_ok = if trace_aggregations.is_empty() {
-            true
-        } else {
+        // patch for unrelated trace B, and an aggregation upsert error must
+        // not drop B's patch. Run each step independently.
+        //
+        // Aggregation results are tracked separately so signals only see
+        // traces whose state actually changed via real span ingestion —
+        // metadata patches don't touch any field signals evaluate, and
+        // passing patch-only traces (from a pure metadata-only flush, or
+        // from a mixed flush touching different traces) to
+        // `check_and_push_signals` would trigger spurious re-evaluations.
+        let had_aggregations = !trace_aggregations.is_empty();
+        let mut aggregation_traces: Vec<Trace> = Vec::new();
+        let aggregation_ok = if had_aggregations {
             match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
                 Ok(traces) => {
-                    updated_traces.extend(traces);
+                    aggregation_traces = traces;
                     true
                 }
                 Err(e) => {
@@ -259,29 +264,36 @@ pub async fn process_span_messages(
                     false
                 }
             }
+        } else {
+            true
         };
 
         // Patches are skipped (no row created) when the trace doesn't exist
         // — the route handler validates existence up front.
+        let mut patched_traces: Vec<Trace> = Vec::new();
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
-                Ok(patched) => updated_traces.extend(patched),
+                Ok(patched) => patched_traces = patched,
                 Err(e) => {
                     log::error!("Failed to merge trace metadata patches: {:?}", e);
                 }
             }
         }
 
-        // Dedup by `(project_id, id)`, keeping the LATEST occurrence. When a
-        // single flush touches the same trace via both the aggregation upsert
-        // AND a metadata patch, both stages return the same row — same
+        // Build the CH / realtime payload as the deduped union, keeping the
+        // LATEST occurrence per `(project_id, id)`. When a single flush
+        // touches the same trace via BOTH the aggregation upsert AND a
+        // metadata patch, both stages return the same row with identical
         // `num_spans` (the patch UPDATE doesn't bump it), differing only in
         // `metadata`. `traces_replacing` is `ReplacingMergeTree(num_spans)`,
         // so two rows with identical version are undefined under merge — the
         // pre-patch row could win and CH would diverge from the patched
-        // Postgres state. Metadata patches always extend `updated_traces`
-        // AFTER the aggregation upsert, so last-write-wins keeps the patched
-        // row.
+        // Postgres state. Patches are appended after aggregation, so
+        // last-write-wins preserves the patched metadata.
+        let mut updated_traces: Vec<Trace> =
+            Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
+        updated_traces.extend(aggregation_traces.iter().cloned());
+        updated_traces.extend(patched_traces);
         if updated_traces.len() > 1 {
             let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
                 HashMap::with_capacity(updated_traces.len());
@@ -315,13 +327,15 @@ pub async fn process_span_messages(
             dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
         }
 
-        // Signals are gated on the aggregation upsert specifically: if it
-        // errored, downstream signal evaluation would see stale data even
-        // when a metadata patch in the same flush succeeded. `None` here
-        // suppresses the signals call below; metadata-only patches need no
-        // signal evaluation regardless.
-        if aggregation_ok {
-            Some(updated_traces)
+        // Return only the aggregation results to the signals path. `None`
+        // suppresses `check_and_push_signals` entirely — used for both an
+        // aggregation upsert error AND a pure metadata-only flush (no real
+        // spans aggregated). Metadata patches never need signal evaluation:
+        // they don't touch any field signals filter on, and re-running
+        // signals against a patched-only trace would spuriously refire any
+        // signal that already triggered for the trace.
+        if aggregation_ok && had_aggregations {
+            Some(aggregation_traces)
         } else {
             None
         }
