@@ -55,7 +55,7 @@ For production environment, we recommend using our [managed platform](https://la
 
 ### Configuring LLM provider (optional)
 
-Frontend AI features (chat-with-trace, SQL-with-AI) require an LLM provider. Configure one in your `.env` file at the repo root — the vars are read by the frontend only.
+Frontend AI features (chat-with-trace, SQL-with-AI) and server-side AI workers require an LLM provider. Configure one in your `.env` file at the repo root.
 
 Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are optional — per-provider defaults apply when unset.
 
@@ -67,6 +67,7 @@ LLM_API_KEY=your_gemini_key
 # Option B: OpenAI (or any OpenAI-compatible gateway such as LiteLLM, OpenRouter, vLLM)
 LLM_PROVIDER=openai
 # LLM_BASE_URL=http://localhost:4000   # optional, for OpenAI-compatible gateways
+# LLM_DEFAULT_HEADERS_JSON='{"X-Gateway-Tenant":"tenant"}'   # optional, for gateways that require static headers
 LLM_API_KEY=your_openai_key
 
 # Option C: AWS Bedrock (Anthropic Claude). Uses AWS credentials instead of LLM_API_KEY.

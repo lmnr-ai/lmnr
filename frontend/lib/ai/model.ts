@@ -10,6 +10,7 @@ import type { LanguageModel } from "ai";
 type ModelTier = "small" | "medium" | "large";
 
 type LLMProvider = "openai" | "gemini" | "bedrock";
+type LlmDefaultHeaders = Record<string, string>;
 
 // Per-provider defaults. Used when LLM_MODEL_<TIER> is not set.
 const DEFAULT_MODELS: Record<LLMProvider, Record<ModelTier, string>> = {
@@ -58,6 +59,34 @@ function resolveModelName(provider: LLMProvider, tier: ModelTier): string {
   return process.env[`LLM_MODEL_${tier.toUpperCase()}`] || DEFAULT_MODELS[provider][tier];
 }
 
+export function parseLlmDefaultHeaders(value = process.env.LLM_DEFAULT_HEADERS_JSON): LlmDefaultHeaders | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: expected a JSON object with string values (${message})`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Invalid LLM_DEFAULT_HEADERS_JSON: expected a JSON object with string values");
+  }
+
+  const headers: LlmDefaultHeaders = {};
+  for (const [name, headerValue] of Object.entries(parsed)) {
+    if (typeof headerValue !== "string") {
+      throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: header '${name}' value must be a string`);
+    }
+    headers[name] = headerValue;
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
 export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
   const provider = getConfiguredLLMProvider();
   if (!provider) {
@@ -77,12 +106,13 @@ export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
 
   const apiKey = process.env.LLM_API_KEY;
   const baseURL = process.env.LLM_BASE_URL;
+  const headers = parseLlmDefaultHeaders();
 
   if (provider === "openai") {
-    const openai = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+    const openai = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) });
     return openai(modelName);
   }
 
-  const google = createGoogleGenerativeAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  const google = createGoogleGenerativeAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(headers ? { headers } : {}) });
   return google(modelName);
 }
