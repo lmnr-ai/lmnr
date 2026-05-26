@@ -4,7 +4,11 @@
 pub const CUSTOM_MODEL_COSTS_CACHE_KEY: &str = "custom_model_costs";
 pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
-pub const PROJECT_CACHE_KEY: &str = "project";
+// Bump the version segment when `ProjectWithWorkspaceBillingInfo`'s JSON
+// shape changes incompatibly so cached entries from a prior build can't be
+// silently misinterpreted by serde defaults. v2: `remove_pii` flat field
+// moved into a nested `settings` object.
+pub const PROJECT_CACHE_KEY: &str = "project:v2";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]

@@ -176,7 +176,12 @@ class CacheManager {
 export const cache = new CacheManager();
 
 export const PROJECT_API_KEY_CACHE_KEY = "project_api_key";
-export const PROJECT_CACHE_KEY = "project";
+// Must stay in sync with `PROJECT_CACHE_KEY` in `app-server/src/cache/keys.rs`
+// — the frontend invalidates entries the Rust app-server fills, so a drift
+// would orphan Postgres writes from cache reads. Bump the version segment
+// when `ProjectWithWorkspaceBillingInfo`'s JSON shape changes incompatibly
+// (currently v2: `remove_pii` moved into nested `settings`).
+export const PROJECT_CACHE_KEY = "project:v2";
 export const WORKSPACE_BYTES_USAGE_CACHE_KEY = "workspace_bytes_usage";
 export const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY = "workspace_signal_runs_usage";
 export const TRACE_CHATS_CACHE_KEY = "trace_chats";
