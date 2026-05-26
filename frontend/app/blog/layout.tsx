@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth";
 import { type PropsWithChildren } from "react";
 
+import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import Footer from "@/components/landing/footer";
 import LandingHeader from "@/components/landing/header";
-import { LANDING_COLUMN_MAX_W } from "@/components/landing/layout";
 import { authOptions } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 

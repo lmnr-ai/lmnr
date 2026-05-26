@@ -15,8 +15,7 @@ import useSWR from "swr";
 import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { cn, swrFetcher } from "@/lib/utils";
 
-import { bodyMedium, microLabel, subSection, subSubSection } from "../../class-names";
-import { LANDING_COLUMN_MAX_W } from "../../layout";
+import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection } from "../../class-names";
 import SectionFootnote from "../section-footnote";
 import TraceViewErrorBoundary from "./error-boundary";
 import TraceBento, { type Phase } from "./trace-bento";

@@ -2,9 +2,8 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, mainTitle } from "../class-names";
+import { bodyMedium, LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
-import { LANDING_COLUMN_MAX_W } from "../layout";
 import LogoStrip from "./logo-strip";
 
 interface Props {

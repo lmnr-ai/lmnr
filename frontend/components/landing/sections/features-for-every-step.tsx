@@ -1,4 +1,13 @@
-import { ArrowUpRight, Bug, Database, LayoutDashboard, type LucideIcon, MonitorPlay, Tags } from "lucide-react";
+import {
+  ArrowUpRight,
+  Bug,
+  Database,
+  LayoutDashboard,
+  type LucideIcon,
+  MonitorPlay,
+  Tags,
+  TextSearch,
+} from "lucide-react";
 import Link from "next/link";
 
 import { subSection } from "../class-names";
@@ -63,6 +72,12 @@ const FeaturesForEveryStep = () => (
         title="Browser screen recording"
         description="Replay your agent's browser session alongside the trace."
         href="https://laminar.sh/docs/tracing/browser-agent-observability"
+      />
+      <Card
+        Icon={TextSearch}
+        title="Fast text search"
+        description="Full-text search across every span input, output, and attribute, at any scale."
+        href="https://laminar.sh/docs/platform/viewing-traces"
       />
     </div>
   </section>

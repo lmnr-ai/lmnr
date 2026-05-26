@@ -1,16 +1,16 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
-import React from "react";
 
 import { cn } from "@/lib/utils";
 
-import { microLabel, subSection } from "../class-names";
+import { microLabel } from "../class-names";
 import LandingButton from "../landing-button";
 
 export interface PricingCardProps {
   className?: string;
   title: string;
-  price: string | React.ReactNode;
+  price: string;
+  priceSuffix?: string;
   features: string[];
   subfeatures?: (string | null)[];
   isAccent?: boolean;
@@ -19,11 +19,13 @@ export interface PricingCardProps {
 }
 
 // One tier column. Surface-550 panel by default; Pro switches to the orange
-// fill via `isAccent`. CTA sits at the bottom of the card.
+// fill via `isAccent`. Price is the dominant element; the tier name reads as
+// a smaller label above. CTA sits at the bottom of the card.
 export default function PricingCard({
   className,
   title,
   price,
+  priceSuffix,
   features,
   subfeatures,
   isAccent = false,
@@ -31,7 +33,7 @@ export default function PricingCard({
   ctaHref,
 }: PricingCardProps) {
   const featureColor = isAccent ? "text-white" : "text-landing-text-200";
-  const subfeatureColor = isAccent ? "text-white/70" : "text-landing-text-400";
+  const suffixColor = isAccent ? "text-white/70" : "text-landing-text-400";
   const checkColor = isAccent ? "text-white/80" : "text-landing-text-300";
 
   return (
@@ -42,9 +44,12 @@ export default function PricingCard({
         className
       )}
     >
-      <div className="flex flex-col gap-1">
-        <p className={cn(subSection, "text-white")}>{title}</p>
-        <p className={cn("font-sans text-sm", subfeatureColor)}>{price}</p>
+      <div className="flex flex-col gap-3">
+        <p className={cn("text-lg text-white ")}>{title}</p>
+        <p className="flex items-baseline gap-1">
+          <span className="font-manrope font-medium text-3xl leading-none text-white tracking-[-0.02em]">{price}</span>
+          {priceSuffix && <span className={cn("text-sm", suffixColor)}>{priceSuffix}</span>}
+        </p>
       </div>
       <div className="flex flex-col gap-2 flex-1">
         {features.map((feature, index) => (

@@ -6,7 +6,7 @@ import Link from "next/link";
 import laminarLogo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
-import { LANDING_COLUMN_MAX_W } from "../layout";
+import { LANDING_COLUMN_MAX_W } from "../class-names";
 
 interface Props {
   className?: string;

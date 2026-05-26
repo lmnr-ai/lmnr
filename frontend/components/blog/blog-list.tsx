@@ -1,8 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { mainTitle, microLabel, subSection } from "@/components/landing/class-names";
-import { LANDING_COLUMN_MAX_W } from "@/components/landing/layout";
+import { LANDING_COLUMN_MAX_W, mainTitle, microLabel, subSection } from "@/components/landing/class-names";
 import { type BlogListItem } from "@/lib/blog/types";
 import { cn, formatUTCDate } from "@/lib/utils";
 

@@ -1,34 +1,19 @@
 "use client";
 
 import { usePostHog } from "posthog-js/react";
-import { useState } from "react";
 
 import Footer from "@/components/landing/footer";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, subSection } from "../class-names";
-import { LANDING_COLUMN_MAX_W } from "../layout";
+import { bodyMedium, LANDING_COLUMN_MAX_W, subSection } from "../class-names";
 import Divider from "../sections/divider";
-import VariantSwitcher, { type VariantOption } from "../variant-switcher";
 import CardsVariant from "./cards-variant";
 import PricingCalculator from "./pricing-calculator";
-import ProFillVariant from "./pro-fill-variant";
-
-type LayoutVariant = "cards" | "pro-fill";
-
-const LAYOUT_OPTIONS: VariantOption<LayoutVariant>[] = [
-  { value: "cards", label: "Cards", hint: "4 tiers side-by-side; recommended fills primary" },
-  {
-    value: "pro-fill",
-    label: "Pro fill",
-    hint: "Comparison table with the Pro column fully filled primary top to bottom",
-  },
-];
+import PricingTable from "./pricing-table";
 
 export default function Pricing() {
   const posthog = usePostHog();
-  const [layout, setLayout] = useState<LayoutVariant>("cards");
 
   const handleQuestionClick = (question: string) => {
     posthog?.capture("faq_question_clicked", { question });
@@ -80,20 +65,14 @@ export default function Pricing() {
     <div className="flex flex-col w-full overflow-x-clip">
       <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[180px] pb-[72px] md:pb-[120px]">
         <div className={cn("flex flex-col items-center w-full max-w-[1100px]")}>
-          {/* Layout variant switcher (remove with state once a layout is picked) */}
-          <div className="w-full mb-8">
-            <VariantSwitcher
-              label="TODO: REMOVE LAYOUT PICKER"
-              value={layout}
-              options={LAYOUT_OPTIONS}
-              onChange={setLayout}
-            />
+          {/* Tier cards */}
+          <div className="w-full mb-[160px]">
+            <CardsVariant />
           </div>
 
-          {/* Tier grid */}
-          <div className="w-full mb-[160px]">
-            {layout === "cards" && <CardsVariant />}
-            {layout === "pro-fill" && <ProFillVariant />}
+          {/* Detailed comparison table */}
+          <div className="w-full mb-[240px]">
+            <PricingTable />
           </div>
 
           {/* Calculator */}

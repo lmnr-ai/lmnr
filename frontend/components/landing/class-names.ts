@@ -25,3 +25,7 @@ export const bodyMedium = "text-white/80 whitespace-pre-line";
 // MORE row at the bottom of each surface-550 mock panel. Single source
 // of truth so all those labels stay visually consistent.
 export const microLabel = "text-sm text-landing-text-400";
+
+// Center-column width for the landing/blog/pricing pages. Scales up on
+// xl/2xl screens so the column doesn't look cramped on large displays.
+export const LANDING_COLUMN_MAX_W = "max-w-[880px] xl:max-w-[960px] 2xl:max-w-[1040px]";

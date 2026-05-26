@@ -1,8 +1,8 @@
 import { type Metadata } from "next";
 import { getServerSession } from "next-auth";
 
+import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import LandingHeader from "@/components/landing/header";
-import { LANDING_COLUMN_MAX_W } from "@/components/landing/layout";
 import Pricing from "@/components/landing/pricing";
 import { authOptions } from "@/lib/auth";
 import { cn } from "@/lib/utils";

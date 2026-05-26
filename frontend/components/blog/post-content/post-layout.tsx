@@ -2,7 +2,7 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
 
-import { LANDING_COLUMN_MAX_W } from "@/components/landing/layout";
+import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import { type BlogMetadata } from "@/lib/blog/types";
 import { cn } from "@/lib/utils";
 

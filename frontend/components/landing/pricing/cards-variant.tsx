@@ -13,7 +13,8 @@ export default function CardsVariant() {
           <PricingCard
             key={tier.id}
             title={tier.name}
-            price={`${tier.price}${tier.priceSuffix ?? ""}`}
+            price={tier.price}
+            priceSuffix={tier.priceSuffix}
             features={features.map((f) => f.label)}
             subfeatures={features.map((f) => f.subfeature ?? null)}
             isAccent={tier.id === RECOMMENDED_TIER}

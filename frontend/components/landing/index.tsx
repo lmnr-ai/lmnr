@@ -2,9 +2,9 @@
 
 import { cn } from "@/lib/utils";
 
+import { LANDING_COLUMN_MAX_W } from "./class-names";
 import Footer from "./footer";
 import Hero from "./hero";
-import { LANDING_COLUMN_MAX_W } from "./layout";
 import BuiltForProduction from "./sections/built-for-production";
 import ClaudeFixMyAgent from "./sections/claude-fix-my-agent";
 import CTA from "./sections/cta";
