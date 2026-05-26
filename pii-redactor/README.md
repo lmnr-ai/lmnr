@@ -103,16 +103,33 @@ Set via flag or env var:
 | `--chunk-size`        | `PII_CHUNK_SIZE`      | `512`   | tokens per inference window (longer texts are sliced) |
 | `--chunk-overlap`     | `PII_CHUNK_OVERLAP`   | `64`    | overlap tokens between adjacent windows; sized to cover the longest expected entity |
 | `--max-tokens-per-text` | `PII_MAX_TOKENS_PER_TEXT` | `24576` | per-text hard cap; oversize inputs rejected with `RESOURCE_EXHAUSTED` |
-| `--max-batch-size`    | `PII_MAX_BATCH_SIZE`  | `32`    | reserved for future cross-text window batching |
+| `--max-batch-size`    | `PII_MAX_BATCH_SIZE`  | `16`    | max windows in one `(B, L)` forward pass; the batcher coalesces windows from concurrent RPCs up to this count |
+| `--max-queue-delay-ms` | `PII_MAX_QUEUE_DELAY_MS` | `10` | how long the batcher waits for a batch to fill before flushing what it has |
 | `--max-texts-per-request` | `PII_MAX_TEXTS_PER_REQUEST` | `1024` | reject `Redact` calls with more texts than this |
 | `--intra-threads`     | `PII_INTRA_THREADS`   | `0`     | ORT op-level threads (0 = ORT default) |
 | `--inter-threads`     | `PII_INTER_THREADS`   | `1`     | ORT inter-op threads |
-| `--num-sessions`      | `PII_NUM_SESSIONS`    | `1`     | parallel ORT sessions (one per concurrent request) |
 
-Defaults assume one box, one model, full CPU pinned to one session — the
-fastest config for short bursty traffic. For higher concurrency,
-either bump `--num-sessions` (each session takes its own copy of the graph
-and competes for cores), or run multiple replicas behind a load balancer.
+### How batching works
+
+A single ORT session lives on a dedicated worker thread. Every gRPC handler
+tokenises its texts (splitting long ones into overlapping windows) and
+ships each window through an mpsc channel to the batcher. The batcher
+fills a queue up to `max_batch_size` OR until `max_queue_delay_ms`
+elapses (whichever comes first), sorts by descending length so padding
+waste is concentrated in shorter rows, then runs ONE `(B, max_len)`
+forward pass for the whole queue.
+
+This is the encoder analogue of TF Serving / Triton dynamic batching, not
+vLLM-style continuous batching — there's no KV cache, no autoregressive
+decode, just one prefill per window. The win comes from amortising MLAS
+GEMM overhead across batch rows: BERT-base on c8i.2xlarge fp32 hits
+roughly 4-6× throughput at batch=8 vs. batch=1.
+
+For higher per-replica throughput, bump `--max-batch-size` (memory cost
+grows linearly) and/or `--max-queue-delay-ms` (more chances to fill a
+batch, at the cost of tail latency). Trace ingest is async so a 10-50 ms
+queue delay is usually free. For more concurrency than one box can
+handle, run multiple replicas behind a load balancer.
 
 ## Build & run
 
