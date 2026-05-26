@@ -217,32 +217,54 @@ impl Engine {
         std::thread::Builder::new()
             .name("pii-batcher".to_string())
             .spawn(move || {
-                // RAII guard so the alive flag flips false no matter how the
-                // thread exits — clean channel close, panic in `session.run`,
-                // anything. The guard's Drop runs even on unwind, which keeps
-                // `is_healthy()` honest.
-                struct AliveGuard(Arc<AtomicBool>);
-                impl Drop for AliveGuard {
-                    fn drop(&mut self) {
-                        self.0.store(false, Ordering::SeqCst);
-                        // FATAL-level log so an alerting pipeline picks this
-                        // up. The pod's readiness probe should also fail
-                        // once `is_healthy()` is false, so k8s will restart.
-                        tracing::error!(
-                            "pii-redactor batcher thread exiting; \
-                             redactor is now unhealthy and the pod must be restarted"
-                        );
+                // RAII guard so the alive flag flips false (and emits a
+                // FATAL log) on any UNEXPECTED exit — panic in
+                // `session.run`, runtime drop, etc. The guard's Drop runs
+                // even on unwind, which keeps `is_healthy()` honest.
+                //
+                // Graceful channel-close (every Engine handle dropped) is
+                // distinguished by `batcher_loop` returning `Ok(())`; the
+                // RPC-handling code disarms the guard before returning, so
+                // we don't spuriously alert when the process is shutting
+                // down or an integration test is tearing the engine down.
+                struct AliveGuard {
+                    flag: Arc<AtomicBool>,
+                    armed: bool,
+                }
+                impl AliveGuard {
+                    fn disarm(&mut self) {
+                        self.armed = false;
                     }
                 }
-                let _guard = AliveGuard(batcher_alive_for_thread);
+                impl Drop for AliveGuard {
+                    fn drop(&mut self) {
+                        if self.armed {
+                            self.flag.store(false, Ordering::SeqCst);
+                            tracing::error!(
+                                "pii-redactor batcher thread exited unexpectedly; \
+                                 redactor is now unhealthy and the pod must be restarted"
+                            );
+                        }
+                    }
+                }
+                let mut guard = AliveGuard {
+                    flag: batcher_alive_for_thread,
+                    armed: true,
+                };
 
-                batcher_runtime.block_on(batcher_loop(
+                let result = batcher_runtime.block_on(batcher_loop(
                     session,
                     needs_token_type_ids,
                     max_batch_size,
                     max_queue_delay,
                     job_rx,
                 ));
+                if result.is_ok() {
+                    // Channel closed cleanly — every `job_tx` was dropped,
+                    // which only happens when the Engine is being torn
+                    // down. Disarm so Drop is a no-op.
+                    guard.disarm();
+                }
             })
             .map_err(|e| anyhow!("spawn batcher thread: {e:#}"))?;
 
@@ -432,13 +454,19 @@ impl Engine {
 /// Dedicated thread's main loop. Consumes [`Job`]s, coalesces them into
 /// `(B, L)` batches, runs one forward pass per batch, fans out per-row
 /// argmax labels back via oneshots.
+///
+/// Returns `Ok(())` when the channel closes with an empty queue (clean
+/// shutdown — every `job_tx` was dropped, i.e. the Engine is being torn
+/// down). Any panic inside `session.run` is caught and logged; this loop
+/// only returns normally on graceful shutdown, so the caller treats the
+/// `Ok(())` return as the disarm signal for its alive-guard.
 async fn batcher_loop(
     mut session: Session,
     needs_token_type_ids: bool,
     max_batch_size: usize,
     max_queue_delay: Duration,
     mut rx: mpsc::Receiver<Job>,
-) {
+) -> Result<()> {
     let mut queue: VecDeque<(Job, Instant)> = VecDeque::with_capacity(max_batch_size);
 
     loop {
@@ -447,7 +475,7 @@ async fn batcher_loop(
         if queue.is_empty() {
             match rx.recv().await {
                 Some(job) => queue.push_back((job, Instant::now())),
-                None => return,
+                None => return Ok(()),
             }
         }
 
