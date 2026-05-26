@@ -272,6 +272,32 @@ pub async fn process_span_messages(
             }
         }
 
+        // Dedup by `(project_id, id)`, keeping the LATEST occurrence. When a
+        // single flush touches the same trace via both the aggregation upsert
+        // AND a metadata patch, both stages return the same row — same
+        // `num_spans` (the patch UPDATE doesn't bump it), differing only in
+        // `metadata`. `traces_replacing` is `ReplacingMergeTree(num_spans)`,
+        // so two rows with identical version are undefined under merge — the
+        // pre-patch row could win and CH would diverge from the patched
+        // Postgres state. Metadata patches always extend `updated_traces`
+        // AFTER the aggregation upsert, so last-write-wins keeps the patched
+        // row.
+        if updated_traces.len() > 1 {
+            let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
+                HashMap::with_capacity(updated_traces.len());
+            for (i, t) in updated_traces.iter().enumerate() {
+                last_idx_by_key.insert((t.project_id(), t.id()), i);
+            }
+            let kept: std::collections::HashSet<usize> =
+                last_idx_by_key.into_values().collect();
+            let mut idx = 0;
+            updated_traces.retain(|_| {
+                let keep = kept.contains(&idx);
+                idx += 1;
+                keep
+            });
+        }
+
         if !updated_traces.is_empty() {
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
