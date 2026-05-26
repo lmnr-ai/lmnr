@@ -600,15 +600,8 @@
     {
       "idx": 85,
       "version": "7",
-      "when": 1779840000000,
-      "tag": "0085_lam_1612_projects_remove_pii",
-      "breakpoints": true
-    },
-    {
-      "idx": 86,
-      "version": "7",
       "when": 1779840100000,
-      "tag": "0086_lam_1612_projects_settings_jsonb",
+      "tag": "0085_lam_1612_projects_settings_jsonb",
       "breakpoints": true
     }
   ]
