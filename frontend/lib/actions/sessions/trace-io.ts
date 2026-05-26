@@ -4,8 +4,8 @@ import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/u
 import { tryParseJson } from "@/lib/actions/common/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
+import { fetcherJSON } from "@/lib/api/backend";
 import { type Span } from "@/lib/traces/types";
-import { fetcherJSON } from "@/lib/utils.ts";
 
 import { extractInputsForGroup, fingerprintUserMessage, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";

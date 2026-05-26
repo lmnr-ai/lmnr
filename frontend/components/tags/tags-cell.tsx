@@ -5,8 +5,9 @@ import { useMemo } from "react";
 import useSWR from "swr";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type TagClass } from "@/lib/traces/types";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const MAX_VISIBLE_CIRCLES = 5;
 

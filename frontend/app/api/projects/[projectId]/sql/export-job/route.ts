@@ -1,30 +1,20 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createExportJob } from "@/lib/actions/sql/export-job";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<NextResponse> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const POST = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
 
-  try {
-    const body = await req.json();
+  const body = await req.json();
 
-    const result = await createExportJob({
-      projectId,
-      ...body,
-    });
+  const result = await createExportJob({
+    projectId,
+    ...body,
+  });
 
-    return NextResponse.json({
-      success: true,
-      message: result.message,
-      jobId: result.jobId,
-      warnings: result.warnings,
-    });
-  } catch (e) {
-    if (e instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
-    }
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to export data." }, { status: 500 });
-  }
-}
+  return Response.json({
+    success: true,
+    message: result.message,
+    jobId: result.jobId,
+    warnings: result.warnings,
+  });
+});

@@ -27,9 +27,10 @@ import {
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime.ts";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 
 import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";

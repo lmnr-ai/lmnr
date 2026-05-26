@@ -7,7 +7,8 @@ import { useCallback, useState } from "react";
 import useSWR from "swr";
 
 import { Button } from "@/components/ui/button";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api.ts";
+import { formatTimestamp } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import DeleteRenderTemplateDialog from "./delete-render-template-dialog";

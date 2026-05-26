@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { fetcherJSON } from "@/lib/utils";
+import { fetcherJSON } from "@/lib/api/backend";
 
 export const ValidateQuerySchema = z.object({
   projectId: z.guid(),

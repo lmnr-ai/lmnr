@@ -9,8 +9,8 @@ import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluatio
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type Span } from "@/lib/traces/types";
-import { swrFetcher } from "@/lib/utils";
 
 interface HumanEvaluatorSpanViewProps {
   spanId: string;

@@ -1,23 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { getSlackChannels } from "@/lib/actions/slack";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
-  const params = await props.params;
-  const workspaceId = params.workspaceId;
+export const GET = apiHandler<{ workspaceId: string }>(async (_request, ctx) => {
+  const { workspaceId } = await ctx.params;
 
-  try {
-    const result = await getSlackChannels(workspaceId);
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch Slack channels." },
-      { status: 500 }
-    );
-  }
-}
+  const result = await getSlackChannels(workspaceId);
+  return Response.json(result);
+});

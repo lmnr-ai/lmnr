@@ -24,7 +24,7 @@ import {
   type SeverityLevel,
   type SignalEventAlertMetadata,
 } from "@/lib/actions/alerts/types";
-import { swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/api/fetch-api";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import DeleteAlertDialog from "./delete-alert-dialog";

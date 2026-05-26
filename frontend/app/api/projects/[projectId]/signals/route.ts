@@ -1,95 +1,57 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
+import { apiHandler } from "@/lib/api/api-handler";
 import { authOptions } from "@/lib/auth";
 
-export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = apiHandler<{ projectId: string }>(async (request, ctx) => {
+  const { projectId } = await ctx.params;
 
   const parseResult = parseUrlParams(request.nextUrl.searchParams, GetSignalsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  try {
-    const result = await getSignals({ ...parseResult.data, projectId });
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch signals." },
-      { status: 500 }
-    );
-  }
-}
+  const result = await getSignals({ ...parseResult.data, projectId });
+  return Response.json(result);
+});
 
-export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const POST = apiHandler<{ projectId: string }>(async (request, ctx) => {
+  const { projectId } = await ctx.params;
 
-  try {
-    const session = await getServerSession(authOptions);
-    const subscriberEmail = session?.user?.email ?? undefined;
-    const body = await request.json();
+  const session = await getServerSession(authOptions);
+  const subscriberEmail = session?.user?.email ?? undefined;
+  const body = await request.json();
 
-    const result = await createSignal({ ...body, projectId, subscriberEmail });
+  const result = await createSignal({ ...body, projectId, subscriberEmail });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create signal." },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});
 
-export async function PUT(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await props.params;
+export const DELETE = apiHandler<{ projectId: string }>(async (request, ctx) => {
+  const { projectId } = await ctx.params;
 
-  try {
-    const session = await getServerSession(authOptions);
-    const subscriberEmail = session?.user?.email ?? undefined;
-    const body = await request.json();
-    const result = await setTemplateSignals({ ...body, projectId, subscriberEmail });
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to set template signals." },
-      { status: 500 }
-    );
-  }
-}
+  const body = await request.json();
 
-export async function DELETE(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
+  const result = await deleteSignals({ projectId, ...body });
 
-  try {
-    const body = await request.json();
+  return Response.json(result);
+});
 
-    const result = await deleteSignals({ projectId, ...body });
+export const PUT = apiHandler<{ projectId: string }>(async (request, ctx) => {
+  const { projectId } = await ctx.params;
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete signals." },
-      { status: 500 }
-    );
-  }
-}
+  const session = await getServerSession(authOptions);
+
+  const subscriberEmail = session?.user?.email ?? undefined;
+
+  const body = await request.json();
+
+  const result = await setTemplateSignals({ ...body, projectId, subscriberEmail });
+
+  return NextResponse.json(result);
+});

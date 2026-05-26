@@ -17,8 +17,8 @@ import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { Operator } from "@/lib/actions/common/operators.ts";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils";
 
 const EmptyRow = (
   <TableRow className="flex">

@@ -27,8 +27,9 @@ import {
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { cn, swrFetcher } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 import { type Workspace, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
 
 interface WorkspaceSidebarHeaderProps {

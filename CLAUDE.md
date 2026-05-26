@@ -466,7 +466,33 @@ Prefer `AbortController` over hand-rolled "snapshot state at start, compare at r
 
 ### Error handling
 
-**Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
+**Use `fetchApi` instead of raw `fetch` for internal API calls in client code.**
+
+Client components, Zustand stores, and custom hooks that hit our own `/api/...` endpoints should use `fetchApi` from `@/lib/api/fetch-api`, not raw `fetch`. `fetchApi` returns `{ data, error, status }` and never throws (except `AbortError`), so call sites don't need `try/catch`. It also auto-reports network/parse failures to Sentry, while deliberately NOT reporting `!response.ok` cases (those are already captured server-side by `apiHandler` — double-reporting would create duplicate Sentry issues).
+
+```typescript
+import { fetchApi } from "@/lib/api/fetch-api";
+
+const { data, error } = await fetchApi<MyResponseType>(`/api/projects/${projectId}/resource`, {
+  method: "POST",
+  body: JSON.stringify(payload),
+});
+if (error) {
+  toast({ variant: "destructive", title: error });
+  return;
+}
+// use `data` (typed as MyResponseType)
+```
+
+Existing call sites that use raw `fetch` will be migrated incrementally — do not mass-migrate them in unrelated PRs. New code should always use `fetchApi`.
+
+**Exceptions** (continue using raw `fetch`):
+
+- Streaming responses (chat / SSE / `response.body.getReader()`)
+- Non-JSON responses (file downloads, blobs)
+- Calls to external (non-Laminar) APIs
+
+**Client-side fetch calls** (in `"use client"` components, raw `fetch`): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
 
 ```typescript
 try {
@@ -482,18 +508,20 @@ try {
 }
 ```
 
-**API route handlers** (`app/api/**/route.ts`): Wrap the handler body in `try/catch`. Distinguish `ZodError` (return 400 with `prettifyError()`) from other errors (return 500). Always return a JSON response with an `error` field.
+**API route handlers** (`app/api/**/route.ts`): Wrap the handler with `apiHandler` from `@/lib/api/api-handler`. The wrapper handles `ZodError → 400` / unknown → 500 and auto-captures uncaught errors to Sentry — you don't need a `try/catch` in the handler body.
 
 ```typescript
-try {
-  const result = await someAction(input);
+import { apiHandler } from "@/lib/api/api-handler";
+
+export const GET = apiHandler<{ projectId: string }>(async (req, ctx) => {
+  const { projectId } = await ctx.params;
+  const result = await someAction({ projectId });
   return Response.json(result);
-} catch (error) {
-  if (error instanceof ZodError) {
-    return Response.json({ error: prettifyError(error) }, { status: 400 });
-  }
-  return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
-}
+});
 ```
+
+Exceptions (don't wrap): streaming/SSE responses, file/binary downloads, webhook routes (Stripe, Slack), NextAuth handlers, routes with non-`{error: string}` error shapes.
+
+Do NOT set `http.route` / `http.method` tags on `Sentry.captureException` inside `apiHandler` (or anywhere else in App Router code). `@sentry/nextjs` (v8+) auto-instruments App Router via OpenTelemetry and already attaches the parameterized route (`/api/projects/[projectId]/...`) and method to the active root span, which captured exceptions inherit. Tagging `req.nextUrl.pathname` overrides that with a high-cardinality value (one per concrete request id) and breaks Sentry's per-route aggregation. Next.js does NOT expose the route pattern to handlers directly — rely on Sentry's auto-instrumentation rather than reconstructing it from `ctx.params`.
 
 **Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).

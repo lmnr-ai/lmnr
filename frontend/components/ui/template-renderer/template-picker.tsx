@@ -18,8 +18,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import JsxRenderer from "@/components/ui/template-renderer/jsx-renderer";
 import ManageTemplateDialog from "@/components/ui/template-renderer/manage-template-dialog";
+import { swrFetcher } from "@/lib/api/fetch-api.ts";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, swrFetcher } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import { defaultTemplateValues, type ManageTemplateForm, manageTemplateSchema, type Template } from "./index";
 import { useTemplateRenderer } from "./template-renderer-store";

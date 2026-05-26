@@ -13,9 +13,9 @@ import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
 
 interface SpanViewProps {
   spanId: string;

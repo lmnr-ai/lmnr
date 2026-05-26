@@ -8,9 +8,9 @@ import useSWR from "swr";
 
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type CustomModelCost } from "@/lib/actions/custom-model-costs";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
 import { ConfirmDialog } from "../ui/confirm-dialog";

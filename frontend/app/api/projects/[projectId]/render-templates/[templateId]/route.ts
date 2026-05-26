@@ -1,74 +1,32 @@
-import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteRenderTemplate, getRenderTemplate, updateRenderTemplate } from "@/lib/actions/render-template";
+import { apiHandler } from "@/lib/api/api-handler";
 
-export async function GET(
-  _request: Request,
-  props: {
-    params: Promise<{ projectId: string; templateId: string }>;
-  }
-) {
-  try {
-    const params = await props.params;
-    const { projectId, templateId } = params;
+export const GET = apiHandler<{ projectId: string; templateId: string }>(async (_req, ctx) => {
+  const { projectId, templateId } = await ctx.params;
 
-    const template = await getRenderTemplate({ projectId, templateId });
+  const template = await getRenderTemplate({ projectId, templateId });
 
-    return NextResponse.json(template);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  return Response.json(template);
+});
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to get template. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const PUT = apiHandler<{ projectId: string; templateId: string }>(async (req, ctx) => {
+  const { projectId, templateId } = await ctx.params;
+  const body = await req.json();
 
-export async function PUT(request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
-  try {
-    const params = await props.params;
-    const { projectId, templateId } = params;
-    const body = await request.json();
+  const result = await updateRenderTemplate({
+    projectId,
+    templateId,
+    name: body.name,
+    code: body.code,
+  });
 
-    const result = await updateRenderTemplate({
-      projectId,
-      templateId,
-      name: body.name,
-      code: body.code,
-    });
+  return Response.json(result);
+});
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
+export const DELETE = apiHandler<{ projectId: string; templateId: string }>(async (_req, ctx) => {
+  const { projectId, templateId } = await ctx.params;
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update template" },
-      { status: 500 }
-    );
-  }
-}
+  const result = await deleteRenderTemplate({ projectId, templateId });
 
-export async function DELETE(_request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
-  try {
-    const params = await props.params;
-    const { projectId, templateId } = params;
-
-    const result = await deleteRenderTemplate({ projectId, templateId });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete template" },
-      { status: 500 }
-    );
-  }
-}
+  return Response.json(result);
+});

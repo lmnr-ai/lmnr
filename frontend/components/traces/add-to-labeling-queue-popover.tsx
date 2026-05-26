@@ -8,11 +8,11 @@ import CreateQueueDialog from "@/components/queues/create-queue-dialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type LabelingQueue } from "@/lib/queue/types";
 import { type PaginatedResponse } from "@/lib/types";
-import { swrFetcher } from "@/lib/utils";
 
 interface AddToLabelingQueuePopoverProps {
   data?: {

@@ -16,8 +16,8 @@ import { useNotificationPanelStore } from "@/components/notifications/notificati
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
+import { swrFetcher } from "@/lib/api/fetch-api";
 import { useToast } from "@/lib/hooks/use-toast";
-import { swrFetcher } from "@/lib/utils";
 
 // Re-exported so existing `@/components/notifications/notification-panel`
 // imports (e.g. notification-trigger.tsx) keep resolving without changes.
