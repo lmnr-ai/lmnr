@@ -4,6 +4,7 @@ import { getOptimalTextColor, interpolateColor, normalizeValue, type RGBColor, t
 import {
   type EvalRow,
   type Evaluation,
+  type EvaluationScoreAnalysis,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
@@ -58,6 +59,7 @@ export type EvaluationStatsPayload = {
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+  allScoreAnalyses: Record<string, EvaluationScoreAnalysis>;
 };
 
 export type ScoreRanges = Record<string, ScoreRange>;

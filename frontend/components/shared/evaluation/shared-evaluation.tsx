@@ -9,9 +9,8 @@ import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import fullLogo from "@/assets/logo/logo.svg";
-import Chart from "@/components/evaluation/chart";
+import DistributionChart from "@/components/evaluation/distribution-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
-import ScoreCard from "@/components/evaluation/score-card";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -22,11 +21,11 @@ import {
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   type EvalRow,
   type Evaluation,
   type EvaluationResultsInfo,
+  type EvaluationScoreAnalysis,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
@@ -59,7 +58,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
     [scoreNames, customColumns, isShared]
   );
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
@@ -78,6 +76,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
     evaluation: Evaluation;
     allStatistics: Record<string, EvaluationScoreStatistics>;
     allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+    allScoreAnalyses: Record<string, EvaluationScoreAnalysis>;
   }>(statsUrl, swrFetcher);
 
   // SQL strings from column defs — only changes when columns structurally change.
@@ -146,13 +145,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
     [pathName, searchParams]
   );
 
-  // Shared evals don't get realtime updates, so `scoreNames` never grows;
-  // but if the seed list was empty (eval has no scored datapoints yet) and
-  // somehow becomes non-empty later, fall through to picking the first.
-  if (!selectedScore && scoreNames.length > 0) {
-    setSelectedScore(scoreNames[0]);
-  }
-
   const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth();
 
   return (
@@ -179,33 +171,12 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: Omit<SharedEv
         </div>
       </div>
       <div className="flex-1 flex flex-col gap-2 overflow-hidden p-4">
-        <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
-          {isStatsLoading ? (
-            <>
-              <Skeleton className="w-72 h-48" />
-              <Skeleton className="w-full h-48" />
-            </>
-          ) : (
-            <>
-              <div className="flex-none w-72">
-                <ScoreCard
-                  scores={scoreNames}
-                  selectedScore={selectedScore}
-                  setSelectedScore={setSelectedScore}
-                  statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
-                  isLoading={isStatsLoading}
-                />
-              </div>
-              <div className="grow">
-                <Chart
-                  scoreName={selectedScore}
-                  distribution={selectedScore ? (statsData?.allDistributions?.[selectedScore] ?? null) : null}
-                  isLoading={isStatsLoading}
-                />
-              </div>
-            </>
-          )}
-        </div>
+        <DistributionChart
+          scoreNames={scoreNames}
+          analyses={statsData?.allScoreAnalyses ?? {}}
+          isLoading={isStatsLoading}
+          persistKey={`shared-eval:${evaluationId}`}
+        />
         <EvaluationDatapointsTable
           isLoading={isStatsLoading || isLoadingDatapoints}
           datapointId={datapointId}

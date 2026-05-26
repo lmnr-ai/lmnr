@@ -8,7 +8,7 @@ import {
   type EvalQueryColumn,
 } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
-import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
+import { analyzeScore, calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { db } from "@/lib/db/drizzle";
@@ -16,6 +16,7 @@ import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
   type EvaluationResultsInfo,
+  type EvaluationScoreAnalysis,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
@@ -128,6 +129,7 @@ export async function getSharedEvaluationStatistics({
       evaluation: Evaluation;
       allStatistics: Record<string, EvaluationScoreStatistics>;
       allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
+      allScoreAnalyses: Record<string, EvaluationScoreAnalysis>;
     }
   | undefined
 > {
@@ -146,6 +148,7 @@ export async function getSharedEvaluationStatistics({
       evaluation,
       allStatistics: {},
       allDistributions: {},
+      allScoreAnalyses: {},
     };
   }
 
@@ -177,15 +180,23 @@ export async function getSharedEvaluationStatistics({
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
+  const allScoreAnalyses: Record<string, EvaluationScoreAnalysis> = {};
+
+  // Per-score pass thresholds storage is not yet implemented (see
+  // `getEvaluationStatistics`). Empty map → neutral chart rendering for
+  // continuous/discrete scores; binary keeps its implicit threshold of 1.
+  const passThresholds: Record<string, number | null> = {};
 
   scoreNamesInRows.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
+    allScoreAnalyses[scoreName] = analyzeScore(parsedResults as any, scoreName, passThresholds);
   });
 
   return {
     evaluation,
     allStatistics,
     allDistributions,
+    allScoreAnalyses,
   };
 }
