@@ -7,6 +7,8 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
+import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings, ProjectSettingsSchema } from "./settings";
+
 const LAST_PROJECT_ID = "last-project-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
@@ -177,6 +179,7 @@ export interface ProjectDetails {
   signalStepsLimit: number;
   logRetentionDays: number;
   isFreeTier: boolean;
+  settings: ProjectSettings;
 }
 
 export const getProjectDetails = async (projectId: string): Promise<ProjectDetails> => {
@@ -185,6 +188,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       id: projects.id,
       name: projects.name,
       workspaceId: projects.workspaceId,
+      settings: projects.settings,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -195,6 +199,13 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   }
 
   const project = projectResult[0];
+  // Tolerate older / hand-edited rows: anything the schema doesn't recognise
+  // falls back to defaults. `.partial()` lets the stored row omit keys.
+  const settingsParse = ProjectSettingsSchema.partial().safeParse(project.settings ?? {});
+  const settings: ProjectSettings = {
+    ...DEFAULT_PROJECT_SETTINGS,
+    ...(settingsParse.success ? settingsParse.data : {}),
+  };
 
   const workspaceResult = await db
     .select({
@@ -243,6 +254,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       signalStepsLimit,
       signalStepsUsedThisMonth: 0,
       isFreeTier,
+      settings,
     };
   }
 
@@ -260,6 +272,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     signalStepsUsedThisMonth: signalStepsUsedThisMonth,
     signalStepsLimit: signalStepsLimit,
     isFreeTier,
+    settings,
   };
 };
 

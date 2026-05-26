@@ -15,6 +15,7 @@ use crate::{
     ch::cloud::CloudClickhouse,
     db::DB,
     mq::MessageQueue,
+    pii_redactor::PiiRedactorClient,
     pubsub::PubSub,
     quickwit::outbox::IndexerOutbox,
     worker::HandlerError,
@@ -32,6 +33,7 @@ pub struct SpanHandler {
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: CloudClickhouse,
     pub pubsub: Arc<PubSub>,
+    pub pii_redactor: Option<PiiRedactorClient>,
     pub config: BatchingConfig,
 }
 
@@ -127,6 +129,7 @@ impl SpanHandler {
             self.indexer_outbox.clone(),
             self.pubsub.clone(),
             self.ch.clone(),
+            self.pii_redactor.clone(),
             None,
         )
         .await
