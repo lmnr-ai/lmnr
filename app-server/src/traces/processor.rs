@@ -43,7 +43,18 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    queue,
+    indexer_outbox,
+    pubsub,
+    ch,
+    pii_redactor,
+    config
+))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
