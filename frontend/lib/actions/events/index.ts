@@ -46,6 +46,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
       startDate,
       endDate,
       filter,
+      searchQuery,
     });
   }
 

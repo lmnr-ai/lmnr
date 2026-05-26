@@ -5,6 +5,7 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
+import { searchSignalEventIds } from "./search";
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema.extend({
@@ -12,16 +13,45 @@ export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema
   projectId: z.guid(),
   signalId: z.guid(),
   emergingClusterId: z.guid(),
+  searchQuery: z.string().optional(),
 });
 
 export async function getEventsByEmergingClusterPaginated(
   input: z.infer<typeof GetEventsByEmergingClusterPaginatedSchema>
 ): Promise<{ items: EventRow[]; count: number }> {
-  const { projectId, signalId, emergingClusterId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const {
+    projectId,
+    signalId,
+    emergingClusterId,
+    pageSize,
+    pageNumber,
+    pastHours,
+    startDate,
+    endDate,
+    filter,
+    searchQuery,
+  } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
+
+  let idFilter: string[] | undefined;
+  const trimmedSearchQuery = searchQuery?.trim();
+  if (trimmedSearchQuery) {
+    const ids = await searchSignalEventIds({
+      projectId,
+      signalId,
+      searchQuery: trimmedSearchQuery,
+      pastHours,
+      startDate,
+      endDate,
+    });
+    if (ids.length === 0) {
+      return { items: [], count: 0 };
+    }
+    idFilter = ids;
+  }
 
   // signal_events_all_v0 includes L0 cluster ids in the `clusters` array,
   // so the normal cluster filter path (hasAny) works for emerging clusters.
@@ -34,6 +64,7 @@ export async function getEventsByEmergingClusterPaginated(
     endTime: endDate,
     pastHours,
     clusterFilter: [emergingClusterId],
+    idFilter,
     table: "signal_events_all",
   });
 
@@ -44,6 +75,7 @@ export async function getEventsByEmergingClusterPaginated(
     endTime: endDate,
     pastHours,
     clusterFilter: [emergingClusterId],
+    idFilter,
     table: "signal_events_all",
   });
 
