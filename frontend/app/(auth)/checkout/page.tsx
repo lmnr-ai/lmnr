@@ -22,17 +22,15 @@ export default async function CheckoutPage(props: {
   const lookupKey = (searchParams?.lookupKey as string) ?? TIER_CONFIG.hobby.lookupKey;
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;
+  // Caller-controlled landing target. The onboarding wizard sets this so it
+  // can run its own finalize path (DELETE cookie + go to project); in-app
+  // upgrade flows (workspace billing) omit it and keep the legacy behavior.
+  const returnTo = searchParams?.returnTo as string | undefined;
 
-  const userSession = await getServerSession(authOptions);
-  if (!userSession) {
-    if (workspaceId) {
-      redirect(`/sign-in?callbackUrl=/workspace/${workspaceId}`);
-    } else {
-      redirect(`/sign-in`);
-    }
-  }
+  // Session enforced by the (auth) layout; non-null here.
+  const userSession = (await getServerSession(authOptions))!;
 
-  const existingStripeCustomer = await getUserSubscriptionInfo(userSession!.user.email!);
+  const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
 
   const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -40,7 +38,7 @@ export default async function CheckoutPage(props: {
     existingStripeCustomer?.stripeCustomerId ||
     (
       await s.customers.create({
-        email: userSession!.user.email!,
+        email: userSession.user.email!,
       })
     ).id;
 
@@ -48,7 +46,7 @@ export default async function CheckoutPage(props: {
     existingStripeCustomer?.userId ??
     (
       await db.query.users.findFirst({
-        where: eq(users.email, userSession!.user.email!),
+        where: eq(users.email, userSession.user.email!),
       })
     )?.id;
 
@@ -71,8 +69,14 @@ export default async function CheckoutPage(props: {
       });
   }
 
-  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
-  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
+  const successUrl =
+    returnTo === "onboarding"
+      ? `${process.env.NEXT_PUBLIC_URL}/onboarding?upgraded=true&sessionId={CHECKOUT_SESSION_ID}`
+      : `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
+  const cancelUrl =
+    returnTo === "onboarding"
+      ? `${process.env.NEXT_PUBLIC_URL}/onboarding`
+      : `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
 
   // Only send the flat plan price to checkout – overage prices are added
   // server-side in the subscription.created webhook to avoid confusing

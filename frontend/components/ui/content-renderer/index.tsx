@@ -4,7 +4,7 @@ import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import Messages from "@/components/traces/span-view/messages";
+import Messages, { type MessageLabel } from "@/components/traces/span-view/messages";
 import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
@@ -46,6 +46,7 @@ interface ContentRendererProps {
   contentPartIndex?: number;
   hideScrollToBottom?: boolean;
   messageMaxHeight?: number;
+  messageLabels?: MessageLabel[];
   customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
   /**
    * Extra CodeMirror extensions appended to the built-in set. Use `Prec.highest`
@@ -84,6 +85,7 @@ const PureContentRenderer = ({
   contentPartIndex = 0,
   hideScrollToBottom,
   messageMaxHeight,
+  messageLabels,
   customTheme,
   extraExtensions,
 }: ContentRendererProps) => {
@@ -286,6 +288,7 @@ const PureContentRenderer = ({
               presetKey={presetKey ?? ""}
               hideScrollToBottom={hideScrollToBottom}
               maxHeight={messageMaxHeight}
+              labels={messageLabels}
             />
           </div>
         ) : (

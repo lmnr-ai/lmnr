@@ -1,6 +1,7 @@
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
-import { getReports, optInReport, optOutReport } from "@/lib/actions/reports";
+import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
 import { apiHandler } from "@/lib/api/api-handler";
 import { authOptions } from "@/lib/auth";
 
@@ -27,6 +28,18 @@ export const POST = apiHandler<{ workspaceId: string }>(async (request, ctx) => 
   }
   const result = await optInReport({ ...body, workspaceId, email });
   return Response.json(result);
+});
+
+export const PUT = apiHandler<{ workspaceId: string }>(async (request, ctx) => {
+  const { workspaceId } = await ctx.params;
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const body = await request.json();
+  const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
+  return NextResponse.json(result);
 });
 
 export const DELETE = apiHandler<{ workspaceId: string }>(async (request, ctx) => {

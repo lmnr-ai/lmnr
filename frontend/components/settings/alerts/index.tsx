@@ -1,8 +1,7 @@
 "use client";
 
 import { isEmpty, isNil } from "lodash";
-import { Ellipsis, Lock, Pen, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Ellipsis, Pen, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 
@@ -16,8 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import {
   ALERT_TYPE,
@@ -28,7 +25,6 @@ import {
   type SignalEventAlertMetadata,
 } from "@/lib/actions/alerts/types";
 import { swrFetcher } from "@/lib/api/fetch-api";
-import { Feature } from "@/lib/features/features";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
 import DeleteAlertDialog from "./delete-alert-dialog";
@@ -48,49 +44,19 @@ export default function AlertsSettings({
   slackClientId,
   slackRedirectUri,
 }: AlertsSettingsProps) {
-  const { workspace } = useProjectContext();
   const { email: userEmail } = useUserContext();
-  const featureFlags = useFeatureFlags();
 
-  const isFreeTier = featureFlags[Feature.SUBSCRIPTION] && workspace?.tierName?.toLowerCase() === "free";
-
-  const { data: slackIntegration } = useSlackIntegration(workspaceId, !isFreeTier);
+  const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
   const {
     data: alertsList,
     isLoading: isLoadingAlerts,
     mutate: mutateAlerts,
-  } = useSWR<AlertWithDetails[]>(isFreeTier ? null : `/api/projects/${projectId}/alerts`, swrFetcher);
+  } = useSWR<AlertWithDetails[]>(`/api/projects/${projectId}/alerts`, swrFetcher);
 
   const [deleteTarget, setDeleteTarget] = useState<AlertWithDetails | null>(null);
   const [editTarget, setEditTarget] = useState<AlertWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  if (isFreeTier) {
-    return (
-      <SettingsSection>
-        <SettingsSectionHeader title="Alerts" description="Configure alerts." />
-        <div className="rounded-lg border border-border bg-muted/30 p-5 flex items-start gap-4">
-          <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
-            <Lock className="h-5 w-5" />
-          </div>
-          <div className="space-y-3 flex-1">
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">Upgrade to configure alerts</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Alerts are available on paid plans. Upgrade your workspace to start receiving notifications.
-              </p>
-            </div>
-            <Link href={`/workspace/${workspaceId}?tab=billing`}>
-              <Button variant="outline" className="bg-secondary">
-                View pricing
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </SettingsSection>
-    );
-  }
 
   return (
     <SettingsSection>

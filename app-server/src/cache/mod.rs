@@ -5,6 +5,7 @@ use in_memory::InMemoryCache;
 use redis::RedisCache;
 
 pub mod autocomplete;
+pub mod connection;
 pub mod in_memory;
 pub mod keys;
 pub mod redis;
@@ -61,4 +62,9 @@ pub trait CacheTrait {
 
     /// Check if a key exists in the cache
     async fn exists(&self, key: &str) -> Result<bool, CacheError>;
+
+    /// Returns true when the underlying transport is healthy. The InMemory
+    /// variant is always healthy; the Redis variant reflects the
+    /// `ResilientRedisConnection`'s last-known PING outcome.
+    fn is_healthy(&self) -> bool;
 }

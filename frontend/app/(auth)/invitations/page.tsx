@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 
 import InvitationActions from "@/components/invitations/invitation-actions";
 import { LaminarLogo } from "@/components/ui/icons";
+import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
@@ -42,6 +43,10 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 
         await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
+
+      // Joining a real team workspace supersedes any in-progress wizard — without
+      // this clear, the (app) layout would bounce /workspace/<id> back to /onboarding.
+      await clearOnboardingState();
 
       revalidatePath(`/workspace/${workspaceId}`);
       redirect(`/workspace/${workspaceId}`);

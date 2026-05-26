@@ -2,20 +2,31 @@ use backoff::ExponentialBackoffBuilder;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    BasicProperties, Channel, Consumer,
-    acker::Acker,
+    Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
     types::{FieldTable, ShortString},
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
-    MessageQueueReceiverTrait, MessageQueueTrait, connection::ResilientConnection,
+    MessageQueueReceiverTrait, MessageQueueTrait,
 };
 
+/// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
+/// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
+/// can leave channel ops stalled for tens of seconds before the alarm clears.
+static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| {
+    let secs = std::env::var("RABBITMQ_CONSUMER_SETUP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60);
+    Duration::from_secs(secs)
+});
+
 struct RabbitChannelManager {
-    connection: Arc<ResilientConnection>,
+    connection: Arc<Connection>,
 }
 
 impl Manager for RabbitChannelManager {
@@ -24,19 +35,11 @@ impl Manager for RabbitChannelManager {
 
     async fn create(&self) -> Result<Channel, Self::Error> {
         let create_channel = || async {
-            // Read the latest connection on every attempt: if the supervisor
-            // swapped a fresh one in mid-backoff we pick it up automatically.
-            self.connection
-                .current()
-                .create_channel()
-                .await
-                .map_err(|e| {
-                    log::warn!("Failed to create channel: {:?}", e);
-                    self.connection.notify_error();
-                    backoff::Error::transient(anyhow::Error::from(e))
-                })
+            self.connection.create_channel().await.map_err(|e| {
+                log::warn!("Failed to create channel: {:?}", e);
+                backoff::Error::transient(anyhow::Error::from(e))
+            })
         };
-
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(std::time::Duration::from_millis(100))
             .with_max_interval(std::time::Duration::from_secs(5))
@@ -75,8 +78,8 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    publisher_connection: Arc<ResilientConnection>,
-    consumer_connection: Option<Arc<ResilientConnection>>,
+    publisher_connection: Arc<Connection>,
+    consumer_connection: Option<Arc<Connection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
 }
 
@@ -126,8 +129,8 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 
 impl RabbitMQ {
     pub fn new(
-        publisher_connection: Arc<ResilientConnection>,
-        consumer_connection: Option<Arc<ResilientConnection>>,
+        publisher_connection: Arc<Connection>,
+        consumer_connection: Option<Arc<Connection>>,
         max_channel_pool_size: usize,
     ) -> Self {
         let manager = RabbitChannelManager {
@@ -170,7 +173,6 @@ impl MessageQueueTrait for RabbitMQ {
                 Ok(channel) => channel,
                 Err(PoolError::Backend(e)) => {
                     log::warn!("Failed to get channel from pool: {}", e);
-                    self.publisher_connection.notify_error();
                     return Err(backoff::Error::transient(anyhow::anyhow!(
                         "Failed to get channel from pool: {}",
                         e
@@ -188,7 +190,6 @@ impl MessageQueueTrait for RabbitMQ {
             // Check if channel is still connected before using it
             if !channel.status().connected() {
                 log::warn!("Channel is not connected, retrying...");
-                self.publisher_connection.notify_error();
                 return Err(backoff::Error::transient(anyhow::anyhow!(
                     "Channel is not connected"
                 )));
@@ -196,8 +197,8 @@ impl MessageQueueTrait for RabbitMQ {
 
             match channel
                 .basic_publish(
-                    exchange,
-                    routing_key,
+                    exchange.into(),
+                    routing_key.into(),
                     BasicPublishOptions::default(),
                     message,
                     properties.clone(),
@@ -208,13 +209,11 @@ impl MessageQueueTrait for RabbitMQ {
                     Ok(_confirmation) => Ok(()),
                     Err(e) => {
                         log::warn!("Failed to publish message promise: {:?}", e);
-                        self.publisher_connection.notify_error();
                         Err(backoff::Error::transient(anyhow::Error::from(e)))
                     }
                 },
                 Err(e) => {
                     log::warn!("Failed to get call promise from basic_publish: {:?}", e);
-                    self.publisher_connection.notify_error();
                     Err(backoff::Error::transient(anyhow::Error::from(e)))
                 }
             }
@@ -253,57 +252,68 @@ impl MessageQueueTrait for RabbitMQ {
             )
         })?;
 
-        let connection = consumer_conn.current();
-        if !connection.status().connected() {
-            consumer_conn.notify_error();
+        if !consumer_conn.status().connected() {
             return Err(anyhow::anyhow!(
                 "Consumer connection is not in connected state: {:?}",
-                connection.status().state()
+                connection_state(consumer_conn.status())
             ));
         }
 
-        let channel = match connection.create_channel().await {
-            Ok(channel) => channel,
-            Err(e) => {
-                consumer_conn.notify_error();
-                return Err(anyhow::Error::from(e));
-            }
+        // Bound the entire setup chain. lapin can hang inside `basic_consume` /
+        // `create_channel` against a half-dead connection; without this the
+        // worker's outer backoff retry never fires another attempt.
+        let setup = async {
+            let channel = consumer_conn
+                .create_channel()
+                .await
+                .map_err(|e| anyhow::Error::from(e))?;
+
+            channel
+                .basic_qos(prefetch_count, BasicQosOptions::default())
+                .await?;
+
+            channel
+                .queue_bind(
+                    queue_name.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                    QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await?;
+
+            let consumer = channel
+                .basic_consume(
+                    queue_name.into(),
+                    routing_key.into(),
+                    BasicConsumeOptions::default(),
+                    FieldTable::default(),
+                )
+                .await?;
+
+            anyhow::Ok(consumer)
         };
 
-        // We want to limit the number of unacknowledged messages RabbitMQ will deliver,
-        // preventing unbounded memory growth of rabbitmq pod
-        channel
-            .basic_qos(prefetch_count, BasicQosOptions::default())
-            .await?;
-
-        channel
-            .queue_bind(
-                queue_name,
-                exchange,
-                routing_key,
-                QueueBindOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
-
-        let consumer = channel
-            .basic_consume(
-                queue_name,
-                routing_key,
-                BasicConsumeOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
+        let consumer = match tokio::time::timeout(*CONSUMER_SETUP_TIMEOUT, setup).await {
+            Ok(Ok(consumer)) => consumer,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "Timed out setting up RabbitMQ consumer for queue '{}'",
+                    queue_name
+                ));
+            }
+        };
 
         Ok(RabbitMQReceiver { consumer }.into())
     }
 
     fn is_healthy(&self) -> bool {
-        let publisher_ok = self.publisher_connection.is_connected();
+        let publisher_ok = self.publisher_connection.status().connected();
         if !publisher_ok {
             log::error!(
                 "RabbitMQ readiness: publisher connection is not connected (state: {:?})",
-                self.publisher_connection.current().status().state()
+                connection_state(self.publisher_connection.status())
             );
         }
 
@@ -311,11 +321,11 @@ impl MessageQueueTrait for RabbitMQ {
             .consumer_connection
             .as_ref()
             .map(|c| {
-                let connected = c.is_connected();
+                let connected = c.status().connected();
                 if !connected {
                     log::error!(
                         "RabbitMQ readiness: consumer connection is not connected (state: {:?})",
-                        c.current().status().state()
+                        connection_state(c.status())
                     );
                 }
                 connected
@@ -324,4 +334,25 @@ impl MessageQueueTrait for RabbitMQ {
 
         publisher_ok && consumer_ok
     }
+}
+
+fn connection_state(status: &ConnectionStatus) -> String {
+    let s = if status.blocked() {
+        "blocked"
+    } else if status.closed() {
+        "closed"
+    } else if status.closing() {
+        "closing"
+    } else if status.connected() {
+        "connected"
+    } else if status.connecting() {
+        "connecting"
+    } else if status.errored() {
+        "errored"
+    } else if status.reconnecting() {
+        "reconnecting"
+    } else {
+        "unknown"
+    };
+    s.to_string()
 }
