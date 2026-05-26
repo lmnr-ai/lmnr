@@ -2,9 +2,13 @@
 #
 # pii-redactor — gRPC service that redacts PII from a list of texts on CPU.
 #
-# The default build bakes in OpenAI's privacy-filter int8-quantized ONNX
-# export (~1.6 GB) pulled from HuggingFace at build time, so the resulting
-# image is fully self-contained at runtime — no `./models/` prep needed.
+# The default build bakes in OpenAI's privacy-filter FP32 ONNX export
+# (~5.4 GB across three external-data shards) pulled from HuggingFace at
+# build time, so the resulting image is fully self-contained at runtime —
+# no `./models/` prep needed. FP32 is intentional on CPU: MLAS has a
+# tuned FP32 GEMM and no kernel coverage for the int8 graph's
+# GatherBlockQuantized layout, so the int8 variant runs slower (per-op
+# de-quant fallback) and floods logs with "unpacked compute mode".
 #
 # To use a different model:
 #   - Override the HF_* build args at `docker build` time (see `weights`
@@ -43,16 +47,19 @@ ARG HF_MODEL=openai/privacy-filter
 # Latest commit on `main` as of writing. Bump by checking
 # https://huggingface.co/api/models/openai/privacy-filter (sha field).
 ARG HF_REVISION=7ffa9a043d54d1be65afb281eddf0ffbe629385b
-# Repo-relative paths. Defaults pick the int8 dynamic-quantized variant
-# (~1.6 GB, fastest on CPU). Note: this model uses GatherBlockQuantized.bits
-# which needs ORT 1.23+, so ORT_VERSION below must stay on 1.24.x and the
-# matching `ort` Rust crate (`=2.0.0-rc.12` in Cargo.toml) is required.
-# To swap variants, override at build time, e.g.:
-#   --build-arg HF_MODEL_FILE=onnx/model_q4.onnx \
-#   --build-arg HF_MODEL_DATA_FILES=onnx/model_q4.onnx_data
-# HF_MODEL_DATA_FILES is a space-separated list (FP32 has 3 shards).
-ARG HF_MODEL_FILE=onnx/model_quantized.onnx
-ARG HF_MODEL_DATA_FILES="onnx/model_quantized.onnx_data"
+# Repo-relative paths. Defaults pick the FP32 graph (3 external-data
+# shards, ~5.4 GB total). MLAS — ORT's CPU MatMul backend — has a
+# tuned FP32 GEMM and zero kernel coverage for the GatherBlockQuantized
+# layout used by `model_quantized.onnx`, so on CPU the FP32 graph is
+# faster end-to-end (no per-MatMul de-quantize → fp32 fallback) and
+# stops emitting hundreds of "unpacked compute mode" / BFCArena lines
+# per inference. The image is ~3 GB larger but throughput is what we
+# care about.
+# To swap variants, override at build time, e.g. revert to int8:
+#   --build-arg HF_MODEL_FILE=onnx/model_quantized.onnx \
+#   --build-arg HF_MODEL_DATA_FILES=onnx/model_quantized.onnx_data
+ARG HF_MODEL_FILE=onnx/model.onnx
+ARG HF_MODEL_DATA_FILES="onnx/model.onnx_data onnx/model.onnx_data_1 onnx/model.onnx_data_2"
 ARG HF_TOKENIZER_FILE=tokenizer.json
 ARG HF_CONFIG_FILE=config.json
 
@@ -62,8 +69,9 @@ RUN apt-get update \
 
 WORKDIR /models
 
-# One RUN to keep this as a single ~1.6 GB layer; --fail turns 4xx/5xx into
-# build failures rather than truncated downloads, --retry covers HF CDN blips.
+# One RUN to keep this as a single layer (~5.4 GB for FP32); --fail turns
+# 4xx/5xx into build failures rather than truncated downloads, --retry
+# covers HF CDN blips.
 RUN set -eux; \
     HF_BASE="https://huggingface.co/${HF_MODEL}/resolve/${HF_REVISION}"; \
     curl -L --fail --retry 5 --retry-delay 2 -o tokenizer.json "${HF_BASE}/${HF_TOKENIZER_FILE}"; \

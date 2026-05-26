@@ -11,8 +11,10 @@ path = "src/main.rs"
 anyhow = "1"
 clap = {version = "4", features = ["derive", "env"]}
 ndarray = "0.17"
-# `api-24` pins the runtime to ONNX Runtime 1.24.x — required by the int8
-# `model_quantized.onnx` op set (GatherBlockQuantized.bits, added in 1.23).
+# `api-24` pins the runtime to ONNX Runtime 1.24.x. FP32 (the default
+# graph) only needs ~1.18+, but the build-arg override path supports the
+# int8 `model_quantized.onnx` variant whose op set requires 1.23+
+# (GatherBlockQuantized.bits). Keeping 1.24 keeps both builds working.
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"]}
 prost = "0.14"
 serde = {version = "1", features = ["derive"]}

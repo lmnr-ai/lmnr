@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use tonic::transport::Channel;
-use tracing::{Instrument, instrument};
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
@@ -72,7 +72,6 @@ enum Target {
 /// Resolve `settings.remove_pii` for every unique project in `recordable_indices`,
 /// going through the cached billing-info path so repeat batches are free.
 /// Returns the set of opted-in project ids — empty set means "no work".
-#[instrument(skip_all, fields(unique_projects = tracing::field::Empty, opted_in = tracing::field::Empty))]
 async fn resolve_opted_in_projects(
     spans: &[Span],
     recordable_indices: &[usize],
@@ -83,7 +82,6 @@ async fn resolve_opted_in_projects(
         .iter()
         .map(|&i| spans[i].project_id)
         .collect();
-    tracing::Span::current().record("unique_projects", unique.len());
     let mut opted_in: HashSet<Uuid> = HashSet::with_capacity(unique.len());
     for project_id in unique {
         match get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await {
@@ -96,7 +94,6 @@ async fn resolve_opted_in_projects(
             }
         }
     }
-    tracing::Span::current().record("opted_in", opted_in.len());
     opted_in
 }
 
@@ -112,16 +109,6 @@ async fn resolve_opted_in_projects(
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
-#[instrument(
-    skip_all,
-    fields(
-        recordable_spans = recordable_indices.len(),
-        batch_size = tracing::field::Empty,
-        dedup_messages = tracing::field::Empty,
-        whole_inputs = tracing::field::Empty,
-        whole_outputs = tracing::field::Empty,
-    )
-)]
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
@@ -206,25 +193,18 @@ pub async fn redact_spans_in_place(
         return;
     }
 
-    let mut dedup_msg_count = 0usize;
-    let mut whole_input_count = 0usize;
-    let mut whole_output_count = 0usize;
-    for target in &targets {
-        match target {
-            Target::DedupMessage(_) => dedup_msg_count += 1,
-            Target::Input(_) => whole_input_count += 1,
-            Target::Output(_) => whole_output_count += 1,
-        }
-    }
-    let current = tracing::Span::current();
-    current.record("batch_size", texts.len());
-    current.record("dedup_messages", dedup_msg_count);
-    current.record("whole_inputs", whole_input_count);
-    current.record("whole_outputs", whole_output_count);
-
-    // Span the RPC separately so its latency can be charted distinct from
-    // the surrounding bookkeeping.
-    let rpc_span = tracing::info_span!("pii_redactor.rpc", batch_size = texts.len());
+    // Per-element char counts so the trace shows the shape of the request,
+    // not just the count. Helps explain RPC latency (one giant 200k-char
+    // text vs. fifty 4k texts have very different cost profiles even
+    // though `batch_size` is the same).
+    let char_counts: Vec<usize> = texts.iter().map(|t| t.chars().count()).collect();
+    let total_chars: usize = char_counts.iter().sum();
+    let rpc_span = tracing::info_span!(
+        "pii_redactor.rpc",
+        batch_size = texts.len(),
+        total_chars,
+        char_counts = ?char_counts,
+    );
     let redacted = match client.redact(texts).instrument(rpc_span).await {
         Ok(r) => r,
         Err(e) => {

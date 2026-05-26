@@ -124,18 +124,27 @@ docker build -t lmnr/pii-redactor:latest .
 docker run --rm -p 8910:8910 lmnr/pii-redactor:latest
 ```
 
-The `Dockerfile` pulls the int8-quantized OpenAI privacy-filter ONNX export
-(~1.6 GB) plus tokenizer & config from HuggingFace at build time, pinned to
-a specific commit for reproducibility. The final image embeds the weights
-and `libonnxruntime.so`, so it boots without any external resources.
+The `Dockerfile` pulls the FP32 OpenAI privacy-filter ONNX export
+(~5.4 GB across three external-data shards) plus tokenizer & config from
+HuggingFace at build time, pinned to a specific commit for
+reproducibility. The final image embeds the weights and
+`libonnxruntime.so`, so it boots without any external resources.
 
-To bake in a different model variant (FP16 / Q4 / FP32), override the build
-args. Example for the Q4 variant (~917 MB):
+FP32 is intentional on CPU: MLAS (ORT's CPU MatMul backend) has a tuned
+FP32 GEMM and **no** kernel coverage for the int8 graph's
+GatherBlockQuantized layout, so the int8 variant runs slower (per-op
+de-quantize-to-fp32 fallback) and floods logs with "unpacked compute
+mode for the Matmul operation" lines. fp16 has the same issue on x86
+CPU — MLAS inserts implicit Casts back to fp32. Use FP32 unless you're
+running on a backend with a fused fp16/int8 MatMul kernel.
+
+To bake in a different model variant, override the build args. Example
+to revert to int8 (smaller image, slower inference on CPU):
 
 ```bash
 docker build -t lmnr/pii-redactor:latest \
-  --build-arg HF_MODEL_FILE=onnx/model_q4.onnx \
-  --build-arg HF_MODEL_DATA_FILES=onnx/model_q4.onnx_data \
+  --build-arg HF_MODEL_FILE=onnx/model_quantized.onnx \
+  --build-arg HF_MODEL_DATA_FILES=onnx/model_quantized.onnx_data \
   .
 ```
 
@@ -199,22 +208,22 @@ the right call on CPU:
 
 | File                       | Size    | Notes                            |
 |----------------------------|---------|----------------------------------|
-| `onnx/model.onnx` + `model.onnx_data*` | ~5.5 GB | full FP32 weights      |
-| `onnx/model_fp16.onnx`     | ~2.8 GB | half precision                   |
-| `onnx/model_quantized.onnx` + `model_quantized.onnx_data` | ~1.6 GB | int8 dynamic — recommended for CPU |
-| `onnx/model_q4.onnx`       | ~917 MB | int4 — smallest, slight accuracy hit |
+| `onnx/model.onnx` + `model.onnx_data*` (3 shards) | ~5.4 GB | full FP32 weights — recommended for CPU |
+| `onnx/model_fp16.onnx` + 2 shards | ~2.8 GB | half precision — implicit Cast→fp32 on x86 CPU, no real win |
+| `onnx/model_quantized.onnx` + `model_quantized.onnx_data` | ~1.6 GB | int8 dynamic — runs slower than FP32 on CPU due to MLAS de-quant fallback |
+| `onnx/model_q4.onnx`       | ~917 MB | int4 — smallest, similar fallback story |
 
 ```bash
 pip install -U "huggingface_hub[cli]"
 mkdir -p models
 huggingface-cli download openai/privacy-filter \
   tokenizer.json config.json \
-  onnx/model_quantized.onnx onnx/model_quantized.onnx_data \
+  onnx/model.onnx onnx/model.onnx_data onnx/model.onnx_data_1 onnx/model.onnx_data_2 \
   --local-dir ./hf_download
 
 cp ./hf_download/tokenizer.json ./hf_download/config.json models/
-cp ./hf_download/onnx/model_quantized.onnx        models/model.onnx
-cp ./hf_download/onnx/model_quantized.onnx_data   models/model_quantized.onnx_data
+cp ./hf_download/onnx/model.onnx          models/model.onnx
+cp ./hf_download/onnx/model.onnx_data*    models/
 ```
 
 Note: ONNX external-data files (`*.onnx_data`, `*.onnx_data_1`, …) MUST sit
