@@ -1,6 +1,7 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { ArrowUpRight, Lock } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -8,6 +9,7 @@ import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
+import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 
@@ -70,10 +72,20 @@ export default function PiiRedaction() {
         <Switch checked={enabled} onCheckedChange={onToggle} disabled={!isProTier || isLoading} />
         <span className="text-sm text-muted-foreground">{enabled ? "Enabled" : "Disabled"}</span>
         {!isProTier && (
-          <span className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            <Lock className="size-3" />
-            Pro plan required
-          </span>
+          <>
+            <span className="ml-2 inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <Lock className="size-3" />
+              Pro plan required
+            </span>
+            {workspace && (
+              <Button asChild size="sm" variant="outline" className="h-7">
+                <Link href={`/workspace/${workspace.id}?tab=billing`}>
+                  Upgrade plan
+                  <ArrowUpRight className="ml-1 size-3" />
+                </Link>
+              </Button>
+            )}
+          </>
         )}
       </div>
     </SettingsSection>

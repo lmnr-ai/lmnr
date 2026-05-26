@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Code2, DollarSign, Key, Settings2, Sparkles } from "lucide-react";
+import { Bell, Code2, DollarSign, Key, Settings2, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
@@ -36,7 +36,14 @@ interface SettingsProps {
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "alerts" | "model-costs" | "render-templates";
+type SettingsTab =
+  | "general"
+  | "project-api-keys"
+  | "provider-api-keys"
+  | "alerts"
+  | "model-costs"
+  | "render-templates"
+  | "security";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
@@ -44,6 +51,7 @@ const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
   { id: "model-costs", label: "Model Costs", icon: <DollarSign /> },
   { id: "render-templates", label: "Render Templates", icon: <Code2 /> },
+  { id: "security", label: "Security", icon: <ShieldCheck /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
 
@@ -66,8 +74,19 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
             <SettingsSectionHeader title="General" description="Manage your project settings and preferences" />
             <div className="flex flex-col gap-8">
               <RenameProject />
-              <PiiRedaction />
               <DeleteProject />
+            </div>
+          </>
+        );
+      case "security":
+        return (
+          <>
+            <SettingsSectionHeader
+              title="Security"
+              description="Control how this project handles sensitive data."
+            />
+            <div className="flex flex-col gap-8">
+              <PiiRedaction />
             </div>
           </>
         );
