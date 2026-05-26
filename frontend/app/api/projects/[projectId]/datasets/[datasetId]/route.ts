@@ -12,7 +12,7 @@ export const GET = apiHandler<{ projectId: string; datasetId: string }>(async (r
     where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
   });
 
-  return Response.json(dataset);
+  return Response.json(dataset ?? null);
 });
 
 export const PATCH = apiHandler<{ projectId: string; datasetId: string }>(async (req, ctx) => {
