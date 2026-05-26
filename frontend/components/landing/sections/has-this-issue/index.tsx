@@ -18,7 +18,7 @@ const HasThisIssue = () => (
           viewports) the auto margins collapse to 0 so the mock sticks
           to the start edge instead of overflowing symmetrically.
           shrink-0 keeps the mock at its natural width. */}
-      <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
+      <div className="shrink-0 mx-auto sm:scale-none scale-[80%] origin-left">
         <SignalEventClustersMock />
       </div>
       <SectionFootnote name="Signal clusters" href="https://laminar.sh/docs/signals/clusters" />

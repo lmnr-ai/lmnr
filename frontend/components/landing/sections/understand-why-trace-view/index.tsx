@@ -143,7 +143,7 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      <section ref={sectionRef} className={cn("relative w-full mx-auto", LANDING_COLUMN_MAX_W)}>
+      <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
         <div className="flex gap-18">
           {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll

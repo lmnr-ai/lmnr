@@ -28,4 +28,4 @@ export const microLabel = "text-sm text-landing-text-400";
 
 // Center-column width for the landing/blog/pricing pages. Scales up on
 // xl/2xl screens so the column doesn't look cramped on large displays.
-export const LANDING_COLUMN_MAX_W = "max-w-[880px] xl:max-w-[960px] 2xl:max-w-[1040px]";
+export const LANDING_COLUMN_MAX_W = "max-w-[880px] 2xl:max-w-[1100px]";

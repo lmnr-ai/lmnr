@@ -32,7 +32,7 @@ export default async function PricingPage() {
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding
-        className={cn("w-full mx-auto pt-4 px-6 md:px-0", LANDING_COLUMN_MAX_W)}
+        className={cn("w-full mx-auto pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)}
       />
       <Pricing />
     </div>

@@ -76,7 +76,7 @@ const FeaturesForEveryStep = () => (
       <Card
         Icon={TextSearch}
         title="Fast text search"
-        description="Full-text search across every span input, output, and attribute, at any scale."
+        description="Full-text search across every span input, output, and attribute."
         href="https://laminar.sh/docs/platform/viewing-traces"
       />
     </div>

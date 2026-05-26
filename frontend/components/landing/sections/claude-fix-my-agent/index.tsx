@@ -18,7 +18,7 @@ const ClaudeFixMyAgent = () => (
       <p className={bodyMedium}>MCP, CLI, and SQL API to bring Laminar wherever you work.</p>
     </div>
     <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[40px] py-[30px] overflow-hidden px-8">
-      <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
+      <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left sm:origin-center">
         <ClaudeCodeSessionMock />
       </div>
       <SectionFootnote name="MCP" href="https://laminar.sh/docs/platform/mcp" />

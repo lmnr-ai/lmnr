@@ -63,7 +63,7 @@ export default function Pricing() {
 
   return (
     <div className="flex flex-col w-full overflow-x-clip">
-      <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[180px] pb-[72px] md:pb-[120px]">
+      <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[180px] pb-[72px] md:pb-[120px]">
         <div className={cn("flex flex-col items-center w-full max-w-[1100px]")}>
           {/* Tier cards */}
           <div className="w-full mb-[160px]">

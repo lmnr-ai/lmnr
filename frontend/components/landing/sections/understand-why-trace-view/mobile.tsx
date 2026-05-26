@@ -66,9 +66,11 @@ const UnderstandWhyTraceViewMobile = () => {
           </p>
         </div>
         <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px]">
-          <div ref={transcriptRef} className="absolute inset-0">
+          {/* Centering pattern (see has-this-issue): flex + `mx-auto shrink-0`
+              centers the card when there's room and left-overflows when not. */}
+          <div ref={transcriptRef} className="absolute inset-0 flex px-8">
             <div
-              className="border-[0.5px] border-landing-surface-500 rounded-lg overflow-hidden shrink-0 absolute left-8 bottom-0 h-full"
+              className="border-[0.5px] border-landing-surface-500 rounded-lg overflow-hidden shrink-0 mx-auto h-full"
               style={{ width: 480 }}
             >
               <motion.img
@@ -85,9 +87,11 @@ const UnderstandWhyTraceViewMobile = () => {
         </div>
       </div>
 
-      {/* Ask AI — image shrunk to 80% origin bottom-right with extra right
-          padding so the mock has breathing room and doesn't crash into the
-          footnote at the bottom. */}
+      {/* Ask AI — centering pattern: `flex items-end justify-end` + `mx-auto
+          shrink-0` centers the card when there's room and right-overflows
+          when there isn't (mx-auto wins when there's slack; justify-end takes
+          over when there isn't). `origin-bottom-right scale-80` keeps the
+          card bottom-right-anchored as it shrinks. */}
       <div className="flex flex-col gap-6 items-start w-full">
         <div className="flex flex-col gap-3 items-start">
           <h3 className={subSubSection}>Long complex run? Chat with AI</h3>
@@ -95,9 +99,9 @@ const UnderstandWhyTraceViewMobile = () => {
             Ask any question, dive deep into any agent run. Click span references to jump straight into context.
           </p>
         </div>
-        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px] flex flex-col items-end justify-end pt-4 pr-8 pb-12">
+        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
           <div
-            className="border-[0.5px] border-landing-surface-400 rounded-lg overflow-hidden shrink-0 relative origin-bottom-right scale-80"
+            className="border-[0.5px] border-landing-surface-400 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
             style={{ width: 480, height: 491 }}
           >
             <Image

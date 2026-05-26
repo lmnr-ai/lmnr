@@ -102,7 +102,7 @@ const Footer = ({ className }: Props) => (
         LANDING_COLUMN_MAX_W,
         "md:pt-20 md:pb-[120px]",
         "pt-16 pb-20",
-        "px-6 md:px-0"
+        "px-6 lg:px-0"
       )}
     >
       {/* Desktop */}

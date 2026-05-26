@@ -16,9 +16,9 @@ interface Props {
 // CTA row sits below at gap-32. Logo strip is a 4-col grid below.
 const Hero = ({ className, hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
-    <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 md:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
+    <Header hasSession={hasSession} className={cn("w-full pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)} isIncludePadding />
 
-    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[140px] pb-2 h-[80vh] justify-start gap-[10vh] shrink-0">
+    <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[140px] pb-2 h-[80vh] justify-start gap-[10vh] shrink-0">
       <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
           <h1 className={mainTitle}>Open-source Agent Monitoring</h1>

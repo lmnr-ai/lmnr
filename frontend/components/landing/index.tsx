@@ -29,7 +29,7 @@ const Landing = ({ className, hasSession }: Props) => (
   <div className={cn("bg-landing-surface-700 overflow-x-clip flex flex-col", className)}>
     <Hero hasSession={hasSession} />
     <UnderstandWhy />
-    <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
+    <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
       <div className={cn("flex flex-col items-start gap-[120px] w-full", LANDING_COLUMN_MAX_W)}>
         <HasThisIssue />
         <ClaudeFixMyAgent />
