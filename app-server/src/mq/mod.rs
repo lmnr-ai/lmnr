@@ -4,6 +4,7 @@ use lapin::{
     options::{BasicAckOptions, BasicNackOptions, BasicRejectOptions},
 };
 // pub mod connection;
+pub mod outbox;
 pub mod rabbit;
 pub mod tokio_mpsc;
 pub mod utils;

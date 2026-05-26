@@ -1102,7 +1102,7 @@ fn main() -> anyhow::Result<()> {
                     // Single outbox shared by Spans + DataPlaneSpans handlers; spawned
                     // once so the bounded channel + shipper pool are global, not per-handler.
                     let indexer_outbox =
-                        crate::quickwit::outbox::IndexerOutbox::spawn(mq_for_consumer.clone());
+                        crate::quickwit::outbox::spawn_indexer_outbox(mq_for_consumer.clone());
 
                     // Spawn spans workers using batch worker pool
                     {
