@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::ch::signal_events::CHSignalEvent;
 use crate::db::events::Event;
 use crate::db::spans::Span;
 use crate::utils::json_value_to_string;
@@ -24,6 +25,7 @@ pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
 pub const EVENTS_INDEX_ID: &str = "events";
+pub const SIGNAL_EVENTS_INDEX_ID: &str = "signal_events";
 
 pub static SPANS_INDEX_ID: LazyLock<String> =
     LazyLock::new(|| std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string()));
@@ -118,10 +120,52 @@ impl From<&Event> for QuickwitIndexedEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickwitIndexedSignalEvent {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub signal_id: Uuid,
+    pub trace_id: Uuid,
+    pub run_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub severity: u8,
+    pub name: String,
+    pub summary: String,
+    /// JSON-serialised payload string (matches `signal_events.payload` shape on
+    /// the CH side). `flatten_json` flattens nested keys for tokenization.
+    pub payload: String,
+}
+
+impl From<&CHSignalEvent> for QuickwitIndexedSignalEvent {
+    fn from(event: &CHSignalEvent) -> Self {
+        // CHSignalEvent stores timestamp as i64 nanoseconds since epoch.
+        // `from_timestamp_nanos` returns NaiveDateTime in newer chrono; use
+        // the documented `DateTime::<Utc>::from_timestamp` (seconds + nanos)
+        // path to stay version-independent.
+        let secs = event.timestamp / 1_000_000_000;
+        let nanos = (event.timestamp % 1_000_000_000) as u32;
+        let timestamp = DateTime::<Utc>::from_timestamp(secs, nanos).unwrap_or_else(Utc::now);
+
+        Self {
+            id: event.id,
+            project_id: event.project_id,
+            signal_id: event.signal_id,
+            trace_id: event.trace_id,
+            run_id: event.run_id,
+            timestamp,
+            severity: event.severity,
+            name: event.name.clone(),
+            summary: event.summary.clone(),
+            payload: event.payload.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum IndexerQueuePayload {
     Spans(Vec<QuickwitIndexedSpan>),
     Events(Vec<QuickwitIndexedEvent>),
+    SignalEvents(Vec<QuickwitIndexedSignalEvent>),
 }
 
 /// Flatten JSON values for searchability and indexing. Each implementation
@@ -140,6 +184,18 @@ impl FlattenJson for QuickwitIndexedEvent {
         let attributes_text = extract_text_from_json_value(&self.attributes);
         let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
         self.attributes = serde_json::Value::String(attributes_text);
+    }
+}
+
+impl FlattenJson for QuickwitIndexedSignalEvent {
+    fn flatten_json(&mut self) {
+        // `payload` arrives as a JSON-encoded string on CHSignalEvent. Try to
+        // parse and flatten — fall back to the raw string for legacy / non-JSON
+        // payloads so they remain searchable.
+        if let Ok(value) = serde_json::from_str::<Value>(&self.payload) {
+            let text = extract_text_from_json_value(&value);
+            self.payload = text.replace('{', " { ").replace('}', " } ");
+        }
     }
 }
 
@@ -164,6 +220,14 @@ impl PreprocessForIndexing for QuickwitIndexedEvent {
     }
 }
 
+impl PreprocessForIndexing for QuickwitIndexedSignalEvent {
+    fn preprocess_for_indexing(&mut self) {
+        self.name = preprocess_text(&self.name);
+        self.summary = preprocess_text(&self.summary);
+        self.payload = preprocess_text(&self.payload);
+    }
+}
+
 /// Enum to hold different document types for Quickwit ingestion.
 /// Holds Serialize and FlattenJson traits for ingestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +236,7 @@ impl PreprocessForIndexing for QuickwitIndexedEvent {
 pub enum QuickwitDocument {
     Span(QuickwitIndexedSpan),
     Event(QuickwitIndexedEvent),
+    SignalEvent(QuickwitIndexedSignalEvent),
 }
 
 impl IndexerQueuePayload {
@@ -180,6 +245,7 @@ impl IndexerQueuePayload {
         match self {
             IndexerQueuePayload::Spans(_) => &SPANS_INDEX_ID,
             IndexerQueuePayload::Events(_) => EVENTS_INDEX_ID,
+            IndexerQueuePayload::SignalEvents(_) => SIGNAL_EVENTS_INDEX_ID,
         }
     }
 
@@ -192,6 +258,10 @@ impl IndexerQueuePayload {
             IndexerQueuePayload::Events(events) => {
                 events.into_iter().map(QuickwitDocument::Event).collect()
             }
+            IndexerQueuePayload::SignalEvents(events) => events
+                .into_iter()
+                .map(QuickwitDocument::SignalEvent)
+                .collect(),
         }
     }
 }

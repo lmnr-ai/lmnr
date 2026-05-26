@@ -6,6 +6,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
 import { getEventsByEmergingClusterPaginated } from "./emerging-cluster";
+import { searchSignalEventIds } from "./search";
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
@@ -15,6 +16,7 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
   emergingClusterId: z.guid().optional(),
+  searchQuery: z.string().optional(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
@@ -30,6 +32,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterId: clusterIds,
     unclustered,
     emergingClusterId,
+    searchQuery,
   } = input;
 
   if (emergingClusterId) {
@@ -58,6 +61,25 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterFilter = clusterIds;
   }
 
+  let idFilter: string[] | undefined;
+  const trimmedSearchQuery = searchQuery?.trim();
+  if (trimmedSearchQuery) {
+    const ids = await searchSignalEventIds({
+      projectId,
+      signalId,
+      searchQuery: trimmedSearchQuery,
+      pastHours,
+      startDate,
+      endDate,
+    });
+    if (ids.length === 0) {
+      // No Quickwit hits — short-circuit to avoid emitting `id IN ()` (CH syntax error)
+      // and to skip the redundant CH round-trip.
+      return { items: [], count: 0 };
+    }
+    idFilter = ids;
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
     signalId,
     filters,
@@ -67,6 +89,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    idFilter,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
@@ -76,6 +99,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    idFilter,
   });
 
   const [items, [countResult]] = await Promise.all([

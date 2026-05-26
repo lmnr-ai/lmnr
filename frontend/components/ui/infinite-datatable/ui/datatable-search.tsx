@@ -10,31 +10,37 @@ import { cn } from "@/lib/utils";
 interface DataTableSearchProps {
   className?: string;
   placeholder?: string;
+  /** URL param key for the search value. Defaults to `search`. */
+  paramKey?: string;
 }
 
-export const DataTableSearch = ({ className, placeholder = "Search in table..." }: DataTableSearchProps) => {
+export const DataTableSearch = ({
+  className,
+  placeholder = "Search in table...",
+  paramKey = "search",
+}: DataTableSearchProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
+  const [inputValue, setInputValue] = useState(searchParams.get(paramKey) ?? "");
 
   const submit = useCallback(
     (searchValue: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      const currentSearch = searchParams.get("search") ?? "";
+      const currentSearch = searchParams.get(paramKey) ?? "";
 
       if (searchValue !== currentSearch) {
         if (!searchValue) {
-          params.delete("search");
+          params.delete(paramKey);
         } else {
-          params.set("search", searchValue);
+          params.set(paramKey, searchValue);
         }
 
         router.push(`${pathName}?${params.toString()}`);
       }
     },
-    [searchParams, pathName, router]
+    [searchParams, pathName, router, paramKey]
   );
 
   const debouncedSubmit = useMemo(() => debounce(submit, 300), [submit]);

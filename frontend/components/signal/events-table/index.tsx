@@ -20,6 +20,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
@@ -73,6 +74,7 @@ function PureEventsTable() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
+  const searchQuery = searchParams.get("searchQuery");
   const filterRaw = searchParams.getAll("filter");
   const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
@@ -100,6 +102,10 @@ function PureEventsTable() {
         }
 
         filter.forEach((f) => urlParams.append("filter", f));
+
+        if (searchQuery) {
+          urlParams.set("searchQuery", searchQuery);
+        }
 
         if (emergingClusterId) {
           urlParams.set("emergingClusterId", emergingClusterId);
@@ -139,6 +145,7 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      searchQuery,
       signal.id,
       params.projectId,
       toast,
@@ -188,6 +195,7 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      searchQuery,
     ],
   });
 
@@ -235,6 +243,7 @@ function PureEventsTable() {
         emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
+          <DataTableSearch paramKey="searchQuery" placeholder="Search events..." />
           <DataTableFilter columns={filters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({

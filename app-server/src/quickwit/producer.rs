@@ -4,8 +4,12 @@ use anyhow::{Context, anyhow};
 use serde_json;
 
 use crate::{
+    ch::signal_events::CHSignalEvent,
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{IndexerQueuePayload, SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_ROUTING_KEY},
+    quickwit::{
+        IndexerQueuePayload, QuickwitIndexedSignalEvent, SPANS_INDEXER_EXCHANGE,
+        SPANS_INDEXER_ROUTING_KEY,
+    },
 };
 
 pub async fn publish_for_indexing(
@@ -36,4 +40,25 @@ pub async fn publish_for_indexing(
         .context("Failed to publish spans/events to Quickwit indexer queue")?;
 
     Ok(())
+}
+
+/// Publish a batch of signal events to the Quickwit indexer queue.
+///
+/// Callers should log and swallow errors so signal-event creation is never
+/// blocked by indexing failures (matches the span/event indexing posture).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn publish_signal_events_for_indexing(
+    events: &[CHSignalEvent],
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    let indexed: Vec<QuickwitIndexedSignalEvent> = events
+        .iter()
+        .map(QuickwitIndexedSignalEvent::from)
+        .collect();
+    let payload = IndexerQueuePayload::SignalEvents(indexed);
+    publish_for_indexing(&payload, queue).await
 }
