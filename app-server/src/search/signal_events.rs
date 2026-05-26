@@ -10,7 +10,6 @@ use crate::{
 };
 
 const DEFAULT_SEARCH_MAX_SIGNAL_EVENTS: usize = 1000;
-const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 
 const SIGNAL_EVENTS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["summary", "payload", "name"];
 
@@ -64,10 +63,15 @@ pub async fn search_signal_events(
     };
     search_body["max_hits"] = serde_json::Value::Number(max_hits.into());
 
-    let effective_start = start_time.unwrap_or_else(|| Utc::now() - DEFAULT_SEARCH_TIME_RANGE);
-    let effective_end = end_time.unwrap_or_else(Utc::now);
-    search_body["start_timestamp"] = serde_json::Value::Number(effective_start.timestamp().into());
-    search_body["end_timestamp"] = serde_json::Value::Number(effective_end.timestamp().into());
+    // Only constrain Quickwit when the caller passed a bound. The events table
+    // CH query is also unbounded when no time params are present, so a default
+    // 7-day window here would silently drop older matches from search results.
+    if let Some(start) = start_time {
+        search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
+    }
+    if let Some(end) = end_time {
+        search_body["end_timestamp"] = serde_json::Value::Number(end.timestamp().into());
+    }
 
     let t0 = std::time::Instant::now();
     let response_value = quickwit_client
