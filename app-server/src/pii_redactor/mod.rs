@@ -193,17 +193,25 @@ pub async fn redact_spans_in_place(
         return;
     }
 
-    // Per-element char counts so the trace shows the shape of the request,
-    // not just the count. Helps explain RPC latency (one giant 200k-char
-    // text vs. fifty 4k texts have very different cost profiles even
-    // though `batch_size` is the same).
-    let char_counts: Vec<usize> = texts.iter().map(|t| t.chars().count()).collect();
+    // Summary stats over per-element char counts, so the trace shows the
+    // shape of the request without growing unboundedly with batch size
+    // (OTEL collectors commonly truncate attributes above 128–256 bytes,
+    // so a full `Vec<usize>` for a 1024-element batch would be silently
+    // cut off). `total_chars` + `min/max/p50` is enough to distinguish
+    // "one giant 200k text" from "fifty 4k texts" at the same batch_size.
+    let mut char_counts: Vec<usize> = texts.iter().map(|t| t.chars().count()).collect();
     let total_chars: usize = char_counts.iter().sum();
+    char_counts.sort_unstable();
+    let min_chars = char_counts.first().copied().unwrap_or(0);
+    let max_chars = char_counts.last().copied().unwrap_or(0);
+    let p50_chars = char_counts.get(char_counts.len() / 2).copied().unwrap_or(0);
     let rpc_span = tracing::info_span!(
         "pii_redactor.rpc",
         batch_size = texts.len(),
         total_chars,
-        char_counts = ?char_counts,
+        min_chars,
+        max_chars,
+        p50_chars,
     );
     let redacted = match client.redact(texts).instrument(rpc_span).await {
         Ok(r) => r,
