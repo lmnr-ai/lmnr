@@ -239,21 +239,30 @@ pub async fn process_span_messages(
     let ch = &ch;
 
     let trace_branch = async {
-        let mut updated_traces =
+        // The aggregation upsert and the metadata-patch UPDATE target the same
+        // `(project_id, id)` row lock, but their failure modes are independent:
+        // a single flush can mix span ingestion for trace A with a metadata
+        // patch for trace B, and an aggregation upsert error must not drop the
+        // unrelated patch. Run each step independently and collect whatever
+        // succeeds for the CH / realtime dispatch.
+        let mut updated_traces: Vec<Trace> = Vec::new();
+        let aggregation_ok = if trace_aggregations.is_empty() {
+            true
+        } else {
             match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-                Ok(traces) => traces,
+                Ok(traces) => {
+                    updated_traces.extend(traces);
+                    true
+                }
                 Err(e) => {
                     log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-                    return None;
+                    false
                 }
-            };
+            }
+        };
 
-        // Apply post-factum metadata patches AFTER the regular upsert. Both
-        // statements take the implicit row lock on the same `(project_id, id)`
-        // tuple, so a metadata patch that lands in the same flush as a regular
-        // span batch sees the merged metadata and the spans contributing to
-        // the trace. Patches are skipped (no row created) when the trace
-        // doesn't exist — the route handler validates existence up front.
+        // Patches are skipped (no row created) when the trace doesn't exist
+        // — the route handler validates existence up front.
         if !metadata_patches.is_empty() {
             match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
                 Ok(patched) => updated_traces.extend(patched),
@@ -263,22 +272,33 @@ pub async fn process_span_messages(
             }
         }
 
-        let ch_traces: Vec<CHTrace> = updated_traces
-            .iter()
-            .map(|trace| CHTrace::from_db_trace(trace))
-            .collect();
+        if !updated_traces.is_empty() {
+            let ch_traces: Vec<CHTrace> = updated_traces
+                .iter()
+                .map(|trace| CHTrace::from_db_trace(trace))
+                .collect();
 
-        if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-            log::error!(
-                "Failed to upsert {} traces to ClickHouse: {:?}",
-                ch_traces.len(),
-                e
-            );
+            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                log::error!(
+                    "Failed to upsert {} traces to ClickHouse: {:?}",
+                    ch_traces.len(),
+                    e
+                );
+            }
+
+            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
         }
 
-        dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-        Some(updated_traces)
+        // Signals are gated on the aggregation upsert specifically: if it
+        // errored, downstream signal evaluation would see stale data even
+        // when a metadata patch in the same flush succeeded. `None` here
+        // suppresses the signals call below; metadata-only patches need no
+        // signal evaluation regardless.
+        if aggregation_ok {
+            Some(updated_traces)
+        } else {
+            None
+        }
     };
 
     let span_branch = async {
