@@ -4,7 +4,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use rayon::prelude::*;
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -73,24 +73,31 @@ pub async fn process_span_messages(
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    for m in &mut messages {
-        let span_usage = get_llm_usage_for_span(
-            &mut m.span.attributes,
-            db.clone(),
-            cache.clone(),
-            &m.span.name,
-            &m.span.project_id,
-        )
-        .await;
+    let usage_span = tracing::info_span!("preprocess.usage_lookup", span_count = messages.len());
+    async {
+        for m in &mut messages {
+            let span_usage = get_llm_usage_for_span(
+                &mut m.span.attributes,
+                db.clone(),
+                cache.clone(),
+                &m.span.name,
+                &m.span.project_id,
+            )
+            .await;
 
-        prepare_span_for_recording(&mut m.span, &span_usage);
-        if !m.pre_processed {
-            convert_span_to_provider_format(&mut m.span);
+            prepare_span_for_recording(&mut m.span, &span_usage);
+            if !m.pre_processed {
+                convert_span_to_provider_format(&mut m.span);
+            }
+            // `estimate_size_bytes` is deferred until AFTER PII redaction
+            // (post-dedup loop below) so the recorded size reflects the
+            // redacted output.
+
+            span_usage_vec.push(span_usage);
         }
-        // `estimate_size_bytes` runs AFTER PII redaction (post-dedup loop
-        // below) so the recorded size reflects the redacted output.
-        span_usage_vec.push(span_usage);
     }
+    .instrument(usage_span)
+    .await;
 
     // Split into parallel `Vec`s — downstream code reads `spans` and
     // `dedups` as separate slices keyed by index.
@@ -99,38 +106,14 @@ pub async fn process_span_messages(
         .map(|m| (m.span, m.input_dedup))
         .unzip();
 
-    // Process trace aggregations and update trace statistics
-    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
-
-    // Upsert trace statistics in PostgreSQL
-    let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-        Ok(updated_traces) => {
-            let ch_traces: Vec<CHTrace> = updated_traces
-                .iter()
-                .map(|trace| CHTrace::from_db_trace(trace))
-                .collect();
-
-            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                log::error!(
-                    "Failed to upsert {} traces to ClickHouse: {:?}",
-                    ch_traces.len(),
-                    e
-                );
-            }
-
-            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-            Some(updated_traces)
-        }
-        Err(e) => {
-            log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-            None
-        }
+    // Process trace aggregations
+    let trace_aggregations = {
+        let _g = tracing::info_span!("preprocess.trace_agg", span_count = spans.len()).entered();
+        TraceAggregation::from_spans(&spans, &span_usage_vec)
     };
 
-    // Dedup LLM span inputs: insert unique messages first, then stamp Redis.
-    // On insert failure we return transient; nothing to undo in Redis since
-    // `mark_seen` only runs after a successful insert.
+    // Build the dedup batch up front so the size-bytes loop and CHSpans build
+    // can run before we kick off the parallel inserts.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
@@ -138,6 +121,11 @@ pub async fn process_span_messages(
         .map(|(i, _)| i)
         .collect();
     let mut dedup = {
+        let _g = tracing::info_span!(
+            "preprocess.dedup_batch",
+            recordable = recordable_indices.len()
+        )
+        .entered();
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
             .iter()
@@ -146,14 +134,15 @@ pub async fn process_span_messages(
         build_dedup_batch(&dedup_input, &recordable_dedups)
     };
 
-    // Project-level PII redaction. Triggered by `projects.remove_pii=true`
+    // Project-level PII redaction. Triggered by `projects.settings.removePii`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
     // redacted bytes flow into both the `llm_messages` insert and Quickwit
     // indexing through the same `dedup.messages` buffer; runs BEFORE the
-    // insert / size accounting so every storage tier holds the redacted
-    // content. Already-seen messages were redacted on first emit and ride
-    // the wire as hashes only. Best-effort: failures are logged inside
-    // `redact_spans_in_place` and do not fail the batch.
+    // input-bytes accounting / `llm_messages` CH insert / Quickwit indexing
+    // so every storage tier holds the redacted content. Already-seen
+    // messages were redacted on first emit and ride the wire as hashes only.
+    // Best-effort: failures are logged inside `redact_spans_in_place` and
+    // do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
         redact_spans_in_place(
             redactor,
@@ -172,26 +161,6 @@ pub async fn process_span_messages(
         // Input is excluded here — the post-dedup input-bytes loop below
         // owns that charge.
         span.estimate_size_bytes();
-    }
-
-    if !dedup.messages.is_empty() {
-        let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
-            .messages
-            .iter()
-            .map(|m| (m.project_id, m.trace_id, m.message_hash))
-            .collect();
-        if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
-            log::error!(
-                "Failed to insert {} llm_messages to ClickHouse: {:?}",
-                dedup.messages.len(),
-                e
-            );
-            return Err(HandlerError::transient(anyhow::anyhow!(
-                "Failed to insert llm_messages to Clickhouse: {:?}",
-                e
-            )));
-        }
-        mark_seen(&keys, cache.clone()).await;
     }
 
     // Charge each span for its input: dedup'd LLM spans pay for the hash
@@ -240,44 +209,110 @@ pub async fn process_span_messages(
         span.increment_size_bytes(added);
     }
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = recordable_indices
-        .iter()
-        .enumerate()
-        .map(|(dedup_idx, &span_idx)| {
-            let span = &spans[span_idx];
-            let usage = &span_usage_vec[span_idx];
-            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-            let hashes = dedup
-                .span_hashes
-                .get(dedup_idx)
-                .cloned()
-                .unwrap_or_default();
-            if !hashes.is_empty() {
-                ch_span.input = String::new();
-                ch_span.input_message_hashes = hashes;
-                ch_span.input_new_message_indices = dedup
-                    .span_new_indices
+    // Build CHSpans with embedded events to insert to ClickHouse
+    let ch_spans: Vec<CHSpan> = {
+        let _g: tracing::span::EnteredSpan = tracing::info_span!(
+            "preprocess.ch_span_build",
+            recordable = recordable_indices.len()
+        )
+        .entered();
+        recordable_indices
+            .iter()
+            .enumerate()
+            .map(|(dedup_idx, &span_idx)| {
+                let span = &spans[span_idx];
+                let usage = &span_usage_vec[span_idx];
+                let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+                let hashes = dedup
+                    .span_hashes
                     .get(dedup_idx)
                     .cloned()
                     .unwrap_or_default();
-            }
-            ch_span
-        })
-        .collect();
+                if !hashes.is_empty() {
+                    ch_span.input = String::new();
+                    ch_span.input_message_hashes = hashes;
+                    ch_span.input_new_message_indices = dedup
+                        .span_new_indices
+                        .get(dedup_idx)
+                        .cloned()
+                        .unwrap_or_default();
+                }
+                ch_span
+            })
+            .collect()
+    };
 
-    // Record spans to clickhouse
-    if let Err(e) = ch.insert_batch(&ch_spans, config).await {
-        log::error!(
-            "Failed to record {} spans to clickhouse: {:?}",
-            ch_spans.len(),
-            e
-        );
-        return Err(HandlerError::transient(anyhow::anyhow!(
-            "Failed to insert spans to Clickhouse: {:?}",
-            e
-        )));
-    }
+    // Parallelize trace upsert against the span path. Within the span path
+    // the strict order llm_messages -> mark_seen -> spans must be preserved
+    // (`spans` is plain MergeTree, so a retry after a successful spans
+    // insert + failed llm_messages insert would duplicate every span row).
+    // See CLAUDE.md "Ingest order in process_span_messages".
+    let ch = &ch;
+
+    let trace_branch = async {
+        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+            Ok(updated_traces) => {
+                let ch_traces: Vec<CHTrace> = updated_traces
+                    .iter()
+                    .map(|trace| CHTrace::from_db_trace(trace))
+                    .collect();
+
+                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                    log::error!(
+                        "Failed to upsert {} traces to ClickHouse: {:?}",
+                        ch_traces.len(),
+                        e
+                    );
+                }
+
+                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+
+                Some(updated_traces)
+            }
+            Err(e) => {
+                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                None
+            }
+        }
+    };
+
+    let span_branch = async {
+        if !dedup.messages.is_empty() {
+            let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+                .messages
+                .iter()
+                .map(|m| (m.project_id, m.trace_id, m.message_hash))
+                .collect();
+            if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+                log::error!(
+                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                    dedup.messages.len(),
+                    e
+                );
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    e
+                )));
+            }
+            mark_seen(&keys, cache.clone()).await;
+        }
+
+        if let Err(e) = ch.insert_batch(&ch_spans, config).await {
+            log::error!(
+                "Failed to record {} spans to clickhouse: {:?}",
+                ch_spans.len(),
+                e
+            );
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert spans to Clickhouse: {:?}",
+                e
+            )));
+        }
+        Ok(())
+    };
+
+    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    span_result?;
 
     // Must run AFTER the spans insert so the signal agent sees the trace data.
     if let Some(updated_traces) = &updated_traces {

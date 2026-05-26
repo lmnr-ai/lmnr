@@ -1,20 +1,22 @@
-use redis::{AsyncCommands, RedisResult, aio::MultiplexedConnection};
+use std::sync::Arc;
+
+use redis::{AsyncCommands, RedisResult};
 use serde::{Deserialize, Serialize};
 
-use super::{CacheError, CacheTrait};
+use super::{CacheError, CacheTrait, connection::ResilientRedisConnection};
 
 pub struct RedisCache {
-    connection: MultiplexedConnection,
+    connection: Arc<ResilientRedisConnection>,
 }
 
 impl RedisCache {
-    pub async fn new(client: &redis::Client) -> Result<Self, CacheError> {
-        let connection = client
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(anyhow::Error::from)
-            .map_err(CacheError::InternalError)?;
-        Ok(Self { connection })
+    pub fn new(connection: Arc<ResilientRedisConnection>) -> Self {
+        Self { connection }
+    }
+
+    fn on_error(&self, op: &str, err: &redis::RedisError) {
+        log::error!("Redis {} error: {}", op, err);
+        self.connection.notify_error();
     }
 }
 
@@ -23,7 +25,7 @@ impl CacheTrait for RedisCache {
     where
         T: for<'de> Deserialize<'de>,
     {
-        let result: RedisResult<Vec<u8>> = self.connection.clone().get(key).await;
+        let result: RedisResult<Vec<u8>> = self.connection.current_clone().get(key).await;
         match result {
             Ok(bytes) => {
                 if bytes.is_empty() {
@@ -38,7 +40,7 @@ impl CacheTrait for RedisCache {
                 }
             }
             Err(e) => {
-                log::error!("Redis get error: {}", e);
+                self.on_error("get", &e);
                 Err(CacheError::InternalError(anyhow::Error::from(e)))
             }
         }
@@ -57,11 +59,11 @@ impl CacheTrait for RedisCache {
         };
 
         self.connection
-            .clone()
+            .current_clone()
             .set::<_, Vec<u8>, ()>(String::from(key), bytes)
             .await
             .map_err(|e| {
-                log::error!("Redis set error: {}", e);
+                self.on_error("set", &e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
         Ok(())
@@ -69,11 +71,11 @@ impl CacheTrait for RedisCache {
 
     async fn remove(&self, key: &str) -> Result<(), CacheError> {
         self.connection
-            .clone()
+            .current_clone()
             .del::<_, ()>(String::from(key))
             .await
             .map_err(|e| {
-                log::error!("Redis delete error: {}", e);
+                self.on_error("delete", &e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
         Ok(())
@@ -81,11 +83,11 @@ impl CacheTrait for RedisCache {
 
     async fn set_ttl(&self, key: &str, seconds: u64) -> Result<(), CacheError> {
         self.connection
-            .clone()
+            .current_clone()
             .expire::<_, ()>(String::from(key), seconds as i64)
             .await
             .map_err(|e| {
-                log::error!("Redis set ttl error: {}", e);
+                self.on_error("expire", &e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
         Ok(())
@@ -104,11 +106,11 @@ impl CacheTrait for RedisCache {
         };
 
         self.connection
-            .clone()
+            .current_clone()
             .set_ex::<_, Vec<u8>, ()>(String::from(key), bytes, seconds)
             .await
             .map_err(|e| {
-                log::error!("Redis set error: {}", e);
+                self.on_error("set_ex", &e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
 
@@ -116,44 +118,42 @@ impl CacheTrait for RedisCache {
     }
 
     async fn increment(&self, key: &str, amount: i64) -> Result<i64, CacheError> {
-        // Use atomic INCRBY command
-        // Note: Redis INCRBY will create the key if it doesn't exist, starting from 0
-        // The caller should check with get() first if they want to handle missing keys differently
-        let result: RedisResult<i64> = self.connection.clone().incr(key, amount).await;
+        // Redis INCRBY creates the key (starting from 0) if it doesn't exist.
+        // Callers needing miss-vs-hit semantics should get() first.
+        let result: RedisResult<i64> = self.connection.current_clone().incr(key, amount).await;
         match result {
             Ok(new_value) => Ok(new_value),
             Err(e) => {
-                log::error!("Redis increment error: {}", e);
+                self.on_error("increment", &e);
                 Err(CacheError::InternalError(anyhow::Error::from(e)))
             }
         }
     }
 
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
-        // Use SET with NX (only if not exists) and EX (expiry in seconds)
         let result: RedisResult<Option<String>> = redis::cmd("SET")
             .arg(key)
             .arg("locked")
             .arg("NX")
             .arg("EX")
             .arg(ttl_seconds)
-            .query_async(&mut self.connection.clone())
+            .query_async(&mut self.connection.current_clone())
             .await;
 
         match result {
             Ok(Some(_)) => Ok(true), // Lock acquired
             Ok(None) => Ok(false),   // Lock already held
             Err(e) => {
-                log::error!("Redis try_acquire_lock error: {}", e);
+                self.on_error("try_acquire_lock", &e);
                 Err(CacheError::InternalError(anyhow::Error::from(e)))
             }
         }
     }
 
     async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
-        let result: RedisResult<()> = self.connection.clone().del(key).await;
+        let result: RedisResult<()> = self.connection.current_clone().del(key).await;
         result.map_err(|e| {
-            log::error!("Redis release_lock error: {}", e);
+            self.on_error("release_lock", &e);
             CacheError::InternalError(anyhow::Error::from(e))
         })
     }
@@ -164,11 +164,11 @@ impl CacheTrait for RedisCache {
             .arg("NX")
             .arg(score)
             .arg(member)
-            .query_async(&mut self.connection.clone())
+            .query_async(&mut self.connection.current_clone())
             .await;
 
         result.map_err(|e| {
-            log::error!("Redis ZADD error for key {}: {}", key, e);
+            self.on_error("zadd", &e);
             CacheError::InternalError(anyhow::Error::from(e))
         })
     }
@@ -186,10 +186,10 @@ impl CacheTrait for RedisCache {
         }
 
         let _: () = pipe
-            .query_async(&mut self.connection.clone())
+            .query_async(&mut self.connection.current_clone())
             .await
             .map_err(|e| {
-                log::error!("Redis pipeline zadd error: {}", e);
+                self.on_error("pipe_zadd", &e);
                 CacheError::InternalError(anyhow::Error::from(e))
             })?;
 
@@ -197,10 +197,14 @@ impl CacheTrait for RedisCache {
     }
 
     async fn exists(&self, key: &str) -> Result<bool, CacheError> {
-        let result: RedisResult<bool> = self.connection.clone().exists(key).await;
+        let result: RedisResult<bool> = self.connection.current_clone().exists(key).await;
         result.map_err(|e| {
-            log::error!("Redis EXISTS error for key {}: {}", key, e);
+            self.on_error("exists", &e);
             CacheError::InternalError(anyhow::Error::from(e))
         })
+    }
+
+    fn is_healthy(&self) -> bool {
+        self.connection.is_connected()
     }
 }
