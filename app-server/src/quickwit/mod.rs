@@ -140,9 +140,12 @@ impl From<&CHSignalEvent> for QuickwitIndexedSignalEvent {
         // CHSignalEvent stores timestamp as i64 nanoseconds since epoch.
         // `from_timestamp_nanos` returns NaiveDateTime in newer chrono; use
         // the documented `DateTime::<Utc>::from_timestamp` (seconds + nanos)
-        // path to stay version-independent.
-        let secs = event.timestamp / 1_000_000_000;
-        let nanos = (event.timestamp % 1_000_000_000) as u32;
+        // path to stay version-independent. `div_euclid` / `rem_euclid` keep
+        // the remainder non-negative so a (currently unreachable) pre-epoch
+        // timestamp doesn't wrap into a `u32` >= 1e9 and silently fall back
+        // to `Utc::now()`.
+        let secs = event.timestamp.div_euclid(1_000_000_000);
+        let nanos = event.timestamp.rem_euclid(1_000_000_000) as u32;
         let timestamp = DateTime::<Utc>::from_timestamp(secs, nanos).unwrap_or_else(Utc::now);
 
         Self {
