@@ -25,6 +25,8 @@ import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
+const FREE_TIER_RETENTION_DAYS = 15;
+
 interface HeaderProps {
   handleClose: () => void;
   spans: TraceViewSpan[];
@@ -150,7 +152,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     if (!hasUser) return;
     const params = new URLSearchParams();
     params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
-    const retentionDays = project?.logRetentionDays ?? 15;
+    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
     params.set("pastHours", String(retentionDays * 24));
     window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
   }, [hasUser, userId, projectId, project?.logRetentionDays]);
