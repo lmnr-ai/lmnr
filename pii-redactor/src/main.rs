@@ -5,6 +5,7 @@ mod proto;
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Parser;
@@ -44,8 +45,17 @@ struct Args {
     #[arg(long, env = "PII_MAX_TOKENS_PER_TEXT", default_value_t = 24_576)]
     max_tokens_per_text: usize,
 
-    #[arg(long, env = "PII_MAX_BATCH_SIZE", default_value_t = 32)]
+    /// Max windows in a single forward pass. The batcher coalesces windows
+    /// from concurrent RPCs up to this count. fp32 BERT-base on c8i.2xlarge
+    /// flattens around 8-16; default 16 leaves headroom for tail batches.
+    #[arg(long, env = "PII_MAX_BATCH_SIZE", default_value_t = 16)]
     max_batch_size: usize,
+
+    /// How long the batcher waits for a batch to fill before flushing what
+    /// it has. Throughput / latency trade. Trace ingest is async, so we
+    /// can spend tens of ms here without anyone noticing.
+    #[arg(long, env = "PII_MAX_QUEUE_DELAY_MS", default_value_t = 10)]
+    max_queue_delay_ms: u64,
 
     /// Reject requests carrying more than this many texts in a single RPC.
     /// Guards against runaway memory allocation from a misbehaving client.
@@ -59,21 +69,12 @@ struct Args {
     /// Threads for inter-op parallelism. Usually 1 is fine on CPU.
     #[arg(long, env = "PII_INTER_THREADS", default_value_t = 1)]
     inter_threads: usize,
-
-    /// How many ORT sessions to spin up. Each handles one concurrent request.
-    /// Default 1 — increase only if you can give each session its own cores.
-    #[arg(long, env = "PII_NUM_SESSIONS", default_value_t = 1)]
-    num_sessions: usize,
 }
 
 struct GrpcServer {
     engine: Arc<Engine>,
     max_texts_per_request: usize,
     max_tokens_per_text: usize,
-    /// Max number of texts dispatched to `detect_spans_batch` in one go.
-    /// Bounds peak in-flight task / per-text memory; concurrency within a
-    /// sub-batch is still gated by the session permit pool.
-    max_batch_size: usize,
 }
 
 #[tonic::async_trait]
@@ -119,21 +120,14 @@ impl PiiRedactorService for GrpcServer {
             walked.push(w);
         }
 
-        // Stage 2: detect spans in the rendered text for each input
-        // (concurrent across inputs, chunked per-input if needed).
-        // Sub-batch by `max_batch_size` so a request near the per-RPC cap
-        // can't spawn its full text count as concurrent tasks at once —
-        // bounds peak memory under load. Concurrency within a sub-batch
-        // is still gated by the session permit pool.
-        let mut all_spans: Vec<Vec<engine::Span>> = Vec::with_capacity(rendered.len());
-        for chunk in rendered.chunks(self.max_batch_size.max(1)) {
-            let engine = self.engine.clone();
-            let chunk_spans = engine
-                .detect_spans_batch(chunk.to_vec())
-                .await
-                .map_err(|e| Status::internal(format!("detect failed: {e:#}")))?;
-            all_spans.extend(chunk_spans);
-        }
+        // Stage 2: detect spans. The engine's batcher coalesces every
+        // window of every text in this RPC AND any windows from concurrent
+        // RPCs into shared `(B, L)` forward passes — no chunking knob here.
+        let engine = self.engine.clone();
+        let all_spans = engine
+            .detect_spans_batch(rendered)
+            .await
+            .map_err(|e| Status::internal(format!("detect failed: {e:#}")))?;
 
         // Stage 3: route spans → leaves → rewrite tree → serialize.
         let mut out_texts = Vec::with_capacity(walked.len());
@@ -165,7 +159,8 @@ async fn main() -> Result<()> {
         chunk_overlap: args.chunk_overlap,
         intra_threads: args.intra_threads,
         inter_threads: args.inter_threads,
-        num_sessions: args.num_sessions.max(1),
+        max_batch_size: args.max_batch_size.max(1),
+        max_queue_delay: Duration::from_millis(args.max_queue_delay_ms),
     };
     let engine = Engine::load(cfg)?;
 
@@ -174,7 +169,6 @@ async fn main() -> Result<()> {
         engine,
         max_texts_per_request: args.max_texts_per_request,
         max_tokens_per_text: args.max_tokens_per_text,
-        max_batch_size: args.max_batch_size.max(1),
     });
 
     info!("listening on {addr}");

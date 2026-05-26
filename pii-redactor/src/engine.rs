@@ -1,12 +1,46 @@
+//! ONNX Runtime inference engine for the privacy-filter token-classifier,
+//! with a server-wide dynamic batcher.
+//!
+//! Throughput strategy
+//! -------------------
+//! BERT-family encoders on CPU are GEMM-dominated and memory-bandwidth-bound
+//! at batch=1. Throughput on x86 (MLAS) typically scales 4-6x going from
+//! batch=1 to batch=8 — the model literally cannot be busy on a single-text
+//! `(1, L)` tensor. So the engine runs ONE shared session and feeds it
+//! batched `(B, L)` tensors through a dedicated worker task. Every gRPC
+//! handler tokenises its text, splits into windows if needed, ships each
+//! window as a [`Job`] over an mpsc to the batcher, and awaits a per-job
+//! oneshot. The batcher coalesces:
+//!   - intra-RPC: all windows of one text become one `(N, L)` pass
+//!   - cross-RPC: windows from concurrent RPCs ride the same `(B, L)` pass
+//!     up to `max_batch_size` OR until `max_queue_delay` elapses (whichever
+//!     comes first; classic dynamic-batching trade-off).
+//!
+//! Padding strategy: each batch pads to the longest window IN THE BATCH (not
+//! to a global `chunk_size`), so a batch of mostly-short windows doesn't
+//! waste compute. Sorting the queue by length before forming the batch keeps
+//! padding waste low — short and long windows tend not to ride together.
+//!
+//! What the batcher does NOT do
+//! ----------------------------
+//! - vLLM-style PagedAttention / continuous batching: this is a pure
+//!   encoder, no KV cache, no decode steps. Dynamic batching is the
+//!   relevant analogue, not vLLM.
+//! - Cross-batch coalescing of identical token sequences: not yet. Producer-
+//!   side dedup upstream already drops duplicate `llm_messages.content`
+//!   payloads, so the redactor sees mostly-distinct texts.
+
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
 use ndarray::{Array2, ArrayView, Axis};
 use ort::session::{Session, SessionInputValue, builder::GraphOptimizationLevel};
 use ort::value::TensorRef;
 use tokenizers::{Encoding, Tokenizer};
-use tokio::sync::Semaphore;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::labels::LabelMap;
 
@@ -22,7 +56,14 @@ pub struct EngineConfig {
     pub chunk_overlap: usize,
     pub intra_threads: usize,
     pub inter_threads: usize,
-    pub num_sessions: usize,
+    /// Max windows in a single forward pass. Set to ~bandwidth-saturation
+    /// point of the underlying CPU; on c8i.2xlarge fp32 BERT-base the curve
+    /// flattens around 8-16.
+    pub max_batch_size: usize,
+    /// How long the batcher waits for a batch to fill before flushing what
+    /// it has. Latency budget vs. throughput trade. Trace ingest is async,
+    /// so we can spend tens of ms here without anyone noticing.
+    pub max_queue_delay: Duration,
 }
 
 /// One detected PII span, in byte offsets of the input text.
@@ -33,17 +74,36 @@ pub struct Span {
     pub label: String,
 }
 
+/// One tokenised window, ready for the batcher. The `encoding` keeps the
+/// offsets table needed to map model token labels back to char ranges; the
+/// `text_byte_offset` shifts those into the original full-text coordinate
+/// system when the window came from a sliding-window split.
+pub struct TokenizedWindow {
+    encoding: Encoding,
+    text_byte_offset: usize,
+}
+
+/// Internal batcher job: one window awaiting inference. The oneshot reply
+/// carries the per-token argmax labels for that window's row of the
+/// `(B, L, num_labels)` logits tensor — argmax happens inside the batcher
+/// task so the post-process (BIOES decode + char-offset mapping) doesn't
+/// hold up the GEMM thread.
+struct Job {
+    ids: Vec<u32>,
+    mask: Vec<u32>,
+    types: Vec<u32>,
+    reply: oneshot::Sender<Result<Vec<u32>>>,
+}
+
+/// Bound the Job channel at this multiple of `max_batch_size`. Sustained
+/// overload should backpressure gRPC handlers (their `send().await` parks)
+/// rather than queue unbounded memory. 8 leaves room for a few batches in
+/// flight at once without unbounded growth.
+const JOB_CHANNEL_DEPTH_PER_BATCH: usize = 8;
+
 pub struct Engine {
     tokenizer: Tokenizer,
     labels: LabelMap,
-    /// Pool of pre-loaded ORT sessions. Acquiring a permit from `permits`
-    /// guarantees a session is available, so the permitted task pops a
-    /// session under a short Mutex lock and pushes it back when done. This
-    /// avoids the round-robin / permit-count divergence where a permitted
-    /// task could pick a still-busy session while another sat idle.
-    sessions: std::sync::Mutex<Vec<Session>>,
-    permits: Arc<Semaphore>,
-    needs_token_type_ids: bool,
     cfg: EngineConfig,
     /// `chunk_size` minus the tokens the tokenizer adds when called with
     /// `add_special_tokens=true` (e.g. CLS/SEP for BERT-family models).
@@ -53,6 +113,10 @@ pub struct Engine {
     /// inputs and overflow positional embeddings on models whose
     /// `max_position_embeddings` matches `chunk_size`.
     effective_chunk_size: usize,
+    /// Bounded channel into the batcher worker. Cloned per submission;
+    /// `send().await` parks under sustained overload so gRPC backpressure
+    /// is automatic.
+    job_tx: mpsc::Sender<Job>,
 }
 
 impl Engine {
@@ -94,45 +158,59 @@ impl Engine {
                 special_overhead
             ));
         }
+        if cfg.max_batch_size == 0 {
+            return Err(anyhow!("max_batch_size must be >= 1"));
+        }
 
         let _ = ort::init().commit();
 
-        let mut sessions = Vec::with_capacity(cfg.num_sessions);
-        let mut needs_token_type_ids: Option<bool> = None;
-        for _ in 0..cfg.num_sessions {
-            let mut builder = Session::builder()
-                .map_err(|e| anyhow!("session builder: {e:#}"))?
-                .with_optimization_level(GraphOptimizationLevel::Level3)
-                .map_err(|e| anyhow!("set optimization level: {e:#}"))?;
-            if cfg.intra_threads > 0 {
-                builder = builder
-                    .with_intra_threads(cfg.intra_threads)
-                    .map_err(|e| anyhow!("set intra threads: {e:#}"))?;
-            }
-            if cfg.inter_threads > 0 {
-                builder = builder
-                    .with_inter_threads(cfg.inter_threads)
-                    .map_err(|e| anyhow!("set inter threads: {e:#}"))?;
-            }
-            let session = builder
-                .commit_from_file(&model_path)
-                .with_context(|| format!("loading {}", model_path.display()))?;
-            needs_token_type_ids
-                .get_or_insert_with(|| session.inputs().iter().any(|i| i.name() == "token_type_ids"));
-            sessions.push(session);
+        // One session, one worker thread. Multiple sessions on CPU just
+        // contend for the same cores; maxing out one well-batched session
+        // is faster than balancing across N.
+        let mut builder = Session::builder()
+            .map_err(|e| anyhow!("session builder: {e:#}"))?
+            .with_optimization_level(GraphOptimizationLevel::Level3)
+            .map_err(|e| anyhow!("set optimization level: {e:#}"))?;
+        if cfg.intra_threads > 0 {
+            builder = builder
+                .with_intra_threads(cfg.intra_threads)
+                .map_err(|e| anyhow!("set intra threads: {e:#}"))?;
         }
-        let needs_token_type_ids = needs_token_type_ids.unwrap_or(false);
+        if cfg.inter_threads > 0 {
+            builder = builder
+                .with_inter_threads(cfg.inter_threads)
+                .map_err(|e| anyhow!("set inter threads: {e:#}"))?;
+        }
+        let session = builder
+            .commit_from_file(&model_path)
+            .with_context(|| format!("loading {}", model_path.display()))?;
+        let needs_token_type_ids = session.inputs().iter().any(|i| i.name() == "token_type_ids");
 
-        let permits = Arc::new(Semaphore::new(cfg.num_sessions));
+        let max_batch_size = cfg.max_batch_size;
+        let max_queue_delay = cfg.max_queue_delay;
+        let (job_tx, job_rx) = mpsc::channel::<Job>(max_batch_size * JOB_CHANNEL_DEPTH_PER_BATCH);
+        // Spawn the batcher on a dedicated OS thread (NOT a Tokio task) — ORT
+        // session.run blocks the thread for tens of ms; running it in a
+        // tokio task would stall every other future on that worker.
+        std::thread::Builder::new()
+            .name("pii-batcher".to_string())
+            .spawn(move || {
+                batcher_loop(
+                    session,
+                    needs_token_type_ids,
+                    max_batch_size,
+                    max_queue_delay,
+                    job_rx,
+                );
+            })
+            .map_err(|e| anyhow!("spawn batcher thread: {e:#}"))?;
 
         Ok(Arc::new(Self {
             tokenizer,
             labels,
-            sessions: std::sync::Mutex::new(sessions),
-            permits,
-            needs_token_type_ids,
             cfg,
             effective_chunk_size,
+            job_tx,
         }))
     }
 
@@ -147,10 +225,11 @@ impl Engine {
         Ok(enc.get_ids().len())
     }
 
-    /// Detect PII spans in each text. Each text is independently chunked if
-    /// its tokenisation exceeds `chunk_size`. Returns byte offsets within
-    /// each input text. Texts are processed concurrently subject to the
-    /// session permit pool.
+    /// Detect PII spans in each text. All windows of all texts ride the
+    /// same dynamic-batching queue. Per-text serial work (tokenisation,
+    /// post-process) is parallelised across texts via tokio tasks; the
+    /// inference itself is serialised through one session for batch
+    /// efficiency.
     pub async fn detect_spans_batch(
         self: Arc<Self>,
         texts: Vec<String>,
@@ -159,76 +238,118 @@ impl Engine {
             return Ok(Vec::new());
         }
 
-        let mut tasks = Vec::with_capacity(texts.len());
+        let n = texts.len();
+        let mut tasks = Vec::with_capacity(n);
         for (i, text) in texts.into_iter().enumerate() {
             let this = self.clone();
-            let permits = self.permits.clone();
             tasks.push(tokio::task::spawn(async move {
-                let permit = permits
-                    .acquire_owned()
-                    .await
-                    .map_err(|e| anyhow!("semaphore closed: {e}"))?;
-                let result = tokio::task::spawn_blocking(move || {
-                    let r = this.detect_spans_blocking(&text);
-                    drop(permit);
-                    r.map(|spans| (i, spans))
-                })
-                .await
-                .map_err(|e| anyhow!(e))?;
-                result
+                let r = this.detect_spans_for_text(&text).await;
+                (i, r)
             }));
         }
 
-        let n = tasks.len();
         let mut out: Vec<Vec<Span>> = vec![Vec::new(); n];
         for t in tasks {
-            let (i, spans) = t.await.map_err(|e| anyhow!(e))??;
-            out[i] = spans;
+            let (i, spans) = t.await.map_err(|e| anyhow!("join spans task: {e}"))?;
+            out[i] = spans?;
         }
         Ok(out)
     }
 
-    /// Single-text detection, sync. If the text fits in one window, runs one
-    /// inference; otherwise slides chunk_size/chunk_overlap windows and
-    /// merges spans across them.
-    fn detect_spans_blocking(&self, text: &str) -> Result<Vec<Span>> {
+    /// Tokenise + split-into-windows on the blocking pool, then submit every
+    /// window to the batcher. Awaits per-window oneshots and merges spans.
+    async fn detect_spans_for_text(self: Arc<Self>, text: &str) -> Result<Vec<Span>> {
         if text.is_empty() {
             return Ok(Vec::new());
         }
-        // Tokenise once to decide whether chunking is needed.
+        // Tokenise on the blocking pool — `tokenizers` is fast, but on a
+        // 24k-token text it's still a few ms of CPU we don't want stealing
+        // a Tokio worker.
+        let text_owned = text.to_string();
+        let this = self.clone();
+        let windows = tokio::task::spawn_blocking(move || this.split_into_windows(&text_owned))
+            .await
+            .map_err(|e| anyhow!("join tokenize task: {e}"))??;
+
+        if windows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Submit every window to the batcher; collect oneshots in order.
+        let mut receivers = Vec::with_capacity(windows.len());
+        for win in &windows {
+            let (tx, rx) = oneshot::channel();
+            let job = Job {
+                ids: win.encoding.get_ids().to_vec(),
+                mask: win.encoding.get_attention_mask().to_vec(),
+                types: win.encoding.get_type_ids().to_vec(),
+                reply: tx,
+            };
+            self.job_tx
+                .send(job)
+                .await
+                .map_err(|_| anyhow!("batcher channel closed"))?;
+            receivers.push(rx);
+        }
+
+        // Decode each window's labels back to char-offset spans, shift by
+        // its `text_byte_offset`, then merge across windows.
+        let mut all_spans: Vec<Span> = Vec::new();
+        for (rx, win) in receivers.into_iter().zip(windows.into_iter()) {
+            let token_labels = rx
+                .await
+                .map_err(|_| anyhow!("batcher dropped reply"))??;
+            let label_spans = bioes_spans(&token_labels, &self.labels);
+            let char_spans = map_to_char_spans(&win.encoding, &label_spans);
+            for s in char_spans {
+                all_spans.push(Span {
+                    start: s.start + win.text_byte_offset,
+                    end: s.end + win.text_byte_offset,
+                    label: s.label,
+                });
+            }
+        }
+        Ok(merge_spans(all_spans))
+    }
+
+    /// Pure CPU work: encode `text`, decide whether to split into windows,
+    /// emit one or more `TokenizedWindow`s with their byte-offset shift.
+    fn split_into_windows(&self, text: &str) -> Result<Vec<TokenizedWindow>> {
         let full_enc = self
             .tokenizer
             .encode(text, false)
             .map_err(|e| anyhow!("tokenize full text: {e}"))?;
         let total_tokens = full_enc.get_ids().len();
-
         if total_tokens == 0 {
             return Ok(Vec::new());
         }
+
         if total_tokens <= self.effective_chunk_size {
-            // Single window: re-encode with special tokens so the model gets
-            // its expected BOS/EOS pad.
+            // Single window. Re-encode with special tokens so the model
+            // gets its expected BOS/EOS pad.
             let enc = self
                 .tokenizer
                 .encode(text, true)
                 .map_err(|e| anyhow!("tokenize single window: {e}"))?;
-            return self.run_inference_one(&enc);
+            return Ok(vec![TokenizedWindow {
+                encoding: enc,
+                text_byte_offset: 0,
+            }]);
         }
 
         // Sliding window over the full-text token stream. We slice the
         // ORIGINAL text by char offsets and re-encode each window, which
-        // (a) lets the tokenizer add its own special tokens automatically and
-        // (b) keeps the offsets table aligned with what the model actually
-        // saw for that window.
+        // (a) lets the tokenizer add its own special tokens automatically
+        // and (b) keeps the offsets table aligned with what the model
+        // actually saw for that window.
         let stride = self.effective_chunk_size - self.cfg.chunk_overlap;
         let offsets = full_enc.get_offsets();
-        let mut all_spans: Vec<Span> = Vec::new();
+        let mut out = Vec::new();
         let mut tok_start = 0;
         while tok_start < total_tokens {
             let tok_end = (tok_start + self.effective_chunk_size).min(total_tokens);
             let (char_start, _) = offsets[tok_start];
             let (_, char_end) = offsets[tok_end - 1];
-            // Defensive: ensure we slice on UTF-8 boundaries.
             let safe_start = clamp_char_boundary(text, char_start, false);
             let safe_end = clamp_char_boundary(text, char_end, true);
             if safe_start >= safe_end {
@@ -243,50 +364,123 @@ impl Engine {
                 .tokenizer
                 .encode(window_text, true)
                 .map_err(|e| anyhow!("tokenize window [{safe_start}..{safe_end}]: {e}"))?;
-            let window_spans = self.run_inference_one(&window_enc)?;
-            for s in window_spans {
-                all_spans.push(Span {
-                    start: s.start + safe_start,
-                    end: s.end + safe_start,
-                    label: s.label,
-                });
-            }
+            out.push(TokenizedWindow {
+                encoding: window_enc,
+                text_byte_offset: safe_start,
+            });
             if tok_end == total_tokens {
                 break;
             }
             tok_start += stride;
         }
+        Ok(out)
+    }
+}
 
-        // Merge spans that overlap across windows (or even within a window),
-        // collapsing same-label adjacent/overlapping ranges into one.
-        Ok(merge_spans(all_spans))
+/// Dedicated thread that owns the ORT session. Consumes [`Job`]s, coalesces
+/// them into `(B, L)` batches, runs one forward pass per batch, fans out
+/// per-row argmax-labels back via oneshots.
+fn batcher_loop(
+    mut session: Session,
+    needs_token_type_ids: bool,
+    max_batch_size: usize,
+    max_queue_delay: Duration,
+    mut rx: mpsc::Receiver<Job>,
+) {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("build batcher single-thread runtime");
+
+    runtime.block_on(async move {
+        let mut queue: VecDeque<(Job, Instant)> = VecDeque::with_capacity(max_batch_size);
+
+        loop {
+            // Block for at least one job. If the channel closes and the
+            // queue is empty, exit cleanly.
+            if queue.is_empty() {
+                match rx.recv().await {
+                    Some(job) => queue.push_back((job, Instant::now())),
+                    None => return,
+                }
+            }
+
+            // Try to fill the batch up to `max_batch_size` without blocking
+            // longer than the remaining `max_queue_delay` budget for the
+            // oldest queued job.
+            while queue.len() < max_batch_size {
+                let oldest = queue.front().map(|(_, t)| *t).unwrap_or_else(Instant::now);
+                let elapsed = oldest.elapsed();
+                if elapsed >= max_queue_delay {
+                    break;
+                }
+                let remaining = max_queue_delay - elapsed;
+                match tokio::time::timeout(remaining, rx.recv()).await {
+                    Ok(Some(job)) => queue.push_back((job, Instant::now())),
+                    Ok(None) => break, // channel closed; drain what we have
+                    Err(_) => break,    // delay elapsed
+                }
+            }
+
+            // Drain up to max_batch_size into a flush vec.
+            let take = queue.len().min(max_batch_size);
+            let mut batch: Vec<Job> = (0..take).map(|_| queue.pop_front().unwrap().0).collect();
+
+            // Sort by descending length so padding waste is concentrated in
+            // shorter rows (which contribute fewer model FLOPs anyway).
+            // After sort we still need to remember the caller's expected
+            // result order? No — every Job carries its own oneshot, so
+            // batch row order is purely an internal detail.
+            batch.sort_by(|a, b| b.ids.len().cmp(&a.ids.len()));
+
+            run_batch(&mut session, needs_token_type_ids, batch);
+        }
+    });
+}
+
+/// Pad [`Job`]s to the longest sequence length in the batch, build `(B, L)`
+/// tensors, run one inference, fan out per-row labels.
+fn run_batch(session: &mut Session, needs_token_type_ids: bool, jobs: Vec<Job>) {
+    if jobs.is_empty() {
+        return;
+    }
+    let batch_size = jobs.len();
+    let max_len = jobs.iter().map(|j| j.ids.len()).max().unwrap_or(0);
+    if max_len == 0 {
+        for j in jobs {
+            let _ = j.reply.send(Ok(Vec::new()));
+        }
+        return;
+    }
+    // Visibility into batcher efficiency. `padding_ratio` near 1.0 means
+    // every row is the same length (perfect bucketing); near 0.0 means we
+    // wasted most of the (B, L) tensor on pad tokens. Sort-by-length keeps
+    // it high in practice.
+    let total_real_tokens: usize = jobs.iter().map(|j| j.ids.len()).sum();
+    let padded_tokens = batch_size * max_len;
+    let padding_ratio = if padded_tokens > 0 {
+        total_real_tokens as f64 / padded_tokens as f64
+    } else {
+        1.0
+    };
+    let started = Instant::now();
+
+    let mut input_ids = Array2::<i64>::zeros((batch_size, max_len));
+    let mut attention_mask = Array2::<i64>::zeros((batch_size, max_len));
+    let mut token_type_ids = Array2::<i64>::zeros((batch_size, max_len));
+    for (b, job) in jobs.iter().enumerate() {
+        for (j, &id) in job.ids.iter().enumerate() {
+            input_ids[(b, j)] = id as i64;
+        }
+        for (j, &m) in job.mask.iter().enumerate() {
+            attention_mask[(b, j)] = m as i64;
+        }
+        for (j, &t) in job.types.iter().enumerate() {
+            token_type_ids[(b, j)] = t as i64;
+        }
     }
 
-    fn run_inference_one(&self, enc: &Encoding) -> Result<Vec<Span>> {
-        let ids = enc.get_ids();
-        let mask = enc.get_attention_mask();
-        let types = enc.get_type_ids();
-        let seq_len = ids.len();
-        if seq_len == 0 {
-            return Ok(Vec::new());
-        }
-
-        let mut input_ids = Array2::<i64>::zeros((1, seq_len));
-        let mut attention_mask = Array2::<i64>::zeros((1, seq_len));
-        let mut token_type_ids = Array2::<i64>::zeros((1, seq_len));
-        for j in 0..seq_len {
-            input_ids[(0, j)] = ids[j] as i64;
-            attention_mask[(0, j)] = mask[j] as i64;
-            token_type_ids[(0, j)] = types[j] as i64;
-        }
-
-        // RAII guard pushes the session back on Drop, covering normal exit,
-        // `?`-propagated errors, AND panics inside `session.run()` — without
-        // it, an unwind would skip the manual push and permanently shrink the
-        // pool while the semaphore kept handing out permits for it.
-        let mut guard = SessionGuard::acquire(&self.sessions)?;
-        let session = guard.session_mut();
-
+    let outputs = (|| -> Result<Vec<Vec<u32>>> {
         let input_ids_t = TensorRef::from_array_view(&input_ids)?;
         let mask_t = TensorRef::from_array_view(&attention_mask)?;
         let token_type_t = TensorRef::from_array_view(&token_type_ids)?;
@@ -294,10 +488,9 @@ impl Engine {
             ("input_ids", input_ids_t.into()),
             ("attention_mask", mask_t.into()),
         ];
-        if self.needs_token_type_ids {
+        if needs_token_type_ids {
             inputs.push(("token_type_ids", token_type_t.into()));
         }
-
         let outputs = session.run(inputs)?;
         let logits_value = &outputs[0];
         let (shape, data) = logits_value.try_extract_tensor::<f32>()?;
@@ -307,50 +500,54 @@ impl Engine {
                 "expected logits shape [batch, seq, num_labels], got {dims:?}"
             ));
         }
+        if dims[0] != batch_size {
+            return Err(anyhow!(
+                "logits batch dim {} != input batch {}",
+                dims[0],
+                batch_size
+            ));
+        }
         let logits = ArrayView::from_shape((dims[0], dims[1], dims[2]), data)?;
-        let row = logits.index_axis(Axis(0), 0);
-        let token_labels = argmax_per_token(row);
-        let label_spans = bioes_spans(&token_labels, &self.labels);
-        Ok(map_to_char_spans(enc, &label_spans))
-    }
-}
 
-/// RAII handle on a borrowed `Session`. Pushes the session back to the pool
-/// on `Drop` so the pool size stays in sync with the semaphore permit count
-/// regardless of how the borrow ends.
-struct SessionGuard<'a> {
-    pool: &'a std::sync::Mutex<Vec<Session>>,
-    session: Option<Session>,
-}
+        let mut out = Vec::with_capacity(batch_size);
+        for b in 0..batch_size {
+            let row = logits.index_axis(Axis(0), b);
+            // Slice each row to its actual (un-padded) length so callers
+            // don't have to think about pad tokens at the BIOES layer.
+            let actual_len = jobs[b].ids.len();
+            let truncated = row.slice(ndarray::s![..actual_len, ..]);
+            out.push(argmax_per_token(truncated));
+        }
+        Ok(out)
+    })();
 
-impl<'a> SessionGuard<'a> {
-    fn acquire(pool: &'a std::sync::Mutex<Vec<Session>>) -> Result<Self> {
-        let session = {
-            let mut locked = pool.lock().unwrap_or_else(|p| p.into_inner());
-            locked.pop().ok_or_else(|| {
-                anyhow!("session pool empty despite holding a permit (invariant violation)")
-            })?
-        };
-        Ok(Self {
-            pool,
-            session: Some(session),
-        })
-    }
-
-    fn session_mut(&mut self) -> &mut Session {
-        self.session
-            .as_mut()
-            .expect("session present until Drop runs")
-    }
-}
-
-impl Drop for SessionGuard<'_> {
-    fn drop(&mut self) {
-        if let Some(session) = self.session.take() {
-            self.pool
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .push(session);
+    let elapsed_ms = started.elapsed().as_millis();
+    match outputs {
+        Ok(per_row) => {
+            tracing::debug!(
+                batch_size,
+                max_len,
+                total_real_tokens,
+                padding_ratio = format!("{:.3}", padding_ratio),
+                elapsed_ms = elapsed_ms as u64,
+                "pii_redactor batch flushed"
+            );
+            for (job, labels) in jobs.into_iter().zip(per_row.into_iter()) {
+                let _ = job.reply.send(Ok(labels));
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                batch_size,
+                max_len,
+                elapsed_ms = elapsed_ms as u64,
+                error = %e,
+                "pii_redactor batch failed"
+            );
+            let msg = format!("{e:#}");
+            for job in jobs {
+                let _ = job.reply.send(Err(anyhow!("{msg}")));
+            }
         }
     }
 }
