@@ -7,11 +7,13 @@ import Footer from "./footer";
 import Hero from "./hero";
 import BuiltForProduction from "./sections/built-for-production";
 import ClaudeFixMyAgent from "./sections/claude-fix-my-agent";
+import Compliance from "./sections/compliance";
 import CTA from "./sections/cta";
 import DidMyFixWork from "./sections/did-my-fix-work";
 import Divider from "./sections/divider";
 import FeaturesForEveryStep from "./sections/features-for-every-step";
 import HasThisIssue from "./sections/has-this-issue";
+import OpenSource from "./sections/open-source";
 import Quote from "./sections/quote";
 import TwoLinesToIntegrate from "./sections/two-lines-to-integrate";
 import UnderstandWhy from "./sections/understand-why";
@@ -41,6 +43,8 @@ const Landing = ({ className, hasSession }: Props) => (
         <Quote />
         <Divider />
         <BuiltForProduction />
+        <OpenSource />
+        <Compliance />
         <CTA />
       </div>
     </div>

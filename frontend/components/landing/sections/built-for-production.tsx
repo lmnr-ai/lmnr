@@ -1,111 +1,87 @@
-import { ArrowRight, ArrowUpRight } from "lucide-react";
-import Image from "next/image";
+"use client";
+
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+
+import { cn } from "@/lib/utils";
 
 import { subSection } from "../class-names";
 
-// Feature rows in the two-column grid. Items with `href` render as docs
-// links with an ArrowUpRight glyph; the rest are plain statements.
+// FLAG: "Read more" needs a real destination — once we publish a compression
+// deep-dive, swap `/blog` for that post.
+const READ_MORE_HREF = "https://laminar.sh/blog";
+
 interface Feature {
   label: string;
-  href?: string;
 }
 
-const FEATURES_LEFT: Feature[] = [
+const FEATURES: Feature[] = [
   { label: "Blazing fast, written in Rust" },
   { label: "Terabytes of production data with ease" },
   { label: "Full-text search on all data" },
 ];
 
-// FLAG: there is no docs page for Helm charts (and no Helm chart in the
-// repo) as of writing — `hosting-options` only covers Docker Compose.
-// Both Docker + Helm rows currently point at the same hosting-options
-// page. If you ship a real Helm chart, swap the URL here.
-const FEATURES_RIGHT: Feature[] = [
-  { label: "Fully open-source, Apache 2.0 licensed" },
-  { label: "Set up with Docker in three lines", href: "https://laminar.sh/docs/hosting-options" },
-  { label: "Deploy anywhere with Helm Charts", href: "https://laminar.sh/docs/hosting-options" },
-];
-
-const FeatureRow = ({ label, href }: Feature) => {
-  const inner = (
-    <>
-      <p className="text-lg leading-6 text-landing-text-300">{label}</p>
-      {href && <ArrowUpRight className="size-4 text-landing-text-300 shrink-0" strokeWidth={2} />}
-    </>
-  );
-  const className = "flex items-center gap-3 h-14 w-full border-t border-landing-text-600";
-  return href ? (
-    <Link href={href} target="_blank" className={`${className} hover:text-landing-text-100 transition-colors`}>
-      {inner}
+const CompressionHero = () => (
+  <div className="flex flex-col gap-3 items-start shrink-0">
+    <p className="font-manrope font-medium text-landing-text-100 text-[60px] leading-[60px] tracking-[-0.02em]">20x</p>
+    <p className="text-base leading-5 text-landing-text-200 w-[244px]">
+      trace compression ratio means faster reads, faster writes, and lower storage costs
+    </p>
+    <Link
+      href={READ_MORE_HREF}
+      target="_blank"
+      className="inline-flex items-center gap-1 text-xs text-landing-text-300 hover:text-landing-text-100 transition-colors"
+    >
+      Read more
+      <ArrowRight className="size-3" strokeWidth={2} />
     </Link>
-  ) : (
-    <div className={className}>{inner}</div>
-  );
-};
+  </div>
+);
+
+const CompressionChart = () => (
+  <div className="flex flex-col gap-1 items-start pt-5 w-full md:flex-1 md:min-w-0">
+    <motion.div
+      className="bg-landing-surface-500 flex h-11 items-center justify-end px-3 overflow-hidden whitespace-nowrap w-full"
+      initial={{ width: 0 }}
+      whileInView={{ width: "100%" }}
+      viewport={{ once: true, amount: 0.6 }}
+      transition={{ duration: 0.9, ease: "easeOut" }}
+    >
+      <p className="text-sm text-landing-text-300">Competition</p>
+    </motion.div>
+    <div className="flex items-center gap-3 h-11 w-full">
+      <motion.div
+        className="bg-landing-primary-400 h-full"
+        initial={{ width: 0 }}
+        whileInView={{ width: "5%" }}
+        viewport={{ once: true, amount: 0.6 }}
+        transition={{ duration: 0.3, ease: "easeOut", delay: 1 }}
+      />
+      <p className="text-sm text-landing-text-100">Laminar</p>
+    </div>
+  </div>
+);
+
+const FeatureRow = ({ label }: Feature) => (
+  <div className="flex items-center h-14 w-full border-t border-landing-text-600">
+    <p className="text-lg leading-6 text-landing-text-300">{label}</p>
+  </div>
+);
 
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
-    <h2 className={subSection}>Built for production</h2>
+    <h2 className={cn(subSection)}>Production-grade performance</h2>
 
-    {/* Hero metric + visual comparison. Side-by-side at md+; stacked
-        (20x above bars) on mobile. items-end only applies at md+ so the
-        "20x" subtitle and Laminar label share a baseline horizontally. */}
-    <div className="flex flex-col gap-8 md:flex-row md:items-end md:gap-[52px] w-full">
-      <div className="flex flex-col gap-1 items-start justify-end shrink-0">
-        <p className="font-manrope font-medium text-white text-[60px] leading-[60px] tracking-[-0.02em]">20x</p>
-        <p className="text-sm text-landing-text-300">trace compression ratio</p>
-      </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-1 items-start">
-        <div className="bg-landing-surface-500 flex items-center justify-end w-full h-8 px-3">
-          <p className="text-sm text-landing-text-300">Competition</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-landing-primary-400 h-8 w-[34px]" />
-          <p className="text-sm text-white">Laminar</p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-10 md:flex-row md:gap-[52px] md:items-start w-full">
+      <CompressionHero />
+      <CompressionChart />
     </div>
 
-    {/* Two-column feature grid. Each row is 56px tall with a top border.
-        Stacks to one column on mobile. */}
-    <div className="flex flex-col md:flex-row md:items-start md:gap-10 w-full">
-      <div className="flex flex-col flex-1 min-w-0 items-start">
-        {FEATURES_LEFT.map((f) => (
-          <FeatureRow key={f.label} {...f} />
-        ))}
-      </div>
-      <div className="flex flex-col flex-1 min-w-0 items-start">
-        {FEATURES_RIGHT.map((f) => (
-          <FeatureRow key={f.label} {...f} />
-        ))}
-      </div>
-    </div>
-
-    {/* Compliance block — left-aligned, tighter learn-more than the
-        section's previous LearnMoreLink-style link (12px + ArrowRight). */}
-    <div className="flex flex-col gap-6 items-start">
-      <p className="text-lg leading-6 text-landing-text-300">HIPAA, SOC 2 Type 2 compliant</p>
-      <div className="flex flex-col gap-4 items-start">
-        <div className="flex items-center gap-6">
-          <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
-          <Image
-            src="/assets/landing/soc2.svg"
-            alt="SOC 2 Type 2 compliant"
-            width={84}
-            height={84}
-            className="size-[84px]"
-          />
-        </div>
-        <Link
-          href="https://compliance.laminar.sh/"
-          target="_blank"
-          className="inline-flex items-center gap-1 text-xs text-landing-text-300 hover:text-landing-text-100 transition-colors"
-        >
-          Compliance
-          <ArrowRight className="size-3" strokeWidth={2} />
-        </Link>
-      </div>
+    <div className="flex flex-col w-full">
+      {FEATURES.map((f) => (
+        <FeatureRow key={f.label} {...f} />
+      ))}
     </div>
   </section>
 );
