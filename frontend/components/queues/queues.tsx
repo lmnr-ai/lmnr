@@ -148,7 +148,7 @@ const QueuesContent = () => {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -300,7 +300,7 @@ const QueuesContent = () => {
           )}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={queuesTableFilters} />
+            <DataTableFilter columns={queuesTableFilters} filters={effective.filters} onFiltersChange={setFilters} />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
                 id: column.id!,

@@ -76,7 +76,7 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
-  const { effective, isLoading: isViewLoading } = useTableView();
+  const { effective, isLoading: isViewLoading, setFilters } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
@@ -238,7 +238,7 @@ function PureEventsTable() {
         emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
@@ -249,7 +249,7 @@ function PureEventsTable() {
           <DateRangeFilter />
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <DataTableFilterList />
+        <DataTableFilterList filters={effective.filters} onFiltersChange={setFilters} />
         <ClustersSection />
       </InfiniteDataTable>
     </div>

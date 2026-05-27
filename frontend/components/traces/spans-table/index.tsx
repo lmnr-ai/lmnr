@@ -49,7 +49,7 @@ function SpansTableContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -172,7 +172,7 @@ function SpansTableContent() {
         fetchNextPage={fetchNextPage}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,

@@ -12,7 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -104,7 +104,7 @@ const PlaygroundsContent = () => {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
@@ -251,7 +251,11 @@ const PlaygroundsContent = () => {
           )}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={playgroundsTableFilters} />
+            <DataTableFilter
+              columns={playgroundsTableFilters}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+            />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
                 id: column.id!,
@@ -270,7 +274,6 @@ const PlaygroundsContent = () => {
               className="w-full flex-1"
             />
           </div>
-          <DataTableFilterList />
         </InfiniteDataTable>
       </div>
     </>

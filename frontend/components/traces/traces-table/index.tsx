@@ -87,7 +87,7 @@ function TracesTableContent() {
   const pastHours = searchParams.get("pastHours");
   const searchIn = searchParams.getAll("searchIn");
 
-  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
 
   // Wire-shape: filters as JSON-encoded strings (matches the API + URL convention).
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
@@ -433,7 +433,7 @@ function TracesTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={allFilters} />
+          <DataTableFilter columns={allFilters} filters={effective.filters} onFiltersChange={setFilters} />
           <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
           <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />

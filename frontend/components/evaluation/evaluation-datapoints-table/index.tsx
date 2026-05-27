@@ -1,7 +1,7 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
@@ -20,6 +20,7 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import { Switch } from "@/components/ui/switch";
+import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import EvalTableSkeleton from "./eval-table-skeleton";
@@ -110,6 +111,11 @@ const EvaluationDatapointsTable = ({
   const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
   const isSearchActive = searchValue.search.length > 0;
 
+  const onFiltersChange = useCallback(
+    (next: Filter[]) => onSearchChange({ ...searchValue, filters: next }),
+    [onSearchChange, searchValue]
+  );
+
   if (isLoading) return <EvalTableSkeleton />;
 
   return (
@@ -132,7 +138,7 @@ const EvaluationDatapointsTable = ({
         onSort={onSort}
       >
         <div className="flex flex-1 w-full space-x-2">
-          <DataTableFilter columns={columnFilters} />
+          <DataTableFilter columns={columnFilters} filters={searchValue.filters} onFiltersChange={onFiltersChange} />
           <EvalColumnsMenu
             columnDefs={columnDefs}
             columnLabels={visibleColumnDefs.map((column) => ({
