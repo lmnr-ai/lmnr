@@ -16,7 +16,7 @@ export async function register() {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
         await import("@/lib/db/migrations/schema.ts");
-      const { db } = await import("@/lib/db/drizzle.ts");
+      const { db, getDatabaseConfig } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -160,7 +160,18 @@ export async function register() {
         }
       };
       // Run Postgres migrations and data initialization
-      await db.execute("ALTER DATABASE postgres REFRESH COLLATION VERSION");
+      // Best-effort: requires DB owner / superuser, which managed Postgres
+      // (RDS, Supabase, Neon, Cloud SQL, Azure) doesn't grant to app roles.
+      try {
+        const dbName = getDatabaseConfig().database;
+        const quotedDbName = `"${dbName.replace(/"/g, '""')}"`;
+        await db.execute(`ALTER DATABASE ${quotedDbName} REFRESH COLLATION VERSION`);
+      } catch (error) {
+        console.warn(
+          "Skipping REFRESH COLLATION VERSION (insufficient privileges or unsupported):",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
       await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
