@@ -55,11 +55,14 @@ For production environment, we recommend using our [managed platform](https://la
 
 ### Configuring LLM provider (optional)
 
-Frontend AI features (chat-with-trace, SQL-with-AI) require an LLM provider. Configure one in your `.env` file at the repo root — the vars are read by the frontend only.
+Frontend AI features (chat-with-trace, SQL-with-AI) and server-side AI workers require an LLM provider. Configure one in your `.env` file at the repo root.
 
-Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are optional — per-provider defaults apply when unset.
+Pick one of the following provider setups. `LLM_MODEL_SMALL|MEDIUM|LARGE` are optional — per-provider defaults apply when unset. `LLM_DEFAULT_HEADERS_JSON` is optional for any provider or gateway that requires static headers.
 
 ```sh
+# Optional for any provider/gateway that requires static headers
+# LLM_DEFAULT_HEADERS_JSON='{"X-Gateway-Tenant":"tenant"}'
+
 # Option A: Gemini
 LLM_PROVIDER=gemini
 LLM_API_KEY=your_gemini_key
