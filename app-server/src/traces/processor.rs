@@ -300,13 +300,13 @@ pub async fn process_span_messages(
         // Build the CH / realtime payload as the deduped union, keeping the
         // LATEST occurrence per `(project_id, id)`. When a single flush
         // touches the same trace via BOTH the aggregation upsert AND a
-        // metadata patch, both stages return the same row with identical
-        // `num_spans` (the patch UPDATE doesn't bump it), differing only in
-        // `metadata`. `traces_replacing` is `ReplacingMergeTree(num_spans)`,
-        // so two rows with identical version are undefined under merge — the
-        // pre-patch row could win and CH would diverge from the patched
-        // Postgres state. Patches are appended after aggregation, so
-        // last-write-wins preserves the patched metadata.
+        // metadata patch, both stages return the same row keyed by
+        // `(project_id, id)`. The patch UPDATE bumps `num_spans` by 1, so
+        // `traces_replacing` (ReplacingMergeTree(num_spans)) would pick the
+        // patched row even if we shipped both — but skipping the redundant
+        // pre-patch insert saves a part on the hot ingest table. Patches
+        // are appended after aggregation, so last-write-wins preserves the
+        // patched metadata.
         let mut updated_traces: Vec<Trace> =
             Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
         updated_traces.extend(aggregation_traces.iter().cloned());

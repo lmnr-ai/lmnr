@@ -391,6 +391,15 @@ pub struct TraceMetadataPatch {
 /// so concurrent ingestion of the same trace (which goes through the same row via
 /// `upsert_trace_statistics_batch`) serialises against this update.
 ///
+/// Also bumps `num_spans` by 1. ClickHouse `traces_replacing` is
+/// `ReplacingMergeTree(num_spans)` — without a version bump, a patched row in
+/// the same flush as a regular ingestion upsert would have identical
+/// `num_spans` and CH's merge winner would be undefined. The +1 is paid by the
+/// virtual metadata-only span that drove this patch, so the count stays
+/// consistent with "one virtual span ingested" and gives the patched row a
+/// strictly higher version than the row written by the same-batch upsert
+/// (which only summed over real spans).
+///
 /// Traces that don't exist are silently skipped — no rows are created here. The
 /// HTTP handler validates existence up front, but a race (e.g. trace deleted
 /// between request and consumption) must not produce a stub trace row with
@@ -409,7 +418,8 @@ pub async fn merge_trace_metadata_batch(
         let updated = sqlx::query_as::<_, Trace>(
             r#"
             UPDATE traces
-            SET metadata = COALESCE(traces.metadata || $1, $1, traces.metadata)
+            SET metadata = COALESCE(traces.metadata || $1, $1, traces.metadata),
+                num_spans = COALESCE(traces.num_spans, 0) + 1
             WHERE id = $2 AND project_id = $3
             RETURNING
                 id,
