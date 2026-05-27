@@ -95,4 +95,3 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
 
   return { success: true };
 }
-

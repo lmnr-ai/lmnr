@@ -1,47 +1,189 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { Settings as SettingsIcon } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useCallback, useMemo } from "react";
 
+import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
+import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import { useEvalStore } from "@/components/evaluation/store";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { type ScoreRanges } from "@/components/evaluation/utils";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
+import { Switch } from "@/components/ui/switch";
+import { type Filter } from "@/lib/actions/common/filters";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import EvalTableSkeleton from "./eval-table-skeleton";
-import EvaluationDatapointsTableContent from "./evaluation-datapoints-table-content";
 
-export interface EvaluationDatapointsTableProps {
-  isLoading: boolean;
-  datapointId?: string;
+interface EvaluationDatapointsTableProps {
   data: EvalRow[] | undefined;
-  scores: string[];
+  isLoading: boolean;
+  isFetching: boolean;
+  hasMore: boolean;
+  fetchNextPage: () => void;
+
+  /** Full column defs (used by the columns menu and filter list). */
   columnDefs: ColumnDef<EvalRow>[];
+  /** Subset rendered in the table (output dropped in comparison mode). */
+  visibleColumnDefs: ColumnDef<EvalRow>[];
+  /** True when a target evaluation is selected. Drives comparison column rendering. */
+  isComparison: boolean;
+  /** Min/max per score, derived from data. Used by the heatmap renderer. */
+  scoreRanges: ScoreRanges;
+
+  datapointId?: string;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
-  hasMore: boolean;
-  isFetching: boolean;
-  fetchNextPage: () => void;
+
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+  onSort: (columnId: string, direction: "asc" | "desc") => void;
+
+  /** Heatmap toggle is non-shared only; omit to hide the settings dropdown. */
+  heatmapEnabled?: boolean;
+  onHeatmapEnabledChange?: (enabled: boolean) => void;
+  onDeleteCustomColumn?: (columnId: string) => void;
+
+  /** Controlled search/filter value. Parent owns the source (view layer or URL params). */
+  searchValue: AdvancedSearchValue;
+  onSearchChange: (next: AdvancedSearchValue) => void;
+  /** When set, renders the ViewsToolbar bound to this resource. Omit on pages without views (e.g. shared eval). */
+  viewsResource?: string;
 }
 
-const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
+  columnDefs
+    .filter((c) => c.meta?.filterable)
+    .map((c) => ({
+      key: c.id!,
+      name: typeof c.header === "string" ? c.header : c.id!,
+      dataType:
+        c.meta!.dataType === "json"
+          ? ("json" as const)
+          : c.meta!.dataType === "number"
+            ? ("number" as const)
+            : ("string" as const),
+    }));
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { scores, isLoading } = props;
-  const customColumns = useEvalStore((s) => s.customColumns);
-  const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [scores, customColumns]
+const EvaluationDatapointsTable = ({
+  data,
+  isLoading,
+  isFetching,
+  hasMore,
+  fetchNextPage,
+  columnDefs,
+  visibleColumnDefs,
+  isComparison,
+  scoreRanges,
+  datapointId,
+  handleRowClick,
+  getRowHref,
+  sortBy,
+  sortDirection,
+  onSort,
+  heatmapEnabled,
+  onHeatmapEnabledChange,
+  onDeleteCustomColumn,
+  searchValue,
+  onSearchChange,
+  viewsResource,
+}: EvaluationDatapointsTableProps) => {
+  const { projectId } = useParams<{ projectId: string }>();
+  const isShared = useEvalStore((s) => s.isShared);
+
+  const tableMeta = useMemo(
+    () => ({
+      evalCellMeta: { isComparison, isShared, heatmapEnabled: heatmapEnabled ?? false, scoreRanges },
+    }),
+    [isComparison, isShared, heatmapEnabled, scoreRanges]
   );
 
-  // Delay mounting the store until scores are known, otherwise the store
-  // is created with an incomplete defaultColumnOrder and score columns
-  // won't be reorderable.
-  if (isLoading) {
-    return <EvalTableSkeleton />;
-  }
+  const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
+  const isSearchActive = searchValue.search.length > 0;
+
+  const onFiltersChange = useCallback(
+    (next: Filter[]) => onSearchChange({ ...searchValue, filters: next }),
+    [onSearchChange, searchValue]
+  );
+
+  if (isLoading) return <EvalTableSkeleton />;
 
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
-      <EvaluationDatapointsTableContent {...props} />
-    </DataTableStateProvider>
+    <div className="flex overflow-hidden flex-1">
+      <InfiniteDataTable
+        columns={visibleColumnDefs}
+        data={data ?? []}
+        meta={tableMeta}
+        hasMore={!isSearchActive && hasMore}
+        isFetching={isFetching}
+        isLoading={false}
+        fetchNextPage={fetchNextPage}
+        getRowId={(row) => row["id"] as string}
+        focusedRowId={datapointId}
+        onRowClick={handleRowClick}
+        getRowHref={getRowHref}
+        className="flex-1"
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={onSort}
+      >
+        <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter columns={columnFilters} filters={searchValue.filters} onFiltersChange={onFiltersChange} />
+          <EvalColumnsMenu
+            columnDefs={columnDefs}
+            columnLabels={visibleColumnDefs.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+              ...(column.id!.startsWith("custom:") &&
+                onDeleteCustomColumn && {
+                  onDelete: () => onDeleteCustomColumn(column.id!),
+                }),
+            }))}
+          />
+          {viewsResource && <ViewsToolbar projectId={projectId} resource={viewsResource} />}
+          {onHeatmapEnabledChange && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="h-7 w-7" variant="outline" size="icon">
+                  <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="flex items-center justify-between px-2 py-2">
+                  <div className="flex flex-col">
+                    <span className="text-xs">Scores Heatmap</span>
+                    <span className="text-xs text-muted-foreground">Color-code score values</span>
+                  </div>
+                  <Switch checked={heatmapEnabled ?? false} onCheckedChange={onHeatmapEnabledChange} />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        <div className="w-full">
+          <AdvancedSearch
+            value={searchValue}
+            onChange={onSearchChange}
+            storageKey={`evaluation-datapoints-${projectId}`}
+            filters={columnFilters}
+            placeholder="Search in data, targets, scores and spans..."
+            className="w-full flex-1"
+          />
+        </div>
+      </InfiniteDataTable>
+    </div>
   );
 };
 

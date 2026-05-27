@@ -7,7 +7,6 @@ import { persist } from "zustand/middleware";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type ScoreRanges } from "@/components/evaluation/utils";
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -37,11 +36,8 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
 
 export interface EvalStoreState {
   // Data
-  scoreRanges: ScoreRanges;
   heatmapEnabled: boolean;
-  isComparison: boolean;
   isShared: boolean;
-  customColumns: CustomColumn[];
   /**
    * Single source of truth for the list of score names belonging to the
    * current evaluation. Seeded by the page (server-side
@@ -52,13 +48,8 @@ export interface EvalStoreState {
   scoreNames: string[];
 
   // Actions
-  setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
-  setIsComparison: (value: boolean) => void;
   addScoreName: (name: string) => void;
-  addCustomColumn: (column: CustomColumn) => void;
-  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
-  removeCustomColumn: (name: string) => void;
 }
 
 export const selectVisibleColumnDefs = (
@@ -188,44 +179,22 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
   return createStore<EvalStoreState>()(
     persist(
       (set, get) => ({
-        scoreRanges: {},
         heatmapEnabled: false,
-        isComparison: false,
         isShared,
-        customColumns: [],
         scoreNames: initialScoreNames,
 
-        setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
         setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
-        setIsComparison: (value) => set({ isComparison: value }),
 
         addScoreName: (name) => {
           const { scoreNames } = get();
           if (scoreNames.includes(name)) return;
           set({ scoreNames: [...scoreNames, name] });
         },
-
-        addCustomColumn: (column) => {
-          const { customColumns } = get();
-          if (customColumns.some((cc) => cc.name === column.name)) return;
-          set({ customColumns: [...customColumns, column] });
-        },
-
-        updateCustomColumn: (oldName, column) => {
-          set({
-            customColumns: get().customColumns.map((cc) => (cc.name === oldName ? column : cc)),
-          });
-        },
-
-        removeCustomColumn: (name) => {
-          set({ customColumns: get().customColumns.filter((cc) => cc.name !== name) });
-        },
       }),
       {
         name: "evaluation-store",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
-          customColumns: state.customColumns,
         }),
       }
     )

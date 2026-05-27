@@ -29,7 +29,8 @@ const parseDatabaseUrl = (url: string): DatabaseConfig => {
   const password = match[2];
   const host = match[3];
   const port = match[4] ? parseInt(match[4]) : 5432;
-  const database = match[5] || username;
+  // Strip query string (e.g. `?sslmode=require`) from the database name.
+  const database = (match[5] || username).split('?', 1)[0];
 
   if (!password) {
     throw new Error('Invalid database URL. Cannot find password');

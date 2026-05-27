@@ -13,13 +13,15 @@ import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-clu
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
@@ -73,8 +75,9 @@ function PureEventsTable() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const filterRaw = searchParams.getAll("filter");
-  const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
+
+  const { effective, isLoading: isViewLoading, setFilters } = useTableView();
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
@@ -177,7 +180,7 @@ function PureEventsTable() {
     fetchNextPage,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
-    enabled: !!(pastHours || (startDate && endDate)),
+    enabled: !!(pastHours || (startDate && endDate)) && !isViewLoading,
     deps: [
       params.projectId,
       signal.id,
@@ -227,7 +230,7 @@ function PureEventsTable() {
         focusedRowId={focusedRowId}
         hasMore={hasMore}
         isFetching={isFetching}
-        isLoading={isLoading}
+        isLoading={isLoading || isViewLoading}
         getRowHref={getRowHref}
         fetchNextPage={fetchNextPage}
         loadMoreButton
@@ -235,17 +238,18 @@ function PureEventsTable() {
         emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
           <DateRangeFilter />
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <DataTableFilterList />
+        <DataTableFilterList filters={effective.filters} onFiltersChange={setFilters} />
         <ClustersSection />
       </InfiniteDataTable>
     </div>
@@ -254,11 +258,16 @@ function PureEventsTable() {
 
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
+  const params = useParams<{ projectId: string }>();
   const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (
-    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
+    <InfiniteDataTableProvider
+      uniqueKey="id"
+      defaults={{ columnOrder }}
+      views={{ projectId: params.projectId, resource: `signal-events:${signal.id}` }}
+    >
       <PureEventsTable />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

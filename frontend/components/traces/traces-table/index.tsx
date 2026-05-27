@@ -4,7 +4,7 @@ import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
-import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -25,10 +25,12 @@ import {
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -38,13 +40,18 @@ import { type TraceRow } from "@/lib/traces/types";
 const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
+const RESOURCE = "traces";
+
 export default function TracesTable() {
   const { projectId } = useParams();
-
   return (
-    <DataTableStateProvider storageKey={`traces-table-${projectId}`} defaultColumnOrder={defaultTracesColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultTracesColumnOrder }}
+      lockedColumns={["status", "preview"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <TracesTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
@@ -77,31 +84,35 @@ function TracesTableContent() {
     metric: state.metric,
   }));
 
-  const filter = searchParams.getAll("filter");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
-  const textSearchFilter = searchParams.get("search");
   const searchIn = searchParams.getAll("searchIn");
-  const sortBy = searchParams.get("sortBy") ?? undefined;
-  const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
+
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters, setFilters } = useTableView();
+
+  // Wire-shape: filters as JSON-encoded strings (matches the API + URL convention).
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = (effective.sortDirection ?? undefined) as "asc" | "desc" | undefined;
 
   const [realtimeEnabled, setRealtimeEnabled] = useLocalStorage("traces-table:realtime", false);
 
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const datatableStore = useDataTableStore();
-  const { customColumns, removeCustomColumn, columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    customColumns: s.customColumns,
-    removeCustomColumn: s.removeCustomColumn,
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
+  const { customColumns, removeCustomColumn } = useTableConfigStore(
+    (s) => ({
+      customColumns: s.config.customColumns,
+      removeCustomColumn: s.removeCustomColumn,
+    }),
+    shallow
+  );
 
   const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
 
-  // Merge static filter definitions with custom column filters
+  // Merge static filter definitions with custom column filters.
   const allFilters = useMemo<ColumnFilter[]>(() => {
     const customColumnFilters: ColumnFilter[] = customColumns.map((cc) => ({
       name: cc.name,
@@ -110,11 +121,6 @@ function TracesTableContent() {
     }));
     return [...staticFilters, ...customColumnFilters];
   }, [customColumns]);
-
-  const advancedSearchKey = useMemo(
-    () => customColumns.map((cc) => `${cc.name}:${cc.dataType}`).join("|"),
-    [customColumns]
-  );
 
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
@@ -131,22 +137,8 @@ function TracesTableContent() {
     return cols;
   }, [columnDefs, isSearchActive]);
 
-  useEffect(() => {
-    if (effectiveColumns.length === 0) return;
-
-    const pinned = new Set(["status", "preview"]);
-    const visibleIds = new Set(effectiveColumns.map((c) => c.id!));
-    const hasPreview = visibleIds.has("preview");
-
-    const rest = columnOrder.filter((id) => visibleIds.has(id) && !pinned.has(id));
-    const newIds = [...visibleIds].filter((id) => !new Set(columnOrder).has(id) && !pinned.has(id));
-
-    const newOrder = ["status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
-
-    if (newOrder.length !== columnOrder.length || newOrder.some((id, i) => columnOrder[i] !== id)) {
-      setColumnOrder(newOrder);
-    }
-  }, [effectiveColumns, columnOrder, setColumnOrder]);
+  // "preview" is only mounted when search is active, so the pin list is conditional.
+  const pinnedColumns = useMemo(() => (isSearchActive ? ["status", "preview"] : ["status"]), [isSearchActive]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -233,7 +225,6 @@ function TracesTableContent() {
 
         const data = (await res.json()) as { items: TraceRow[] };
 
-        // Insert all tags data into SWR cache
         data.items.map((trace) =>
           globalMutate(`/api/projects/${projectId}/traces/${trace.id}/tags`, trace.traceTags ?? [], {
             revalidate: false,
@@ -262,6 +253,7 @@ function TracesTableContent() {
       startDate,
       textSearchFilter,
       toast,
+      globalMutate,
     ]
   );
 
@@ -295,10 +287,11 @@ function TracesTableContent() {
   }, [setNavigationRefList, traces]);
 
   useEffect(() => {
+    if (isViewLoading) return;
     if (statsUrl) {
       fetchStats(statsUrl);
     }
-  }, [statsUrl, fetchStats]);
+  }, [isViewLoading, statsUrl, fetchStats]);
 
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {
@@ -312,15 +305,12 @@ function TracesTableContent() {
         const existingTraceIndex = currentTraces.findIndex((trace) => trace.id === traceData.id);
 
         if (existingTraceIndex !== -1) {
-          // Update existing trace
           const newTraces = [...currentTraces];
           newTraces[existingTraceIndex] = traceData;
           return newTraces;
         } else {
-          // New trace - insert at the beginning
           const newTraces = [traceData, ...currentTraces];
 
-          // Keep only the first FETCH_SIZE traces
           if (newTraces.length > FETCH_SIZE) {
             newTraces.splice(FETCH_SIZE);
           }
@@ -333,7 +323,7 @@ function TracesTableContent() {
         }
       });
     },
-    [updateData, isTraceInTimeRange]
+    [updateData, isTraceInTimeRange, incrementStat]
   );
 
   const eventHandlers = useMemo(
@@ -383,8 +373,7 @@ function TracesTableContent() {
     [onRowClick]
   );
 
-  // Auto-open the chat panel for traces that have meaningful LLM activity.
-  // The `chat` query param survives refresh so the panel state is preserved.
+  // Auto-open the chat panel for traces with meaningful LLM activity.
   const getRowHref = useCallback(
     (row: Row<TraceRow>) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -402,17 +391,17 @@ function TracesTableContent() {
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (columnId) {
-        params.set("sortBy", columnId);
-        params.set("sortDirection", direction.toUpperCase());
-      } else {
-        params.delete("sortBy");
-        params.delete("sortDirection");
-      }
-      router.push(`${pathName}?${params.toString()}`);
+      setSort(columnId || null, columnId ? direction : null);
     },
-    [searchParams, router, pathName]
+    [setSort]
+  );
+
+  // Controlled AdvancedSearch — `value` flows in, `onChange` writes URL via
+  // the view layer. No `mode` prop, no key-remount; when the view changes
+  // or the user discards, `value` updates and the search bar reflows.
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
   );
 
   const columnLabels = useMemo(
@@ -438,21 +427,18 @@ function TracesTableContent() {
         focusedRowId={traceId || searchParams.get("traceId")}
         hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
-        isLoading={isLoading}
+        isLoading={isLoading || isViewLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status", "preview"]}
+        pinnedColumns={pinnedColumns}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={allFilters} />
-          <TracesColumnsMenu
-            lockedColumns={["status", "preview"]}
-            columnLabels={columnLabels}
-            columnDefs={columnDefs}
-          />
+          <DataTableFilter columns={allFilters} filters={effective.filters} onFiltersChange={setFilters} />
+          <TracesColumnsMenu columnLabels={columnLabels} columnDefs={columnDefs} />
+          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">
@@ -462,7 +448,8 @@ function TracesTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
-            key={advancedSearchKey}
+            value={searchValue}
+            onChange={setSearchAndFilters}
             filters={allFilters}
             storageKey={`traces-${projectId}`}
             resource="traces"

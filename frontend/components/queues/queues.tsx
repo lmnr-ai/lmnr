@@ -2,18 +2,20 @@
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { Check, Circle, Loader2, Pencil, SquareArrowOutUpRight, Trash2 } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -113,6 +115,7 @@ const queuesTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "queues";
 
 const EmptyRow = (
   <TableRow className="flex">
@@ -143,11 +146,15 @@ const QueuesContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
 
   useEffect(() => {
     track("labeling_queues", "page_viewed");
@@ -201,7 +208,7 @@ const QueuesContent = () => {
     updateData,
   } = useInfiniteScroll<LabelingQueueWithProgress>({
     fetchFn: fetchQueues,
-    enabled: true,
+    enabled: !isViewLoading,
     deps: [projectId, filter, search],
   });
 
@@ -255,13 +262,12 @@ const QueuesContent = () => {
           data={queues ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
-          isLoading={isLoading}
+          isLoading={isLoading || isViewLoading}
           fetchNextPage={fetchNextPage}
           state={{
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -294,17 +300,19 @@ const QueuesContent = () => {
           )}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={queuesTableFilters} />
+            <DataTableFilter columns={queuesTableFilters} filters={effective.filters} onFiltersChange={setFilters} />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
-              lockedColumns={["__row_selection"]}
             />
+            <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           </div>
           <div className="w-full">
             <AdvancedSearch
+              value={searchValue}
+              onChange={setSearchAndFilters}
               storageKey={`queues-${projectId}`}
               filters={queuesTableFilters}
               placeholder="Search queues..."
@@ -318,9 +326,14 @@ const QueuesContent = () => {
 };
 
 export default function Queues() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider storageKey="queues-table" defaultColumnOrder={defaultQueuesColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultQueuesColumnOrder }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <QueuesContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
