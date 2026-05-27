@@ -293,12 +293,12 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     <motion.div
       initial={{
         borderColor: "rgb(37 37 38 / 0)",
-        backgroundColor: "rgb(15 15 15 / 0)",
+        backgroundColor: "rgb(10 10 10 / 0)",
         height: 0,
       }}
       animate={{
         borderColor: phase >= 2 ? "rgb(37 37 38)" : "rgb(37 37 38 / 0)",
-        backgroundColor: phase >= 2 ? "rgb(15 15 15)" : "rgb(15 15 15 / 0)",
+        backgroundColor: phase >= 2 ? "rgb(10 10 10)" : "rgb(10 10 10 / 0)",
         height: phase >= 2 ? BENTO_HEIGHT : headerHeight,
       }}
       // Height snaps at phase 1 so the bento tracks the morph card's
