@@ -2,27 +2,34 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type SessionRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
+const RESOURCE = "sessions";
 
 export default function SessionsTable() {
+  const { projectId } = useParams();
   return (
-    <InfiniteDataTableProvider uniqueKey="sessionId" defaults={{ columnOrder: defaultSessionsColumnOrder }}>
+    <InfiniteDataTableProvider
+      uniqueKey="sessionId"
+      defaults={{ columnOrder: defaultSessionsColumnOrder }}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <SessionsTableContent />
     </InfiniteDataTableProvider>
   );
@@ -35,12 +42,16 @@ function SessionsTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
-  const filter = searchParams.getAll("filter");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
-  const textSearchFilter = searchParams.get("search");
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -100,7 +111,7 @@ function SessionsTableContent() {
     refetch,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
-    enabled: shouldFetch,
+    enabled: shouldFetch && !isViewLoading,
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
@@ -123,7 +134,7 @@ function SessionsTableContent() {
         onRowClick={handleRowClick}
         hasMore={hasMore}
         isFetching={isFetching}
-        isLoading={isLoading || !shouldFetch}
+        isLoading={isLoading || !shouldFetch || isViewLoading}
         fetchNextPage={fetchNextPage}
         error={error}
       >
@@ -135,13 +146,14 @@ function SessionsTableContent() {
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
             value={searchValue}
-            onChange={setSearchValue}
+            onChange={setSearchAndFilters}
             filters={filters}
             placeholder="Search by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"

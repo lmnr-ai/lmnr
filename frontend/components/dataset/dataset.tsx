@@ -12,6 +12,7 @@ import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ const columns: ColumnDef<Datapoint>[] = [
 ];
 
 const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
+const RESOURCE = "dataset";
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -323,12 +325,15 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu
-              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
+            <div className="flex flex-1 w-full space-x-2">
+              <ColumnsMenu
+                columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
+              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
+            </div>
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
@@ -361,10 +366,12 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 };
 
 export default function Dataset(props: DatasetProps) {
+  const { projectId } = useParams();
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultDatasetColumnOrder }}
       lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
     >
       <DatasetContent {...props} />
     </InfiniteDataTableProvider>

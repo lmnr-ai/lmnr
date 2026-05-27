@@ -4,7 +4,7 @@ import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSWRConfig } from "swr";
-import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -100,11 +100,13 @@ function TracesTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
   const isCurrentTimestampIncluded = !!pastHours || (!!endDate && new Date(endDate) >= new Date());
 
-  const configStore = useTableConfigStore();
-  const { customColumns, removeCustomColumn } = useStore(configStore, (s) => ({
-    customColumns: s.config.customColumns,
-    removeCustomColumn: s.removeCustomColumn,
-  }));
+  const { customColumns, removeCustomColumn } = useTableConfigStore(
+    (s) => ({
+      customColumns: s.config.customColumns,
+      removeCustomColumn: s.removeCustomColumn,
+    }),
+    shallow
+  );
 
   const columnDefs = useMemo(() => buildColumnDefs(customColumns), [customColumns]);
 

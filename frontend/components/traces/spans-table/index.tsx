@@ -2,10 +2,9 @@
 import { type Row } from "@tanstack/react-table";
 import { map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
@@ -13,20 +12,25 @@ import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SpanRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
+const RESOURCE = "spans";
 
 export default function SpansTable() {
+  const { projectId } = useParams();
   return (
     <InfiniteDataTableProvider
       uniqueKey="spanId"
       defaults={{ columnOrder: defaultSpansColumnOrder }}
       lockedColumns={["status"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
     >
       <SpansTableContent />
     </InfiniteDataTableProvider>
@@ -45,12 +49,16 @@ function SpansTableContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
-  const filter = searchParams.getAll("filter");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
-  const textSearchFilter = searchParams.get("search");
 
   const { setNavigationRefList } = useTraceViewNavigation();
 
@@ -109,7 +117,7 @@ function SpansTableContent() {
     refetch,
   } = useInfiniteScroll<SpanRow>({
     fetchFn: fetchSpans,
-    enabled: shouldFetch,
+    enabled: shouldFetch && !isViewLoading,
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
@@ -160,7 +168,7 @@ function SpansTableContent() {
         focusedRowId={spanId || searchParams.get("spanId")}
         hasMore={!textSearchFilter && hasMore}
         isFetching={isFetching}
-        isLoading={isLoading}
+        isLoading={isLoading || isViewLoading}
         fetchNextPage={fetchNextPage}
       >
         <div className="flex flex-1 w-full h-full gap-2">
@@ -171,13 +179,14 @@ function SpansTableContent() {
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
             value={searchValue}
-            onChange={setSearchValue}
+            onChange={setSearchAndFilters}
             storageKey={`spans-${projectId}`}
             filters={filters}
             resource="spans"

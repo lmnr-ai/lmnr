@@ -3,7 +3,6 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import { useEvalStore } from "@/components/evaluation/store";
@@ -20,9 +19,7 @@ interface EvalColumnsMenuProps {
 export default function EvalColumnsMenu({ columnDefs, columnLabels = [] }: EvalColumnsMenuProps) {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
-  const configStore = useTableConfigStore();
-  const { addCustomColumn, updateCustomColumn } = useStore(
-    configStore,
+  const { addCustomColumn, updateCustomColumn } = useTableConfigStore(
     (s) => ({ addCustomColumn: s.addCustomColumn, updateCustomColumn: s.updateCustomColumn }),
     shallow
   );

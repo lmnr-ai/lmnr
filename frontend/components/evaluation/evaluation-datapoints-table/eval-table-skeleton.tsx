@@ -1,4 +1,4 @@
-import { Search, Settings } from "lucide-react";
+import { ChevronDown, Layers2, Search, Settings } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +19,12 @@ export default function EvalTableSkeleton() {
             <Button icon="columns2" className="text-secondary-foreground" variant="outline" disabled>
               Columns
             </Button>
+            <Button className="gap-1 text-secondary-foreground" variant="outline" disabled>
+              <Layers2 className="h-3.5 w-3.5" />
+              Default view
+              <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+            </Button>
+
             <Button className="h-7 w-7" variant="outline" size="icon" disabled>
               <Settings className="h-4 w-4 text-secondary-foreground" />
             </Button>

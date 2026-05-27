@@ -24,6 +24,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -95,18 +96,18 @@ export function InfiniteDataTable<TData extends RowData>({
   // rather than syncing back into the store via an effect.
   const availableIds = useMemo(() => finalColumns.map((c) => c.id!).filter(Boolean), [finalColumns]);
 
-  const configStore = useTableConfigStore();
-  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, columnSizing, setColumnSizing } = useStore(
-    configStore,
-    (state) => ({
-      columnOrder: state.config.columnOrder,
-      setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.config.columnVisibility,
-      setColumnVisibility: state.setColumnVisibility,
-      columnSizing: state.config.columnSizing,
-      setColumnSizing: state.setColumnSizing,
-    })
-  );
+  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, columnSizing, setColumnSizing } =
+    useTableConfigStore(
+      (state) => ({
+        columnOrder: state.config.columnOrder,
+        setColumnOrder: state.setColumnOrder,
+        columnVisibility: state.config.columnVisibility,
+        setColumnVisibility: state.setColumnVisibility,
+        columnSizing: state.config.columnSizing,
+        setColumnSizing: state.setColumnSizing,
+      }),
+      shallow
+    );
 
   const tableStore = useTableStore();
   const { draggingColumnId, setDraggingColumnId } = useStore(tableStore, (state) => ({

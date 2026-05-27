@@ -94,7 +94,6 @@ function toFormShape(effective: ViewParams): FormWriteShape {
   };
 }
 
-// `?v=` and not `?view=` — the latter is taken by the traces/sessions tab switcher.
 export function useViewState({ projectId, resource }: UseViewStateOptions): ViewStateResult {
   const [form, setForm] = useQueryStates({
     v: parseAsString,

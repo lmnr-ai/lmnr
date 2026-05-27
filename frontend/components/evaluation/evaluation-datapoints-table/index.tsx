@@ -1,10 +1,9 @@
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
-import AdvancedSearch from "@/components/common/advanced-search";
-import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
+import AdvancedSearch, { type AdvancedSearchValue } from "@/components/common/advanced-search";
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ScoreRanges } from "@/components/evaluation/utils";
@@ -19,6 +18,7 @@ import {
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -52,6 +52,12 @@ interface EvaluationDatapointsTableProps {
   heatmapEnabled?: boolean;
   onHeatmapEnabledChange?: (enabled: boolean) => void;
   onDeleteCustomColumn?: (columnId: string) => void;
+
+  /** Controlled search/filter value. Parent owns the source (view layer or URL params). */
+  searchValue: AdvancedSearchValue;
+  onSearchChange: (next: AdvancedSearchValue) => void;
+  /** When set, renders the ViewsToolbar bound to this resource. Omit on pages without views (e.g. shared eval). */
+  viewsResource?: string;
 }
 
 const buildColumnFilters = (columnDefs: ColumnDef<EvalRow>[]): ColumnFilter[] =>
@@ -87,6 +93,9 @@ const EvaluationDatapointsTable = ({
   heatmapEnabled,
   onHeatmapEnabledChange,
   onDeleteCustomColumn,
+  searchValue,
+  onSearchChange,
+  viewsResource,
 }: EvaluationDatapointsTableProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const isShared = useEvalStore((s) => s.isShared);
@@ -99,8 +108,7 @@ const EvaluationDatapointsTable = ({
   );
 
   const columnFilters = useMemo(() => buildColumnFilters(columnDefs), [columnDefs]);
-  const search = useSearchParams().get("search");
-  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
+  const isSearchActive = searchValue.search.length > 0;
 
   if (isLoading) return <EvalTableSkeleton />;
 
@@ -110,7 +118,7 @@ const EvaluationDatapointsTable = ({
         columns={visibleColumnDefs}
         data={data ?? []}
         meta={tableMeta}
-        hasMore={!search && hasMore}
+        hasMore={!isSearchActive && hasMore}
         isFetching={isFetching}
         isLoading={false}
         fetchNextPage={fetchNextPage}
@@ -136,6 +144,7 @@ const EvaluationDatapointsTable = ({
                 }),
             }))}
           />
+          {viewsResource && <ViewsToolbar projectId={projectId} resource={viewsResource} />}
           {onHeatmapEnabledChange && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -160,7 +169,7 @@ const EvaluationDatapointsTable = ({
         <div className="w-full">
           <AdvancedSearch
             value={searchValue}
-            onChange={setSearchValue}
+            onChange={onSearchChange}
             storageKey={`evaluation-datapoints-${projectId}`}
             filters={columnFilters}
             placeholder="Search in data, targets, scores and spans..."

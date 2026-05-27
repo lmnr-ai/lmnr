@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
-import { useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
 import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
@@ -14,11 +14,13 @@ interface TracesColumnsMenuProps {
 }
 
 export default function TracesColumnsMenu({ columnLabels = [], columnDefs }: TracesColumnsMenuProps) {
-  const configStore = useTableConfigStore();
-  const { addCustomColumn, updateCustomColumn } = useStore(configStore, (s) => ({
-    addCustomColumn: s.addCustomColumn,
-    updateCustomColumn: s.updateCustomColumn,
-  }));
+  const { addCustomColumn, updateCustomColumn } = useTableConfigStore(
+    (s) => ({
+      addCustomColumn: s.addCustomColumn,
+      updateCustomColumn: s.updateCustomColumn,
+    }),
+    shallow
+  );
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({

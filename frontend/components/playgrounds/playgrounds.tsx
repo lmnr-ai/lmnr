@@ -2,17 +2,19 @@
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundInfo } from "@/lib/playground/types";
@@ -69,6 +71,7 @@ const playgroundsTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "playgrounds";
 
 const EmptyRow = (
   <TableRow className="flex">
@@ -99,11 +102,15 @@ const PlaygroundsContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
 
   useEffect(() => {
     track("playgrounds", "page_viewed");
@@ -157,7 +164,7 @@ const PlaygroundsContent = () => {
     updateData,
   } = useInfiniteScroll<PlaygroundInfo>({
     fetchFn: fetchPlaygrounds,
-    enabled: true,
+    enabled: !isViewLoading,
     deps: [projectId, filter, search],
   });
 
@@ -206,7 +213,7 @@ const PlaygroundsContent = () => {
           data={playgrounds ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
-          isLoading={isLoading}
+          isLoading={isLoading || isViewLoading}
           fetchNextPage={fetchNextPage}
           state={{
             rowSelection,
@@ -251,7 +258,17 @@ const PlaygroundsContent = () => {
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
             />
-            <DataTableSearch className="mr-0.5" placeholder="Search by playground name..." />
+            <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
+          </div>
+          <div className="w-full">
+            <AdvancedSearch
+              value={searchValue}
+              onChange={setSearchAndFilters}
+              storageKey={`playgrounds-${projectId}`}
+              filters={playgroundsTableFilters}
+              placeholder="Search by playground name..."
+              className="w-full flex-1"
+            />
           </div>
           <DataTableFilterList />
         </InfiniteDataTable>
@@ -261,10 +278,12 @@ const PlaygroundsContent = () => {
 };
 
 export default function Playgrounds() {
+  const { projectId } = useParams();
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultPlaygroundsColumnOrder }}
       lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
     >
       <PlaygroundsContent />
     </InfiniteDataTableProvider>

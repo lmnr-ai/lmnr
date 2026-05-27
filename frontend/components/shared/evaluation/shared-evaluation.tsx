@@ -7,10 +7,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import fullLogo from "@/assets/logo/logo.svg";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
@@ -46,20 +46,17 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const { push } = useRouter();
   const pathName = usePathname();
 
-  const search = searchParams.get("search");
-  const filter = searchParams.getAll("filter");
+  // Shared (public) eval has no view layer; URL params are canonical.
+  const { value: searchValue, onChange: onSearchChange } = useAdvancedSearchUrlValue();
+  const search = searchValue.search.length > 0 ? searchValue.search : null;
+  const filter = useMemo(() => searchValue.filters.map((f) => JSON.stringify(f)), [searchValue.filters]);
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
   // Shared eval ignores customColumns at render time (buildColumnDefs's isShared
   // branch returns []) but still reads the store via the same selector for
   // structural symmetry with the non-shared page.
-  const configStore = useTableConfigStore();
-  const { customColumns } = useStore(
-    configStore,
-    (s) => ({ customColumns: s.config.customColumns }),
-    shallow
-  );
+  const { customColumns } = useTableConfigStore((s) => ({ customColumns: s.config.customColumns }), shallow);
 
   const scoreNames = useEvalStore((s) => s.scoreNames);
   const isShared = useEvalStore((s) => s.isShared);
@@ -243,15 +240,13 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           sortBy={sortBy ?? undefined}
           sortDirection={(sortDirection?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined}
           onSort={handleSort}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
         />
       </div>
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{ left: true }}
-            size={{ width: defaultTraceViewWidth }}
-          >
+          <Resizable onResizeStop={handleResizeStop} enable={{ left: true }} size={{ width: defaultTraceViewWidth }}>
             <div className="w-full h-full flex flex-col">
               <SharedEvalTraceView key={traceId} traceId={traceId} onClose={onClose} />
             </div>

@@ -2,12 +2,11 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useTableConfigStore, useTableView } from "../model/table-config-store";
+import { useTableConfigStore, useTableConfigStoreApi, useTableView } from "../model/table-config-store";
 import { normalizeViewConfig } from "./normalize";
 import { type View } from "./types";
 import ViewNameDialog from "./view-name-dialog";
@@ -22,9 +21,8 @@ export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps)
   const { toast } = useToast();
   const { mutate } = useSWRConfig();
 
-  const configStore = useTableConfigStore();
-  const { columnDirty, markColumnsSaved, discardColumns } = useStore(
-    configStore,
+  const configStore = useTableConfigStoreApi();
+  const { columnDirty, markColumnsSaved, discardColumns } = useTableConfigStore(
     (s) => ({
       columnDirty: s.isDirty(),
       markColumnsSaved: s.markColumnsSaved,

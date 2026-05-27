@@ -5,7 +5,6 @@ import { debounce } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import Chart from "@/components/evaluation/chart";
@@ -28,7 +27,7 @@ import {
   mergeTraceUpdateIntoRows,
 } from "@/components/evaluation/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { useTableConfigStore, useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
@@ -48,6 +47,7 @@ interface EvaluationProps {
 
 const PAGE_SIZE = 50;
 const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const RESOURCE = "evaluation";
 
 function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
   const { push } = useRouter();
@@ -55,17 +55,19 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const searchParams = useSearchParams();
   const params = useParams<{ projectId: string }>();
 
-  const search = searchParams.get("search");
-  const filter = searchParams.getAll("filter");
-  const sortBy = searchParams.get("sortBy");
-  const sortDirection = searchParams.get("sortDirection");
   const targetId = searchParams.get("targetId");
+
+  // View-owned params (filter / search / sort) flow through the view layer.
+  // `effective` merges URL params with the selected view's baseline.
+  const { effective, isLoading: isViewLoading, setSort, setSearchAndFilters } = useTableView();
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
+  const sortBy = effective.sortBy ?? undefined;
+  const sortDirection = effective.sortDirection ?? undefined;
 
   // Column config layer: customColumns are read from the config store and
   // threaded into the columnDefs / URLs below.
-  const configStore = useTableConfigStore();
-  const { customColumns, removeCustomColumn } = useStore(
-    configStore,
+  const { customColumns, removeCustomColumn } = useTableConfigStore(
     (s) => ({ customColumns: s.config.customColumns, removeCustomColumn: s.removeCustomColumn }),
     shallow
   );
@@ -86,7 +88,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   // Stats SWR — drives the score card + chart.
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
+    const urlParams = buildStatsParams(
+      { search, filter, sortBy: sortBy ?? null, sortDirection: sortDirection?.toUpperCase() ?? null },
+      columnDefs,
+      scoreNames
+    );
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
   }, [params.projectId, evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
@@ -100,7 +106,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
+    const urlParams = buildStatsParams(
+      { search, filter, sortBy: sortBy ?? null, sortDirection: sortDirection?.toUpperCase() ?? null },
+      columnDefs,
+      scoreNames
+    );
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
   }, [params.projectId, targetId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
@@ -117,7 +127,15 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
       const urlParams = buildFetchParams(
-        { search, filter, sortBy, sortDirection, targetId, pageNumber, pageSize: PAGE_SIZE },
+        {
+          search,
+          filter,
+          sortBy: sortBy ?? null,
+          sortDirection: sortDirection?.toUpperCase() ?? null,
+          targetId,
+          pageNumber,
+          pageSize: PAGE_SIZE,
+        },
         columnDefs
       );
       const url = `/api/projects/${params.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
@@ -138,7 +156,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     updateData,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
-    enabled: !isStatsLoading,
+    enabled: !isStatsLoading && !isViewLoading,
     deps: [search, filter, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
@@ -237,17 +255,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
-      const next = new URLSearchParams(searchParams.toString());
-      if (columnId) {
-        next.set("sortBy", columnId);
-        next.set("sortDirection", direction.toUpperCase());
-      } else {
-        next.delete("sortBy");
-        next.delete("sortDirection");
-      }
-      push(`${pathName}?${next.toString()}`);
+      setSort(columnId || null, columnId ? direction : null);
     },
-    [searchParams, push, pathName]
+    [setSort]
   );
 
   const onClose = useCallback(() => {
@@ -273,6 +283,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const onDeleteCustomColumn = useCallback(
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
     [removeCustomColumn]
+  );
+
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
   );
 
   return (
@@ -328,7 +343,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
           </div>
           <EvaluationDatapointsTable
             data={allDatapoints}
-            isLoading={isStatsLoading || isLoadingDatapoints}
+            isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
             isFetching={isFetching}
             hasMore={hasMore}
             fetchNextPage={fetchNextPage}
@@ -339,12 +354,15 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
             datapointId={datapointId}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
-            sortBy={sortBy ?? undefined}
-            sortDirection={(sortDirection?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
             onSort={handleSort}
             heatmapEnabled={heatmapEnabled}
             onHeatmapEnabledChange={setHeatmapEnabled}
             onDeleteCustomColumn={onDeleteCustomColumn}
+            searchValue={searchValue}
+            onSearchChange={setSearchAndFilters}
+            viewsResource={RESOURCE}
           />
         </div>
       </div>
@@ -388,6 +406,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 }
 
 export default function Evaluation(props: EvaluationProps) {
+  const { projectId } = useParams<{ projectId: string }>();
   const defaultColumnOrder = useMemo(
     () => [...BASE_COLUMN_ORDER, ...props.initialScoreNames.map((s) => `score:${s}`)],
     [props.initialScoreNames]
@@ -395,7 +414,10 @@ export default function Evaluation(props: EvaluationProps) {
 
   return (
     <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames}>
-      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }}>
+      <InfiniteDataTableProvider
+        views={{ projectId, resource: RESOURCE }}
+        defaults={{ columnOrder: defaultColumnOrder }}
+      >
         <EvaluationContent {...props} />
       </InfiniteDataTableProvider>
     </EvalStoreProvider>

@@ -64,7 +64,7 @@ export default function ViewsPicker({
   const { mutate } = useSWRConfig();
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
-  const { data: views } = useSWR<View[]>(listKey, swrFetcher);
+  const { data: views, isLoading, isValidating } = useSWR<View[]>(listKey, swrFetcher);
 
   const setLastViewId = useLastViewStore((s) => s.setLastViewId);
 
@@ -187,17 +187,16 @@ export default function ViewsPicker({
   );
 
   const selected = views?.find((v) => v.id === currentViewId) ?? null;
-  const isResolvingView = views === undefined && currentViewId !== null;
   const triggerLabel = selected?.name ?? DEFAULT_LABEL;
 
   return (
     <>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="text-secondary-foreground gap-1 outline-0" disabled={isResolvingView}>
+          <Button variant="outline" className="text-secondary-foreground gap-1 outline-0" disabled={isLoading}>
             <Layers2 className="size-3.5 shrink-0 opacity-70" />
-            {isResolvingView ? (
-              <Skeleton className="h-3.5 w-20" />
+            {isLoading ? (
+              <Skeleton className="h-3.5 w-12" />
             ) : (
               <span className="truncate max-w-[180px]">{triggerLabel}</span>
             )}

@@ -1,6 +1,5 @@
 import { AnimatePresence } from "framer-motion";
 import React, { useState } from "react";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 
 import { Button } from "@/components/ui/button.tsx";
@@ -20,19 +19,18 @@ interface ColumnsMenuProps {
 }
 
 export default function ColumnsMenu({ columnLabels = [], panelConfig, columnActions }: ColumnsMenuProps) {
-  const store = useTableConfigStore();
-  const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, lockedColumns } = useStore(
-    store,
-    (state) => ({
-      resetColumns: state.resetColumns,
-      columnOrder: state.config.columnOrder,
-      setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.config.columnVisibility,
-      setColumnVisibility: state.setColumnVisibility,
-      lockedColumns: state.lockedColumns,
-    }),
-    shallow
-  );
+  const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, lockedColumns } =
+    useTableConfigStore(
+      (state) => ({
+        resetColumns: state.resetColumns,
+        columnOrder: state.config.columnOrder,
+        setColumnOrder: state.setColumnOrder,
+        columnVisibility: state.config.columnVisibility,
+        setColumnVisibility: state.setColumnVisibility,
+        lockedColumns: state.lockedColumns,
+      }),
+      shallow
+    );
 
   const supportsCustomColumns = !!panelConfig && !!columnActions;
   const [isOpen, setIsOpen] = useState(false);

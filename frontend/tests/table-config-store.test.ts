@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { computeEffectiveOrder } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { computeEffectiveOrder, reconcileConfig } from "@/components/ui/infinite-datatable/model/table-config-store";
 
 describe("computeEffectiveOrder", () => {
   it("returns available ids in input order when no persisted state", () => {
@@ -30,5 +30,42 @@ describe("computeEffectiveOrder", () => {
 
   it("handles empty inputs", () => {
     assert.deepStrictEqual(computeEffectiveOrder([], [], []), []);
+  });
+});
+
+describe("reconcileConfig", () => {
+  it("restores stripped system columns at the front of the default order", () => {
+    // Simulates loading a view whose persisted config was normalized to drop
+    // `__row_selection` (normalize.ts strips `__`-prefixed ids). Without the
+    // fix, `__row_selection` would land at the end of columnOrder.
+    const { config } = reconcileConfig(
+      { columnOrder: ["name", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "createdAt"]);
+  });
+
+  it("preserves user-reordered non-system columns when restoring a system column", () => {
+    const { config } = reconcileConfig(
+      { columnOrder: ["createdAt", "name"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.deepStrictEqual(config.columnOrder, ["__row_selection", "createdAt", "name"]);
+  });
+
+  it("still appends genuinely new default columns at the end", () => {
+    const { config } = reconcileConfig(
+      { columnOrder: ["name", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt", "newField"] }
+    );
+    assert.deepStrictEqual(config.columnOrder, ["__row_selection", "name", "createdAt", "newField"]);
+  });
+
+  it("does not flag stripped system columns as purged drift", () => {
+    const { purged } = reconcileConfig(
+      { columnOrder: ["name", "createdAt"] },
+      { columnOrder: ["__row_selection", "name", "createdAt"] }
+    );
+    assert.strictEqual(purged, false);
   });
 });

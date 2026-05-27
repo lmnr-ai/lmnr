@@ -63,6 +63,12 @@ export function computeEffectiveOrder(persistedOrder: string[], availableIds: st
 // columns, and appends any new defaults at the end. `purged` is true when the
 // loaded blob carried ids unknown to the current schema (drift) — appending
 // new defaults at the end is NOT a purge.
+//
+// System column ids (`__`-prefixed, e.g. `__row_selection`) are stripped from
+// persisted view configs by `normalizeViewConfig`, so they always show up as
+// "new defaults" on load. Restore them at their default-order position
+// instead of appending — the caller's `defaults.columnOrder` is authoritative
+// for where they belong (typically the front).
 export function reconcileConfig(
   loaded: Partial<TableConfig>,
   defaults: Partial<TableConfig>
@@ -74,8 +80,9 @@ export function reconcileConfig(
 
   const loadedOrder = loaded.columnOrder ?? [];
   const validColumns = intersection(loadedOrder, fullDefaultOrder);
-  const newColumns = fullDefaultOrder.filter((col) => !validColumns.includes(col));
-  const columnOrder = [...validColumns, ...newColumns];
+  const newSystem = fullDefaultOrder.filter((id) => id.startsWith("__") && !validColumns.includes(id));
+  const newRegular = fullDefaultOrder.filter((id) => !id.startsWith("__") && !validColumns.includes(id));
+  const columnOrder = [...newSystem, ...validColumns, ...newRegular];
 
   const loadedVisibility = loaded.columnVisibility ?? defaults.columnVisibility ?? {};
   const loadedSizing = loaded.columnSizing ?? defaults.columnSizing ?? {};
@@ -281,18 +288,28 @@ export function TableConfigProvider({
   return <TableConfigContext.Provider value={store}>{children}</TableConfigContext.Provider>;
 }
 
-export function useTableConfigStore(): TableConfigStoreApi {
+export function useTableConfigStore<T>(
+  selector: (state: TableConfigStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T {
   const store = useContext(TableConfigContext);
   if (!store) {
     throw new Error("useTableConfigStore must be used within TableConfigProvider");
+  }
+  return useStoreWithEqualityFn(store, selector, equalityFn);
+}
+
+export function useTableConfigStoreApi(): TableConfigStoreApi {
+  const store = useContext(TableConfigContext);
+  if (!store) {
+    throw new Error("useTableConfigStoreApi must be used within TableConfigProvider");
   }
   return store;
 }
 
 /** Memoized selector for the persisted column config. */
 export function useColumnConfig(): TableConfig {
-  const store = useTableConfigStore();
-  return useStoreWithEqualityFn(store, (s) => s.config, shallow);
+  return useTableConfigStore((s) => s.config, shallow);
 }
 
 export interface TableViewSelection {
@@ -313,9 +330,7 @@ export interface TableViewSelection {
 
 /** Memoized selector for the view-related slice. */
 export function useTableView(): TableViewSelection {
-  const store = useTableConfigStore();
-  return useStoreWithEqualityFn(
-    store,
+  return useTableConfigStore(
     (s) => ({
       view: s.view,
       views: s.views,

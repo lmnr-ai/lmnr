@@ -1,7 +1,6 @@
 "use client";
 
 import { type DependencyList, useCallback, useEffect } from "react";
-import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
@@ -17,8 +16,7 @@ export interface InfiniteScrollOptions<TData> {
 export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }: InfiniteScrollOptions<TData>) {
   const store = useTableStore<TData>();
   // Auto-gate on view resolution; no-op for tables without views.
-  const configStore = useTableConfigStore();
-  const isViewLoading = useStore(configStore, (s) => s.isViewLoading);
+  const isViewLoading = useTableConfigStore((s) => s.isViewLoading);
 
   const { data, currentPage, isFetching, isLoading, error, hasMore } = useStoreWithEqualityFn(
     store,

@@ -2,18 +2,19 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import ProgressionChart from "@/components/evaluations/progression-chart";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
@@ -94,12 +95,15 @@ const filters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "evaluations";
 
 export default function Evaluations() {
+  const { projectId } = useParams<{ projectId: string }>();
   return (
     <InfiniteDataTableProvider
       defaults={{ columnOrder: defaultEvaluationsColumnOrder }}
       lockedColumns={["__row_selection"]}
+      views={{ projectId, resource: RESOURCE }}
     >
       <EvaluationsContent />
     </InfiniteDataTableProvider>
@@ -107,13 +111,17 @@ export default function Evaluations() {
 }
 
 function EvaluationsContent() {
-  const params = useParams();
+  const params = useParams<{ projectId: string }>();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { value: searchValue, onChange: setSearchValue } = useAdvancedSearchUrlValue();
+  const { effective, isLoading: isViewLoading, setSearchAndFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
   const groupId = searchParams.get("groupId");
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
 
   useEffect(() => {
     track("evaluations", "page_viewed");
@@ -174,7 +182,7 @@ function EvaluationsContent() {
     refetch,
   } = useInfiniteScroll<Evaluation>({
     fetchFn: fetchEvaluations,
-    enabled: true,
+    enabled: !isViewLoading,
     deps: [filter, groupId, params?.projectId, search],
   });
 
@@ -254,7 +262,7 @@ function EvaluationsContent() {
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
                 hasMore={hasMore}
                 isFetching={isFetching}
-                isLoading={isLoading}
+                isLoading={isLoading || isViewLoading}
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
@@ -276,11 +284,12 @@ function EvaluationsContent() {
                       label: typeof column.header === "string" ? column.header : column.id!,
                     }))}
                   />
+                  <ViewsToolbar projectId={params.projectId} resource={RESOURCE} />
                 </div>
                 <div className="w-full">
                   <AdvancedSearch
                     value={searchValue}
-                    onChange={setSearchValue}
+                    onChange={setSearchAndFilters}
                     storageKey={`evaluations-${params?.projectId}`}
                     filters={filters}
                     placeholder="Search evaluations..."
