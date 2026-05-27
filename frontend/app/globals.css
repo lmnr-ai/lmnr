@@ -30,6 +30,7 @@
 
 @theme {
   --font-sans: var(--font-inter);
+  --font-sans-landing: var(--font-sans-landing);
   --font-manrope: var(--font-manrope);
 
   --color-border: hsl(var(--border));
@@ -192,10 +193,12 @@
 }
 
 @keyframes landing-caret-blink {
+
   0%,
   50% {
     opacity: 1;
   }
+
   50.01%,
   100% {
     opacity: 0;
@@ -223,5 +226,10 @@
   ::selection {
     background-color: var(--color-landing-primary-400-50);
     color: white;
+  }
+
+  .font-sans-landing {
+    letter-spacing: 0.002em;
+    font-weight: 450
   }
 }

@@ -143,7 +143,10 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
+      <section
+        ref={sectionRef}
+        className={cn("relative w-full mx-auto px-6 lg:px-0 font-sans-landing", LANDING_COLUMN_MAX_W)}
+      >
         <div className="flex gap-18">
           {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll
@@ -176,7 +179,7 @@ const UnderstandWhyTraceView = () => {
                           {STEP_LABELS[n] && <span className={cn(microLabel, "mb-4")}>{STEP_LABELS[n]}</span>}
                           {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
                           {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
-                          <p className={cn(bodyMedium, "text-justify")}>{config.body}</p>
+                          <p className={cn(bodyMedium, "")}>{config.body}</p>
                         </div>
                       );
                     })}

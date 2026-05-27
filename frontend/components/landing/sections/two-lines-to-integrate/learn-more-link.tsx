@@ -17,7 +17,7 @@ const LearnMoreLink = ({ label, href, className }: Props) => (
     target={href.startsWith("http") ? "_blank" : undefined}
     className={cn(
       microLabel,
-      "inline-flex items-center gap-1 hover:text-landing-text-400 transition-colors",
+      "inline-flex items-center gap-1 hover:text-landing-text-300 transition-colors",
       className
     )}
   >

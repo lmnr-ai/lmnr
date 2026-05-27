@@ -47,7 +47,9 @@ export default function PricingCard({
       <div className="flex flex-col gap-3">
         <p className={cn("text-lg text-white ")}>{title}</p>
         <p className="flex items-baseline gap-1">
-          <span className="font-manrope font-medium text-3xl leading-none text-white tracking-[-0.02em]">{price}</span>
+          <span className="font-sans-landing font-medium text-3xl leading-none text-white tracking-[-0.02em]">
+            {price}
+          </span>
           {priceSuffix && <span className={cn("text-sm", suffixColor)}>{priceSuffix}</span>}
         </p>
       </div>

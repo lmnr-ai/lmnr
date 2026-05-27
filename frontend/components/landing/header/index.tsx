@@ -56,31 +56,27 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           </Link>
         </div>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
-          <nav className="hidden md:flex md:gap-[32px] items-center font-sans md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs">
-            <Link
-              href="https://laminar.sh/docs"
-              target="_blank"
-              className="no-underline text-landing-text-300 hover:text-landing-text-200"
-            >
+          <nav className="hidden md:flex md:gap-[32px] items-center font-sans-landing md:text-sm leading-normal whitespace-nowrap text-xs">
+            <Link href="https://laminar.sh/docs" target="_blank" className="no-underline hover:text-landing-text-200">
               Docs
             </Link>
-            <Link href="/blog" className="no-underline text-landing-text-300 hover:text-landing-text-200">
+            <Link href="/blog" className="no-underline hover:text-landing-text-200">
               Blog
             </Link>
-            <Link href="/pricing" className="no-underline text-landing-text-300 hover:text-landing-text-200">
+            <Link href="/pricing" className="no-underline hover:text-landing-text-200">
               Pricing
             </Link>
             <Link
               target="_blank"
               href="https://cal.com/robert-lmnr/30min"
-              className="no-underline text-landing-text-300 hover:text-landing-text-200"
+              className="no-underline hover:text-landing-text-200"
             >
               Book demo
             </Link>
             <Link
               target="_blank"
               href="https://discord.gg/nNFUUDAKub"
-              className="no-underline text-landing-text-300 hover:text-landing-text-200"
+              className="no-underline hover:text-landing-text-200"
             >
               Discord
             </Link>
@@ -101,7 +97,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm" className="py-1.5">
+                  <LandingButton variant="outline" size="sm" className="">
                     Sign up
                   </LandingButton>
                 </Link>
@@ -131,7 +127,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               key={link.href}
               href={link.href}
               target={link.external ? "_blank" : undefined}
-              className="font-manrope text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
+              className="font-sans-landing font-medium text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}

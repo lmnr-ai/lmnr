@@ -24,7 +24,9 @@ const FEATURES: Feature[] = [
 
 const CompressionHero = () => (
   <div className="flex flex-col gap-3 items-start shrink-0">
-    <p className="font-manrope font-medium text-landing-text-100 text-[60px] leading-[60px] tracking-[-0.02em]">20x</p>
+    <p className="font-sans-landing font-medium text-landing-text-100 text-[60px] leading-[60px] tracking-[-0.02em]">
+      20x
+    </p>
     <p className="text-base leading-5 text-landing-text-200 w-[244px]">
       trace compression ratio means faster reads, faster writes, and lower storage costs
     </p>

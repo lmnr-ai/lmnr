@@ -59,7 +59,7 @@ const IntegrationsGrid = ({ className }: Props) => (
         key={`${integration.alt}-${index}`}
         href={integration.href}
         target="_blank"
-        className="group flex items-center gap-8 h-7 no-underline"
+        className="group flex items-center gap-4 h-7 no-underline"
       >
         <div className="flex items-center justify-center size-4 shrink-0">
           <Image
@@ -68,7 +68,7 @@ const IntegrationsGrid = ({ className }: Props) => (
             className={cn("size-4 object-contain", integration.iconClassName)}
           />
         </div>
-        <p className="font-sans text-base leading-7 text-landing-text-300 transition-colors group-hover:text-white">
+        <p className="font-sans-landing text-lg font-[480] text-landing-text-200 transition-colors group-hover:text-white">
           {integration.alt}
         </p>
       </Link>
