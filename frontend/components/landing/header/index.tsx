@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Equal, X } from "lucide-react";
+import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -43,13 +43,6 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
 
   return (
     <>
-      <Link
-        href="/blog/2026-03-16-laminar-launch"
-        className="block w-full bg-landing-primary-200 px-4 py-1 text-center text-xs sm:text-sm text-background hover:bg-landing-primary-300"
-      >
-        Laminar raises $3M seed to build observability for long-running agents.{" "}
-        <ArrowRight className="inline align-middle size-3" />
-      </Link>
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
