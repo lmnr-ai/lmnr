@@ -114,9 +114,11 @@ function PureEventsTable() {
           urlParams.set("search", textSearchFilter);
           // Only string-typed schema fields can produce useful free-text
           // snippets — numbers/booleans/enums are reachable via column
-          // filters and shouldn't show highlighted matches. Mirrors the
-          // backend's allow-list at indexing time (see
-          // `extract_searchable_fields` in `app-server/src/quickwit/utils.rs`).
+          // filters and shouldn't show highlighted matches. The backend
+          // (`search_signal_events` in `app-server/src/search/signal_events.rs`)
+          // additionally filters names against a strict identifier regex
+          // before interpolating them into the Quickwit query, so any
+          // non-identifier name silently produces no hits.
           signal.schemaFields.forEach((f) => {
             if (f.name.trim() && f.type === "string") {
               urlParams.append("payloadField", f.name);

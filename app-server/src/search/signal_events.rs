@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use chrono::{DateTime, Utc};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -18,6 +19,12 @@ use crate::{
 };
 
 const DEFAULT_SEARCH_MAX_SIGNAL_EVENTS: usize = 500;
+
+/// Mirrors the form rule in `schema-field-row.tsx`. Field names land
+/// un-quoted in the Quickwit query (`payload.<name>:…`), so anything
+/// non-identifier could break the parenthesised tenancy scope.
+static PAYLOAD_FIELD_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$").unwrap());
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,9 +44,8 @@ struct QuickwitResponse {
     hits: Vec<QuickwitSignalEventHit>,
 }
 
-/// Search the `signal_events` Quickwit index by free-text query, scoped to a
-/// project + signal. When `payload_fields` is non-empty, also fetches per-field
-/// snippets from ClickHouse for highlighting.
+/// Free-text search over the `signal_events` Quickwit index, scoped to a
+/// project + signal. Also fetches per-field CH snippets for highlighting.
 #[tracing::instrument(skip_all, name = "search_signal_events", fields(project_id, signal_id))]
 pub async fn search_signal_events(
     quickwit_client: &QuickwitClient,
@@ -52,10 +58,14 @@ pub async fn search_signal_events(
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
 ) -> Result<Vec<SignalEventSearchHit>, Error> {
-    // Quickwit's `json` field type doesn't accept bare queries at the field
-    // root — each subfield must be addressed explicitly (`payload.foo:"…"`).
-    // The frontend sends the schema's string fields in `payload_fields`; we
-    // OR them together. Empty list → no fields to search → no hits.
+    // Quickwit's json field has no searchable root — each subfield must be
+    // addressed explicitly (`payload.foo:"…"`). Filter names through the
+    // identifier regex first (see `PAYLOAD_FIELD_NAME_RE`);
+    let payload_fields: Vec<String> = payload_fields
+        .iter()
+        .filter(|f| PAYLOAD_FIELD_NAME_RE.is_match(f))
+        .cloned()
+        .collect();
     if payload_fields.is_empty() {
         return Ok(Vec::new());
     }
@@ -84,9 +94,8 @@ pub async fn search_signal_events(
     };
     search_body["max_hits"] = serde_json::Value::Number(max_hits.into());
 
-    // Only constrain Quickwit when the caller passed a bound. The events table
-    // CH query is also unbounded when no time params are present, so a default
-    // 7-day window here would silently drop older matches from search results.
+    // Only constrain when bounds were passed — the events table CH query is
+    // also unbounded, so a default window here would silently drop matches.
     if let Some(start) = start_time {
         search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
     }
@@ -136,7 +145,7 @@ pub async fn search_signal_events(
             project_id,
             signal_id,
             &hit_ids,
-            payload_fields,
+            &payload_fields,
             query,
         )
         .await
@@ -164,7 +173,7 @@ pub async fn search_signal_events(
     Ok(results)
 }
 
-/// Build the per-event snippet map keyed by event id string. Internal helper.
+/// Per-event snippet map keyed by event id string.
 async fn enrich_with_field_snippets(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -201,4 +210,42 @@ async fn enrich_with_field_snippets(
             (row.id.to_string(), snippets)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identifier_regex_accepts_valid_names() {
+        for name in ["foo", "Foo", "_foo", "foo_bar", "fooBar123", "_", "F", "a1"] {
+            assert!(
+                PAYLOAD_FIELD_NAME_RE.is_match(name),
+                "expected {name:?} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn identifier_regex_rejects_injection_attempts() {
+        // Each is shaped to break the parenthesised tenancy scope when
+        // interpolated into `payload.{f}:"…"`.
+        for name in [
+            "f1:\"x\") OR (payload.f1",
+            "f1) OR (payload.f1",
+            "f1\" OR payload.f1:\"x",
+            "f1 OR payload.f1",
+            "f1.f2",
+            "f1-f2",
+            "1foo",
+            "",
+            "foo bar",
+            "foo\nbar",
+        ] {
+            assert!(
+                !PAYLOAD_FIELD_NAME_RE.is_match(name),
+                "expected {name:?} to be rejected"
+            );
+        }
+    }
 }
