@@ -254,6 +254,10 @@ function createCoreSlice(
     },
 
     reflowFromValue: ({ filters, search }) => {
+      const last = context.getLastSubmitted();
+      if (last.search === search && isEqual(last.filters, filters)) {
+        return;
+      }
       // External-driven state change (view switch, discard, undo from outside).
       // Replace the editor state and update the "last committed" snapshot so
       // the next user edit isn't perceived as a no-op against the new value.

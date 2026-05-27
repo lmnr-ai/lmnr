@@ -1,8 +1,7 @@
 "use client";
 
-import { isEqual } from "lodash";
 import { useParams } from "next/navigation";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
@@ -44,21 +43,10 @@ const AdvancedSearchInner = ({
   const setAutocompleteData = useAdvancedSearchContext((state) => state.setAutocompleteData);
   const reflowFromValue = useAdvancedSearchContext((state) => state.reflowFromValue);
 
-  // Reflow editor state when controlled `value` changes from the outside
-  // (parent's view switch / discard / undo). We diff against the last
-  // committed snapshot via lodash equality inside `reflowFromValue` so
-  // round-tripping our own commits doesn't double-apply.
-  const lastReflowedRef = useRef<AdvancedSearchValue>(value);
+  // Reflow editor state when controlled `value` changes from the outside.
+  // `reflowFromValue` early-outs when content matches what we last emitted,
+  // so round-trips of our own commits are a no-op.
   useEffect(() => {
-    // Reference-cheap shortcut.
-    if (lastReflowedRef.current === value) return;
-    // Structural compare so an `onChange` that returns a new object with
-    // identical contents doesn't churn editor state.
-    if (lastReflowedRef.current.search === value.search && isEqual(lastReflowedRef.current.filters, value.filters)) {
-      lastReflowedRef.current = value;
-      return;
-    }
-    lastReflowedRef.current = value;
     reflowFromValue(value);
   }, [value, reflowFromValue]);
 

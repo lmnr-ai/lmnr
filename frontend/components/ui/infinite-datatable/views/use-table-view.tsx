@@ -152,12 +152,14 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
           sortBy: prev.sortBy,
           sortDirection: prev.sortDirection,
         };
-        const prevEffective = parseFormToParams(prevRaw);
-        const nextEffective: ViewParams = { ...prevEffective, ...patch };
+        // Mirror computeEffective: until an edit lands in the URL, baseline IS the form state,
+        // so the first write must fold it in or view filters/sort get dropped on next.
+        const base = hasMadeEdit || hasFormParams(prevRaw) ? parseFormToParams(prevRaw) : baseline;
+        const nextEffective: ViewParams = { ...base, ...patch };
         return { ...toFormShape(nextEffective) };
       });
     },
-    [setForm]
+    [setForm, baseline, hasMadeEdit]
   );
 
   const setFilters = useCallback((filters: Filter[]) => writePartial({ filters }), [writePartial]);
