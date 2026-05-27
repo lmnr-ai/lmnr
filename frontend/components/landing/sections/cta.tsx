@@ -14,7 +14,7 @@ const CTA = () => (
       <Link
         href="https://cal.com/robert-lmnr/30min"
         target="_blank"
-        className="flex items-center justify-center w-[160px] h-[36px] rounded-sm hover:bg-landing-surface-700 transition-colors no-underline border border-landing-text-500"
+        className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-landing-surface-500 hover:bg-landing-surface-400 transition-colors no-underline"
       >
         <span className="font-sans-landing font-medium text-sm text-landing-text-200">Book a demo</span>
       </Link>

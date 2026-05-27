@@ -107,7 +107,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm" className="">
+                  <LandingButton variant="solid" size="sm" className="py-1.5 px-4">
                     Sign up
                   </LandingButton>
                 </Link>

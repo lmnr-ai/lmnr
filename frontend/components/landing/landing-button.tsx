@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
-  variant?: "minimal" | "outline" | "primary";
+  variant?: "minimal" | "outline" | "primary" | "solid";
   size?: "sm" | "md" | "lg";
 }
 
@@ -20,6 +20,7 @@ const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
 
     const variantStyles = {
       minimal: "hover:text-landing-text-100",
+      solid: "bg-landing-surface-500 hover:bg-landing-surface-400",
       outline: "outline outline-landing-text-600 hover:text-landing-text-100 hover:bg-primary-foreground/5",
       primary:
         "bg-landing-primary-400 text-white border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",

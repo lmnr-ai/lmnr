@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
-import { bodyMedium, LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
+import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
 import LogoStrip from "./logo-strip";
 
@@ -21,8 +21,8 @@ const Hero = ({ className, hasSession }: Props) => (
     <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[140px] pb-2 h-[80vh] justify-start gap-[10vh] shrink-0">
       <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
-          <h1 className={cn(mainTitle, "font-sans-landing text-[42px] font-[480]")}>Open-source Agent Monitoring</h1>
-          <p className={cn(bodyMedium, "font-sans-landing text-[20px] text-landing-text-200")}>
+          <h1 className={cn(mainTitle)}>Open-source Agent Monitoring</h1>
+          <p className={cn("font-sans-landing text-[20px] text-landing-text-200")}>
             Laminar captures and analyzes agent traces, surfaces the behavior worth your attention,
             <br className="hidden md:block" /> and turns recurring failures into regression evals. Automatically.
           </p>
@@ -38,7 +38,7 @@ const Hero = ({ className, hasSession }: Props) => (
           <Link
             href="https://laminar.sh/docs"
             target="_blank"
-            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm hover:bg-landing-surface-700 transition-colors no-underline border border-landing-text-500"
+            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-landing-surface-500 hover:bg-landing-surface-400 transition-colors no-underline"
           >
             <span className="font-sans-landing font-medium text-sm text-landing-text-200">Docs</span>
           </Link>
