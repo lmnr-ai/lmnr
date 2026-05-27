@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import ValueInput from "../inputs";
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import {
+  type AdvancedSearchResource,
   type FilterTag as FilterTagType,
   type FilterTagRef,
   type FocusableRef,
@@ -31,7 +32,7 @@ import FilterSelect from "./select";
 
 interface FilterTagProps {
   tag: FilterTagType;
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   isSelected?: boolean;
   ref?: Ref<FilterTagRef>;
 }

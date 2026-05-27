@@ -156,11 +156,7 @@ const TableChart = ({
 
   return (
     <div className="text-sm flex-1 min-h-0 w-full h-full">
-      <InfiniteDataTableProvider
-        defaults={initialColumnConfig}
-        pageSize={PAGE_SIZE}
-        disableHideColumn
-      >
+      <InfiniteDataTableProvider defaults={initialColumnConfig} pageSize={PAGE_SIZE} disableHideColumn>
         {onColumnConfigChange && (
           <ColumnConfigEmitter initial={initialColumnConfig} onChange={handleColumnConfigChange} />
         )}

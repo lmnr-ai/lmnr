@@ -12,6 +12,7 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type EventRow } from "@/lib/events/types.ts";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,29 @@ function renderPayloadText(text: string): React.ReactNode {
   return <>{parts}</>;
 }
 
+/**
+ * Render the snippet text with the matched span wrapped in `<mark>`. Offsets
+ * are UTF-16 code units (what the backend produces, what JS `slice` consumes)
+ * so emoji/CJK content stays aligned. Span-link parsing is intentionally not
+ * applied here — the snippet is a truncated window and a link that straddles
+ * the boundary would render half-broken.
+ *
+ * No `+N` count badge here (unlike `SnippetPreview` for traces): every
+ * matched field renders in its own column, so there are no hidden matches a
+ * count badge would point at.
+ */
+function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
+  const { text, highlight } = snippet;
+  const [start, end] = highlight;
+  return (
+    <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
+      {text.slice(0, start)}
+      <mark className="font-medium text-primary bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
+      {text.slice(end)}
+    </span>
+  );
+}
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -142,7 +166,12 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     accessorFn: (row) => parsePayloadField(row.payload, field.name),
     header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
     size: getColumnSize(field.type),
-    cell: ({ getValue }) => {
+    cell: ({ row, getValue }) => {
+      const snippet = row.original.fieldSnippets?.[field.name];
+      if (snippet) {
+        return <HighlightedSnippet snippet={snippet} />;
+      }
+
       const value = getValue();
       if (value === null || value === undefined) {
         return <span className="text-muted-foreground">—</span>;

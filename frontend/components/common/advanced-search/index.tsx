@@ -10,7 +10,7 @@ import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
-import { type ColumnFilter } from "./types";
+import { type AdvancedSearchResource, type ColumnFilter } from "./types";
 
 export interface AdvancedSearchValue {
   filters: Filter[];
@@ -18,7 +18,7 @@ export interface AdvancedSearchValue {
 }
 
 interface AdvancedSearchInnerProps {
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -93,7 +93,7 @@ AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   placeholder?: string;
   className?: string;
   disabled?: boolean;

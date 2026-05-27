@@ -11,13 +11,14 @@ import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { type AdvancedSearchResource } from "../types";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
 interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   disableHotKey?: boolean;
   disabled?: boolean;
 }
