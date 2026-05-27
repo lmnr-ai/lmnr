@@ -190,6 +190,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const realtimeHandlers = useMemo(
     () => ({
       datapoint_upsert: (event: MessageEvent) => {
+        if (targetId) return;
         try {
           const payload = JSON.parse(event.data) as { datapoints?: Array<EvalRow & { id: string }> };
           payload.datapoints?.forEach((incoming) => {
@@ -204,6 +205,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         }
       },
       trace_update: (event: MessageEvent) => {
+        if (targetId) return;
         try {
           const payload = JSON.parse(event.data) as { traces?: Array<Record<string, unknown> & { id: string }> };
           payload.traces?.forEach((trace) => updateData((rows) => mergeTraceUpdateIntoRows(rows, trace)));
@@ -212,7 +214,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         }
       },
     }),
-    [updateData, addScoreName, debouncedRevalidateStats]
+    [updateData, addScoreName, debouncedRevalidateStats, targetId]
   );
 
   useRealtime({
