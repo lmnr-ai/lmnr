@@ -42,9 +42,11 @@ const Landing = ({ className, hasSession }: Props) => (
         <Divider />
         <Quote />
         <Divider />
-        <BuiltForProduction />
-        <OpenSource />
-        <Compliance />
+        <div className="flex flex-col w-full gap-[200px]">
+          <BuiltForProduction />
+          <OpenSource />
+          <Compliance />
+        </div>
         <CTA />
       </div>
     </div>
