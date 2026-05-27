@@ -55,6 +55,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .build_client(true)
         .build_server(false)
+        .out_dir("./src/pii_redactor/")
+        .compile_protos(&["./proto/pii_redactor.proto"], &["proto"])?;
+
+    tonic_prost_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .build_client(true)
+        .build_server(false)
         .include_file("mod.rs")
         .type_attribute("QueueExistsRequest", "#[allow(dead_code)]")
         .type_attribute("CreateQueueRequest", "#[allow(dead_code)]")

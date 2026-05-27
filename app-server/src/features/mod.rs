@@ -22,6 +22,10 @@ pub enum Feature {
     Signals,
     Reports,
     RateLimiter,
+    GrpcRateLimiter,
+    /// Strip PII from span input/output via the pii-redactor gRPC service,
+    /// gated per project by the `projects.settings.removePii` toggle.
+    PiiRedaction,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -76,6 +80,12 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 && env::var("RATE_LIMIT").is_ok()
                 && env::var("RATE_LIMIT_PERIOD_SECS").is_ok()
         }
+        Feature::GrpcRateLimiter => {
+            env::var("REDIS_URL").is_ok()
+                && env::var("GRPC_RATE_LIMIT").is_ok()
+                && env::var("GRPC_RATE_LIMIT_PERIOD_SECS").is_ok()
+        }
+        Feature::PiiRedaction => env::var("PII_REDACTOR_URL").is_ok_and(|s| !s.is_empty()),
     }
 }
 

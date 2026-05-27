@@ -179,6 +179,7 @@ export const projects = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
+    settings: jsonb().default({}).notNull(),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
@@ -1008,7 +1009,7 @@ export const tableViews = pgTable(
   (table) => [
     uniqueIndex("table_views_project_id_resource_name_idx").using(
       "btree",
-      table.projectId.asc().nullsLast().op("text_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops"),
       table.resource.asc().nullsLast().op("text_ops"),
       table.name.asc().nullsLast().op("text_ops")
     ),

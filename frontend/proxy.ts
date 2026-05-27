@@ -93,5 +93,16 @@ export const config = {
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
     "/uploads/:path+",
+    // Authenticated app routes: withAuth redirects unauthenticated requests to
+    // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links
+    // like `/invitations?token=...`. A Server Component layout can't read the
+    // request pathname on its own, so the middleware is the only place that
+    // can preserve the callback URL.
+    "/projects",
+    "/project/:path+",
+    "/workspace/:path+",
+    "/invitations",
+    "/onboarding",
+    "/checkout",
   ],
 };

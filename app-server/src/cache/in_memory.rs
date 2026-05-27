@@ -130,4 +130,8 @@ impl CacheTrait for InMemoryCache {
         let in_sorted_sets = self.sorted_sets.read().await.contains_key(key);
         Ok(in_cache || in_sorted_sets)
     }
+
+    fn is_healthy(&self) -> bool {
+        true
+    }
 }

@@ -1,137 +1,77 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use arc_swap::ArcSwap;
-use backoff::ExponentialBackoffBuilder;
 use futures_util::StreamExt;
 use lapin::{Connection, ConnectionProperties, Event};
-use tokio::sync::Notify;
 
-/// Self-healing wrapper around a `lapin::Connection`.
+/// Thin wrapper around `lapin::Connection`. lapin 4.x's
+/// `enable_auto_recover()` keeps the underlying connection healthy across
+/// broker blips: TCP redial, channel re-open, and consumer re-establish all
+/// happen inside the same `Connection` handle. We don't swap or wrap anymore.
 ///
-/// `lapin::Connection` does not auto-reconnect: once the TCP socket drops it
-/// stays disconnected forever. We listen on the connection's events stream
-/// for `Event::Error` and wake a background supervisor task; the supervisor
-/// dials a new connection (with exponential backoff, no time cap) and
-/// atomically swaps it in via `ArcSwap`.
+/// We keep this type for two reasons:
+///   - readiness probe: `is_connected()` reflects lapin's recovery state
+///   - structured logging via the events listener
 ///
-/// Callers grab the current connection through `current()` and use it as
-/// before. They never see the swap; if they hit a stale connection between
-/// failure and reconnect, their own retry / backoff loops bridge the gap.
-/// External code that observes a channel-level failure can also call
-/// `notify_error()` to nudge the supervisor — the next health check will
-/// confirm whether the underlying connection is actually dead.
+/// `notify_error()` survives as a logging hook for call sites that observe a
+/// channel-level error lapin's internal recovery hasn't reacted to yet. It no
+/// longer drives a supervisor task — there is none — so callers don't need
+/// to invoke it for correctness.
 pub struct ResilientConnection {
-    inner: ArcSwap<Connection>,
-    url: String,
+    inner: Arc<Connection>,
     label: &'static str,
-    reconnect_notify: Arc<Notify>,
 }
 
 impl ResilientConnection {
     pub async fn connect(url: String, label: &'static str) -> anyhow::Result<Arc<Self>> {
-        let initial = dial(&url).await?;
-        let reconnect_notify = Arc::new(Notify::new());
-        spawn_event_listener(&initial, label, &reconnect_notify);
+        let props = ConnectionProperties::default()
+            .enable_auto_recover()
+            .configure_backoff(|b| {
+                b.with_min_delay(Duration::from_millis(500))
+                    .with_max_delay(Duration::from_secs(10))
+            });
+        let conn = Connection::connect(&url, props)
+            .await
+            .map_err(anyhow::Error::from)?;
 
-        let this = Arc::new(Self {
-            inner: ArcSwap::from(Arc::new(initial)),
-            url,
-            label,
-            reconnect_notify,
-        });
-
-        tokio::spawn(Arc::clone(&this).supervisor_loop());
+        spawn_event_listener(&conn, label);
 
         log::info!("RabbitMQ {} connection established", label);
-        Ok(this)
+        Ok(Arc::new(Self {
+            inner: Arc::new(conn),
+            label,
+        }))
     }
 
-    /// The latest live (or last-known) connection. Cheap — atomic load.
+    /// Returns the lapin connection. lapin's auto-recover keeps the same
+    /// handle alive across broker restarts, so this never changes for the
+    /// lifetime of the wrapper.
     pub fn current(&self) -> Arc<Connection> {
-        self.inner.load_full()
+        Arc::clone(&self.inner)
     }
 
     pub fn is_connected(&self) -> bool {
-        self.current().status().connected()
+        self.inner.status().connected()
     }
 
-    /// Caller can nudge the supervisor when it observes a problem the
-    /// events listener missed (e.g. a publish or declare error on a connection
-    /// whose status hasn't been torn down yet).
+    /// Logging-only hook for call sites observing a channel-level error.
+    /// lapin's internal recovery owns the actual redial, so this is purely
+    /// observability.
     pub fn notify_error(&self) {
-        self.reconnect_notify.notify_one();
-    }
-
-    async fn supervisor_loop(self: Arc<Self>) {
-        loop {
-            self.reconnect_notify.notified().await;
-
-            // Coalesce bursts: a still-healthy connection may have emitted a
-            // recoverable hiccup. Don't churn.
-            if self.is_connected() {
-                continue;
-            }
-
-            log::warn!("RabbitMQ {} connection lost, reconnecting...", self.label);
-
-            // Never give up — a multi-minute cluster outage should still
-            // converge to a healthy connection without a process restart.
-            let backoff = ExponentialBackoffBuilder::new()
-                .with_initial_interval(Duration::from_millis(500))
-                .with_max_interval(Duration::from_secs(30))
-                .with_max_elapsed_time(None)
-                .build();
-
-            let label = self.label;
-            let url = self.url.clone();
-            let result = backoff::future::retry(backoff, || {
-                let url = url.clone();
-                async move {
-                    dial(&url).await.map_err(|e| {
-                        log::warn!("Failed to redial RabbitMQ ({}): {:?}", label, e);
-                        backoff::Error::transient(e)
-                    })
-                }
-            })
-            .await;
-
-            match result {
-                Ok(conn) => {
-                    spawn_event_listener(&conn, self.label, &self.reconnect_notify);
-                    self.inner.store(Arc::new(conn));
-                    log::info!("RabbitMQ {} connection restored", self.label);
-                }
-                Err(e) => {
-                    // Backoff has no max_elapsed_time set, so this branch is
-                    // effectively unreachable; log and re-arm just in case.
-                    log::error!(
-                        "RabbitMQ {} reconnect supervisor exited unexpectedly: {:?}",
-                        self.label,
-                        e
-                    );
-                    self.reconnect_notify.notify_one();
-                }
-            }
-        }
+        log::debug!(
+            "RabbitMQ {} channel-level error reported by caller; lapin auto-recover will handle",
+            self.label
+        );
     }
 }
 
-async fn dial(url: &str) -> anyhow::Result<Connection> {
-    Connection::connect(url, ConnectionProperties::default())
-        .await
-        .map_err(anyhow::Error::from)
-}
-
-fn spawn_event_listener(conn: &Connection, label: &'static str, notify: &Arc<Notify>) {
+fn spawn_event_listener(conn: &Connection, label: &'static str) {
     let mut events = conn.events_listener();
-    let notify = Arc::clone(notify);
     tokio::spawn(async move {
         while let Some(event) = events.next().await {
             match event {
                 Event::Error(err) => {
                     log::error!("RabbitMQ {} connection error: {:?}", label, err);
-                    notify.notify_one();
                 }
                 Event::ConnectionBlocked(reason) => {
                     log::warn!("RabbitMQ {} connection blocked: {}", label, reason);
@@ -140,13 +80,14 @@ fn spawn_event_listener(conn: &Connection, label: &'static str, notify: &Arc<Not
                     log::info!("RabbitMQ {} connection unblocked", label);
                 }
                 Event::Connected => {
-                    log::debug!("RabbitMQ {} connected event", label);
+                    log::info!("RabbitMQ {} connected event (recovery cycle)", label);
                 }
                 _ => {}
             }
         }
-        // Stream ended → the Connection was dropped. The supervisor's own
-        // ArcSwap holds the canonical reference, so this happens only after
-        // we've already replaced it. No notify needed.
+        log::warn!(
+            "RabbitMQ {} events_listener stream ended (no more events)",
+            label
+        );
     });
 }

@@ -148,7 +148,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
-            .with_max_interval(Duration::from_secs(60))
+            .with_max_interval(Duration::from_secs(5))
             .with_max_elapsed_time(Some(Duration::from_secs(300)))
             .build();
 
@@ -353,11 +353,7 @@ mod tests {
             BatchWorkerType::ClusteringBatching,
             handler,
             queue,
-            QueueConfig::new(
-                TEST_QUEUE,
-                TEST_EXCHANGE,
-                TEST_ROUTING_KEY,
-            ),
+            QueueConfig::new(TEST_QUEUE, TEST_EXCHANGE, TEST_ROUTING_KEY),
         )
     }
 

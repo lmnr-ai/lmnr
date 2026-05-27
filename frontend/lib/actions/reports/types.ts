@@ -46,3 +46,57 @@ export function getReportLabel(schedule: ReportSchedule): string {
 
   return "Signals summary";
 }
+
+const DAY_NAMES_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_NAMES_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Backend stores `hour` as 0-23 UTC (scheduler.rs uses `t.hour()` on UTC `now`).
+// We surface UTC explicitly so users don't misread the time in their local
+// zone — and so labels stay stable across SSR / hydration.
+export function formatReportTimeUTC(hour: number): string {
+  return `${hour.toString().padStart(2, "0")}:00 UTC`;
+}
+
+export interface ReportDescription {
+  title: string;
+  schedule: string;
+  detail: string;
+}
+
+// Backend stores weekday indices 0-6 with 0 = Monday
+// (chrono `num_days_from_monday`), so a single [6] entry means Sunday.
+export function getReportDescription({ weekdays, hour }: ReportSchedule): ReportDescription {
+  const time = formatReportTimeUTC(hour);
+  const sorted = [...weekdays].sort((a, b) => a - b);
+
+  if (sorted.length === 0) {
+    return { title: "Disabled", schedule: "Not scheduled", detail: "" };
+  }
+  if (sorted.length === 7) {
+    return {
+      title: "Daily digest",
+      schedule: `Every day at ${time}`,
+      detail: "A recap of the previous day's signals.",
+    };
+  }
+  const isMonFri = sorted.length === 5 && [0, 1, 2, 3, 4].every((d) => sorted.includes(d));
+  if (isMonFri) {
+    return {
+      title: "Daily summaries",
+      schedule: `Mon – Fri at ${time}`,
+      detail: "A recap of the previous weekday's signal events.",
+    };
+  }
+  if (sorted.length === 1) {
+    return {
+      title: "Weekly summary",
+      schedule: `Every ${DAY_NAMES_LONG[sorted[0]]} at ${time}`,
+      detail: "A wrap-up of the entire past week's signal events.",
+    };
+  }
+  return {
+    title: "Custom schedule",
+    schedule: `${sorted.map((d) => DAY_NAMES_SHORT[d]).join(", ")} at ${time}`,
+    detail: "",
+  };
+}

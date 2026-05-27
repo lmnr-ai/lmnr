@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
@@ -36,4 +36,12 @@ export const checkUserWorkspaceRole = async (input: z.infer<typeof CheckWorkspac
   }
 
   return userRole;
+};
+
+export const countWorkspaceMemberships = async (userId: string): Promise<number> => {
+  const [{ count }] = await db
+    .select({ count: sql`count(*)`.mapWith(Number) })
+    .from(membersOfWorkspaces)
+    .where(eq(membersOfWorkspaces.userId, userId));
+  return count;
 };
