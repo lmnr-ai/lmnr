@@ -50,11 +50,15 @@ interface Props {
   className?: string;
 }
 
-// 3-column grid of integration rows (icon + name). Mirrors Figma `Frame 984`
-// at 4054:8547 — three columns with 20px gap, 12px between rows. Items
-// fill COLUMN-FIRST at md+ so col1 = 1–5, col2 = 6–10, col3 = 11–15 in
-// source order. On mobile we drop back to a single row-major column so
-// the array order matches reading order.
+// 3-column grid of integration rows (icon + name). Items fill COLUMN-FIRST
+// at md+ so col1 = 1–5, col2 = 6–10, col3 = 11–15 in source order. On
+// mobile we drop back to a single row-major column so the array order
+// matches reading order.
+//
+// Each column tightens to its widest item via `repeat(3,max-content)`, and
+// `justify-between` distributes the leftover horizontal space between
+// columns. This avoids the wide empty whitespace short names had next to
+// them when the columns were fixed 1fr each.
 //
 // FLAG: `md:grid-rows-5` is coupled to `integrations.length === 15`. If
 // the list grows or shrinks, this number must change in lockstep or the
@@ -63,7 +67,7 @@ interface Props {
 const IntegrationsGrid = ({ className }: Props) => (
   <div
     className={cn(
-      "grid grid-cols-1 md:grid-cols-3 md:grid-rows-5 md:grid-flow-col gap-x-5 gap-y-3 w-full max-w-[760px]",
+      "grid grid-cols-1 md:grid-cols-[repeat(3,max-content)] md:justify-between md:grid-rows-5 md:grid-flow-col gap-y-3 w-full max-w-[760px]",
       className
     )}
   >
