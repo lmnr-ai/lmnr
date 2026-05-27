@@ -1,3 +1,5 @@
+import { retentionLabel } from "@/lib/billing/retention";
+
 export type TierKey = "free" | "hobby" | "pro" | "enterprise";
 
 export interface TierInfo {
@@ -15,7 +17,7 @@ export const TIERS: { key: TierKey; info: TierInfo }[] = [
       name: "Free",
       price: "$0",
       priceSubtext: "/ mo",
-      features: ["1 GB data", "100 signal runs", "7 day retention", "1 project / 1 seat", "Community support"],
+      features: ["1 GB data", "100 signal runs", retentionLabel("free"), "1 project / 1 seat", "Community support"],
       subfeatures: [null, null, null, null, null],
     },
   },
@@ -25,7 +27,13 @@ export const TIERS: { key: TierKey; info: TierInfo }[] = [
       name: "Hobby",
       price: "$30",
       priceSubtext: "/ mo",
-      features: ["3 GB data", "1,000 signal runs", "30 day retention", "Unlimited projects / seats", "Email support"],
+      features: [
+        "3 GB data",
+        "1,000 signal runs",
+        retentionLabel("hobby"),
+        "Unlimited projects / seats",
+        "Email support",
+      ],
       subfeatures: ["$2 / GB", "$0.02 / run", null, null, null],
     },
   },
@@ -38,7 +46,7 @@ export const TIERS: { key: TierKey; info: TierInfo }[] = [
       features: [
         "10 GB data",
         "10,000 signal runs",
-        "6 month retention",
+        retentionLabel("pro"),
         "Unlimited projects / seats",
         "Slack support",
       ],

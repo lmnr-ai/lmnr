@@ -1,3 +1,5 @@
+import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+
 type TierId = "free" | "hobby" | "pro" | "enterprise";
 
 interface Tier {
@@ -83,7 +85,15 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         label: "Signals step overage rate",
         values: { free: "—", hobby: "$0.0075 / step", pro: "$0.005 / step", enterprise: "Custom" },
       },
-      { label: "Retention", values: { free: "7 days", hobby: "30 days", pro: "6 months", enterprise: "Custom" } },
+      {
+        label: "Retention",
+        values: {
+          free: TIER_RETENTION.free.durationPlural,
+          hobby: TIER_RETENTION.hobby.durationPlural,
+          pro: TIER_RETENTION.pro.durationPlural,
+          enterprise: TIER_RETENTION.enterprise.durationPlural,
+        },
+      },
       { label: "Projects", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
       { label: "Seats", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
       {
@@ -141,7 +151,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: "1 GB data", subfeature: "no overage" },
     { label: "500 Signals steps", subfeature: "no overage" },
-    { label: "7 day retention" },
+    { label: retentionLabel("free") },
     { label: "1 project" },
     { label: "1 seat" },
     { label: "Community support" },
@@ -149,7 +159,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   hobby: [
     { label: "3 GB data included", subfeature: "then $2 / GB" },
     { label: "5,000 Signals steps", subfeature: "then $0.0075 / Signals step" },
-    { label: "30 day retention" },
+    { label: retentionLabel("hobby") },
     { label: "Unlimited projects" },
     { label: "Unlimited seats" },
     { label: "Email support" },
@@ -157,7 +167,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   pro: [
     { label: "10 GB data included", subfeature: "then $1.50 / GB" },
     { label: "50,000 Signals steps", subfeature: "then $0.005 / Signals step" },
-    { label: "6 month retention" },
+    { label: retentionLabel("pro") },
     { label: "Unlimited projects" },
     { label: "Unlimited seats" },
     { label: "Slack support" },

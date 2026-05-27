@@ -1,4 +1,5 @@
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { retentionLabel } from "@/lib/billing/retention";
 
 export interface PlanFeature {
   label: string;
@@ -23,7 +24,7 @@ export const PLANS: PlanOption[] = [
     features: [
       { label: "1 GB ingested data", sub: "no overage" },
       { label: "1,000 Signals steps", sub: "no overage" },
-      { label: "7 day retention" },
+      { label: retentionLabel("free") },
       { label: "1 project" },
       { label: "1 seat" },
       { label: "Community support" },
@@ -37,7 +38,7 @@ export const PLANS: PlanOption[] = [
     features: [
       { label: "3 GB ingested data", sub: "then $2 / GB" },
       { label: "5,000 Signals steps", sub: "then $0.0075 / Signals step" },
-      { label: "30 day retention" },
+      { label: retentionLabel("hobby") },
       { label: "Unlimited projects" },
       { label: "Unlimited seats" },
       { label: "Email support" },
@@ -51,7 +52,7 @@ export const PLANS: PlanOption[] = [
     features: [
       { label: "10 GB ingested data", sub: "then $1.50 / GB" },
       { label: "50,000 Signals steps", sub: "then $0.005 / Signals step" },
-      { label: "6 month retention" },
+      { label: retentionLabel("pro") },
       { label: "Unlimited projects" },
       { label: "Unlimited seats" },
       { label: "Slack support" },

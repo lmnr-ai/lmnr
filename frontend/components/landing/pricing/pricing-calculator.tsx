@@ -6,6 +6,7 @@ import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
@@ -246,7 +247,7 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
 
       <div className="flex flex-wrap gap-2">
         <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
-          Custom retention
+          {retentionLabel("enterprise")}
         </span>
         <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
           Dedicated support
@@ -292,10 +293,31 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  // TODO: source these from a single source of truth please, grep for "day retention" and you'll see these appear everywhere
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "7 day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30 day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "6 month", "Slack");
+  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, TIER_RETENTION.free.duration, "Community");
+  const hobby = buildEstimate(
+    "Hobby",
+    30,
+    3,
+    5_000,
+    2,
+    0.0075,
+    dataGB,
+    signalRuns,
+    TIER_RETENTION.hobby.duration,
+    "Email"
+  );
+  const pro = buildEstimate(
+    "Pro",
+    150,
+    10,
+    50_000,
+    1.5,
+    0.005,
+    dataGB,
+    signalRuns,
+    TIER_RETENTION.pro.duration,
+    "Slack"
+  );
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 
