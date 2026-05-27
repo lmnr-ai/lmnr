@@ -7,7 +7,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { subSection } from "../../class-names";
-import LightningFastIngestion from "./lightning-fast-ingestion";
 
 // FLAG: "Read more" needs a real destination — once we publish a compression
 // deep-dive, swap `/blog` for that post.
@@ -64,8 +63,48 @@ const CompressionChart = () => (
   </div>
 );
 
+// 3 stacked rows, each 56px tall with a top border. Used in the left/right
+// columns. The bolt column does NOT use these — instead it draws its OWN Z
+// horizontals slightly offset from y=0/56/112 so the dividers don't visually
+// connect into the bolt's knees (the gap is the deliberate effect).
+const DividerRow = () => <div className="h-14 w-full border-t border-landing-text-600" />;
+
+// Top-LEFT row only — per figma (node 4238:7393) this row's top divider is
+// landing-primary-400 instead of text-600. Rendered as a 1px gradient bar
+// (orange → transparent) rather than a solid border so it fades into the
+// rest of the row at y=0.
+const OrangeBorderRow = () => (
+  <div className="relative h-14 w-full">
+    <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-landing-primary-400 to-landing-text-600" />
+  </div>
+);
+
+// Bolt column — 129px wide, 168px tall. Renders the Z exported from figma:
+// a top horizontal that only covers the LEFT portion, a diagonal down to
+// the middle, a middle horizontal covering the RIGHT portion of y=56, then
+// a separate bottom horizontal at y=112.5. All strokes solid #434447, no
+// gradient in the bolt itself.
+const BoltColumn = () => (
+  <div className="relative w-[129px] h-[168px] shrink-0">
+    <svg
+      className="absolute inset-0 size-full text-landing-text-600 pointer-events-none"
+      viewBox="0 0 129 168"
+      fill="none"
+      aria-hidden="true"
+    >
+      {/* The Z — single path so the joins between the horizontals and the
+          diagonal stay clean. (0,0.5) → (89,0.5) → (40,56.5) → (129,56.5) */}
+      <path d="M0 0.5 H89 L40 56.5 H129" stroke="currentColor" strokeWidth="1" />
+
+      {/* Bottom horizontal stroke at y=112.5 — matches Path 2 of the figma
+          export. Visually merges with the side-column divider at y=112. */}
+      <path d="M0 112.5 H128.5" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  </div>
+);
+
 const FeatureRow = ({ label }: Feature) => (
-  <div className="flex items-center h-14 w-full border-t border-landing-text-600">
+  <div className="flex items-center justify-end h-14 w-full border-t border-landing-text-600">
     <p className="text-lg leading-6 text-landing-text-300">{label}</p>
   </div>
 );
@@ -79,13 +118,23 @@ const BuiltForProduction = () => (
       <CompressionChart />
     </div>
 
-    <div className="flex w-full gap-13">
-      <div className="flex flex-col w-full md:flex-1">
+    <div className="flex w-full">
+      {/* Left placeholder — 3 divider rows, no content. The TOP row's
+          divider is the orange-fade variant; the rest are gray. */}
+      <div className="flex flex-col w-[320px] shrink-0">
+        <OrangeBorderRow />
+        <DividerRow />
+        <DividerRow />
+      </div>
+
+      <BoltColumn />
+
+      {/* Right features column — right-aligned text on each row. */}
+      <div className="flex flex-col flex-1 min-w-0">
         {FEATURES.map((f) => (
           <FeatureRow key={f.label} {...f} />
         ))}
       </div>
-      <LightningFastIngestion className="h-full w-[300px] shrink-0" />
     </div>
   </section>
 );
