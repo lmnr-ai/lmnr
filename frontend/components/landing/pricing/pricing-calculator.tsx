@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+import { type Tier, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
@@ -42,32 +43,23 @@ function estimateDataFromTokens(tokens: number): number {
   return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
 }
 
-function buildEstimate(
-  name: string,
-  basePrice: number,
-  includedDataGB: number,
-  includedSignalSteps: number,
-  dataOverageRate: number,
-  signalOverageRate: number,
-  dataGB: number,
-  signalStepsProcessed: number,
-  retention: string,
-  support: string
-): TierEstimate {
-  const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
-  const signalOverageCost = Math.max(0, signalStepsProcessed - includedSignalSteps) * signalOverageRate;
+function buildEstimate(tier: Tier, dataGB: number, signalStepsProcessed: number): TierEstimate {
+  const t = TIERS[tier];
+  const basePrice = t.basePriceMonthly ?? 0;
+  const dataOverageCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
+  const signalOverageCost = Math.max(0, signalStepsProcessed - t.includedSignalSteps) * t.signalOverageRatePerStep;
   return {
-    name,
+    name: t.name,
     basePrice,
-    includedDataGB,
-    includedSignalSteps,
-    dataOverageRate,
-    signalOverageRate,
+    includedDataGB: t.includedBytesGB,
+    includedSignalSteps: t.includedSignalSteps,
+    dataOverageRate: t.dataOverageRatePerGB,
+    signalOverageRate: t.signalOverageRatePerStep,
     dataOverageCost,
     signalOverageCost,
     total: basePrice + dataOverageCost + signalOverageCost,
-    retention,
-    support,
+    retention: TIER_RETENTION[tier].duration,
+    support: t.support,
   };
 }
 
@@ -293,31 +285,9 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, TIER_RETENTION.free.duration, "Community");
-  const hobby = buildEstimate(
-    "Hobby",
-    30,
-    3,
-    5_000,
-    2,
-    0.0075,
-    dataGB,
-    signalRuns,
-    TIER_RETENTION.hobby.duration,
-    "Email"
-  );
-  const pro = buildEstimate(
-    "Pro",
-    150,
-    10,
-    50_000,
-    1.5,
-    0.005,
-    dataGB,
-    signalRuns,
-    TIER_RETENTION.pro.duration,
-    "Slack"
-  );
+  const free = buildEstimate("free", dataGB, signalRuns);
+  const hobby = buildEstimate("hobby", dataGB, signalRuns);
+  const pro = buildEstimate("pro", dataGB, signalRuns);
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 

@@ -1,69 +1,68 @@
 import { retentionLabel } from "@/lib/billing/retention";
+import {
+  formatDataIncluded,
+  formatDataOverage,
+  formatPrice,
+  formatProjectsAndSeats,
+  formatSignalsCount,
+  formatSignalsOverage,
+  formatSupport,
+  type Tier,
+  TIER_ORDER,
+  TIERS as CENTRAL_TIERS,
+} from "@/lib/billing/tiers";
 
-export type TierKey = "free" | "hobby" | "pro" | "enterprise";
+export type TierKey = Tier;
 
 export interface TierInfo {
   name: string;
   price: string;
   priceSubtext: string;
   features: string[];
+  // Same length as `features`; entries align by index.
   subfeatures: (string | null)[];
 }
 
-export const TIERS: { key: TierKey; info: TierInfo }[] = [
-  {
-    key: "free",
-    info: {
-      name: "Free",
-      price: "$0",
-      priceSubtext: "/ mo",
-      features: ["1 GB data", "100 signal runs", retentionLabel("free"), "1 project / 1 seat", "Community support"],
-      subfeatures: [null, null, null, null, null],
-    },
-  },
-  {
-    key: "hobby",
-    info: {
-      name: "Hobby",
-      price: "$30",
-      priceSubtext: "/ mo",
-      features: [
-        "3 GB data",
-        "1,000 signal runs",
-        retentionLabel("hobby"),
-        "Unlimited projects / seats",
-        "Email support",
-      ],
-      subfeatures: ["$2 / GB", "$0.02 / run", null, null, null],
-    },
-  },
-  {
-    key: "pro",
-    info: {
-      name: "Pro",
-      price: "$150",
-      priceSubtext: "/ mo",
-      features: [
-        "10 GB data",
-        "10,000 signal runs",
-        retentionLabel("pro"),
-        "Unlimited projects / seats",
-        "Slack support",
-      ],
-      subfeatures: ["$1.50 / GB", "$0.015 / run", null, null, null],
-    },
-  },
-  {
-    key: "enterprise",
-    info: {
-      name: "Enterprise",
-      price: "Custom",
-      priceSubtext: "",
-      features: ["Custom limits", "On-premise", "Unlimited projects / seats", "Dedicated support"],
+const buildInfo = (tier: TierKey): TierInfo => {
+  const isEnterprise = tier === "enterprise";
+  const priceSubtext = CENTRAL_TIERS[tier].basePriceMonthly === null ? "" : "/ mo";
+
+  if (isEnterprise) {
+    return {
+      name: CENTRAL_TIERS[tier].name,
+      price: formatPrice(tier),
+      priceSubtext,
+      features: ["Custom limits", "On-premise", formatProjectsAndSeats(tier), formatSupport(tier)],
       subfeatures: [null, null, null, null],
-    },
-  },
-];
+    };
+  }
+
+  const hasOverage = CENTRAL_TIERS[tier].dataOverageRatePerGB > 0;
+  return {
+    name: CENTRAL_TIERS[tier].name,
+    price: formatPrice(tier),
+    priceSubtext,
+    features: [
+      `${formatDataIncluded(tier)} data`,
+      `${formatSignalsCount(tier)} Signals steps`,
+      retentionLabel(tier),
+      formatProjectsAndSeats(tier),
+      formatSupport(tier),
+    ],
+    subfeatures: [
+      hasOverage ? formatDataOverage(tier) : null,
+      hasOverage ? formatSignalsOverage(tier) : null,
+      null,
+      null,
+      null,
+    ],
+  };
+};
+
+export const TIERS: { key: TierKey; info: TierInfo }[] = TIER_ORDER.map((key) => ({
+  key,
+  info: buildInfo(key),
+}));
 
 export function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", {

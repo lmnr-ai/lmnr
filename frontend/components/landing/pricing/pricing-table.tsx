@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
 import LandingButton from "../landing-button";
-import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIERS } from "./tier-data";
+import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIER_COLUMNS } from "./tier-data";
 
 // Flat comparison table — no per-tier highlight. Header has tier name +
 // price + CTA; rows are grouped by FEATURE_GROUPS with a small section
@@ -17,10 +17,13 @@ import { FEATURE_GROUPS, type FeatureGroup, type FeatureValue, TIERS } from "./t
 export default function PricingTable() {
   return (
     <div className="w-full overflow-x-auto md:overflow-visible">
-      <div className="grid min-w-[760px] w-full" style={{ gridTemplateColumns: `1.4fr repeat(${TIERS.length}, 1fr)` }}>
+      <div
+        className="grid min-w-[760px] w-full"
+        style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}
+      >
         {/* Header row — sticky on md+ */}
         <div className="sticky top-0 z-10 bg-landing-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-landing-surface-700 after:to-transparent after:pointer-events-none" />
-        {TIERS.map((tier) => (
+        {TIER_COLUMNS.map((tier) => (
           <div
             key={tier.id}
             className="sticky top-0 z-10 bg-landing-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-landing-surface-700 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
@@ -65,7 +68,7 @@ function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
       <div className="pl-0 pr-5 py-3 text-sm text-landing-text-200 border-t border-landing-surface-500/50">
         {row.label}
       </div>
-      {TIERS.map((tier) => (
+      {TIER_COLUMNS.map((tier) => (
         <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-landing-surface-500/50">
           <FeatureCell value={row.values[tier.id]} />
         </div>

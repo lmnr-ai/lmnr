@@ -1,5 +1,5 @@
 import PricingCard from "./pricing-card";
-import { CARD_FEATURES, RECOMMENDED_TIER, TIERS } from "./tier-data";
+import { CARD_FEATURES, RECOMMENDED_TIER, TIER_COLUMNS } from "./tier-data";
 
 // 4 cards side-by-side. The recommended tier flips to the orange `isAccent`
 // fill. Default layout — strongest visual differentiation for the recommended
@@ -7,7 +7,7 @@ import { CARD_FEATURES, RECOMMENDED_TIER, TIERS } from "./tier-data";
 export default function CardsVariant() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full">
-      {TIERS.map((tier) => {
+      {TIER_COLUMNS.map((tier) => {
         const features = CARD_FEATURES[tier.id];
         return (
           <PricingCard

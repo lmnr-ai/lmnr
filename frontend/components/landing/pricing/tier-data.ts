@@ -1,22 +1,33 @@
 import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+import {
+  formatDataIncluded,
+  formatDataOverage,
+  formatPrice,
+  formatProjects,
+  formatSeats,
+  formatSignalsCount,
+  formatSignalsOverage,
+  formatSignalsOverageShort,
+  formatSupport,
+  type Tier,
+  TIERS,
+} from "@/lib/billing/tiers";
 
-type TierId = "free" | "hobby" | "pro" | "enterprise";
+type TierId = Tier;
 
-interface Tier {
+// Landing-pricing-page-specific column metadata: render order + blurb + CTA.
+// Numeric data + tier name/price come from `@/lib/billing/tiers`.
+interface PricingColumnConfig {
   id: TierId;
-  name: string;
-  price: string;
   priceSuffix?: string;
   blurb: string;
   ctaLabel: string;
   ctaHref: string;
 }
 
-export const TIERS: Tier[] = [
+const PRICING_COLUMNS: PricingColumnConfig[] = [
   {
     id: "free",
-    name: "Free",
-    price: "$0",
     priceSuffix: "/ month",
     blurb: "For solo developers exploring Laminar.",
     ctaLabel: "Get Started",
@@ -24,8 +35,6 @@ export const TIERS: Tier[] = [
   },
   {
     id: "hobby",
-    name: "Hobby",
-    price: "$30",
     priceSuffix: "/ month",
     blurb: "For small teams shipping their first production agent.",
     ctaLabel: "Get Started",
@@ -33,8 +42,6 @@ export const TIERS: Tier[] = [
   },
   {
     id: "pro",
-    name: "Pro",
-    price: "$150",
     priceSuffix: "/ month",
     blurb: "For teams running production agents at scale.",
     ctaLabel: "Get Started",
@@ -42,13 +49,25 @@ export const TIERS: Tier[] = [
   },
   {
     id: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
     blurb: "For organizations with custom limits and compliance needs.",
     ctaLabel: "Contact us",
     ctaHref: "mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry",
   },
 ];
+
+// Hydrated column data consumed by pricing-table.tsx + cards-variant.tsx.
+// `name` + `price` are derived from the central SoT — the landing page can
+// never drift from workspace billing / onboarding.
+export interface PricingColumn extends PricingColumnConfig {
+  name: string;
+  price: string;
+}
+
+export const TIER_COLUMNS: PricingColumn[] = PRICING_COLUMNS.map((c) => ({
+  ...c,
+  name: TIERS[c.id].name,
+  price: formatPrice(c.id),
+}));
 
 export const RECOMMENDED_TIER: TierId = "pro";
 
@@ -65,6 +84,18 @@ export interface FeatureGroup {
   rows: FeatureRow[];
 }
 
+// Helper to build a row whose value depends on the tier — saves repeating
+// the four-key object literal for every usage-limits row.
+const tierRow = (label: string, get: (tier: TierId) => FeatureValue): FeatureRow => ({
+  label,
+  values: {
+    free: get("free"),
+    hobby: get("hobby"),
+    pro: get("pro"),
+    enterprise: get("enterprise"),
+  },
+});
+
 // FLAG: Tier-gating below is a best-guess. Security/compliance rows are
 // assumed Enterprise-only; platform features assumed available across all
 // tiers. Verify before shipping.
@@ -72,30 +103,15 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
   {
     title: "Usage limits",
     rows: [
-      { label: "Data included", values: { free: "1 GB", hobby: "3 GB", pro: "10 GB", enterprise: "Custom" } },
-      {
-        label: "Data overage rate",
-        values: { free: "—", hobby: "$2 / GB", pro: "$1.50 / GB", enterprise: "Custom" },
-      },
-      {
-        label: "Signals steps included",
-        values: { free: "500", hobby: "5,000", pro: "50,000", enterprise: "Custom" },
-      },
-      {
-        label: "Signals step overage rate",
-        values: { free: "—", hobby: "$0.0075 / step", pro: "$0.005 / step", enterprise: "Custom" },
-      },
-      {
-        label: "Retention",
-        values: {
-          free: TIER_RETENTION.free.durationPlural,
-          hobby: TIER_RETENTION.hobby.durationPlural,
-          pro: TIER_RETENTION.pro.durationPlural,
-          enterprise: TIER_RETENTION.enterprise.durationPlural,
-        },
-      },
-      { label: "Projects", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
-      { label: "Seats", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
+      tierRow("Data included", formatDataIncluded),
+      tierRow("Data overage rate", formatDataOverage),
+      tierRow("Signals steps included", formatSignalsCount),
+      // Comparison table is column-constrained, use the short "/ step" form
+      // instead of the verbose "/ Signals step" the cards use.
+      tierRow("Signals step overage rate", formatSignalsOverageShort),
+      tierRow("Retention", (t) => (t === "enterprise" ? "Custom" : TIER_RETENTION[t].durationPlural)),
+      tierRow("Projects", (t) => TIERS[t].projects),
+      tierRow("Seats", (t) => TIERS[t].seats),
       {
         label: "Custom usage limits & alerts",
         values: { free: false, hobby: true, pro: true, enterprise: true },
@@ -147,36 +163,40 @@ interface CardFeature {
   subfeature?: string;
 }
 
+// Free uses "X GB data" (no overage); paid uses "X GB data included" + a
+// "then $… / GB" subfeature. Wording differs per tier — keep it inline so
+// the underlying numbers come from the SoT without splitting the per-tier
+// phrasing across two files.
 export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
-    { label: "1 GB data", subfeature: "no overage" },
-    { label: "500 Signals steps", subfeature: "no overage" },
+    { label: `${formatDataIncluded("free")} data`, subfeature: "no overage" },
+    { label: `${formatSignalsCount("free")} Signals steps`, subfeature: "no overage" },
     { label: retentionLabel("free") },
-    { label: "1 project" },
-    { label: "1 seat" },
-    { label: "Community support" },
+    { label: formatProjects("free") },
+    { label: formatSeats("free") },
+    { label: formatSupport("free") },
   ],
   hobby: [
-    { label: "3 GB data included", subfeature: "then $2 / GB" },
-    { label: "5,000 Signals steps", subfeature: "then $0.0075 / Signals step" },
+    { label: `${formatDataIncluded("hobby")} data included`, subfeature: `then ${formatDataOverage("hobby")}` },
+    { label: `${formatSignalsCount("hobby")} Signals steps`, subfeature: `then ${formatSignalsOverage("hobby")}` },
     { label: retentionLabel("hobby") },
-    { label: "Unlimited projects" },
-    { label: "Unlimited seats" },
-    { label: "Email support" },
+    { label: formatProjects("hobby") },
+    { label: formatSeats("hobby") },
+    { label: formatSupport("hobby") },
   ],
   pro: [
-    { label: "10 GB data included", subfeature: "then $1.50 / GB" },
-    { label: "50,000 Signals steps", subfeature: "then $0.005 / Signals step" },
+    { label: `${formatDataIncluded("pro")} data included`, subfeature: `then ${formatDataOverage("pro")}` },
+    { label: `${formatSignalsCount("pro")} Signals steps`, subfeature: `then ${formatSignalsOverage("pro")}` },
     { label: retentionLabel("pro") },
-    { label: "Unlimited projects" },
-    { label: "Unlimited seats" },
-    { label: "Slack support" },
+    { label: formatProjects("pro") },
+    { label: formatSeats("pro") },
+    { label: formatSupport("pro") },
   ],
   enterprise: [
     { label: "Custom limits" },
     { label: "On-premise" },
-    { label: "Unlimited projects" },
-    { label: "Unlimited seats" },
-    { label: "Dedicated support" },
+    { label: formatProjects("enterprise") },
+    { label: formatSeats("enterprise") },
+    { label: formatSupport("enterprise") },
   ],
 };
