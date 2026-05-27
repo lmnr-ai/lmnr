@@ -1,12 +1,43 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { isNil, isObject } from "lodash";
-import React, { useCallback, useMemo } from "react";
+import { isEqual, isNil, isObject } from "lodash";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type TableColumnConfig } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { type ColumnConfig, DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { type TableConfig, useColumnConfig } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { formatRelativeTime } from "@/lib/utils";
+
+// Forwards column-state changes from the store back to the caller. Lives here
+// (a child of the provider) so the provider stays a pure state container —
+// no useRef + subscribe plumbing inside the model layer.
+const ColumnConfigEmitter = ({
+  initial,
+  onChange,
+}: {
+  initial: TableConfig;
+  onChange: (config: TableConfig) => void;
+}) => {
+  const config = useColumnConfig();
+  // Capture the seed once so the first emit is suppressed; otherwise the parent
+  // would persist a no-op write on mount (problematic for the dashboard chart's
+  // debounced PATCH to the backend).
+  const [seed] = useState(() => initial);
+
+  useEffect(() => {
+    if (
+      isEqual(config.columnOrder, seed.columnOrder) &&
+      isEqual(config.columnSizing, seed.columnSizing) &&
+      isEqual(config.columnVisibility, seed.columnVisibility)
+    ) {
+      return;
+    }
+    onChange(config);
+  }, [config, onChange, seed]);
+
+  return null;
+};
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}[T ]/;
 
@@ -80,13 +111,14 @@ const TableChart = ({
     [visibleColumnNames]
   );
 
-  const initialColumnConfig = useMemo((): ColumnConfig => {
+  const initialColumnConfig = useMemo((): TableConfig => {
     const savedOrder = tableColumnConfig?.columnOrder;
     const validOrder = savedOrder?.filter((col) => visibleColumnNames.includes(col)) ?? [];
     const newCols = visibleColumnNames.filter((col) => !validOrder.includes(col));
     const mergedOrder = [...validOrder, ...newCols];
 
     return {
+      customColumns: [],
       columnOrder: mergedOrder.length > 0 ? mergedOrder : visibleColumnNames,
       columnSizing: tableColumnConfig?.columnSizing ?? {},
       columnVisibility: tableColumnConfig?.columnVisibility ?? {},
@@ -94,7 +126,7 @@ const TableChart = ({
   }, [tableColumnConfig, visibleColumnNames]);
 
   const handleColumnConfigChange = useCallback(
-    (config: ColumnConfig) => {
+    (config: TableConfig) => {
       onColumnConfigChange?.({
         columnOrder: config.columnOrder,
         columnSizing: config.columnSizing,
@@ -124,12 +156,14 @@ const TableChart = ({
 
   return (
     <div className="text-sm flex-1 min-h-0 w-full h-full">
-      <DataTableStateProvider
-        defaultColumnOrder={visibleColumnNames}
-        initialColumnConfig={initialColumnConfig}
-        onColumnConfigChange={handleColumnConfigChange}
+      <InfiniteDataTableProvider
+        defaults={initialColumnConfig}
         pageSize={PAGE_SIZE}
+        disableHideColumn
       >
+        {onColumnConfigChange && (
+          <ColumnConfigEmitter initial={initialColumnConfig} onChange={handleColumnConfigChange} />
+        )}
         <InfiniteDataTable
           columns={tableColumns}
           data={data}
@@ -141,10 +175,9 @@ const TableChart = ({
           className="h-full"
           scrollContentClassName="border rounded-md"
           hideSelectionPanel
-          disableHideColumn
           estimatedRowHeight={35}
         />
-      </DataTableStateProvider>
+      </InfiniteDataTableProvider>
     </div>
   );
 };

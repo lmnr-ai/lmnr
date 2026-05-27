@@ -13,7 +13,7 @@ import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -31,9 +31,9 @@ const SIGNAL_QUICK_RANGES: DateRange[] = [
 
 export default function Signals() {
   return (
-    <DataTableStateProvider storageKey="signals-cards" uniqueKey="id" defaultColumnOrder={[]}>
+    <InfiniteDataTableProvider uniqueKey="id">
       <SignalsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 

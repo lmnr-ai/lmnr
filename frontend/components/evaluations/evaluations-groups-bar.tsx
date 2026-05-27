@@ -3,7 +3,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import useSWR from "swr";
 
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -15,12 +15,9 @@ export const defaultEvaluationsGroupsBarColumnOrder = ["groupId", "lastEvaluatio
 
 export default function EvaluationsGroupsBar() {
   return (
-    <DataTableStateProvider
-      storageKey="evaluations-groups-bar"
-      defaultColumnOrder={defaultEvaluationsGroupsBarColumnOrder}
-    >
+    <InfiniteDataTableProvider defaults={{ columnOrder: defaultEvaluationsGroupsBarColumnOrder }}>
       <EvaluationsGroupsBarContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
