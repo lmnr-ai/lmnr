@@ -65,6 +65,7 @@ function TracesTableContent() {
     chartContainerWidth,
     setChartContainerWidth,
     isTraceInTimeRange,
+    metric,
   } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
@@ -73,6 +74,7 @@ function TracesTableContent() {
     chartContainerWidth: state.chartContainerWidth,
     setChartContainerWidth: state.setChartContainerWidth,
     isTraceInTimeRange: state.isTraceInTimeRange,
+    metric: state.metric,
   }));
 
   const filter = searchParams.getAll("filter");
@@ -178,6 +180,7 @@ function TracesTableContent() {
     endDate,
     filters: filter,
     additionalParams: {
+      metric,
       ...(textSearchFilter && { search: textSearchFilter }),
       ...(searchIn.length > 0 && { searchIn }),
       ...(customColumnsJson && { customColumns: customColumnsJson }),

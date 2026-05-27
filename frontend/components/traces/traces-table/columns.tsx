@@ -195,15 +195,19 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "total_tokens",
     enableSorting: true,
     meta: { sql: "total_tokens" },
-    cell: (row) => (
-      <div className="truncate">
-        {`${row.row.original.inputTokens ?? "-"}`}
-        {" → "}
-        {`${row.row.original.outputTokens ?? "-"}`}
-        {` (${row.row.original.totalTokens ?? "-"})`}
-      </div>
-    ),
-    size: 150,
+    cell: (row) => {
+      const cache = row.row.original.cacheReadInputTokens;
+      return (
+        <div className="truncate">
+          {`${row.row.original.inputTokens ?? "-"}`}
+          {" → "}
+          {`${row.row.original.outputTokens ?? "-"}`}
+          {` (${row.row.original.totalTokens ?? "-"})`}
+          {!!cache && <span className="text-success-bright">{` ${cache} cached`}</span>}
+        </div>
+      );
+    },
+    size: 180,
   },
   {
     accessorFn: (row) => row.spanTags,

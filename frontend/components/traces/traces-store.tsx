@@ -2,7 +2,7 @@ import { parseISO } from "date-fns";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
+import { type TracesStatsDataPoint, type TraceStatsMetric } from "@/lib/actions/traces/stats";
 
 export type TracesState = {
   traceId: string | null;
@@ -10,6 +10,7 @@ export type TracesState = {
   stats?: TracesStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
+  metric: TraceStatsMetric;
 };
 
 export type TracesActions = {
@@ -18,6 +19,7 @@ export type TracesActions = {
   fetchStats: (url: string) => Promise<void>;
   incrementStat: (timestamp: string, isError: boolean) => void;
   setChartContainerWidth: (width: number) => void;
+  setMetric: (metric: TraceStatsMetric) => void;
   isTraceInTimeRange: (timestamp: string) => boolean;
 };
 
@@ -37,6 +39,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
+    metric: "count",
   };
 
   return createStore<TracesStore>()((set, get) => ({
@@ -48,6 +51,8 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
     setSpanId: (spanId: string | null) => set({ spanId }),
 
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
+
+    setMetric: (metric: TraceStatsMetric) => set({ metric }),
 
     fetchStats: async (url: string) => {
       set({ isLoadingStats: true });
@@ -82,8 +87,11 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
     },
 
     incrementStat: (timestamp: string, isError: boolean) => {
-      const { stats } = get();
+      const { stats, metric } = get();
       if (!stats || stats?.length === 0) return;
+      // Realtime bumps only apply to the success/error count chart — other
+      // metrics need a server-side recompute.
+      if (metric !== "count") return;
 
       const traceTime = parseISO(timestamp);
 

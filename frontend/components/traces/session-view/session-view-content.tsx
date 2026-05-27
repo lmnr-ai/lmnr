@@ -20,7 +20,7 @@ const PAGE_SIZE = 200;
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
-  const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
+  const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId, setExtraStats } =
     useSessionViewStore(
       (s) => ({
         spanPanelOpen: s.spanPanelOpen,
@@ -29,6 +29,7 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
         setTracesError: s.setTracesError,
         setSession: s.setSession,
         setProjectId: s.setProjectId,
+        setExtraStats: s.setExtraStats,
       }),
       shallow
     );
@@ -74,6 +75,29 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
     fetchTraces();
     return () => controller.abort();
   }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError, setSession]);
+
+  // Fetch extra session stats not exposed on TraceRow (cache + reasoning tokens).
+  // Best-effort: the stats panel falls back to 0 silently on failure.
+  useEffect(() => {
+    const controller = new AbortController();
+    setExtraStats({ cacheReadInputTokens: undefined, reasoningTokens: undefined });
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/sessions/${sessionId}/stats`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { cacheReadInputTokens?: number; reasoningTokens?: number };
+        setExtraStats({
+          cacheReadInputTokens: body.cacheReadInputTokens ?? 0,
+          reasoningTokens: body.reasoningTokens ?? 0,
+        });
+      } catch {
+        // ignored — stats panel handles missing values
+      }
+    })();
+    return () => controller.abort();
+  }, [projectId, sessionId, setExtraStats]);
 
   const panels: SessionViewPanels = useMemo(
     () => ({

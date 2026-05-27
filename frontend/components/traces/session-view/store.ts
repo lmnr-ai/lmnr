@@ -47,6 +47,12 @@ interface SessionViewState {
   isTracesLoading: boolean;
   tracesError?: string;
 
+  // Extra stats not on TraceRow (cache_read_input_tokens, reasoning_tokens) —
+  // fetched once per session from a dedicated endpoint that aggregates from
+  // span attributes.
+  cacheReadInputTokens?: number;
+  reasoningTokens?: number;
+
   // Per-trace span data (lazy-loaded on expand).
   traceSpans: Record<string, TraceViewSpan[]>;
   traceSpansLoading: Record<string, boolean>;
@@ -93,6 +99,7 @@ interface SessionViewActions {
   setTraces: (traces: TraceRow[]) => void;
   setIsTracesLoading: (loading: boolean) => void;
   setTracesError: (error?: string) => void;
+  setExtraStats: (stats: { cacheReadInputTokens?: number; reasoningTokens?: number }) => void;
 
   /** Fetch spans for a trace if not already loaded or currently loading.
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
@@ -224,6 +231,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         setTraces: (traces) => set({ traces }),
         setIsTracesLoading: (isTracesLoading) => set({ isTracesLoading }),
         setTracesError: (tracesError) => set({ tracesError }),
+        setExtraStats: ({ cacheReadInputTokens, reasoningTokens }) => set({ cacheReadInputTokens, reasoningTokens }),
 
         ensureTraceSpans: async (trace) => {
           const state = get();
