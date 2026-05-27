@@ -53,6 +53,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     setIsTraceSignalsLoading,
     setActiveSignalTabId,
     initialSignalId,
+    initialSearch,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -67,6 +68,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
       setActiveSignalTabId: state.setActiveSignalTabId,
       initialSignalId: state.initialSignalId,
+      initialSearch: state.initialSearch,
     }),
     shallow
   );
@@ -282,7 +284,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           spans={spans}
           onSubmit={onSearch}
           className="flex-1"
-          initialSearch={searchParams.get("search") ?? undefined}
+          initialSearch={initialSearch || undefined}
         />
       </div>
       {spans.length > 0 && (

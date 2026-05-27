@@ -1,7 +1,6 @@
-import { isEqual } from "lodash";
 import { memo, useCallback } from "react";
 
-import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
+import FilterPopover from "@/components/ui/infinite-datatable/ui/datatable-filter/ui.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
 
@@ -40,27 +39,4 @@ const DataTableFilter = ({ columns, presetFilters, className, filters, onFilters
   );
 };
 
-interface FilterListProps {
-  filters?: Filter[];
-  onFiltersChange?: (next: Filter[]) => void;
-  className?: string;
-}
-
-const PureDataTableFilterList = ({ filters, onFiltersChange, className }: FilterListProps) => {
-  const isControlled = filters !== undefined && onFiltersChange !== undefined;
-  const fallback = useFilterUrlValue(isControlled);
-  const effectiveFilters = filters ?? fallback.filters;
-  const setFilters = onFiltersChange ?? fallback.setFilters;
-
-  const handleRemoveFilter = useCallback(
-    (filter: Filter) => {
-      setFilters(effectiveFilters.filter((f) => !isEqual(f, filter)));
-    },
-    [effectiveFilters, setFilters]
-  );
-
-  return <FilterList className={className} filters={effectiveFilters} onRemoveFilter={handleRemoveFilter} />;
-};
-
-export const DataTableFilterList = memo(PureDataTableFilterList);
 export default memo(DataTableFilter);

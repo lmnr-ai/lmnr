@@ -148,10 +148,7 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <InfiniteDataTableProvider
-      uniqueKey="id"
-      defaults={{ columnOrder: defaultPlaygroundHistoryColumnOrder }}
-    >
+    <InfiniteDataTableProvider uniqueKey="id" defaults={{ columnOrder: defaultPlaygroundHistoryColumnOrder }}>
       <PlaygroundHistoryTableContent {...props} />
     </InfiniteDataTableProvider>
   );

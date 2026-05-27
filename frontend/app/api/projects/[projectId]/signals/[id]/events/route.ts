@@ -14,7 +14,7 @@ export async function GET(
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
     GetEventsPaginatedSchema.omit({ projectId: true, signalId: true }),
-    ["filter", "searchIn", "clusterId"]
+    ["filter", "searchIn", "clusterId", "payloadField"]
   );
 
   if (!parseResult.success) {

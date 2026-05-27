@@ -6,6 +6,7 @@ import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
 import { getEventsByEmergingClusterPaginated } from "./emerging-cluster";
+import { searchSignalEvents, type SignalEventSearchHit } from "./search";
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
@@ -15,7 +16,23 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
   emergingClusterId: z.guid().optional(),
+  search: z.string().optional(),
+  // Schema field names rendered as table columns — passed through to the
+  // search endpoint to scope the per-field snippet extracts. The client owns
+  // this list (it's derived from `signal.structuredOutput`); piping it via URL
+  // params avoids an extra Postgres signal lookup on every paged events fetch.
+  payloadField: z.array(z.string()).optional(),
 });
+
+/** Merges per-event field snippets onto already-hydrated EventRows by id. */
+export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]): EventRow[] {
+  const lookup = new Map(hits.map((h) => [h.id, h]));
+  return items.map((item) => {
+    const hit = lookup.get(item.id);
+    if (!hit) return item;
+    return { ...item, fieldSnippets: hit.fieldSnippets };
+  });
+}
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
   const {
@@ -30,6 +47,8 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterId: clusterIds,
     unclustered,
     emergingClusterId,
+    search,
+    payloadField,
   } = input;
 
   if (emergingClusterId) {
@@ -43,6 +62,8 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
       startDate,
       endDate,
       filter,
+      search,
+      payloadField,
     });
   }
 
@@ -58,6 +79,27 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterFilter = clusterIds;
   }
 
+  let idFilter: string[] | undefined;
+  let searchHits: SignalEventSearchHit[] = [];
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    searchHits = await searchSignalEvents({
+      projectId,
+      signalId,
+      searchQuery: trimmedSearch,
+      payloadFields: payloadField ?? [],
+      pastHours,
+      startDate,
+      endDate,
+    });
+    if (searchHits.length === 0) {
+      // No Quickwit hits — short-circuit to avoid emitting `id IN ()` (CH syntax error)
+      // and to skip the redundant CH round-trip.
+      return { items: [], count: 0 };
+    }
+    idFilter = searchHits.map((h) => h.id);
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
     signalId,
     filters,
@@ -67,6 +109,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    idFilter,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
@@ -76,15 +119,16 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     endTime: endDate,
     pastHours,
     clusterFilter,
+    idFilter,
   });
 
-  const [items, [countResult]] = await Promise.all([
+  const [rawItems, [countResult]] = await Promise.all([
     executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
 
   return {
-    items,
+    items: searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems,
     count: countResult?.count || 0,
   };
 }

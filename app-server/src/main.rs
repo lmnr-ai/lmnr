@@ -1798,6 +1798,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
+                                    .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
                                     .service(routes::spans::get_skeleton_hashes);

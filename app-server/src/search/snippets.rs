@@ -6,7 +6,7 @@ use uuid::Uuid;
 pub const SNIPPET_CONTEXT_CHARS: usize = 50;
 const DEFAULT_SEARCH_MAX_TRACES: usize = 50;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SnippetInfo {
     pub text: String,
     pub highlight: [usize; 2],
@@ -305,6 +305,98 @@ pub async fn enrich_hits_with_snippets(
             hit
         })
         .collect()
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+pub struct SignalEventSnippetRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    /// Aligned positionally with the field-name list the caller passed to
+    /// `fetch_signal_event_snippets`. CH returns an `Array(String)` so the
+    /// number of elements matches the input field count exactly.
+    pub field_snippets: Vec<String>,
+}
+
+/// Per-field snippet extraction over `signal_events.payload`. The caller
+/// supplies the schema field names in order; the returned `Vec<String>` on
+/// each row is index-aligned with that list. Empty strings mean "no match
+/// for this field" (the calling code then leaves the cell un-highlighted).
+///
+/// `signal_events` is `MergeTree` keyed by `(project_id, signal_id, timestamp,
+/// trace_id, run_id)`; we scope by `project_id` + `signal_id` + `id IN (...)`
+/// so the lookup hits the right primary-key prefix without `FINAL`.
+#[tracing::instrument(skip_all, fields(ids_count = ids.len(), fields_count = field_names.len()))]
+pub async fn fetch_signal_event_snippets(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    signal_id: Uuid,
+    ids: &[Uuid],
+    field_names: &[String],
+    context_regex: &str,
+) -> Vec<SignalEventSnippetRow> {
+    if ids.is_empty() || field_names.is_empty() {
+        return Vec::new();
+    }
+
+    // Per-field extracts use `?` placeholders (clickhouse crate's positional
+    // binding) so user-controlled `field_names` can never break out of the
+    // string-literal context. Each field contributes 2 placeholders (the JSON
+    // key, used twice — once for `JSONExtractString`, once for `JSONExtractRaw`)
+    // plus a shared context-regex placeholder appended after each extract().
+    let extract_fragments = field_names
+        .iter()
+        .map(|_| {
+            "extract(
+                coalesce(
+                    nullIf(JSONExtractString(payload, ?), ''),
+                    toString(JSONExtractRaw(payload, ?))
+                ),
+                ?
+            )"
+            .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let id_list = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+
+    let query = format!(
+        "SELECT id, array({extract_fragments}) AS field_snippets
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id = ?
+           AND id IN ({id_list})"
+    );
+    log::debug!("search_signal_events: snippet query: {:?}", query);
+
+    // Bind in the same order the placeholders appear: per-field (key, key,
+    // context_regex) tuples, then project_id, signal_id, then the id list.
+    let mut q = clickhouse.query(&query);
+    for name in field_names {
+        q = q.bind(name).bind(name).bind(context_regex);
+    }
+    q = q.bind(project_id).bind(signal_id);
+    for id in ids {
+        q = q.bind(id);
+    }
+
+    let t_start = std::time::Instant::now();
+    q.fetch_all::<SignalEventSnippetRow>()
+        .await
+        .inspect(|rows| {
+            log::debug!(
+                "[search_signal_events] clickhouse snippets: {}ms, {} rows",
+                t_start.elapsed().as_millis(),
+                rows.len()
+            );
+        })
+        .unwrap_or_else(|e| {
+            log::error!(
+                "Failed to fetch signal_event snippets from ClickHouse: {:?}",
+                e
+            );
+            Vec::new()
+        })
 }
 
 #[cfg(test)]

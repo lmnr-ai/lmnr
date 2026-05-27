@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
 import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
@@ -20,7 +21,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -76,8 +77,13 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
 
-  const { effective, isLoading: isViewLoading, setFilters } = useTableView();
+  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters } = useTableView();
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
@@ -103,6 +109,20 @@ function PureEventsTable() {
         }
 
         filter.forEach((f) => urlParams.append("filter", f));
+
+        if (textSearchFilter) {
+          urlParams.set("search", textSearchFilter);
+          // Only string-typed schema fields can produce useful free-text
+          // snippets — numbers/booleans/enums are reachable via column
+          // filters and shouldn't show highlighted matches. Mirrors the
+          // backend's allow-list at indexing time (see
+          // `extract_searchable_fields` in `app-server/src/quickwit/utils.rs`).
+          signal.schemaFields.forEach((f) => {
+            if (f.name.trim() && f.type === "string") {
+              urlParams.append("payloadField", f.name);
+            }
+          });
+        }
 
         if (emergingClusterId) {
           urlParams.set("emergingClusterId", emergingClusterId);
@@ -142,7 +162,9 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      textSearchFilter,
       signal.id,
+      signal.schemaFields,
       params.projectId,
       toast,
     ]
@@ -191,6 +213,7 @@ function PureEventsTable() {
       selectedClusterIds,
       isUnclusteredFilter,
       emergingClusterId,
+      textSearchFilter,
     ],
   });
 
@@ -235,7 +258,7 @@ function PureEventsTable() {
         fetchNextPage={fetchNextPage}
         loadMoreButton
         estimatedRowHeight={80}
-        emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+        emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
@@ -248,8 +271,18 @@ function PureEventsTable() {
           <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
           <DateRangeFilter />
         </div>
+        <div className="w-full px-px">
+          <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchAndFilters}
+            filters={filters}
+            storageKey={`signal-events-${signal.id}`}
+            resource="signal-events"
+            placeholder="Search events by payload, severity, trace id, and more..."
+            className="w-full flex-1"
+          />
+        </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <DataTableFilterList filters={effective.filters} onFiltersChange={setFilters} />
         <ClustersSection />
       </InfiniteDataTable>
     </div>
