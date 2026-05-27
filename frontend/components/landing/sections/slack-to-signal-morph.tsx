@@ -12,6 +12,13 @@ interface Props {
   /** 0 = pure Slack notification, 1 = pure Signal event card. */
   progress: MotionValue<number>;
   className?: string;
+  /** Forwarded into <SignalContent /> — when set to a span ID that the
+   *  signal card knows about, that chip pulses for ~1s. Used by the
+   *  trace-bento phase 2 trigger. */
+  flashSpanId?: string;
+  /** Forwarded into <SignalContent /> — wires chip clicks to the trace
+   *  view store's selectSpanById. Omitted on mobile. */
+  onSpanClick?: (spanId: string) => void;
 }
 
 // Outer card colors at the two endpoints. Framer interpolates rgb/hex
@@ -32,7 +39,7 @@ const MIDPOINT_BG = "#1b1b1c44";
 // that value — so we get a smooth height tween between slack-natural and
 // signal-natural with no hard-coded pixel constants. Border/bg color tween
 // continuously through a muted midpoint for visual continuity.
-const SlackToSignalMorph = ({ progress, className }: Props) => {
+const SlackToSignalMorph = ({ progress, className, flashSpanId, onSpanClick }: Props) => {
   const [showSignal, setShowSignal] = useState(false);
   useMotionValueEvent(progress, "change", (p) => {
     const next = p >= 0.5;
@@ -63,7 +70,9 @@ const SlackToSignalMorph = ({ progress, className }: Props) => {
       style={{ borderColor, backgroundColor }}
       className={cn("relative w-[400px] rounded-md border overflow-hidden", className)}
     >
-      <div ref={innerRef}>{showSignal ? <SignalContent /> : <SlackContent />}</div>
+      <div ref={innerRef}>
+        {showSignal ? <SignalContent onSpanClick={onSpanClick} flashSpanId={flashSpanId} /> : <SlackContent />}
+      </div>
     </motion.div>
   );
 };

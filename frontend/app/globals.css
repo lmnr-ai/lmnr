@@ -101,6 +101,8 @@
   --color-landing-text-600: rgb(67 68 71);
   --color-landing-primary-400-10: rgb(208 117 78 / 0.1);
   --color-landing-primary-400-50: rgb(208 117 78 / 0.5);
+
+  --breakpoint-3xl: 112rem;
 }
 
 @utility no-scrollbar {
@@ -193,7 +195,6 @@
 }
 
 @keyframes landing-caret-blink {
-
   0%,
   50% {
     opacity: 1;
@@ -207,6 +208,26 @@
 
 .landing-caret-blink {
   animation: landing-caret-blink 1s step-end infinite;
+}
+
+/* Single 600ms ease-in-out pulse used by the SignalEventCard chip
+   during the phase 1→2 sequence. Lifts to the lighter primary-200 at
+   the midpoint (more eye-catching against the muted signal card bg
+   than primary-400 was) with a near-opaque fill and a wider shadow
+   ring, then settles back. */
+@keyframes signal-span-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgb(218 135 95 / 0);
+    background-color: rgb(234 232 224 / 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(218 135 95 / 0.6);
+    background-color: rgb(218 135 95 / 0.9);
+  }
+}
+
+.signal-span-flash {
+  animation: signal-span-flash 0.6s ease-in-out 1;
 }
 
 @layer base {
@@ -230,6 +251,7 @@
 
   .font-sans-landing {
     letter-spacing: 0.002em;
-    font-weight: 450
+    font-weight: 450;
   }
 }
+

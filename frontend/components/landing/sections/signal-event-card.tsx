@@ -1,82 +1,127 @@
-import { ArrowUpRight, Bolt, Box, MessageCircle, Sparkles, X } from "lucide-react";
+import { Bolt, MessageCircle, X } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-const ACCENT = "rgb(49 134 255)";
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
 
-const withOpacity = (color: string, opacity: number) =>
-  `color-mix(in srgb, ${color} ${Math.round(opacity * 100)}%, transparent)`;
+// Real spans inside trace 5a9d5634-a465-3f53-119e-359363ecd0d6.
+// FLAG: these IDs are load-bearing — they're referenced by the auto-select
+// + flash trigger in trace-bento.tsx. If the trace_id in
+// `understand-why-trace-view/index.tsx` changes, re-derive these and the
+// matching IDs in ask-ai.tsx from the new trace, or the chips will point
+// at spans that don't exist in the rendered transcript.
+export const SIGNAL_READ_SPAN_ID = "00000000-0000-0000-9531-48e702ed15da";
+export const SIGNAL_EDIT_SPAN_ID = "00000000-0000-0000-4aee-680ebb392ebd";
+export const SIGNAL_BASH_SPAN_ID = "00000000-0000-0000-d1df-1033750d3977";
+// Most expensive single LLM call in the trace — 7.5s, $1.78. Same span
+// referenced from the Ask AI answer.
+export const SIGNAL_LLM_SPAN_ID = "00000000-0000-0000-405c-f341a1e0d0c1";
 
-const CLUSTER_PATH = [
-  { color: "var(--color-blue-500)" },
-  { color: "var(--color-indigo-500)" },
-  { color: "var(--color-purple-500)" },
-];
+interface SpanChipProps {
+  iconBg: string;
+  icon: ReactNode;
+  label: string;
+  spanId?: string;
+  flashSpanId?: string;
+  onClick?: (spanId: string) => void;
+}
 
-const ACTION_BUTTONS = [
-  { Icon: Sparkles, label: "Open in AI Chat" },
-  { Icon: ArrowUpRight, label: "Open in Signals" },
-];
+// Renders inline inside the payload paragraph. Chip is a <button> when an
+// `onClick` is wired in, otherwise renders as a static <span> (mobile path
+// has no trace-view store to wire selection into). Flash class is a small
+// pulse keyed on `flashSpanId === spanId` and consumed by globals.css's
+// `signal-span-flash` keyframe.
+const SpanChip = ({ iconBg, icon, label, spanId, flashSpanId, onClick }: SpanChipProps) => {
+  const isFlashing = !!spanId && flashSpanId === spanId;
+  const className = cn(
+    "inline-flex items-center gap-1 rounded border border-landing-text-200/15 bg-landing-text-200/15 pl-0.5 pr-1.5 py-0.5 align-middle transition-colors",
+    onClick && "cursor-pointer hover:bg-landing-text-200/25",
+    isFlashing && "signal-span-flash"
+  );
+  const inner = (
+    <>
+      <span className={cn("inline-flex items-center justify-center size-4 rounded", iconBg)}>{icon}</span>
+      <span className="text-landing-text-200 text-xs leading-none">{label}</span>
+    </>
+  );
+  if (onClick && spanId) {
+    return (
+      <button type="button" onClick={() => onClick(spanId)} className={className}>
+        {inner}
+      </button>
+    );
+  }
+  return <span className={className}>{inner}</span>;
+};
 
-const ClusterCube = ({ color }: { color: string }) => (
-  <Box className="size-3 shrink-0" fill={withOpacity(color, 0.15)} stroke={withOpacity(color, 0.8)} strokeWidth={1.5} />
-);
-
-const SpanChip = ({ iconBg, icon, label }: { iconBg: string; icon: ReactNode; label: string }) => (
-  <span className="inline-flex items-center gap-1 rounded border border-landing-text-200/15 bg-landing-text-200/15 pl-0.5 pr-1.5 py-0.5 align-middle">
-    <span className={cn("inline-flex items-center justify-center size-4 rounded", iconBg)}>{icon}</span>
-    <span className="text-landing-text-200 text-xs leading-none">{label}</span>
-  </span>
-);
+interface SignalContentProps {
+  // Wired by the desktop trace-bento path. Selecting a span via the store
+  // drives both the transcript scroll-to and the row's selected styling.
+  onSpanClick?: (spanId: string) => void;
+  // When matches one of the span IDs below, that chip pulses for ~1s to
+  // grab the user's attention. Cleared by the trigger after the auto-select.
+  flashSpanId?: string;
+}
 
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here, animated wrapper in slack-to-signal-morph).
-export const SignalContent = () => (
-  <div className="w-full flex flex-col">
-    <div className="flex items-center justify-between gap-2 pl-2 pr-3 py-2">
-      <div className="flex items-center gap-1">
-        {CLUSTER_PATH.map((c, i) => (
-          <span key={i} className="flex items-center gap-1">
-            {i > 0 && <span className="text-landing-text-300 text-xs leading-none">/</span>}
-            <ClusterCube color={c.color} />
-          </span>
-        ))}
-        <span className="ml-1 text-white text-xs leading-none whitespace-nowrap">Git Workflow Automation Skills</span>
-      </div>
-      <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
-    </div>
-
-    <div className="flex flex-col gap-4 px-4 pt-2 pb-3">
-      <div className="flex gap-1.5 items-center">
-        {ACTION_BUTTONS.map(({ Icon, label }) => (
-          <div
-            key={label}
-            className="flex items-center gap-1 rounded-md border px-2 py-1"
-            style={{ borderColor: withOpacity(ACCENT, 0.4) }}
-          >
-            <Icon className="size-3 shrink-0 text-landing-text-300" strokeWidth={1.5} />
-            <span className="text-white text-xs leading-none whitespace-nowrap">{label}</span>
-          </div>
-        ))}
+// Copy summarises the 5 real failure-points from trace
+// 5a9d5634-a465-3f53-119e-359363ecd0d6 ("LAM-1590: Migrate clusters to
+// rust"); the three chips link to real Read / Edit / Bash spans in that
+// trace so clicking one drives the transcript scroll + selection.
+export const SignalContent = ({ onSpanClick, flashSpanId }: SignalContentProps = {}) => {
+  const chipProps = { onSpanClick, flashSpanId };
+  return (
+    <div className="w-full flex flex-col px-3 py-3 gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-white text-sm leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
+        <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
       </div>
 
       <p className="text-landing-text-300 text-sm leading-6">
-        The agent pushed a commit without running the test suite. The{" "}
+        Agent run flagged 4 issues. Hit{" "}
+        <SpanChip
+          iconBg="bg-tool"
+          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+          label="Read"
+          spanId={SIGNAL_READ_SPAN_ID}
+          onClick={chipProps.onSpanClick}
+          flashSpanId={chipProps.flashSpanId}
+        />{" "}
+        EISDIR on a directory, attempted{" "}
+        <SpanChip
+          iconBg="bg-tool"
+          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+          label="Edit"
+          spanId={SIGNAL_EDIT_SPAN_ID}
+          onClick={chipProps.onSpanClick}
+          flashSpanId={chipProps.flashSpanId}
+        />{" "}
+        before reading, a{" "}
+        <SpanChip
+          iconBg="bg-tool"
+          icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
+          label="Bash"
+          spanId={SIGNAL_BASH_SPAN_ID}
+          onClick={chipProps.onSpanClick}
+          flashSpanId={chipProps.flashSpanId}
+        />{" "}
+        git checkout failed on a missing upstream, and one{" "}
         <SpanChip
           iconBg="bg-llm"
           icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
-          label="claude-opus-4-7"
+          label="anthropic.messages"
+          spanId={SIGNAL_LLM_SPAN_ID}
+          onClick={chipProps.onSpanClick}
+          flashSpanId={chipProps.flashSpanId}
         />{" "}
-        response proposed a fix but never verified it against the failing case, then invoked{" "}
-        <SpanChip iconBg="bg-tool" icon={<Bolt className="size-3 text-white" strokeWidth={2} />} label="write_file" />{" "}
-        to overwrite the test instead.
+        burned $1.78.
       </p>
     </div>
-  </div>
-);
+  );
+};
 
 interface Props {
   className?: string;

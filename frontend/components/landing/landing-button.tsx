@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
   variant?: "minimal" | "outline" | "primary" | "solid";
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 }
 
 const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
@@ -13,9 +13,10 @@ const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
       "font-sans-landing text-landing-text-200 leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-md transition-colors";
 
     const sizeStyles = {
-      sm: "px-2 py-0.5 text-xs md:text-sm",
-      md: cn("md:px-5 text-xs md:text-sm", "px-3"),
-      lg: cn("md:px-6 text-sm md:text-base", "px-4"),
+      xs: "px-2 py-0.5 text-xs md:text-sm",
+      sm: cn("px-2 py-0.5 text-xs md:text-sm md:py-1.5", "px-1 py-0.5"),
+      md: cn("md:px-5 text-xs md:text-sm md:py-3", "px-3"),
+      lg: cn("md:px-6 text-sm md:text-base md:py-3", "px-4"),
     };
 
     const variantStyles = {

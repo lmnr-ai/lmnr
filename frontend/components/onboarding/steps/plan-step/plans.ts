@@ -23,7 +23,7 @@ export const PLANS: PlanOption[] = [
     features: [
       { label: "1 GB ingested data", sub: "no overage" },
       { label: "1,000 Signals steps", sub: "no overage" },
-      { label: "15 day retention" },
+      { label: "7 day retention" },
       { label: "1 project" },
       { label: "1 seat" },
       { label: "Community support" },
@@ -51,7 +51,7 @@ export const PLANS: PlanOption[] = [
     features: [
       { label: "10 GB ingested data", sub: "then $1.50 / GB" },
       { label: "50,000 Signals steps", sub: "then $0.005 / Signals step" },
-      { label: "90 day retention" },
+      { label: "6 month retention" },
       { label: "Unlimited projects" },
       { label: "Unlimited seats" },
       { label: "Slack support" },

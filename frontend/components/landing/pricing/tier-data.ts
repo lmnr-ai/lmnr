@@ -83,7 +83,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
         label: "Signals step overage rate",
         values: { free: "—", hobby: "$0.0075 / step", pro: "$0.005 / step", enterprise: "Custom" },
       },
-      { label: "Retention", values: { free: "15 days", hobby: "30 days", pro: "90 days", enterprise: "Custom" } },
+      { label: "Retention", values: { free: "7 days", hobby: "30 days", pro: "6 months", enterprise: "Custom" } },
       { label: "Projects", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
       { label: "Seats", values: { free: "1", hobby: "Unlimited", pro: "Unlimited", enterprise: "Unlimited" } },
       {
@@ -115,8 +115,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     title: "Security & compliance",
     rows: [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
-      { label: "SOC 2 Type II", values: { free: true, hobby: true, pro: true, enterprise: true } },
-      { label: "HIPAA", values: { free: true, hobby: true, pro: true, enterprise: true } },
+      { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
     ],
   },
   {
@@ -140,7 +141,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   free: [
     { label: "1 GB data", subfeature: "no overage" },
     { label: "500 Signals steps", subfeature: "no overage" },
-    { label: "15 day retention" },
+    { label: "7 day retention" },
     { label: "1 project" },
     { label: "1 seat" },
     { label: "Community support" },
@@ -156,7 +157,7 @@ export const CARD_FEATURES: Record<TierId, CardFeature[]> = {
   pro: [
     { label: "10 GB data included", subfeature: "then $1.50 / GB" },
     { label: "50,000 Signals steps", subfeature: "then $0.005 / Signals step" },
-    { label: "90 day retention" },
+    { label: "6 month retention" },
     { label: "Unlimited projects" },
     { label: "Unlimited seats" },
     { label: "Slack support" },

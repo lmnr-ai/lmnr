@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionPlayer from "@/components/shared/traces/session-player";
-import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -16,8 +15,10 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { SIGNAL_EDIT_SPAN_ID } from "../signal-event-card";
 import SlackToSignalMorph from "../slack-to-signal-morph";
 import AskAi from "./ask-ai";
+import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 // ──────────────────────────────────────────────────────────────────────
 // Phase — five animation states ("variants") that the bento renders.
@@ -46,6 +47,16 @@ interface Props {
 }
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+
+// Phase 1→2 entry: fluid simultaneous open (morph + chrome both
+// transition over TWEEN), THEN the auto-select fires at +500ms (kicks
+// off the transcript scroll while the row data is loading) and the
+// flash kicks in 100ms after so the chip pulses once the row is on
+// screen — flashing at the same instant as the select was firing
+// before the transcript had rendered.
+const PHASE2_SELECT_AT_MS = 500;
+const PHASE2_FLASH_START_MS = 600;
+const PHASE2_FLASH_CLEAR_MS = 1200;
 
 // Bento animates height between its natural content size at phase 1
 // (measured via ResizeObserver on the header, since the morph card's own
@@ -163,6 +174,8 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     shallow
   );
 
+  const selectAndRevealSpan = useSelectAndRevealSpan();
+
   useEffect(() => {
     if (!trace || spans.length === 0) return;
     setSpans(enrichSpansWithPending(spans));
@@ -189,24 +202,67 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     setBrowserSession(false);
   }, [setSignalsPanelOpen, setBrowserSession]);
 
-  // Spans only become clickable at phase ≥ 4 (ask-ai open or beyond); stored
-  // in a ref so the callback identity doesn't change across phase
-  // transitions. Scrolling back below phase 4 clears the selection so the
-  // span panel doesn't flash open mid-transition on the way down.
+  // Spans become clickable at phase ≥ 2 (trace view materialized). The
+  // span PANEL stays gated to phase ≥ 4 (ask-ai open) below — selection
+  // at phase 2/3 just drives the transcript highlight + auto-scroll.
+  // Scrolling back below phase 2 clears the selection so a stale
+  // highlight doesn't persist into the slack-only phase 1 state.
   const phaseRef = useRef(phase);
   useEffect(() => {
     phaseRef.current = phase;
-    if (phase < 4 && selectedSpan) setSelectedSpan(undefined);
+    if (phase < 2 && selectedSpan) setSelectedSpan(undefined);
   }, [phase, selectedSpan, setSelectedSpan]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (phaseRef.current < 4) return;
+      if (phaseRef.current < 2) return;
       setSelectedSpan(span);
     },
     [setSelectedSpan]
   );
-  const handleCloseSpan = useCallback(() => setSelectedSpan(undefined), [setSelectedSpan]);
+
+  // Phase ≥ 2 entry — sequenced over ~1.1s:
+  //   t=0–350  : slack→signal morph (driven by morphProgress in the parent)
+  //   t=400–1000: Edit chip pulses (CSS keyframe)
+  //   t=600–1000: trace-view chrome animates in (chrome delay below)
+  //   t=1100   : selectAndRevealSpan fires + flash clears
+  //
+  // One-shot per approach from phase < 2: a ref guards re-firing, but
+  // resets when the user scrolls back below phase 2 so re-entering fires
+  // a fresh sequence. No cleanup on the timers — a fast 1→2→3→4 scroll
+  // would otherwise cancel the pending select before it ran.
+  //
+  // We flash the Edit chip (not Read/Bash) because Edit lives at the top
+  // level of the transcript (`LAM-1590.query.Edit`); Read and Bash are
+  // both inside the Agent subagent group, so flashing them requires the
+  // selectAndRevealSpan helper to expand that group first. Edit needs no
+  // expansion → cleaner, lower-latency reveal.
+  //
+  // FLAG: tied to SIGNAL_EDIT_SPAN_ID. If the trace gets swapped, both
+  // that constant in signal-event-card.tsx and the corresponding chip in
+  // SignalContent must update together or the auto-select will target a
+  // non-existent row and the transcript scroll will no-op silently.
+  const [flashSpanId, setFlashSpanId] = useState<string | undefined>(undefined);
+  const autoSelectFiredRef = useRef(false);
+  useEffect(() => {
+    if (phase < 2) {
+      autoSelectFiredRef.current = false;
+      return;
+    }
+    if (autoSelectFiredRef.current) return;
+    autoSelectFiredRef.current = true;
+
+    window.setTimeout(() => selectAndRevealSpan(SIGNAL_EDIT_SPAN_ID), PHASE2_SELECT_AT_MS);
+    window.setTimeout(() => setFlashSpanId(SIGNAL_EDIT_SPAN_ID), PHASE2_FLASH_START_MS);
+    window.setTimeout(() => setFlashSpanId(undefined), PHASE2_FLASH_CLEAR_MS);
+  }, [phase, selectAndRevealSpan]);
+
+  const handleSignalSpanClick = useCallback(
+    (spanId: string) => {
+      selectAndRevealSpan(spanId);
+    },
+    [selectAndRevealSpan]
+  );
 
   const isShowSpanView = phase >= 4 && !!selectedSpan && !!trace;
 
@@ -291,7 +347,12 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             transition={TWEEN}
             className="overflow-hidden"
           >
-            <SlackToSignalMorph progress={morphProgress} className="w-full max-w-none" />
+            <SlackToSignalMorph
+              progress={morphProgress}
+              className="w-full max-w-none"
+              flashSpanId={flashSpanId}
+              onSpanClick={handleSignalSpanClick}
+            />
           </motion.div>
         </div>
 
@@ -356,26 +417,6 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           </div>
         </motion.div>
       </div>
-
-      {/* MIDDLE COL — span view. Opens only when the user clicks a span at
-          phase ≥ 4 (clicks are ignored before then). */}
-      <motion.div
-        initial={{ width: 0 }}
-        animate={{ width: isShowSpanView ? 360 : 0 }}
-        transition={TWEEN}
-        className="overflow-hidden h-full shrink-0"
-      >
-        <div className="w-[360px] h-full bg-background border-l">
-          {isShowSpanView && (
-            <SpanView
-              key={selectedSpan!.spanId}
-              spanId={selectedSpan!.spanId}
-              traceId={trace!.id}
-              onClose={handleCloseSpan}
-            />
-          )}
-        </div>
-      </motion.div>
 
       {/* RIGHT COL — ask-ai, appears at phase 4 */}
       <motion.div

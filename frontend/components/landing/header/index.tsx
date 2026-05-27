@@ -43,16 +43,13 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
 
   return (
     <>
-      <div className="flex items-center justify-center gap-1 sm:gap-3 bg-primary px-4 py-1 text-xs sm:text-sm text-white w-full">
-        <span className="leading-tight">Laminar raises $3M seed to build observability for long-running agents</span>
-        <Link
-          href="/blog/2026-03-16-laminar-launch"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10 shrink-0"
-        >
-          Read more
-          <ArrowRight className="size-3" />
-        </Link>
-      </div>
+      <Link
+        href="/blog/2026-03-16-laminar-launch"
+        className="block w-full bg-landing-primary-200 px-4 py-1 text-center text-xs sm:text-sm text-background hover:bg-landing-primary-300"
+      >
+        Laminar raises $3M seed to build observability for long-running agents.{" "}
+        <ArrowRight className="inline align-middle size-3" />
+      </Link>
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
@@ -95,19 +92,19 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           <div className={cn("flex md:gap-3 items-center", "gap-2")}>
             {hasSession ? (
               <Link href="/projects">
-                <LandingButton variant="outline" size="sm">
+                <LandingButton variant="outline" size="xs">
                   Dashboard
                 </LandingButton>
               </Link>
             ) : (
               <>
                 <Link href="/sign-in">
-                  <LandingButton variant="minimal" size="sm" className="py-1.5">
+                  <LandingButton variant="minimal" size="xs" className="py-1.5">
                     Sign in
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="solid" size="sm" className="py-1.5 px-4">
+                  <LandingButton variant="outline" size="xs" className="py-1 px-3">
                     Sign up
                   </LandingButton>
                 </Link>

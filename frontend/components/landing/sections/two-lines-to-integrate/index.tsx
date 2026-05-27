@@ -9,7 +9,7 @@ const TwoLinesToIntegrate = () => (
     <h2 className={subSection}>{"Two lines to integrate with your stack"}</h2>
     <div className="flex flex-col gap-10 items-start w-full">
       <IntegrationsGrid className="max-w-none w-full" />
-      <LearnMoreLink label="See all" href="https://laminar.sh/docs/tracing/integrations" />
+      <LearnMoreLink label="All integrations" href="https://laminar.sh/docs/tracing/integrations" />
     </div>
   </section>
 );

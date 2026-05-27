@@ -1,13 +1,14 @@
 "use client";
 
 import { ArrowUp, Bolt, MessageCircle } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils";
 
 interface MockMessage {
@@ -16,19 +17,38 @@ interface MockMessage {
   text: string;
 }
 
-const TRACE_ID = "3603700e-d02b-0c39-0f34-cfd20842c5ae";
+// Trace 5a9d5634... — LAM-1590 rust migration. Source of truth for span
+// IDs in this mock conversation is the matching trace in laminar. Keep in
+// sync with `understand-why-trace-view/index.tsx` TRACE_ID and the chip
+// span IDs exported from `signal-event-card.tsx`.
+const TRACE_ID = "5a9d5634-a465-3f53-119e-359363ecd0d6";
 const PROJECT_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
 const spanLink = (label: string, spanId: string) =>
   `\`[${label}](https://lmnr.ai/project/${PROJECT_ID_PLACEHOLDER}/traces/${TRACE_ID}?spanId=${spanId})\``;
 
-const INITIAL_RESPONSE = `To improve efficiency, consolidate ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span and ${spanLink("readPage", "00000000-0000-0000-4eb1-e78cf1b0ed69")} ${spanLink("readPage", "00000000-0000-0000-3191-542d50e2dc74")} span into a single tool call to halve LLM turns. Additionally, the readPage output is excessively large (12,000+ characters); implementing targeted extraction would reduce processing time and token costs for the final summary ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-c897-ab53f4b4d8d9")} span. Finally, providing a search tool would prevent the agent from navigating to suboptimal pages ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span before finding the correct source ${spanLink("navigate", "00000000-0000-0000-7940-6191c6c4189c")} span.`;
+// Real span IDs inside trace 5a9d5634-a465-3f53-119e-359363ecd0d6.
+const READ_EISDIR_SPAN = "00000000-0000-0000-9531-48e702ed15da";
+const EDIT_NO_READ_SPAN = "00000000-0000-0000-4aee-680ebb392ebd";
+const BASH_CHECKOUT_SPAN = "00000000-0000-0000-d1df-1033750d3977";
+// Most expensive single LLM call in the trace ($1.78 / 7.5s).
+const EXPENSIVE_LLM_SPAN = "00000000-0000-0000-405c-f341a1e0d0c1";
+
+const INITIAL_RESPONSE = `#### Wasted time
+The longest single span was ${spanLink("anthropic.messages", EXPENSIVE_LLM_SPAN)} at 7.5s ($1.78) — more than all three tool errors combined. The errors themselves (${spanLink("Read", READ_EISDIR_SPAN)} \`EISDIR\`, ${spanLink("Edit", EDIT_NO_READ_SPAN)} before reading, ${spanLink("Bash", BASH_CHECKOUT_SPAN)} \`checkout\` fail) were each under 2.5s direct, but each one triggers a recovery LLM turn that piles into the context window — which is what blew that single call up to $1.78.
+
+#### Suggested fix
+Enforce read-before-edit in the system prompt and validate paths and branches before calling tools. The recovery turns disappear and the context stops bloating into a single expensive call.`;
 
 const INITIAL_MESSAGES: MockMessage[] = [
   {
     id: "init-user",
     role: "user",
-    text: "How would you recommend improving the research agent's tool call efficiency?",
+    // Newcomer-perspective: a fresh-eyes ask that gets both the
+    // forensic read (what failed) AND the forward-looking suggestion
+    // (how to improve), so the assistant's answer can naturally cite
+    // the three failure spans before suggesting fixes.
+    text: "Which of these 4 failures wasted the most time, and how can I fix this?",
   },
   { id: "init-assistant", role: "assistant", text: INITIAL_RESPONSE },
 ];
@@ -40,9 +60,10 @@ const MOCK_RESPONSE = "Log in to chat with your traces";
 // "tool" (Bolt). FLAG: if INITIAL_RESPONSE references a new span name,
 // add it here or it will render as a generic tool chip.
 const LABEL_TO_KIND: Record<string, "tool" | "llm"> = {
-  navigate: "tool",
-  readPage: "tool",
-  "ai.generateText.doGenerate": "llm",
+  Read: "tool",
+  Edit: "tool",
+  Bash: "tool",
+  "anthropic.messages": "llm",
 };
 
 const KIND_CONFIG = {
@@ -67,9 +88,26 @@ const SpanChip = ({ kind, label, onClick }: { kind: "tool" | "llm"; label: strin
   );
 };
 
-// Matches the markdown link text rendered inside backtick `code` elements:
-//   [label](https://.../traces/<traceId>?spanId=<uuid>)
-const MD_LINK_RE = /^\[([^\]]+)\]\((.+?spanId=([0-9a-f-]+).*)\)$/;
+// Render the code-element children as a sequence of SpanChips interleaved
+// with leftover text. Uses the shared parseSpanLinks finder (the same one
+// chat.tsx relies on) so we don't depend on the children being exactly
+// the link string — Streamdown's parseIncompleteMarkdown can wrap the
+// children with whitespace mid-stream and the anchored regex we used
+// before would silently miss every chip.
+const renderSpanChips = (text: string, onSelect: (spanId: string) => void): ReactNode | null => {
+  const matches = parseSpanLinks(text).filter((m) => m.spanId);
+  if (matches.length === 0) return null;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  matches.forEach((m, i) => {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    const kind = LABEL_TO_KIND[m.label] ?? "tool";
+    parts.push(<SpanChip key={`chip-${i}`} kind={kind} label={m.label} onClick={() => onSelect(m.spanId!)} />);
+    lastIndex = m.index + m.length;
+  });
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return <Fragment>{parts}</Fragment>;
+};
 
 // Word-by-word streaming reveal of the initial assistant response. Tokens
 // are whitespace-delimited; backtick-wrapped span links are guaranteed
@@ -83,30 +121,37 @@ export default function AskAi() {
 
   const selectSpanById = useTraceViewBaseStore((state) => state.selectSpanById);
 
-  const words = useMemo(() => INITIAL_RESPONSE.split(/\s+/), []);
+  // Split keeping whitespace runs as separate tokens (capture group), so
+  // `\n\n` paragraph breaks survive the reveal — otherwise the streamed
+  // text becomes one long line and `## Failures` swallows everything as
+  // an H2.
+  const tokens = useMemo(() => INITIAL_RESPONSE.split(/(\s+)/), []);
+  const wordEndIndices = useMemo(
+    () => tokens.reduce<number[]>((acc, t, i) => (/\S/.test(t) ? [...acc, i] : acc), []),
+    [tokens]
+  );
   const [streamedCount, setStreamedCount] = useState(0);
   useEffect(() => {
     let n = 0;
     const id = setInterval(() => {
       n += 1;
       setStreamedCount(n);
-      if (n >= words.length) clearInterval(id);
+      if (n >= wordEndIndices.length) clearInterval(id);
     }, STREAM_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [words.length]);
-  const streamedAssistantText = useMemo(() => words.slice(0, streamedCount).join(" "), [words, streamedCount]);
+  }, [wordEndIndices.length]);
+  const streamedAssistantText = useMemo(() => {
+    if (streamedCount === 0) return "";
+    const endIdx = wordEndIndices[Math.min(streamedCount, wordEndIndices.length) - 1];
+    return tokens.slice(0, endIdx + 1).join("");
+  }, [tokens, wordEndIndices, streamedCount]);
 
   const components = useMemo<{ code: (props: { children?: ReactNode }) => ReactNode }>(
     () => ({
       code: ({ children }) => {
         const text = String(children);
-        const m = text.match(MD_LINK_RE);
-        if (m) {
-          const label = m[1];
-          const spanId = m[3];
-          const kind = LABEL_TO_KIND[label] ?? "tool";
-          return <SpanChip kind={kind} label={label} onClick={() => selectSpanById(spanId)} />;
-        }
+        const chips = renderSpanChips(text, selectSpanById);
+        if (chips) return chips;
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),

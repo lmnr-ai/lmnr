@@ -202,10 +202,14 @@ function TierColumn({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.retention} retention
         </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.support} support
         </span>
       </div>
@@ -288,9 +292,10 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30-day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "90-day", "Slack");
+  // TODO: source these from a single source of truth please, grep for "day retention" and you'll see these appear everywhere
+  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "7 day", "Community");
+  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30 day", "Email");
+  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "6 month", "Slack");
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 

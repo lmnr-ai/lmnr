@@ -29,19 +29,19 @@ interface Integration {
 
 // Top integrations shown on the landing — see all in the docs.
 const integrations: Integration[] = [
+  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
   { src: claude, alt: "Claude Agent SDK", href: `${DOCS_BASE}/claude-agent-sdk` },
   { src: openaiAgents, alt: "OpenAI Agents SDK", href: `${DOCS_BASE}/openai-agents-sdk`, iconClassName: "size-5" },
-  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
-  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
-  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
   { src: langchain, alt: "LangChain DeepAgents", href: `${DOCS_BASE}/deepagents` },
   { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode` },
-  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
+  { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
+  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
+  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
   { src: openHands, alt: "OpenHands SDK", href: `${DOCS_BASE}/openhands-sdk` },
+  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
   { src: stagehand, alt: "Stagehand", href: `${DOCS_BASE}/stagehand` },
   { src: playwright, alt: "Playwright", href: `${DOCS_BASE}/playwright` },
   { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, iconClassName: "size-5" },
-  { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
   { src: gemini, alt: "Gemini API", href: `${DOCS_BASE}/gemini` },
   { src: anthropic, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
 ];
@@ -50,10 +50,23 @@ interface Props {
   className?: string;
 }
 
-// 2-column grid of integration rows (icon + name). Mirrors Figma `Frame 984`
-// at 4054:8547 — two 267-wide columns with 20px gap, 12px between rows.
+// 3-column grid of integration rows (icon + name). Mirrors Figma `Frame 984`
+// at 4054:8547 — three columns with 20px gap, 12px between rows. Items
+// fill COLUMN-FIRST at md+ so col1 = 1–5, col2 = 6–10, col3 = 11–15 in
+// source order. On mobile we drop back to a single row-major column so
+// the array order matches reading order.
+//
+// FLAG: `md:grid-rows-5` is coupled to `integrations.length === 15`. If
+// the list grows or shrinks, this number must change in lockstep or the
+// column split will be wrong (e.g. 16 items would spill into a fourth
+// column with one orphan). Treat the array length below as load-bearing.
 const IntegrationsGrid = ({ className }: Props) => (
-  <div className={cn("grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-5 gap-y-3 w-full max-w-[760px]", className)}>
+  <div
+    className={cn(
+      "grid grid-cols-1 md:grid-cols-3 md:grid-rows-5 md:grid-flow-col gap-x-5 gap-y-3 w-full max-w-[760px]",
+      className
+    )}
+  >
     {integrations.map((integration, index) => (
       <Link
         key={`${integration.alt}-${index}`}
