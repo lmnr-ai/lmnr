@@ -23,19 +23,22 @@ import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
 
-const TRACE_ID = "5a9d5634-a465-3f53-119e-359363ecd0d6";
+const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
 
-// Real spans inside trace 5a9d5634-a465-3f53-119e-359363ecd0d6. Used by the
+// Real spans inside trace 91c04f82-3121-3807-0e88-855cb5564715. Used by the
 // Timeline body's three underlined links — click drives a transcript scroll +
 // highlight inside the bento on the right.
-// - LLM_REASONING: anthropic.messages directly under `query` (top level).
-// - TOOL_CALL: Bash directly under `query` (top level — distinct from Edit
-//   which the phase-2 auto-flash already targets).
-// - SUBAGENT: anthropic.messages INSIDE the `Agent` subagent group —
-//   selectAndRevealSpan expands the group before selecting.
-const LLM_REASONING_SPAN_ID = "00000000-0000-0000-24c0-e6437a0befdf";
-const TOOL_CALL_SPAN_ID = "00000000-0000-0000-bf2b-d0a2d37a1a54";
-const SUBAGENT_SPAN_ID = "00000000-0000-0000-57d9-64fae8a8d0e0";
+// - LLM_REASONING: the planning anthropic.messages that produced the bad
+//   `python` invocation — same span the signal-event card's first chip
+//   points at, doubles as "see what LLM reasoning looks like" and "this is
+//   where the mistake originated".
+// - TOOL_CALL: a successful Bash (the first to print "All smoke tests
+//   passed!") so the demo lands on a clean tool-call example, not a failure.
+// - SUBAGENT: the auth.py Agent subagent — selectAndRevealSpan expands the
+//   group before selecting.
+const LLM_REASONING_SPAN_ID = "00000000-0000-0000-9eec-e8b846a419d0";
+const TOOL_CALL_SPAN_ID = "00000000-0000-0000-a5ca-cab8e5839b0a";
+const SUBAGENT_SPAN_ID = "00000000-0000-0000-34eb-7f0dcf3c45ab";
 
 const T_PHASE_2 = 0.25;
 const T_PHASE_3 = 0.5;
@@ -113,10 +116,10 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
     learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   3: {
-    name: "Timeline",
-    subtitle: "A clear, concise view of your agent run",
+    name: "Trace view",
+    subtitle: "A clear, concise view\nof your agent run",
     body: <TimelineBody />,
-    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#timeline",
+    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   4: {
     name: "Ask AI",
@@ -162,7 +165,7 @@ const UnderstandWhyTraceView = () => {
   // stack glides continuously rather than snapping at phase boundaries.
   // String values resolve as % of the motion.div's own height — works for
   // any natural block heights, no measurement needed.
-  const stackY = useTransform(scrollYProgress, [0, 1], [`${20}%`, `${-50}%`]);
+  const stackY = useTransform(scrollYProgress, (v) => `calc(${v * -100 + 50}% - ${(1 - v) * 131}px)`);
 
   // Slack→signal morph progress (0 = slack, 1 = signal). Driven by phase
   // via framer's `animate` helper so `SlackToSignalMorph` keeps its

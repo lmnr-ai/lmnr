@@ -15,7 +15,7 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { SIGNAL_EDIT_SPAN_ID } from "../signal-event-card";
+import { SIGNAL_PLAN_LLM_SPAN_ID } from "../signal-event-card";
 import SlackToSignalMorph from "../slack-to-signal-morph";
 import AskAi from "./ask-ai";
 import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
@@ -223,7 +223,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
 
   // Phase ≥ 2 entry — sequenced over ~1.1s:
   //   t=0–350  : slack→signal morph (driven by morphProgress in the parent)
-  //   t=400–1000: Edit chip pulses (CSS keyframe)
+  //   t=400–1000: anthropic.messages chip pulses (CSS keyframe)
   //   t=600–1000: trace-view chrome animates in (chrome delay below)
   //   t=1100   : selectAndRevealSpan fires + flash clears
   //
@@ -232,13 +232,13 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
   // a fresh sequence. No cleanup on the timers — a fast 1→2→3→4 scroll
   // would otherwise cancel the pending select before it ran.
   //
-  // We flash the Edit chip (not Read/Bash) because Edit lives at the top
-  // level of the transcript (`LAM-1590.query.Edit`); Read and Bash are
-  // both inside the Agent subagent group, so flashing them requires the
-  // selectAndRevealSpan helper to expand that group first. Edit needs no
-  // expansion → cleaner, lower-latency reveal.
+  // We flash the FIRST chip (the planning anthropic.messages) because it
+  // tells the strongest story — the agent reasoned itself into the
+  // `python` mistake in that span. selectAndRevealSpan handles the
+  // subagent reveal automatically (the span lives inside the pagination
+  // Agent subagent, path `…query.Agent.anthropic.messages`).
   //
-  // FLAG: tied to SIGNAL_EDIT_SPAN_ID. If the trace gets swapped, both
+  // FLAG: tied to SIGNAL_PLAN_LLM_SPAN_ID. If the trace gets swapped, both
   // that constant in signal-event-card.tsx and the corresponding chip in
   // SignalContent must update together or the auto-select will target a
   // non-existent row and the transcript scroll will no-op silently.
@@ -252,8 +252,8 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     if (autoSelectFiredRef.current) return;
     autoSelectFiredRef.current = true;
 
-    window.setTimeout(() => selectAndRevealSpan(SIGNAL_EDIT_SPAN_ID), PHASE2_SELECT_AT_MS);
-    window.setTimeout(() => setFlashSpanId(SIGNAL_EDIT_SPAN_ID), PHASE2_FLASH_START_MS);
+    window.setTimeout(() => selectAndRevealSpan(SIGNAL_PLAN_LLM_SPAN_ID), PHASE2_SELECT_AT_MS);
+    window.setTimeout(() => setFlashSpanId(SIGNAL_PLAN_LLM_SPAN_ID), PHASE2_FLASH_START_MS);
     window.setTimeout(() => setFlashSpanId(undefined), PHASE2_FLASH_CLEAR_MS);
   }, [phase, selectAndRevealSpan]);
 

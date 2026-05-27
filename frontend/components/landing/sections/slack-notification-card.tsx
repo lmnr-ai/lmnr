@@ -37,8 +37,9 @@ export const SlackContent = () => (
       </div>
 
       <p className="font-sans text-xs leading-relaxed text-landing-text-200 w-full">
-        Agent run flagged 4 issues. Hit Read EISDIR on a directory, attempted Edit before reading, a Bash git checkout
-        failed on a missing upstream, and one anthropic.messages burned $1.78.
+        Agent run flagged 4 issues. In one anthropic.messages the agent decided to run <code>python</code> (macOS only
+        ships <code>python3</code>), Bash then hit <code>command not found</code> three times before recovering, a
+        parallel Bash pair cascade-cancelled, and Read missed when the shell CWD drifted after a <code>cd</code>.
       </p>
 
       <div className="flex flex-row gap-2 items-center">

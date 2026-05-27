@@ -17,38 +17,45 @@ interface MockMessage {
   text: string;
 }
 
-// Trace 5a9d5634... — LAM-1590 rust migration. Source of truth for span
+// Trace 91c04f82… — REST-client scaffold mock. Source of truth for span
 // IDs in this mock conversation is the matching trace in laminar. Keep in
 // sync with `understand-why-trace-view/index.tsx` TRACE_ID and the chip
 // span IDs exported from `signal-event-card.tsx`.
-const TRACE_ID = "5a9d5634-a465-3f53-119e-359363ecd0d6";
+const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
 const PROJECT_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
 const spanLink = (label: string, spanId: string) =>
   `\`[${label}](https://lmnr.ai/project/${PROJECT_ID_PLACEHOLDER}/traces/${TRACE_ID}?spanId=${spanId})\``;
 
-// Real span IDs inside trace 5a9d5634-a465-3f53-119e-359363ecd0d6.
-const READ_EISDIR_SPAN = "00000000-0000-0000-9531-48e702ed15da";
-const EDIT_NO_READ_SPAN = "00000000-0000-0000-4aee-680ebb392ebd";
-const BASH_CHECKOUT_SPAN = "00000000-0000-0000-d1df-1033750d3977";
-// Most expensive single LLM call in the trace ($1.78 / 7.5s).
-const EXPENSIVE_LLM_SPAN = "00000000-0000-0000-405c-f341a1e0d0c1";
+// Real span IDs inside trace 91c04f82-3121-3807-0e88-855cb5564715.
+// PLAN_LLM is the LLM call whose tool_call output contained the bad
+// `python` invocation — the planning span where the reasoning slipped.
+const PLAN_LLM_SPAN = "00000000-0000-0000-9eec-e8b846a419d0";
+const PYTHON_NOT_FOUND_BASH_SPAN = "00000000-0000-0000-caf3-ba12dc2a1a43";
+const PARALLEL_CANCEL_BASH_SPAN = "00000000-0000-0000-54b7-654ddf0fabb8";
+const CWD_DRIFT_READ_SPAN = "00000000-0000-0000-9e5b-c6c4c619bda0";
 
-const INITIAL_RESPONSE = `#### Wasted time
-The longest single span was ${spanLink("anthropic.messages", EXPENSIVE_LLM_SPAN)} at 7.5s ($1.78) — more than all three tool errors combined. The errors themselves (${spanLink("Read", READ_EISDIR_SPAN)} \`EISDIR\`, ${spanLink("Edit", EDIT_NO_READ_SPAN)} before reading, ${spanLink("Bash", BASH_CHECKOUT_SPAN)} \`checkout\` fail) were each under 2.5s direct, but each one triggers a recovery LLM turn that piles into the context window — which is what blew that single call up to $1.78.
+const INITIAL_RESPONSE = `#### The reasoning mistake
+The agent's plan in this ${spanLink("anthropic.messages", PLAN_LLM_SPAN)} said "run \`python auth.py\` to verify" — assuming \`python\` was on PATH. macOS hasn't shipped a bare \`python\` symlink for years; only \`python3\` exists. That one planning slip fanned into three ${spanLink("Bash", PYTHON_NOT_FOUND_BASH_SPAN)} \`command not found\` retries before the agent caught on.
 
-#### Suggested fix
-Enforce read-before-edit in the system prompt and validate paths and branches before calling tools. The recovery turns disappear and the context stops bloating into a single expensive call.`;
+The remaining two issues — a parallel-call ${spanLink("Bash", PARALLEL_CANCEL_BASH_SPAN)} cascade cancel and a CWD-drift ${spanLink("Read", CWD_DRIFT_READ_SPAN)} miss — are independent missteps but in the same class: unstated environment assumptions the agent's plan never sanity-checked.
+
+#### Prevention
+Three one-line system-prompt guardrails would close all four:
+- "Use \`python3\`, not \`python\`."
+- "Don't issue parallel Bash calls that depend on each other."
+- "After any \`cd\`, prefer absolute paths in subsequent commands."
+
+The first alone removes the three retries plus the cascade-cancel.`;
 
 const INITIAL_MESSAGES: MockMessage[] = [
   {
     id: "init-user",
     role: "user",
-    // Newcomer-perspective: a fresh-eyes ask that gets both the
-    // forensic read (what failed) AND the forward-looking suggestion
-    // (how to improve), so the assistant's answer can naturally cite
-    // the three failure spans before suggesting fixes.
-    text: "Which of these 4 failures wasted the most time, and how can I fix this?",
+    // Newcomer-perspective: a fresh-eyes ask that frames the LLM span
+    // as the *root cause* (the agent's plan was wrong) and naturally
+    // leads into the prevention strategy.
+    text: "What was the agent thinking when it made these mistakes, and how do I prevent them?",
   },
   { id: "init-assistant", role: "assistant", text: INITIAL_RESPONSE },
 ];
