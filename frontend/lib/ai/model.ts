@@ -52,7 +52,7 @@ function getConfiguredLLMProvider(): LLMProvider | null {
  * features don't light up UI that will throw on first call.
  */
 export function isAiProviderConfigured(): boolean {
-  return getConfiguredLLMProvider() !== null;
+  return getConfiguredLLMProvider() !== null && hasValidLlmDefaultHeaders();
 }
 
 function resolveModelName(provider: LLMProvider, tier: ModelTier): string {
@@ -81,10 +81,29 @@ export function parseLlmDefaultHeaders(value = process.env.LLM_DEFAULT_HEADERS_J
     if (typeof headerValue !== "string") {
       throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: header '${name}' value must be a string`);
     }
+    validateHeader(name, headerValue);
     headers[name] = headerValue;
   }
 
   return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
+function hasValidLlmDefaultHeaders(): boolean {
+  try {
+    parseLlmDefaultHeaders();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateHeader(name: string, value: string): void {
+  try {
+    new Headers([[name, value]]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: invalid header '${name}' (${message})`);
+  }
 }
 
 export function getLanguageModel(tier: ModelTier = "large"): LanguageModel {
