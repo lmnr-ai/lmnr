@@ -20,23 +20,21 @@ interface CardProps {
 }
 
 const Card = ({ Icon, title, description, href }: CardProps) => (
-  <div className="bg-landing-surface-550 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-landing-surface-400">
+  <Link
+    target="_blank"
+    aria-label={`Learn more about ${title}`}
+    href={href}
+    className="bg-landing-surface-550 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-landing-surface-400"
+  >
     <div className="flex items-start justify-between w-full">
       <Icon className="size-6 text-landing-text-300" strokeWidth={1.5} />
-      <Link
-        href={href}
-        target="_blank"
-        aria-label={`Learn more about ${title}`}
-        className="text-landing-text-300 hover:text-landing-text-200 transition-colors"
-      >
-        <ArrowUpRight className="size-5" strokeWidth={1.5} />
-      </Link>
+      <ArrowUpRight className="size-5 text-landing-text-300" strokeWidth={1.5} />
     </div>
     <div className="flex flex-col gap-1">
       <p className="leading-6 text-white text-lg">{title}</p>
       <p className="text-landing-text-200">{description}</p>
     </div>
-  </div>
+  </Link>
 );
 
 const FeaturesForEveryStep = () => (
