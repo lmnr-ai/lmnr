@@ -46,11 +46,15 @@ const OpenSource = () => (
         ))}
       </div>
 
-      {/* RIGHT — terminal visualization panel. The inner box is the actual
-          terminal canvas; the surface-550 wrapper is the visual container. */}
-      <div className="w-full md:flex-1 md:min-w-0 bg-landing-surface-550 flex items-center justify-center p-5 overflow-hidden h-[400px]">
-        <div className="bg-landing-surface-700 rounded w-[420px] max-w-full px-6 py-5">
-          <Terminal />
+      {/* RIGHT — terminal visualization panel. Centered when there's room;
+          overflows left-anchored otherwise (same pattern as did-my-fix). On
+          mobile the inner is scaled to 80% from the left edge so it fits
+          tighter viewports without horizontal scrolling. */}
+      <div className="w-full md:flex-1 md:min-w-0 bg-landing-surface-550 flex items-center p-5 overflow-hidden h-[400px]">
+        <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
+          <div className="bg-landing-surface-700 rounded w-[420px] px-6 py-5">
+            <Terminal />
+          </div>
         </div>
       </div>
     </div>

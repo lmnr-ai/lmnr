@@ -104,7 +104,7 @@ const BoltColumn = () => (
 );
 
 const FeatureRow = ({ label }: Feature) => (
-  <div className="flex items-center justify-end h-14 w-full border-t border-landing-text-600">
+  <div className="flex items-center justify-start md:justify-end h-14 w-full border-t border-landing-text-600">
     <p className="text-lg leading-6 text-landing-text-300">{label}</p>
   </div>
 );
@@ -120,14 +120,17 @@ const BuiltForProduction = () => (
 
     <div className="flex w-full">
       {/* Left placeholder — 3 divider rows, no content. The TOP row's
-          divider is the orange-fade variant; the rest are gray. */}
-      <div className="flex flex-col w-[320px] shrink-0">
+          divider is the orange-fade variant; the rest are gray. Hidden
+          below md along with the bolt column, so mobile is features-only. */}
+      <div className="hidden md:flex flex-col w-[320px] shrink-0">
         <OrangeBorderRow />
         <DividerRow />
         <DividerRow />
       </div>
 
-      <BoltColumn />
+      <div className="hidden md:block">
+        <BoltColumn />
+      </div>
 
       {/* Right features column — right-aligned text on each row. */}
       <div className="flex flex-col flex-1 min-w-0">
