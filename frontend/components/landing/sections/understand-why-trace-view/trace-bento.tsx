@@ -313,6 +313,24 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
       }}
       className="flex flex-row rounded-md overflow-hidden border"
     >
+      {/* Warmup Transcript — mounted from phase 0 in an off-screen wrapper
+          (fixed, far off-canvas, visibility hidden, no pointer events). Sits
+          in the SAME TraceViewStoreProvider context as the visible Transcript
+          below, so once the SWR fetch + setSpans effect hydrate the store
+          this hidden instance does its first virtualizer layout + flatRows
+          memo eagerly while the morph card has focus. By the time the
+          visible Transcript mounts at phase 2, the V8 JIT + React reconciler
+          paths for row rendering are hot — measurable reduction in the
+          perceptible "spans still loading" gap after the chrome animation
+          finishes. Dimensions match the live transcript area (400×600). */}
+      <div
+        aria-hidden
+        className="fixed pointer-events-none"
+        style={{ left: -10000, top: 0, width: 400, height: 600, visibility: "hidden" }}
+      >
+        {trace && spans.length > 0 && <Transcript onSpanSelect={noop} isShared />}
+      </div>
+
       {/* LEFT COLUMN — 400px wide, stretches to the bento's animated height
           via align-items: stretch. flex-1 transcript inside absorbs the
           excess space at phase 2+ once the bento has grown to 680. */}
