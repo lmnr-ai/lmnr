@@ -3,8 +3,8 @@ import Link from "next/link";
 // Final CTA — mirrors the hero button pair (same color, size, font, copy)
 // so both ends of the page read identically.
 const CTA = () => (
-  <section className="flex items-start w-full py-[60px]">
-    <div className="flex flex-row gap-3 items-center">
+  <section className="w-full py-[60px]">
+    <div className="w-full flex flex-row gap-3 items-center justify-center md:justify-start">
       <Link
         href="/sign-up"
         className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-landing-primary-200 hover:bg-landing-primary-400 transition-colors no-underline"
