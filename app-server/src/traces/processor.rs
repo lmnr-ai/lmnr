@@ -26,8 +26,7 @@ use crate::{
     pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
-        IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
-        producer::publish_for_indexing,
+        IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan, outbox::IndexerOutbox,
     },
     traces::{
         input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
@@ -44,13 +43,25 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    queue,
+    indexer_outbox,
+    pubsub,
+    ch,
+    pii_redactor,
+    config
+))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
+    indexer_outbox: Arc<IndexerOutbox>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
     pii_redactor: Option<PiiRedactorClient>,
@@ -353,19 +364,14 @@ pub async fn process_span_messages(
         .flat_map(|s| s.events.iter().map(|e| e.into()))
         .collect();
 
+    // Hand to the bounded outbox; shipper tasks publish in the background.
+    // Drops on overflow are intentional — the indexer is rebuildable and the
+    // alternative is blocking the consumer pipeline behind a stuck broker.
     if !quickwit_spans.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
-        {
-            log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
-        }
+        indexer_outbox.try_send(IndexerQueuePayload::Spans(quickwit_spans));
     }
     if !quickwit_events.is_empty() {
-        if let Err(e) =
-            publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
-        {
-            log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
-        }
+        indexer_outbox.try_send(IndexerQueuePayload::Events(quickwit_events));
     }
 
     // Populate autocomplete cache per project

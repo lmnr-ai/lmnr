@@ -17,6 +17,7 @@ use crate::{
     mq::MessageQueue,
     pii_redactor::PiiRedactorClient,
     pubsub::PubSub,
+    quickwit::outbox::IndexerOutbox,
     worker::HandlerError,
 };
 
@@ -28,6 +29,7 @@ pub struct SpanHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
+    pub indexer_outbox: Arc<IndexerOutbox>,
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: CloudClickhouse,
     pub pubsub: Arc<PubSub>,
@@ -124,6 +126,7 @@ impl SpanHandler {
             self.clickhouse.clone(),
             self.cache.clone(),
             self.queue.clone(),
+            self.indexer_outbox.clone(),
             self.pubsub.clone(),
             self.ch.clone(),
             self.pii_redactor.clone(),
