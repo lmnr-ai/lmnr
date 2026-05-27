@@ -86,11 +86,11 @@ export const SignalContent = ({ onSpanClick, flashSpanId }: SignalContentProps =
   return (
     <div className="w-full flex flex-col px-3 py-3 gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-white text-sm leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
+        <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
         <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
       </div>
 
-      <p className="text-landing-text-300 text-sm leading-6">
+      <p className="text-landing-text-300 text-xs leading-5">
         Agent run flagged 4 issues. In one{" "}
         <SpanChip
           iconBg="bg-llm"
