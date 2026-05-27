@@ -80,7 +80,7 @@ export default function ViewNameDialog({
             {description && <DialogDescription>{description}</DialogDescription>}
           </DialogHeader>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
             <Label htmlFor="view-name" className="text-xs text-muted-foreground">
               Name
             </Label>

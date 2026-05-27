@@ -8,9 +8,14 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
   try {
     const { projectId } = await props.params;
     const url = new URL(req.url);
+
     const resource = url.searchParams.get("resource");
 
-    const views = await getViews({ projectId, resource: resource ?? "" });
+    if (!resource) {
+      return NextResponse.json({ error: "resource query parameter is required" }, { status: 400 });
+    }
+
+    const views = await getViews({ projectId, resource });
 
     return NextResponse.json(views);
   } catch (error) {

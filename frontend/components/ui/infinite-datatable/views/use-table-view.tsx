@@ -211,21 +211,38 @@ export function useViewState({ projectId, resource }: UseViewStateOptions): View
     });
   }, [setForm]);
 
-  return {
-    view,
-    views,
-    baseline,
-    effective,
-    isLoading,
-    isFormDirty,
-    setFilters,
-    setSearch,
-    setSearchAndFilters,
-    setSort,
-    selectView,
-    markSavedAs,
-    discardForm,
-  };
+  return useMemo(
+    () => ({
+      view,
+      views,
+      baseline,
+      effective,
+      isLoading,
+      isFormDirty,
+      setFilters,
+      setSearch,
+      setSearchAndFilters,
+      setSort,
+      selectView,
+      markSavedAs,
+      discardForm,
+    }),
+    [
+      view,
+      views,
+      baseline,
+      effective,
+      isLoading,
+      isFormDirty,
+      setFilters,
+      setSearch,
+      setSearchAndFilters,
+      setSort,
+      selectView,
+      markSavedAs,
+      discardForm,
+    ]
+  );
 }
 
 export function viewStateToStorePatch(state: ViewStateResult) {

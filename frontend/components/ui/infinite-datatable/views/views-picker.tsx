@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, FilePlus2, Layers2, Loader2, Pencil, Save, Search, Trash2, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,6 @@ interface ViewsPickerProps {
 
 const SECTION_LABEL_CLASS = "px-2 py-1 text-[0.65rem] font-medium uppercase tracking-wider text-muted-foreground";
 
-// Hide the search affordance entirely until the user has enough views to
-// benefit from filtering — keeps the menu compact for the common case.
-const SEARCH_THRESHOLD = 4;
 const DEFAULT_LABEL = "Default view";
 
 export default function ViewsPicker({
@@ -64,32 +61,15 @@ export default function ViewsPicker({
   const { mutate } = useSWRConfig();
 
   const listKey = `/api/projects/${projectId}/views?resource=${resource}`;
-  const { data: views, isLoading, isValidating } = useSWR<View[]>(listKey, swrFetcher);
+  const { data: views, isLoading } = useSWR<View[]>(listKey, swrFetcher);
 
   const setLastViewId = useLastViewStore((s) => s.setLastViewId);
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  // Only one manage-view action can be open at a time, so one slot covers both.
   const [pending, setPending] = useState<{ view: View; action: "delete" | "rename" } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) setSearch("");
-  }, [open]);
-
-  const showSearch = (views?.length ?? 0) >= SEARCH_THRESHOLD;
-
-  // Hand focus to the search input on open. Radix's MenuContent doesn't expose
-  // `onOpenAutoFocus` on its public type even though MenuContentImpl supports
-  // it at runtime — using setTimeout(0) lands after Radix's synchronous
-  // first-menuitem focus so we can override it without a type cast.
-  useEffect(() => {
-    if (!open || !showSearch) return;
-    const id = setTimeout(() => inputRef.current?.focus(), 0);
-    return () => clearTimeout(id);
-  }, [open, showSearch]);
   const q = search.trim().toLowerCase();
 
   const filteredViews = useMemo(() => {
@@ -100,6 +80,23 @@ export default function ViewsPicker({
 
   const showDefault = !q || DEFAULT_LABEL.toLowerCase().includes(q);
   const noMatches = q.length > 0 && filteredViews.length === 0 && !showDefault;
+
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      contentRef.current?.querySelector<HTMLElement>("[role='menuitem']:not([data-disabled])")?.focus();
+      return;
+    }
+    if (e.key === "Escape" || e.key === "Tab") return;
+    e.stopPropagation();
+  }, []);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) setSearch("");
+    setOpen(open);
+  };
 
   const handlePick = useCallback(
     (view: View) => {
@@ -115,8 +112,6 @@ export default function ViewsPicker({
   }, [onSelect, setLastViewId, projectId, resource]);
 
   const handleManage = useCallback((view: View, action: "delete" | "rename", e: React.MouseEvent) => {
-    // Stop bubbling and default so the parent `DropdownMenuItem` doesn't fire
-    // `onSelect`, and close the dropdown so the dialog owns the focus trap.
     e.stopPropagation();
     e.preventDefault();
     setOpen(false);
@@ -191,7 +186,7 @@ export default function ViewsPicker({
 
   return (
     <>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="text-secondary-foreground gap-1 outline-0" disabled={isLoading}>
             <Layers2 className="size-3.5 shrink-0 opacity-70" />
@@ -208,35 +203,21 @@ export default function ViewsPicker({
             <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[260px] p-1">
-          {showSearch && (
-            <div className="px-1 pb-1">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={inputRef}
-                  size="xs"
-                  placeholder="Search views…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => {
-                    // ArrowDown hands focus off to the first selectable item;
-                    // anything else is kept inside the input so Radix's
-                    // built-in typeahead doesn't intercept printable keys.
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      const menu = e.currentTarget.closest("[role='menu']");
-                      const firstItem = menu?.querySelector<HTMLElement>("[role='menuitem']:not([data-disabled])");
-                      firstItem?.focus();
-                    } else if (e.key !== "Escape" && e.key !== "Tab") {
-                      e.stopPropagation();
-                    }
-                  }}
-                  className="h-7 pl-7 text-xs"
-                />
-              </div>
+        <DropdownMenuContent ref={contentRef} align="start" className="w-64 p-1">
+          <div className="px-0.5 py-0.5 pb-1">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                size="xs"
+                placeholder="Search views…"
+                value={search}
+                autoFocus
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="h-7 pl-7 text-xs"
+              />
             </div>
-          )}
+          </div>
 
           {dirty && (
             <>
@@ -275,8 +256,6 @@ export default function ViewsPicker({
             return (
               <DropdownMenuItem key={view.id} onSelect={() => handlePick(view)} className="group text-xs">
                 <span className="flex-1 truncate">{view.name}</span>
-                {/* Trailing slot: check (idle) swaps for rename + delete buttons on hover.
-                  Buttons are absolute so the row width never shifts. */}
                 <span className="relative inline-flex h-5 w-11 shrink-0 items-center justify-end">
                   {active && (
                     <Check className="absolute inset-y-0 right-0 my-auto size-3.5 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0" />

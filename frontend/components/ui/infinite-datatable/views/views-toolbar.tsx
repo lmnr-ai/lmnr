@@ -149,8 +149,8 @@ export default function ViewsToolbar({ projectId, resource }: ViewsToolbarProps)
       <ViewNameDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title="Save view"
-        description="Share these table settings with the project as a named view."
+        title="Save table view"
+        description="Save the current filters, sort, and columns as a reusable view for your team."
         onSave={handleSaveAsNew}
       />
     </>

@@ -33,21 +33,6 @@ export async function createView(input: z.infer<typeof CreateViewSchema>) {
   return result;
 }
 
-export const GetViewSchema = z.object({
-  projectId: z.guid(),
-  viewId: z.guid(),
-});
-
-export async function getView(input: z.infer<typeof GetViewSchema>) {
-  const { projectId, viewId } = GetViewSchema.parse(input);
-
-  const view = await db.query.tableViews.findFirst({
-    where: and(eq(tableViews.id, viewId), eq(tableViews.projectId, projectId)),
-  });
-  if (!view) throw new Error("View not found");
-  return view;
-}
-
 export const UpdateViewSchema = z.object({
   projectId: z.guid(),
   viewId: z.guid(),

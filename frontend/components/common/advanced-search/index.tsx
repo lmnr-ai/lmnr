@@ -1,5 +1,6 @@
 "use client";
 
+import { isEqual } from "lodash";
 import { useParams } from "next/navigation";
 import { memo, useEffect, useRef } from "react";
 import useSWR from "swr";
@@ -53,10 +54,7 @@ const AdvancedSearchInner = ({
     if (lastReflowedRef.current === value) return;
     // Structural compare so an `onChange` that returns a new object with
     // identical contents doesn't churn editor state.
-    if (
-      lastReflowedRef.current.search === value.search &&
-      JSON.stringify(lastReflowedRef.current.filters) === JSON.stringify(value.filters)
-    ) {
+    if (lastReflowedRef.current.search === value.search && isEqual(lastReflowedRef.current.filters, value.filters)) {
       lastReflowedRef.current = value;
       return;
     }

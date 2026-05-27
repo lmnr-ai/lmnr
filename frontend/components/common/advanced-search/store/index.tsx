@@ -398,17 +398,11 @@ export const AdvancedSearchStoreProvider = ({
     onChangeRef.current = onChange;
   });
 
-  const initialTags = useMemo(() => initialFilters.map(createTagFromFilter), [initialFilters]);
-
-  // The `() => onChangeRef.current` getter is invoked only from store actions
-  // (post-render, inside event handlers in `buildCommit`); the react-hooks/refs
-  // lint can't statically verify that and flags the surrounding `useState`
-  // closure as "passing a ref to a function may read its value during render".
   // eslint-disable-next-line react-hooks/refs
   const [storeState] = useState(() =>
     createAdvancedSearchStore(
       filters,
-      initialTags,
+      initialFilters.map(createTagFromFilter),
       initialSearch,
       () => onChangeRef.current,
       suggestions,
