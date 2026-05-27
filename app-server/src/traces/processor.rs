@@ -18,7 +18,9 @@ use crate::{
     db::{
         DB,
         spans::Span,
-        trace::{Trace, upsert_trace_statistics_batch},
+        trace::{
+            Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
+        },
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -69,6 +71,42 @@ pub async fn process_span_messages(
             message
         })
         .collect();
+
+    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
+    // the regular pipeline. They don't contribute span / token / time stats,
+    // they aren't recorded to ClickHouse, and their PG path is a metadata
+    // merge against an existing trace row — never an insert.
+    let metadata_patches: Vec<TraceMetadataPatch> = messages
+        .iter()
+        .filter(|m| m.span.attributes.is_metadata_only())
+        .filter_map(|m| {
+            let Some(metadata) = m.span.attributes.metadata() else {
+                log::warn!(
+                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                    m.span.span_id,
+                    m.span.trace_id
+                );
+                return None;
+            };
+            match serde_json::to_value(&metadata) {
+                Ok(metadata_value) => Some(TraceMetadataPatch {
+                    trace_id: m.span.trace_id,
+                    project_id: m.span.project_id,
+                    metadata: metadata_value,
+                }),
+                Err(e) => {
+                    log::warn!(
+                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                        m.span.span_id,
+                        m.span.trace_id,
+                        e
+                    );
+                    None
+                }
+            }
+        })
+        .collect();
+    messages.retain(|m| !m.span.attributes.is_metadata_only());
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
@@ -229,29 +267,105 @@ pub async fn process_span_messages(
     let ch = &ch;
 
     let trace_branch = async {
-        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-            Ok(updated_traces) => {
-                let ch_traces: Vec<CHTrace> = updated_traces
-                    .iter()
-                    .map(|trace| CHTrace::from_db_trace(trace))
-                    .collect();
-
-                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                    log::error!(
-                        "Failed to upsert {} traces to ClickHouse: {:?}",
-                        ch_traces.len(),
-                        e
-                    );
+        // The aggregation upsert and the metadata-patch UPDATE target the same
+        // `(project_id, id)` row lock, but their failure modes are independent:
+        // a single flush can mix span ingestion for trace A with a metadata
+        // patch for unrelated trace B, and an aggregation upsert error must
+        // not drop B's patch. Run each step independently.
+        //
+        // Aggregation results are tracked separately so signals only see
+        // traces whose state actually changed via real span ingestion —
+        // metadata patches don't touch any field signals evaluate, and
+        // passing patch-only traces (from a pure metadata-only flush, or
+        // from a mixed flush touching different traces) to
+        // `check_and_push_signals` would trigger spurious re-evaluations.
+        let had_aggregations = !trace_aggregations.is_empty();
+        let mut aggregation_traces: Vec<Trace> = Vec::new();
+        let aggregation_ok = if had_aggregations {
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(traces) => {
+                    aggregation_traces = traces;
+                    true
                 }
-
-                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-                Some(updated_traces)
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    false
+                }
             }
-            Err(e) => {
-                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-                None
+        } else {
+            true
+        };
+
+        // Patches are skipped (no row created) when the trace doesn't exist
+        // — the route handler validates existence up front.
+        let mut patched_traces: Vec<Trace> = Vec::new();
+        if !metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+                Ok(patched) => patched_traces = patched,
+                Err(e) => {
+                    log::error!("Failed to merge trace metadata patches: {:?}", e);
+                }
             }
+        }
+
+        // Build the CH / realtime payload as the deduped union, keeping the
+        // LATEST occurrence per `(project_id, id)`. When a single flush
+        // touches the same trace via BOTH the aggregation upsert AND a
+        // metadata patch, both stages return the same row keyed by
+        // `(project_id, id)`. The patch UPDATE bumps `num_spans` by 1, so
+        // `traces_replacing` (ReplacingMergeTree(num_spans)) would pick the
+        // patched row even if we shipped both — but skipping the redundant
+        // pre-patch insert saves a part on the hot ingest table. Patches
+        // are appended after aggregation, so last-write-wins preserves the
+        // patched metadata.
+        let mut updated_traces: Vec<Trace> =
+            Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
+        updated_traces.extend(aggregation_traces.iter().cloned());
+        updated_traces.extend(patched_traces);
+        if updated_traces.len() > 1 {
+            let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
+                HashMap::with_capacity(updated_traces.len());
+            for (i, t) in updated_traces.iter().enumerate() {
+                last_idx_by_key.insert((t.project_id(), t.id()), i);
+            }
+            let kept: std::collections::HashSet<usize> =
+                last_idx_by_key.into_values().collect();
+            let mut idx = 0;
+            updated_traces.retain(|_| {
+                let keep = kept.contains(&idx);
+                idx += 1;
+                keep
+            });
+        }
+
+        if !updated_traces.is_empty() {
+            let ch_traces: Vec<CHTrace> = updated_traces
+                .iter()
+                .map(|trace| CHTrace::from_db_trace(trace))
+                .collect();
+
+            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                log::error!(
+                    "Failed to upsert {} traces to ClickHouse: {:?}",
+                    ch_traces.len(),
+                    e
+                );
+            }
+
+            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+        }
+
+        // Return only the aggregation results to the signals path. `None`
+        // suppresses `check_and_push_signals` entirely — used for both an
+        // aggregation upsert error AND a pure metadata-only flush (no real
+        // spans aggregated). Metadata patches never need signal evaluation:
+        // they don't touch any field signals filter on, and re-running
+        // signals against a patched-only trace would spuriously refire any
+        // signal that already triggered for the trace.
+        if aggregation_ok && had_aggregations {
+            Some(aggregation_traces)
+        } else {
+            None
         }
     };
 
