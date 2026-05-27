@@ -57,11 +57,11 @@ export default function PricingCard({
         {features.map((feature, index) => (
           <div key={index} className="flex flex-col gap-0.5">
             <div className="flex items-start gap-1.5">
-              <Check className={cn("size-3 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
-              <p className={cn("text-sm leading-5", featureColor)}>{feature}</p>
+              <Check className={cn("size-3.5 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
+              <p className={cn("text-base leading-6", featureColor)}>{feature}</p>
             </div>
             {subfeatures && subfeatures[index] && (
-              <p className={cn(microLabel, "ml-[18px]", isAccent && "text-white/70")}>{subfeatures[index]}</p>
+              <p className={cn(microLabel, "text-sm ml-[20px]", isAccent && "text-white/70")}>{subfeatures[index]}</p>
             )}
           </div>
         ))}
