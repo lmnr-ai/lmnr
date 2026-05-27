@@ -31,11 +31,13 @@ const TraceViewSearch = ({ spans, onSubmit, className, disabled, initialSearch }
     return map;
   }, [spans]);
 
+  const value = useMemo(() => ({ filters: [] as Filter[], search: initialSearch ?? "" }), [initialSearch]);
+
   return (
     <AdvancedSearch
       filters={filterColumns}
       resource="spans"
-      value={{ filters: [], search: initialSearch ?? "" }}
+      value={value}
       onChange={({ filters, search }) => onSubmit(filters, search)}
       placeholder="Search text, name, id, tags..."
       className={cn("w-full", className)}

@@ -17,6 +17,8 @@ import SessionTimeline from "../session-timeline";
 import { useSessionViewStore } from "../store";
 import SessionList from "./list";
 
+const EMPTY_SEARCH_VALUE: { filters: Filter[]; search: string } = { filters: [], search: "" };
+const SEARCH_OPTIONS = { suggestions: new Map(), disableHotKey: true };
 /**
  * Shell around the session view — header (session-id dropdown),
  * advanced-search input, optional session timeline, stats shields. The
@@ -81,12 +83,12 @@ export default function SessionPanel() {
         <AdvancedSearch
           filters={filterColumns}
           resource="spans"
-          value={{ filters: [], search: "" }}
+          value={EMPTY_SEARCH_VALUE}
           onChange={({ filters, search }) => handleSearch(filters, search)}
           placeholder="Search text, name, id, tags..."
           className="w-full"
           disabled={isTracesLoading}
-          options={{ suggestions: new Map(), disableHotKey: true }}
+          options={SEARCH_OPTIONS}
         />
       </div>
 
