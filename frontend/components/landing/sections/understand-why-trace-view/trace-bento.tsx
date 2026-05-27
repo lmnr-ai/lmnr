@@ -313,24 +313,6 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
       }}
       className="flex flex-row rounded-md overflow-hidden border"
     >
-      {/* Warmup Transcript — mounted from phase 0 in an off-screen wrapper
-          (fixed, far off-canvas, visibility hidden, no pointer events). Sits
-          in the SAME TraceViewStoreProvider context as the visible Transcript
-          below, so once the SWR fetch + setSpans effect hydrate the store
-          this hidden instance does its first virtualizer layout + flatRows
-          memo eagerly while the morph card has focus. By the time the
-          visible Transcript mounts at phase 2, the V8 JIT + React reconciler
-          paths for row rendering are hot — measurable reduction in the
-          perceptible "spans still loading" gap after the chrome animation
-          finishes. Dimensions match the live transcript area (400×600). */}
-      <div
-        aria-hidden
-        className="fixed pointer-events-none"
-        style={{ left: -10000, top: 0, width: 400, height: 600, visibility: "hidden" }}
-      >
-        {trace && spans.length > 0 && <Transcript onSpanSelect={noop} isShared />}
-      </div>
-
       {/* LEFT COLUMN — 400px wide, stretches to the bento's animated height
           via align-items: stretch. flex-1 transcript inside absorbs the
           excess space at phase 2+ once the bento has grown to 680. */}
@@ -421,9 +403,36 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
 
         {/* TRANSCRIPT — flex-1 absorbs the excess vertical space once the
             bento is 680 tall (phase 2+). min-h-0 lets it shrink to 0 at
-            phase 1 when the bento collapses to header height. */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {phase >= 2 && <Transcript onSpanSelect={handleSpanSelect} isShared />}
+            phase 1 when the bento collapses to header height.
+            `relative` anchors the persistent inner wrapper below.
+
+            Transcript is mounted from phase 0 (no `phase >= 2 &&` gate).
+            The inner wrapper is `position: absolute` throughout — at phase
+            1 it sizes itself explicitly to ~match the phase-2 transcript
+            area (400×360) with opacity-0, so the virtualizer hydrates real
+            rows while the bento outer's overflow-hidden + smaller height
+            clips it from view. At phase 2 it switches to `inset: 0` and
+            fills the now-expanded flex-1 parent at full opacity. Same
+            Transcript instance throughout → no cold mount, virtualizer
+            state preserved across the reveal. */}
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div
+            style={
+              phase < 2
+                ? {
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: 400,
+                    height: 360,
+                    opacity: 0,
+                    pointerEvents: "none",
+                  }
+                : { position: "absolute", inset: 0, opacity: 1 }
+            }
+          >
+            <Transcript onSpanSelect={handleSpanSelect} isShared />
+          </div>
         </div>
 
         {/* RECORDING — visibility driven entirely by the store's
