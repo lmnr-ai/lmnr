@@ -30,7 +30,7 @@
 
 @theme {
   --font-sans: var(--font-inter);
-  --font-sans-landing: var(--font-sans-landing);
+  --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
   --color-border: hsl(var(--border));

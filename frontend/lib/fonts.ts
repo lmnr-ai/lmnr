@@ -1,4 +1,4 @@
-import {Inter, Manrope } from "next/font/google";
+import { Inter, Manrope } from "next/font/google";
 import localFont from "next/font/local";
 
 export const sansLanding = localFont({
@@ -7,7 +7,7 @@ export const sansLanding = localFont({
     { path: "./fonts/general/GeneralSans-VariableItalic.woff2", weight: "200 700", style: "italic" },
   ],
   display: "swap",
-  variable: "--font-sans-landing",
+  variable: "--font-general-sans",
 });
 
 export const sans = Inter({
