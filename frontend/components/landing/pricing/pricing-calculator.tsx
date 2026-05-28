@@ -93,37 +93,33 @@ function formatDataSize(gb: number): string {
   return `${gb.toFixed(1)} GB`;
 }
 
-function RecommendedBadge({ tooltip }: { tooltip?: string }) {
-  if (tooltip) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-              Recommended
-              <Info size={11} />
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
+// Tooltip is required — the badge only makes sense paired with a "why this
+// tier is recommended" explanation.
+function RecommendedBadge({ tooltip }: { tooltip: string }) {
   return (
-    <Badge variant="default" className="text-xs shrink-0">
-      Recommended
-    </Badge>
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
+            Recommended
+            <Info size={11} />
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
+// Badge only renders when a tooltip is supplied — keeps the name-only call
+// shape valid for any future reuse without a recommendation context.
 function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className={cn(subSection, "text-white")}>{name}</span>
-      <RecommendedBadge tooltip={tooltip} />
+      {tooltip && <RecommendedBadge tooltip={tooltip} />}
     </div>
   );
 }
