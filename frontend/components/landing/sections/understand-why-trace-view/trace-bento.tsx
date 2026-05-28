@@ -356,6 +356,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
               className="w-full max-w-none"
               flashSpanId={flashSpanId}
               onSpanClick={handleSignalSpanClick}
+              onClose={() => setSignalsPanelOpen(false)}
             />
           </motion.div>
         </div>
@@ -444,7 +445,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           className="overflow-hidden shrink-0"
         >
           <div style={{ height: RECORDING_HEIGHT }} className="w-full border-t">
-            {browserSession && trace && <SessionPlayer onClose={noop} traceId={trace.id} />}
+            {browserSession && trace && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />}
           </div>
         </motion.div>
       </div>

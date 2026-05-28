@@ -70,6 +70,9 @@ interface SignalContentProps {
   // When matches one of the span IDs below, that chip pulses for ~1s to
   // grab the user's attention. Cleared by the trigger after the auto-select.
   flashSpanId?: string;
+  // Wired by the desktop trace-bento path to close the signal panel.
+  // Omitted on mobile — the X stays as a static icon.
+  onClose?: () => void;
 }
 
 // Signal event card inner content. No outer frame — callers wrap it (static
@@ -81,13 +84,24 @@ interface SignalContentProps {
 // downstream tool consequences. Clicking any chip drives the transcript
 // scroll + selection (subagent groups expand automatically via
 // selectAndRevealSpan in trace-bento).
-export const SignalContent = ({ onSpanClick, flashSpanId }: SignalContentProps = {}) => {
+export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => {
   const chipProps = { onSpanClick, flashSpanId };
   return (
     <div className="w-full flex flex-col px-3 py-3 gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
-        <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded p-0.5 text-landing-text-300 hover:text-landing-text-200 transition-colors"
+            aria-label="Close signal panel"
+          >
+            <X className="size-4" strokeWidth={1.5} />
+          </button>
+        ) : (
+          <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
+        )}
       </div>
 
       <p className="text-landing-text-300 text-xs leading-5">
