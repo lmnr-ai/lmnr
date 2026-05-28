@@ -4,6 +4,7 @@ import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
+import { cn } from "@/lib/utils";
 
 interface ChartProps {
   className?: string;
@@ -28,11 +29,11 @@ export default function Chart({ className, scoreName, distribution, isLoading = 
     : [];
 
   return (
-    <div className={className}>
+    <div className={cn("h-48 w-full", className)}>
       {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-full w-full" />
       ) : (
-        <ChartContainer config={newChartConfig} className="h-48 w-full">
+        <ChartContainer config={newChartConfig} className="h-full w-full">
           <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
             <XAxis

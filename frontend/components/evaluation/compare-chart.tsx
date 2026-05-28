@@ -4,6 +4,7 @@ import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
+import { cn } from "@/lib/utils";
 
 interface CompareChartProps {
   className?: string;
@@ -34,11 +35,11 @@ export default function CompareChart({
     : [];
 
   return (
-    <div className={className}>
+    <div className={cn("h-48 w-full", className)}>
       {isLoading ? (
-        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-full w-full" />
       ) : (
-        <ChartContainer config={chartConfig} className="h-48 w-full">
+        <ChartContainer config={chartConfig} className="h-full w-full">
           <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
             <XAxis
