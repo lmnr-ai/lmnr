@@ -31,6 +31,7 @@ const MORE_LINKS: FooterLink[] = [
   { label: "Privacy Policy", href: "/policies/privacy", external: true },
   { label: "Terms of Service", href: "/policies/terms", external: true },
   { label: "Status", href: "https://status.laminar.sh", external: true },
+  { label: "Y-Combinator", href: "https://www.ycombinator.com/companies/laminar", external: true },
 ];
 
 const integration = (label: string, slug: string): FooterLink => ({
