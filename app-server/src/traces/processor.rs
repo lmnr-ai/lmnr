@@ -406,7 +406,7 @@ pub async fn process_span_messages(
                 }
 
                 if let Some(td) = tool_dedups.get(span_idx).and_then(|d| d.as_ref()) {
-                    ch_span.tool_definition_hash = td.hash;
+                    ch_span.tool_definitions_hash = td.hash;
                 }
 
                 ch_span

@@ -71,7 +71,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       output,
       path,
       attributes,
-      tools,
+      tool_definitions as toolDefinitions,
       events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}

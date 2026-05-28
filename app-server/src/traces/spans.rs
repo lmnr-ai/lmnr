@@ -1243,7 +1243,7 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
     }
 
     // Tool-definition attributes: producer extracts these into the dedup'd
-    // `tool_definition_hash` column. Filtering here covers legacy spans
+    // `tool_definitions_hash` column. Filtering here covers legacy spans
     // that were never producer-preprocessed, so the bytes don't get billed
     // twice and the attributes tab doesn't surface duplicates.
     if crate::traces::tool_dedup::is_tool_definition_attribute(attribute) {

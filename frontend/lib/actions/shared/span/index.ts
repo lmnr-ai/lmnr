@@ -49,7 +49,7 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         output,
         path,
         attributes,
-        tools,
+        tool_definitions as toolDefinitions,
         events
       FROM spans
       WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}

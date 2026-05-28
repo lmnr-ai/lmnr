@@ -138,11 +138,11 @@ pub struct CHSpan {
     /// `input_new_message_indices` semantics for the output array.
     #[serde(default)]
     pub output_new_message_indices: Vec<u16>,
-    /// Single hash for the span's normalized tool-definition array. Empty
+    /// Single hash for the span's normalized tool-definitions array. Empty
     /// when the span has no tools or is a legacy span. Reconstructed by the
-    /// view as a virtual `tools` column via `shared_content_dict`.
+    /// view as a virtual `tool_definitions` column via `shared_content_dict`.
     #[serde(default)]
-    pub tool_definition_hash: [u8; 32],
+    pub tool_definitions_hash: [u8; 32],
 }
 
 impl CHSpan {
@@ -222,7 +222,7 @@ impl CHSpan {
             input_new_message_indices: Vec::new(),
             output_message_hashes: Vec::new(),
             output_new_message_indices: Vec::new(),
-            tool_definition_hash: [0u8; 32],
+            tool_definitions_hash: [0u8; 32],
         }
     }
 }

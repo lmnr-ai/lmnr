@@ -13,8 +13,8 @@ use super::{ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIM
 /// Keyed by `(project_id, content_hash)`: the same content seen across two
 /// traces in the same project collapses to one row. Spans reference rows by
 /// hash via `input_message_hashes`, `output_message_hashes`, and
-/// `tool_definition_hash` columns; the `spans_v0` view reconstructs the JSON
-/// on read via the `shared_content_dict` dictionary.
+/// `tool_definitions_hash` columns; the `spans_v0` view reconstructs the
+/// JSON on read via the `shared_content_dict` dictionary.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHSharedContent {
     #[serde(with = "clickhouse::serde::uuid")]

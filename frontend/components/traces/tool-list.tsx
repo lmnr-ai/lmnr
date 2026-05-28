@@ -33,8 +33,8 @@ const normalizeTool = (tool: any): Tool | null => {
 
 /**
  * Primary read path: tool definitions ride the span as a single deduped
- * JSON array reconstructed by `spans_v0` into the `tools` column. The
- * frontend just parses the array and normalizes each entry.
+ * JSON array reconstructed by `spans_v0` into the `tool_definitions`
+ * column. The frontend just parses the array and normalizes each entry.
  */
 export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
   if (!toolsJson) return [];
@@ -43,15 +43,15 @@ export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
     if (!Array.isArray(parsed)) return [];
     return compact(parsed.map(normalizeTool));
   } catch (e) {
-    console.error("Failed to parse spans_v0.tools:", e);
+    console.error("Failed to parse spans_v0.tool_definitions:", e);
     return [];
   }
 };
 
 /**
- * Legacy path for spans written before the `tools` column existed —
- * definitions still live across one of several attribute shapes. Used as
- * a fallback when the `tools` column is empty.
+ * Legacy path for spans written before the `tool_definitions` column
+ * existed — definitions still live across one of several attribute
+ * shapes. Used as a fallback when the column is empty.
  */
 export const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
   if (isNil(attributes)) return [];
@@ -97,11 +97,14 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
 };
 
 /**
- * Resolve a span's tools, preferring the dedup'd `tools` column and
- * falling back to per-attribute extraction for legacy spans.
+ * Resolve a span's tools, preferring the dedup'd `tool_definitions`
+ * column and falling back to per-attribute extraction for legacy spans.
  */
-export const resolveTools = (span: { tools?: string | null; attributes?: Record<string, any> }): Tool[] => {
-  const fromColumn = extractToolsFromColumn(span.tools);
+export const resolveTools = (span: {
+  toolDefinitions?: string | null;
+  attributes?: Record<string, any>;
+}): Tool[] => {
+  const fromColumn = extractToolsFromColumn(span.toolDefinitions);
   if (fromColumn.length > 0) return fromColumn;
   return extractToolsFromAttributes(span.attributes ?? {});
 };

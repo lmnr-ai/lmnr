@@ -66,11 +66,12 @@ export type Span = {
   totalCost: number;
   /**
    * Deduped tool definitions reconstructed from `shared_content_dict` by
-   * `spans_v0`. Empty string when the span has no tools or for legacy
-   * spans whose definitions still ride in the attributes blob — the
-   * frontend's `extractToolsFromAttributes` is the fallback.
+   * `spans_v0` (camelCased from the view's `tool_definitions` column).
+   * Empty string when the span has no tools or for legacy spans whose
+   * definitions still ride in the attributes blob — the frontend's
+   * `extractToolsFromAttributes` is the fallback.
    */
-  tools?: string;
+  toolDefinitions?: string;
 };
 
 export type SpanRow = {

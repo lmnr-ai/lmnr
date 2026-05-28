@@ -20,7 +20,7 @@ ALTER TABLE spans
     ADD COLUMN IF NOT EXISTS output_new_message_indices Array(UInt16) CODEC(ZSTD(3));
 
 ALTER TABLE spans
-    ADD COLUMN IF NOT EXISTS tool_definition_hash FixedString(32) DEFAULT toFixedString('', 32) CODEC(ZSTD(3));
+    ADD COLUMN IF NOT EXISTS tool_definitions_hash FixedString(32) DEFAULT toFixedString('', 32) CODEC(ZSTD(3));
 
 -- Forward-only migration: legacy spans keep their `input_message_hashes` resolved
 -- against the trace-scoped `llm_messages_dict` (created by `ensureLlmMessagesDict`
@@ -90,15 +90,15 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             output
         ) AS output,
         if(
-            tool_definition_hash != toFixedString('', 32),
+            tool_definitions_hash != toFixedString('', 32),
             dictGetOrDefault(
                 'shared_content_dict',
                 'content',
-                tuple(project_id, tool_definition_hash),
+                tuple(project_id, tool_definitions_hash),
                 ''
             ),
             ''
-        ) AS tools,
+        ) AS tool_definitions,
         multiIf(status = 'error', 'error', status = 'success', 'success', 'success') AS status,
         parent_span_id,
         attributes,
