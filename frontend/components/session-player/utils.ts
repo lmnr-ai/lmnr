@@ -170,12 +170,12 @@ const readEventStream = async (reader: ReadableStreamDefaultReader<Uint8Array>):
     chunks.push(value);
   }
 
-  const blob = new Blob(chunks, { type: "application/json" });
+  const blob = new Blob(chunks as BlobPart[], { type: "application/json" });
   return blob.text();
 };
 
 const processBatchEvents = (text: string): { events: ProcessedEvent[]; urlChanges: UrlChange[] } => {
-  let batchEvents: SessionEventData[][] = [];
+  let batchEvents: SessionEventData[][];
 
   try {
     batchEvents = JSON.parse(text);

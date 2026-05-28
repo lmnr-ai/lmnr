@@ -69,7 +69,9 @@ export function parseLlmDefaultHeaders(value = process.env.LLM_DEFAULT_HEADERS_J
     parsed = JSON.parse(value);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: expected a JSON object with string values (${message})`);
+    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: expected a JSON object with string values (${message})`, {
+      cause: error,
+    });
   }
 
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -102,7 +104,9 @@ function validateHeader(name: string, value: string): void {
     new Headers([[name, value]]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: invalid header '${name}' (${message})`);
+    throw new Error(`Invalid LLM_DEFAULT_HEADERS_JSON: invalid header '${name}' (${message})`, {
+      cause: error,
+    });
   }
 }
 
