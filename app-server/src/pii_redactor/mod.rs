@@ -62,11 +62,24 @@ enum Target {
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One newly-deduped LLM input or output message — written back into the
-    /// `shared_content[k].content` row that's about to be inserted into the
-    /// `shared_content` CH table. Quickwit indexing reads from the same row,
-    /// so a single update covers both storage tiers.
-    DedupMessage(usize),
+    /// One row of the `shared_content` CH buffer. Redacted content is
+    /// inserted into ClickHouse on the next step; same content also lives
+    /// in some span's `span_trace_new_contents` (under
+    /// [`Target::TraceNew`]), redacted independently in the same RPC.
+    SharedRow(usize),
+    /// One trace-new message (input or output) that Quickwit indexes for
+    /// per-trace first-occurrence search. `(direction, dedup_idx, offset)`
+    /// addresses `span_trace_new_contents[dedup_idx][offset]` in the
+    /// matching direction view. Always redacted regardless of
+    /// storage-miss vs storage-hit (the bug we fixed: storage-hit + trace-
+    /// new content was previously dropped from Quickwit indexing).
+    TraceNew(Dir, usize, usize),
+}
+
+#[derive(Clone, Copy)]
+enum Dir {
+    Input,
+    Output,
 }
 
 /// Resolve `settings.remove_pii` for every unique project in `recordable_indices`,
@@ -98,26 +111,43 @@ async fn resolve_opted_in_projects(
 }
 
 /// Per-direction (input or output) view of the dedup batch the redactor
-/// needs to walk: which positions in the unified `shared_content` buffer
-/// belong to span `dedup_idx`, plus a parallel `span_content_bytes` slot
-/// that gets fixed up when redaction changes the byte length. Indexed by
-/// `dedup_idx` (matching `recordable_indices`).
+/// needs to walk: the per-span trace-new content buffer that Quickwit
+/// indexes. Indexed by `dedup_idx` (matching `recordable_indices`).
+///
+/// Note: byte-billing accuracy for PII-redacted content is slightly off
+/// because `span_content_bytes` is computed pre-redaction; an opted-in
+/// project pays for the raw size of storage-miss content rather than
+/// the redacted size. The over-bill is bounded by the redactor's
+/// shrinkage, typically small (a few percent), so we accept it for
+/// design simplicity rather than threading the byte-delta back through
+/// the dedup path.
 pub struct DedupRedactionView<'a> {
-    pub span_new_message_indices: &'a [Vec<usize>],
-    pub span_content_bytes: &'a mut [usize],
+    pub span_trace_new_contents: &'a mut [Vec<String>],
 }
 
 /// Redact `span.input` / `span.output` for every span whose project has
-/// `remove_pii=true`. For dedup'd LLM spans the new-message slice of the
-/// shared `shared_content` buffer is redacted in place — Quickwit and the
-/// `shared_content` CH table share that buffer, so one update covers both.
-/// Already-seen messages are not in the buffer and are not redacted (they
-/// were redacted on first emit). Tool-definition blobs share the same
-/// buffer too but are NOT walked here (tool definitions are schemas, not
-/// user text). All redaction happens in a single batched RPC.
+/// `remove_pii=true`. Three buffer kinds are redacted in lockstep:
+///
+/// - **Whole `span.input` / `span.output`**: kept on root spans for the
+///   trace-list preview and on non-LLM / non-array-input spans.
+/// - **`shared_content` rows**: every row about to be inserted into the
+///   CH `shared_content` table.
+/// - **Per-span `span_trace_new_contents`**: the per-span Quickwit
+///   indexing buffer. Covers ALL trace-new positions (storage-miss AND
+///   storage-hit-but-trace-new), so cross-trace shared content is
+///   redacted before indexing.
+///
+/// Storage-miss content is duplicated across `shared_content` and
+/// `span_trace_new_contents`; both copies are redacted independently
+/// (sent twice to the redactor RPC). Acceptable cost — storage-miss is
+/// the common case but the wire shape favors correctness over RPC count.
+/// Already-seen-in-trace messages aren't in any of these buffers and
+/// were redacted on first emit. Tool-definition blobs share the
+/// `shared_content` buffer but are NOT walked here (tool definitions
+/// are schemas, not user text).
 ///
 /// MUST run after `build_dedup_batch` (input + output) and BEFORE the
-/// `shared_content` ClickHouse insert.
+/// `shared_content` ClickHouse insert / Quickwit indexing.
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
@@ -145,17 +175,14 @@ pub async fn redact_spans_in_place(
 
     let mut targets: Vec<Target> = Vec::new();
     let mut texts: Vec<String> = Vec::new();
-    // `input_view`/`output_view`'s `span_content_bytes[dedup_idx]` was
-    // computed from pre-redaction `content.len()` in `build_dedup_batch`.
-    // Redaction mutates `content` in place, so any opted-in span's entry
-    // must be corrected before the post-dedup input-bytes loop reads it.
-    // Track per-message which (direction, dedup_idx) it belongs to so we
-    // can apply the delta on write-back.
-    enum Dir {
-        Input,
-        Output,
+
+    // Walk the `shared_content` rows that belong to opted-in projects.
+    for (idx, msg) in shared_content.iter().enumerate() {
+        if opted_in.contains(&msg.project_id) {
+            targets.push(Target::SharedRow(idx));
+            texts.push(msg.content.clone());
+        }
     }
-    let mut msg_to_dedup: HashMap<usize, (Dir, usize)> = HashMap::new();
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         if !*opt_in_for_span.get(&span_idx).unwrap_or(&false) {
@@ -163,28 +190,21 @@ pub async fn redact_spans_in_place(
         }
         let span = &spans[span_idx];
 
-        // Dedup'd LLM input: redact each new input message via the shared
-        // buffer, which is the same buffer Quickwit indexing reads.
-        if let Some(idxs) = input_view.span_new_message_indices.get(dedup_idx) {
-            for &msg_idx in idxs {
-                let Some(msg) = shared_content.get(msg_idx) else {
-                    continue;
-                };
-                msg_to_dedup.insert(msg_idx, (Dir::Input, dedup_idx));
-                targets.push(Target::DedupMessage(msg_idx));
-                texts.push(msg.content.clone());
+        // Dedup'd LLM input: redact each trace-new content position so
+        // Quickwit's per-trace indexer sees redacted content. Includes
+        // storage-hit + trace-new content (cross-trace case).
+        if let Some(contents) = input_view.span_trace_new_contents.get(dedup_idx) {
+            for (offset, c) in contents.iter().enumerate() {
+                targets.push(Target::TraceNew(Dir::Input, dedup_idx, offset));
+                texts.push(c.clone());
             }
         }
 
         // Dedup'd LLM output: same shape as input.
-        if let Some(idxs) = output_view.span_new_message_indices.get(dedup_idx) {
-            for &msg_idx in idxs {
-                let Some(msg) = shared_content.get(msg_idx) else {
-                    continue;
-                };
-                msg_to_dedup.insert(msg_idx, (Dir::Output, dedup_idx));
-                targets.push(Target::DedupMessage(msg_idx));
-                texts.push(msg.content.clone());
+        if let Some(contents) = output_view.span_trace_new_contents.get(dedup_idx) {
+            for (offset, c) in contents.iter().enumerate() {
+                targets.push(Target::TraceNew(Dir::Output, dedup_idx, offset));
+                texts.push(c.clone());
             }
         }
 
@@ -258,12 +278,10 @@ pub async fn redact_spans_in_place(
     }
 
     let DedupRedactionView {
-        span_new_message_indices: _,
-        span_content_bytes: input_bytes,
+        span_trace_new_contents: input_contents,
     } = input_view;
     let DedupRedactionView {
-        span_new_message_indices: _,
-        span_content_bytes: output_bytes,
+        span_trace_new_contents: output_contents,
     } = output_view;
     for (target, text) in targets.into_iter().zip(redacted.into_iter()) {
         match target {
@@ -275,27 +293,21 @@ pub async fn redact_spans_in_place(
                 Ok(v) => spans[idx].output = Some(v),
                 Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].output: {e:#}"),
             },
-            Target::DedupMessage(idx) => {
+            Target::SharedRow(idx) => {
                 if let Some(msg) = shared_content.get_mut(idx) {
                     // The redactor returns stringified JSON; sanitize to
-                    // match the non-redact path's `sanitize_string(&item.to_string())`.
-                    let new_content = sanitize_string(&text);
-                    let old_len = msg.content.len();
-                    let new_len = new_content.len();
-                    msg.content = new_content;
-                    // Refresh the byte attribution `build_dedup_batch` baked
-                    // in pre-redaction so the post-dedup input-bytes loop
-                    // bills the redacted size, matching the comment on
-                    // `estimate_size_bytes` ("size reflects redacted content").
-                    if let Some(&(ref dir, dedup_idx)) = msg_to_dedup.get(&idx) {
-                        let slot = match dir {
-                            Dir::Input => input_bytes.get_mut(dedup_idx),
-                            Dir::Output => output_bytes.get_mut(dedup_idx),
-                        };
-                        if let Some(slot) = slot {
-                            *slot = slot.saturating_sub(old_len).saturating_add(new_len);
-                        }
-                    }
+                    // match the non-redact path's
+                    // `sanitize_string(&item.to_string())`.
+                    msg.content = sanitize_string(&text);
+                }
+            }
+            Target::TraceNew(dir, dedup_idx, offset) => {
+                let contents_for_span = match dir {
+                    Dir::Input => input_contents.get_mut(dedup_idx),
+                    Dir::Output => output_contents.get_mut(dedup_idx),
+                };
+                if let Some(c) = contents_for_span.and_then(|v| v.get_mut(offset)) {
+                    *c = sanitize_string(&text);
                 }
             }
         }

@@ -102,22 +102,31 @@ pub fn canonical_json(value: &Value) -> String {
 /// Producer's hash + Redis-status verdict for one LLM span's message array
 /// (input or output). Both axes are independent:
 ///
-/// - `storage_miss_indices` lists positions inside `hashes` whose content
-///   the consumer must insert into `shared_content`. Aligned with
-///   `new_contents`.
 /// - `trace_new_indices` lists positions that this span's trace has not yet
 ///   seen — drives `*_new_message_indices` for search "first occurrence in
-///   trace" semantic.
+///   trace" semantic AND drives Quickwit per-trace indexing.
+/// - `trace_new_contents` is aligned with `trace_new_indices` and carries
+///   the JSON content for each trace-new position. Always shipped for
+///   trace-new positions even when the position is also a storage-hit
+///   (cross-trace case under project-scoped storage), because Quickwit
+///   needs the content to index this trace's first-occurrence even when
+///   the bytes are already in `shared_content` from another trace.
+/// - `storage_miss_offsets` is the subset of indexes into `trace_new_*`
+///   that the consumer must additionally insert into `shared_content`.
+///   `storage_miss ⊆ trace_new` always (storage-miss implies the content
+///   has never been seen project-wide, which is necessarily trace-new),
+///   so we save wire bytes by sending only one content array.
 ///
-/// Already-seen-everywhere messages do NOT travel in `new_contents`: only
-/// hash references ride the wire. The consumer never re-hashes — the
-/// `shared_content_dict` lookup at view-read time is the only reader path.
+/// Already-seen-in-trace-and-storage messages do NOT travel in
+/// `trace_new_contents`: only hash references ride the wire. The consumer
+/// never re-hashes — the `shared_content_dict` lookup at view-read time is
+/// the only reader path for those.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<[u8; 32]>,
-    pub storage_miss_indices: Vec<u16>,
-    pub new_contents: Vec<String>,
     pub trace_new_indices: Vec<u16>,
+    pub trace_new_contents: Vec<String>,
+    pub storage_miss_offsets: Vec<u16>,
 }
 
 /// Producer-side: walk an LLM span's array message field (`input` or
@@ -143,11 +152,9 @@ pub async fn build_message_dedup(
     };
 
     let mut hashes: Vec<[u8; 32]> = Vec::with_capacity(items.len());
-    let mut storage_miss_indices: Vec<u16> = Vec::new();
-    let mut new_contents: Vec<String> = Vec::new();
     let mut trace_new_indices: Vec<u16> = Vec::new();
-    let mut seen_storage_in_span: std::collections::HashSet<[u8; 32]> =
-        std::collections::HashSet::new();
+    let mut trace_new_contents: Vec<String> = Vec::new();
+    let mut storage_miss_offsets: Vec<u16> = Vec::new();
     let mut seen_trace_in_span: std::collections::HashSet<[u8; 32]> =
         std::collections::HashSet::new();
 
@@ -161,38 +168,38 @@ pub async fn build_message_dedup(
             Err(_) => continue,
         };
 
-        // Trace-new check: is this hash new to this trace?
+        // Trace-new check: is this hash new to this trace? If we've already
+        // emitted it for this span, skip — RMT/dedup semantics handle it.
         let trace_key = trace_new_key(span.project_id, span.trace_id, &hash);
         let trace_already_seen = cache.exists(&trace_key).await.unwrap_or(false);
-        if !trace_already_seen && seen_trace_in_span.insert(hash) {
-            trace_new_indices.push(pos);
-        }
-
-        // Storage check: do we already have content stored for this hash
-        // anywhere in the project?
-        if !seen_storage_in_span.insert(hash) {
-            // Already emitted within this span — skip duplicate work.
-            continue;
-        }
-        let storage_key = storage_seen_key(span.project_id, &hash);
-        let storage_already_seen = cache.exists(&storage_key).await.unwrap_or(false);
-        if storage_already_seen {
+        if trace_already_seen || !seen_trace_in_span.insert(hash) {
             continue;
         }
 
-        // Storage miss: ship content for the consumer to insert. Use ingest-
-        // order JSON (serde_json `preserve_order`) so reads reconstruct
+        // Trace-new: ship content so Quickwit can index this trace's
+        // first-occurrence even when storage is a hit. Use ingest-order
+        // JSON (serde_json `preserve_order`) so reads reconstruct
         // byte-identical to the non-dedup path. Hash stays canonical.
         let content = sanitize_string(&item.to_string());
-        storage_miss_indices.push(pos);
-        new_contents.push(content);
+        let offset = trace_new_indices.len() as u16;
+        trace_new_indices.push(pos);
+        trace_new_contents.push(content);
+
+        // Storage check: only the storage-miss subset of trace-new
+        // positions also needs to land in `shared_content`. Storage-hit
+        // means the bytes are already there from another trace.
+        let storage_key = storage_seen_key(span.project_id, &hash);
+        let storage_already_seen = cache.exists(&storage_key).await.unwrap_or(false);
+        if !storage_already_seen {
+            storage_miss_offsets.push(offset);
+        }
     }
 
     Some(MessageDedup {
         hashes,
-        storage_miss_indices,
-        new_contents,
         trace_new_indices,
+        trace_new_contents,
+        storage_miss_offsets,
     })
 }
 
@@ -202,18 +209,28 @@ pub async fn build_message_dedup(
 /// non-dedup path.
 ///
 /// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` /
-/// `span_new_message_indices[i]` align with the spans slice passed in.
+/// `span_trace_new_contents[i]` align with the spans slice passed in.
 /// `span_content_bytes[i]` is the bytes of `shared_content.content` span `i`
 /// caused to be newly inserted — shared content contributes 0 (billed once
 /// to the first referrer in the batch).
-/// `span_new_indices[i]` is the trace-new positions (search semantic).
-/// `span_new_message_indices[i]` lists positions into the shared output
-/// `Vec<CHSharedContent>` (for Quickwit per-span message-slice reads).
+/// `span_new_indices[i]` is the trace-new positions inside `span_hashes[i]`
+/// (search semantic).
+/// `span_trace_new_contents[i]` is the JSON content for every trace-new
+/// position of span `i` — used by Quickwit per-trace indexing. Includes
+/// content for trace-new + storage-hit positions (cross-trace case under
+/// project-scoped storage), so Quickwit indexes this trace's first-
+/// occurrence even when the bytes are already in `shared_content` from
+/// another trace.
+///
+/// For storage-miss positions the string is duplicated into both
+/// `shared_content` (CH insert) and `span_trace_new_contents` (Quickwit
+/// indexing). The PII redactor redacts both copies in lockstep when
+/// `remove_pii=true` for the project.
 pub struct DedupBatch {
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
     pub span_new_indices: Vec<Vec<u16>>,
-    pub span_new_message_indices: Vec<Vec<usize>>,
+    pub span_trace_new_contents: Vec<Vec<String>>,
 }
 
 /// Build a per-field cross-span dedup batch. Maintains a project-scoped
@@ -235,55 +252,67 @@ pub fn build_dedup_batch(
     let mut span_hashes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(spans.len());
     let mut span_content_bytes: Vec<usize> = Vec::with_capacity(spans.len());
     let mut span_new_indices: Vec<Vec<u16>> = Vec::with_capacity(spans.len());
-    let mut span_new_message_indices: Vec<Vec<usize>> = Vec::with_capacity(spans.len());
+    let mut span_trace_new_contents: Vec<Vec<String>> = Vec::with_capacity(spans.len());
 
     for (span, dedup) in spans.iter().zip(dedups.iter()) {
         let Some(dedup) = dedup else {
             span_hashes.push(Vec::new());
             span_content_bytes.push(0);
             span_new_indices.push(Vec::new());
-            span_new_message_indices.push(Vec::new());
+            span_trace_new_contents.push(Vec::new());
             continue;
         };
 
-        let mut new_message_indices: Vec<usize> =
-            Vec::with_capacity(dedup.storage_miss_indices.len());
+        // `storage_miss_offsets` indexes into `trace_new_*`. Build a quick
+        // lookup so we know which trace-new offsets are also storage-miss.
+        let storage_miss_set: std::collections::HashSet<u16> =
+            dedup.storage_miss_offsets.iter().copied().collect();
+
         let mut content_bytes_for_span: usize = 0;
-        // Defensive: if a malformed dedup arrives over the wire (out-of-bounds
-        // `storage_miss_indices` / mismatched `new_contents` length), skip the
-        // bad entries rather than panic and requeue the entire batch forever.
-        for (i, &pos) in dedup.storage_miss_indices.iter().enumerate() {
+        // Always carry trace-new content per span; Quickwit reads this
+        // directly so cross-trace storage-hit content is still searchable
+        // for THIS trace's first occurrence.
+        let mut trace_new_contents_for_span: Vec<String> =
+            Vec::with_capacity(dedup.trace_new_indices.len());
+        // Defensive: if a malformed dedup arrives over the wire
+        // (out-of-bounds index / mismatched length), skip the bad entries
+        // rather than panic and requeue the entire batch forever.
+        for (offset, &pos) in dedup.trace_new_indices.iter().enumerate() {
             let Some(&hash) = dedup.hashes.get(pos as usize) else {
                 continue;
             };
-            let Some(content) = dedup.new_contents.get(i) else {
+            let Some(content) = dedup.trace_new_contents.get(offset) else {
                 continue;
             };
-            if !seen_storage_in_batch.insert((span.project_id, hash)) {
-                continue;
+
+            trace_new_contents_for_span.push(content.clone());
+
+            // Insert into `shared_content` only when this position is also
+            // storage-miss AND we haven't already seen the hash earlier in
+            // this flush.
+            let is_storage_miss = storage_miss_set.contains(&(offset as u16));
+            if is_storage_miss && seen_storage_in_batch.insert((span.project_id, hash)) {
+                let content = content.clone();
+                content_bytes_for_span += content.len();
+                shared_content.push(CHSharedContent {
+                    project_id: span.project_id,
+                    content_hash: hash,
+                    content,
+                });
             }
-            let content = content.clone();
-            content_bytes_for_span += content.len();
-            let msg_idx = shared_content.len();
-            shared_content.push(CHSharedContent {
-                project_id: span.project_id,
-                content_hash: hash,
-                content,
-            });
-            new_message_indices.push(msg_idx);
         }
 
         span_hashes.push(dedup.hashes.clone());
         span_content_bytes.push(content_bytes_for_span);
         span_new_indices.push(dedup.trace_new_indices.clone());
-        span_new_message_indices.push(new_message_indices);
+        span_trace_new_contents.push(trace_new_contents_for_span);
     }
 
     DedupBatch {
         span_hashes,
         span_content_bytes,
         span_new_indices,
-        span_new_message_indices,
+        span_trace_new_contents,
     }
 }
 
@@ -388,16 +417,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(dedup.hashes.len(), 1);
-        assert_eq!(dedup.storage_miss_indices, vec![0]);
         assert_eq!(dedup.trace_new_indices, vec![0]);
-        assert_eq!(dedup.new_contents.len(), 1);
+        assert_eq!(dedup.trace_new_contents.len(), 1);
+        // First-time content is also a storage miss — the consumer inserts
+        // it into `shared_content`.
+        assert_eq!(dedup.storage_miss_offsets, vec![0]);
     }
 
     #[tokio::test]
-    async fn cross_trace_storage_hit_still_marks_trace_new() {
-        // Same content seen in trace A; appearing in trace B must NOT ship the
-        // content again (storage hit) but MUST still mark as trace-new for
-        // search "first occurrence in trace" semantic.
+    async fn cross_trace_storage_hit_still_carries_content_for_quickwit() {
+        // Same content seen in trace A; appearing in trace B must NOT ship
+        // the content for `shared_content` insert (storage hit) but MUST
+        // still carry the content in `trace_new_contents` so Quickwit can
+        // index this trace's first occurrence.
         let project_id = Uuid::new_v4();
         let trace_a = Uuid::new_v4();
         let trace_b = Uuid::new_v4();
@@ -430,14 +462,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(dedup.hashes.len(), 1);
-        assert!(
-            dedup.storage_miss_indices.is_empty(),
-            "storage hit — no content should ship"
-        );
         assert_eq!(
             dedup.trace_new_indices,
             vec![0],
-            "trace B has not seen this content yet — must still be trace-new for search"
+            "trace B has not seen this content yet — must still be trace-new"
+        );
+        assert_eq!(
+            dedup.trace_new_contents.len(),
+            1,
+            "content must travel for Quickwit per-trace indexing even when storage is a hit"
+        );
+        assert!(
+            dedup.storage_miss_offsets.is_empty(),
+            "storage hit — no `shared_content` insert needed"
         );
     }
 
@@ -469,5 +506,65 @@ mod tests {
             .unwrap();
         assert_eq!(dedup.hashes.len(), 2);
         assert!(dedup.trace_new_indices.is_empty());
+        assert!(dedup.trace_new_contents.is_empty());
+    }
+
+    #[tokio::test]
+    async fn build_dedup_batch_quickwit_sees_storage_hit_content() {
+        // Regression: under project-scoped storage, a message that's
+        // storage-hit but trace-new (re-running an agent in a new trace)
+        // must still have its content available to Quickwit indexing.
+        // Pre-fix the consumer's `shared_content` Vec only contained
+        // storage-miss content, so cross-trace-shared messages were
+        // silently dropped from the index.
+        use crate::cache::in_memory::InMemoryCache;
+
+        let project_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+        let cache: Arc<Cache> = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let msg = json!({"role": "system", "content": "you are helpful"});
+        let canonical = canonical_json(&msg);
+        let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
+        // Stamp storage as if a prior trace already inserted this hash.
+        cache
+            .insert_with_ttl(&storage_seen_key(project_id, &hash), "1", MESSAGE_SEEN_TTL_SECONDS)
+            .await
+            .unwrap();
+
+        let span = Span {
+            span_type: SpanType::LLM,
+            project_id,
+            trace_id,
+            input: Some(json!([msg])),
+            ..Default::default()
+        };
+        let dedup = build_message_dedup(&span, span.input.as_ref(), cache)
+            .await
+            .unwrap();
+
+        let mut shared_content: Vec<CHSharedContent> = Vec::new();
+        let mut seen: std::collections::HashSet<(Uuid, [u8; 32])> =
+            std::collections::HashSet::new();
+        let batch = build_dedup_batch(
+            &[&span],
+            &[Some(dedup)],
+            &mut seen,
+            &mut shared_content,
+        );
+
+        assert!(
+            shared_content.is_empty(),
+            "storage hit — nothing should be inserted into shared_content"
+        );
+        assert_eq!(batch.span_trace_new_contents.len(), 1, "one span");
+        assert_eq!(
+            batch.span_trace_new_contents[0].len(),
+            1,
+            "trace-new content must be available for Quickwit even on storage hit"
+        );
+        assert!(
+            batch.span_trace_new_contents[0][0].contains("you are helpful"),
+            "the actual message content must travel to Quickwit"
+        );
     }
 }

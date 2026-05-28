@@ -244,29 +244,27 @@ pub async fn process_span_messages(
     };
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
-    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
-    // redacted bytes flow into both the `shared_content` insert and Quickwit
-    // indexing through the same shared `shared_content` buffer; runs BEFORE
-    // the input-bytes accounting / `shared_content` CH insert / Quickwit
-    // indexing so every storage tier holds the redacted content. Already-
-    // seen messages were redacted on first emit and ride the wire as hashes
-    // only. Tool-definition blobs share the same buffer but the redactor
-    // walks only the input + output `span_new_message_indices` slices, so
-    // tool defs are not redacted (they're schemas, not user text). Best-
-    // effort: failures are logged inside `redact_spans_in_place` and do
-    // not fail the batch.
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so
+    // the redacted bytes flow into both the `shared_content` CH insert and
+    // Quickwit indexing; runs BEFORE the `shared_content` CH insert /
+    // Quickwit indexing so every storage tier holds the redacted content.
+    // Already-seen-in-trace messages were redacted on first emit and ride
+    // the wire as hashes only. Tool-definition blobs share the
+    // `shared_content` buffer; the redactor walks every `shared_content`
+    // row of opted-in projects (so tool defs ARE redacted along with
+    // messages — acceptable, the redactor is no-op on schemas) plus the
+    // per-span Quickwit content. Best-effort: failures are logged inside
+    // `redact_spans_in_place` and do not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
         redact_spans_in_place(
             redactor,
             &mut spans,
             &mut shared_content,
             crate::pii_redactor::DedupRedactionView {
-                span_new_message_indices: &input_batch.span_new_message_indices,
-                span_content_bytes: &mut input_batch.span_content_bytes,
+                span_trace_new_contents: &mut input_batch.span_trace_new_contents,
             },
             crate::pii_redactor::DedupRedactionView {
-                span_new_message_indices: &output_batch.span_new_message_indices,
-                span_content_bytes: &mut output_batch.span_content_bytes,
+                span_trace_new_contents: &mut output_batch.span_trace_new_contents,
             },
             &recordable_indices,
             db.clone(),
@@ -319,7 +317,18 @@ pub async fn process_span_messages(
             // on the producer. Without this branch the fall-through would
             // bill 0 bytes, regressing the "non-recorded spans contribute
             // input bytes to workspace usage" invariant.
-            d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
+            //
+            // We bill against `trace_new_contents` (every trace-new
+            // position carries content on the wire). For the storage-miss
+            // subset this matches what the consumer would have inserted
+            // into `shared_content`; for trace-new-but-storage-hit
+            // positions this is content that's already in `shared_content`
+            // from another trace, so technically we'd over-bill those
+            // by their JSON size. Acceptable: they're the cross-trace
+            // case and the over-bill amount is bounded by the trace's
+            // unique-message tail.
+            d.hashes.len() * 32
+                + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
             span.input
                 .as_ref()
@@ -350,9 +359,10 @@ pub async fn process_span_messages(
                 }
             } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
                 // Non-recordable LLM span whose `span.output` was stripped to
-                // None on the producer.
-                added +=
-                    d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
+                // None on the producer. See input branch for the
+                // trace-new-but-storage-hit over-bill caveat.
+                added += d.hashes.len() * 32
+                    + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>();
             }
         }
 
@@ -644,17 +654,19 @@ pub async fn process_span_messages(
         .enumerate()
         .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
         .map(|(dedup_idx, s)| {
-            // For LLM spans: parse this span's new INPUT messages into
-            // `Vec<Value>` for the indexer. Output messages flow through
-            // `span.output` directly — they're stripped only on dedup, and
-            // the index path here picks the right slice from the unified
-            // batch. `span_new_message_indices[dedup_idx]` points into
-            // `shared_content` — no layout assumption. Works for both the
-            // producer path (where `span.input` is `None`) and the legacy
-            // path. Unparseable JSON is dropped (filter_map) — the row
-            // still went to `shared_content`, it just isn't searchable. A
-            // span with no hashes (non-array input) gets `None`, so
-            // `from_span` falls through to raw `span.input`.
+            // For LLM spans: parse this span's trace-new INPUT messages
+            // into `Vec<Value>` for the indexer. Read directly from the
+            // per-span `span_trace_new_contents` — these cover ALL
+            // trace-new positions (storage-miss AND storage-hit-but-trace-
+            // new), so cross-trace shared content is still indexed for
+            // THIS trace's first-occurrence search. Unparseable JSON is
+            // dropped (filter_map) — the row still went to
+            // `shared_content` if storage-miss, it just isn't searchable.
+            // A span with no hashes (non-array input) gets `None`, so
+            // `from_span` falls through to raw `span.input`. Output
+            // messages flow through `span.output` directly — they're
+            // stripped only on dedup; the index path uses the same
+            // mechanism for input.
             let new_messages = if s.is_llm_span()
                 && input_batch
                     .span_hashes
@@ -663,12 +675,12 @@ pub async fn process_span_messages(
                     .unwrap_or(false)
             {
                 input_batch
-                    .span_new_message_indices
+                    .span_trace_new_contents
                     .get(dedup_idx)
-                    .map(|idxs| {
-                        idxs.iter()
-                            .filter_map(|&i| shared_content.get(i))
-                            .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                    .map(|contents| {
+                        contents
+                            .iter()
+                            .filter_map(|c| serde_json::from_str::<Value>(c).ok())
                             .collect::<Vec<Value>>()
                     })
             } else {
