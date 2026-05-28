@@ -321,7 +321,13 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             morph). Production puts the signal card directly inside the
             header's flex-col, after the rows; we do the same. The ref feeds
             the ResizeObserver that drives the bento's pre-phase-2 height. */}
-        <div ref={headerRef} className="flex flex-col px-2 pt-1.5 pb-2 shrink-0">
+        <div
+          ref={headerRef}
+          className={cn(
+            "flex flex-col px-2 pt-1.5 shrink-0 transition-[padding-bottom] duration-300 ease-in-out",
+            signalsPanelOpen || phase >= 3 ? "pb-2" : "pb-0"
+          )}
+        >
           {/* Row 1 — fades in at phase 2 */}
           <motion.div
             initial={{ height: 0, opacity: 0 }}
