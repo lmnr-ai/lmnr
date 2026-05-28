@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { type HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
+type HeadingProps = HTMLAttributes<HTMLHeadingElement>;
+type Level = 0 | 1 | 2 | 3;
+
 interface MDHeadingProps {
-  props: any;
-  level: number;
+  props: HeadingProps;
+  level: Level;
 }
 
 // `id` lands on the heading's `props` via the rehype-slug plugin (configured in
@@ -32,7 +36,7 @@ export default function MDHeading({ props, level }: MDHeadingProps) {
   );
 }
 
-function HeadingContent({ props, level }: { props: any; level: number }) {
+function HeadingContent({ props, level }: { props: HeadingProps; level: Level }) {
   switch (level) {
     case 0:
       return <h1 {...props} className={levelToClassName(level)} />;
