@@ -6,7 +6,8 @@
 // can still pass `\n` for explicit line breaks where it matches Figma.
 
 // Hero title — used once for "Open-source Agent Monitoring".
-export const mainTitle = "font-sans-landing text-[42px] font-[480] text-white whitespace-pre-line leading-tight";
+export const mainTitle =
+  "font-sans-landing text-[38px] sm:text-[42px] font-[480] text-white whitespace-pre-line leading-tight";
 
 export const subSection = "font-sans-landing text-white whitespace-pre-line text-2xl leading-8 font-[500]";
 

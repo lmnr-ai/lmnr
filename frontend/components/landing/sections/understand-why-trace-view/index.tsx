@@ -190,7 +190,7 @@ const UnderstandWhyTraceView = () => {
           so it needs the same store context as TraceBento. */}
       <TraceViewStoreProvider storeKey="landing-understand-why" initialTrace={trace}>
         <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
-          <div className="flex gap-18">
+          <div className="flex gap-18 2xl:gap-36">
             {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll
               length). The sticky child pins for the entire section. */}
