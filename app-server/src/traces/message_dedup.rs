@@ -120,35 +120,21 @@ pub struct MessageDedup {
     pub trace_new_indices: Vec<u16>,
 }
 
-/// Field selector for `build_message_dedup` — determines which span field is
-/// being deduped. Affects only logging today; same Redis namespaces are used
-/// for both fields because the `shared_content` table is content-addressed
-/// and shared across input/output (a message that is output for span A and
-/// input for span B collapses to one row).
-#[derive(Copy, Clone, Debug)]
-pub enum MessageField {
-    Input,
-    Output,
-}
-
-/// Producer-side: walk an LLM span's array `input` or `output`, hash each
-/// message, consult the two Redis scopes, and return the dedup verdict.
-/// Returns `None` when the span isn't an LLM span or the field isn't a
-/// non-empty JSON array — no dedup applies. Redis errors are best-effort: on
-/// failure we treat the entry as new on both axes (insert + mark trace-new),
-/// which keeps the system correct at the cost of extra writes.
+/// Producer-side: walk an LLM span's array message field (`input` or
+/// `output`), hash each message, consult the two Redis scopes, and return the
+/// dedup verdict. Returns `None` when the span isn't an LLM span or `value`
+/// isn't a non-empty JSON array — no dedup applies. Redis errors are
+/// best-effort: on failure we treat the entry as new on both axes (insert +
+/// mark trace-new), which keeps the system correct at the cost of extra
+/// writes.
 pub async fn build_message_dedup(
     span: &Span,
-    field: MessageField,
+    value: Option<&Value>,
     cache: Arc<Cache>,
 ) -> Option<MessageDedup> {
     if !span.is_llm_span() {
         return None;
     }
-    let value = match field {
-        MessageField::Input => span.input.as_ref(),
-        MessageField::Output => span.output.as_ref(),
-    };
     let items = match value? {
         Value::Array(items) if !items.is_empty() => items,
         // Empty `Some([])` — preserve the wire shape so `CHSpan.input/output`
@@ -382,7 +368,7 @@ mod tests {
             ..Default::default()
         };
         assert!(
-            build_message_dedup(&span, MessageField::Input, make_cache())
+            build_message_dedup(&span, span.input.as_ref(), make_cache())
                 .await
                 .is_none()
         );
@@ -398,7 +384,7 @@ mod tests {
             ..Default::default()
         };
         let cache = make_cache();
-        let dedup = build_message_dedup(&span, MessageField::Input, cache)
+        let dedup = build_message_dedup(&span, span.input.as_ref(), cache)
             .await
             .unwrap();
         assert_eq!(dedup.hashes.len(), 1);
@@ -440,7 +426,7 @@ mod tests {
             input: Some(msg),
             ..Default::default()
         };
-        let dedup = build_message_dedup(&span, MessageField::Input, cache)
+        let dedup = build_message_dedup(&span, span.input.as_ref(), cache)
             .await
             .unwrap();
         assert_eq!(dedup.hashes.len(), 1);
@@ -478,7 +464,7 @@ mod tests {
             input: Some(json!([msg.clone(), msg])),
             ..Default::default()
         };
-        let dedup = build_message_dedup(&span, MessageField::Input, cache)
+        let dedup = build_message_dedup(&span, span.input.as_ref(), cache)
             .await
             .unwrap();
         assert_eq!(dedup.hashes.len(), 2);

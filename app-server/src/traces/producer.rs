@@ -17,7 +17,7 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_ROUTING_KEY,
-    message_dedup::{MessageDedup, MessageField, build_message_dedup},
+    message_dedup::{MessageDedup, build_message_dedup},
     provider::convert_span_to_provider_format,
     tool_dedup::{ToolDedup, build_tool_dedup},
     utils::is_top_span,
@@ -77,8 +77,8 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     // Tool dedup runs first so its source attributes are stripped before
     // anything else looks at `raw_attributes`.
     let tools = build_tool_dedup(span, cache.clone()).await;
-    let input = build_message_dedup(span, MessageField::Input, cache.clone()).await;
-    let output = build_message_dedup(span, MessageField::Output, cache).await;
+    let input = build_message_dedup(span, span.input.as_ref(), cache.clone()).await;
+    let output = build_message_dedup(span, span.output.as_ref(), cache).await;
 
     let keep_root_payload = span.parent_span_id.is_none() || is_top_span(span, &span.attributes);
 
