@@ -15,6 +15,8 @@ interface LandingHeaderProps {
   hasSession: boolean;
   className?: string;
   isIncludePadding?: boolean;
+  hideAnnouncement?: boolean;
+  primarySignUp?: boolean;
 }
 
 const NAV_LINKS = [
@@ -25,21 +27,29 @@ const NAV_LINKS = [
   { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
 
-export default function LandingHeader({ hasSession, className, isIncludePadding = false }: LandingHeaderProps) {
+export default function LandingHeader({
+  hasSession,
+  className,
+  isIncludePadding = false,
+  hideAnnouncement = false,
+  primarySignUp = false,
+}: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <>
-      <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
-        <span>Laminar raises $3M seed to build observability for long-running agents</span>
-        <Link
-          href="/blog/2026-03-16-laminar-launch"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
-        >
-          Read more
-          <ArrowRight className="size-3" />
-        </Link>
-      </div>
+      {!hideAnnouncement && (
+        <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
+          <span>Laminar raises $3M seed to build observability for long-running agents</span>
+          <Link
+            href="/blog/2026-03-16-laminar-launch"
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+          >
+            Read more
+            <ArrowRight className="size-3" />
+          </Link>
+        </div>
+      )}
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
@@ -91,7 +101,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm">
+                  <LandingButton variant={primarySignUp ? "primary" : "outline"} size="sm">
                     Sign up
                   </LandingButton>
                 </Link>

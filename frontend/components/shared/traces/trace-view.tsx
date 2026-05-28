@@ -1,12 +1,10 @@
 "use client";
 
 import { CirclePlay } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import fullLogo from "@/assets/logo/logo.svg";
+import LandingHeader from "@/components/landing/header";
 import Header from "@/components/shared/traces/header";
 import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
@@ -31,9 +29,10 @@ interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
   onClose?: () => void;
+  hasSession?: boolean;
 }
 
-export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, onClose, hasSession }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -111,11 +110,13 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       {!onClose && (
-        <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
-          </Link>
-        </div>
+        <LandingHeader
+          hasSession={!!hasSession}
+          isIncludePadding
+          hideAnnouncement
+          primarySignUp
+          className="border-b border-b-border bg-background md:px-8 px-6 md:py-3 py-2"
+        />
       )}
       <ResizablePanelGroup
         id="shared-trace-horizontal"
