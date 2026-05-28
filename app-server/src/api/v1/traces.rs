@@ -11,7 +11,7 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{
-        message_dedup::MessageDedup,
+        input_dedup::MessageDedup,
         tool_dedup::ToolDedup,
         {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
     },

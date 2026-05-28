@@ -17,7 +17,7 @@ use uuid::Uuid;
 use super::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
     SPANS_DATA_PLANE_ROUTING_KEY,
-    message_dedup::{MessageDedup, build_message_dedup},
+    input_dedup::{MessageDedup, build_message_dedup},
     provider::convert_span_to_provider_format,
     tool_dedup::{ToolDedup, build_tool_dedup},
     utils::is_top_span,

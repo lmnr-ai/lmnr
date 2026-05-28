@@ -33,7 +33,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        message_dedup::{MessageDedup, build_dedup_batch, mark_seen},
+        input_dedup::{MessageDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -48,7 +48,17 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
+#[instrument(skip(
+    messages,
+    db,
+    clickhouse,
+    cache,
+    queue,
+    pubsub,
+    ch,
+    pii_redactor,
+    config
+))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -225,7 +235,12 @@ pub async fn process_span_messages(
             }
         }
 
-        (shared_content, input_batch, output_batch, tool_content_bytes)
+        (
+            shared_content,
+            input_batch,
+            output_batch,
+            tool_content_bytes,
+        )
     };
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
@@ -336,7 +351,8 @@ pub async fn process_span_messages(
             } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
                 // Non-recordable LLM span whose `span.output` was stripped to
                 // None on the producer.
-                added += d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
+                added +=
+                    d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>();
             }
         }
 
@@ -483,8 +499,7 @@ pub async fn process_span_messages(
             for (i, t) in updated_traces.iter().enumerate() {
                 last_idx_by_key.insert((t.project_id(), t.id()), i);
             }
-            let kept: std::collections::HashSet<usize> =
-                last_idx_by_key.into_values().collect();
+            let kept: std::collections::HashSet<usize> = last_idx_by_key.into_values().collect();
             let mut idx = 0;
             updated_traces.retain(|_| {
                 let keep = kept.contains(&idx);

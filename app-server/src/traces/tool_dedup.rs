@@ -29,7 +29,7 @@ use uuid::Uuid;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::shared_content::CHSharedContent;
 use crate::db::spans::Span;
-use crate::traces::message_dedup::canonical_json;
+use crate::traces::input_dedup::canonical_json;
 use crate::utils::sanitize_string;
 
 fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
@@ -97,12 +97,10 @@ fn extract_tool_definitions(
     // JSON-encoded string. Peek-then-parse so a malformed JSON string leaves
     // the attribute in place for the legacy fallback.
     let genai_arr = match attrs.get("gen_ai.tool.definitions") {
-        Some(Value::String(s)) => serde_json::from_str::<Value>(s)
-            .ok()
-            .and_then(|v| match v {
-                Value::Array(arr) if !arr.is_empty() => Some(arr),
-                _ => None,
-            }),
+        Some(Value::String(s)) => serde_json::from_str::<Value>(s).ok().and_then(|v| match v {
+            Value::Array(arr) if !arr.is_empty() => Some(arr),
+            _ => None,
+        }),
         Some(Value::Array(arr)) if !arr.is_empty() => Some(arr.clone()),
         _ => None,
     };
