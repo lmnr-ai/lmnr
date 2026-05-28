@@ -346,7 +346,7 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             initial={{ maxHeight: SIGNAL_CARD_MAX, marginTop: 0 }}
             animate={{
               maxHeight: signalsPanelOpen ? SIGNAL_CARD_MAX : 0,
-              marginTop: phase === 2 ? 8 : 0,
+              marginTop: signalsPanelOpen && phase === 2 ? 8 : 0,
             }}
             transition={TWEEN}
             className="overflow-hidden"
