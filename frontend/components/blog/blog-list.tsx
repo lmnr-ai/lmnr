@@ -53,9 +53,6 @@ const ListRow = ({ post, routePrefix, isFirst }: { post: BlogListItem; routePref
       <p className={cn(subSection, "text-white text-xl leading-7 group-hover:text-landing-text-100")}>
         {post.data.title}
       </p>
-      {post.data.description && (
-        <p className="text-sm text-landing-text-300 leading-5 line-clamp-2">{post.data.description}</p>
-      )}
       <p className={cn(microLabel, "mt-1")}>
         {formatUTCDate(post.data.date)} · {post.data.author.name}
       </p>
