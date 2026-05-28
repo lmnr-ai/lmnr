@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -184,7 +185,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <TraceDropdown traceId={traceId} />
             </span>
           )}
-          {spans.length > 0 && (
+          {isFeatureEnabled(Feature.LAMINAR_CLOUD) && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setTracesAgentOpen(!tracesAgentOpen)}

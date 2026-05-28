@@ -2,80 +2,67 @@
 
 import React from "react";
 
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+import { cn } from "@/lib/utils";
 
-/**
- * Matches XML-like span references in text:
- *   <span id='123' name='my-span' />
- *   <span id='123' name='my-span' reference_text='...' />
- */
-const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g;
+// Matches XML span refs <span id='abc123' name='...' [reference_text='...']/> where id is the 6-hex short id
+// (last 6 chars of the span UUID). See app-server/src/traces/span_helpers.rs::span_short_id.
+const SPAN_REF_REGEX = /<span\s+id='([0-9a-f]{6})'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/gi;
 
 export interface SpanReferenceCallbacks {
-  resolveSpanId: (sequentialId: string) => Promise<string | null>;
   onSelectSpan: (spanUuid: string) => void;
 }
 
-interface SpanBadgeProps {
-  spanId: string;
-  spanName: string;
-  referenceText?: string;
-  callbacks: SpanReferenceCallbacks;
-}
-
-/** Badge for markdown-style span links — spanUuid is already resolved */
-function MarkdownSpanBadge({
-  label,
-  spanUuid,
+// Subscribes to the trace-view store directly so each link re-renders when spans load,
+// regardless of upstream Streamdown block memoization.
+function SpanLink({
+  spanId,
+  fallbackName,
+  referenceText,
   onSelectSpan,
 }: {
-  label: string;
-  spanUuid: string;
+  spanId: string;
+  fallbackName: string;
+  referenceText?: string;
   onSelectSpan: (spanUuid: string) => void;
 }) {
-  return (
-    <button onClick={() => onSelectSpan(spanUuid)}>
-      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{label}</span>{" "}
-      span
-    </button>
-  );
-}
-
-function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProps) {
-  const handleClick = async () => {
-    const spanUuid = await callbacks.resolveSpanId(spanId);
-    if (spanUuid) {
-      callbacks.onSelectSpan(spanUuid);
-    }
+  const resolved = useTraceViewBaseStore((state) => {
+    const lower = spanId.toLowerCase();
+    const match = state.spans.find((s) => s.spanId.toLowerCase() === lower || s.spanId.toLowerCase().endsWith(lower));
+    return match ? match.spanId : null;
+  });
+  const disabled = resolved === null;
+  const handleClick = () => {
+    if (resolved) onSelectSpan(resolved);
   };
 
-  if (referenceText) {
-    const unescaped = referenceText.replace(/\\"/g, '"');
-    const previewLength = 24;
-    const textPreview = unescaped.length > previewLength ? unescaped.slice(0, previewLength) + "..." : unescaped;
-
-    return (
-      <button onClick={handleClick}>
-        <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs mr-1">
-          {spanName}
-        </span>
-        span
-        <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-      </button>
-    );
-  }
+  const preview = referenceText ? truncateRef(referenceText) : null;
 
   return (
-    <button onClick={handleClick}>
-      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span>{" "}
-      span
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      title={disabled ? "Span not loaded" : `Open ${fallbackName}`}
+      className={cn(
+        "font-mono text-[12px] underline-offset-2 inline align-baseline",
+        disabled
+          ? "text-muted-foreground cursor-not-allowed"
+          : "text-primary hover:text-primary/80 hover:underline cursor-pointer"
+      )}
+    >
+      {fallbackName}
+      {preview && <span className="text-muted-foreground"> ({preview})</span>}
     </button>
   );
 }
 
-/**
- * Collect all span reference matches (XML and markdown) and sort by position.
- */
+function truncateRef(text: string): string {
+  const unescaped = text.replace(/\\"/g, '"');
+  return unescaped.length > 24 ? unescaped.slice(0, 24) + "…" : unescaped;
+}
+
 interface SpanMatch {
   index: number;
   length: number;
@@ -85,56 +72,45 @@ interface SpanMatch {
 function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMatch[] {
   const matches: SpanMatch[] = [];
 
-  // XML-style: <span id='123' name='my-span' />
   SPAN_REF_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SPAN_REF_REGEX.exec(text)) !== null) {
-    const [fullMatch, spanId, spanName, referenceText] = match;
+    const [fullMatch, shortId, embeddedName, referenceText] = match;
     matches.push({
       index: match.index,
       length: fullMatch.length,
       node: (
-        <SpanBadge
+        <SpanLink
           key={`xml-ref-${match.index}`}
-          spanId={spanId}
-          spanName={spanName}
+          spanId={shortId}
+          fallbackName={embeddedName}
           referenceText={referenceText}
-          callbacks={callbacks}
-        />
-      ),
-    });
-  }
-
-  // Markdown-style: [Label](https://...?spanId=UUID)
-  // Only links with a spanId are actionable here — the trace-view already has
-  // a fixed traceId, so cross-trace links without spanId aren't useful as badges.
-  for (const link of parseSpanLinks(text)) {
-    if (!link.spanId) continue;
-    matches.push({
-      index: link.index,
-      length: link.length,
-      node: (
-        <MarkdownSpanBadge
-          key={`md-ref-${link.index}`}
-          label={link.label}
-          spanUuid={link.spanId}
           onSelectSpan={callbacks.onSelectSpan}
         />
       ),
     });
   }
 
-  // Sort by position so we can iterate left-to-right
+  for (const link of parseSpanLinks(text)) {
+    if (!link.spanId) continue;
+    matches.push({
+      index: link.index,
+      length: link.length,
+      node: (
+        <SpanLink
+          key={`md-ref-${link.index}`}
+          spanId={link.spanId}
+          fallbackName={link.label}
+          onSelectSpan={callbacks.onSelectSpan}
+        />
+      ),
+    });
+  }
+
   matches.sort((a, b) => a.index - b.index);
   return matches;
 }
 
-/**
- * Renders a string with span references replaced by clickable badges.
- * Handles both XML-style (<span id='...' name='...' />) and
- * markdown-style ([Label](url?spanId=UUID)) references.
- * Non-matching text is rendered as-is.
- */
 export function renderSpanReferences(text: string, callbacks: SpanReferenceCallbacks): React.ReactNode {
   const matches = collectMatches(text, callbacks);
 
@@ -146,7 +122,6 @@ export function renderSpanReferences(text: string, callbacks: SpanReferenceCallb
   let lastIndex = 0;
 
   for (const m of matches) {
-    // Skip overlapping matches
     if (m.index < lastIndex) continue;
 
     if (m.index > lastIndex) {

@@ -3,7 +3,7 @@
 import { Check, ExternalLink, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -82,30 +82,11 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   const schemaFields = useMemo(() => jsonSchemaToSchemaFields(structuredOutput), [structuredOutput]);
   const validFields = useMemo(() => schemaFields.filter((f) => f.name.trim()), [schemaFields]);
 
-  const resolveSpanId = useCallback(
-    async (sequentialId: string): Promise<string | null> => {
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          return data.spanId;
-        }
-      } catch (error) {
-        console.error("Error resolving span ID:", error);
-      }
-      return null;
-    },
-    [projectId, traceId]
-  );
-
   const spanRefCallbacks = useMemo<SpanReferenceCallbacks>(
     () => ({
-      resolveSpanId,
       onSelectSpan: selectSpanById,
     }),
-    [resolveSpanId, selectSpanById]
+    [selectSpanById]
   );
 
   // Show the most recent event

@@ -8,6 +8,7 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
@@ -363,14 +364,15 @@ export default function TraceViewContent({
     </div>
   );
 
-  const chatPanel = (
+  const isChatEnabled = isFeatureEnabled(Feature.LAMINAR_CLOUD);
+  const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
     </div>
-  );
+  ) : null;
 
   const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
-  const showChat = tracesAgentOpen;
+  const showChat = isChatEnabled && tracesAgentOpen;
 
   const panels: TraceViewPanels = {
     tracePanel,
