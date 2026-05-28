@@ -75,7 +75,7 @@ const FeaturesForEveryStep = () => (
         Icon={TextSearch}
         title="Fast text search"
         description="Full-text search across every span input, output, and attribute."
-        href="https://laminar.sh/docs/platform/viewing-traces"
+        href="https://laminar.sh/docs/platform/search#full-text-search"
       />
     </div>
   </section>

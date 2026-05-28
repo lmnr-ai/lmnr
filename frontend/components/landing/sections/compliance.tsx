@@ -43,7 +43,7 @@ const Compliance = () => (
       </div>
 
       <div className="flex flex-col gap-5 items-start">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 -translate-x-1">
           <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
           <Image
             src="/assets/landing/soc2.svg"
