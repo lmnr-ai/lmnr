@@ -50,11 +50,14 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
           className
         )}
       >
-        <div className={cn("relative shrink-0 md:w-[100px] md:h-[18px]", "w-[80px] h-[14px]")}>
-          <Link href="/" className="block">
-            <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
-          </Link>
-        </div>
+        <Link href="/" className="block shrink-0">
+          {/* Width-only CSS + h-auto preserves the SVG's native 100:18 aspect
+              ratio, which already matches the previous 100x18 / 80x14 wrapper
+              dimensions — no visual change. Setting one dimension and leaving
+              the other auto silences the Next.js "modified, but not the other"
+              warning that fill-mode + sized wrapper was triggering. */}
+          <Image alt="Laminar logo" src={logo} className="w-[80px] md:w-[100px] h-auto" priority />
+        </Link>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
           <nav className="hidden md:flex md:gap-[32px] items-center font-sans-landing md:text-sm leading-normal whitespace-nowrap text-xs">
             <Link href="https://laminar.sh/docs" target="_blank" className="no-underline hover:text-landing-text-200">
