@@ -1196,7 +1196,6 @@ fn main() -> anyhow::Result<()> {
                     // Spawn signals workers using new worker pool
                     #[cfg(feature = "signals")]
                     if llm_provider_client.is_some() {
-                        // Spawn clustering batching workers
                         let batch_size: usize = get_unsigned_env_with_default(
                             "SIGNALS_BATCH_SIZE",
                             crate::signals::private::queue::DEFAULT_BATCH_SIZE,
