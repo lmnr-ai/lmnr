@@ -69,39 +69,53 @@ pub struct ToolDedup {
 
 /// Pull tool definitions out of `raw_attributes` and return them as a single
 /// JSON array. Attempts the three known shapes in priority order. Returns
-/// `None` when no tool definitions are present.
+/// `None` when no tool definitions are present OR when present-but-malformed
+/// (validation failed before commit) — in which case the source attributes
+/// are left in place so the legacy attribute-blob renderer can still surface
+/// them for the user.
 ///
-/// On successful extraction the source keys are removed from `raw_attributes`
-/// so they don't ride the wire (and don't double-bill against the dedup'd
-/// `messages` insert).
+/// Validation runs on a borrowed peek; only after the shape is confirmed
+/// extractable does the function commit by `remove`-ing the source keys
+/// (so they don't ride the wire and don't double-bill against the dedup'd
+/// `messages` insert). A bad value is therefore non-destructive: the
+/// attribute survives into `CHSpan.attributes` and the frontend's
+/// `extractToolsFromAttributes` fallback still works.
 fn extract_tool_definitions(
     attrs: &mut std::collections::HashMap<String, Value>,
 ) -> Option<Vec<Value>> {
     // ai.prompt.tools — Vercel AI SDK, already reified to objects.
-    if let Some(value) = attrs.remove("ai.prompt.tools") {
-        if let Value::Array(arr) = value {
-            if !arr.is_empty() {
-                return Some(arr);
-            }
+    if let Some(Value::Array(arr)) = attrs.get("ai.prompt.tools")
+        && !arr.is_empty()
+    {
+        // Validation passed — commit the removal.
+        if let Some(Value::Array(arr)) = attrs.remove("ai.prompt.tools") {
+            return Some(arr);
         }
     }
 
     // gen_ai.tool.definitions — OTel GenAI. Either a JSON array Value or a
-    // JSON-encoded string.
-    if let Some(value) = attrs.remove("gen_ai.tool.definitions") {
-        let parsed = match value {
-            Value::String(s) => serde_json::from_str::<Value>(&s).ok(),
-            other => Some(other),
-        };
-        if let Some(Value::Array(arr)) = parsed {
-            if !arr.is_empty() {
-                return Some(arr);
-            }
-        }
+    // JSON-encoded string. Peek-then-parse so a malformed JSON string leaves
+    // the attribute in place for the legacy fallback.
+    let genai_arr = match attrs.get("gen_ai.tool.definitions") {
+        Some(Value::String(s)) => serde_json::from_str::<Value>(s)
+            .ok()
+            .and_then(|v| match v {
+                Value::Array(arr) if !arr.is_empty() => Some(arr),
+                _ => None,
+            }),
+        Some(Value::Array(arr)) if !arr.is_empty() => Some(arr.clone()),
+        _ => None,
+    };
+    if let Some(arr) = genai_arr {
+        // Validation passed — commit the removal.
+        attrs.remove("gen_ai.tool.definitions");
+        return Some(arr);
     }
 
     // llm.request.functions.{N}.{name|parameters|description|arguments|input_schema}
-    // — OpenLLMetry / LangChain. Reassemble per index.
+    // — OpenLLMetry / LangChain. Reassemble per index. Build the tools list
+    // entirely from peeked clones first; only commit (remove) once we know
+    // the extraction yielded at least one non-empty tool object.
     let mut indices: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
     for key in attrs.keys() {
         if let Some(rest) = key.strip_prefix("llm.request.functions.") {
@@ -116,12 +130,13 @@ fn extract_tool_definitions(
         let mut tools: Vec<Value> = Vec::with_capacity(indices.len());
         for idx in &indices {
             let prefix = format!("llm.request.functions.{idx}.");
-            let name = attrs.remove(&format!("{prefix}name"));
-            let description = attrs.remove(&format!("{prefix}description"));
+            let name = attrs.get(&format!("{prefix}name")).cloned();
+            let description = attrs.get(&format!("{prefix}description")).cloned();
             let parameters = attrs
-                .remove(&format!("{prefix}parameters"))
-                .or_else(|| attrs.remove(&format!("{prefix}input_schema")))
-                .or_else(|| attrs.remove(&format!("{prefix}arguments")));
+                .get(&format!("{prefix}parameters"))
+                .cloned()
+                .or_else(|| attrs.get(&format!("{prefix}input_schema")).cloned())
+                .or_else(|| attrs.get(&format!("{prefix}arguments")).cloned());
 
             let mut tool = serde_json::Map::new();
             if let Some(n) = name {
@@ -147,6 +162,15 @@ fn extract_tool_definitions(
             }
         }
         if !tools.is_empty() {
+            // Validation passed — commit by removing every contributing key.
+            for idx in &indices {
+                let prefix = format!("llm.request.functions.{idx}.");
+                attrs.remove(&format!("{prefix}name"));
+                attrs.remove(&format!("{prefix}description"));
+                attrs.remove(&format!("{prefix}parameters"));
+                attrs.remove(&format!("{prefix}input_schema"));
+                attrs.remove(&format!("{prefix}arguments"));
+            }
             return Some(tools);
         }
     }
@@ -288,6 +312,64 @@ mod tests {
     async fn returns_none_when_no_tools_present() {
         let mut span = llm_span_with_attrs(HashMap::new());
         assert!(build_tool_dedup(&mut span, make_cache()).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn malformed_genai_tool_definitions_string_preserves_attribute() {
+        // Regression: pre-fix the malformed JSON string was `remove`d before
+        // parsing, so when parsing failed the function returned None AND the
+        // attribute was permanently lost. With the peek-validate-commit fix,
+        // a malformed value must survive into `raw_attributes` so the legacy
+        // `extractToolsFromAttributes` frontend fallback can still render it.
+        let attrs = HashMap::from([(
+            "gen_ai.tool.definitions".to_string(),
+            json!("not actually json"),
+        )]);
+        let mut span = llm_span_with_attrs(attrs);
+        let dedup = build_tool_dedup(&mut span, make_cache()).await;
+        assert!(dedup.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .contains_key("gen_ai.tool.definitions"),
+            "malformed value must NOT be silently dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_ai_prompt_tools_array_preserves_attribute() {
+        // An empty array is not extractable (nothing to dedup) but still
+        // must not be silently dropped — round-tripping `[]` through the
+        // attributes blob is the user-visible truth.
+        let attrs = HashMap::from([("ai.prompt.tools".to_string(), json!([]))]);
+        let mut span = llm_span_with_attrs(attrs);
+        let dedup = build_tool_dedup(&mut span, make_cache()).await;
+        assert!(dedup.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .contains_key("ai.prompt.tools"),
+            "empty array must NOT be silently dropped"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_array_ai_prompt_tools_preserves_attribute() {
+        // Some instrumentation might emit `ai.prompt.tools` as an object.
+        // Wrong shape — not extractable — but must not be dropped.
+        let attrs = HashMap::from([(
+            "ai.prompt.tools".to_string(),
+            json!({"unexpected": "shape"}),
+        )]);
+        let mut span = llm_span_with_attrs(attrs);
+        let dedup = build_tool_dedup(&mut span, make_cache()).await;
+        assert!(dedup.is_none());
+        assert!(
+            span.attributes
+                .raw_attributes
+                .contains_key("ai.prompt.tools"),
+            "non-array must NOT be silently dropped"
+        );
     }
 
     #[tokio::test]
