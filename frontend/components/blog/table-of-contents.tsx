@@ -66,52 +66,61 @@ export default function TableOfContents({ headings, className }: Props) {
   if (headings.length === 0) return null;
 
   return (
-    <nav className={cn("relative flex flex-col overflow-y-auto thin-scrollbar", className)}>
-      {/* Continuous muted track — one element, always full height of the nav. */}
-      <div className="absolute left-0 top-0 bottom-0 w-px bg-landing-surface-500" />
+    <nav className={cn("overflow-y-auto thin-scrollbar", className)}>
+      {/* Inner relative wrapper — this is the containing block for the track
+          and the indicator. Crucially, it lives INSIDE the scroll port (the
+          nav), so its height = sum of row heights = full scroll content
+          height. If the track were absolute on the nav itself, its
+          containing block would be the nav's *padding box* (visible area
+          only), and the line would stop at the bottom of the viewport
+          instead of extending through the scrollable region. */}
+      <div className="relative flex flex-col">
+        {/* Continuous muted track — spans the full scroll content height. */}
+        <div className="absolute left-0 top-0 bottom-0 w-px bg-landing-surface-500" />
 
-      {/* Highlight — animates between row positions. Initial mount uses
-          `initial={false}` so the very first frame snaps to the measured
-          position instead of tweening in from origin. */}
-      {indicator && (
-        <motion.div
-          className="absolute left-0 w-px bg-white"
-          initial={false}
-          animate={{ top: indicator.top, height: indicator.height }}
-          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        />
-      )}
+        {/* Highlight — animates between row positions. Initial mount uses
+            `initial={false}` so the very first frame snaps to the measured
+            position instead of tweening in from origin. */}
+        {indicator && (
+          <motion.div
+            className="absolute left-0 w-px bg-white"
+            initial={false}
+            animate={{ top: indicator.top, height: indicator.height }}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+          />
+        )}
 
-      {headings.map((h) => {
-        const isActive = activeId === h.anchor;
-        return (
-          <a
-            key={h.anchor}
-            ref={(el) => {
-              if (el) rowRefs.current.set(h.anchor, el);
-              else rowRefs.current.delete(h.anchor);
-            }}
-            href={`#${h.anchor}`}
-            className="flex flex-row items-stretch gap-3 scroll-my-5 no-underline group"
-          >
-            {/* Spacer — same width as the track so the label aligns with the
-                old layout. The actual line is rendered above as a single
-                continuous element. */}
-            <div className="w-px shrink-0" />
-            <span
-              className={cn(
-                "py-[5px] text-sm leading-snug transition-colors",
-                h.level === 1 && "pl-2",
-                h.level === 2 && "pl-5",
-                h.level >= 3 && "pl-8",
-                isActive ? "text-white" : "text-landing-text-300 group-hover:text-landing-text-100"
-              )}
+        {headings.map((h) => {
+          const isActive = activeId === h.anchor;
+          return (
+            <a
+              key={h.anchor}
+              ref={(el) => {
+                if (el) rowRefs.current.set(h.anchor, el);
+                else rowRefs.current.delete(h.anchor);
+              }}
+              href={`#${h.anchor}`}
+              className="flex flex-row items-stretch gap-3 scroll-my-5 no-underline group"
             >
-              {h.text}
-            </span>
-          </a>
-        );
-      })}
+              {/* Spacer — same width as the track so the label aligns with
+                  the layout. The actual line is rendered as a single
+                  continuous element above. */}
+              <div className="w-px shrink-0" />
+              <span
+                className={cn(
+                  "py-[5px] text-sm leading-snug transition-colors",
+                  h.level === 1 && "pl-2",
+                  h.level === 2 && "pl-5",
+                  h.level >= 3 && "pl-8",
+                  isActive ? "text-white" : "text-landing-text-300 group-hover:text-landing-text-100"
+                )}
+              >
+                {h.text}
+              </span>
+            </a>
+          );
+        })}
+      </div>
     </nav>
   );
 }

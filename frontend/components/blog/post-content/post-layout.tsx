@@ -23,11 +23,11 @@ interface Props {
   children: ReactNode;
 }
 
-// Two-column post layout: title spans the full width on top; below, the hero
-// image + article live in a wider left column, and the sticky sidebar
-// (metadata / CTAs / TOC) lives on the right. Below `lg` the sidebar drops
-// (mobile readers don't need a TOC nor floating CTAs eating screen real
-// estate).
+// Two-column post layout: title spans the full container width on top; below,
+// the article fills a 1fr left column (with metadata inline above the hero)
+// and the 220px sticky sidebar (CTA + TOC only) sits on the right. Below `lg`
+// the sidebar drops; the inline metadata stays since it lives in the article
+// column, not in the sidebar.
 export default function PostLayout({ data, backHref, tocItems, children }: Props) {
   return (
     <div className="mt-8 md:mt-14 lg:mt-20 flex justify-center w-full px-4 pb-16">
@@ -39,19 +39,17 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           <ArrowLeft size={16} />
           All blog posts
         </Link>
+
         <h1 className="text-3xl sm:text-4xl lg:text-5xl leading-tight tracking-tight font-medium font-sans-landing">
           {data.title}
         </h1>
 
-        {/* Mobile-only metadata. Below `lg` the right sidebar drops out
-            entirely (it's `hidden lg:block`), so we surface the author + date
-            inline here so mobile readers still see who/when. */}
-        <p className="lg:hidden text-sm text-landing-text-300">
+        <p className="text-sm text-landing-text-300">
           {formatUTCDate(data.date)} · {data.author.name}
           {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
 
-        <div className={cn("grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12", "mt-6")}>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
           <div className="flex flex-col gap-8 min-w-0">
             <BlogMeta data={data} />
             <article className="flex flex-col z-30 w-full font-sans-landing font-medium text-base [&>*:first-child]:pt-0 [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0">
@@ -60,7 +58,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           </div>
 
           <div className="hidden lg:block">
-            <BlogSidebar data={data} tocItems={tocItems} className="sticky top-24" />
+            <BlogSidebar tocItems={tocItems} className="sticky top-24" />
           </div>
         </div>
 
