@@ -272,5 +272,42 @@
     letter-spacing: 0.002em;
     font-weight: 450;
   }
+
+}
+
+/* TODO(blog): strip pasted `class="px-2 py-1"` from Strapi posts, then move
+   these rules into @layer base via @apply (or MDX overrides). Unlayered now
+   because Strapi cells carry utility classes that'd beat @layer base. */
+.blog-article table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.blog-article thead {
+  text-align: left;
+}
+.blog-article th,
+.blog-article td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-landing-text-600);
+  vertical-align: top;
+  text-align: left;
+}
+/* Restore inter-column gutter via padding-right on every cell except the
+   last in each row — keeps the first column flush with the article's
+   left edge while still separating adjacent columns. */
+.blog-article th:not(:last-child),
+.blog-article td:not(:last-child) {
+  padding-right: 1.25rem;
+}
+.blog-article th {
+  color: white;
+  font-weight: 500;
+}
+.blog-article td {
+  color: var(--color-landing-text-200);
 }
 

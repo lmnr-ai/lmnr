@@ -52,7 +52,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-8 lg:gap-12 mt-6">
           <div className="flex flex-col gap-8 min-w-0">
             <BlogMeta data={data} />
-            <article className="flex flex-col z-30 w-full font-sans-landing font-medium text-base [&>*:first-child]:pt-0 [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0">
+            <article className="blog-article flex flex-col z-30 w-full font-sans-landing font-medium text-base [&>*:first-child]:pt-0 [&>*:first-child]:mt-0 [&>*:first-child>*]:mt-0">
               {children}
             </article>
           </div>

@@ -103,6 +103,11 @@ export default function PostContent({ data, content, backHref, slug, routePrefix
         ),
         strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
         img: (props) => <LightboxImage className="relative w-full border rounded-lg mb-8" {...props} />,
+        // Tables: styled via CSS descendant selectors on `.blog-article` in
+        // globals.css instead of MDX component overrides. Strapi emits raw
+        // HTML `<table>` markup that doesn't route through the components
+        // map, so we lean on the cascade — one rule catches both markdown
+        // pipe-tables (from remark-gfm) and raw HTML from Strapi.
         YouTubeEmbed,
       }}
     />
