@@ -3,7 +3,7 @@
 use super::OpenAIError;
 use super::conversions::{parse_openai_response, provider_request_to_openai_body};
 use crate::llm::{
-    LanguageModelClient, ProviderResult,
+    LanguageModelClient, ProviderResult, default_headers_from_env,
     models::{ProviderRequest, ProviderResponse},
 };
 use std::{env, time::Duration};
@@ -27,10 +27,12 @@ impl OpenAIClient {
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
         let api_base_url = raw_base_url.trim_end_matches('/').to_string();
+        let default_headers = default_headers_from_env().map_err(OpenAIError::config)?;
 
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(120))
+            .default_headers(default_headers)
             .build()
             .map_err(|e| OpenAIError::config(format!("Failed to build HTTP client: {}", e)))?;
 

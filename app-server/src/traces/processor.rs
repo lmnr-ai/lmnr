@@ -4,7 +4,7 @@ use std::sync::Arc;
 use itertools::Itertools;
 use rayon::prelude::*;
 use serde_json::Value;
-use tracing::{Instrument, instrument};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -18,11 +18,14 @@ use crate::{
     db::{
         DB,
         spans::Span,
-        trace::{Trace, upsert_trace_statistics_batch},
+        trace::{
+            Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
+        },
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
@@ -43,7 +46,7 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
+#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -52,6 +55,7 @@ pub async fn process_span_messages(
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
+    pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
     // Producer-side preprocessing already ran `parse_and_enrich_attributes`
@@ -68,33 +72,65 @@ pub async fn process_span_messages(
         })
         .collect();
 
+    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
+    // the regular pipeline. They don't contribute span / token / time stats,
+    // they aren't recorded to ClickHouse, and their PG path is a metadata
+    // merge against an existing trace row — never an insert.
+    let metadata_patches: Vec<TraceMetadataPatch> = messages
+        .iter()
+        .filter(|m| m.span.attributes.is_metadata_only())
+        .filter_map(|m| {
+            let Some(metadata) = m.span.attributes.metadata() else {
+                log::warn!(
+                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                    m.span.span_id,
+                    m.span.trace_id
+                );
+                return None;
+            };
+            match serde_json::to_value(&metadata) {
+                Ok(metadata_value) => Some(TraceMetadataPatch {
+                    trace_id: m.span.trace_id,
+                    project_id: m.span.project_id,
+                    metadata: metadata_value,
+                }),
+                Err(e) => {
+                    log::warn!(
+                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                        m.span.span_id,
+                        m.span.trace_id,
+                        e
+                    );
+                    None
+                }
+            }
+        })
+        .collect();
+    messages.retain(|m| !m.span.attributes.is_metadata_only());
+
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(messages.len());
 
-    let usage_span = tracing::info_span!("preprocess.usage_lookup", span_count = messages.len());
-    async {
-        for m in &mut messages {
-            let span_usage = get_llm_usage_for_span(
-                &mut m.span.attributes,
-                db.clone(),
-                cache.clone(),
-                &m.span.name,
-                &m.span.project_id,
-            )
-            .await;
+    for m in &mut messages {
+        let span_usage = get_llm_usage_for_span(
+            &mut m.span.attributes,
+            db.clone(),
+            cache.clone(),
+            &m.span.name,
+            &m.span.project_id,
+        )
+        .await;
 
-            prepare_span_for_recording(&mut m.span, &span_usage);
-            if !m.pre_processed {
-                convert_span_to_provider_format(&mut m.span);
-            }
-            // Must run AFTER provider conversion — LangChain rewrites `input`.
-            m.span.estimate_size_bytes();
-
-            span_usage_vec.push(span_usage);
+        prepare_span_for_recording(&mut m.span, &span_usage);
+        if !m.pre_processed {
+            convert_span_to_provider_format(&mut m.span);
         }
+        // `estimate_size_bytes` is deferred until AFTER PII redaction
+        // (post-dedup loop below) so the recorded size reflects the
+        // redacted output.
+
+        span_usage_vec.push(span_usage);
     }
-    .instrument(usage_span)
-    .await;
 
     // Split into parallel `Vec`s — downstream code reads `spans` and
     // `dedups` as separate slices keyed by index.
@@ -103,11 +139,7 @@ pub async fn process_span_messages(
         .map(|m| (m.span, m.input_dedup))
         .unzip();
 
-    // Process trace aggregations
-    let trace_aggregations = {
-        let _g = tracing::info_span!("preprocess.trace_agg", span_count = spans.len()).entered();
-        TraceAggregation::from_spans(&spans, &span_usage_vec)
-    };
+    let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
     // Build the dedup batch up front so the size-bytes loop and CHSpans build
     // can run before we kick off the parallel inserts.
@@ -117,12 +149,7 @@ pub async fn process_span_messages(
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    let dedup = {
-        let _g = tracing::info_span!(
-            "preprocess.dedup_batch",
-            recordable = recordable_indices.len()
-        )
-        .entered();
+    let mut dedup = {
         let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
             .iter()
@@ -130,6 +157,35 @@ pub async fn process_span_messages(
             .collect();
         build_dedup_batch(&dedup_input, &recordable_dedups)
     };
+
+    // Project-level PII redaction. Triggered by `projects.settings.removePii`
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
+    // redacted bytes flow into both the `llm_messages` insert and Quickwit
+    // indexing through the same `dedup.messages` buffer; runs BEFORE the
+    // input-bytes accounting / `llm_messages` CH insert / Quickwit indexing
+    // so every storage tier holds the redacted content. Already-seen
+    // messages were redacted on first emit and ride the wire as hashes only.
+    // Best-effort: failures are logged inside `redact_spans_in_place` and
+    // do not fail the batch.
+    if let Some(redactor) = pii_redactor.as_ref() {
+        redact_spans_in_place(
+            redactor,
+            &mut spans,
+            &mut dedup,
+            &recordable_indices,
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
+    }
+
+    for span in &mut spans {
+        // Must run AFTER provider conversion (LangChain rewrites `input`)
+        // and AFTER PII redaction so the size reflects redacted content.
+        // Input is excluded here — the post-dedup input-bytes loop below
+        // owns that charge.
+        span.estimate_size_bytes();
+    }
 
     // Charge each span for its input: dedup'd LLM spans pay for the hash
     // array + any newly-inserted `llm_messages.content` (shared messages are
@@ -178,37 +234,30 @@ pub async fn process_span_messages(
     }
 
     // Build CHSpans with embedded events to insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = {
-        let _g: tracing::span::EnteredSpan = tracing::info_span!(
-            "preprocess.ch_span_build",
-            recordable = recordable_indices.len()
-        )
-        .entered();
-        recordable_indices
-            .iter()
-            .enumerate()
-            .map(|(dedup_idx, &span_idx)| {
-                let span = &spans[span_idx];
-                let usage = &span_usage_vec[span_idx];
-                let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
-                let hashes = dedup
-                    .span_hashes
+    let ch_spans: Vec<CHSpan> = recordable_indices
+        .iter()
+        .enumerate()
+        .map(|(dedup_idx, &span_idx)| {
+            let span = &spans[span_idx];
+            let usage = &span_usage_vec[span_idx];
+            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .cloned()
+                .unwrap_or_default();
+            if !hashes.is_empty() {
+                ch_span.input = String::new();
+                ch_span.input_message_hashes = hashes;
+                ch_span.input_new_message_indices = dedup
+                    .span_new_indices
                     .get(dedup_idx)
                     .cloned()
                     .unwrap_or_default();
-                if !hashes.is_empty() {
-                    ch_span.input = String::new();
-                    ch_span.input_message_hashes = hashes;
-                    ch_span.input_new_message_indices = dedup
-                        .span_new_indices
-                        .get(dedup_idx)
-                        .cloned()
-                        .unwrap_or_default();
-                }
-                ch_span
-            })
-            .collect()
-    };
+            }
+            ch_span
+        })
+        .collect();
 
     // Parallelize trace upsert against the span path. Within the span path
     // the strict order llm_messages -> mark_seen -> spans must be preserved
@@ -218,29 +267,105 @@ pub async fn process_span_messages(
     let ch = &ch;
 
     let trace_branch = async {
-        match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-            Ok(updated_traces) => {
-                let ch_traces: Vec<CHTrace> = updated_traces
-                    .iter()
-                    .map(|trace| CHTrace::from_db_trace(trace))
-                    .collect();
-
-                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                    log::error!(
-                        "Failed to upsert {} traces to ClickHouse: {:?}",
-                        ch_traces.len(),
-                        e
-                    );
+        // The aggregation upsert and the metadata-patch UPDATE target the same
+        // `(project_id, id)` row lock, but their failure modes are independent:
+        // a single flush can mix span ingestion for trace A with a metadata
+        // patch for unrelated trace B, and an aggregation upsert error must
+        // not drop B's patch. Run each step independently.
+        //
+        // Aggregation results are tracked separately so signals only see
+        // traces whose state actually changed via real span ingestion —
+        // metadata patches don't touch any field signals evaluate, and
+        // passing patch-only traces (from a pure metadata-only flush, or
+        // from a mixed flush touching different traces) to
+        // `check_and_push_signals` would trigger spurious re-evaluations.
+        let had_aggregations = !trace_aggregations.is_empty();
+        let mut aggregation_traces: Vec<Trace> = Vec::new();
+        let aggregation_ok = if had_aggregations {
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(traces) => {
+                    aggregation_traces = traces;
+                    true
                 }
-
-                dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
-
-                Some(updated_traces)
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    false
+                }
             }
-            Err(e) => {
-                log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
-                None
+        } else {
+            true
+        };
+
+        // Patches are skipped (no row created) when the trace doesn't exist
+        // — the route handler validates existence up front.
+        let mut patched_traces: Vec<Trace> = Vec::new();
+        if !metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+                Ok(patched) => patched_traces = patched,
+                Err(e) => {
+                    log::error!("Failed to merge trace metadata patches: {:?}", e);
+                }
             }
+        }
+
+        // Build the CH / realtime payload as the deduped union, keeping the
+        // LATEST occurrence per `(project_id, id)`. When a single flush
+        // touches the same trace via BOTH the aggregation upsert AND a
+        // metadata patch, both stages return the same row keyed by
+        // `(project_id, id)`. The patch UPDATE bumps `num_spans` by 1, so
+        // `traces_replacing` (ReplacingMergeTree(num_spans)) would pick the
+        // patched row even if we shipped both — but skipping the redundant
+        // pre-patch insert saves a part on the hot ingest table. Patches
+        // are appended after aggregation, so last-write-wins preserves the
+        // patched metadata.
+        let mut updated_traces: Vec<Trace> =
+            Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
+        updated_traces.extend(aggregation_traces.iter().cloned());
+        updated_traces.extend(patched_traces);
+        if updated_traces.len() > 1 {
+            let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
+                HashMap::with_capacity(updated_traces.len());
+            for (i, t) in updated_traces.iter().enumerate() {
+                last_idx_by_key.insert((t.project_id(), t.id()), i);
+            }
+            let kept: std::collections::HashSet<usize> =
+                last_idx_by_key.into_values().collect();
+            let mut idx = 0;
+            updated_traces.retain(|_| {
+                let keep = kept.contains(&idx);
+                idx += 1;
+                keep
+            });
+        }
+
+        if !updated_traces.is_empty() {
+            let ch_traces: Vec<CHTrace> = updated_traces
+                .iter()
+                .map(|trace| CHTrace::from_db_trace(trace))
+                .collect();
+
+            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                log::error!(
+                    "Failed to upsert {} traces to ClickHouse: {:?}",
+                    ch_traces.len(),
+                    e
+                );
+            }
+
+            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
+        }
+
+        // Return only the aggregation results to the signals path. `None`
+        // suppresses `check_and_push_signals` entirely — used for both an
+        // aggregation upsert error AND a pure metadata-only flush (no real
+        // spans aggregated). Metadata patches never need signal evaluation:
+        // they don't touch any field signals filter on, and re-running
+        // signals against a patched-only trace would spuriously refire any
+        // signal that already triggered for the trace.
+        if aggregation_ok && had_aggregations {
+            Some(aggregation_traces)
+        } else {
+            None
         }
     };
 

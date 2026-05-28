@@ -5,7 +5,6 @@ use chrono::{Duration, Utc};
 use clickhouse::Row;
 use serde::Deserialize;
 use serde_json::Value;
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::cache::keys::{AUTOCOMPLETE_CACHE_KEY, AUTOCOMPLETE_LOCK_CACHE_KEY};
@@ -101,7 +100,6 @@ async fn prefill_autocomplete_key_if_missing(
     Ok(())
 }
 
-#[instrument(skip_all)]
 pub async fn populate_autocomplete_cache(
     project_id: Uuid,
     spans: &[Span],

@@ -118,7 +118,6 @@ const TracePickerContent = ({
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         estimatedRowHeight={36}
-        lockedColumns={["status"]}
       >
         <div className="flex gap-2 w-full items-center">
           <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
@@ -126,12 +125,11 @@ const TracePickerContent = ({
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
-            mode="state"
             filters={traceFilters}
             resource="traces"
             storageKey="traces"
             value={filters}
-            onSubmit={(f, search) => setFilters({ filters: f, search })}
+            onChange={({ filters: f, search }) => setFilters({ filters: f, search })}
             placeholder="Search traces..."
             className="w-full flex-1"
             options={{ disableHotKey: true }}

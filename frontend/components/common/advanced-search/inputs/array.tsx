@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
 import TagInput from "@/components/common/advanced-search/components/tag-input";
@@ -17,10 +16,6 @@ interface ArrayValueInputProps {
 }
 
 const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueInputProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const tags = useAdvancedSearchContext((state) => state.tags);
   const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
     updateTagValue: state.updateTagValue,
@@ -45,17 +40,17 @@ const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueI
   );
 
   const handleComplete = useCallback(() => {
-    submit(router, pathname, searchParams);
+    submit();
     mainInputRef.current?.focus();
-  }, [submit, router, pathname, searchParams, mainInputRef]);
+  }, [submit, mainInputRef]);
 
   const handleBlur = useCallback(() => {
     if (mode === "edit") {
       queueMicrotask(() => {
-        submit(router, pathname, searchParams);
+        submit();
       });
     }
-  }, [submit, mode, router, pathname, searchParams]);
+  }, [submit, mode]);
 
   if (!tag) return null;
 

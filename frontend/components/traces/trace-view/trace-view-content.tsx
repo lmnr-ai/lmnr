@@ -102,6 +102,8 @@ export default function TraceViewContent({
     shallow
   );
 
+  const initialSearch = useTraceViewStore((state) => state.initialSearch);
+
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
       return;
@@ -297,8 +299,6 @@ export default function TraceViewContent({
   useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
-
-  const initialSearch = searchParams.get("search") ?? "";
 
   useEffect(() => {
     fetchSpans(initialSearch, []);

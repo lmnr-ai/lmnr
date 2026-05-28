@@ -10,3 +10,4 @@ pub mod spans;
 pub mod sql;
 pub mod tag;
 pub mod traces;
+pub mod traces_metadata;

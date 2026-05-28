@@ -125,6 +125,7 @@ mod mq;
 mod names;
 mod notifications;
 mod opentelemetry_proto;
+mod pii_redactor;
 mod project_api_keys;
 mod pubsub;
 mod query_engine;
@@ -936,6 +937,32 @@ fn main() -> anyhow::Result<()> {
             }
         };
 
+    // == PII redactor ==
+    // Optional: when `PII_REDACTOR_URL` is set, span input/output fields are
+    // redacted via the pii-redactor gRPC service for projects whose
+    // `projects.remove_pii` toggle is on. Failure to connect at startup
+    // disables the feature without blocking app-server boot.
+    let pii_redactor: Option<pii_redactor::PiiRedactorClient> =
+        if is_feature_enabled(Feature::PiiRedaction) {
+            let url = env::var("PII_REDACTOR_URL").expect("PII_REDACTOR_URL must be set");
+            match runtime_handle.block_on(
+                pii_redactor::pii_redactor::pii_redactor_service_client::PiiRedactorServiceClient::connect(url.clone()),
+            ) {
+                Ok(client) => {
+                    log::info!("pii-redactor client connected to {url}");
+                    Some(pii_redactor::PiiRedactorClient::new(client))
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to connect to pii-redactor at {url} (PII redaction disabled): {e:?}"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
     // == HTTP client ==
     let http_client = reqwest::Client::new();
 
@@ -1092,6 +1119,7 @@ fn main() -> anyhow::Result<()> {
         let clickhouse_for_consumer = clickhouse.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
+        let pii_redactor_for_consumer = pii_redactor.clone();
         let worker_pool_clone = worker_pool.clone();
         let batch_worker_pool_clone = batch_worker_pool.clone();
 
@@ -1112,6 +1140,7 @@ fn main() -> anyhow::Result<()> {
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
+                        let pii_redactor = pii_redactor_for_consumer.clone();
 
                         let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
@@ -1125,6 +1154,7 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_cloud.clone(),
                                 pubsub: pubsub.clone(),
+                                pii_redactor: pii_redactor.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1153,6 +1183,7 @@ fn main() -> anyhow::Result<()> {
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
+                        let pii_redactor = pii_redactor_for_consumer.clone();
 
                         let ch_data_plane = DataPlaneClickhouse::new(
                             http_client_for_consumer.clone(),
@@ -1169,6 +1200,7 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_data_plane.clone(),
                                 pubsub: pubsub.clone(),
+                                pii_redactor: pii_redactor.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1694,7 +1726,8 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/traces")
                                     .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::traces::process_traces),
+                                    .service(api::v1::traces::process_traces)
+                                    .service(api::v1::traces_metadata::update_trace_metadata),
                             )
                             .service(
                                 web::scope("/v1/spans")
@@ -1766,6 +1799,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
+                                    .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
                                     .service(routes::spans::get_skeleton_hashes);
