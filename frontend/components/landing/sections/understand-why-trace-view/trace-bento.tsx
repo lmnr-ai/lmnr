@@ -46,27 +46,32 @@ interface Props {
   onAllPanelsOpenChange?: (open: boolean) => void;
 }
 
-// Phase 1→2 entry: fluid simultaneous open (chrome animates via plain
-// Tailwind `transition-[height,*]` over 300ms), THEN the auto-select fires
-// at +500ms (kicks off the transcript scroll while the row data is loading)
-// and the flash kicks in 100ms after so the chip pulses once the row is on
-// screen — flashing at the same instant as the select was firing before the
-// transcript had rendered.
+const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+
+// Phase 1→2 entry: fluid simultaneous open (morph + chrome both
+// transition over TWEEN), THEN the auto-select fires at +500ms (kicks
+// off the transcript scroll while the row data is loading) and the
+// flash kicks in 100ms after so the chip pulses once the row is on
+// screen — flashing at the same instant as the select was firing
+// before the transcript had rendered.
 const PHASE2_SELECT_AT_MS = 500;
 const PHASE2_FLASH_START_MS = 600;
 const PHASE2_FLASH_CLEAR_MS = 1200;
 
-// Inner chrome heights: all inner sections (row 1, signal wrapper, timeline,
-// toolbar, recording) animate via plain Tailwind `transition-[height]`, but
-// the bento OUTER stays on Framer + a measured `headerHeight` so the outer
-// can tween from a content-fit at phase 1 to a fixed 680 at phase 2+. CSS
-// can't tween between intrinsic and explicit sizes; Framer can.
+// Bento animates height between its natural content size at phase 1
+// (measured via ResizeObserver on the header, since the morph card's own
+// height changes during the slack→signal tween) and a fixed 680 at phase 2+.
+// Framer can't tween between `auto` and a number, so we keep both endpoints
+// numeric — the natural side comes from the measurement, the expanded side
+// from the constant.
 const BENTO_HEIGHT = 680;
+const ROW1_HEIGHT = 28;
 const TOOLBAR_HEIGHT = 36;
 const TIMELINE_HEIGHT = 120;
 const RECORDING_HEIGHT = 240;
+const SIGNAL_CARD_MAX = 320;
 
-const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+const noop = () => {};
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
 
@@ -135,18 +140,14 @@ const TraceViewHeaderRow1 = ({
 //   ├─────────────────────────────────┤
 //   │ Transcript Panel Header         │  ViewDropdown + Stats + Media (phase 2+)
 //   ├─────────────────────────────────┤
-//   │ Transcript                      │  h-0 → h-[360px] (phase 2) → h-[240px] (phase 3+)
+//   │ Transcript (flex-1)             │
 //   ├─────────────────────────────────┤
 //   │ Recording                       │  store browserSession — user toggle only
 //   └─────────────────────────────────┘
 //
-// Bento outer has `height: auto` — its size is the sum of inner children.
-// Each chrome section uses Tailwind `transition-[height]` between explicit
-// numeric heights, so the outer tweens smoothly without any JS / Framer.
-// The transcript's inner wrapper is given a fixed h-[360px] regardless of
-// phase so the row virtualizer always renders into a real container, even
-// when the outer wrapper is collapsed to h-0 at phase 1 (clipped invisibly
-// by overflow-hidden).
+// The bento outer is fixed at BENTO_HEIGHT once the trace view materializes
+// at phase 2. Per-section motion.divs animate height into that budget; the
+// transcript is flex-1 and absorbs whatever's left.
 const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange }: Props) => {
   const {
     setSpans,
@@ -281,12 +282,11 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     onAllPanelsOpenChange?.(isShowSpanView);
   }, [isShowSpanView, onAllPanelsOpenChange]);
 
-  // Header height is measured so the bento outer can tween cleanly from
-  // content-fit (phase 1, the morph card's own height) to fixed BENTO_HEIGHT
+  // Track the header's natural height so the bento can animate cleanly from
+  // it (phase 1 — content is just the morph card, whose height tweens
+  // during the slack→signal morph as phase shifts 1→2) to BENTO_HEIGHT
   // (phase 2+). ResizeObserver catches size changes that don't trigger a
-  // re-render here (the morph card animates its own height internally via
-  // SlackToSignalMorph). Only the OUTER + ASK-AI use Framer; every inner
-  // chrome section is Tailwind.
+  // re-render here (the morph card animates its own height internally).
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
   useEffect(() => {
@@ -299,24 +299,36 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
 
   return (
     <motion.div
-      initial={{ height: 0 }}
-      animate={{ height: phase >= 2 ? BENTO_HEIGHT : headerHeight }}
-      // Height snaps at phase 1 so the bento tracks the morph card's own
-      // height tween frame-by-frame (otherwise each ResizeObserver update
-      // would queue its own 300ms tween, stacking 300ms of lag). Only animate
-      // height at phase 2+ where the actual headerHeight → 680 growth needs
-      // to be smooth.
-      transition={{ height: phase >= 2 ? TWEEN : { duration: 0 } }}
-      className={cn(
-        "flex flex-row rounded-md overflow-hidden border transition-colors duration-300 ease-in-out",
-        phase >= 2 ? "border-landing-surface-500 bg-background" : "border-transparent bg-transparent"
-      )}
+      initial={{
+        borderColor: "rgb(37 37 38 / 0)",
+        backgroundColor: "rgb(10 10 10 / 0)",
+        height: 0,
+      }}
+      animate={{
+        borderColor: phase >= 2 ? "rgb(37 37 38)" : "rgb(37 37 38 / 0)",
+        backgroundColor: phase >= 2 ? "rgb(10 10 10)" : "rgb(10 10 10 / 0)",
+        height: phase >= 2 ? BENTO_HEIGHT : headerHeight,
+      }}
+      // Height snaps at phase 1 so the bento tracks the morph card's
+      // own height tween frame-by-frame (otherwise each ResizeObserver
+      // update would queue its own 300ms tween, stacking 300ms of lag).
+      // Only animate height at phase 2+ where the actual headerHeight→680
+      // growth needs to be smooth.
+      transition={{
+        borderColor: TWEEN,
+        backgroundColor: TWEEN,
+        height: phase >= 2 ? TWEEN : { duration: 0 },
+      }}
+      className="flex flex-row rounded-md overflow-hidden border"
     >
-      {/* LEFT COLUMN — fixed 400px wide. flex-1 transcript absorbs leftover. */}
+      {/* LEFT COLUMN — 400px wide, stretches to the bento's animated height
+          via align-items: stretch. flex-1 transcript inside absorbs the
+          excess space at phase 2+ once the bento has grown to 680. */}
       <div className="flex flex-col w-[400px] shrink-0">
-        {/* TRACE VIEW HEADER — row 1 buttons + signal card. headerRef feeds
-            the ResizeObserver above. pb-2 collapses to pb-0 when neither
-            signal nor timeline occupy space below it. */}
+        {/* TRACE VIEW HEADER — row 1 buttons + signal card (the simplified
+            morph). Production puts the signal card directly inside the
+            header's flex-col, after the rows; we do the same. The ref feeds
+            the ResizeObserver that drives the bento's pre-phase-2 height. */}
         <div
           ref={headerRef}
           className={cn(
@@ -324,30 +336,34 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             signalsPanelOpen || phase >= 3 ? "pb-2" : "pb-0"
           )}
         >
-          {/* Row 1 */}
-          <div
-            className={cn(
-              "overflow-hidden transition-[height,opacity] duration-300 ease-in-out",
-              phase >= 2 ? "h-7 opacity-100" : "h-0 opacity-0"
-            )}
+          {/* Row 1 — fades in at phase 2 */}
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: phase >= 2 ? ROW1_HEIGHT : 0, opacity: phase >= 2 ? 1 : 0 }}
+            transition={TWEEN}
+            className="overflow-hidden"
           >
             <TraceViewHeaderRow1
               signalsActive={signalsPanelOpen}
               chatActive={phase >= 4}
               onSignalsToggle={() => setSignalsPanelOpen(!signalsPanelOpen)}
             />
-          </div>
+          </motion.div>
 
-          {/* Signal card morph wrapper — max-height clamps the morph card's
-              own content-driven height (the morph still measures itself
-              internally via useLayoutEffect; that's self-contained). Margin
-              top tweens away with the collapse so no leftover gap. */}
-          <div
-            className={cn(
-              "overflow-hidden transition-[max-height,margin-top] duration-300 ease-in-out",
-              signalsPanelOpen ? "max-h-[320px]" : "max-h-0",
-              signalsPanelOpen && phase === 2 ? "mt-2" : "mt-0"
-            )}
+          {/* Signal card morph — content-driven height (measured inside the
+              morph). Wrapping motion.div caps via maxHeight + collapses when
+              the user closes the signals panel. The mount-once store effect
+              opens the panel; after that it's user-driven.
+              marginTop only applies when row 1 is present, so at phase 1
+              the morph sits flush with the header's top padding. */}
+          <motion.div
+            initial={{ maxHeight: SIGNAL_CARD_MAX, marginTop: 0 }}
+            animate={{
+              maxHeight: signalsPanelOpen ? SIGNAL_CARD_MAX : 0,
+              marginTop: signalsPanelOpen && phase === 2 ? 8 : 0,
+            }}
+            transition={TWEEN}
+            className="overflow-hidden"
           >
             <SlackToSignalMorph
               progress={morphProgress}
@@ -361,27 +377,29 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
                 if (phaseRef.current >= 2) setSignalsPanelOpen(false);
               }}
             />
-          </div>
+          </motion.div>
         </div>
 
         {/* CONDENSED TIMELINE — appears at phase 3 */}
-        <div
-          className={cn(
-            "overflow-hidden shrink-0 transition-[height] duration-300 ease-in-out",
-            phase >= 3 ? "h-[120px]" : "h-0"
-          )}
+        <motion.div
+          initial={{ height: 0 }}
+          animate={{ height: phase >= 3 ? TIMELINE_HEIGHT : 0 }}
+          transition={TWEEN}
+          className="overflow-hidden shrink-0"
         >
           <div style={{ height: TIMELINE_HEIGHT }} className="w-full border-b">
             <CondensedTimeline />
           </div>
-        </div>
+        </motion.div>
 
-        {/* TRANSCRIPT PANEL HEADER (toolbar) — phase 2+ */}
-        <div
-          className={cn(
-            "overflow-hidden shrink-0 transition-[height] duration-300 ease-in-out",
-            phase >= 2 ? "h-9" : "h-0"
-          )}
+        {/* TRANSCRIPT PANEL HEADER (toolbar) — always visible once the trace
+            view materializes (phase 2+), not gated to the timeline. Lives in
+            production at `trace-panel.tsx` as the panel's own header row. */}
+        <motion.div
+          initial={{ height: 0 }}
+          animate={{ height: phase >= 2 ? TOOLBAR_HEIGHT : 0 }}
+          transition={TWEEN}
+          className="overflow-hidden shrink-0"
         >
           <div
             style={{ height: TOOLBAR_HEIGHT }}
@@ -401,16 +419,22 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
               <span className="ml-1 truncate">Media</span>
             </Button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* TRANSCRIPT — flex-1 absorbs the leftover space inside the
-            fixed-height bento outer (phase 2+: 680 - header - toolbar -
-            timeline - recording). Persistent Transcript instance via the
-            absolute-positioned inner wrapper: at phase 1 the inner is
-            explicitly sized 400×360 so the virtualizer hydrates real rows
-            (clipped invisibly by the bento outer's smaller height), at
-            phase 2+ it switches to `inset: 0` and fills whatever flex-1
-            gives it. No cold mount, no row re-measurement at the reveal. */}
+        {/* TRANSCRIPT — flex-1 absorbs the excess vertical space once the
+            bento is 680 tall (phase 2+). min-h-0 lets it shrink to 0 at
+            phase 1 when the bento collapses to header height.
+            `relative` anchors the persistent inner wrapper below.
+
+            Transcript is mounted from phase 0 (no `phase >= 2 &&` gate).
+            The inner wrapper is `position: absolute` throughout — at phase
+            1 it sizes itself explicitly to ~match the phase-2 transcript
+            area (400×360) with opacity-0, so the virtualizer hydrates real
+            rows while the bento outer's overflow-hidden + smaller height
+            clips it from view. At phase 2 it switches to `inset: 0` and
+            fills the now-expanded flex-1 parent at full opacity. Same
+            Transcript instance throughout → no cold mount, virtualizer
+            state preserved across the reveal. */}
         <div className="flex-1 min-h-0 overflow-hidden relative">
           <div
             style={
@@ -431,23 +455,21 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           </div>
         </div>
 
-        {/* RECORDING — browser-session toggle (user-driven). */}
-        <div
-          className={cn(
-            "overflow-hidden shrink-0 transition-[height] duration-300 ease-in-out",
-            browserSession ? "h-[240px]" : "h-0"
-          )}
+        {/* RECORDING — visibility driven entirely by the store's
+            browserSession field. The Media header button is the only writer
+            — there's no phase-sync. */}
+        <motion.div
+          animate={{ height: browserSession ? RECORDING_HEIGHT : 0 }}
+          transition={TWEEN}
+          className="overflow-hidden shrink-0"
         >
           <div style={{ height: RECORDING_HEIGHT }} className="w-full border-t">
             {browserSession && trace && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />}
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {/* RIGHT COL — ask-ai, appears at phase 4. Width tweens via Framer
-          to keep the column collapsed → 360px; using Framer here (not
-          Tailwind) so the inner h-full reliably stretches to the
-          Framer-driven bento outer height. */}
+      {/* RIGHT COL — ask-ai, appears at phase 4 */}
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: phase >= 4 ? 360 : 0 }}
