@@ -1,5 +1,6 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
 import React from "react";
+import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 
 import LightboxImage from "@/components/blog/lightbox-image";
@@ -7,6 +8,7 @@ import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
 import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
 import { type BlogMetadata } from "@/lib/blog/types";
+import { parseHeadings } from "@/lib/blog/utils";
 
 import PostLayout from "./post-layout";
 
@@ -14,7 +16,6 @@ interface PostContentProps {
   data: BlogMetadata;
   content: string;
   backHref: string;
-  backLabel: string;
   slug: string;
   routePrefix: string;
 }
@@ -51,11 +52,11 @@ function ArticleJsonLd({ data, slug, routePrefix }: { data: BlogMetadata; slug: 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
 }
 
-export default function PostContent({ data, content, backHref, backLabel, slug, routePrefix }: PostContentProps) {
+export default function PostContent({ data, content, backHref, slug, routePrefix }: PostContentProps) {
   const article = (
     <MDXRemote
       source={content}
-      options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
+      options={{ mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeSlug] } }}
       components={{
         h1: (props) => <MDHeading props={props} level={0} />,
         h2: (props) => <MDHeading props={props} level={1} />,
@@ -83,7 +84,7 @@ export default function PostContent({ data, content, backHref, backLabel, slug, 
               }
             }
           }
-          return <p className="pt-4 text-white/85 font-light" {...props} />;
+          return <p className="pt-4 text-white/85" {...props} />;
         },
         a: (props) => (
           <a className="text-white underline hover:text-primary" target="_blank" rel="noopener noreferrer" {...props} />
@@ -93,8 +94,8 @@ export default function PostContent({ data, content, backHref, backLabel, slug, 
         code: (props) => (
           <span className="text-sm bg-secondary-foreground/20 rounded text-white font-mono px-1.5 py-0.5" {...props} />
         ),
-        ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85 font-light" {...props} />,
-        ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85 font-light" {...props} />,
+        ul: (props) => <ul className="list-disc pl-4 pt-4 text-white/85" {...props} />,
+        ol: (props) => <ol className="list-decimal pl-4 pt-4 text-white/85" {...props} />,
         li: (props) => (
           <li className="pt-1.5 text-white/85 leading-relaxed" {...props}>
             {props.children}
@@ -107,10 +108,12 @@ export default function PostContent({ data, content, backHref, backLabel, slug, 
     />
   );
 
+  const tocItems = parseHeadings(content);
+
   return (
     <>
       <ArticleJsonLd data={data} slug={slug} routePrefix={routePrefix} />
-      <PostLayout data={data} backHref={backHref} backLabel={backLabel}>
+      <PostLayout data={data} backHref={backHref} tocItems={tocItems}>
         {article}
       </PostLayout>
     </>

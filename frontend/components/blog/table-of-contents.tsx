@@ -1,0 +1,117 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
+
+interface TocItem {
+  level: number;
+  text: string;
+  anchor: string;
+}
+
+interface Props {
+  headings: TocItem[];
+  className?: string;
+}
+
+// Single persistent indicator, not per-row layoutId. layoutId blinks when the
+// active jumps from a lower row to a higher one: the new motion.div mounts
+// inside a row whose flex items-stretch height hasn't resolved yet, Framer
+// reads a ~0px rect, animates from there → "collapses to 0, expands". Lifting
+// the indicator out and animating top/height on a stable element removes the
+// race — same DOM node, same parent, just two changing numbers.
+export default function TableOfContents({ headings, className }: Props) {
+  const [activeId, setActiveId] = useState<string | null>(headings[0]?.anchor ?? null);
+  const rowRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
+  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const targets = headings
+      .map((h) => document.getElementById(h.anchor))
+      .filter((el): el is HTMLElement => el !== null);
+    if (targets.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const intersecting = entries.filter((e) => e.isIntersecting);
+        if (intersecting.length === 0) return;
+        const topmost = intersecting.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        setActiveId(topmost.target.id);
+      },
+      { rootMargin: "-80px 0px -70% 0px" }
+    );
+    targets.forEach((t) => observer.observe(t));
+    return () => observer.disconnect();
+  }, [headings]);
+
+  // Synchronous post-layout measurement of the active row — useLayoutEffect
+  // (not useEffect) so the indicator's first paint already has the right
+  // top/height. Recomputes if the row's height ever changes (responsive
+  // text reflow on resize). Also nudges the row into view inside the
+  // scrollable nav — `block: "nearest"` is a no-op when the row is already
+  // visible, so calm scrolling doesn't get re-scrolled out from under the
+  // user. CSS handles the scrollability (overflow-y-auto + max-h); JS only
+  // handles the "follow the active row" behavior because CSS has no
+  // mechanism for that.
+  useLayoutEffect(() => {
+    if (!activeId) return;
+    const el = rowRefs.current.get(activeId);
+    if (!el) return;
+    setIndicator({ top: el.offsetTop, height: el.offsetHeight });
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeId, headings]);
+
+  if (headings.length === 0) return null;
+
+  return (
+    <nav className={cn("relative flex flex-col overflow-y-auto thin-scrollbar", className)}>
+      {/* Continuous muted track — one element, always full height of the nav. */}
+      <div className="absolute left-0 top-0 bottom-0 w-px bg-landing-surface-500" />
+
+      {/* Highlight — animates between row positions. Initial mount uses
+          `initial={false}` so the very first frame snaps to the measured
+          position instead of tweening in from origin. */}
+      {indicator && (
+        <motion.div
+          className="absolute left-0 w-px bg-white"
+          initial={false}
+          animate={{ top: indicator.top, height: indicator.height }}
+          transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        />
+      )}
+
+      {headings.map((h) => {
+        const isActive = activeId === h.anchor;
+        return (
+          <a
+            key={h.anchor}
+            ref={(el) => {
+              if (el) rowRefs.current.set(h.anchor, el);
+              else rowRefs.current.delete(h.anchor);
+            }}
+            href={`#${h.anchor}`}
+            className="flex flex-row items-stretch gap-3 scroll-my-5 no-underline group"
+          >
+            {/* Spacer — same width as the track so the label aligns with the
+                old layout. The actual line is rendered above as a single
+                continuous element. */}
+            <div className="w-px shrink-0" />
+            <span
+              className={cn(
+                "py-[5px] text-sm leading-snug transition-colors",
+                h.level === 1 && "pl-2",
+                h.level === 2 && "pl-5",
+                h.level >= 3 && "pl-8",
+                isActive ? "text-white" : "text-landing-text-300 group-hover:text-landing-text-100"
+              )}
+            >
+              {h.text}
+            </span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}

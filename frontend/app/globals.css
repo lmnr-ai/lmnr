@@ -114,6 +114,25 @@
   scrollbar-width: none;
 }
 
+@utility thin-scrollbar {
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: rgb(67 68 71);
+    border-radius: 9999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(95 97 102);
+  }
+  scrollbar-width: thin;
+  scrollbar-color: rgb(67 68 71) transparent;
+}
+
 @utility hide-arrow {
   &[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
