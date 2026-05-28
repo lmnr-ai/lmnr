@@ -82,8 +82,8 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     header: "Tokens",
     id: "total_tokens",
     meta: { sql: "total_tokens" },
-    cell: (row) => <TokensCell stats={row.row.original} />,
-    size: 160,
+    cell: (row) => <TokensCell stats={row.row.original} showCacheInline />,
+    size: 220,
   },
   {
     accessorFn: (row) => row.traceCount ?? 0,

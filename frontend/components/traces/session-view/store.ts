@@ -25,33 +25,15 @@ export type SessionViewSelectedSpan = {
   spanId: string;
 };
 
-export type SessionSummary = {
-  sessionId: string;
-  // Optional aggregated stats (may be set from the table row when available).
-  startTime?: string;
-  endTime?: string;
-  totalTokens?: number;
-  totalCost?: number;
-  traceCount?: number;
-};
-
 interface SessionViewState {
-  // Session metadata
-  session?: SessionSummary;
-
-  // Project context (set by SessionViewContent on mount).
-  projectId?: string;
+  // Baked in at store creation — one store per (projectId, sessionId) pair.
+  projectId: string;
+  sessionId: string;
 
   // Traces loaded upfront for this session.
   traces: TraceRow[];
   isTracesLoading: boolean;
   tracesError?: string;
-
-  // Extra stats not on TraceRow (cache_read_input_tokens, reasoning_tokens) —
-  // fetched once per session from a dedicated endpoint that aggregates from
-  // span attributes.
-  cacheReadInputTokens?: number;
-  reasoningTokens?: number;
 
   // Per-trace span data (lazy-loaded on expand).
   traceSpans: Record<string, TraceViewSpan[]>;
@@ -94,12 +76,9 @@ interface SessionViewState {
 }
 
 interface SessionViewActions {
-  setSession: (session?: SessionSummary) => void;
-  setProjectId: (projectId?: string) => void;
   setTraces: (traces: TraceRow[]) => void;
   setIsTracesLoading: (loading: boolean) => void;
   setTracesError: (error?: string) => void;
-  setExtraStats: (stats: { cacheReadInputTokens?: number; reasoningTokens?: number }) => void;
 
   /** Fetch spans for a trace if not already loaded or currently loading.
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
@@ -192,11 +171,20 @@ function distributeDeficit(
   return updates;
 }
 
-const createSessionViewStore = (options?: { initialSession?: SessionSummary; storeKey?: string }) =>
+const createSessionViewStore = ({
+  projectId,
+  sessionId,
+  storeKey,
+}: {
+  projectId: string;
+  sessionId: string;
+  storeKey?: string;
+}) =>
   createStore<SessionViewStore>()(
     persist(
       (set, get) => ({
-        session: options?.initialSession,
+        projectId,
+        sessionId,
         traces: [],
         isTracesLoading: false,
         tracesError: undefined,
@@ -226,17 +214,13 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         spanPanelWidth: ALL_PANELS[1].default,
         maxWidth: Infinity,
 
-        setSession: (session) => set({ session }),
-        setProjectId: (projectId) => set({ projectId }),
         setTraces: (traces) => set({ traces }),
         setIsTracesLoading: (isTracesLoading) => set({ isTracesLoading }),
         setTracesError: (tracesError) => set({ tracesError }),
-        setExtraStats: ({ cacheReadInputTokens, reasoningTokens }) => set({ cacheReadInputTokens, reasoningTokens }),
 
         ensureTraceSpans: async (trace) => {
           const state = get();
           const { projectId } = state;
-          if (!projectId) return;
           if (state.traceSpans[trace.id] || state.traceSpansLoading[trace.id]) return;
 
           set((s) => ({
@@ -364,9 +348,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         },
 
         searchSessionSpans: async (filters, search) => {
-          const state = get();
-          const { projectId, session } = state;
-          if (!projectId || !session?.sessionId) return;
+          const { projectId, sessionId } = get();
 
           set({ isSearchLoading: true, searchError: undefined });
 
@@ -377,7 +359,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
             params.append("searchIn", "output");
             for (const f of filters) params.append("filter", JSON.stringify(f));
 
-            const url = `/api/projects/${projectId}/sessions/${session.sessionId}/spans?${params.toString()}`;
+            const url = `/api/projects/${projectId}/sessions/${sessionId}/spans?${params.toString()}`;
             const res = await fetch(url);
             if (!res.ok) {
               const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
@@ -471,7 +453,7 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
         },
       }),
       {
-        name: options?.storeKey ?? "session-view-state",
+        name: storeKey ?? "session-view-state",
         partialize: (state) => ({
           sessionPanelWidth: state.sessionPanelWidth,
           spanPanelWidth: state.spanPanelWidth,
@@ -499,16 +481,18 @@ const createSessionViewStore = (options?: { initialSession?: SessionSummary; sto
 const SessionViewStoreContext = createContext<StoreApi<SessionViewStore> | undefined>(undefined);
 
 interface SessionViewStoreProviderProps {
-  initialSession?: SessionSummary;
+  projectId: string;
+  sessionId: string;
   storeKey?: string;
 }
 
 const SessionViewStoreProvider = ({
   children,
-  initialSession,
+  projectId,
+  sessionId,
   storeKey,
 }: PropsWithChildren<SessionViewStoreProviderProps>) => {
-  const [storeState] = useState(() => createSessionViewStore({ initialSession, storeKey }));
+  const [storeState] = useState(() => createSessionViewStore({ projectId, sessionId, storeKey }));
 
   return React.createElement(SessionViewStoreContext.Provider, { value: storeState }, children);
 };

@@ -210,7 +210,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 min-w-[220px] px-3 py-2">
+          <TooltipContent className="flex flex-col border gap-1 min-w-55 px-3 py-2">
             <TokensBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>
@@ -230,7 +230,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent className="flex flex-col border gap-1 min-w-[200px] px-3 py-2">
+          <TooltipContent className="flex flex-col border gap-1 min-w-50 px-3 py-2">
             <CostBreakdown stats={stats} labelPrefix={labelPrefix} />
           </TooltipContent>
         </TooltipPortal>

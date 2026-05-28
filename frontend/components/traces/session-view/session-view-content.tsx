@@ -1,6 +1,5 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import React, { useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -11,38 +10,22 @@ import SessionPanel from "./session-panel";
 import SessionSpanPanel from "./session-span-panel";
 import { useSessionViewStore } from "./store";
 
-interface SessionViewContentProps {
-  sessionId: string;
-}
-
 const PAGE_SIZE = 200;
 
-export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
-  const { projectId } = useParams<{ projectId: string }>();
+export default function SessionViewContent() {
+  const { projectId, sessionId, spanPanelOpen, setTraces, setIsTracesLoading, setTracesError } = useSessionViewStore(
+    (s) => ({
+      projectId: s.projectId,
+      sessionId: s.sessionId,
+      spanPanelOpen: s.spanPanelOpen,
+      setTraces: s.setTraces,
+      setIsTracesLoading: s.setIsTracesLoading,
+      setTracesError: s.setTracesError,
+    }),
+    shallow
+  );
 
-  const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId, setExtraStats } =
-    useSessionViewStore(
-      (s) => ({
-        spanPanelOpen: s.spanPanelOpen,
-        setTraces: s.setTraces,
-        setIsTracesLoading: s.setIsTracesLoading,
-        setTracesError: s.setTracesError,
-        setSession: s.setSession,
-        setProjectId: s.setProjectId,
-        setExtraStats: s.setExtraStats,
-      }),
-      shallow
-    );
-
-  // Push projectId into the store so store-owned async actions
-  // (e.g. ensureTraceSpans) can issue requests without prop-drilling.
   useEffect(() => {
-    setProjectId(projectId);
-  }, [projectId, setProjectId]);
-
-  // --- Fetch traces for the session ---
-  useEffect(() => {
-    setSession({ sessionId });
     const controller = new AbortController();
     const fetchTraces = async () => {
       try {
@@ -74,30 +57,7 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
     };
     fetchTraces();
     return () => controller.abort();
-  }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError, setSession]);
-
-  // Fetch extra session stats not exposed on TraceRow (cache + reasoning tokens).
-  // Best-effort: the stats panel falls back to 0 silently on failure.
-  useEffect(() => {
-    const controller = new AbortController();
-    setExtraStats({ cacheReadInputTokens: undefined, reasoningTokens: undefined });
-    (async () => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/sessions/${sessionId}/stats`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) return;
-        const body = (await res.json()) as { cacheReadInputTokens?: number; reasoningTokens?: number };
-        setExtraStats({
-          cacheReadInputTokens: body.cacheReadInputTokens ?? 0,
-          reasoningTokens: body.reasoningTokens ?? 0,
-        });
-      } catch {
-        // ignored — stats panel handles missing values
-      }
-    })();
-    return () => controller.abort();
-  }, [projectId, sessionId, setExtraStats]);
+  }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError]);
 
   const panels: SessionViewPanels = useMemo(
     () => ({

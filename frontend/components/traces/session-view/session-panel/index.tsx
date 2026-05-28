@@ -33,8 +33,6 @@ export default function SessionPanel() {
     clearSearch,
     sessionTimelineEnabled,
     setSessionTimelineEnabled,
-    cacheReadInputTokens,
-    reasoningTokens,
   } = useSessionViewStore(
     (s) => ({
       traces: s.traces,
@@ -44,8 +42,6 @@ export default function SessionPanel() {
       clearSearch: s.clearSearch,
       sessionTimelineEnabled: s.sessionTimelineEnabled,
       setSessionTimelineEnabled: s.setSessionTimelineEnabled,
-      cacheReadInputTokens: s.cacheReadInputTokens,
-      reasoningTokens: s.reasoningTokens,
     }),
     shallow
   );
@@ -61,17 +57,7 @@ export default function SessionPanel() {
     [searchSessionSpans, clearSearch]
   );
 
-  const sessionStats = useMemo(() => {
-    if (traces.length === 0) return null;
-    const base = computeTraceStats(traces);
-    // TraceRow doesn't carry cache / reasoning tokens — overlay the
-    // session-scoped values fetched separately by `SessionViewContent`.
-    return {
-      ...base,
-      cacheReadInputTokens: cacheReadInputTokens ?? base.cacheReadInputTokens,
-      reasoningTokens: reasoningTokens ?? base.reasoningTokens,
-    };
-  }, [traces, cacheReadInputTokens, reasoningTokens]);
+  const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
