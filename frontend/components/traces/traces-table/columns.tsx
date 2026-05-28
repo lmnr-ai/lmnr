@@ -1,33 +1,19 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import TagsCell from "@/components/tags/tags-cell";
 import TraceTagsCell from "@/components/tags/trace-tags-cell";
+import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { cn } from "@/lib/utils";
-
-const format = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 5,
-  minimumFractionDigits: 1,
-});
-
-const detailedFormat = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 8,
-});
 
 export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
   id: "preview",
@@ -137,20 +123,12 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
-    accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
-        return "-";
-      }
-      const duration = end.getTime() - start.getTime();
-      return `${(duration / 1000).toFixed(2)}s`;
-    },
     header: "Duration",
     id: "duration",
     enableSorting: true,
     meta: { sql: "duration" },
-    size: 80,
+    cell: (row) => <DurationCell startTime={row.row.original.startTime} endTime={row.row.original.endTime} />,
+    size: 100,
   },
   {
     accessorFn: (row) => row.totalCost,
@@ -158,56 +136,17 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "cost",
     enableSorting: true,
     meta: { sql: "total_cost" },
-    cell: (row) => {
-      if (row.getValue() > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild className="relative p-0">
-                <div className="truncate">{format.format(row.getValue())}</div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border">
-                  <div>
-                    <div className="flex justify-between space-x-2">
-                      <span>Input cost</span>
-                      <span>{detailedFormat.format(row.row.original.inputCost)}</span>
-                    </div>
-                    <div className="flex justify-between space-x-2">
-                      <span>Output cost</span>
-                      <span>{detailedFormat.format(row.row.original.outputCost)}</span>
-                    </div>
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      return "-";
-    },
+    cell: (row) => <CostCell stats={row.row.original} />,
     size: 100,
   },
   {
-    accessorFn: (row) => row.totalTokens ?? "-",
+    accessorFn: (row) => row.totalTokens ?? 0,
     header: "Tokens",
     id: "total_tokens",
     enableSorting: true,
     meta: { sql: "total_tokens" },
-    cell: (row) => {
-      const cache = row.row.original.cacheReadInputTokens;
-      return (
-        <div className="truncate">
-          {`${row.row.original.inputTokens ?? "-"}`}
-          {" → "}
-          {`${row.row.original.outputTokens ?? "-"}`}
-          {` (${row.row.original.totalTokens ?? "-"})`}
-          {!!cache && <span className="text-success-bright">{` ${cache} cached`}</span>}
-        </div>
-      );
-    },
-    size: 180,
+    cell: (row) => <TokensCell stats={row.row.original} showCacheInline />,
+    size: 220,
   },
   {
     accessorFn: (row) => row.spanTags,
