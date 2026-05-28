@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
 
 import { usePanelHover } from "./hover-context";
-import { getSignalDisplayColor, schemaFieldsToStructuredOutput } from "./utils";
+import { schemaFieldsToStructuredOutput } from "./utils";
 
 interface Props {
   traceId: string;
@@ -38,12 +39,10 @@ function PayloadValue({
   value,
   field,
   spanRefCallbacks,
-  badgeBorder,
 }: {
   value: unknown;
   field: SchemaField;
   spanRefCallbacks?: SpanReferenceCallbacks;
-  badgeBorder: string;
 }) {
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">&mdash;</span>;
@@ -53,10 +52,7 @@ function PayloadValue({
       return <span className="text-secondary-foreground">{value ? "true" : "false"}</span>;
     case "enum":
       return (
-        <span
-          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-secondary-foreground"
-          style={{ borderColor: badgeBorder }}
-        >
+        <span className="inline-flex items-center rounded-full border border-blue-400/40 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
           {String(value)}
         </span>
       );
@@ -79,15 +75,22 @@ function PayloadValue({
 
 export default function ExpandedContent({ traceId, signal }: Props) {
   const { projectId } = useParams();
-  const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
-  const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
-  const spans = useTraceViewStore((state) => state.spans);
+  const { selectSpanById, spans, traceSignalsCount } = useTraceViewStore(
+    (state) => ({
+      selectSpanById: state.selectSpanById,
+      spans: state.spans,
+      traceSignalsCount: state.traceSignals.length,
+    }),
+    shallow
+  );
   const hovered = usePanelHover();
-  const accentBorder = `${getSignalDisplayColor(signal)}40`;
 
   const events = (signal.events as EventRow[]) ?? [];
   const latestEvent = events[0];
-  const leafCluster = signal.clusterPath[signal.clusterPath.length - 1];
+  const isUnclustered = signal.clusterPath.length === 0;
+  // Hover toolbar only appears in case 4 (multi-signal, this signal unclustered).
+  // Cases 1-3 expose the open-in-signals action via the header ArrowUpRight.
+  const showHoverToolbar = traceSignalsCount > 1 && isUnclustered;
 
   const schemaFields = useMemo(
     () => jsonSchemaToSchemaFields(schemaFieldsToStructuredOutput(signal.schemaFields)),
@@ -103,15 +106,6 @@ export default function ExpandedContent({ traceId, signal }: Props) {
     onSelectSpan: selectSpanById,
   });
 
-  const handleOpenInChat = () => {
-    const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
-    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
-  };
-
-  const buttonClass = "h-6 px-2 text-xs bg-transparent hover:bg-muted text-secondary-foreground";
-  const buttonStyle = { borderColor: accentBorder };
-
   return (
     <div className="px-4 pb-3 pt-2 flex flex-col gap-3">
       {/* Toolbar is hidden in the trigger (base) variant and revealed in the
@@ -119,34 +113,23 @@ export default function ExpandedContent({ traceId, signal }: Props) {
           take up gap space when collapsed; the hover popover's height: auto
           animation visually grows it into view, plus we fade in to soften the
           appearance after the popover has finished growing. */}
-      {hovered && (
+      {hovered && showHoverToolbar && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18, delay: 0.15 }}
           className="flex items-center gap-1.5 flex-wrap"
         >
-          <Button variant="outline" className={buttonClass} style={buttonStyle} onClick={handleOpenInChat}>
-            <Sparkles className="size-3.5 mr-1" />
-            Open in AI Chat
-          </Button>
-          <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
+          <Button
+            variant="outline"
+            className="h-6 px-2 text-xs bg-transparent hover:bg-muted text-secondary-foreground border-blue-400/40"
+            asChild
+          >
             <Link href={`/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
               Open in Signals
             </Link>
           </Button>
-          {leafCluster && (
-            <Button variant="outline" className={buttonClass} style={buttonStyle} asChild>
-              <Link
-                href={`/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}&traceId=${traceId}`}
-                target="_blank"
-              >
-                <ExternalLink className="size-3.5 mr-1" />
-                Open cluster
-              </Link>
-            </Button>
-          )}
         </motion.div>
       )}
       {!latestEvent ? (
@@ -156,12 +139,7 @@ export default function ExpandedContent({ traceId, signal }: Props) {
           <div key={field.name} className="flex flex-col gap-1">
             <div className="text-xs text-muted-foreground">{field.name}</div>
             <div className="text-xs">
-              <PayloadValue
-                value={parsed[field.name]}
-                field={field}
-                spanRefCallbacks={spanRefCallbacks}
-                badgeBorder={accentBorder}
-              />
+              <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
             </div>
           </div>
         ))
