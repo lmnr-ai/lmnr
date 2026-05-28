@@ -1,6 +1,5 @@
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 
-import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
@@ -42,13 +41,7 @@ export default function CompareChart({
         <ChartContainer config={chartConfig} className="h-full w-full">
           <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="index"
-              tickLine={false}
-              axisLine={true}
-              padding={{ left: 0, right: 0 }}
-              tick={renderTick as any}
-            />
+            <XAxis dataKey="index" tickLine={false} axisLine={false} tick={false} padding={{ left: 0, right: 0 }} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
             <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
             <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />

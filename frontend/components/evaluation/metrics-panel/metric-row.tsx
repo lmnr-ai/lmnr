@@ -1,7 +1,8 @@
 import { ArrowRight } from "lucide-react";
 
-import BinaryViz, { type BinaryStyle } from "@/components/evaluation/metrics-panel/binary-viz";
-import { isBinaryDistribution, pctChange } from "@/components/evaluation/metrics-panel/utils";
+import { type BinaryStyle } from "@/components/evaluation/metrics-panel/binary-viz";
+import SmartViz from "@/components/evaluation/metrics-panel/smart-viz";
+import { pctChange } from "@/components/evaluation/metrics-panel/utils";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 
@@ -42,7 +43,6 @@ export default function MetricRow({
   const validAvg = isValidNumber(avg);
   const validC = isValidNumber(cAvg);
   const change = validAvg && validC ? pctChange(avg, cAvg) : null;
-  const binary = isBinaryDistribution(distribution);
   const showViz = density === "full";
 
   if (density === "compact") {
@@ -105,16 +105,14 @@ export default function MetricRow({
       </div>
       {showViz && (
         <div className="mt-1 w-full">
-          {binary ? (
-            <BinaryViz
-              distribution={distribution}
-              comparedDistribution={isComparison ? comparedDistribution : null}
-              size="sm"
-              style={binaryStyle}
-            />
-          ) : (
-            <Sparkline distribution={distribution} />
-          )}
+          <SmartViz
+            distribution={distribution}
+            comparedDistribution={isComparison ? comparedDistribution : null}
+            isComparison={isComparison}
+            binaryStyle={binaryStyle}
+            size="sm"
+            className="h-20"
+          />
         </div>
       )}
     </div>
@@ -181,29 +179,6 @@ function CompactRow({
           </span>
         )}
       </span>
-    </div>
-  );
-}
-
-function Sparkline({ distribution }: { distribution: EvaluationScoreDistributionBucket[] | null }) {
-  if (!distribution || distribution.length === 0) {
-    return <div className="h-2 w-full rounded-sm bg-muted" />;
-  }
-  const max = Math.max(...distribution.map((b) => b.heights[0] ?? 0), 1);
-  return (
-    <div className="flex h-5 items-end gap-px">
-      {distribution.map((b, i) => {
-        const h = b.heights[0] ?? 0;
-        const pct = (h / max) * 100;
-        return (
-          <div
-            key={i}
-            className="flex-1 rounded-sm bg-primary/70"
-            style={{ height: `${Math.max(pct, 4)}%` }}
-            title={`${h}`}
-          />
-        );
-      })}
     </div>
   );
 }

@@ -12,6 +12,7 @@ interface SmartVizProps {
   isComparison?: boolean;
   isLoading?: boolean;
   binaryStyle?: BinaryStyle;
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -22,6 +23,7 @@ export default function SmartViz({
   isComparison,
   isLoading,
   binaryStyle = "dual",
+  size = "lg",
   className,
 }: SmartVizProps) {
   const useBinary = isBinaryDistribution(distribution) && (!isComparison || isBinaryDistribution(comparedDistribution));
@@ -31,7 +33,7 @@ export default function SmartViz({
       <BinaryViz
         distribution={distribution}
         comparedDistribution={isComparison ? comparedDistribution : null}
-        size="lg"
+        size={size}
         style={binaryStyle}
         className={className}
       />

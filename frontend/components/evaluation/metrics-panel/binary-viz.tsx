@@ -161,6 +161,8 @@ function DualStyle({
 
 // HTML + absolute-positioned divs (so % left works without aspect-ratio distortion).
 // The arrowhead is a tiny FIXED-SIZE inline SVG anchored at curr — never scaled.
+// With no comparison value, an arrow has nothing to point relative to; fall
+// back to a plain progress-bar viz so the cell still communicates the rate.
 function ArrowStyle({
   curRate,
   cmpRate,
@@ -172,6 +174,9 @@ function ArrowStyle({
   cur: Counts;
   size: "sm" | "md" | "lg";
 }) {
+  if (cmpRate === null) {
+    return <BarStyle curRate={curRate} cmpRate={null} cur={cur} size={size} />;
+  }
   // lg gets a much taller track so the prev/curr labels above/below have breathing room.
   const trackH = size === "sm" ? 14 : size === "lg" ? 72 : 26;
   const tickClass = size === "lg" ? "h-3 bg-muted-foreground/50" : "h-1.5 bg-muted-foreground/40";
