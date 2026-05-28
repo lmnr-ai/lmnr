@@ -26,7 +26,7 @@ export default async function BlogsPage() {
   return (
     <>
       <PageViewTracker feature="blog" action="list_viewed" />
-      <BlogList posts={posts} routePrefix="blog" title="Blog" />
+      <BlogList posts={posts} routePrefix="blog" />
     </>
   );
 }

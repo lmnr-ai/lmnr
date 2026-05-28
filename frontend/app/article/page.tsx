@@ -22,5 +22,5 @@ export const metadata: Metadata = {
 export default async function ArticlesPage() {
   const posts = await getBlogPosts({ sortByDate: true, category: "article" });
 
-  return <BlogList posts={posts} routePrefix="article" title="Articles" />;
+  return <BlogList posts={posts} routePrefix="article" />;
 }
