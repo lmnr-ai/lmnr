@@ -210,8 +210,16 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
   const phaseRef = useRef(phase);
   useEffect(() => {
     phaseRef.current = phase;
-    if (phase < 2 && selectedSpan) setSelectedSpan(undefined);
-  }, [phase, selectedSpan, setSelectedSpan]);
+    if (phase < 2) {
+      if (selectedSpan) setSelectedSpan(undefined);
+      // Narrative reset — phase 1 always shows the morph card. The bento's
+      // phase-1 height is `headerHeight` measured from the header div; if the
+      // user closed the signal panel at phase 2 and scrolls back, the header
+      // collapses to its padding (~6px) and the bento shrinks to nothing.
+      // Force-reopen so the morph card is always visible when phase < 2.
+      setSignalsPanelOpen(true);
+    }
+  }, [phase, selectedSpan, setSelectedSpan, setSignalsPanelOpen]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
@@ -362,7 +370,12 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
               className="w-full max-w-none"
               flashSpanId={flashSpanId}
               onSpanClick={handleSignalSpanClick}
-              onClose={() => setSignalsPanelOpen(false)}
+              onClose={() => {
+                // Gate at phase >= 2 — the phase < 2 effect force-reopens
+                // the panel anyway, so allowing the click at phase 1 would
+                // cause a single-frame flicker.
+                if (phaseRef.current >= 2) setSignalsPanelOpen(false);
+              }}
             />
           </motion.div>
         </div>
