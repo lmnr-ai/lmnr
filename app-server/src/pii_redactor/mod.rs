@@ -7,7 +7,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::ch::messages::CHMessage;
+use crate::ch::shared_content::CHSharedContent;
 use crate::db::DB;
 use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
@@ -62,10 +62,10 @@ enum Target {
     Input(usize),
     /// Whole `span.output`.
     Output(usize),
-    /// One newly-deduped LLM input message — written back into the
-    /// `dedup.messages[k].content` row that's about to be inserted into
-    /// `llm_messages`. Quickwit indexing reads from the same row, so a
-    /// single update covers both storage tiers.
+    /// One newly-deduped LLM input or output message — written back into the
+    /// `shared_content[k].content` row that's about to be inserted into the
+    /// `shared_content` CH table. Quickwit indexing reads from the same row,
+    /// so a single update covers both storage tiers.
     DedupMessage(usize),
 }
 
@@ -98,10 +98,10 @@ async fn resolve_opted_in_projects(
 }
 
 /// Per-direction (input or output) view of the dedup batch the redactor
-/// needs to walk: which positions in the unified `messages` buffer belong
-/// to span `dedup_idx`, plus a parallel `span_content_bytes` slot that gets
-/// fixed up when redaction changes the byte length. Indexed by `dedup_idx`
-/// (matching `recordable_indices`).
+/// needs to walk: which positions in the unified `shared_content` buffer
+/// belong to span `dedup_idx`, plus a parallel `span_content_bytes` slot
+/// that gets fixed up when redaction changes the byte length. Indexed by
+/// `dedup_idx` (matching `recordable_indices`).
 pub struct DedupRedactionView<'a> {
     pub span_new_message_indices: &'a [Vec<usize>],
     pub span_content_bytes: &'a mut [usize],
@@ -109,22 +109,22 @@ pub struct DedupRedactionView<'a> {
 
 /// Redact `span.input` / `span.output` for every span whose project has
 /// `remove_pii=true`. For dedup'd LLM spans the new-message slice of the
-/// shared `messages` buffer is redacted in place — Quickwit and the
-/// `messages` CH table share that buffer, so one update covers both.
+/// shared `shared_content` buffer is redacted in place — Quickwit and the
+/// `shared_content` CH table share that buffer, so one update covers both.
 /// Already-seen messages are not in the buffer and are not redacted (they
 /// were redacted on first emit). Tool-definition blobs share the same
 /// buffer too but are NOT walked here (tool definitions are schemas, not
 /// user text). All redaction happens in a single batched RPC.
 ///
 /// MUST run after `build_dedup_batch` (input + output) and BEFORE the
-/// `messages` ClickHouse insert.
+/// `shared_content` ClickHouse insert.
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
-    messages: &mut Vec<CHMessage>,
+    shared_content: &mut Vec<CHSharedContent>,
     input_view: DedupRedactionView<'_>,
     output_view: DedupRedactionView<'_>,
     recordable_indices: &[usize],
@@ -167,7 +167,7 @@ pub async fn redact_spans_in_place(
         // buffer, which is the same buffer Quickwit indexing reads.
         if let Some(idxs) = input_view.span_new_message_indices.get(dedup_idx) {
             for &msg_idx in idxs {
-                let Some(msg) = messages.get(msg_idx) else {
+                let Some(msg) = shared_content.get(msg_idx) else {
                     continue;
                 };
                 msg_to_dedup.insert(msg_idx, (Dir::Input, dedup_idx));
@@ -179,7 +179,7 @@ pub async fn redact_spans_in_place(
         // Dedup'd LLM output: same shape as input.
         if let Some(idxs) = output_view.span_new_message_indices.get(dedup_idx) {
             for &msg_idx in idxs {
-                let Some(msg) = messages.get(msg_idx) else {
+                let Some(msg) = shared_content.get(msg_idx) else {
                     continue;
                 };
                 msg_to_dedup.insert(msg_idx, (Dir::Output, dedup_idx));
@@ -276,7 +276,7 @@ pub async fn redact_spans_in_place(
                 Err(e) => log::warn!("pii-redactor: parse redacted span[{idx}].output: {e:#}"),
             },
             Target::DedupMessage(idx) => {
-                if let Some(msg) = messages.get_mut(idx) {
+                if let Some(msg) = shared_content.get_mut(idx) {
                     // The redactor returns stringified JSON; sanitize to
                     // match the non-redact path's `sanitize_string(&item.to_string())`.
                     let new_content = sanitize_string(&text);

@@ -5,24 +5,26 @@ use uuid::Uuid;
 
 use super::{ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table};
 
-/// Project-scoped content-addressed row that backs structural dedup of LLM
-/// span input/output messages and tool-definition blobs (LAM-1634).
+/// Project-scoped content-addressed row that backs structural dedup for any
+/// hash-referenced JSON blob the spans table points at (LLM input messages,
+/// LLM output messages, normalized tool-definition arrays, and any future
+/// single-blob dedup we add).
 ///
-/// Keyed by `(project_id, message_hash)`: the same content seen across two
+/// Keyed by `(project_id, content_hash)`: the same content seen across two
 /// traces in the same project collapses to one row. Spans reference rows by
 /// hash via `input_message_hashes`, `output_message_hashes`, and
 /// `tool_definition_hash` columns; the `spans_v0` view reconstructs the JSON
-/// on read via the `messages_dict` dictionary.
+/// on read via the `shared_content_dict` dictionary.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHMessage {
+pub struct CHSharedContent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
-    pub message_hash: [u8; 32],
+    pub content_hash: [u8; 32],
     pub content: String,
 }
 
-impl ClickhouseInsertable for CHMessage {
-    const TABLE: Table = Table::Messages;
+impl ClickhouseInsertable for CHSharedContent {
+    const TABLE: Table = Table::SharedContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
         insert.with_option(
@@ -32,6 +34,6 @@ impl ClickhouseInsertable for CHMessage {
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::Messages(items)
+        DataPlaneBatch::SharedContent(items)
     }
 }

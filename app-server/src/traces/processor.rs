@@ -12,7 +12,7 @@ use crate::{
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
-        messages::CHMessage,
+        shared_content::CHSharedContent,
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
     },
@@ -137,7 +137,7 @@ pub async fn process_span_messages(
     // Split into parallel `Vec`s — downstream code reads `spans`, `dedups`
     // (input messages), `output_dedups`, and `tool_dedups` as separate slices
     // keyed by index. All three dedup paths share the project-scoped
-    // `messages` table (LAM-1634).
+    // `shared_content` table.
     let (mut spans, dedup_triples): (
         Vec<Span>,
         Vec<(
@@ -169,18 +169,18 @@ pub async fn process_span_messages(
 
     // Build the unified dedup batch up front so the size-bytes loop and
     // CHSpans build can run before we kick off the parallel inserts. Input,
-    // output, and tool dedups all share the project-scoped `messages` table
-    // (LAM-1634). The `seen_storage_in_batch` HashSet collapses
+    // output, and tool dedups all share the project-scoped `shared_content`
+    // table. The `seen_storage_in_batch` HashSet collapses
     // `(project_id, hash)` across all three paths so a hash that appears as
     // input in span A, output in span B, and as part of a tool definition
-    // in span C emits exactly one `messages` row.
+    // in span C emits exactly one `shared_content` row.
     let recordable_indices: Vec<usize> = spans
         .iter()
         .enumerate()
         .filter(|(_, s)| s.should_record_to_clickhouse())
         .map(|(i, _)| i)
         .collect();
-    let (mut ch_messages, mut input_batch, mut output_batch, tool_content_bytes_per_recordable) = {
+    let (mut shared_content, mut input_batch, mut output_batch, tool_content_bytes_per_recordable) = {
         let _g = tracing::info_span!(
             "preprocess.dedup_batch",
             recordable = recordable_indices.len()
@@ -200,7 +200,7 @@ pub async fn process_span_messages(
             .map(|&i| tool_dedups[i].clone())
             .collect();
 
-        let mut messages: Vec<CHMessage> = Vec::new();
+        let mut shared_content: Vec<CHSharedContent> = Vec::new();
         let mut seen_storage_in_batch: std::collections::HashSet<(Uuid, [u8; 32])> =
             std::collections::HashSet::new();
 
@@ -208,43 +208,43 @@ pub async fn process_span_messages(
             &dedup_spans,
             &recordable_input_dedups,
             &mut seen_storage_in_batch,
-            &mut messages,
+            &mut shared_content,
         );
         let output_batch = build_dedup_batch(
             &dedup_spans,
             &recordable_output_dedups,
             &mut seen_storage_in_batch,
-            &mut messages,
+            &mut shared_content,
         );
 
         let mut tool_content_bytes: Vec<usize> = vec![0; recordable_indices.len()];
         for (dedup_idx, span) in dedup_spans.iter().enumerate() {
             if let Some(td) = recordable_tool_dedups[dedup_idx].as_ref() {
                 tool_content_bytes[dedup_idx] =
-                    resolve_tool_dedup(span, td, &mut seen_storage_in_batch, &mut messages);
+                    resolve_tool_dedup(span, td, &mut seen_storage_in_batch, &mut shared_content);
             }
         }
 
-        (messages, input_batch, output_batch, tool_content_bytes)
+        (shared_content, input_batch, output_batch, tool_content_bytes)
     };
 
     // Project-level PII redaction. Triggered by `projects.settings.removePii`
     // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
-    // redacted bytes flow into both the `messages` insert and Quickwit
-    // indexing through the same shared `ch_messages` buffer; runs BEFORE
-    // the input-bytes accounting / `messages` CH insert / Quickwit indexing
-    // so every storage tier holds the redacted content. Already-seen
-    // messages were redacted on first emit and ride the wire as hashes only.
-    // Tool-definition blobs share the same `ch_messages` buffer but the
-    // redactor walks only the input + output `span_new_message_indices`
-    // slices, so tool defs are not redacted (they're schemas, not user
-    // text). Best-effort: failures are logged inside `redact_spans_in_place`
-    // and do not fail the batch.
+    // redacted bytes flow into both the `shared_content` insert and Quickwit
+    // indexing through the same shared `shared_content` buffer; runs BEFORE
+    // the input-bytes accounting / `shared_content` CH insert / Quickwit
+    // indexing so every storage tier holds the redacted content. Already-
+    // seen messages were redacted on first emit and ride the wire as hashes
+    // only. Tool-definition blobs share the same buffer but the redactor
+    // walks only the input + output `span_new_message_indices` slices, so
+    // tool defs are not redacted (they're schemas, not user text). Best-
+    // effort: failures are logged inside `redact_spans_in_place` and do
+    // not fail the batch.
     if let Some(redactor) = pii_redactor.as_ref() {
         redact_spans_in_place(
             redactor,
             &mut spans,
-            &mut ch_messages,
+            &mut shared_content,
             crate::pii_redactor::DedupRedactionView {
                 span_new_message_indices: &input_batch.span_new_message_indices,
                 span_content_bytes: &mut input_batch.span_content_bytes,
@@ -526,10 +526,10 @@ pub async fn process_span_messages(
 
     // Trace-new keys for search "first occurrence per trace" semantic.
     // Project-scoped storage keys for content presence. Both must be stamped
-    // on the consumer ONLY after a successful `messages` insert (LAM-1634).
-    let storage_keys: Vec<(Uuid, [u8; 32])> = ch_messages
+    // on the consumer ONLY after a successful `shared_content` insert.
+    let storage_keys: Vec<(Uuid, [u8; 32])> = shared_content
         .iter()
-        .map(|m| (m.project_id, m.message_hash))
+        .map(|m| (m.project_id, m.content_hash))
         .collect();
     let trace_new_keys: Vec<(Uuid, Uuid, [u8; 32])> = {
         let mut acc: Vec<(Uuid, Uuid, [u8; 32])> = Vec::new();
@@ -558,23 +558,24 @@ pub async fn process_span_messages(
     };
 
     let span_branch = async {
-        // Strict order: messages -> mark_seen -> spans. `spans` is plain
-        // MergeTree, so a retry after a successful spans insert + failed
-        // messages insert would duplicate every span row. See CLAUDE.md.
-        if !ch_messages.is_empty() {
-            if let Err(e) = ch.insert_batch(&ch_messages, config).await {
+        // Strict order: shared_content -> mark_seen -> spans. `spans` is
+        // plain MergeTree, so a retry after a successful spans insert +
+        // failed shared_content insert would duplicate every span row.
+        // See CLAUDE.md.
+        if !shared_content.is_empty() {
+            if let Err(e) = ch.insert_batch(&shared_content, config).await {
                 log::error!(
-                    "Failed to insert {} messages to ClickHouse: {:?}",
-                    ch_messages.len(),
+                    "Failed to insert {} shared_content rows to ClickHouse: {:?}",
+                    shared_content.len(),
                     e
                 );
                 return Err(HandlerError::transient(anyhow::anyhow!(
-                    "Failed to insert messages to Clickhouse: {:?}",
+                    "Failed to insert shared_content to Clickhouse: {:?}",
                     e
                 )));
             }
         }
-        // Stamp Redis after the insert succeeded — even when `ch_messages`
+        // Stamp Redis after the insert succeeded — even when `shared_content`
         // was empty, trace-new keys may be non-empty (storage hits across
         // traces still need their trace-new positions recorded for search).
         if !storage_keys.is_empty() || !trace_new_keys.is_empty() {
@@ -633,12 +634,12 @@ pub async fn process_span_messages(
             // `span.output` directly — they're stripped only on dedup, and
             // the index path here picks the right slice from the unified
             // batch. `span_new_message_indices[dedup_idx]` points into
-            // `ch_messages` — no layout assumption. Works for both the
+            // `shared_content` — no layout assumption. Works for both the
             // producer path (where `span.input` is `None`) and the legacy
             // path. Unparseable JSON is dropped (filter_map) — the row
-            // still went to `messages`, it just isn't searchable. A span
-            // with no hashes (non-array input) gets `None`, so `from_span`
-            // falls through to raw `span.input`.
+            // still went to `shared_content`, it just isn't searchable. A
+            // span with no hashes (non-array input) gets `None`, so
+            // `from_span` falls through to raw `span.input`.
             let new_messages = if s.is_llm_span()
                 && input_batch
                     .span_hashes
@@ -651,7 +652,7 @@ pub async fn process_span_messages(
                     .get(dedup_idx)
                     .map(|idxs| {
                         idxs.iter()
-                            .filter_map(|&i| ch_messages.get(i))
+                            .filter_map(|&i| shared_content.get(i))
                             .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
                             .collect::<Vec<Value>>()
                     })

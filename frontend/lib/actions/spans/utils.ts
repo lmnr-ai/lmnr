@@ -72,15 +72,15 @@ export const spansSelectColumns = [
   "path",
   "model",
   "duration",
-  // LAM-1634: dedup'd tool definitions, exposed as a virtual column by the
-  // `spans_v0` view (reconstructed from `messages_dict`). The raw `spans`
-  // table has no `tools` column — readers MUST go through `executeQuery`,
-  // which routes the SQL through the query-engine validator and rewrites
-  // `FROM spans` to `FROM spans_v0(project_id=...)`. Direct
-  // `clickhouseClient.query` against raw `spans` would fail with "unknown
-  // column". Empty string when the span has no tools or for legacy spans
-  // whose definitions still live in the attributes blob — the frontend's
-  // `extractToolsFromAttributes` is the fallback.
+  // Dedup'd tool definitions, exposed as a virtual column by the
+  // `spans_v0` view (reconstructed from `shared_content_dict`). The raw
+  // `spans` table has no `tools` column — readers MUST go through
+  // `executeQuery`, which routes the SQL through the query-engine
+  // validator and rewrites `FROM spans` to `FROM spans_v0(project_id=...)`.
+  // Direct `clickhouseClient.query` against raw `spans` would fail with
+  // "unknown column". Empty string when the span has no tools or for
+  // legacy spans whose definitions still live in the attributes blob —
+  // the frontend's `extractToolsFromAttributes` is the fallback.
   "tools",
 ];
 

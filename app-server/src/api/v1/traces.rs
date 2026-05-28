@@ -28,22 +28,22 @@ pub struct RabbitMqSpanMessage {
     /// the legacy on-consumer pipeline working unchanged.
     #[serde(default)]
     pub pre_processed: bool,
-    /// Pre-computed dedup verdict for an LLM span's input messages
-    /// (LAM-1634). Storage is project-scoped; trace-new tracking is
-    /// trace-scoped to preserve the "first occurrence per trace" search
-    /// semantic. The consumer treats this as authoritative — it does not
-    /// re-hash or re-check Redis.
+    /// Pre-computed dedup verdict for an LLM span's input messages.
+    /// Storage is project-scoped; trace-new tracking is trace-scoped to
+    /// preserve the "first occurrence per trace" search semantic. The
+    /// consumer treats this as authoritative — it does not re-hash or
+    /// re-check Redis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_dedup: Option<MessageDedup>,
-    /// Pre-computed dedup verdict for an LLM span's output messages
-    /// (LAM-1634). Same shape as `input_dedup`. Cross-direction collapse:
-    /// model output of span A and input of span B that share content emit
-    /// one `messages` row.
+    /// Pre-computed dedup verdict for an LLM span's output messages. Same
+    /// shape as `input_dedup`. Cross-direction collapse: model output of
+    /// span A and input of span B that share content emit one
+    /// `shared_content` row.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_dedup: Option<MessageDedup>,
-    /// Pre-computed dedup verdict for an LLM span's tool definitions
-    /// (LAM-1634). Single hash per span; storage project-scoped via the
-    /// shared `messages` table.
+    /// Pre-computed dedup verdict for an LLM span's tool definitions.
+    /// Single hash per span; storage project-scoped via the shared
+    /// `shared_content` table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_dedup: Option<ToolDedup>,
 }

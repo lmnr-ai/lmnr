@@ -137,10 +137,11 @@ export async function register() {
         });
       };
 
-      // Project-scoped dedup dict (LAM-1634). Backs `messages` table for both
-      // input/output messages and tool definitions. The `spans_v0` view tries
-      // this dict first and falls back to `llm_messages_dict` for legacy spans.
-      const ensureMessagesDict = async () => {
+      // Project-scoped dedup dict. Backs the `shared_content` table for
+      // both input/output messages and tool definitions. The `spans_v0`
+      // view tries this dict first and falls back to `llm_messages_dict`
+      // for legacy spans.
+      const ensureSharedContentDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
         const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
@@ -148,18 +149,18 @@ export async function register() {
 
         await clickhouseClient.command({
           query: `
-            CREATE OR REPLACE DICTIONARY messages_dict
+            CREATE OR REPLACE DICTIONARY shared_content_dict
             (
                 project_id UUID,
-                message_hash String,
+                content_hash String,
                 content String
             )
-            PRIMARY KEY project_id, message_hash
+            PRIMARY KEY project_id, content_hash
             SOURCE(CLICKHOUSE(
                 USER '${user}'
                 PASSWORD '${password}'
                 DB '${db}'
-                TABLE 'messages'
+                TABLE 'shared_content'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
             LIFETIME(MIN 30 MAX 60)
@@ -185,7 +186,7 @@ export async function register() {
           );
 
           await ensureLlmMessagesDict();
-          await ensureMessagesDict();
+          await ensureSharedContentDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;

@@ -1,4 +1,4 @@
-//! Tool-definition dedup, project-scoped (LAM-1634).
+//! Tool-definition dedup, project-scoped.
 //!
 //! Tool definitions reach LLM spans through several OTel attribute shapes:
 //! - `ai.prompt.tools` (Vercel AI SDK) — array of objects (already
@@ -11,7 +11,7 @@
 //! The producer normalizes whichever shape is present into a canonical JSON
 //! array, hashes the array as a single blob (BLAKE3 over canonical JSON), and
 //! consults Redis to decide whether to ship the content. The consumer treats
-//! the verdict as authoritative — same shared `messages` table backs both
+//! the verdict as authoritative — same `shared_content` table backs both
 //! message and tool-definition dedup, so a tool-definitions blob and an LLM
 //! message that hash identically (won't, in practice) would collapse to one
 //! row.
@@ -27,16 +27,16 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait};
-use crate::ch::messages::CHMessage;
+use crate::ch::shared_content::CHSharedContent;
 use crate::db::spans::Span;
 use crate::traces::message_dedup::canonical_json;
 use crate::utils::sanitize_string;
 
 fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
-    // Same `s:` namespace as messages — the `messages` table is
+    // Same `s:` namespace as messages — the `shared_content` table is
     // content-addressed, so a tool-definition row and a message row that
     // hashed to the same value would collapse cleanly. Sharing the namespace
-    // keeps the read-side `messages_dict` lookup uniform.
+    // keeps the read-side `shared_content_dict` lookup uniform.
     format!("s:{}:{}", project_id.simple(), hex::encode(hash))
 }
 
@@ -212,7 +212,7 @@ pub fn resolve_tool_dedup(
     span: &Span,
     dedup: &ToolDedup,
     seen_storage_in_batch: &mut std::collections::HashSet<(Uuid, [u8; 32])>,
-    messages: &mut Vec<CHMessage>,
+    shared_content: &mut Vec<CHSharedContent>,
 ) -> usize {
     let Some(content) = &dedup.content else {
         return 0;
@@ -221,9 +221,9 @@ pub fn resolve_tool_dedup(
         return 0;
     }
     let bytes = content.len();
-    messages.push(CHMessage {
+    shared_content.push(CHSharedContent {
         project_id: span.project_id,
-        message_hash: dedup.hash,
+        content_hash: dedup.hash,
         content: content.clone(),
     });
     bytes

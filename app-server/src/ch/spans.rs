@@ -115,9 +115,9 @@ pub struct CHSpan {
     pub events: Vec<(i64, String, String)>,
     /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
     /// left empty and the view reconstructs the input JSON array by joining
-    /// against the `messages` (project-scoped, LAM-1634) or legacy
-    /// `llm_messages` (trace-scoped) table via `messages_dict` /
-    /// `llm_messages_dict`.
+    /// against the project-scoped `shared_content` table via
+    /// `shared_content_dict`, or for legacy spans the trace-scoped
+    /// `llm_messages` table via `llm_messages_dict`.
     #[serde(default)]
     pub input_message_hashes: Vec<[u8; 32]>,
     /// 0-based positions into `input_message_hashes` for messages this span
@@ -127,20 +127,20 @@ pub struct CHSpan {
     /// trace" semantic must be preserved.
     #[serde(default)]
     pub input_new_message_indices: Vec<u16>,
-    /// Hashes of deduplicated LLM output messages (LAM-1634). When non-empty,
-    /// `output` is left empty and the view reconstructs the array via
-    /// `messages_dict`. Project-scoped — output of span A and input of span B
-    /// in the same project collapse to the same row when content matches.
+    /// Hashes of deduplicated LLM output messages. When non-empty, `output`
+    /// is left empty and the view reconstructs the array via
+    /// `shared_content_dict`. Project-scoped — output of span A and input
+    /// of span B in the same project collapse to the same row when content
+    /// matches.
     #[serde(default)]
     pub output_message_hashes: Vec<[u8; 32]>,
     /// Trace-scoped first-occurrence positions for output messages. Mirrors
     /// `input_new_message_indices` semantics for the output array.
     #[serde(default)]
     pub output_new_message_indices: Vec<u16>,
-    /// Single hash for the span's normalized tool-definition array
-    /// (LAM-1634). Empty when the span has no tools or is a legacy span.
-    /// Reconstructed by the view as a virtual `tools` column via
-    /// `messages_dict`.
+    /// Single hash for the span's normalized tool-definition array. Empty
+    /// when the span has no tools or is a legacy span. Reconstructed by the
+    /// view as a virtual `tools` column via `shared_content_dict`.
     #[serde(default)]
     pub tool_definition_hash: [u8; 32],
 }

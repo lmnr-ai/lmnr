@@ -32,8 +32,8 @@ const normalizeTool = (tool: any): Tool | null => {
 };
 
 /**
- * Day-one read path (LAM-1634): tool definitions ride the span as a single
- * deduped JSON array reconstructed by `spans_v0` into the `tools` column. The
+ * Primary read path: tool definitions ride the span as a single deduped
+ * JSON array reconstructed by `spans_v0` into the `tools` column. The
  * frontend just parses the array and normalizes each entry.
  */
 export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
@@ -49,9 +49,9 @@ export const extractToolsFromColumn = (toolsJson?: string | null): Tool[] => {
 };
 
 /**
- * Legacy path for spans written before LAM-1634 — tool definitions still
- * live across one of several attribute shapes. Used as a fallback when the
- * `tools` column is empty.
+ * Legacy path for spans written before the `tools` column existed —
+ * definitions still live across one of several attribute shapes. Used as
+ * a fallback when the `tools` column is empty.
  */
 export const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => {
   if (isNil(attributes)) return [];
@@ -97,7 +97,7 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
 };
 
 /**
- * Resolve a span's tools, preferring the day-one column (LAM-1634) and
+ * Resolve a span's tools, preferring the dedup'd `tools` column and
  * falling back to per-attribute extraction for legacy spans.
  */
 export const resolveTools = (span: { tools?: string | null; attributes?: Record<string, any> }): Tool[] => {

@@ -65,9 +65,9 @@ export type Span = {
   outputCost: number;
   totalCost: number;
   /**
-   * Deduped tool definitions reconstructed from `messages_dict` by
-   * `spans_v0` (LAM-1634). Empty string when the span has no tools or for
-   * legacy spans whose definitions still ride in the attributes blob — the
+   * Deduped tool definitions reconstructed from `shared_content_dict` by
+   * `spans_v0`. Empty string when the span has no tools or for legacy
+   * spans whose definitions still ride in the attributes blob — the
    * frontend's `extractToolsFromAttributes` is the fallback.
    */
   tools?: string;

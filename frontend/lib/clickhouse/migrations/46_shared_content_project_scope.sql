@@ -1,16 +1,16 @@
--- LAM-1634: Project-scoped dedup for messages and tool definitions.
--- New `messages` table is content-addressed by `(project_id, message_hash)`.
--- Stores both input and output LLM message bodies AND normalized tool-definition
--- blobs. Same hash collapses across traces, across input/output, and across tools.
-CREATE TABLE IF NOT EXISTS messages
+-- Project-scoped dedup for input/output messages and tool definitions.
+-- The `shared_content` table is content-addressed by `(project_id, content_hash)`
+-- and stores any JSON blob the spans table references by hash. Same hash
+-- collapses across traces, across input/output, and across tools.
+CREATE TABLE IF NOT EXISTS shared_content
 (
     project_id UUID,
-    message_hash FixedString(32),
+    content_hash FixedString(32),
     content String CODEC(ZSTD(3)),
     last_seen_at DateTime64(9, 'UTC') DEFAULT now() CODEC(DoubleDelta, LZ4)
 )
 ENGINE = ReplacingMergeTree(last_seen_at)
-ORDER BY (project_id, message_hash)
+ORDER BY (project_id, content_hash)
 SETTINGS index_granularity = 8192;
 
 ALTER TABLE spans
@@ -25,8 +25,8 @@ ALTER TABLE spans
 -- Forward-only migration: legacy spans keep their `input_message_hashes` resolved
 -- against the trace-scoped `llm_messages_dict` (created by `ensureLlmMessagesDict`
 -- in `frontend/instrumentation.ts`). New spans resolve against the project-scoped
--- `messages_dict` (created by `ensureMessagesDict`). The view's `coalesce` falls
--- through automatically for each row.
+-- `shared_content_dict` (created by `ensureSharedContentDict`). The view's
+-- `coalesce` falls through automatically for each row.
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -63,7 +63,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> coalesce(
-                        dictGetOrNull('messages_dict', 'content', tuple(project_id, h)),
+                        dictGetOrNull('shared_content_dict', 'content', tuple(project_id, h)),
                         dictGetOrNull('llm_messages_dict', 'content', tuple(project_id, trace_id, h)),
                         'null'
                     ),
@@ -78,7 +78,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> dictGetOrDefault(
-                        'messages_dict',
+                        'shared_content_dict',
                         'content',
                         tuple(project_id, h),
                         'null'
@@ -92,7 +92,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         if(
             tool_definition_hash != toFixedString('', 32),
             dictGetOrDefault(
-                'messages_dict',
+                'shared_content_dict',
                 'content',
                 tuple(project_id, tool_definition_hash),
                 ''

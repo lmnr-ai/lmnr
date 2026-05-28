@@ -53,7 +53,7 @@ struct DedupVerdicts {
 ///   2. provider conversion (LangChain rewrites `input`)
 ///   3. prompt-hash extraction (system message → `lmnr.span.prompt_hash`)
 ///   4. project-scoped dedup verdicts: input messages, output messages,
-///      tool definitions (LAM-1634)
+///      and tool definitions
 ///
 /// On success, replaces `span.input` / `span.output` with `None` whenever a
 /// dedup verdict was produced — the verdict carries the full hash list, the

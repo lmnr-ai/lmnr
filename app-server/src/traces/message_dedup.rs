@@ -1,14 +1,14 @@
 //! Project-scoped structural deduplication for LLM span input + output
-//! messages and tool-definition blobs (LAM-1634).
+//! messages.
 //!
 //! ## Two semantic axes
 //!
 //! Each message gets two independent Redis-backed checks:
 //!
 //! - **Storage** (`s:{project_id}:{hash}`): drives whether the producer ships
-//!   the content on the wire and whether the consumer inserts a row into
-//!   `messages`. Project-scoped — same content seen across two traces in the
-//!   same project collapses to one CH row.
+//!   the content on the wire and whether the consumer inserts a row into the
+//!   `shared_content` table. Project-scoped — same content seen across two
+//!   traces in the same project collapses to one CH row.
 //! - **Trace-new** (`tn:{project_id}:{trace_id}:{hash}`): drives
 //!   `*_new_message_indices` for search. Trace-scoped — preserves the "first
 //!   occurrence per trace" semantic that span search relies on.
@@ -21,9 +21,9 @@
 //! ## Stamping rules
 //!
 //! Producer NEVER writes Redis. The consumer's `mark_seen` is the only writer
-//! and runs only AFTER a successful `messages` insert. On insert failure we
-//! return transient and let Rabbit redeliver — no phantom keys for content
-//! that didn't make it to CH.
+//! and runs only AFTER a successful `shared_content` insert. On insert
+//! failure we return transient and let Rabbit redeliver — no phantom keys
+//! for content that didn't make it to CH.
 
 use std::sync::Arc;
 
@@ -32,14 +32,14 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait};
-use crate::ch::messages::CHMessage;
+use crate::ch::shared_content::CHSharedContent;
 use crate::db::spans::Span;
 use crate::utils::sanitize_string;
 
 const MESSAGE_SEEN_TTL_SECONDS: u64 = 3600;
 
 /// Project-scoped storage check: have we ever inserted content for this hash
-/// recently (within TTL)? Drives wire content + `messages` insert.
+/// recently (within TTL)? Drives wire content + `shared_content` insert.
 fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
     format!("s:{}:{}", project_id.simple(), hex::encode(hash))
 }
@@ -103,14 +103,15 @@ pub fn canonical_json(value: &Value) -> String {
 /// (input or output). Both axes are independent:
 ///
 /// - `storage_miss_indices` lists positions inside `hashes` whose content
-///   the consumer must insert into `messages`. Aligned with `new_contents`.
+///   the consumer must insert into `shared_content`. Aligned with
+///   `new_contents`.
 /// - `trace_new_indices` lists positions that this span's trace has not yet
 ///   seen — drives `*_new_message_indices` for search "first occurrence in
 ///   trace" semantic.
 ///
 /// Already-seen-everywhere messages do NOT travel in `new_contents`: only
 /// hash references ride the wire. The consumer never re-hashes — the
-/// `messages_dict` lookup at view-read time is the only reader path.
+/// `shared_content_dict` lookup at view-read time is the only reader path.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<[u8; 32]>,
@@ -121,9 +122,9 @@ pub struct MessageDedup {
 
 /// Field selector for `build_message_dedup` — determines which span field is
 /// being deduped. Affects only logging today; same Redis namespaces are used
-/// for both fields because the `messages` table is content-addressed and
-/// shared across input/output (a message that is output for span A and input
-/// for span B collapses to one row).
+/// for both fields because the `shared_content` table is content-addressed
+/// and shared across input/output (a message that is output for span A and
+/// input for span B collapses to one row).
 #[derive(Copy, Clone, Debug)]
 pub enum MessageField {
     Input,
@@ -216,12 +217,12 @@ pub async fn build_message_dedup(
 ///
 /// `span_hashes[i]` / `span_content_bytes[i]` / `span_new_indices[i]` /
 /// `span_new_message_indices[i]` align with the spans slice passed in.
-/// `span_content_bytes[i]` is the bytes of `messages.content` span `i` caused
-/// to be newly inserted — shared content contributes 0 (billed once to the
-/// first referrer in the batch).
+/// `span_content_bytes[i]` is the bytes of `shared_content.content` span `i`
+/// caused to be newly inserted — shared content contributes 0 (billed once
+/// to the first referrer in the batch).
 /// `span_new_indices[i]` is the trace-new positions (search semantic).
-/// `span_new_message_indices[i]` lists positions into `messages` (for
-/// Quickwit per-span message-slice reads).
+/// `span_new_message_indices[i]` lists positions into the shared output
+/// `Vec<CHSharedContent>` (for Quickwit per-span message-slice reads).
 pub struct DedupBatch {
     pub span_hashes: Vec<Vec<[u8; 32]>>,
     pub span_content_bytes: Vec<usize>,
@@ -230,18 +231,18 @@ pub struct DedupBatch {
 }
 
 /// Build a per-field cross-span dedup batch. Maintains a project-scoped
-/// HashSet (matching the `messages` ORDER BY) so two spans in one flush
-/// sharing a never-yet-stored hash collapse to a single insert.
+/// HashSet (matching the `shared_content` ORDER BY) so two spans in one
+/// flush sharing a never-yet-stored hash collapse to a single insert.
 ///
 /// `seen_storage_in_batch` is shared across both fields and the tool path
 /// when the caller threads it through — a hash appearing as input in span A
-/// and output in span B emits one `messages` row, billed to whichever lands
-/// first.
+/// and output in span B emits one `shared_content` row, billed to whichever
+/// lands first.
 pub fn build_dedup_batch(
     spans: &[&Span],
     dedups: &[Option<MessageDedup>],
     seen_storage_in_batch: &mut std::collections::HashSet<(Uuid, [u8; 32])>,
-    messages: &mut Vec<CHMessage>,
+    shared_content: &mut Vec<CHSharedContent>,
 ) -> DedupBatch {
     debug_assert_eq!(spans.len(), dedups.len());
 
@@ -277,10 +278,10 @@ pub fn build_dedup_batch(
             }
             let content = content.clone();
             content_bytes_for_span += content.len();
-            let msg_idx = messages.len();
-            messages.push(CHMessage {
+            let msg_idx = shared_content.len();
+            shared_content.push(CHSharedContent {
                 project_id: span.project_id,
-                message_hash: hash,
+                content_hash: hash,
                 content,
             });
             new_message_indices.push(msg_idx);
@@ -300,7 +301,7 @@ pub fn build_dedup_batch(
     }
 }
 
-/// Stamp Redis only after the `messages` insert succeeded.
+/// Stamp Redis only after the `shared_content` insert succeeded.
 ///
 /// `storage_keys`: `(project_id, hash)` — the content rows we just inserted.
 /// `trace_keys`: `(project_id, trace_id, hash)` — every position we marked
