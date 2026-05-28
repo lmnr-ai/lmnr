@@ -92,7 +92,9 @@ function hasValidLlmDefaultHeaders(): boolean {
   try {
     parseLlmDefaultHeaders();
     return true;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`AI provider failed to configure: ${message}`);
     return false;
   }
 }
