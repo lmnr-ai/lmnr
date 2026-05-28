@@ -6,7 +6,7 @@ const SLACK_BG = "rgb(22 22 23)";
 // Slack notification inner content. No outer frame — callers wrap it in a
 // frame (static border/bg here, animated wrapper in slack-to-signal-morph).
 export const SlackContent = () => (
-  <div className="flex gap-3 items-start w-full px-3 py-2">
+  <div className="flex gap-3 items-start w-full px-3 pt-2 pb-3">
     <div className="shrink-0 size-8 bg-landing-surface-800 rounded flex items-center justify-center overflow-hidden">
       <svg width="16" height="16" viewBox="0 0 76 76" fill="none" className="size-4">
         <path
@@ -36,8 +36,10 @@ export const SlackContent = () => (
         </div>
       </div>
 
-      <p className="font-sans text-xs text-landing-text-200 w-full">
-        Agent on feat/dashboards claimed the task was done but never ran the tests it promised. CI is likely failing.
+      <p className="font-sans text-xs leading-relaxed text-landing-text-200 w-full">
+        Agent run flagged 4 issues. In one anthropic.messages the agent decided to run <code>python</code> (macOS only
+        ships <code>python3</code>), Bash then hit <code>command not found</code> three times before recovering, a
+        parallel Bash pair cascade-cancelled, and Read missed when the shell CWD drifted after a <code>cd</code>.
       </p>
 
       <div className="flex flex-row gap-2 items-center">

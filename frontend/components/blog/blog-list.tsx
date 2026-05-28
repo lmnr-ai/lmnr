@@ -1,14 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { LANDING_COLUMN_MAX_W, mainTitle, microLabel, subSection } from "@/components/landing/class-names";
+import { LANDING_COLUMN_MAX_W, microLabel, subSection } from "@/components/landing/class-names";
 import { type BlogListItem } from "@/lib/blog/types";
 import { cn, formatUTCDate } from "@/lib/utils";
 
 interface Props {
   posts: BlogListItem[];
   routePrefix: "blog" | "article";
-  title: string;
 }
 
 const postHref = (routePrefix: string, slug: string) => `/${routePrefix}/${slug}`;
@@ -54,9 +53,6 @@ const ListRow = ({ post, routePrefix, isFirst }: { post: BlogListItem; routePref
       <p className={cn(subSection, "text-white text-xl leading-7 group-hover:text-landing-text-100")}>
         {post.data.title}
       </p>
-      {post.data.description && (
-        <p className="text-sm text-landing-text-300 leading-5 line-clamp-2">{post.data.description}</p>
-      )}
       <p className={cn(microLabel, "mt-1")}>
         {formatUTCDate(post.data.date)} · {post.data.author.name}
       </p>
@@ -64,12 +60,10 @@ const ListRow = ({ post, routePrefix, isFirst }: { post: BlogListItem; routePref
   </Link>
 );
 
-export default function BlogList({ posts, routePrefix, title }: Props) {
+export default function BlogList({ posts, routePrefix }: Props) {
   return (
     <div className="flex flex-col items-center w-full px-6 md:px-0 pt-[100px] pb-[72px] md:pb-[120px]">
       <div className={cn("flex flex-col items-start w-full gap-8", LANDING_COLUMN_MAX_W)}>
-        <h1 className={mainTitle}>{title}</h1>
-
         {posts.length === 0 ? (
           <p className="text-landing-text-300 text-sm">No posts yet.</p>
         ) : (

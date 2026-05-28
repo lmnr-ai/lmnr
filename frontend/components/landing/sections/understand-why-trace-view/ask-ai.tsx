@@ -1,13 +1,14 @@
 "use client";
 
 import { ArrowUp, Bolt, MessageCircle } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils";
 
 interface MockMessage {
@@ -16,19 +17,45 @@ interface MockMessage {
   text: string;
 }
 
-const TRACE_ID = "3603700e-d02b-0c39-0f34-cfd20842c5ae";
+// Trace 91c04f82… — REST-client scaffold mock. Source of truth for span
+// IDs in this mock conversation is the matching trace in laminar. Keep in
+// sync with `understand-why-trace-view/index.tsx` TRACE_ID and the chip
+// span IDs exported from `signal-event-card.tsx`.
+const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
 const PROJECT_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
 const spanLink = (label: string, spanId: string) =>
   `\`[${label}](https://lmnr.ai/project/${PROJECT_ID_PLACEHOLDER}/traces/${TRACE_ID}?spanId=${spanId})\``;
 
-const INITIAL_RESPONSE = `To improve efficiency, consolidate ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span and ${spanLink("readPage", "00000000-0000-0000-4eb1-e78cf1b0ed69")} ${spanLink("readPage", "00000000-0000-0000-3191-542d50e2dc74")} span into a single tool call to halve LLM turns. Additionally, the readPage output is excessively large (12,000+ characters); implementing targeted extraction would reduce processing time and token costs for the final summary ${spanLink("ai.generateText.doGenerate", "00000000-0000-0000-c897-ab53f4b4d8d9")} span. Finally, providing a search tool would prevent the agent from navigating to suboptimal pages ${spanLink("navigate", "00000000-0000-0000-0d3a-ac0492ff722f")} span before finding the correct source ${spanLink("navigate", "00000000-0000-0000-7940-6191c6c4189c")} span.`;
+// Real span IDs inside trace 91c04f82-3121-3807-0e88-855cb5564715.
+// PLAN_LLM is the LLM call whose tool_call output contained the bad
+// `python` invocation — the planning span where the reasoning slipped.
+const PLAN_LLM_SPAN = "00000000-0000-0000-9eec-e8b846a419d0";
+const PYTHON_NOT_FOUND_BASH_SPAN = "00000000-0000-0000-caf3-ba12dc2a1a43";
+const PARALLEL_CANCEL_BASH_SPAN = "00000000-0000-0000-54b7-654ddf0fabb8";
+const CWD_DRIFT_READ_SPAN = "00000000-0000-0000-9e5b-c6c4c619bda0";
+
+const INITIAL_RESPONSE = `#### The reasoning mistake
+The agent's plan in this ${spanLink("anthropic.messages", PLAN_LLM_SPAN)} said "run \`python auth.py\` to verify" — assuming \`python\` was on PATH. macOS hasn't shipped a bare \`python\` symlink for years; only \`python3\` exists. That one planning slip fanned into three ${spanLink("Bash", PYTHON_NOT_FOUND_BASH_SPAN)} \`command not found\` retries before the agent caught on.
+
+The remaining two issues — a parallel-call ${spanLink("Bash", PARALLEL_CANCEL_BASH_SPAN)} cascade cancel and a CWD-drift ${spanLink("Read", CWD_DRIFT_READ_SPAN)} miss — are independent missteps but in the same class: unstated environment assumptions the agent's plan never sanity-checked.
+
+#### Prevention
+Three one-line system-prompt guardrails would close all four:
+- "Use \`python3\`, not \`python\`."
+- "Don't issue parallel Bash calls that depend on each other."
+- "After any \`cd\`, prefer absolute paths in subsequent commands."
+
+The first alone removes the three retries plus the cascade-cancel.`;
 
 const INITIAL_MESSAGES: MockMessage[] = [
   {
     id: "init-user",
     role: "user",
-    text: "How would you recommend improving the research agent's tool call efficiency?",
+    // Newcomer-perspective: a fresh-eyes ask that frames the LLM span
+    // as the *root cause* (the agent's plan was wrong) and naturally
+    // leads into the prevention strategy.
+    text: "What was the agent thinking when it made these mistakes, and how do I prevent them?",
   },
   { id: "init-assistant", role: "assistant", text: INITIAL_RESPONSE },
 ];
@@ -40,9 +67,10 @@ const MOCK_RESPONSE = "Log in to chat with your traces";
 // "tool" (Bolt). FLAG: if INITIAL_RESPONSE references a new span name,
 // add it here or it will render as a generic tool chip.
 const LABEL_TO_KIND: Record<string, "tool" | "llm"> = {
-  navigate: "tool",
-  readPage: "tool",
-  "ai.generateText.doGenerate": "llm",
+  Read: "tool",
+  Edit: "tool",
+  Bash: "tool",
+  "anthropic.messages": "llm",
 };
 
 const KIND_CONFIG = {
@@ -67,9 +95,26 @@ const SpanChip = ({ kind, label, onClick }: { kind: "tool" | "llm"; label: strin
   );
 };
 
-// Matches the markdown link text rendered inside backtick `code` elements:
-//   [label](https://.../traces/<traceId>?spanId=<uuid>)
-const MD_LINK_RE = /^\[([^\]]+)\]\((.+?spanId=([0-9a-f-]+).*)\)$/;
+// Render the code-element children as a sequence of SpanChips interleaved
+// with leftover text. Uses the shared parseSpanLinks finder (the same one
+// chat.tsx relies on) so we don't depend on the children being exactly
+// the link string — Streamdown's parseIncompleteMarkdown can wrap the
+// children with whitespace mid-stream and the anchored regex we used
+// before would silently miss every chip.
+const renderSpanChips = (text: string, onSelect: (spanId: string) => void): ReactNode | null => {
+  const matches = parseSpanLinks(text).filter((m) => m.spanId);
+  if (matches.length === 0) return null;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  matches.forEach((m, i) => {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    const kind = LABEL_TO_KIND[m.label] ?? "tool";
+    parts.push(<SpanChip key={`chip-${i}`} kind={kind} label={m.label} onClick={() => onSelect(m.spanId!)} />);
+    lastIndex = m.index + m.length;
+  });
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return <Fragment>{parts}</Fragment>;
+};
 
 // Word-by-word streaming reveal of the initial assistant response. Tokens
 // are whitespace-delimited; backtick-wrapped span links are guaranteed
@@ -83,30 +128,37 @@ export default function AskAi() {
 
   const selectSpanById = useTraceViewBaseStore((state) => state.selectSpanById);
 
-  const words = useMemo(() => INITIAL_RESPONSE.split(/\s+/), []);
+  // Split keeping whitespace runs as separate tokens (capture group), so
+  // `\n\n` paragraph breaks survive the reveal — otherwise the streamed
+  // text becomes one long line and `## Failures` swallows everything as
+  // an H2.
+  const tokens = useMemo(() => INITIAL_RESPONSE.split(/(\s+)/), []);
+  const wordEndIndices = useMemo(
+    () => tokens.reduce<number[]>((acc, t, i) => (/\S/.test(t) ? [...acc, i] : acc), []),
+    [tokens]
+  );
   const [streamedCount, setStreamedCount] = useState(0);
   useEffect(() => {
     let n = 0;
     const id = setInterval(() => {
       n += 1;
       setStreamedCount(n);
-      if (n >= words.length) clearInterval(id);
+      if (n >= wordEndIndices.length) clearInterval(id);
     }, STREAM_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [words.length]);
-  const streamedAssistantText = useMemo(() => words.slice(0, streamedCount).join(" "), [words, streamedCount]);
+  }, [wordEndIndices.length]);
+  const streamedAssistantText = useMemo(() => {
+    if (streamedCount === 0) return "";
+    const endIdx = wordEndIndices[Math.min(streamedCount, wordEndIndices.length) - 1];
+    return tokens.slice(0, endIdx + 1).join("");
+  }, [tokens, wordEndIndices, streamedCount]);
 
   const components = useMemo<{ code: (props: { children?: ReactNode }) => ReactNode }>(
     () => ({
       code: ({ children }) => {
         const text = String(children);
-        const m = text.match(MD_LINK_RE);
-        if (m) {
-          const label = m[1];
-          const spanId = m[3];
-          const kind = LABEL_TO_KIND[label] ?? "tool";
-          return <SpanChip kind={kind} label={label} onClick={() => selectSpanById(spanId)} />;
-        }
+        const chips = renderSpanChips(text, selectSpanById);
+        if (chips) return chips;
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),

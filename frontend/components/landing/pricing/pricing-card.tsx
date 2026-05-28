@@ -47,7 +47,9 @@ export default function PricingCard({
       <div className="flex flex-col gap-3">
         <p className={cn("text-lg text-white ")}>{title}</p>
         <p className="flex items-baseline gap-1">
-          <span className="font-manrope font-medium text-3xl leading-none text-white tracking-[-0.02em]">{price}</span>
+          <span className="font-sans-landing font-medium text-3xl leading-none text-white tracking-[-0.02em]">
+            {price}
+          </span>
           {priceSuffix && <span className={cn("text-sm", suffixColor)}>{priceSuffix}</span>}
         </p>
       </div>
@@ -55,11 +57,11 @@ export default function PricingCard({
         {features.map((feature, index) => (
           <div key={index} className="flex flex-col gap-0.5">
             <div className="flex items-start gap-1.5">
-              <Check className={cn("size-3 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
-              <p className={cn("text-sm leading-5", featureColor)}>{feature}</p>
+              <Check className={cn("size-3.5 mt-1 shrink-0", checkColor)} strokeWidth={2.5} />
+              <p className={cn("text-base leading-6", featureColor)}>{feature}</p>
             </div>
             {subfeatures && subfeatures[index] && (
-              <p className={cn(microLabel, "ml-[18px]", isAccent && "text-white/70")}>{subfeatures[index]}</p>
+              <p className={cn(microLabel, "text-sm ml-[20px]", isAccent && "text-white/70")}>{subfeatures[index]}</p>
             )}
           </div>
         ))}

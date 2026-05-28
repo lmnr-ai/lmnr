@@ -22,7 +22,7 @@ const ELSEWHERE_LINKS: FooterLink[] = [
   { label: "Contact", href: "mailto:founders@lmnr.ai", external: true },
   { label: "Book demo", href: "https://cal.com/robert-lmnr/30min", external: true },
   { label: "Github", href: "https://github.com/lmnr-ai/lmnr", external: true },
-  { label: "Join Discord", href: "https://discord.gg/nNFUUDAKub", external: true },
+  { label: "Discord", href: "https://discord.gg/nNFUUDAKub", external: true },
   { label: "LinkedIn", href: "https://www.linkedin.com/company/lmnr-ai", external: true },
   { label: "X", href: "https://x.com/lmnrai", external: true },
 ];
@@ -31,6 +31,7 @@ const MORE_LINKS: FooterLink[] = [
   { label: "Privacy Policy", href: "/policies/privacy", external: true },
   { label: "Terms of Service", href: "/policies/terms", external: true },
   { label: "Status", href: "https://status.laminar.sh", external: true },
+  { label: "Y-Combinator", href: "https://www.ycombinator.com/companies/laminar", external: true },
 ];
 
 const integration = (label: string, slug: string): FooterLink => ({

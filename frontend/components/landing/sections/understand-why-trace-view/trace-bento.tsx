@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionPlayer from "@/components/shared/traces/session-player";
-import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -16,8 +15,10 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { SIGNAL_PARALLEL_CANCEL_SPAN_ID } from "../signal-event-card";
 import SlackToSignalMorph from "../slack-to-signal-morph";
 import AskAi from "./ask-ai";
+import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 // ──────────────────────────────────────────────────────────────────────
 // Phase — five animation states ("variants") that the bento renders.
@@ -46,6 +47,16 @@ interface Props {
 }
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
+
+// Phase 1→2 entry: fluid simultaneous open (morph + chrome both
+// transition over TWEEN), THEN the auto-select fires at +500ms (kicks
+// off the transcript scroll while the row data is loading) and the
+// flash kicks in 100ms after so the chip pulses once the row is on
+// screen — flashing at the same instant as the select was firing
+// before the transcript had rendered.
+const PHASE2_SELECT_AT_MS = 500;
+const PHASE2_FLASH_START_MS = 600;
+const PHASE2_FLASH_CLEAR_MS = 1200;
 
 // Bento animates height between its natural content size at phase 1
 // (measured via ResizeObserver on the header, since the morph card's own
@@ -163,6 +174,8 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     shallow
   );
 
+  const selectAndRevealSpan = useSelectAndRevealSpan();
+
   useEffect(() => {
     if (!trace || spans.length === 0) return;
     setSpans(enrichSpansWithPending(spans));
@@ -189,24 +202,79 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     setBrowserSession(false);
   }, [setSignalsPanelOpen, setBrowserSession]);
 
-  // Spans only become clickable at phase ≥ 4 (ask-ai open or beyond); stored
-  // in a ref so the callback identity doesn't change across phase
-  // transitions. Scrolling back below phase 4 clears the selection so the
-  // span panel doesn't flash open mid-transition on the way down.
+  // Spans become clickable at phase ≥ 2 (trace view materialized). The
+  // span PANEL stays gated to phase ≥ 4 (ask-ai open) below — selection
+  // at phase 2/3 just drives the transcript highlight + auto-scroll.
+  // Scrolling back below phase 2 clears the selection so a stale
+  // highlight doesn't persist into the slack-only phase 1 state.
   const phaseRef = useRef(phase);
   useEffect(() => {
     phaseRef.current = phase;
-    if (phase < 4 && selectedSpan) setSelectedSpan(undefined);
-  }, [phase, selectedSpan, setSelectedSpan]);
+    if (phase < 2) {
+      if (selectedSpan) setSelectedSpan(undefined);
+      // Narrative reset — phase 1 always shows the morph card. The bento's
+      // phase-1 height is `headerHeight` measured from the header div; if the
+      // user closed the signal panel at phase 2 and scrolls back, the header
+      // collapses to its padding (~6px) and the bento shrinks to nothing.
+      // Force-reopen so the morph card is always visible when phase < 2.
+      setSignalsPanelOpen(true);
+    }
+  }, [phase, selectedSpan, setSelectedSpan, setSignalsPanelOpen]);
 
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
-      if (phaseRef.current < 4) return;
+      if (phaseRef.current < 2) return;
       setSelectedSpan(span);
     },
     [setSelectedSpan]
   );
-  const handleCloseSpan = useCallback(() => setSelectedSpan(undefined), [setSelectedSpan]);
+
+  // Phase ≥ 2 entry — sequenced over ~1.1s:
+  //   t=0–350  : slack→signal morph (driven by morphProgress in the parent)
+  //   t=400–1000: parallel-cancel Bash chip pulses (CSS keyframe)
+  //   t=600–1000: trace-view chrome animates in (chrome delay below)
+  //   t=1100   : selectAndRevealSpan fires + flash clears
+  //
+  // One-shot per approach from phase < 2: a ref guards re-firing, but
+  // resets when the user scrolls back below phase 2 so re-entering fires
+  // a fresh sequence. No cleanup on the timers — a fast 1→2→3→4 scroll
+  // would otherwise cancel the pending select before it ran.
+  //
+  // We flash the parallel-cancel Bash chip (the second Bash chip in the
+  // signal panel) because it lives at the top level of the transcript
+  // (`…query.Bash`) — no subagent expansion needed, the row is in
+  // flatRows immediately at phase 2. The planning LLM span and the first
+  // Bash (`command not found`) both live inside the pagination Agent
+  // subagent and would require selectAndRevealSpan to expand the group
+  // first; that works, but introduces a brief visual lag while the
+  // transcript reflows. Top-level target keeps the reveal instantaneous.
+  //
+  // FLAG: tied to SIGNAL_PARALLEL_CANCEL_SPAN_ID. If the trace gets
+  // swapped, both that constant in signal-event-card.tsx and the
+  // corresponding chip in SignalContent must update together or the
+  // auto-select will target a non-existent row and the transcript scroll
+  // will no-op silently.
+  const [flashSpanId, setFlashSpanId] = useState<string | undefined>(undefined);
+  const autoSelectFiredRef = useRef(false);
+  useEffect(() => {
+    if (phase < 2) {
+      autoSelectFiredRef.current = false;
+      return;
+    }
+    if (autoSelectFiredRef.current) return;
+    autoSelectFiredRef.current = true;
+
+    window.setTimeout(() => selectAndRevealSpan(SIGNAL_PARALLEL_CANCEL_SPAN_ID), PHASE2_SELECT_AT_MS);
+    window.setTimeout(() => setFlashSpanId(SIGNAL_PARALLEL_CANCEL_SPAN_ID), PHASE2_FLASH_START_MS);
+    window.setTimeout(() => setFlashSpanId(undefined), PHASE2_FLASH_CLEAR_MS);
+  }, [phase, selectAndRevealSpan]);
+
+  const handleSignalSpanClick = useCallback(
+    (spanId: string) => {
+      selectAndRevealSpan(spanId);
+    },
+    [selectAndRevealSpan]
+  );
 
   const isShowSpanView = phase >= 4 && !!selectedSpan && !!trace;
 
@@ -233,12 +301,12 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     <motion.div
       initial={{
         borderColor: "rgb(37 37 38 / 0)",
-        backgroundColor: "rgb(15 15 15 / 0)",
+        backgroundColor: "rgb(10 10 10 / 0)",
         height: 0,
       }}
       animate={{
         borderColor: phase >= 2 ? "rgb(37 37 38)" : "rgb(37 37 38 / 0)",
-        backgroundColor: phase >= 2 ? "rgb(15 15 15)" : "rgb(15 15 15 / 0)",
+        backgroundColor: phase >= 2 ? "rgb(10 10 10)" : "rgb(10 10 10 / 0)",
         height: phase >= 2 ? BENTO_HEIGHT : headerHeight,
       }}
       // Height snaps at phase 1 so the bento tracks the morph card's
@@ -261,7 +329,13 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             morph). Production puts the signal card directly inside the
             header's flex-col, after the rows; we do the same. The ref feeds
             the ResizeObserver that drives the bento's pre-phase-2 height. */}
-        <div ref={headerRef} className="flex flex-col px-2 pt-1.5 pb-2 shrink-0">
+        <div
+          ref={headerRef}
+          className={cn(
+            "flex flex-col px-2 pt-1.5 shrink-0 transition-[padding-bottom] duration-300 ease-in-out",
+            signalsPanelOpen || phase >= 3 ? "pb-2" : "pb-0"
+          )}
+        >
           {/* Row 1 — fades in at phase 2 */}
           <motion.div
             initial={{ height: 0, opacity: 0 }}
@@ -286,12 +360,23 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             initial={{ maxHeight: SIGNAL_CARD_MAX, marginTop: 0 }}
             animate={{
               maxHeight: signalsPanelOpen ? SIGNAL_CARD_MAX : 0,
-              marginTop: phase === 2 ? 8 : 0,
+              marginTop: signalsPanelOpen && phase === 2 ? 8 : 0,
             }}
             transition={TWEEN}
             className="overflow-hidden"
           >
-            <SlackToSignalMorph progress={morphProgress} className="w-full max-w-none" />
+            <SlackToSignalMorph
+              progress={morphProgress}
+              className="w-full max-w-none"
+              flashSpanId={flashSpanId}
+              onSpanClick={handleSignalSpanClick}
+              onClose={() => {
+                // Gate at phase >= 2 — the phase < 2 effect force-reopens
+                // the panel anyway, so allowing the click at phase 1 would
+                // cause a single-frame flicker.
+                if (phaseRef.current >= 2) setSignalsPanelOpen(false);
+              }}
+            />
           </motion.div>
         </div>
 
@@ -338,9 +423,36 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
 
         {/* TRANSCRIPT — flex-1 absorbs the excess vertical space once the
             bento is 680 tall (phase 2+). min-h-0 lets it shrink to 0 at
-            phase 1 when the bento collapses to header height. */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {phase >= 2 && <Transcript onSpanSelect={handleSpanSelect} isShared />}
+            phase 1 when the bento collapses to header height.
+            `relative` anchors the persistent inner wrapper below.
+
+            Transcript is mounted from phase 0 (no `phase >= 2 &&` gate).
+            The inner wrapper is `position: absolute` throughout — at phase
+            1 it sizes itself explicitly to ~match the phase-2 transcript
+            area (400×360) with opacity-0, so the virtualizer hydrates real
+            rows while the bento outer's overflow-hidden + smaller height
+            clips it from view. At phase 2 it switches to `inset: 0` and
+            fills the now-expanded flex-1 parent at full opacity. Same
+            Transcript instance throughout → no cold mount, virtualizer
+            state preserved across the reveal. */}
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          <div
+            style={
+              phase < 2
+                ? {
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: 400,
+                    height: 360,
+                    opacity: 0,
+                    pointerEvents: "none",
+                  }
+                : { position: "absolute", inset: 0, opacity: 1 }
+            }
+          >
+            <Transcript onSpanSelect={handleSpanSelect} isShared />
+          </div>
         </div>
 
         {/* RECORDING — visibility driven entirely by the store's
@@ -352,30 +464,10 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           className="overflow-hidden shrink-0"
         >
           <div style={{ height: RECORDING_HEIGHT }} className="w-full border-t">
-            {browserSession && trace && <SessionPlayer onClose={noop} traceId={trace.id} />}
+            {browserSession && trace && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />}
           </div>
         </motion.div>
       </div>
-
-      {/* MIDDLE COL — span view. Opens only when the user clicks a span at
-          phase ≥ 4 (clicks are ignored before then). */}
-      <motion.div
-        initial={{ width: 0 }}
-        animate={{ width: isShowSpanView ? 360 : 0 }}
-        transition={TWEEN}
-        className="overflow-hidden h-full shrink-0"
-      >
-        <div className="w-[360px] h-full bg-background border-l">
-          {isShowSpanView && (
-            <SpanView
-              key={selectedSpan!.spanId}
-              spanId={selectedSpan!.spanId}
-              traceId={trace!.id}
-              onClose={handleCloseSpan}
-            />
-          )}
-        </div>
-      </motion.div>
 
       {/* RIGHT COL — ask-ai, appears at phase 4 */}
       <motion.div

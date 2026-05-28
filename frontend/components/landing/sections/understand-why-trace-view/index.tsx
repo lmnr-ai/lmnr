@@ -19,10 +19,26 @@ import { bodyMedium, LANDING_COLUMN_MAX_W, microLabel, subSection, subSubSection
 import SectionFootnote from "../section-footnote";
 import TraceViewErrorBoundary from "./error-boundary";
 import TraceBento, { type Phase } from "./trace-bento";
+import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
 
-const TRACE_ID = "281e042a-75d4-5c83-c56e-1b31f0a73080";
+const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
+
+// Real spans inside trace 91c04f82-3121-3807-0e88-855cb5564715. Used by the
+// Timeline body's three underlined links — click drives a transcript scroll +
+// highlight inside the bento on the right.
+// - LLM_REASONING: the planning anthropic.messages that produced the bad
+//   `python` invocation — same span the signal-event card's first chip
+//   points at, doubles as "see what LLM reasoning looks like" and "this is
+//   where the mistake originated".
+// - TOOL_CALL: a successful Bash (the first to print "All smoke tests
+//   passed!") so the demo lands on a clean tool-call example, not a failure.
+// - SUBAGENT: the auth.py Agent subagent — selectAndRevealSpan expands the
+//   group before selecting.
+const LLM_REASONING_SPAN_ID = "00000000-0000-0000-9eec-e8b846a419d0";
+const TOOL_CALL_SPAN_ID = "00000000-0000-0000-a5ca-cab8e5839b0a";
+const SUBAGENT_SPAN_ID = "00000000-0000-0000-34eb-7f0dcf3c45ab";
 
 const T_PHASE_2 = 0.25;
 const T_PHASE_3 = 0.5;
@@ -60,6 +76,32 @@ const STEP_LABELS: Partial<Record<1 | 2 | 3 | 4, string>> = {
   2: "02.",
 };
 
+// Underlined inline button — used inside the Timeline body to drive a
+// transcript scroll + highlight on click. Renders inline with the rest of the
+// paragraph (no block break); the trace-view store delegate handles subagent
+// reveal for nested spans.
+const TimelineBodyLink = ({ spanId, label }: { spanId: string; label: string }) => {
+  const selectAndRevealSpan = useSelectAndRevealSpan();
+  return (
+    <button
+      type="button"
+      onClick={() => selectAndRevealSpan(spanId)}
+      className="underline underline-offset-2 decoration-landing-text-400 hover:text-landing-text-100 hover:decoration-landing-text-200 transition-colors cursor-pointer"
+    >
+      {label}
+    </button>
+  );
+};
+
+const TimelineBody = () => (
+  <>
+    Laminar makes the agent run navigable by surfacing input,{" "}
+    <TimelineBodyLink spanId={LLM_REASONING_SPAN_ID} label="LLM reasoning" />,{" "}
+    <TimelineBodyLink spanId={TOOL_CALL_SPAN_ID} label="tool calls" />, and{" "}
+    <TimelineBodyLink spanId={SUBAGENT_SPAN_ID} label="sub-agents" /> in a readable transcript and timeline.
+  </>
+);
+
 const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   1: {
     name: "Notifications",
@@ -74,10 +116,10 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
     learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   3: {
-    name: "Timeline",
-    subtitle: "See every action on a timeline.",
-    body: "Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a readable transcript.",
-    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#timeline",
+    name: "Trace view",
+    subtitle: "A clear, concise view\nof your agent run",
+    body: <TimelineBody />,
+    learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   4: {
     name: "Ask AI",
@@ -123,7 +165,7 @@ const UnderstandWhyTraceView = () => {
   // stack glides continuously rather than snapping at phase boundaries.
   // String values resolve as % of the motion.div's own height — works for
   // any natural block heights, no measurement needed.
-  const stackY = useTransform(scrollYProgress, [0, 1], [`${20}%`, `${-50}%`]);
+  const stackY = useTransform(scrollYProgress, (v) => `calc(${v * -100 + 50}% - ${(1 - v) * 131}px)`);
 
   // Slack→signal morph progress (0 = slack, 1 = signal). Driven by phase
   // via framer's `animate` helper so `SlackToSignalMorph` keeps its
@@ -143,53 +185,57 @@ const UnderstandWhyTraceView = () => {
 
   return (
     <TraceViewErrorBoundary>
-      <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
-        <div className="flex gap-18">
-          {/* LEFT — sticky stacked text. The relative wrapper's
+      {/* Provider wraps BOTH columns — the left column's Timeline body has
+          underlined links that drive selection inside the bento on the right,
+          so it needs the same store context as TraceBento. */}
+      <TraceViewStoreProvider storeKey="landing-understand-why" initialTrace={trace}>
+        <section ref={sectionRef} className={cn("relative w-full mx-auto px-6 lg:px-0", LANDING_COLUMN_MAX_W)}>
+          <div className="flex gap-18 2xl:gap-36">
+            {/* LEFT — sticky stacked text. The relative wrapper's
               `minHeight` drives the grid row height (= section's scroll
               length). The sticky child pins for the entire section. */}
-          <div className="relative min-w-0 h-[240vh] flex-1">
-            <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
-              <div className="h-[760px] w-full overflow-hidden relative">
-                {/* Top gradient — text fades into page bg at top of viewport */}
-                <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-landing-surface-700 to-transparent pointer-events-none h-[100px]" />
+            <div className="relative min-w-0 h-[240vh] flex-1">
+              <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
+                <div className="h-[760px] w-full overflow-hidden relative">
+                  {/* Top gradient — text fades into page bg at top of viewport */}
+                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-landing-surface-700 to-transparent pointer-events-none h-[100px]" />
 
-                {/* Stack wrapper — vertically centered in viewport via flex
+                  {/* Stack wrapper — vertically centered in viewport via flex
                   items-center. Inner motion.div uses `style={{ y }}` with
                   a MotionValue, so framer updates the transform on every
                   scroll frame without re-rendering React. */}
-                <div className="absolute inset-0 flex items-center">
-                  <motion.div style={{ y: stackY }} className="flex flex-col gap-32 w-full">
-                    {([1, 2, 3, 4] as const).map((n) => {
-                      const config = BANDS[n];
-                      return (
-                        // Opacity driven by the discrete `phase` state —
-                        // snaps between full and INACTIVE_OPACITY on phase
-                        // change, softened by a CSS opacity transition.
-                        // No framer involvement; remove the transition
-                        // class if you want a hard snap.
-                        <div
-                          key={n}
-                          style={{ opacity: phase === n ? 1 : INACTIVE_OPACITY }}
-                          className="flex flex-col transition-opacity duration-300 ease-out"
-                        >
-                          {STEP_LABELS[n] && <span className={cn(microLabel, "mb-4")}>{STEP_LABELS[n]}</span>}
-                          {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
-                          {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
-                          <p className={cn(bodyMedium, "text-justify")}>{config.body}</p>
-                        </div>
-                      );
-                    })}
-                  </motion.div>
-                </div>
+                  <div className="absolute inset-0 flex items-center">
+                    <motion.div style={{ y: stackY }} className="flex flex-col gap-32 w-full">
+                      {([1, 2, 3, 4] as const).map((n) => {
+                        const config = BANDS[n];
+                        return (
+                          // Opacity driven by the discrete `phase` state —
+                          // snaps between full and INACTIVE_OPACITY on phase
+                          // change, softened by a CSS opacity transition.
+                          // No framer involvement; remove the transition
+                          // class if you want a hard snap.
+                          <div
+                            key={n}
+                            style={{ opacity: phase === n ? 1 : INACTIVE_OPACITY }}
+                            className="flex flex-col transition-opacity duration-300 ease-out"
+                          >
+                            {STEP_LABELS[n] && <span className={cn(microLabel, "mb-4")}>{STEP_LABELS[n]}</span>}
+                            {config.title && <h2 className={cn(subSection, "mb-4")}>{config.title}</h2>}
+                            {config.subtitle && <h3 className={cn(subSubSection, "mb-2")}>{config.subtitle}</h3>}
+                            <p className={cn(bodyMedium, "")}>{config.body}</p>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  </div>
 
-                {/* Bottom gradient — text fades into page bg at bottom of viewport */}
-                <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none h-[120px]" />
+                  {/* Bottom gradient — text fades into page bg at bottom of viewport */}
+                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none h-[120px]" />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* RIGHT — see LAYOUT comment above for the outer/inner pattern.
+            {/* RIGHT — see LAYOUT comment above for the outer/inner pattern.
               `min-w-full shrink-0` on the inner keeps the bento centered
               when its natural width fits, and right-anchored when it
               overflows (the inner grows past parent's content area, and
@@ -200,30 +246,29 @@ const UnderstandWhyTraceView = () => {
               bento (z-0) and below the footnote (z-20 inside
               SectionFootnote), so the footnote stays legible over the
               bottom gradient. */}
-          <div className="relative">
-            <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
-              <div className="w-[480px] h-[760px] rounded-sm bg-landing-surface-550 overflow-hidden flex items-center justify-end px-5 relative">
-                <div className="min-w-full shrink-0 flex items-center justify-center">
-                  <TraceViewStoreProvider storeKey="landing-understand-why" initialTrace={trace}>
+            <div className="relative">
+              <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
+                <div className="w-[480px] h-[760px] rounded-sm bg-landing-surface-550 overflow-hidden flex items-center justify-end px-5 relative">
+                  <div className="min-w-full shrink-0 flex items-center justify-center">
                     <TraceBento phase={phase} morphProgress={morphProgress} trace={trace} spans={spans ?? []} />
-                  </TraceViewStoreProvider>
-                </div>
+                  </div>
 
-                {/* Left gradient — only in the Ask AI phase, where chat content
+                  {/* Left gradient — only in the Ask AI phase, where chat content
                     bleeds toward the left edge and needs the fade. */}
-                {phase === 4 && (
-                  <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-landing-surface-550/80 to-transparent pointer-events-none w-[80px]" />
-                )}
+                  {phase === 4 && (
+                    <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-landing-surface-550/80 to-transparent pointer-events-none w-[80px]" />
+                  )}
 
-                {/* Bottom gradient */}
-                <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
+                  {/* Bottom gradient */}
+                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
 
-                <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
+                  <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </TraceViewStoreProvider>
     </TraceViewErrorBoundary>
   );
 };

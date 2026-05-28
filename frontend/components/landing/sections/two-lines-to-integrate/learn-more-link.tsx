@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -17,12 +17,12 @@ const LearnMoreLink = ({ label, href, className }: Props) => (
     target={href.startsWith("http") ? "_blank" : undefined}
     className={cn(
       microLabel,
-      "inline-flex items-center gap-1 hover:text-landing-text-400 transition-colors",
+      "inline-flex text-lg items-center gap-2 hover:text-landing-text-200 transition-colors",
       className
     )}
   >
     <span>{label}</span>
-    <ArrowRight className="size-3" strokeWidth={2} />
+    <ArrowUpRight className="size-4 translate-y-[1px]" strokeWidth={2} />
   </Link>
 );
 

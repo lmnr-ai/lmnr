@@ -6,6 +6,8 @@ import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+import { type Tier, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
 
 import { microLabel, subSection } from "../class-names";
@@ -41,32 +43,23 @@ function estimateDataFromTokens(tokens: number): number {
   return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
 }
 
-function buildEstimate(
-  name: string,
-  basePrice: number,
-  includedDataGB: number,
-  includedSignalSteps: number,
-  dataOverageRate: number,
-  signalOverageRate: number,
-  dataGB: number,
-  signalStepsProcessed: number,
-  retention: string,
-  support: string
-): TierEstimate {
-  const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
-  const signalOverageCost = Math.max(0, signalStepsProcessed - includedSignalSteps) * signalOverageRate;
+function buildEstimate(tier: Tier, dataGB: number, signalStepsProcessed: number): TierEstimate {
+  const t = TIERS[tier];
+  const basePrice = t.basePriceMonthly ?? 0;
+  const dataOverageCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
+  const signalOverageCost = Math.max(0, signalStepsProcessed - t.includedSignalSteps) * t.signalOverageRatePerStep;
   return {
-    name,
+    name: t.name,
     basePrice,
-    includedDataGB,
-    includedSignalSteps,
-    dataOverageRate,
-    signalOverageRate,
+    includedDataGB: t.includedBytesGB,
+    includedSignalSteps: t.includedSignalSteps,
+    dataOverageRate: t.dataOverageRatePerGB,
+    signalOverageRate: t.signalOverageRatePerStep,
     dataOverageCost,
     signalOverageCost,
     total: basePrice + dataOverageCost + signalOverageCost,
-    retention,
-    support,
+    retention: TIER_RETENTION[tier].duration,
+    support: t.support,
   };
 }
 
@@ -100,37 +93,33 @@ function formatDataSize(gb: number): string {
   return `${gb.toFixed(1)} GB`;
 }
 
-function RecommendedBadge({ tooltip }: { tooltip?: string }) {
-  if (tooltip) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-              Recommended
-              <Info size={11} />
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
+// Tooltip is required — the badge only makes sense paired with a "why this
+// tier is recommended" explanation.
+function RecommendedBadge({ tooltip }: { tooltip: string }) {
   return (
-    <Badge variant="default" className="text-xs shrink-0">
-      Recommended
-    </Badge>
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
+            Recommended
+            <Info size={11} />
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
+// Badge only renders when a tooltip is supplied — keeps the name-only call
+// shape valid for any future reuse without a recommendation context.
 function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className={cn(subSection, "text-white")}>{name}</span>
-      <RecommendedBadge tooltip={tooltip} />
+      {tooltip && <RecommendedBadge tooltip={tooltip} />}
     </div>
   );
 }
@@ -202,10 +191,14 @@ function TierColumn({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.retention} retention
         </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.support} support
         </span>
       </div>
@@ -242,7 +235,7 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
 
       <div className="flex flex-wrap gap-2">
         <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
-          Custom retention
+          {retentionLabel("enterprise")}
         </span>
         <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
           Dedicated support
@@ -288,9 +281,9 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30-day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "90-day", "Slack");
+  const free = buildEstimate("free", dataGB, signalRuns);
+  const hobby = buildEstimate("hobby", dataGB, signalRuns);
+  const pro = buildEstimate("pro", dataGB, signalRuns);
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 

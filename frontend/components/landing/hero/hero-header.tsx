@@ -8,17 +8,17 @@ import { useEffect, useState } from "react";
 import logo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
-// Hero-only header. Differs from the shared LandingHeader: full-width
-// announcement banner above; logo + nav items live in a single row that
-// flows left-to-right (no auth CTAs pushed to the right) so the row only
-// fills the LEFT column of the hero, leaving room for the illustration
-// on the right.
+import GitHubStarsButton from "../header/github-stars-button";
+
+// Hero-only header. Differs from the shared LandingHeader: column-width
+// (not viewport-wide), logo + nav items flow left-to-right in a single row
+// so the header only occupies the LEFT column of the hero — the cubes
+// illustration column sits to its right.
 const NAV_LINKS = [
-  { href: "/blog", label: "Blog", external: false },
   { href: "/pricing", label: "Pricing", external: false },
+  { href: "/blog", label: "Blog", external: false },
+  { href: "https://cal.com/robert-lmnr/30min", label: "Book demo", external: true },
   { href: "https://discord.gg/nNFUUDAKub", label: "Discord", external: true },
-  { href: "https://cal.com/robert-lmnr/30min", label: "Book a demo", external: true },
-  { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
 
 interface Props {
@@ -56,6 +56,7 @@ export default function HeroHeader({ className }: Props) {
               {link.label}
             </Link>
           ))}
+          <GitHubStarsButton owner="lmnr-ai" repo="lmnr" />
         </nav>
         <button
           type="button"
@@ -84,6 +85,14 @@ export default function HeroHeader({ className }: Props) {
               {link.label}
             </Link>
           ))}
+          <Link
+            href="https://github.com/lmnr-ai/lmnr"
+            target="_blank"
+            className="font-manrope text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            GitHub
+          </Link>
         </nav>
       </div>
     </>

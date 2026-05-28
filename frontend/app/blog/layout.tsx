@@ -18,8 +18,6 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
         className={cn("w-full mx-auto pt-4 px-6 lg:px-0", LANDING_COLUMN_MAX_W)}
       />
       <main className="flex-1">{children}</main>
-      {/* Spacer */}
-      <div className="w-full h-[160px]" />
       <Footer className="pt-[160px]" />
     </div>
   );

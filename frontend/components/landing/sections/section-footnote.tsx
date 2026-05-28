@@ -22,15 +22,17 @@ interface Props {
 // (see has-this-issue.tsx etc.) so it's a single source of truth and
 // the footnote stays as just name + learn more (no uppercasing).
 const SectionFootnote = ({ name, href }: Props) => (
-  <div className={cn(microLabel, "absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-2 py-2")}>
+  <div
+    className={cn(microLabel, "absolute bottom-0 left-0 right-0 z-20 flex justify-between w-full px-2 py-2 items-end")}
+  >
     <span>{name}</span>
     <Link
       href={href}
       target="_blank"
-      className="inline-flex items-center gap-1 hover:text-landing-text-300 transition-colors"
+      className="inline-flex items-center gap-1 hover:text-landing-text-200 transition-colors"
     >
       Learn more
-      <ArrowUpRight className="size-3" strokeWidth={2} />
+      <ArrowUpRight className="size-4.5 translate-y-[1.5px]" strokeWidth={1.5} />
     </Link>
   </div>
 );

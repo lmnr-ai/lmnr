@@ -1,22 +1,10 @@
-import Link from "next/link";
+import CTAButtons from "../cta-buttons";
 
-import LandingButton from "../landing-button";
-
-// Final CTA — left-aligned within the 880px column.
+// Final CTA — mirrors the hero button pair (same color, size, font, copy)
+// so both ends of the page read identically.
 const CTA = () => (
-  <section className="flex items-start w-full py-[60px]">
-    <div className="flex items-center gap-5">
-      <Link href="/sign-up">
-        <LandingButton variant="primary" size="sm" className="w-[160px]">
-          Get Started
-        </LandingButton>
-      </Link>
-      <Link href="https://cal.com/robert-lmnr/30min" target="_blank">
-        <LandingButton variant="outline" size="sm" className="w-[160px]">
-          Book a demo
-        </LandingButton>
-      </Link>
-    </div>
+  <section className="w-full py-[60px]">
+    <CTAButtons className="justify-center md:justify-start w-full" />
   </section>
 );
 
