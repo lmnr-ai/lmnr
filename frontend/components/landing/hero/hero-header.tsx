@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Equal, X } from "lucide-react";
+import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -20,24 +20,6 @@ const NAV_LINKS = [
   { href: "https://cal.com/robert-lmnr/30min", label: "Book a demo", external: true },
   { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
-
-// Full-width strip rendered above the landing column, NOT inside it — so
-// the banner spans the viewport regardless of the hero's left/right split.
-export const AnnouncementBanner = () => (
-  <div className="flex items-center justify-center gap-3 bg-landing-primary-400 px-4 py-1 text-sm text-white">
-    <span>Laminar raises $3M seed to power AI observability</span>
-    <Link
-      // TODO: replace dummy link with the actual seed announcement
-      href="https://laminar.sh/blog"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
-    >
-      Learn more
-      <ArrowRight className="size-3" />
-    </Link>
-  </div>
-);
 
 interface Props {
   className?: string;

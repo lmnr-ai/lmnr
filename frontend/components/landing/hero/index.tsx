@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W } from "../class-names";
 import CubesIllustration from "./cubes-illustration";
-import HeroHeader, { AnnouncementBanner } from "./hero-header";
+import HeroHeader from "./hero-header";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -24,13 +24,8 @@ const TITLE = "Open-source\nAgent Monitoring";
 const BODY =
   "Laminar analyzes every trace your agent produces,\nsurfaces the behavior worth your attention,\nand turns recurring failures into regression evals.\nAutomatically.";
 
- 
 const Hero = ({ className, hasSession: _hasSession }: Props) => (
   <div className={cn("flex flex-col items-center w-full pb-20", className)}>
-    <div className="w-full">
-      <AnnouncementBanner />
-    </div>
-
     <div className={cn("flex flex-row gap-[100px] w-full px-6 lg:px-0 items-start", LANDING_COLUMN_MAX_W)}>
       {/* LEFT column — figma Frame 1328, 499px wide × 778px tall. mt-auto on
           the logo strip pushes it to the bottom so the LEFT bottom aligns
