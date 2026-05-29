@@ -252,7 +252,7 @@ function EvaluationsContent() {
             <ChartVariantToggle />
           </div>
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel minSize={20} defaultSize={20}>
+            <ResizablePanel className="min-w-0" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
                 className="h-full"
