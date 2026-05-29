@@ -1242,14 +1242,6 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
         return false;
     }
 
-    // Tool-definition attributes: producer extracts these into the dedup'd
-    // `tool_definitions_hash` column. Filtering here covers legacy spans
-    // that were never producer-preprocessed, so the bytes don't get billed
-    // twice and the attributes tab doesn't surface duplicates.
-    if crate::traces::tool_dedup::is_tool_definition_attribute(attribute) {
-        return false;
-    }
-
     // Newer AI SDK operation-prefixed attributes that have been normalized to
     // standard `ai.*` / `gen_ai.*` keys. Remove the originals to save storage.
     const AISDK_NORMALIZED_SUFFIXES: &[&str] = &[

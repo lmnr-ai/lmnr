@@ -495,14 +495,24 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Tool-definition attributes are now stripped: the producer
-        // extracts them into the dedup'd `tool_definitions_hash` column,
-        // and `should_keep_attribute` filters them defensively for the
-        // legacy / non-preprocessed path so the attributes tab doesn't
-        // surface duplicates and bytes aren't double-counted.
-        assert!(!attrs.contains_key("llm.request.functions.0.name"));
-        assert!(!attrs.contains_key("llm.request.functions.1.name"));
-        assert!(!attrs.contains_key("llm.request.functions.2.name"));
+        // Tool-definition attributes are PRESERVED on the legacy /
+        // non-preprocessed path. The producer strips them only when it
+        // successfully extracts them into the dedup'd `tool_definitions_hash`
+        // column; spans that never went through producer extraction keep them
+        // so the frontend's `extractToolsFromAttributes` fallback can render
+        // them.
+        assert_eq!(
+            attrs.get("llm.request.functions.0.name"),
+            Some(&json!("get_weather"))
+        );
+        assert_eq!(
+            attrs.get("llm.request.functions.1.name"),
+            Some(&json!("get_time"))
+        );
+        assert_eq!(
+            attrs.get("llm.request.functions.2.name"),
+            Some(&json!("get_city_population"))
+        );
 
         // Verify path and instrumentation metadata are PRESERVED
         assert_eq!(

@@ -40,21 +40,6 @@ fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
     format!("s:{}:{}", project_id.simple(), hex::encode(hash))
 }
 
-/// Names of the source attributes we extract tool definitions from. After a
-/// successful normalize the producer strips these from `raw_attributes`.
-pub const TOOL_DEFINITION_ATTRIBUTE_KEYS: &[&str] = &["ai.prompt.tools", "gen_ai.tool.definitions"];
-
-/// True when the attribute key participates in tool-definition extraction —
-/// covers both single-attribute shapes and the indexed `llm.request.functions.{N}.*`
-/// family. Used by `should_keep_attribute` to filter legacy attributes
-/// defensively (tool extraction strips them on the producer when present).
-pub fn is_tool_definition_attribute(attribute: &str) -> bool {
-    if TOOL_DEFINITION_ATTRIBUTE_KEYS.contains(&attribute) {
-        return true;
-    }
-    attribute.starts_with("llm.request.functions.")
-}
-
 /// Producer's verdict for a span's normalized tool-definition blob.
 ///
 /// `hash` is the BLAKE3 hash of the canonical JSON of the tool-definitions

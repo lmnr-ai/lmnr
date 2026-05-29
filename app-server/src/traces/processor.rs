@@ -191,11 +191,6 @@ pub async fn process_span_messages(
         .map(|(i, _)| i)
         .collect();
     let (mut shared_content, mut input_batch, mut output_batch, tool_content_bytes_per_recordable) = {
-        let _g = tracing::info_span!(
-            "preprocess.dedup_batch",
-            recordable = recordable_indices.len()
-        )
-        .entered();
         let dedup_spans: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
         let recordable_input_dedups: Vec<Option<MessageDedup>> = recordable_indices
             .iter()

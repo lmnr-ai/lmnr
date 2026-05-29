@@ -26,6 +26,7 @@ pub struct RabbitMqSpanMessage {
     /// `convert_span_to_provider_format` already ran. Consumer skips them.
     /// Older agents emit messages without this field; default `false` keeps
     /// the legacy on-consumer pipeline working unchanged.
+    /// TODO: remove this field
     #[serde(default)]
     pub pre_processed: bool,
     /// Pre-computed dedup verdict for an LLM span's input messages.
