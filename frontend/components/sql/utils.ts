@@ -108,6 +108,11 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "Array(Tuple(timestamp Int64, name String, attributes String))",
         description: "Events associated with the span",
       },
+      {
+        name: "tool_definitions",
+        type: "String",
+        description: "Tool definitions available to the LLM span as stringified JSON",
+      },
     ],
   },
   traces: {

@@ -663,11 +663,11 @@ pub async fn process_span_messages(
             // dropped (filter_map) — the row still went to
             // `shared_content` if storage-miss, it just isn't searchable.
             // A span with no hashes (non-array input) gets `None`, so
-            // `from_span` falls through to raw `span.input`. Output
-            // messages flow through `span.output` directly — they're
-            // stripped only on dedup; the index path uses the same
-            // mechanism for input.
-            let new_messages = if s.is_llm_span()
+            // `from_span` falls through to raw `span.input`. Output is
+            // dedup'd the same way: `span.output` is `None` on the wire for
+            // dedup'd LLM spans, so the trace-new output array is rebuilt
+            // from `output_batch.span_trace_new_contents` (mirrors input).
+            let new_input_messages = if s.is_llm_span()
                 && input_batch
                     .span_hashes
                     .get(dedup_idx)
@@ -686,7 +686,30 @@ pub async fn process_span_messages(
             } else {
                 None
             };
-            QuickwitIndexedSpan::from_span(s, new_messages.as_deref())
+            let new_output_messages = if s.is_llm_span()
+                && output_batch
+                    .span_hashes
+                    .get(dedup_idx)
+                    .map(|h| !h.is_empty())
+                    .unwrap_or(false)
+            {
+                output_batch
+                    .span_trace_new_contents
+                    .get(dedup_idx)
+                    .map(|contents| {
+                        contents
+                            .iter()
+                            .filter_map(|c| serde_json::from_str::<Value>(c).ok())
+                            .collect::<Vec<Value>>()
+                    })
+            } else {
+                None
+            };
+            QuickwitIndexedSpan::from_span(
+                s,
+                new_input_messages.as_deref(),
+                new_output_messages.as_deref(),
+            )
         })
         .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs

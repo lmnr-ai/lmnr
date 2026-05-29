@@ -121,12 +121,47 @@ pub fn canonical_json(value: &Value) -> String {
 /// `trace_new_contents`: only hash references ride the wire. The consumer
 /// never re-hashes — the `shared_content_dict` lookup at view-read time is
 /// the only reader path for those.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct MessageDedup {
     pub hashes: Vec<[u8; 32]>,
     pub trace_new_indices: Vec<u16>,
     pub trace_new_contents: Vec<String>,
     pub storage_miss_offsets: Vec<u16>,
+}
+
+// Backward-compatible deserialization: the old (pre project-scoped) wire shape
+// used `new_indices` / `new_contents` and had no `storage_miss_offsets`. Under
+// that trace-scoped model every trace-new position was also a storage miss, so
+// we synthesize `storage_miss_offsets = 0..trace_new_indices.len()`. Remove
+// this custom impl (restore `#[derive(Deserialize)]`) once all old-shape
+// messages have drained from the queue.
+impl<'de> Deserialize<'de> for MessageDedup {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Wire {
+            hashes: Vec<[u8; 32]>,
+            #[serde(default, alias = "new_indices")]
+            trace_new_indices: Vec<u16>,
+            #[serde(default, alias = "new_contents")]
+            trace_new_contents: Vec<String>,
+            #[serde(default)]
+            storage_miss_offsets: Option<Vec<u16>>,
+        }
+
+        let wire = Wire::deserialize(deserializer)?;
+        let storage_miss_offsets = wire
+            .storage_miss_offsets
+            .unwrap_or_else(|| (0..wire.trace_new_indices.len() as u16).collect());
+        Ok(MessageDedup {
+            hashes: wire.hashes,
+            trace_new_indices: wire.trace_new_indices,
+            trace_new_contents: wire.trace_new_contents,
+            storage_miss_offsets,
+        })
+    }
 }
 
 /// Producer-side: walk an LLM span's array message field (`input` or
@@ -350,6 +385,34 @@ mod tests {
 
     fn make_cache() -> Arc<Cache> {
         Arc::new(Cache::InMemory(InMemoryCache::new(None)))
+    }
+
+    #[test]
+    fn deserializes_old_wire_shape_with_legacy_field_names() {
+        let zero_hash = format!("[{}]", vec!["0"; 32].join(","));
+        let json_str = format!(
+            r#"{{"hashes":[{zero_hash}],"new_indices":[0],"new_contents":["{{}}"]}}"#
+        );
+        let dedup: MessageDedup = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(dedup.trace_new_indices, vec![0]);
+        assert_eq!(dedup.trace_new_contents, vec!["{}".to_string()]);
+        // Old trace-scoped model: every trace-new position was a storage miss.
+        assert_eq!(dedup.storage_miss_offsets, vec![0]);
+    }
+
+    #[test]
+    fn deserializes_new_wire_shape_roundtrip() {
+        let dedup = MessageDedup {
+            hashes: vec![[0u8; 32]],
+            trace_new_indices: vec![0],
+            trace_new_contents: vec!["{}".to_string()],
+            storage_miss_offsets: vec![],
+        };
+        let s = serde_json::to_string(&dedup).unwrap();
+        let back: MessageDedup = serde_json::from_str(&s).unwrap();
+        assert_eq!(back.trace_new_indices, vec![0]);
+        // Explicit empty `storage_miss_offsets` is preserved, NOT re-synthesized.
+        assert_eq!(back.storage_miss_offsets, Vec::<u16>::new());
     }
 
     #[test]
