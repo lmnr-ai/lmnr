@@ -63,9 +63,15 @@ interface ProgressionChartProps {
   className?: string;
   aggregationFunction: AggregationFunction;
   evaluations: { id: string; name: string }[];
+  baselineEvaluationId?: string;
 }
 
-export default function ProgressionChart({ className, aggregationFunction, evaluations }: ProgressionChartProps) {
+export default function ProgressionChart({
+  className,
+  aggregationFunction,
+  evaluations,
+  baselineEvaluationId,
+}: ProgressionChartProps) {
   const [scores, setScores] = useState<string[]>([]);
   const [variant] = useChartVariant();
   const searchParams = useSearchParams();
@@ -93,7 +99,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
 
   const points: ProgressionPoint[] = useMemo(() => {
     const nameById: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
-    return (
+    const raw =
       data?.map(({ timestamp, evaluationId, names, values }) => {
         const valueMap: Record<string, number | null> = {};
         for (const score of scoreKeys) {
@@ -111,9 +117,22 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
           name: nameById[evaluationId] || "-",
           values: valueMap,
         };
-      }) ?? []
-    );
-  }, [data, evaluations, scoreKeys]);
+      }) ?? [];
+
+    if (!baselineEvaluationId) return raw;
+    const baselinePoint = raw.find((p) => p.evaluationId === baselineEvaluationId);
+    if (!baselinePoint) return raw;
+    // Subtract baseline per-score; null baseline or null value → null (no relative signal).
+    return raw.map((p) => {
+      const rel: Record<string, number | null> = {};
+      for (const score of scoreKeys) {
+        const v = p.values[score];
+        const b = baselinePoint.values[score];
+        rel[score] = v === null || b === null ? null : v - b;
+      }
+      return { ...p, values: rel };
+    });
+  }, [data, evaluations, scoreKeys, baselineEvaluationId]);
 
   const chartConfig = useMemo<ChartConfig>(
     () =>
@@ -150,19 +169,22 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
           <SplitCharts data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
         )}
       </div>
-      <div className="flex flex-wrap flex-row justify-center w-full mt-2 gap-2 items-center">
-        {scoreKeys.map((key) => (
-          <div
-            key={key}
-            className="flex items-center text-sm cursor-pointer decoration-dashed"
-            onClick={() => toggleScore(key)}
-          >
-            <Label style={scores.includes(key) ? { color: chartConfig[key]?.color } : {}} className="cursor-pointer">
-              {key}
-            </Label>
-          </div>
-        ))}
-      </div>
+      {/* Legend is only meaningful for the grouped variant; split cards label themselves. */}
+      {variant === "grouped" && (
+        <div className="flex flex-wrap flex-row justify-center w-full mt-2 gap-2 items-center">
+          {scoreKeys.map((key) => (
+            <div
+              key={key}
+              className="flex items-center text-sm cursor-pointer decoration-dashed"
+              onClick={() => toggleScore(key)}
+            >
+              <Label style={scores.includes(key) ? { color: chartConfig[key]?.color } : {}} className="cursor-pointer">
+                {key}
+              </Label>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -188,6 +188,13 @@ function EvaluationsContent() {
 
   const { rowSelection, onRowSelectionChange } = useSelection();
 
+  // When exactly one (or more — we take the first) eval is row-selected, the progression
+  // charts subtract that run's scores from every other run so it becomes the zero baseline.
+  const selectedEvaluationId = useMemo(() => {
+    const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    return ids.length > 0 ? ids[0] : undefined;
+  }, [rowSelection]);
+
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
     try {
       const response = await fetch(`/api/projects/${params?.projectId}/evaluations`, {
@@ -250,6 +257,7 @@ function EvaluationsContent() {
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
                 className="h-full"
                 aggregationFunction={aggregationFunction}
+                baselineEvaluationId={selectedEvaluationId}
               />
             </ResizablePanel>
             <ResizableHandle withHandle className="z-30 mb-2 bg-transparent transition-colors duration-200" />

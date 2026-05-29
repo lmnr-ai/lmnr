@@ -1,7 +1,4 @@
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-
-import { ScrollBar } from "@/components/ui/scroll-area";
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../../ui/chart";
 import { type ProgressionPoint } from "./shared";
@@ -32,20 +29,20 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
       </div>
     );
   }
-
-  // Same horizontal-scroll pattern as the metrics-panel column strip on the eval detail page:
-  // ScrollAreaPrimitive.Root (overflow-hidden) > Viewport > flex w-max row > shrink-0 cards.
+  // Same shape as GroupedBarChart: outer flex flex-col h-full + inner min-h-0 flex-1
+  // overflow-x-auto scroll container + explicit minWidth on the row. The flex-1 here is
+  // what gives the row definite pixel height, which then lets each card's h-full resolve.
+  const minWidth = visible.length * CARD_WIDTH + (visible.length - 1) * CARD_GAP;
   return (
-    <ScrollAreaPrimitive.Root className="relative h-full w-full overflow-hidden">
-      <ScrollAreaPrimitive.Viewport className="h-full w-full">
-        <div className="flex h-full w-max" style={{ gap: CARD_GAP }}>
+    <div className="flex h-full w-full flex-col">
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full" style={{ minWidth, gap: CARD_GAP }}>
           {visible.map((score) => (
             <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
           ))}
         </div>
-      </ScrollAreaPrimitive.Viewport>
-      <ScrollBar orientation="horizontal" />
-    </ScrollAreaPrimitive.Root>
+      </div>
+    </div>
   );
 }
 
