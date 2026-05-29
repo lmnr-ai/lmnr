@@ -122,7 +122,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
       <div className="flex items-center justify-between gap-2 mb-2">
         <VariantToggle value={variant} onChange={setVariant} />
       </div>
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 min-w-0">
         {variant === "grouped" ? (
           <GroupedBarChart data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
         ) : (

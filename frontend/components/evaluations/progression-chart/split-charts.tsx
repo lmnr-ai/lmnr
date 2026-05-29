@@ -17,7 +17,7 @@ interface ScoreRow {
   value: number | null;
 }
 
-const MIN_CHART_WIDTH = 320;
+const CARD_WIDTH = 340;
 
 export default function SplitCharts({ data, scores, visibleScores, chartConfig }: SplitChartsProps) {
   const visible = scores.filter((s) => visibleScores.includes(s));
@@ -28,18 +28,20 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
       </div>
     );
   }
+  // `w-max` gives the flex row an intrinsic content width, so the outer
+  // `overflow-x-auto` scrolls when N * CARD_WIDTH exceeds the viewport.
   return (
-    <div className="size-full overflow-x-auto overflow-y-hidden">
-      <div className="flex h-full gap-6 pr-2">
+    <div className="h-full w-full overflow-x-auto overflow-y-hidden">
+      <div className="flex h-full w-max gap-3 pr-2">
         {visible.map((score) => (
-          <ScorePanel key={score} score={score} data={data} chartConfig={chartConfig} />
+          <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
         ))}
       </div>
     </div>
   );
 }
 
-function ScorePanel({
+function ScoreCard({
   score,
   data,
   chartConfig,
@@ -59,11 +61,14 @@ function ScorePanel({
   const scoreConfig: ChartConfig = { value: { color, label: score } };
 
   return (
-    <div className="flex h-full shrink-0 flex-col" style={{ width: MIN_CHART_WIDTH }}>
-      <div className="px-1 pb-1 text-xs text-muted-foreground truncate">{score}</div>
-      <div className="flex-1 min-h-0">
+    <div
+      className="flex h-full shrink-0 flex-col gap-2 rounded-[4px] border border-border bg-secondary p-3"
+      style={{ width: CARD_WIDTH }}
+    >
+      <div className="text-xs leading-4 text-muted-foreground truncate">{score}</div>
+      <div className="min-h-0 min-w-0 flex-1">
         <ChartContainer config={scoreConfig} className="aspect-auto h-full w-full">
-          <BarChart margin={{ top: 4, right: 6, bottom: 4, left: -16 }} data={rows} accessibilityLayer barSize="60%">
+          <BarChart margin={{ top: 4, right: 4, bottom: 4, left: -16 }} data={rows} accessibilityLayer barSize="60%">
             <CartesianGrid vertical={false} />
             <XAxis dataKey="evaluationId" tick={false} tickLine={false} axisLine={false} height={4} />
             <YAxis
