@@ -1,8 +1,26 @@
+import { differenceInDays, differenceInHours, differenceInMinutes, format } from "date-fns";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatTimestamp } from "@/lib/utils";
 
 import type { VariantProps } from "../types";
 import { hashGroupColor } from "../utils";
+
+// Compact relative date for density-optimised chips: "5m", "3h", "2d", "4w", or "Jan 4" for older.
+function formatChipDate(iso: string): string {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "";
+  const now = new Date();
+  const mins = differenceInMinutes(now, date);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = differenceInHours(now, date);
+  if (hours < 24) return `${hours}h`;
+  const days = differenceInDays(now, date);
+  if (days < 7) return `${days}d`;
+  if (days < 28) return `${Math.floor(days / 7)}w`;
+  return format(date, "MMM d");
+}
 
 export default function ChipsVariant({ groups, selectedGroupId, onSelect }: VariantProps) {
   return (
@@ -32,6 +50,9 @@ export default function ChipsVariant({ groups, selectedGroupId, onSelect }: Vari
                     )}
                   >
                     {g.runCount}
+                  </span>
+                  <span className="text-[10px] tabular-nums text-muted-foreground">
+                    {formatChipDate(g.lastEvaluationCreatedAt)}
                   </span>
                 </button>
               </TooltipTrigger>
