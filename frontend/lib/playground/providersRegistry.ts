@@ -35,6 +35,8 @@ export const getModel = <P extends Provider, K extends string>(key: `${P}:${K}`,
     const providerInstance = createProvider({ apiKey });
     return providerInstance(model);
   } catch (error) {
-    throw new Error(`Failed to initialize model ${key}`);
+    throw new Error(`Failed to initialize model ${key}`, {
+      cause: error,
+    });
   }
 };

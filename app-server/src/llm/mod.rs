@@ -11,6 +11,7 @@ pub use models::*;
 pub use openai::OpenAIClient;
 
 use enum_dispatch::enum_dispatch;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::collections::HashMap;
 use std::env;
 use std::sync::OnceLock;
@@ -101,6 +102,7 @@ pub(crate) enum ProviderClient {
 }
 
 static ALWAYS_USE_REALTIME: OnceLock<bool> = OnceLock::new();
+const LLM_DEFAULT_HEADERS_JSON_ENV: &str = "LLM_DEFAULT_HEADERS_JSON";
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn always_use_realtime() -> bool {
@@ -140,6 +142,40 @@ fn has_bedrock_credentials() -> bool {
     env::var("AWS_ACCESS_KEY_ID").is_ok_and(|v| !v.is_empty())
         && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|v| !v.is_empty())
         && env::var("AWS_REGION").is_ok_and(|v| !v.is_empty())
+}
+
+pub(crate) fn default_headers_from_env() -> Result<HeaderMap, String> {
+    let Some(raw_headers) = env::var(LLM_DEFAULT_HEADERS_JSON_ENV)
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+    else {
+        return Ok(HeaderMap::new());
+    };
+
+    parse_default_headers_json(&raw_headers)
+        .map_err(|e| format!("{LLM_DEFAULT_HEADERS_JSON_ENV}: {e}"))
+}
+
+fn parse_default_headers_json(raw_headers: &str) -> Result<HeaderMap, String> {
+    let parsed: serde_json::Value = serde_json::from_str(raw_headers)
+        .map_err(|e| format!("must be a JSON object with string values: {e}"))?;
+    let object = parsed
+        .as_object()
+        .ok_or_else(|| "must be a JSON object with string values".to_string())?;
+
+    let mut headers = HeaderMap::new();
+    for (name, value) in object {
+        let value = value
+            .as_str()
+            .ok_or_else(|| format!("header '{name}' value must be a string"))?;
+        let name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|e| format!("invalid header name '{name}': {e}"))?;
+        let value = HeaderValue::from_str(value)
+            .map_err(|e| format!("invalid value for header '{name}': {e}"))?;
+        headers.insert(name, value);
+    }
+
+    Ok(headers)
 }
 
 /// Resolve the primary provider name from `LLM_PROVIDER`. Required —
@@ -189,6 +225,53 @@ pub fn request_to_tools_attr(request: &ProviderRequest) -> Option<serde_json::Va
         None
     } else {
         Some(serde_json::Value::Array(tool_array))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_default_headers_json_accepts_string_map() {
+        let headers = parse_default_headers_json(
+            r#"{"X-Gateway-Tenant":"brex","anthropic-version":"2023-06-01"}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            headers.get("x-gateway-tenant").unwrap().to_str().unwrap(),
+            "brex"
+        );
+        assert_eq!(
+            headers.get("anthropic-version").unwrap().to_str().unwrap(),
+            "2023-06-01"
+        );
+    }
+
+    #[test]
+    fn parse_default_headers_json_rejects_non_object() {
+        let error = parse_default_headers_json(r#"["x"]"#).unwrap_err();
+        assert!(error.contains("must be a JSON object"));
+    }
+
+    #[test]
+    fn parse_default_headers_json_rejects_non_string_values() {
+        let error = parse_default_headers_json(r#"{"X-Gateway-Tenant":true}"#).unwrap_err();
+        assert!(error.contains("value must be a string"));
+    }
+
+    #[test]
+    fn parse_default_headers_json_rejects_invalid_names() {
+        let error = parse_default_headers_json(r#"{"Bad Header":"value"}"#).unwrap_err();
+        assert!(error.contains("invalid header name"));
+    }
+
+    #[test]
+    fn parse_default_headers_json_rejects_invalid_values() {
+        let error =
+            parse_default_headers_json("{\"X-Gateway-Tenant\":\"bad\\nvalue\"}").unwrap_err();
+        assert!(error.contains("invalid value"));
     }
 }
 

@@ -2,17 +2,19 @@
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { SquareArrowOutUpRight } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -72,6 +74,7 @@ const datasetsTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "datasets";
 
 const EmptyRow = (
   <TableRow className="flex">
@@ -102,15 +105,19 @@ function DatasetsContent() {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   useEffect(() => {
     track("datasets", "page_viewed");
   }, []);
 
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
 
   const fetchDatasets = useCallback(
     async (pageNumber: number) => {
@@ -160,7 +167,7 @@ function DatasetsContent() {
     updateData,
   } = useInfiniteScroll<DatasetInfo>({
     fetchFn: fetchDatasets,
-    enabled: true,
+    enabled: !isViewLoading,
     deps: [projectId, filter, search],
   });
 
@@ -219,13 +226,12 @@ function DatasetsContent() {
             data={datasets}
             hasMore={hasMore}
             isFetching={isFetching}
-            isLoading={isLoading}
+            isLoading={isLoading || isViewLoading}
             fetchNextPage={fetchNextPage}
             state={{
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
-            lockedColumns={["__row_selection"]}
             emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
@@ -238,17 +244,29 @@ function DatasetsContent() {
             )}
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
-              <DataTableFilter columns={datasetsTableFilters} />
+              <DataTableFilter
+                columns={datasetsTableFilters}
+                filters={effective.filters}
+                onFiltersChange={setFilters}
+              />
               <ColumnsMenu
-                lockedColumns={["__row_selection"]}
                 columnLabels={columns.map((column) => ({
                   id: column.id!,
                   label: typeof column.header === "string" ? column.header : column.id!,
                 }))}
               />
-              <DataTableSearch className="mr-0.5" placeholder="Search by dataset name..." />
+              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
             </div>
-            <DataTableFilterList />
+            <div className="w-full">
+              <AdvancedSearch
+                value={searchValue}
+                onChange={setSearchAndFilters}
+                storageKey={`datasets-${projectId}`}
+                filters={datasetsTableFilters}
+                placeholder="Search by dataset name..."
+                className="w-full flex-1"
+              />
+            </div>
           </InfiniteDataTable>
         </div>
       </div>
@@ -257,9 +275,14 @@ function DatasetsContent() {
 }
 
 export default function Datasets() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultDatasetsColumnOrder }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <DatasetsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

@@ -13,7 +13,6 @@ import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/s
 import PostHogClient from "@/lib/posthog/server";
 import { getEmailsConfig } from "@/lib/server-utils";
 
-import { sendWelcomeEmail } from "./emails/utils";
 import { Feature, isFeatureEnabled } from "./features/features";
 
 /**
@@ -160,7 +159,7 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, account, profile, trigger }) {
+    async jwt({ token, account, trigger }) {
       if (trigger === "signIn") {
         if (!token.name || !token.email) {
           throw new Error("Name and email are required");
@@ -178,10 +177,6 @@ export const authOptions: NextAuthOptions = {
             const user = await createUser(token.name, token.email, token.picture);
             token.userId = user.id;
             isNewUser = true;
-
-            if (isFeatureEnabled(Feature.SEND_EMAIL) && profile?.email) {
-              await sendWelcomeEmail(profile?.email);
-            }
           }
 
           // In self-hosted mode (no email sending), process any pending
@@ -196,7 +191,9 @@ export const authOptions: NextAuthOptions = {
             await trackUserCreated(token.email, account?.provider ?? "unknown");
           }
         } catch (e) {
-          throw new Error("Failed to authenticate user.");
+          throw new Error("Failed to authenticate user.", {
+            cause: e,
+          });
         }
       }
 

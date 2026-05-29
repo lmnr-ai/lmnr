@@ -10,9 +10,9 @@ import useSWR from "swr";
 import { type SignalJobRow, signalJobsColumns, signalJobsFilters } from "@/components/signal/jobs-table/columns.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -100,7 +100,6 @@ const JobsTableContent = () => {
         columns={signalJobsColumns}
         data={jobs}
         getRowId={(job) => job.id}
-        lockedColumns={["id"]}
         hasMore={false}
         isFetching={isLoading}
         isLoading={isLoading}
@@ -116,7 +115,6 @@ const JobsTableContent = () => {
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
-            lockedColumns={["id"]}
           />
         </div>
         <FilterList className="py-[3px] text-xs px-1" filters={jobsFilters} onRemoveFilter={handleRemoveFilter} />
@@ -127,8 +125,11 @@ const JobsTableContent = () => {
 
 export default function SignalJobsTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: signalJobsColumns.map((c) => String(c.id)) }}
+      lockedColumns={["id"]}
+    >
       <JobsTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

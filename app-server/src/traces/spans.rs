@@ -641,6 +641,12 @@ impl SpanAttributes {
         }
     }
 
+    pub fn is_metadata_only(&self) -> bool {
+        self.raw_attributes
+            .get(super::span_attributes::SPAN_METADATA_ONLY)
+            .is_some_and(|v| *v == Value::Bool(true))
+    }
+
     fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
         self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
     }
@@ -1123,6 +1129,12 @@ impl Span {
         // Signal spans are assumed to be leaf spans, so they are not removed from path.
         // They could be LLM spans though, so this check can/should be performed after
         // aggregating trace token/cost stats.
+
+        // Metadata-only virtual spans (POST /v1/traces/metadata) carry only a metadata
+        // patch — they must never be recorded as real spans.
+        if self.attributes.is_metadata_only() {
+            return false;
+        }
 
         // One of the signal spans is the span that carries the attribute to indicate whether
         // the trace has a browser session or not and is named "cdp_use.session".
@@ -4455,5 +4467,49 @@ mod tests {
         assert_eq!(arr[0]["role"], "system");
         // Bare strings are preserved verbatim in `parts`.
         assert_eq!(arr[0]["parts"], system_instructions);
+    }
+
+    #[test]
+    fn metadata_only_span_skips_clickhouse_and_metadata_extraction_works() {
+        let attributes = HashMap::from([
+            (
+                super::super::span_attributes::SPAN_METADATA_ONLY.to_string(),
+                json!(true),
+            ),
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.score"),
+                json!(0.85),
+            ),
+            (
+                format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.reviewer"),
+                json!("alice"),
+            ),
+        ]);
+
+        let span = Span {
+            span_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trace_id: Uuid::new_v4(),
+            parent_span_id: None,
+            name: "lmnr.trace.metadata".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            input: None,
+            output: None,
+            span_type: SpanType::Default,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        assert!(span.attributes.is_metadata_only());
+        assert!(!span.should_record_to_clickhouse());
+        let metadata = span.attributes.metadata().expect("metadata expected");
+        assert_eq!(metadata.get("score"), Some(&json!(0.85)));
+        assert_eq!(metadata.get("reviewer"), Some(&json!("alice")));
     }
 }

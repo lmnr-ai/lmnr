@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { createSignal, deleteSignals, getSignals, GetSignalsSchema } from "@/lib/actions/signals";
+import { createSignal, deleteSignals, getSignals, GetSignalsSchema, setTemplateSignals } from "@/lib/actions/signals";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
@@ -33,9 +35,11 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   const projectId = params.projectId;
 
   try {
+    const session = await getServerSession(authOptions);
+    const subscriberEmail = session?.user?.email ?? undefined;
     const body = await request.json();
 
-    const result = await createSignal({ projectId, ...body });
+    const result = await createSignal({ ...body, projectId, subscriberEmail });
 
     return NextResponse.json(result);
   } catch (error) {
@@ -44,6 +48,26 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
     }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to create signal." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await props.params;
+
+  try {
+    const session = await getServerSession(authOptions);
+    const subscriberEmail = session?.user?.email ?? undefined;
+    const body = await request.json();
+    const result = await setTemplateSignals({ ...body, projectId, subscriberEmail });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to set template signals." },
       { status: 500 }
     );
   }

@@ -8,7 +8,11 @@ dependencies = [
   "dotenv>=0.9.9",
   "grpcio-tools>=1.74.0",
   "grpcio>=1.60.0",
-  "sqlglot[rs]>=27.1.0",
+  # newer versions of sqlglot break some of the functionality
+  # and are incompatible with the `rs` extra (rust parsing engine).
+  # We are going to move this library to a module in app-server,
+  # so not investing in updating and maintaining this dep for now.
+  "sqlglot[rs]==27.29.0",
 ]
 
 [dependency-groups]

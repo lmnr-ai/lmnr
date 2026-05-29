@@ -26,7 +26,7 @@ import TemplateEditor from "@/components/sql/template-editor";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -267,7 +267,7 @@ export default function EditorPanel() {
             <div className="flex overflow-hidden h-full">
               {renderContent({
                 success: (
-                  <DataTableStateProvider>
+                  <InfiniteDataTableProvider>
                     <InfiniteDataTable
                       className="w-full"
                       columns={columns}
@@ -277,7 +277,7 @@ export default function EditorPanel() {
                       isLoading={false}
                       fetchNextPage={() => {}}
                     />
-                  </DataTableStateProvider>
+                  </InfiniteDataTableProvider>
                 ),
                 loadingText: "Executing query...",
                 default: (
