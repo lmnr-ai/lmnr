@@ -3,7 +3,6 @@ import { parseAsStringEnum, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { Button } from "@/components/ui/button";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { cn } from "@/lib/utils";
@@ -11,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { type ChartConfig } from "../../ui/chart";
 import { Label } from "../../ui/label";
 import { Skeleton } from "../../ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "../../ui/tabs";
 import GroupedBarChart from "./grouped-bar-chart";
 import { type ChartVariant, type ProgressionPoint } from "./shared";
 import SplitCharts from "./split-charts";
@@ -23,24 +23,17 @@ export function useChartVariant() {
 
 export function ChartVariantToggle() {
   const [variant, setVariant] = useChartVariant();
-  const options: { value: ChartVariant; label: string }[] = [
-    { value: "grouped", label: "Grouped" },
-    { value: "split", label: "Split" },
-  ];
   return (
-    <div className="inline-flex gap-0.5">
-      {options.map((opt) => (
-        <Button
-          key={opt.value}
-          variant={variant === opt.value ? "secondary" : "ghost"}
-          size="sm"
-          className={cn("h-6 px-2", variant === opt.value ? "" : "border-transparent")}
-          onClick={() => setVariant(opt.value)}
-        >
-          {opt.label}
-        </Button>
-      ))}
-    </div>
+    <Tabs className="inline-block" value={variant} onValueChange={(v) => setVariant(v as ChartVariant)}>
+      <TabsList className="h-8">
+        <TabsTrigger className="text-xs" value="grouped">
+          Grouped
+        </TabsTrigger>
+        <TabsTrigger className="text-xs" value="split">
+          Split
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
   );
 }
 
