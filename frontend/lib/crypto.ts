@@ -39,7 +39,9 @@ export async function encodeApiKey(name: string, value: string): Promise<{ value
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode api_key ${name}`);
+    throw new Error(`Failed to encode api_key ${name}`, {
+      cause: error,
+    });
   }
 }
 
@@ -61,7 +63,9 @@ export async function decodeApiKey(name: string, nonce: string, value: string): 
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode api_key ${name}`);
+    throw new Error(`Failed to decode api_key ${name}`, {
+      cause: error,
+    });
   }
 }
 
@@ -86,7 +90,9 @@ export async function encodeSlackToken(teamId: string, token: string): Promise<{
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode Slack token for team ${teamId}`);
+    throw new Error(`Failed to encode Slack token for team ${teamId}`, {
+      cause: error,
+    });
   }
 }
 
@@ -108,7 +114,9 @@ export async function decodeSlackToken(teamId: string, nonceHex: string, encrypt
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode Slack token for team ${teamId}`);
+    throw new Error(`Failed to decode Slack token for team ${teamId}`, {
+      cause: error,
+    });
   }
 }
 
@@ -133,7 +141,9 @@ export async function encryptValue(additionalData: string, value: string): Promi
       nonce: Buffer.from(nonce).toString("hex"),
     };
   } catch (error) {
-    throw new Error(`Failed to encode value with additional data: ${additionalData}`);
+    throw new Error(`Failed to encode value with additional data: ${additionalData}`, {
+      cause: error,
+    });
   }
 }
 
@@ -155,7 +165,9 @@ export async function decryptValue(additionalData: string, nonce: string, value:
     );
     return new TextDecoder().decode(decrypted);
   } catch (error) {
-    throw new Error(`Failed to decode value with additional data: ${additionalData}`);
+    throw new Error(`Failed to decode value with additional data: ${additionalData}`, {
+      cause: error,
+    });
   }
 }
 
@@ -169,6 +181,8 @@ export async function generateKeyPair(): Promise<{ publicKey: string; privateKey
       privateKey: Buffer.from(keyPair.privateKey).toString("base64"),
     };
   } catch (error) {
-    throw new Error(`Failed to generate Ed25519 key pair`);
+    throw new Error(`Failed to generate Ed25519 key pair`, {
+      cause: error,
+    });
   }
 }
