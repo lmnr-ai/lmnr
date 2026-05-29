@@ -17,6 +17,8 @@ interface ScoreRow {
   value: number | null;
 }
 
+const MIN_CHART_WIDTH = 320;
+
 export default function SplitCharts({ data, scores, visibleScores, chartConfig }: SplitChartsProps) {
   const visible = scores.filter((s) => visibleScores.includes(s));
   if (visible.length === 0) {
@@ -27,10 +29,12 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
     );
   }
   return (
-    <div className="grid h-full auto-rows-fr gap-3 overflow-y-auto pr-1 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-      {visible.map((score) => (
-        <ScorePanel key={score} score={score} data={data} chartConfig={chartConfig} />
-      ))}
+    <div className="size-full overflow-x-auto overflow-y-hidden">
+      <div className="flex h-full gap-6 pr-2">
+        {visible.map((score) => (
+          <ScorePanel key={score} score={score} data={data} chartConfig={chartConfig} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -55,10 +59,8 @@ function ScorePanel({
   const scoreConfig: ChartConfig = { value: { color, label: score } };
 
   return (
-    <div className="flex h-full min-h-[140px] flex-col rounded border bg-background p-2">
-      <div className="px-1 pb-1 text-xs font-medium truncate" style={{ color }}>
-        {score}
-      </div>
+    <div className="flex h-full shrink-0 flex-col" style={{ width: MIN_CHART_WIDTH }}>
+      <div className="px-1 pb-1 text-xs text-muted-foreground truncate">{score}</div>
       <div className="flex-1 min-h-0">
         <ChartContainer config={scoreConfig} className="aspect-auto h-full w-full">
           <BarChart margin={{ top: 4, right: 6, bottom: 4, left: -16 }} data={rows} accessibilityLayer barSize="60%">
