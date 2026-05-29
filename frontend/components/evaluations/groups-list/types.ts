@@ -5,7 +5,7 @@ export type EvaluationGroup = {
   runCount: number;
 };
 
-export type GroupVariant = "list" | "cards" | "timeline" | "chips" | "bars";
+export type GroupVariant = "list" | "stacked" | "inline" | "leading-count" | "hover-dense";
 
 export type VariantProps = {
   groups: EvaluationGroup[];

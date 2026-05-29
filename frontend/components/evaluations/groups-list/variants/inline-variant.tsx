@@ -1,10 +1,9 @@
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { cn } from "@/lib/utils";
 
-import RunCountBadge from "../run-count-badge";
 import type { VariantProps } from "../types";
 
-export default function ListVariant({ groups, selectedGroupId, onSelect }: VariantProps) {
+export default function InlineVariant({ groups, selectedGroupId, onSelect }: VariantProps) {
   return (
     <ul className="flex flex-col gap-px py-1">
       {groups.map((g) => {
@@ -15,18 +14,19 @@ export default function ListVariant({ groups, selectedGroupId, onSelect }: Varia
               type="button"
               onClick={() => onSelect(g.groupId)}
               className={cn(
-                "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
+                "flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left transition-colors",
                 selected ? "bg-secondary" : "hover:bg-muted/60"
               )}
             >
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">{g.groupId}</span>
+              <span className="truncate text-sm font-medium">{g.groupId}</span>
+              <span className="ml-auto inline-flex shrink-0 items-baseline gap-1.5 text-[11px] text-muted-foreground">
+                <span className="tabular-nums">{g.runCount}</span>
+                <span aria-hidden className="text-muted-foreground/60">·</span>
                 <ClientTimestampFormatter
                   className="text-[11px] text-muted-foreground"
                   timestamp={g.lastEvaluationCreatedAt}
                 />
-              </div>
-              <RunCountBadge count={g.runCount} selected={selected} />
+              </span>
             </button>
           </li>
         );

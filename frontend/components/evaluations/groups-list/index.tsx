@@ -10,13 +10,13 @@ import { swrFetcher } from "@/lib/utils";
 
 import type { EvaluationGroup, GroupVariant } from "./types";
 import VariantToggle from "./variant-toggle";
-import BarsVariant from "./variants/bars-variant";
-import CardsVariant from "./variants/cards-variant";
-import ChipsVariant from "./variants/chips-variant";
+import HoverDenseVariant from "./variants/hover-dense-variant";
+import InlineVariant from "./variants/inline-variant";
+import LeadingCountVariant from "./variants/leading-count-variant";
 import ListVariant from "./variants/list-variant";
-import TimelineVariant from "./variants/timeline-variant";
+import StackedVariant from "./variants/stacked-variant";
 
-const VARIANT_VALUES = ["list", "cards", "timeline", "chips", "bars"] as const;
+const VARIANT_VALUES = ["list", "stacked", "inline", "leading-count", "hover-dense"] as const;
 const variantParser = parseAsStringLiteral(VARIANT_VALUES).withDefault("list").withOptions({ history: "replace" });
 
 export default function GroupsList() {
@@ -51,14 +51,14 @@ export default function GroupsList() {
     if (!groups) return null;
     const props = { groups, selectedGroupId: groupId, onSelect };
     switch (variant as GroupVariant) {
-      case "cards":
-        return <CardsVariant {...props} />;
-      case "timeline":
-        return <TimelineVariant {...props} />;
-      case "chips":
-        return <ChipsVariant {...props} />;
-      case "bars":
-        return <BarsVariant {...props} />;
+      case "stacked":
+        return <StackedVariant {...props} />;
+      case "inline":
+        return <InlineVariant {...props} />;
+      case "leading-count":
+        return <LeadingCountVariant {...props} />;
+      case "hover-dense":
+        return <HoverDenseVariant {...props} />;
       case "list":
       default:
         return <ListVariant {...props} />;

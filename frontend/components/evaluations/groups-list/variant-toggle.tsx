@@ -1,4 +1,4 @@
-import { BarChart3, GalleryVertical, LayoutGrid, Milestone, Tags } from "lucide-react";
+import { AlignJustify, AlignLeft, Hash, MousePointer2, Rows3 } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import type { GroupVariant } from "./types";
 
 const OPTIONS: { value: GroupVariant; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: "list", label: "List", Icon: GalleryVertical },
-  { value: "cards", label: "Cards", Icon: LayoutGrid },
-  { value: "timeline", label: "Timeline", Icon: Milestone },
-  { value: "chips", label: "Chips", Icon: Tags },
-  { value: "bars", label: "Bars", Icon: BarChart3 },
+  { value: "list", label: "List", Icon: AlignLeft },
+  { value: "stacked", label: "Stacked metadata", Icon: Rows3 },
+  { value: "inline", label: "Inline", Icon: AlignJustify },
+  { value: "leading-count", label: "Leading count", Icon: Hash },
+  { value: "hover-dense", label: "Hover dense", Icon: MousePointer2 },
 ];
 
 type Props = {
