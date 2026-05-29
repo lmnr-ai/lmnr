@@ -26,12 +26,11 @@ export default function BlogSidebar({ tocItems, className }: Props) {
         href="/sign-up"
         className="flex items-center justify-center w-full h-[36px] rounded-sm bg-landing-primary-200 hover:bg-landing-primary-400 transition-colors no-underline shrink-0"
       >
-        <span className="font-sans-landing font-medium text-sm text-black">Get started – free</span>
+        <span className="font-sans-landing font-medium text-sm text-black">Get started with Laminar</span>
       </Link>
 
       {tocItems.length > 0 && (
         <div className="flex flex-col gap-3 pt-6 border-t border-landing-surface-500 flex-1 min-h-0">
-          <p className="text-xs text-landing-text-300 shrink-0">On this page</p>
           <TableOfContents headings={tocItems} className="flex-1 min-h-0" />
         </div>
       )}

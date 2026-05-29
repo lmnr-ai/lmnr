@@ -21,7 +21,7 @@ interface MDHeadingProps {
 // agree with the rendered DOM ids.
 export default function MDHeading({ props, level }: MDHeadingProps) {
   return (
-    <div className="flex space-x-2 group">
+    <div className="flex space-x-2 group text-white">
       <HeadingContent props={props} level={level} />
       <Link
         href={`#${props.id ?? ""}`}
