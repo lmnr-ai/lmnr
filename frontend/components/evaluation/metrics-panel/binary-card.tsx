@@ -33,7 +33,7 @@ export default function BinaryCard({
 
   return (
     <div className="flex items-end gap-6 h-[74px] w-full px-5 py-4 border border-border rounded-[4px] bg-secondary">
-      <div className="flex flex-col gap-2 shrink-0">
+      <div className="flex flex-col gap-2 shrink-0 min-w-[120px]">
         <p className="text-xs leading-4 text-muted-foreground truncate">{name}</p>
         <div className="flex items-baseline gap-2">
           <div className="flex items-center gap-1 tabular-nums">
