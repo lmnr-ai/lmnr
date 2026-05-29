@@ -154,6 +154,7 @@ function EvaluationsContent() {
   }, []);
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
+  const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
 
   const fetchEvaluations = useCallback(
     async (pageNumber: number) => {
@@ -334,6 +335,7 @@ function EvaluationsContent() {
                 className="h-full"
                 aggregationFunction={aggregationFunction}
                 baselineEvaluationId={selectedEvaluationId}
+                hoveredEvaluationId={hoveredEvaluationId}
               />
             </ResizablePanel>
             <ResizableHandle withHandle className="z-30 mb-2 bg-transparent transition-colors duration-200" />
@@ -351,6 +353,7 @@ function EvaluationsContent() {
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
+                onHoveredRowChange={(row) => setHoveredEvaluationId(row?.original.id)}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows

@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 
 import ScrollEdgeFades from "@/components/ui/scroll-edge-fades";
 
@@ -11,6 +11,7 @@ interface SplitChartsProps {
   scores: string[];
   visibleScores: string[];
   chartConfig: ChartConfig;
+  hoveredEvaluationId?: string;
 }
 
 interface ScoreRow {
@@ -22,8 +23,15 @@ interface ScoreRow {
 
 const CARD_WIDTH = 340;
 const CARD_GAP = 12;
+const DIMMED_OPACITY = 0.4;
 
-export default function SplitCharts({ data, scores, visibleScores, chartConfig }: SplitChartsProps) {
+export default function SplitCharts({
+  data,
+  scores,
+  visibleScores,
+  chartConfig,
+  hoveredEvaluationId,
+}: SplitChartsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const visible = scores.filter((s) => visibleScores.includes(s));
   if (visible.length === 0) {
@@ -43,7 +51,13 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
         <div ref={scrollRef} className="h-full w-full overflow-x-auto overflow-y-hidden">
           <div className="flex h-full" style={{ minWidth, gap: CARD_GAP }}>
             {visible.map((score) => (
-              <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
+              <ScoreCard
+                key={score}
+                score={score}
+                data={data}
+                chartConfig={chartConfig}
+                hoveredEvaluationId={hoveredEvaluationId}
+              />
             ))}
           </div>
         </div>
@@ -57,10 +71,12 @@ function ScoreCard({
   score,
   data,
   chartConfig,
+  hoveredEvaluationId,
 }: {
   score: string;
   data: ProgressionPoint[];
   chartConfig: ChartConfig;
+  hoveredEvaluationId?: string;
 }) {
   const rows: ScoreRow[] = data.map((p) => ({
     name: p.name,
@@ -72,12 +88,29 @@ function ScoreCard({
   const color = chartConfig[score]?.color ?? "hsl(var(--chart-1))";
   const scoreConfig: ChartConfig = { value: { color, label: score } };
 
+  // Rank: sort rows that have a numeric value desc; show 1-indexed rank of hovered eval.
+  // Total denominator counts only rows with a value (null rows can't be ranked).
+  const rank = (() => {
+    if (!hoveredEvaluationId) return null;
+    const ranked = rows.filter((r) => r.value !== null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+    const idx = ranked.findIndex((r) => r.evaluationId === hoveredEvaluationId);
+    if (idx === -1) return null;
+    return { position: idx + 1, total: ranked.length };
+  })();
+
   return (
     <div
       className="flex h-full shrink-0 flex-col gap-2 rounded-[4px] border border-border bg-secondary p-3"
       style={{ width: CARD_WIDTH }}
     >
-      <div className="text-xs leading-4 text-muted-foreground truncate">{score}</div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs leading-4 text-muted-foreground truncate">{score}</span>
+        {rank && (
+          <span className="text-xs leading-4 text-foreground tabular-nums shrink-0">
+            Rank {rank.position}/{rank.total}
+          </span>
+        )}
+      </div>
       <div className="min-h-0 min-w-0 flex-1">
         <ChartContainer config={scoreConfig} className="aspect-auto h-full w-full">
           <BarChart margin={{ top: 4, right: 4, bottom: 4, left: -16 }} data={rows} accessibilityLayer barSize="60%">
@@ -102,7 +135,15 @@ function ScoreCard({
                 />
               }
             />
-            <Bar dataKey="value" name={score} fill={color} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="value" name={score} fill={color} radius={[2, 2, 0, 0]} isAnimationActive={false}>
+              {rows.map((row) => (
+                <Cell
+                  key={row.evaluationId}
+                  fill={color}
+                  fillOpacity={hoveredEvaluationId && row.evaluationId !== hoveredEvaluationId ? DIMMED_OPACITY : 1}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ChartContainer>
       </div>

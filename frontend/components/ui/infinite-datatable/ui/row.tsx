@@ -13,6 +13,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
   row,
   rowVirtualizer,
   onRowClick,
+  onHoveredRowChange,
   focusedRowId,
   href,
 }: InfiniteDataTableRowProps<TData>) {
@@ -59,6 +60,8 @@ export function InfiniteDatatableRow<TData extends RowData>({
       data-state={row.getIsSelected() && "selected"}
       onClick={handleOnClick}
       onAuxClick={handleAuxClick}
+      onMouseEnter={onHoveredRowChange ? () => onHoveredRowChange(row) : undefined}
+      onMouseLeave={onHoveredRowChange ? () => onHoveredRowChange(null) : undefined}
       style={{
         position: "absolute",
         top: 0,

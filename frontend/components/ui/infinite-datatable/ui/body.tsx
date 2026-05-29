@@ -17,6 +17,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
   isFetching,
   hasMore,
   onRowClick,
+  onHoveredRowChange,
   focusedRowId,
   loadMoreRef,
   emptyRow,
@@ -74,6 +75,7 @@ export function InfiniteDatatableBody<TData extends RowData>({
                 row={row}
                 rowVirtualizer={rowVirtualizer}
                 onRowClick={onRowClick}
+                onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}
                 href={getRowHref?.(row)}
               />

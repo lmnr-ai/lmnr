@@ -57,6 +57,7 @@ interface ProgressionChartProps {
   aggregationFunction: AggregationFunction;
   evaluations: { id: string; name: string }[];
   baselineEvaluationId?: string;
+  hoveredEvaluationId?: string;
 }
 
 export default function ProgressionChart({
@@ -64,6 +65,7 @@ export default function ProgressionChart({
   aggregationFunction,
   evaluations,
   baselineEvaluationId,
+  hoveredEvaluationId,
 }: ProgressionChartProps) {
   const [scores, setScores] = useState<string[]>([]);
   const [variant] = useChartVariant();
@@ -159,7 +161,13 @@ export default function ProgressionChart({
         {variant === "grouped" ? (
           <GroupedBarChart data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
         ) : (
-          <SplitCharts data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
+          <SplitCharts
+            data={points}
+            scores={scoreKeys}
+            visibleScores={scores}
+            chartConfig={chartConfig}
+            hoveredEvaluationId={hoveredEvaluationId}
+          />
         )}
       </div>
       {/* Legend is only meaningful for the grouped variant; split cards label themselves. */}

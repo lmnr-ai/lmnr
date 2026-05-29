@@ -50,6 +50,7 @@ export function InfiniteDataTable<TData extends RowData>({
 
   // Custom interaction props
   onRowClick,
+  onHoveredRowChange,
   focusedRowId,
   selectionPanel,
   pinnedColumns,
@@ -307,6 +308,7 @@ export function InfiniteDataTable<TData extends RowData>({
                 isFetching={isFetching}
                 hasMore={hasMore}
                 onRowClick={onRowClick}
+                onHoveredRowChange={onHoveredRowChange}
                 focusedRowId={focusedRowId}
                 loadMoreRef={loadMoreRef}
                 emptyRow={emptyRow}
