@@ -17,28 +17,28 @@ interface MockMessage {
   text: string;
 }
 
-// Trace 91c04f82… — REST-client scaffold mock. Source of truth for span
-// IDs in this mock conversation is the matching trace in laminar. Keep in
-// sync with `understand-why-trace-view/index.tsx` TRACE_ID and the chip
+// Trace f4a22e85… — opencode REST-client scaffold mock. Source of truth for
+// span IDs in this mock conversation is the matching trace in laminar. Keep
+// in sync with `understand-why-trace-view/index.tsx` TRACE_ID and the chip
 // span IDs exported from `signal-event-card.tsx`.
-const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
+const TRACE_ID = "f4a22e85-089a-0959-fd1e-3002e236e42f";
 const PROJECT_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
 
 const spanLink = (label: string, spanId: string) =>
   `\`[${label}](https://lmnr.ai/project/${PROJECT_ID_PLACEHOLDER}/traces/${TRACE_ID}?spanId=${spanId})\``;
 
-// Real span IDs inside trace 91c04f82-3121-3807-0e88-855cb5564715.
+// Real span IDs inside trace f4a22e85-089a-0959-fd1e-3002e236e42f.
 // PLAN_LLM is the LLM call whose tool_call output contained the bad
 // `python` invocation — the planning span where the reasoning slipped.
-const PLAN_LLM_SPAN = "00000000-0000-0000-9eec-e8b846a419d0";
-const PYTHON_NOT_FOUND_BASH_SPAN = "00000000-0000-0000-caf3-ba12dc2a1a43";
-const PARALLEL_CANCEL_BASH_SPAN = "00000000-0000-0000-54b7-654ddf0fabb8";
-const CWD_DRIFT_READ_SPAN = "00000000-0000-0000-9e5b-c6c4c619bda0";
+const PLAN_LLM_SPAN = "00000000-0000-0000-5d0e-4970807b7819";
+const PYTHON_NOT_FOUND_BASH_SPAN = "00000000-0000-0000-038c-8b88bf836ac3";
+const PARALLEL_CANCEL_BASH_SPAN = "00000000-0000-0000-29df-c05ef26d7cd7";
+const CWD_DRIFT_READ_SPAN = "00000000-0000-0000-0cc6-1af923a75a8e";
 
 const INITIAL_RESPONSE = `#### The reasoning mistake
-The agent's plan in this ${spanLink("anthropic.messages", PLAN_LLM_SPAN)} said "run \`python auth.py\` to verify" — assuming \`python\` was on PATH. macOS hasn't shipped a bare \`python\` symlink for years; only \`python3\` exists. That one planning slip fanned into three ${spanLink("Bash", PYTHON_NOT_FOUND_BASH_SPAN)} \`command not found\` retries before the agent caught on.
+The agent's plan in this ${spanLink("ai.streamText.doStream", PLAN_LLM_SPAN)} said "run \`python auth.py\` to verify" — assuming \`python\` was on PATH. macOS hasn't shipped a bare \`python\` symlink for years; only \`python3\` exists. That one planning slip fanned into three ${spanLink("bash", PYTHON_NOT_FOUND_BASH_SPAN)} \`command not found\` retries before the agent caught on.
 
-The remaining two issues — a parallel-call ${spanLink("Bash", PARALLEL_CANCEL_BASH_SPAN)} cascade cancel and a CWD-drift ${spanLink("Read", CWD_DRIFT_READ_SPAN)} miss — are independent missteps but in the same class: unstated environment assumptions the agent's plan never sanity-checked.
+The remaining two issues — a parallel-call ${spanLink("bash", PARALLEL_CANCEL_BASH_SPAN)} cascade cancel and a CWD-drift ${spanLink("read", CWD_DRIFT_READ_SPAN)} miss — are independent missteps but in the same class: unstated environment assumptions the agent's plan never sanity-checked.
 
 #### Prevention
 Three one-line system-prompt guardrails would close all four:
@@ -67,10 +67,10 @@ const MOCK_RESPONSE = "Log in to chat with your traces";
 // "tool" (Bolt). FLAG: if INITIAL_RESPONSE references a new span name,
 // add it here or it will render as a generic tool chip.
 const LABEL_TO_KIND: Record<string, "tool" | "llm"> = {
-  Read: "tool",
-  Edit: "tool",
-  Bash: "tool",
-  "anthropic.messages": "llm",
+  read: "tool",
+  edit: "tool",
+  bash: "tool",
+  "ai.streamText.doStream": "llm",
 };
 
 const KIND_CONFIG = {

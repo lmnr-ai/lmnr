@@ -23,22 +23,21 @@ import { useSelectAndRevealSpan } from "./use-select-and-reveal-span";
 
 const TWEEN: Transition = { type: "tween", duration: 0.3, ease: "easeInOut" };
 
-const TRACE_ID = "91c04f82-3121-3807-0e88-855cb5564715";
+const TRACE_ID = "f4a22e85-089a-0959-fd1e-3002e236e42f";
 
-// Real spans inside trace 91c04f82-3121-3807-0e88-855cb5564715. Used by the
-// Timeline body's three underlined links — click drives a transcript scroll +
-// highlight inside the bento on the right.
-// - LLM_REASONING: the planning anthropic.messages that produced the bad
-//   `python` invocation — same span the signal-event card's first chip
-//   points at, doubles as "see what LLM reasoning looks like" and "this is
-//   where the mistake originated".
+// Real spans inside trace f4a22e85-089a-0959-fd1e-3002e236e42f (opencode
+// REST-client scaffold). Used by the Timeline body's three underlined
+// links — click drives a transcript scroll + highlight inside the bento.
+// - LLM_REASONING: the top-level verify LLM (ai.streamText.doStream) whose
+//   tool-call output planned the bad `python` invocation — same span the
+//   signal-event card's first chip points at.
 // - TOOL_CALL: a successful Bash (the first to print "All smoke tests
 //   passed!") so the demo lands on a clean tool-call example, not a failure.
-// - SUBAGENT: the auth.py Agent subagent — selectAndRevealSpan expands the
-//   group before selecting.
-const LLM_REASONING_SPAN_ID = "00000000-0000-0000-9eec-e8b846a419d0";
-const TOOL_CALL_SPAN_ID = "00000000-0000-0000-a5ca-cab8e5839b0a";
-const SUBAGENT_SPAN_ID = "00000000-0000-0000-34eb-7f0dcf3c45ab";
+// - SUBAGENT: the auth-writer `task` subagent — selectAndRevealSpan expands
+//   the group before selecting.
+const LLM_REASONING_SPAN_ID = "00000000-0000-0000-5d0e-4970807b7819";
+const TOOL_CALL_SPAN_ID = "00000000-0000-0000-83ed-49566094bd47";
+const SUBAGENT_SPAN_ID = "00000000-0000-0000-d798-4ee614097dc8";
 
 const T_PHASE_2 = 0.25;
 const T_PHASE_3 = 0.5;

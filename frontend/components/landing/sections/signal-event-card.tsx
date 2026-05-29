@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 const SIGNAL_BORDER = "rgb(49 134 255 / 0.6)";
 const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
 
-// Real spans inside trace 91c04f82-3121-3807-0e88-855cb5564715 (REST-client
-// scaffold trace). Each chip points at the span that materialises the issue
-// described in the surrounding prose.
+// Real spans inside trace f4a22e85-089a-0959-fd1e-3002e236e42f (opencode
+// REST-client scaffold trace). Each chip points at the span that materialises
+// the issue described in the surrounding prose.
 //
 // FLAG: these IDs are load-bearing — they're referenced by the auto-select
 // + flash trigger in trace-bento.tsx. If the trace_id in
@@ -16,15 +16,14 @@ const SIGNAL_BG = "rgb(49 134 255 / 0.12)";
 // matching IDs in ask-ai.tsx from the new trace, or the chips will point
 // at spans that don't exist in the rendered transcript.
 //
-// NOTE: two of these spans live INSIDE the pagination subagent (Agent group
-// 946c…) — `SIGNAL_PLAN_LLM_SPAN_ID` and `SIGNAL_PYTHON_NOT_FOUND_SPAN_ID`.
-// Clicking them must route through `selectAndRevealSpan` in trace-bento so
-// the transcript expands the subagent group before scrolling. The other two
-// chips sit at top level under the query span.
-export const SIGNAL_PLAN_LLM_SPAN_ID = "00000000-0000-0000-9eec-e8b846a419d0";
-export const SIGNAL_PYTHON_NOT_FOUND_SPAN_ID = "00000000-0000-0000-caf3-ba12dc2a1a43";
-export const SIGNAL_PARALLEL_CANCEL_SPAN_ID = "00000000-0000-0000-54b7-654ddf0fabb8";
-export const SIGNAL_CWD_DRIFT_READ_SPAN_ID = "00000000-0000-0000-9e5b-c6c4c619bda0";
+// All four spans sit at top level under the `opencode turn` root — no
+// subagent reveal required. `selectAndRevealSpan` in trace-bento still
+// routes through `useSelectAndRevealSpan` for the timeline-link case, but
+// the signal chips here would resolve via `selectSpanById` directly.
+export const SIGNAL_PLAN_LLM_SPAN_ID = "00000000-0000-0000-5d0e-4970807b7819";
+export const SIGNAL_PYTHON_NOT_FOUND_SPAN_ID = "00000000-0000-0000-038c-8b88bf836ac3";
+export const SIGNAL_PARALLEL_CANCEL_SPAN_ID = "00000000-0000-0000-29df-c05ef26d7cd7";
+export const SIGNAL_CWD_DRIFT_READ_SPAN_ID = "00000000-0000-0000-0cc6-1af923a75a8e";
 
 interface SpanChipProps {
   iconBg: string;
@@ -78,12 +77,11 @@ interface SignalContentProps {
 // Signal event card inner content. No outer frame — callers wrap it (static
 // border/bg here, animated wrapper in slack-to-signal-morph).
 // Copy summarises the 4 real failure-points from trace
-// 91c04f82-3121-3807-0e88-855cb5564715 (REST-client scaffold). The first
-// chip — anthropic.messages — points at the planning span where the agent
-// *reasoned* itself into a PATH assumption; the other three chips are the
-// downstream tool consequences. Clicking any chip drives the transcript
-// scroll + selection (subagent groups expand automatically via
-// selectAndRevealSpan in trace-bento).
+// f4a22e85-089a-0959-fd1e-3002e236e42f (opencode REST-client scaffold). The
+// first chip — ai.streamText.doStream — points at the top-level verify LLM
+// where the agent *reasoned* itself into a PATH assumption; the other three
+// chips are the downstream tool consequences. Clicking any chip drives the
+// transcript scroll + selection.
 export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => {
   const chipProps = { onSpanClick, flashSpanId };
   return (
@@ -116,7 +114,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
         <SpanChip
           iconBg="bg-llm"
           icon={<MessageCircle className="size-3 text-white" strokeWidth={2} />}
-          label="anthropic.messages"
+          label="ai.streamText.doStream"
           spanId={SIGNAL_PLAN_LLM_SPAN_ID}
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
@@ -126,7 +124,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
         <SpanChip
           iconBg="bg-tool"
           icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="Bash"
+          label="bash"
           spanId={SIGNAL_PYTHON_NOT_FOUND_SPAN_ID}
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
@@ -136,7 +134,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
         <SpanChip
           iconBg="bg-tool"
           icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="Bash"
+          label="bash"
           spanId={SIGNAL_PARALLEL_CANCEL_SPAN_ID}
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
@@ -145,7 +143,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
         <SpanChip
           iconBg="bg-tool"
           icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
-          label="Read"
+          label="read"
           spanId={SIGNAL_CWD_DRIFT_READ_SPAN_ID}
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
