@@ -267,20 +267,25 @@ const compositeKey = (parentSpanPath: string, promptHash: string, invocationRoot
 const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${parentSpanPath}\0${promptHash}`;
 
 /**
- * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return
- * each LLM's invocation root key: a string identifying the unique ancestor
- * chain that distinguishes its invocation from other invocations of the same
- * subagent. `""` means every member shares the same chain (one invocation).
+ * For each cluster of LLMs sharing `(parentSpanPath, promptHash)`, return each
+ * LLM's invocation root key: a string distinguishing its invocation from other
+ * invocations of the same subagent. `""` means one invocation.
  *
- * The key is the full structural portion of `ids_path` — every ancestor
- * except the last two positions (the LLM itself and its direct parent), which
- * are iteration noise: some SDKs reuse one loop body across iterations,
- * others spawn a fresh one per iteration; both are still one invocation.
+ * The key is a structural prefix of `ids_path`; how deep depends on whether the
+ * LLM's direct parent is a real subagent container or per-iteration noise:
+ *  - If a single direct parent holds 2+ of the cluster's LLMs, that parent ran
+ *    the subagent (looping internally), so it stays in the key (`ids_path`
+ *    minus the LLM itself). This separates sibling subagents that share a name
+ *    — hence a `parentSpanPath` — but directly parent their own LLM calls (e.g.
+ *    two Claude Code "Agent" tool spans, each making several calls).
+ *  - Otherwise the direct parent is a per-call wrapper (some SDKs spawn a fresh
+ *    loop body per iteration), so it's dropped with the LLM (`ids_path` minus
+ *    the last two); iterations then collapse while divergence higher up still
+ *    separates distinct invocations.
  *
- * Using the full structural prefix (rather than a single divergence-index
- * value) correctly partitions a cluster with multiple divergence depths —
- * e.g. two invocations sharing depth-1 but diverging at depth-2 stay
- * separate even when a third invocation diverges from them at depth-1.
+ * Using the full structural prefix (not a single divergence index) correctly
+ * partitions a cluster with multiple divergence depths. Falls back to
+ * `parent_span_id` when `ids_path` is absent (older instrumentation).
  */
 const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => {
   const out = new Map<string, string>();
@@ -289,7 +294,24 @@ const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => 
     return out;
   }
 
-  const structuralPrefix = (s: LlmSpanInfo): string => (s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0"));
+  const directParentId = (s: LlmSpanInfo): string =>
+    s.idsPath.length >= 2 ? s.idsPath[s.idsPath.length - 2] : s.parentSpanId;
+
+  // A direct parent shared by 2+ cluster LLMs is a real container, not
+  // per-iteration noise — keep it in the key instead of trimming it as noise.
+  const llmsPerParent = new Map<string, number>();
+  for (const s of cluster) {
+    const p = directParentId(s);
+    llmsPerParent.set(p, (llmsPerParent.get(p) ?? 0) + 1);
+  }
+  const directParentIsContainer = Array.from(llmsPerParent.values()).some((n) => n >= 2);
+
+  const structuralPrefix = (s: LlmSpanInfo): string => {
+    if (directParentIsContainer) {
+      return s.idsPath.length >= 2 ? s.idsPath.slice(0, -1).join("\0") : directParentId(s);
+    }
+    return s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0");
+  };
 
   const keys = cluster.map(structuralPrefix);
   const firstKey = keys[0];

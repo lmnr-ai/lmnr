@@ -680,6 +680,112 @@ describe("computeSubagentGroups", () => {
     assert.ok(groups[0].has("llm_i3"));
   });
 
+  it("splits two same-named subagents that each directly parent multiple LLMs", () => {
+    // Reproduces a real Claude Code trace: two TOOL spans both literally named
+    // "Agent" under the same parent, each DIRECTLY parenting several same-hash
+    // LLM calls (no intermediate loop-body span). Same name => same
+    // parentSpanPath + same hash => one cluster; the only distinguishing signal
+    // is the direct parent id. A naive `slice(0, -2)` drops exactly that id and
+    // merges both invocations into one subagent.
+    const agentLlmPath = ["root", "query", "Agent", "anthropic.messages"];
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      { id: "query", parentId: "root", type: "DEFAULT", path: ["root", "query"], idsPath: ["root", "query"] },
+      // Main agent (shortest path among hashed LLMs => suppressed).
+      {
+        id: "main_1",
+        parentId: "query",
+        type: "LLM",
+        path: ["root", "query", "anthropic.messages"],
+        idsPath: ["root", "query", "main_1"],
+        promptHash: "main_hash",
+        inputTokens: 100,
+      },
+      // Two top-level same-hash LLMs under `query` (subagent-1: a separate
+      // cluster because their parentSpanPath has no "Agent" segment).
+      {
+        id: "top_1",
+        parentId: "query",
+        type: "LLM",
+        path: ["root", "query", "anthropic.messages"],
+        idsPath: ["root", "query", "top_1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "top_2",
+        parentId: "query",
+        type: "LLM",
+        path: ["root", "query", "anthropic.messages"],
+        idsPath: ["root", "query", "top_2"],
+        promptHash: "sub_hash",
+      },
+      // Agent #1 — directly parents two same-hash LLMs.
+      {
+        id: "agent_a",
+        parentId: "query",
+        type: "TOOL",
+        path: ["root", "query", "Agent"],
+        idsPath: ["root", "query", "agent_a"],
+      },
+      {
+        id: "a_llm1",
+        parentId: "agent_a",
+        type: "LLM",
+        path: agentLlmPath,
+        idsPath: ["root", "query", "agent_a", "a_llm1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "a_llm2",
+        parentId: "agent_a",
+        type: "LLM",
+        path: agentLlmPath,
+        idsPath: ["root", "query", "agent_a", "a_llm2"],
+        promptHash: "sub_hash",
+      },
+      // Agent #2 — same name + hash, different invocation (different parent id).
+      {
+        id: "agent_b",
+        parentId: "query",
+        type: "TOOL",
+        path: ["root", "query", "Agent"],
+        idsPath: ["root", "query", "agent_b"],
+      },
+      {
+        id: "b_llm1",
+        parentId: "agent_b",
+        type: "LLM",
+        path: agentLlmPath,
+        idsPath: ["root", "query", "agent_b", "b_llm1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "b_llm2",
+        parentId: "agent_b",
+        type: "LLM",
+        path: agentLlmPath,
+        idsPath: ["root", "query", "agent_b", "b_llm2"],
+        promptHash: "sub_hash",
+      },
+    ]);
+
+    assert.ok(!groupContaining(spans, "main_1"), "main agent stays inline");
+
+    const gTop = groupContaining(spans, "top_1");
+    const gA = groupContaining(spans, "a_llm1");
+    const gB = groupContaining(spans, "b_llm1");
+    assert.ok(gTop && gA && gB);
+
+    // Three distinct subagents: the top-level pair, Agent #1, Agent #2.
+    assert.notStrictEqual(gA, gB, "the two Agent invocations must be separate subagents");
+    assert.notStrictEqual(gTop, gA);
+    assert.notStrictEqual(gTop, gB);
+
+    assert.ok(gTop.has("top_2") && !gTop.has("a_llm1") && !gTop.has("b_llm1"));
+    assert.ok(gA.has("a_llm2") && !gA.has("b_llm1") && !gA.has("b_llm2"));
+    assert.ok(gB.has("b_llm2") && !gB.has("a_llm1") && !gB.has("a_llm2"));
+  });
+
   it("tie-breaks tool assignment by nearest preceding LLM when multiple subagents share a parent", () => {
     // Two subagent LLMs are siblings under one orchestrator span. A TOOL between
     // them joins whichever LLM most recently preceded it.
