@@ -239,10 +239,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   );
 
   // Row click selects the datapoint for the overview panel; the user can then
-  // click "Open trace" to open the side panel. This avoids burying the
-  // comparison overview behind a side panel that opens on every row click.
+  // click "Open trace" to open the side panel. Clear traceId/spanId so the
+  // overview is shown even when the user row-clicks from inside an open trace
+  // (the conditional render gates on !traceId). Mirrors getRowHref's URL clear.
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setDatapointId(row.original["id"] as string);
+    setTraceId(undefined);
   }, []);
 
   const getRowHref = useCallback(
