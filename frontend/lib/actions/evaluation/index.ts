@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -332,12 +332,12 @@ export const getEvaluationDatapointComparison = async (
   const { projectId, evaluationIds, index } = input;
 
   // Authz: only consider evaluations that actually belong to this project.
+  // Filter at the DB instead of loading every project eval into memory.
   const owned = await db.query.evaluations.findMany({
-    where: and(eq(evaluations.projectId, projectId)),
+    where: and(eq(evaluations.projectId, projectId), inArray(evaluations.id, evaluationIds)),
     columns: { id: true },
   });
-  const ownedIds = new Set(owned.map((e) => e.id));
-  const filteredIds = evaluationIds.filter((id) => ownedIds.has(id));
+  const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
   const rows = await executeQuery<{ evaluation_id: string; index: number; scores: string }>({
