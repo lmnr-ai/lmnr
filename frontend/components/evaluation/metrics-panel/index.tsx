@@ -2,8 +2,8 @@
 
 import { parseAsString, useQueryState } from "nuqs";
 
+import ColumnStrip from "@/components/evaluation/metrics-panel/column-strip";
 import ExpandedDetail from "@/components/evaluation/metrics-panel/expanded-detail";
-import GridView from "@/components/evaluation/metrics-panel/grid-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
@@ -20,8 +20,6 @@ interface MetricsPanelProps {
 }
 
 export default function MetricsPanel(props: MetricsPanelProps) {
-  // Grid drill-in. The only piece of view state that needs to survive
-  // navigation / refresh — sort + viz style are now fixed defaults.
   const [expanded, setExpanded] = useQueryState("expandedMetric", parseAsString);
 
   const expandedStats = expanded ? (props.allStatistics?.[expanded] ?? null) : null;
@@ -30,28 +28,33 @@ export default function MetricsPanel(props: MetricsPanelProps) {
   const expandedCDist = expanded ? (props.comparedAllDistributions?.[expanded] ?? null) : null;
 
   return (
-    <div className="relative border rounded-xl bg-secondary overflow-hidden h-72">
+    <div className="relative shrink-0 py-8">
       {props.isLoading ? (
-        <Skeleton className="h-full w-full" />
+        <Skeleton className="h-[156px] w-full rounded-[4px]" />
       ) : expanded ? (
-        <ExpandedDetail
-          name={expanded}
-          statistics={expandedStats}
-          comparedStatistics={expandedCStats}
-          distribution={expandedDist}
-          comparedDistribution={expandedCDist}
-          isComparison={props.isComparison}
-          binaryStyle="dual"
-          onBack={() => setExpanded(null)}
-        />
+        <div className="h-[156px] border border-border rounded-[4px] bg-secondary overflow-hidden">
+          <ExpandedDetail
+            name={expanded}
+            statistics={expandedStats}
+            comparedStatistics={expandedCStats}
+            distribution={expandedDist}
+            comparedDistribution={expandedCDist}
+            isComparison={props.isComparison}
+            onBack={() => setExpanded(null)}
+          />
+        </div>
       ) : (
-        <GridView
-          {...props}
-          density="full"
-          binaryStyle="dual"
-          sortKey="name"
-          sortDir="asc"
-          onExpand={(name) => setExpanded(name)}
+        <ColumnStrip
+          scoreNames={props.scoreNames}
+          allStatistics={props.allStatistics}
+          allDistributions={props.allDistributions}
+          comparedAllStatistics={props.comparedAllStatistics}
+          comparedAllDistributions={props.comparedAllDistributions}
+          isComparison={props.isComparison}
+          onExpand={(name) => {
+            props.setSelectedScore(name);
+            setExpanded(name);
+          }}
         />
       )}
     </div>

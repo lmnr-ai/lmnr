@@ -1,5 +1,6 @@
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
+import { renderTick } from "@/components/evaluation/graphs-utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket } from "@/lib/evaluation/types";
@@ -24,7 +25,6 @@ export default function CompareChart({
   comparedDistribution,
   isLoading = false,
 }: CompareChartProps) {
-  // Convert distribution data to the format expected by the chart
   const chartData = distribution
     ? distribution.map((bucket, index) => ({
         index,
@@ -34,14 +34,21 @@ export default function CompareChart({
     : [];
 
   return (
-    <div className={cn("h-48 w-full", className)}>
+    <div className={cn("w-full h-full", className)}>
       {isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
-        <ChartContainer config={chartConfig} className="h-full w-full">
+        <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
           <BarChart accessibilityLayer data={chartData} barSize="4%">
             <CartesianGrid vertical={false} />
-            <XAxis dataKey="index" tickLine={false} axisLine={false} tick={false} padding={{ left: 0, right: 0 }} />
+            <XAxis
+              dataKey="index"
+              tickLine={false}
+              axisLine={true}
+              padding={{ left: 0, right: 0 }}
+              tick={renderTick as never}
+            />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={3} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
             <Bar dataKey="comparedHeight" fill="hsl(var(--chart-2))" radius={4} name="Compared" />
             <Bar dataKey="height" fill="hsl(var(--chart-1))" radius={4} name="Current" />
