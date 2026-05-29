@@ -1,9 +1,8 @@
-import React, { useCallback, useMemo } from "react";
-import { Bar, BarChart as RechartsBarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import React, { useMemo } from "react";
+import { Bar, BarChart as RechartsBarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 
 import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import { type DisplayMode } from "@/components/chart-builder/types";
-import RoundedBar from "@/components/charts/time-series-chart/bar";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { formatMetricValue } from "./format-value";
@@ -38,11 +37,6 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
 
     return keyTotals.sort((a, b) => b.total - a.total).map((item) => item.key);
   }, [data, keys]);
-
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={sortedKeys} />,
-    [chartConfig, sortedKeys]
-  );
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
@@ -80,12 +74,14 @@ const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColu
           <ChartTooltip
             content={<ChartTooltipContent labelKey={x} labelFormatter={(_, p) => xAxisFormatter(p[0].payload[x])} />}
           />
-          {sortedKeys.map((key) => {
-            const config = chartConfig[key];
-            if (!config) return null;
+          <BarStack radius={[4, 4, 4, 4]}>
+            {sortedKeys.map((key) => {
+              const config = chartConfig[key];
+              if (!config) return null;
 
-            return <Bar key={key} dataKey={key} fill={config.color} stackId="stack" shape={BarShapeWithConfig} />;
-          })}
+              return <Bar key={key} dataKey={key} fill={config.color} stackId="stack" />;
+            })}
+          </BarStack>
           {drag?.refArea.left && drag.refArea.right && (
             <ReferenceArea
               x1={drag.refArea.left}
