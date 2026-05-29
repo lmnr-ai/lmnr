@@ -1,10 +1,11 @@
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 import BinaryCard from "@/components/evaluation/metrics-panel/binary-card";
 import HistogramCard from "@/components/evaluation/metrics-panel/histogram-card";
 import { type AggregationKind, isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import { ScrollBar } from "@/components/ui/scroll-area";
+import ScrollEdgeFades from "@/components/ui/scroll-edge-fades";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
 const COLUMN_WIDTH = 400;
@@ -63,10 +64,12 @@ export default function ColumnStrip({
     return out;
   }, [scoreNames, allDistributions]);
 
+  const viewportRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="relative w-full">
       <ScrollAreaPrimitive.Root className="relative w-full overflow-hidden">
-        <ScrollAreaPrimitive.Viewport className="w-full">
+        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="w-full">
           {/* w-max + mx-auto: centers when content fits, left-aligns + scrolls when it overflows
               (auto margins collapse to 0 when there's no positive free space).
               items-stretch keeps lone-binary columns visually aligned with histogram columns. */}
@@ -110,8 +113,7 @@ export default function ColumnStrip({
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar orientation="horizontal" />
       </ScrollAreaPrimitive.Root>
-      {/* Right-edge fade so the last visible card melts into the page background. */}
-      <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+      <ScrollEdgeFades scrollRef={viewportRef} />
     </div>
   );
 }

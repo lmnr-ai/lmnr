@@ -1,4 +1,7 @@
+import { useRef } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+
+import ScrollEdgeFades from "@/components/ui/scroll-edge-fades";
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../../ui/chart";
 import { type ProgressionPoint } from "./shared";
@@ -21,6 +24,7 @@ const CARD_WIDTH = 340;
 const CARD_GAP = 12;
 
 export default function SplitCharts({ data, scores, visibleScores, chartConfig }: SplitChartsProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const visible = scores.filter((s) => visibleScores.includes(s));
   if (visible.length === 0) {
     return (
@@ -35,12 +39,15 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
   const minWidth = visible.length * CARD_WIDTH + (visible.length - 1) * CARD_GAP;
   return (
     <div className="flex h-full w-full flex-col">
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex h-full" style={{ minWidth, gap: CARD_GAP }}>
-          {visible.map((score) => (
-            <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
-          ))}
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="h-full w-full overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full" style={{ minWidth, gap: CARD_GAP }}>
+            {visible.map((score) => (
+              <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
+            ))}
+          </div>
         </div>
+        <ScrollEdgeFades scrollRef={scrollRef} />
       </div>
     </div>
   );
