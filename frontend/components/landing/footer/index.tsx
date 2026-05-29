@@ -20,7 +20,7 @@ interface FooterLink {
 
 const ELSEWHERE_LINKS: FooterLink[] = [
   { label: "Contact", href: "mailto:founders@lmnr.ai", external: true },
-  { label: "Book demo", href: "https://cal.com/robert-lmnr/30min", external: true },
+  { label: "Book demo", href: "https://cal.com/robert-lmnr/demo", external: true },
   { label: "Github", href: "https://github.com/lmnr-ai/lmnr", external: true },
   { label: "Discord", href: "https://discord.gg/nNFUUDAKub", external: true },
   { label: "LinkedIn", href: "https://www.linkedin.com/company/lmnr-ai", external: true },

@@ -18,7 +18,7 @@ const DIFF_LINES: Array<{ kind: "context" | "removed" | "added"; text: string }>
   { kind: "context", text: "].join('\\n');" },
 ];
 
-const USER_PROMPT = "report agent is too verbose, can you fix it?";
+const USER_PROMPT = "reports too long, check recent runs via laminar MCP";
 
 const monoBase = "font-mono text-[13px] leading-5";
 

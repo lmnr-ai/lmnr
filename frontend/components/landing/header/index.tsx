@@ -21,8 +21,7 @@ const NAV_LINKS = [
   { href: "https://laminar.sh/docs", label: "Docs", external: true },
   { href: "/blog", label: "Blog", external: false },
   { href: "/pricing", label: "Pricing", external: false },
-  { href: "https://discord.gg/nNFUUDAKub", label: "Discord", external: true },
-  { href: "https://cal.com/robert-lmnr/30min", label: "Book a demo", external: true },
+  { href: "https://cal.com/robert-lmnr/demo", label: "Book a demo", external: true },
   { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
 
@@ -71,17 +70,10 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             </Link>
             <Link
               target="_blank"
-              href="https://cal.com/robert-lmnr/30min"
+              href="https://cal.com/robert-lmnr/demo"
               className="no-underline hover:text-landing-text-200"
             >
               Book demo
-            </Link>
-            <Link
-              target="_blank"
-              href="https://discord.gg/nNFUUDAKub"
-              className="no-underline hover:text-landing-text-200"
-            >
-              Discord
             </Link>
             <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="hidden lg:flex" />
           </nav>

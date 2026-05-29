@@ -16,8 +16,26 @@ const ClaudeFixMyAgent = () => (
         {", fix my agent"}
       </h2>
       <p className={bodyMedium}>
-        With Laminar MCP or the CLI your coding agent gets all the error. It can write the fix, run your agent again,
-        and query data with raw SQL to confirm the fix worked.
+        With the{" "}
+        <a
+          href="https://laminar.sh/docs/platform/mcp#mcp-server"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-landing-text-200"
+        >
+          Laminar MCP
+        </a>{" "}
+        or{" "}
+        <a
+          href="https://laminar.sh/docs/platform/cli#cli"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-landing-text-200"
+        >
+          CLI
+        </a>{" "}
+        your coding agent gets all the context. It can write the fix, run your agent again, and query data with raw SQL
+        to confirm the fix worked.
       </p>
     </div>
     <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[40px] py-[30px] overflow-hidden px-8">

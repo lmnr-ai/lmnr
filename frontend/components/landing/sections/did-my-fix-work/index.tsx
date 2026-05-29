@@ -12,7 +12,7 @@ const DidMyFixWork = () => (
       <span className={cn(microLabel, "mb-2")}>05.</span>
       <h2 className={cn(subSection, "mb-2")}>Did my fix work?</h2>
       <p className={bodyMedium}>
-        Every error cluster you fix can automatically be turned into eval dataset. Run evals after a change to catch
+        Every error cluster you fix can automatically be turned into an eval dataset. Run evals after a change to catch
         regressions and iterate with confidence.
       </p>
     </div>

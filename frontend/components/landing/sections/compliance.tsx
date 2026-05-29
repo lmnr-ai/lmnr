@@ -24,36 +24,36 @@ const Compliance = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
     <h2 className={subSection}>Enterprise-ready</h2>
 
-    <div className="flex flex-col gap-10 items-start w-full max-w-[500px]">
-      <div className="flex flex-col w-full">
-        {ENTERPRISE_ROWS.map(({ label, href }) => (
-          <Link
-            key={label}
-            href={href}
-            target="_blank"
-            className={cn(
-              "flex items-center gap-3 h-14 w-full border-t border-landing-text-600",
-              "text-lg text-landing-text-300 no-underline"
-            )}
-          >
-            {label}
-            <ArrowUpRight className="size-4" strokeWidth={2} />
-          </Link>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-5 items-start">
-        <div className="flex items-center gap-4 -translate-x-1">
-          <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
-          <Image
-            src="/assets/landing/soc2.svg"
-            alt="SOC 2 Type 2 compliant"
-            width={84}
-            height={84}
-            className="size-[84px]"
-          />
+    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-10 w-full">
+      <div className="flex flex-col gap-10 items-start w-full max-w-[500px]">
+        <div className="flex flex-col w-full">
+          {ENTERPRISE_ROWS.map(({ label, href }) => (
+            <Link
+              key={label}
+              href={href}
+              target="_blank"
+              className={cn(
+                "flex items-center gap-3 h-14 w-full border-t border-landing-text-600",
+                "text-lg text-landing-text-300 no-underline"
+              )}
+            >
+              {label}
+              <ArrowUpRight className="size-4" strokeWidth={2} />
+            </Link>
+          ))}
         </div>
         <LearnMoreLink href="https://compliance.laminar.sh/" label="Compliance portal" />
+      </div>
+
+      <div className="flex items-center gap-4 shrink-0">
+        <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
+        <Image
+          src="/assets/landing/soc2.svg"
+          alt="SOC 2 Type 2 compliant"
+          width={84}
+          height={84}
+          className="size-[84px]"
+        />
       </div>
     </div>
   </section>

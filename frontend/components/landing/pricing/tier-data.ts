@@ -143,7 +143,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { label: "OAuth sign-in", values: { free: true, hobby: true, pro: true, enterprise: true } },
       { label: "SOC 2 Type II", values: { free: false, hobby: false, pro: true, enterprise: true } },
       { label: "HIPAA", values: { free: false, hobby: false, pro: true, enterprise: true } },
-      { label: "PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
+      { label: "Server-side PII Removal", values: { free: false, hobby: false, pro: true, enterprise: true } },
     ],
   },
   {
