@@ -1,4 +1,4 @@
-import { Bolt, MessageCircle, X } from "lucide-react";
+import { ArrowUpRight, Bolt, Box, MessageCircle, X } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -87,9 +87,16 @@ interface SignalContentProps {
 export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalContentProps = {}) => {
   const chipProps = { onSpanClick, flashSpanId };
   return (
-    <div className="w-full flex flex-col px-3 py-3 gap-2">
+    <div className="w-full flex flex-col px-3 py-2 gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
+        {/* (cube, label, arrow) is decorative — signals the row would be
+            clickable in the real product. The wrapper gets the X's flex
+            sibling treatment so X stays pinned right via justify-between. */}
+        <div className="flex items-center gap-1.5 min-w-0 rounded-full border border-landing-text-600 px-2 py-1">
+          <Box className="size-3.5 shrink-0 text-landing-primary-200" strokeWidth={2} />
+          <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-landing-text-300" strokeWidth={2} />
+        </div>
         {onClose ? (
           <button
             type="button"
