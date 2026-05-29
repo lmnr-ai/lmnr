@@ -51,7 +51,7 @@ export default function MetricsPanel(props: MetricsPanelProps) {
   return (
     <div className="relative shrink-0 py-8">
       {!props.isLoading && hasNonBinary && (
-        <div className="absolute top-0 right-0 z-10 flex items-center gap-2">
+        <div className="absolute top-0 left-0 z-10 flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Aggregation</span>
           <Select value={aggregation} onValueChange={(v) => setAggregation(v as AggregationKind)}>
             <SelectTrigger className="h-7 w-[120px] text-xs">
