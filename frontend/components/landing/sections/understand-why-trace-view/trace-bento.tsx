@@ -1,17 +1,15 @@
 "use client";
 
 import { motion, type MotionValue, type Transition } from "framer-motion";
-import { ChevronDown, ChevronsRight, CirclePlay, Maximize, Radio, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronsRight, List, Maximize, Radio, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import SessionPlayer from "@/components/shared/traces/session-player";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import Transcript from "@/components/traces/trace-view/transcript";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +66,6 @@ const BENTO_HEIGHT = 680;
 const ROW1_HEIGHT = 28;
 const TOOLBAR_HEIGHT = 36;
 const TIMELINE_HEIGHT = 120;
-const RECORDING_HEIGHT = 240;
 const SIGNAL_CARD_MAX = 320;
 
 const noop = () => {};
@@ -138,41 +135,27 @@ const TraceViewHeaderRow1 = ({
 //   ├─────────────────────────────────┤
 //   │ CondensedTimeline               │  phase 3+
 //   ├─────────────────────────────────┤
-//   │ Transcript Panel Header         │  ViewDropdown + Stats + Media (phase 2+)
+//   │ Transcript Panel Header         │  decorative dropdown + stats (phase 2+)
 //   ├─────────────────────────────────┤
 //   │ Transcript (flex-1)             │
-//   ├─────────────────────────────────┤
-//   │ Recording                       │  store browserSession — user toggle only
 //   └─────────────────────────────────┘
 //
 // The bento outer is fixed at BENTO_HEIGHT once the trace view materializes
 // at phase 2. Per-section motion.divs animate height into that budget; the
 // transcript is flex-1 and absorbs whatever's left.
 const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange }: Props) => {
-  const {
-    setSpans,
-    setTrace,
-    setSelectedSpan,
-    setHasBrowserSession,
-    setBrowserSession,
-    selectedSpan,
-    browserSession,
-    signalsPanelOpen,
-    setSignalsPanelOpen,
-  } = useTraceViewStore(
-    (state) => ({
-      setSpans: state.setSpans,
-      setTrace: state.setTrace,
-      setSelectedSpan: state.setSelectedSpan,
-      setHasBrowserSession: state.setHasBrowserSession,
-      setBrowserSession: state.setBrowserSession,
-      selectedSpan: state.selectedSpan,
-      browserSession: state.browserSession,
-      signalsPanelOpen: state.signalsPanelOpen,
-      setSignalsPanelOpen: state.setSignalsPanelOpen,
-    }),
-    shallow
-  );
+  const { setSpans, setTrace, setSelectedSpan, selectedSpan, signalsPanelOpen, setSignalsPanelOpen } =
+    useTraceViewStore(
+      (state) => ({
+        setSpans: state.setSpans,
+        setTrace: state.setTrace,
+        setSelectedSpan: state.setSelectedSpan,
+        selectedSpan: state.selectedSpan,
+        signalsPanelOpen: state.signalsPanelOpen,
+        setSignalsPanelOpen: state.setSignalsPanelOpen,
+      }),
+      shallow
+    );
 
   const selectAndRevealSpan = useSelectAndRevealSpan();
 
@@ -180,27 +163,15 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
     if (!trace || spans.length === 0) return;
     setSpans(enrichSpansWithPending(spans));
     setTrace(trace);
-    if (trace.hasBrowserSession) setHasBrowserSession(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trace?.id, spans.length]);
 
-  // Mount-once defaults that override the shared trace-view store base:
-  //
-  // - `signalsPanelOpen` defaults to false in the store. We force it open
-  //   so the slack→signal morph card is visible in phase 1.
-  //
-  // - `browserSession` defaults to `initialTrace.hasBrowserSession || false`
-  //   in the store, which auto-opens the recording player when the trace
-  //   has a session. On the landing page we want the player closed by
-  //   default; the user re-opens it via the Media header button.
-  //
-  // After mount, the user is the only writer for both — no phase sync, no
-  // "story-beat reset". Zustand setters are referentially stable so this
-  // effect's dep array is effectively empty.
+  // Force signalsPanelOpen on mount so the slack→signal morph card is
+  // visible in phase 1. Setter is referentially stable so this effect
+  // runs once.
   useEffect(() => {
     setSignalsPanelOpen(true);
-    setBrowserSession(false);
-  }, [setSignalsPanelOpen, setBrowserSession]);
+  }, [setSignalsPanelOpen]);
 
   // Spans become clickable at phase ≥ 2 (trace view materialized). The
   // span PANEL stays gated to phase ≥ 4 (ask-ai open) below — selection
@@ -401,23 +372,18 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
           transition={TWEEN}
           className="overflow-hidden shrink-0"
         >
-          <div
-            style={{ height: TOOLBAR_HEIGHT }}
-            className="w-full flex items-center justify-between gap-2 px-2 border-b "
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <ViewDropdown />
-              {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
+          <div style={{ height: TOOLBAR_HEIGHT }} className="w-full flex items-center gap-2 px-2 border-b ">
+            {/* Decorative replica of <ViewDropdown /> — tree view doesn't
+                render correctly against the static mock data, so we render
+                a non-interactive button that mirrors the real dropdown's
+                closed/transcript state. Media button + SessionPlayer were
+                removed from the landing bento entirely. */}
+            <div className="flex items-center h-6 px-1.5 text-xs border rounded-md bg-background text-muted-foreground">
+              <List size={14} className="mr-1" />
+              <span className="text-primary-foreground">Transcript</span>
+              <ChevronDown size={14} className="ml-1" />
             </div>
-            <Button
-              disabled={!trace}
-              className={cn("h-6 px-1.5 text-xs overflow-hidden", browserSession && "border-primary text-primary")}
-              variant="outline"
-              onClick={() => setBrowserSession(!browserSession)}
-            >
-              <CirclePlay size={14} className="flex-shrink-0" />
-              <span className="ml-1 truncate">Media</span>
-            </Button>
+            {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} />}
           </div>
         </motion.div>
 
@@ -454,19 +420,6 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
             <Transcript onSpanSelect={handleSpanSelect} isShared />
           </div>
         </div>
-
-        {/* RECORDING — visibility driven entirely by the store's
-            browserSession field. The Media header button is the only writer
-            — there's no phase-sync. */}
-        <motion.div
-          animate={{ height: browserSession ? RECORDING_HEIGHT : 0 }}
-          transition={TWEEN}
-          className="overflow-hidden shrink-0"
-        >
-          <div style={{ height: RECORDING_HEIGHT }} className="w-full border-t">
-            {browserSession && trace && <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace.id} />}
-          </div>
-        </motion.div>
       </div>
 
       {/* RIGHT COL — ask-ai, appears at phase 4 */}
