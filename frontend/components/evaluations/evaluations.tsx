@@ -8,6 +8,7 @@ import useSWR from "swr";
 import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart, { ChartVariantToggle } from "@/components/evaluations/progression-chart";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
@@ -32,10 +33,17 @@ import GroupsList from "./groups-list";
 const baseColumns: ColumnDef<Evaluation>[] = [
   {
     accessorKey: "id",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    cell: (row) => {
+      const id = String(row.getValue());
+      return (
+        <CopyTooltip value={id} className="block truncate">
+          <Mono>{id}</Mono>
+        </CopyTooltip>
+      );
+    },
     header: "ID",
     id: "id",
-    size: 300,
+    size: 100,
   },
   {
     id: "name",
