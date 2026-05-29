@@ -3,6 +3,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart, { ChartVariantToggle } from "@/components/evaluations/progression-chart";
@@ -17,7 +18,7 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
-import { type Evaluation } from "@/lib/evaluation/types";
+import { type Evaluation, type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -28,7 +29,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import GroupsList from "./groups-list";
 
-const columns: ColumnDef<Evaluation>[] = [
+const baseColumns: ColumnDef<Evaluation>[] = [
   {
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -61,6 +62,23 @@ const columns: ColumnDef<Evaluation>[] = [
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
   },
 ];
+
+function buildScoreColumns(
+  scoreNames: string[],
+  scoresByEvalId: Record<string, Record<string, number | null>>
+): ColumnDef<Evaluation>[] {
+  return scoreNames.map((scoreName) => ({
+    id: `score:${scoreName}`,
+    header: scoreName,
+    accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
+    cell: (cell) => {
+      const v = cell.getValue() as number | null;
+      if (v === null || v === undefined) return <span className="text-muted-foreground">—</span>;
+      return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
+    },
+    size: 120,
+  }));
+}
 
 export const defaultEvaluationsColumnOrder = [
   "__row_selection",
@@ -194,6 +212,56 @@ function EvaluationsContent() {
     const ids = Object.keys(rowSelection).filter((id) => rowSelection[id]);
     return ids.length > 0 ? ids[0] : undefined;
   }, [rowSelection]);
+
+  // Same progression endpoint the chart hits — SWR dedups so this doesn't fire twice.
+  // We use the result to add per-score columns to the table.
+  const progressionUrl =
+    groupId && evaluations.length > 0
+      ? `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId)}/progression`
+      : null;
+  const progressionBody = useMemo(
+    () => ({ ids: evaluations.map((e) => e.id), aggregate: aggregationFunction }),
+    [evaluations, aggregationFunction]
+  );
+  const { data: progression } = useSWR<EvaluationTimeProgression[]>(
+    progressionUrl ? [progressionUrl, progressionBody] : null,
+    async ([url, body]: [string, object]) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error: string };
+        throw new Error(err.error);
+      }
+      return res.json();
+    }
+  );
+
+  const { scoreNames, scoresByEvalId } = useMemo(() => {
+    const names = Array.from(new Set(progression?.flatMap((p) => p.names) ?? [])).sort();
+    const byEvalId: Record<string, Record<string, number | null>> = {};
+    for (const point of progression ?? []) {
+      const map: Record<string, number | null> = {};
+      for (const name of names) {
+        const idx = point.names.indexOf(name);
+        if (idx === -1) {
+          map[name] = null;
+        } else {
+          const v = Number(point.values[idx]);
+          map[name] = isNaN(v) ? null : v;
+        }
+      }
+      byEvalId[point.evaluationId] = map;
+    }
+    return { scoreNames: names, scoresByEvalId: byEvalId };
+  }, [progression]);
+
+  const columns = useMemo<ColumnDef<Evaluation>[]>(
+    () => [...baseColumns, ...buildScoreColumns(scoreNames, scoresByEvalId)],
+    [scoreNames, scoresByEvalId]
+  );
 
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
     try {
