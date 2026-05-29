@@ -100,7 +100,10 @@ export default function ScoreComparisonCard({
         <span className="text-xs text-muted-foreground">in this run</span>
       </div>
       <div className="h-[120px] w-full">
-        <ChartContainer config={{ value: { color: "hsl(var(--chart-1))" } }} className="h-full w-full">
+        <ChartContainer
+          config={{ value: { color: "hsl(var(--chart-1))" } }}
+          className="aspect-auto h-full w-full"
+        >
           <LineChart data={data} margin={{ top: 10, right: 12, bottom: 4, left: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />

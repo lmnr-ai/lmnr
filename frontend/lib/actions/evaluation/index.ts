@@ -340,9 +340,16 @@ export const getEvaluationDatapointComparison = async (
   const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
-  const rows = await executeQuery<{ evaluation_id: string; index: number; scores: string }>({
+  // `scores` is a String column in CH; some drivers may return it as a JSON
+  // object instead, so handle both. `index` may come back number or string
+  // (Int64) depending on output_format_json_quote_64bit_integers.
+  const rows = await executeQuery<{
+    evaluation_id: string;
+    index: number | string;
+    scores: string | Record<string, unknown>;
+  }>({
     query: `
-      SELECT toString(evaluation_id) AS evaluation_id, \`index\`, scores
+      SELECT toString(evaluation_id) AS evaluation_id, \`index\` AS \`index\`, scores
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND \`index\` = {index:Int64}
@@ -352,19 +359,24 @@ export const getEvaluationDatapointComparison = async (
   });
 
   return rows.map((r) => {
-    let scores: Record<string, number> = {};
-    try {
-      const parsed = JSON.parse(r.scores || "{}");
-      if (parsed && typeof parsed === "object") {
-        scores = Object.fromEntries(
-          Object.entries(parsed as Record<string, unknown>).filter(
+    let scoresObj: Record<string, unknown> | null = null;
+    if (typeof r.scores === "string") {
+      try {
+        scoresObj = r.scores ? (JSON.parse(r.scores) as Record<string, unknown>) : null;
+      } catch {
+        scoresObj = null;
+      }
+    } else if (r.scores && typeof r.scores === "object") {
+      scoresObj = r.scores;
+    }
+
+    const scores: Record<string, number> = scoresObj
+      ? Object.fromEntries(
+          Object.entries(scoresObj).filter(
             (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])
           )
-        );
-      }
-    } catch {
-      scores = {};
-    }
+        )
+      : {};
     return { evaluationId: r.evaluation_id, index: Number(r.index), scores };
   });
 };
