@@ -15,14 +15,5 @@ export default async function ArticlePostPage(props: { params: Promise<{ slug: s
   const post = await getBlogPost(slug);
   if (!post) notFound();
 
-  return (
-    <PostContent
-      data={post.data}
-      content={post.content}
-      backHref="/article"
-      backLabel="Articles"
-      slug={slug}
-      routePrefix="article"
-    />
-  );
+  return <PostContent data={post.data} content={post.content} backHref="/article" slug={slug} routePrefix="article" />;
 }
