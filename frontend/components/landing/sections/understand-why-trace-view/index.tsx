@@ -110,13 +110,13 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
     learnMoreHref: "https://laminar.sh/docs/signals/introduction",
   },
   2: {
-    name: "Trace view",
+    name: "Transcript view",
     title: "Understand why\nin seconds.",
     body: "Go from issue description to the\nexact step that caused it.",
     learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
   },
   3: {
-    name: "Trace view",
+    name: "Transcript view",
     subtitle: "A clear, concise view\nof your agent run",
     body: <TimelineBody />,
     learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces",
