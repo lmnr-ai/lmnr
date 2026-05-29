@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "stable"
+          node-version: "26"  # match the one in frontend/Dockerfile
           cache: "pnpm"
           # Specify the subdirectory containing the lockfile
           cache-dependency-path: ./frontend/pnpm-lock.yaml
