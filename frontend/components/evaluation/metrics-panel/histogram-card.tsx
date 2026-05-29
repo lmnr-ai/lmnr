@@ -1,7 +1,12 @@
 import { ArrowRight } from "lucide-react";
 
 import SmartViz from "@/components/evaluation/metrics-panel/smart-viz";
-import { pctChange } from "@/components/evaluation/metrics-panel/utils";
+import {
+  aggregateScalar,
+  type AggregationKind,
+  DEFAULT_AGGREGATION,
+  pctChange,
+} from "@/components/evaluation/metrics-panel/utils";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 import { cn, isValidNumber } from "@/lib/utils";
 
@@ -12,6 +17,7 @@ interface HistogramCardProps {
   distribution: EvaluationScoreDistributionBucket[] | null;
   comparedDistribution?: EvaluationScoreDistributionBucket[] | null;
   isComparison?: boolean;
+  aggregation?: AggregationKind;
   onClick?: () => void;
 }
 
@@ -24,13 +30,14 @@ export default function HistogramCard({
   distribution,
   comparedDistribution,
   isComparison,
+  aggregation = DEFAULT_AGGREGATION,
   onClick,
 }: HistogramCardProps) {
-  const avg = statistics?.averageValue;
-  const cAvg = comparedStatistics?.averageValue;
-  const validAvg = isValidNumber(avg);
-  const validC = isComparison && isValidNumber(cAvg);
-  const change = validAvg && validC ? pctChange(avg!, cAvg!) : null;
+  const cur = aggregateScalar(aggregation, statistics, distribution);
+  const cmp = aggregateScalar(aggregation, comparedStatistics, comparedDistribution);
+  const validAvg = isValidNumber(cur);
+  const validC = isComparison && isValidNumber(cmp);
+  const change = validAvg && validC ? pctChange(cur!, cmp!) : null;
   const improved = change !== null && change >= 0;
 
   return (
@@ -56,13 +63,13 @@ export default function HistogramCard({
             {validC && (
               <>
                 <span className="text-[20px] font-medium leading-4 tracking-[-0.4px] text-muted-foreground">
-                  {fmt(cAvg!)}
+                  {fmt(cmp!)}
                 </span>
                 <ArrowRight className="size-3 text-muted-foreground shrink-0" />
               </>
             )}
             <span className="text-[20px] font-medium leading-4 tracking-[-0.4px] text-foreground">
-              {validAvg ? fmt(avg!) : "—"}
+              {validAvg ? fmt(cur!) : "—"}
             </span>
           </div>
           {change !== null && (

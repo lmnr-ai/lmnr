@@ -3,7 +3,7 @@ import { useMemo } from "react";
 
 import BinaryCard from "@/components/evaluation/metrics-panel/binary-card";
 import HistogramCard from "@/components/evaluation/metrics-panel/histogram-card";
-import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
+import { type AggregationKind, isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import { ScrollBar } from "@/components/ui/scroll-area";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
@@ -19,6 +19,7 @@ interface ColumnStripProps {
   comparedAllStatistics?: Record<string, EvaluationScoreStatistics>;
   comparedAllDistributions?: Record<string, EvaluationScoreDistributionBucket[]>;
   isComparison?: boolean;
+  aggregation?: AggregationKind;
   onExpand?: (name: string) => void;
 }
 
@@ -31,6 +32,7 @@ export default function ColumnStrip({
   comparedAllStatistics,
   comparedAllDistributions,
   isComparison,
+  aggregation,
   onExpand,
 }: ColumnStripProps) {
   const columns = useMemo<PackedColumn[]>(() => {
@@ -79,6 +81,7 @@ export default function ColumnStrip({
                     distribution={allDistributions?.[col.name] ?? null}
                     comparedDistribution={comparedAllDistributions?.[col.name] ?? null}
                     isComparison={isComparison}
+                    aggregation={aggregation}
                     onClick={() => onExpand?.(col.name)}
                   />
                 ) : (
