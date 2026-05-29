@@ -35,15 +35,33 @@ export default function TableOfContents({ headings, className }: Props) {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const intersecting = entries.filter((e) => e.isIntersecting);
-        if (intersecting.length === 0) return;
-        const topmost = intersecting.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        setActiveId(topmost.target.id);
+        // Top-of-viewport detector, not "active band". A heading is active the
+        // frame it crosses INTO the top 15% of the viewport — including when a
+        // TOC anchor click parks it at viewport top. The previous "active band"
+        // rootMargin missed click-landings because the heading ended up above
+        // the band entirely.
+        entries.forEach((e) => {
+          if (e.isIntersecting) setActiveId(e.target.id);
+        });
       },
-      { rootMargin: "-80px 0px -70% 0px" }
+      { rootMargin: "0px 0px -85% 0px" }
     );
     targets.forEach((t) => observer.observe(t));
     return () => observer.disconnect();
+  }, [headings]);
+
+  // End-of-document fallback: if the doc can't scroll far enough to bring the
+  // last heading into the top 15% band, the observer never fires for it. When
+  // the user reaches the bottom, force-activate the last heading.
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        const last = headings[headings.length - 1];
+        if (last) setActiveId(last.anchor);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, [headings]);
 
   // Synchronous post-layout measurement of the active row — useLayoutEffect
