@@ -5,7 +5,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { subSection } from "../class-names";
-import LearnMoreLink from "./two-lines-to-integrate/learn-more-link";
 
 const ENTERPRISE_ROWS = [
   {
@@ -16,8 +15,11 @@ const ENTERPRISE_ROWS = [
     label: "SOC 2 Type II compliant",
     href: "https://compliance.laminar.sh/?tab=securityControls&frameworks=soc2_v1",
   },
-  { label: "Automatic PII Redaction", href: "https://laminar.sh/docs/platform/pii-redaction" },
-  { label: "Deploy anywhere", href: "https://laminar.sh/docs/hosting-options#hosting-options" },
+  { label: "PII Redaction at scale", href: "https://laminar.sh/docs/platform/pii-redaction" },
+  {
+    label: "Self-host in your cloud with full features",
+    href: "https://laminar.sh/docs/hosting-options#hosting-options",
+  },
 ];
 
 const Compliance = () => (
@@ -42,17 +44,16 @@ const Compliance = () => (
             </Link>
           ))}
         </div>
-        <LearnMoreLink href="https://compliance.laminar.sh/" label="Compliance portal" />
       </div>
 
       <div className="flex items-center gap-4 shrink-0">
-        <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[84px]" />
+        <Image src="/assets/landing/hipaa.svg" alt="HIPAA compliant" width={84} height={84} className="size-[100px]" />
         <Image
           src="/assets/landing/soc2.svg"
           alt="SOC 2 Type 2 compliant"
           width={84}
           height={84}
-          className="size-[84px]"
+          className="size-[100px]"
         />
       </div>
     </div>

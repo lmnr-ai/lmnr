@@ -55,7 +55,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               dimensions — no visual change. Setting one dimension and leaving
               the other auto silences the Next.js "modified, but not the other"
               warning that fill-mode + sized wrapper was triggering. */}
-          <Image alt="Laminar logo" src={logo} className="w-[80px] md:w-[100px] h-auto" priority />
+          <Image alt="Laminar logo" src={logo} className="w-[80px] md:w-[100px] h-auto -translate-y-0.5" priority />
         </Link>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
           <nav className="hidden md:flex md:gap-[32px] items-center font-sans-landing md:text-sm leading-normal whitespace-nowrap text-xs">

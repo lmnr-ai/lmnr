@@ -16,14 +16,14 @@ const ClaudeFixMyAgent = () => (
         {", fix my agent"}
       </h2>
       <p className={bodyMedium}>
-        With the{" "}
+        With the Laminar{" "}
         <a
           href="https://laminar.sh/docs/platform/mcp#mcp-server"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-landing-text-200"
         >
-          Laminar MCP
+          MCP
         </a>{" "}
         or{" "}
         <a
