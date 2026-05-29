@@ -108,6 +108,7 @@ function TracesContent() {
           }}
           traceId={traceId}
           showChatInitial={showChatInitial}
+          initialSearch={searchParams.get("search") ?? undefined}
         />
       )}
     </TraceViewNavigationProvider>

@@ -1,30 +1,28 @@
 "use client";
 
-import { differenceWith, intersectionWith, isEqual } from "lodash";
-import { useParams, useSearchParams } from "next/navigation";
-import { memo, useEffect, useMemo } from "react";
+import { useParams } from "next/navigation";
+import { memo, useEffect } from "react";
 import useSWR from "swr";
 
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { type Filter, FilterSchemaRelaxed } from "@/lib/actions/common/filters";
+import { type Filter } from "@/lib/actions/common/filters";
 import { swrFetcher } from "@/lib/utils";
 
 import FilterSearchInput from "./components/search-input";
 import { AdvancedSearchStoreProvider, useAdvancedSearchContext } from "./store";
-import {
-  type AdvancedSearchMode,
-  type ColumnFilter,
-  createFilterFromTag,
-  createTagFromFilter,
-  type FilterTag,
-} from "./types";
+import { type AdvancedSearchResource, type ColumnFilter } from "./types";
+
+export interface AdvancedSearchValue {
+  filters: Filter[];
+  search: string;
+}
 
 interface AdvancedSearchInnerProps {
-  filters: ColumnFilter[];
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  value: AdvancedSearchValue;
   options?: {
     suggestions?: Map<string, string[]>;
     disableHotKey?: boolean;
@@ -35,74 +33,22 @@ const AdvancedSearchInner = ({
   resource,
   placeholder = "Search...",
   className,
-  filters,
   disabled,
+  value,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchInnerProps) => {
   const params = useParams();
-  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
 
-  const mode = useAdvancedSearchContext((state) => state.mode);
   const setAutocompleteData = useAdvancedSearchContext((state) => state.setAutocompleteData);
+  const reflowFromValue = useAdvancedSearchContext((state) => state.reflowFromValue);
 
-  const { setTags, updateLastSubmitted } = useAdvancedSearchContext((state) => ({
-    setTags: state.setTags,
-    updateLastSubmitted: state.updateLastSubmitted,
-  }));
-
-  const tags = useAdvancedSearchContext((state) => state.tags);
-
-  const urlTags = useMemo(() => {
-    if (mode === "state") return [];
-
-    const filterParams = searchParams.getAll("filter");
-
-    return filterParams.flatMap((f) => {
-      try {
-        const parsed = JSON.parse(f);
-        const result = FilterSchemaRelaxed.safeParse(parsed);
-
-        if (!result.success) {
-          return [];
-        }
-
-        const filter = result.data;
-        const columnFilter = filters.find((col) => col.key === filter.column);
-
-        if (columnFilter) {
-          return [createTagFromFilter(filter)];
-        }
-        return [];
-      } catch {
-        return [];
-      }
-    });
-  }, [searchParams, filters, mode]);
-
+  // Reflow editor state when controlled `value` changes from the outside.
+  // `reflowFromValue` early-outs when content matches what we last emitted,
+  // so round-trips of our own commits are a no-op.
   useEffect(() => {
-    if (mode === "state") return;
-
-    const tagComparator = (tagA: FilterTag, tagB: FilterTag) =>
-      tagA.field === tagB.field && tagA.operator === tagB.operator && isEqual(tagA.value, tagB.value);
-
-    const commonTags = intersectionWith(tags, urlTags, tagComparator);
-
-    const newTags = differenceWith(urlTags, tags, tagComparator);
-
-    const removedTags = differenceWith(tags, urlTags, tagComparator);
-
-    const tagsChanged = newTags.length > 0 || removedTags.length > 0;
-
-    if (tagsChanged) {
-      const mergedTags = [...commonTags, ...newTags];
-      setTags(mergedTags);
-      const filterObjects = mergedTags.map(createFilterFromTag);
-      const currentSearch = searchParams.get("search") ?? "";
-      updateLastSubmitted(filterObjects, currentSearch);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlTags, setTags, updateLastSubmitted, mode]);
+    reflowFromValue(value);
+  }, [value, reflowFromValue]);
 
   const autocompleteResource = resource === "traces" || resource === "spans" ? resource : null;
   useSWR<{ suggestions: AutocompleteSuggestion[] }>(
@@ -130,7 +76,7 @@ const AdvancedSearchInner = ({
     if (suggestions) {
       setAutocompleteData(suggestions);
     }
-  }, [suggestions]);
+  }, [suggestions, setAutocompleteData]);
 
   return (
     <FilterSearchInput
@@ -147,16 +93,15 @@ AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource?: "traces" | "spans" | "sessions";
+  resource?: AdvancedSearchResource;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
-  mode?: AdvancedSearchMode;
-  value?: { filters: Filter[]; search: string };
-  onSubmit?: (filters: Filter[], search: string) => void;
+  value: AdvancedSearchValue;
+  onChange: (next: AdvancedSearchValue) => void;
   storageKey?: string;
   options?: {
-    // If provided autocomplete won't fetch suggestions
+    // If provided, autocomplete won't fetch suggestions.
     suggestions?: Map<string, string[]>;
     disableHotKey?: boolean;
   };
@@ -168,28 +113,26 @@ const AdvancedSearch = ({
   placeholder,
   className,
   disabled,
-  mode = "url",
   value,
-  onSubmit,
+  onChange,
   storageKey,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
     filters={filters}
-    mode={mode}
-    initialFilters={value?.filters}
-    initialSearch={value?.search}
-    onSubmit={onSubmit}
+    initialFilters={value.filters}
+    initialSearch={value.search}
+    onChange={onChange}
     suggestions={suggestions}
     storageKey={storageKey}
     resource={resource}
   >
     <AdvancedSearchInner
-      filters={filters}
       resource={resource}
       placeholder={placeholder}
       className={className}
       disabled={disabled}
+      value={value}
       options={{
         suggestions,
         disableHotKey,

@@ -186,6 +186,8 @@ export interface BaseTraceViewState {
   // the fact.
   initialSignalId?: string;
 
+  initialSearch: string;
+
   // Pending signal→chat injection. Written by openSignalInChat, consumed
   // once by the Chat component's effect, then nulled.
   pendingChatInjection: {
@@ -266,6 +268,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
     initialChatOpen?: boolean;
+    initialSearch?: string;
   }
 ): BaseTraceViewStore {
   return {
@@ -303,6 +306,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isTraceSignalsLoading: false,
     activeSignalTabId: null,
     initialSignalId: options?.initialSignalId,
+    initialSearch: options?.initialSearch ?? "",
 
     // Traces Agent injection defaults
     pendingChatInjection: null,

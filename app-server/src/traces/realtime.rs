@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -73,7 +72,6 @@ struct RealtimeSpan {
 
 /// Send realtime span update events to SSE connections for specific traces
 /// lmnr.rollout.session_id
-#[instrument(skip_all)]
 pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     // Group spans by (project_id, trace_id)
     let mut spans_by_trace: HashMap<(Uuid, Uuid), Vec<RealtimeSpan>> = HashMap::new();

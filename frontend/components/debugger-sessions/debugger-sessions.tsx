@@ -7,11 +7,12 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
@@ -19,6 +20,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const FETCH_SIZE = 50;
+const RESOURCE = "debugger-sessions";
 
 const STATUS_CONFIG: Record<DebuggerSessionStatus, { label: string; icon: ReactNode; classes: string }> = {
   PENDING: {
@@ -193,6 +195,7 @@ function DebuggerSessionsContent() {
                   label: typeof column.header === "string" ? column.header : column.id!,
                 }))}
               />
+              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
             </div>
           </InfiniteDataTable>
         </div>
@@ -202,12 +205,13 @@ function DebuggerSessionsContent() {
 }
 
 export default function DebuggerSessions() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider
-      storageKey="debugger-sessions-table"
-      defaultColumnOrder={defaultDebuggerSessionsColumnOrder}
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultDebuggerSessionsColumnOrder }}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
     >
       <DebuggerSessionsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

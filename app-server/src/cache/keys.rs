@@ -12,6 +12,7 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY: &str = "workspace_signal_runs_usage";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
@@ -31,3 +32,5 @@ pub const SPAN_KEEP_DEFAULT_RULES_CACHE_KEY: &str = "signals_span_keep_default_r
 pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
+
+pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";

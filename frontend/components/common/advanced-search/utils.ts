@@ -15,6 +15,7 @@ export const getPreviousField = (current: TagFocusPosition): TagFocusPosition | 
 export interface ValueSuggestion {
   field: string;
   value: string;
+  label?: string;
 }
 
 export const buildValueSuggestions = (
@@ -42,7 +43,7 @@ export const buildValueSuggestions = (
           filter.key.toLowerCase().includes(lowerInput)
       );
       matchingEnumValues.forEach((opt) => {
-        valueSuggestions.push({ field: filter.key, value: opt.value });
+        valueSuggestions.push({ field: filter.key, value: opt.value, label: opt.label });
       });
     }
   });

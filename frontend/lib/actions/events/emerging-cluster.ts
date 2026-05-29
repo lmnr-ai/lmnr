@@ -5,6 +5,8 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
+import { attachSnippets } from "./index";
+import { searchSignalEvents, type SignalEventSearchHit } from "./search";
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
 
 export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema.extend({
@@ -12,16 +14,49 @@ export const GetEventsByEmergingClusterPaginatedSchema = PaginationFiltersSchema
   projectId: z.guid(),
   signalId: z.guid(),
   emergingClusterId: z.guid(),
+  search: z.string().optional(),
+  payloadField: z.array(z.string()).optional(),
 });
 
 export async function getEventsByEmergingClusterPaginated(
   input: z.infer<typeof GetEventsByEmergingClusterPaginatedSchema>
 ): Promise<{ items: EventRow[]; count: number }> {
-  const { projectId, signalId, emergingClusterId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const {
+    projectId,
+    signalId,
+    emergingClusterId,
+    pageSize,
+    pageNumber,
+    pastHours,
+    startDate,
+    endDate,
+    filter,
+    search,
+    payloadField,
+  } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
+
+  let idFilter: string[] | undefined;
+  let searchHits: SignalEventSearchHit[] = [];
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    searchHits = await searchSignalEvents({
+      projectId,
+      signalId,
+      searchQuery: trimmedSearch,
+      payloadFields: payloadField ?? [],
+      pastHours,
+      startDate,
+      endDate,
+    });
+    if (searchHits.length === 0) {
+      return { items: [], count: 0 };
+    }
+    idFilter = searchHits.map((h) => h.id);
+  }
 
   // signal_events_all_v0 includes L0 cluster ids in the `clusters` array,
   // so the normal cluster filter path (hasAny) works for emerging clusters.
@@ -34,6 +69,7 @@ export async function getEventsByEmergingClusterPaginated(
     endTime: endDate,
     pastHours,
     clusterFilter: [emergingClusterId],
+    idFilter,
     table: "signal_events_all",
   });
 
@@ -44,16 +80,17 @@ export async function getEventsByEmergingClusterPaginated(
     endTime: endDate,
     pastHours,
     clusterFilter: [emergingClusterId],
+    idFilter,
     table: "signal_events_all",
   });
 
-  const [items, [countResult]] = await Promise.all([
+  const [rawItems, [countResult]] = await Promise.all([
     executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
 
   return {
-    items,
+    items: searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems,
     count: countResult?.count || 0,
   };
 }

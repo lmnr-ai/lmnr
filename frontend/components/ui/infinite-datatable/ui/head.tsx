@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../dropdown-menu.tsx";
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableStore } from "../model/table-store.tsx";
 
 interface DraggableTableHeaderProps<TData extends RowData> {
   header: Header<TData, unknown>;
@@ -30,7 +30,7 @@ export function InfiniteTableHead<TData extends RowData>({
   isControllable = true,
 }: DraggableTableHeaderProps<TData>) {
   const columnId = header.column.id;
-  const store = useDataTableStore();
+  const store = useTableStore();
   const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
   const { attributes, isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",

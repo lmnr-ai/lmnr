@@ -6,7 +6,7 @@ import { useStore } from "zustand";
 
 import { TableCell } from "@/components/ui/table.tsx";
 
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableStore } from "../model/table-store.tsx";
 
 interface InfiniteTableCellProps<TData extends RowData> {
   cell: Cell<TData, unknown>;
@@ -14,7 +14,7 @@ interface InfiniteTableCellProps<TData extends RowData> {
 
 export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
   const columnId = cell.column.id;
-  const store = useDataTableStore();
+  const store = useTableStore();
   const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
   const { isDragging, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
