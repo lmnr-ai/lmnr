@@ -61,7 +61,7 @@ export default function GroupsList() {
                     onClick={() => onSelect(g.groupId)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-                      selected ? "bg-secondary" : "hover:bg-muted/60"
+                      selected ? "bg-muted/50" : "hover:bg-muted/60"
                     )}
                   >
                     <div className="flex min-w-0 flex-1 flex-col">

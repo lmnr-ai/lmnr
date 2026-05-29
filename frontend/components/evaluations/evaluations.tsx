@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import ProgressionChart from "@/components/evaluations/progression-chart";
+import ProgressionChart, { ChartVariantToggle } from "@/components/evaluations/progression-chart";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -242,12 +242,13 @@ function EvaluationsContent() {
                 ))}
               </SelectContent>
             </Select>
+            <ChartVariantToggle />
           </div>
           <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
-            <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
+            <ResizablePanel minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}
-                className="h-full px-2 py-4"
+                className="h-full"
                 aggregationFunction={aggregationFunction}
               />
             </ResizablePanel>

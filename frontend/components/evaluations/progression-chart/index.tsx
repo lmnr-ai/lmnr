@@ -15,6 +15,35 @@ import GroupedBarChart from "./grouped-bar-chart";
 import { type ChartVariant, type ProgressionPoint } from "./shared";
 import SplitCharts from "./split-charts";
 
+const VARIANT_PARSER = parseAsStringEnum<ChartVariant>(["grouped", "split"]).withDefault("grouped");
+
+export function useChartVariant() {
+  return useQueryState("chart", VARIANT_PARSER);
+}
+
+export function ChartVariantToggle() {
+  const [variant, setVariant] = useChartVariant();
+  const options: { value: ChartVariant; label: string }[] = [
+    { value: "grouped", label: "Grouped" },
+    { value: "split", label: "Split" },
+  ];
+  return (
+    <div className="inline-flex gap-0.5">
+      {options.map((opt) => (
+        <Button
+          key={opt.value}
+          variant={variant === opt.value ? "secondary" : "ghost"}
+          size="sm"
+          className={cn("h-6 px-2", variant === opt.value ? "" : "border-transparent")}
+          onClick={() => setVariant(opt.value)}
+        >
+          {opt.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 const postFetcher = async ([url, body]: [string, object]) => {
   const res = await fetch(url, {
     method: "POST",
@@ -36,11 +65,9 @@ interface ProgressionChartProps {
   evaluations: { id: string; name: string }[];
 }
 
-const VARIANT_PARSER = parseAsStringEnum<ChartVariant>(["grouped", "split"]).withDefault("grouped");
-
 export default function ProgressionChart({ className, aggregationFunction, evaluations }: ProgressionChartProps) {
   const [scores, setScores] = useState<string[]>([]);
-  const [variant, setVariant] = useQueryState("chart", VARIANT_PARSER);
+  const [variant] = useChartVariant();
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
   const params = useParams();
@@ -65,10 +92,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   }, [scoreKeys]);
 
   const points: ProgressionPoint[] = useMemo(() => {
-    const nameById: Record<string, string> = evaluations.reduce(
-      (acc, curr) => ({ ...acc, [curr.id]: curr.name }),
-      {}
-    );
+    const nameById: Record<string, string> = evaluations.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.name }), {});
     return (
       data?.map(({ timestamp, evaluationId, names, values }) => {
         const valueMap: Record<string, number | null> = {};
@@ -119,9 +143,6 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
 
   return (
     <div className={cn("flex flex-col", className)}>
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <VariantToggle value={variant} onChange={setVariant} />
-      </div>
       <div className="flex-1 min-h-0 min-w-0">
         {variant === "grouped" ? (
           <GroupedBarChart data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
@@ -136,37 +157,12 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
             className="flex items-center text-sm cursor-pointer decoration-dashed"
             onClick={() => toggleScore(key)}
           >
-            <Label
-              style={scores.includes(key) ? { color: chartConfig[key]?.color } : {}}
-              className="cursor-pointer"
-            >
+            <Label style={scores.includes(key) ? { color: chartConfig[key]?.color } : {}} className="cursor-pointer">
               {key}
             </Label>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function VariantToggle({ value, onChange }: { value: ChartVariant; onChange: (v: ChartVariant) => void }) {
-  const options: { value: ChartVariant; label: string }[] = [
-    { value: "grouped", label: "Grouped" },
-    { value: "split", label: "Split" },
-  ];
-  return (
-    <div className="inline-flex rounded-md border bg-background p-0.5">
-      {options.map((opt) => (
-        <Button
-          key={opt.value}
-          variant={value === opt.value ? "secondary" : "ghost"}
-          size="sm"
-          className={cn("h-6 px-2", value === opt.value ? "" : "border-transparent")}
-          onClick={() => onChange(opt.value)}
-        >
-          {opt.label}
-        </Button>
-      ))}
     </div>
   );
 }

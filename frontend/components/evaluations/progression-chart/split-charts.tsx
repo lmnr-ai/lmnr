@@ -1,4 +1,7 @@
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+
+import { ScrollBar } from "@/components/ui/scroll-area";
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../../ui/chart";
 import { type ProgressionPoint } from "./shared";
@@ -18,6 +21,7 @@ interface ScoreRow {
 }
 
 const CARD_WIDTH = 340;
+const CARD_GAP = 12;
 
 export default function SplitCharts({ data, scores, visibleScores, chartConfig }: SplitChartsProps) {
   const visible = scores.filter((s) => visibleScores.includes(s));
@@ -28,16 +32,20 @@ export default function SplitCharts({ data, scores, visibleScores, chartConfig }
       </div>
     );
   }
-  // `w-max` gives the flex row an intrinsic content width, so the outer
-  // `overflow-x-auto` scrolls when N * CARD_WIDTH exceeds the viewport.
+
+  // Same horizontal-scroll pattern as the metrics-panel column strip on the eval detail page:
+  // ScrollAreaPrimitive.Root (overflow-hidden) > Viewport > flex w-max row > shrink-0 cards.
   return (
-    <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-      <div className="flex h-full w-max gap-3 pr-2">
-        {visible.map((score) => (
-          <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
-        ))}
-      </div>
-    </div>
+    <ScrollAreaPrimitive.Root className="relative h-full w-full overflow-hidden">
+      <ScrollAreaPrimitive.Viewport className="h-full w-full">
+        <div className="flex h-full w-max" style={{ gap: CARD_GAP }}>
+          {visible.map((score) => (
+            <ScoreCard key={score} score={score} data={data} chartConfig={chartConfig} />
+          ))}
+        </div>
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollBar orientation="horizontal" />
+    </ScrollAreaPrimitive.Root>
   );
 }
 
