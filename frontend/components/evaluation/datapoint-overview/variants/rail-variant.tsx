@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Line, LineChart, ReferenceDot, YAxis } from "recharts";
+import { Line, LineChart, ReferenceDot, ResponsiveContainer, YAxis } from "recharts";
 
 import { cn } from "@/lib/utils";
 
@@ -38,29 +38,31 @@ function SparklineRow({ scoreName, series, currentEvaluationId }: RowProps) {
       <div className="text-xs text-muted-foreground truncate" title={scoreName}>
         {scoreName}
       </div>
-      <div className="h-8">
-        <LineChart width={400} height={32} data={series} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-          <YAxis hide domain={valuedDomain} />
-          <Line
-            type="monotone"
-            dataKey="value"
-            stroke="hsl(var(--chart-1))"
-            strokeWidth={1.5}
-            dot={false}
-            connectNulls
-            isAnimationActive={false}
-          />
-          {currentPoint && isNum(currentPoint.value) && (
-            <ReferenceDot
-              x={currentPoint.label}
-              y={currentPoint.value}
-              r={3}
-              fill="hsl(var(--success))"
-              stroke="hsl(var(--background))"
+      <div className="h-8 w-full">
+        <ResponsiveContainer width="100%" height={32}>
+          <LineChart data={series} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+            <YAxis hide domain={valuedDomain} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="hsl(var(--chart-1))"
               strokeWidth={1.5}
+              dot={false}
+              connectNulls
+              isAnimationActive={false}
             />
-          )}
-        </LineChart>
+            {currentPoint && isNum(currentPoint.value) && (
+              <ReferenceDot
+                x={currentPoint.label}
+                y={currentPoint.value}
+                r={3}
+                fill="hsl(var(--success))"
+                stroke="hsl(var(--background))"
+                strokeWidth={1.5}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
       </div>
       <div className="flex items-baseline gap-2 tabular-nums text-foreground">
         <span className="text-sm font-medium">{isNum(cur) ? fmtNum(cur) : "—"}</span>

@@ -33,8 +33,9 @@ export default function HeroVariant({ scoreNames, currentEvaluationId, evaluatio
 
   return (
     <div className="grid grid-cols-12 gap-4">
-      {/* Sidebar: dense list of scores, click to switch. */}
-      <div className="col-span-12 md:col-span-3 flex flex-col gap-1">
+      {/* Sidebar: dense list of scores, click to switch. Capped so it can't
+          outrun the hero chart panel on score-heavy groups. */}
+      <div className="col-span-12 md:col-span-3 flex flex-col gap-1 max-h-[380px] overflow-y-auto pr-1">
         {scoreNames.map((name) => {
           const s = seriesByName[name] ?? [];
           const v = currentValueFor(s);

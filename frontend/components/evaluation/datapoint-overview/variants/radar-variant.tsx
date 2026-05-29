@@ -5,7 +5,7 @@ import { ChartContainer } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
 import { type VariantProps } from "../types";
-import { buildSeries, cohortMean, computeRanking, currentValueFor, fmtNum, isNum } from "../utils";
+import { buildSeries, cohortMean, computeRanking, currentValueFor, fmtNum, isNum, type RankingInfo } from "../utils";
 
 /**
  * Radar chart: current run vs cohort mean across all scores on a single
@@ -17,11 +17,19 @@ import { buildSeries, cohortMean, computeRanking, currentValueFor, fmtNum, isNum
 export default function RadarVariant({ scoreNames, currentEvaluationId, evaluations, rows }: VariantProps) {
   const { chartData, legend } = useMemo(() => {
     const data: { scoreName: string; current: number; cohort: number }[] = [];
-    const legendInfo: { name: string; rawCurrent: number | null; rawCohort: number | null; min: number; max: number }[] = [];
+    const legendInfo: {
+      name: string;
+      rawCurrent: number | null;
+      rawCohort: number | null;
+      min: number;
+      max: number;
+      ranking: RankingInfo | null;
+    }[] = [];
     for (const name of scoreNames) {
       const series = buildSeries(name, currentEvaluationId, evaluations, rows);
       const cur = currentValueFor(series);
       const mean = cohortMean(series);
+      const ranking = computeRanking(series, currentEvaluationId);
       const valued = series.filter((p): p is (typeof series)[number] & { value: number } => isNum(p.value));
       let min = Infinity;
       let max = -Infinity;
@@ -42,6 +50,7 @@ export default function RadarVariant({ scoreNames, currentEvaluationId, evaluati
         rawCohort: isNum(mean) ? mean : null,
         min: isFinite(min) ? min : 0,
         max: isFinite(max) ? max : 0,
+        ranking,
       });
     }
     return { chartData: data, legend: legendInfo };
@@ -126,8 +135,7 @@ export default function RadarVariant({ scoreNames, currentEvaluationId, evaluati
       {/* Compact per-score legend with raw values, since radar normalises */}
       <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
         {legend.map((l) => {
-          const series = buildSeries(l.name, currentEvaluationId, evaluations, rows);
-          const r = computeRanking(series, currentEvaluationId);
+          const r = l.ranking;
           return (
             <div key={l.name} className="rounded-[3px] border border-border bg-secondary px-3 py-2">
               <div className="flex items-baseline justify-between gap-2">

@@ -59,11 +59,13 @@ export default function DatapointOverview({
   const evaluationIds = useMemo(() => evaluations.map((e) => e.id).join(","), [evaluations]);
 
   // Fetch the same-index datapoint across every evaluation in the group.
+  // Depend on `evaluationIds` (the joined id string) — same-length-but-different-ids
+  // cohorts would otherwise hit the SWR cache for the wrong group.
   const url = useMemo(() => {
-    if (!validIndex || evaluations.length === 0) return null;
+    if (!validIndex || evaluationIds.length === 0) return null;
     const sp = new URLSearchParams({ evaluationIds, index: String(index) });
     return `/api/projects/${projectId}/evaluations/datapoint-comparison?${sp.toString()}`;
-  }, [validIndex, evaluations.length, projectId, evaluationIds, index]);
+  }, [validIndex, projectId, evaluationIds, index]);
 
   const { data, isLoading } = useSWR<ComparisonResponse>(url, swrFetcher, { revalidateOnFocus: false });
 
