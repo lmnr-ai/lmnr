@@ -50,19 +50,25 @@ export default function ScoreComparisonCard({
     });
   }, [evaluations, rows, scoreName, currentEvaluationId]);
 
-  // Ranking — sort by value, find current run's position.
+  // Ranking — desc by value for rank-N/M display; median is the proper
+  // interpolated middle (computed on an ascending sort so the math is
+  // textbook). Only emit a ranking when there's a cohort to rank against
+  // (N >= 2) — N=1 collapses to "1/1 above own median", which is meaningless.
   const ranking = useMemo(() => {
-    const valued = data
-      .filter((d): d is typeof d & { value: number } => isNum(d.value))
-      .sort((a, b) => b.value - a.value);
-    if (valued.length === 0) return null;
-    const idx = valued.findIndex((d) => d.id === currentEvaluationId);
+    const valued = data.filter((d): d is typeof d & { value: number } => isNum(d.value));
+    if (valued.length < 2) return null;
+    const desc = [...valued].sort((a, b) => b.value - a.value);
+    const idx = desc.findIndex((d) => d.id === currentEvaluationId);
     if (idx === -1) return null;
-    const currentValue = valued[idx].value;
-    const median = valued[Math.floor(valued.length / 2)].value;
+    const asc = [...valued].sort((a, b) => a.value - b.value);
+    const mid = (asc.length - 1) / 2;
+    const lo = Math.floor(mid);
+    const hi = Math.ceil(mid);
+    const median = (asc[lo].value + asc[hi].value) / 2;
+    const currentValue = desc[idx].value;
     return {
       rank: idx + 1,
-      total: valued.length,
+      total: desc.length,
       currentValue,
       median,
       betterThanMedian: currentValue >= median,
