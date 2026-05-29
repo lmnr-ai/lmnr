@@ -20,7 +20,7 @@ jobs:
 
       # Step 2: Install pnpm
       - name: Install pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "lts/*" # Use the latest LTS version of Node.js
+          node-version: "stable"
           cache: "pnpm"
           # Specify the subdirectory containing the lockfile
           cache-dependency-path: ./frontend/pnpm-lock.yaml
