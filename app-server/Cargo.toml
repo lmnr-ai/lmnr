@@ -44,13 +44,13 @@ prost = "0.14"
 rand = "0.9.4"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
-regex = "1.12.2"
+regex = "1.12.3"
 reqwest = {version = "0.12.22", features = ["json"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
-sentry = {version = "0.47.0", features = ["opentelemetry", "tracing"]}
+sentry = {version = "0.48.0", features = ["opentelemetry", "tracing"]}
 schemars = {version = "1", features = ["uuid1"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
@@ -66,6 +66,8 @@ tonic-prost = "0.14"
 tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
 # Mappings usually updated on major releases: https://github.com/tokio-rs/tracing-opentelemetry/releases
+# There are newer versions of both this crate and `opentelemetry`, but `sentry-opentelemetry` is still pinned to 0.29.0
+# TODO: see if we still need to have sentry-opentelemetry or if we can go with `tracing` only
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
