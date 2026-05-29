@@ -7,9 +7,9 @@ interface Props {
 
 const LOGOS = [
   { id: "browser-use", Component: LogoBrowserUse, className: "w-32 h-8" },
+  { id: "openhands", Component: LogoOpenHands, className: "w-28 h-7" },
   { id: "rye", Component: LogoRye, className: "w-16 h-5" },
   { id: "axion-ray", Component: LogoAxionRay, className: "w-24 h-8" },
-  { id: "openhands", Component: LogoOpenHands, className: "w-28 h-7" },
   { id: "passionfroot", Component: LogoPassionfroot, className: "w-28 h-7" },
 ];
 
