@@ -11,7 +11,10 @@ const HasThisIssue = () => (
     <div className="flex flex-col items-start">
       <span className={cn(microLabel, "mb-2")}>03.</span>
       <h2 className={cn(subSection, "mb-2")}>{"Has this issue occurred before?"}</h2>
-      <p className={bodyMedium}>Automatically-generated clusters of issues you care about</p>
+      <p className={bodyMedium}>
+        Laminar groups the events your Signals find into named clusters and tracks each one over time. When a cluster
+        stops recurring, Laminar resolves it — and reopens it if the issue returns.
+      </p>
     </div>
     <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[120px] py-[70px] overflow-hidden px-8">
       {/* mx-auto centers the mock when it fits; when it doesn't (narrow

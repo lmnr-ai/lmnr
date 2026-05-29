@@ -21,14 +21,12 @@ const Hero = ({ className, hasSession }: Props) => (
     <div className="flex flex-col items-center w-full px-6 lg:px-0 pt-[100px] pb-2 justify-start gap-[80px] shrink-0">
       <div className={cn("flex flex-col items-start gap-8 w-full", LANDING_COLUMN_MAX_W)}>
         <div className="flex flex-col items-start gap-4">
-          <h1 className={cn(mainTitle)}>
-            Open-source{` `}
+          <h1 className={cn(mainTitle, "tracking-[-0.015em]")}>
+            Ship reliable agents{` `}
             <br className="block sm:hidden" />
-            Agent Monitoring
           </h1>
           <p className={cn("font-sans-landing text-[20px] text-landing-text-200")}>
-            Laminar captures and analyzes agent traces, surfaces the behavior worth your attention,
-            <br className="hidden md:block" /> and turns recurring failures into regression evals. Automatically.
+            Laminar catches every agent failure, surfaces what to fix, and confirms the fix resolved it.
           </p>
         </div>
 

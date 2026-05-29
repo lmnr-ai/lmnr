@@ -39,7 +39,7 @@ const Card = ({ Icon, title, description, href }: CardProps) => (
 
 const FeaturesForEveryStep = () => (
   <section className="flex flex-col items-start gap-[52px] w-full">
-    <h2 className={subSection}>{"Features for every step\nof agent development"}</h2>
+    <h2 className={subSection}>{"One platform for every stage of agent development."}</h2>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
       <Card
         Icon={Bug}

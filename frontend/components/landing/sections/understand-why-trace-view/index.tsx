@@ -95,7 +95,7 @@ const TimelineBodyLink = ({ spanId, label }: { spanId: string; label: string }) 
 
 const TimelineBody = () => (
   <>
-    Laminar makes the agent run navigable by surfacing input,{" "}
+    Laminar makes the agent run easily navigable by surfacing input,{" "}
     <TimelineBodyLink spanId={LLM_REASONING_SPAN_ID} label="LLM reasoning" />,{" "}
     <TimelineBodyLink spanId={TOOL_CALL_SPAN_ID} label="tool calls" />, and{" "}
     <TimelineBodyLink spanId={SUBAGENT_SPAN_ID} label="sub-agents" /> in a readable transcript and timeline.
@@ -104,10 +104,10 @@ const TimelineBody = () => (
 
 const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   1: {
-    name: "Notifications",
+    name: "Signals",
     title: "Get alerts when\nyour agent breaks.",
-    body: "Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings you in Slack the moment a trace matches.",
-    learnMoreHref: "https://laminar.sh/docs/signals/alerts",
+    body: 'Signals let you describe the error in plain English – "agent is stuck in a loop". Laminar reads every agent run and pings you in Slack when it happens.',
+    learnMoreHref: "https://laminar.sh/docs/signals/introduction",
   },
   2: {
     name: "Trace view",
@@ -123,8 +123,8 @@ const BANDS: Record<1 | 2 | 3 | 4, BandConfig> = {
   },
   4: {
     name: "Ask AI",
-    subtitle: "Long complex run? Chat with AI",
-    body: "Ask any question, dive deep into any agent run. Click span references to jump straight into context.",
+    subtitle: "Ask any question about your agent run",
+    body: "Dive deep into any issue within the agent run by simply asking. Get answers that reference specific context that you can jump to directly.",
     learnMoreHref: "https://laminar.sh/docs/platform/viewing-traces#chat-with-trace",
   },
 };

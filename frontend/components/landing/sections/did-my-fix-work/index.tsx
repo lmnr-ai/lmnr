@@ -11,7 +11,10 @@ const DidMyFixWork = () => (
     <div className="flex flex-col items-start">
       <span className={cn(microLabel, "mb-2")}>05.</span>
       <h2 className={cn(subSection, "mb-2")}>Did my fix work?</h2>
-      <p className={bodyMedium}>Evals help you verify progress, catch regressions, and iterate with confidence</p>
+      <p className={bodyMedium}>
+        Every error cluster you fix can automatically be turned into eval dataset. Run evals after a change to catch
+        regressions and iterate with confidence.
+      </p>
     </div>
     <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[64px] py-[40px] overflow-hidden px-8">
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
