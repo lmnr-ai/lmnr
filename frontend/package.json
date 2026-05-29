@@ -131,7 +131,7 @@
     "react-resizable-panels": "^4.5.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-textarea-autosize": "^8.5.9",
-    "recharts": "^2.15.4",
+    "recharts": "^3.8.1",
     "remark-gfm": "^4.0.1",
     "resend": "^6.8.0",
     "rrweb": "2.0.0-alpha.18",
