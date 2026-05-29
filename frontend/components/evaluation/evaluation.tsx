@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
+import DatapointOverview from "@/components/evaluation/datapoint-overview";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import MetricsPanel from "@/components/evaluation/metrics-panel";
@@ -237,20 +238,40 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [allDatapoints, datapointId]
   );
 
+  // Row click selects the datapoint for the overview panel; the user can then
+  // click "Open trace" to open the side panel. This avoids burying the
+  // comparison overview behind a side panel that opens on every row click.
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
-    setTraceId(row.original["traceId"] as string);
     setDatapointId(row.original["id"] as string);
   }, []);
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
       const next = new URLSearchParams(searchParams.toString());
-      next.set("traceId", row.original["traceId"] as string);
+      next.delete("traceId");
+      next.delete("spanId");
       next.set("datapointId", row.original["id"] as string);
       return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
   );
+
+  const handleCloseOverview = useCallback(() => {
+    setDatapointId(undefined);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("datapointId");
+    push(`${pathName}?${next}`);
+  }, [searchParams, pathName, push]);
+
+  const handleOpenTraceFromOverview = useCallback(() => {
+    if (!selectedRow) return;
+    const tid = selectedRow["traceId"] as string | undefined;
+    if (!tid) return;
+    setTraceId(tid);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("traceId", tid);
+    push(`${pathName}?${next}`);
+  }, [selectedRow, searchParams, pathName, push]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
@@ -300,17 +321,29 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
         <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          <MetricsPanel
-            scoreNames={scoreNames}
-            selectedScore={selectedScore}
-            setSelectedScore={setSelectedScore}
-            allStatistics={statsData?.allStatistics}
-            allDistributions={statsData?.allDistributions}
-            comparedAllStatistics={targetStatsData?.allStatistics}
-            comparedAllDistributions={targetStatsData?.allDistributions}
-            isComparison={!!targetId}
-            isLoading={isStatsLoading}
-          />
+          {datapointId && !traceId && selectedRow ? (
+            <DatapointOverview
+              projectId={params.projectId}
+              evaluationId={evaluationId}
+              evaluations={evaluations}
+              scoreNames={scoreNames}
+              row={selectedRow}
+              onClose={handleCloseOverview}
+              onOpenTrace={handleOpenTraceFromOverview}
+            />
+          ) : (
+            <MetricsPanel
+              scoreNames={scoreNames}
+              selectedScore={selectedScore}
+              setSelectedScore={setSelectedScore}
+              allStatistics={statsData?.allStatistics}
+              allDistributions={statsData?.allDistributions}
+              comparedAllStatistics={targetStatsData?.allStatistics}
+              comparedAllDistributions={targetStatsData?.allDistributions}
+              isComparison={!!targetId}
+              isLoading={isStatsLoading}
+            />
+          )}
           <EvaluationDatapointsTable
             data={allDatapoints}
             isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}

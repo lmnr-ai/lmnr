@@ -306,6 +306,69 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   return results[0][col.id] ?? null;
 };
 
+/**
+ * Fetch the scores JSON for a single datapoint index across a set of evaluations.
+ * Used by the datapoint-comparison overview: pivot a single datapoint position
+ * across every run in its group.
+ *
+ * Returns one row per (evaluationId, index) found — evaluations that don't
+ * contain this index are simply omitted.
+ */
+export const GetEvaluationDatapointComparisonSchema = z.object({
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()).min(1),
+  index: z.number().int().nonnegative(),
+});
+
+export type EvaluationDatapointComparisonRow = {
+  evaluationId: string;
+  index: number;
+  scores: Record<string, number>;
+};
+
+export const getEvaluationDatapointComparison = async (
+  input: z.infer<typeof GetEvaluationDatapointComparisonSchema>
+): Promise<EvaluationDatapointComparisonRow[]> => {
+  const { projectId, evaluationIds, index } = input;
+
+  // Authz: only consider evaluations that actually belong to this project.
+  const owned = await db.query.evaluations.findMany({
+    where: and(eq(evaluations.projectId, projectId)),
+    columns: { id: true },
+  });
+  const ownedIds = new Set(owned.map((e) => e.id));
+  const filteredIds = evaluationIds.filter((id) => ownedIds.has(id));
+  if (filteredIds.length === 0) return [];
+
+  const rows = await executeQuery<{ evaluation_id: string; index: number; scores: string }>({
+    query: `
+      SELECT toString(evaluation_id) AS evaluation_id, \`index\`, scores
+      FROM evaluation_datapoints
+      WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
+        AND \`index\` = {index:Int64}
+    `,
+    parameters: { evaluationIds: filteredIds, index },
+    projectId,
+  });
+
+  return rows.map((r) => {
+    let scores: Record<string, number> = {};
+    try {
+      const parsed = JSON.parse(r.scores || "{}");
+      if (parsed && typeof parsed === "object") {
+        scores = Object.fromEntries(
+          Object.entries(parsed as Record<string, unknown>).filter(
+            (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])
+          )
+        );
+      }
+    } catch {
+      scores = {};
+    }
+    return { evaluationId: r.evaluation_id, index: Number(r.index), scores };
+  });
+};
+
 export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSchema>) => {
   const { evaluationId, projectId, name } = RenameEvaluationSchema.parse(input);
 
