@@ -271,9 +271,10 @@ const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${p
  * LLM's invocation root key: a string distinguishing its invocation from other
  * invocations of the same subagent. `""` means one invocation.
  *
- * The key is a structural prefix of `ids_path`; how deep depends on whether the
- * LLM's direct parent is a real subagent container or per-iteration noise:
- *  - If a single direct parent holds 2+ of the cluster's LLMs, that parent ran
+ * The key is a structural prefix of `ids_path`; how deep is decided per-span
+ * by whether *that span's own* direct parent is a real subagent container or
+ * per-iteration noise:
+ *  - If the LLM's direct parent holds 2+ of the cluster's LLMs, that parent ran
  *    the subagent (looping internally), so it stays in the key (`ids_path`
  *    minus the LLM itself). This separates sibling subagents that share a name
  *    — hence a `parentSpanPath` — but directly parent their own LLM calls (e.g.
@@ -282,6 +283,12 @@ const pathHashKey = (parentSpanPath: string, promptHash: string): string => `${p
  *    loop body per iteration), so it's dropped with the LLM (`ids_path` minus
  *    the last two); iterations then collapse while divergence higher up still
  *    separates distinct invocations.
+ *
+ * The decision is per-span, not per-cluster: a cluster can mix container
+ * parents and per-iteration wrappers (when they share a name), and each must
+ * be trimmed by its own rule. Within a cluster all members share one
+ * `parentSpanPath`, hence one `ids_path` length, so container keys (length-1
+ * trim) and noise keys (length-2 trim) never collide.
  *
  * Using the full structural prefix (not a single divergence index) correctly
  * partitions a cluster with multiple divergence depths. Falls back to
@@ -297,19 +304,20 @@ const computeInvocationRoots = (cluster: LlmSpanInfo[]): Map<string, string> => 
   const directParentId = (s: LlmSpanInfo): string =>
     s.idsPath.length >= 2 ? s.idsPath[s.idsPath.length - 2] : s.parentSpanId;
 
-  // A direct parent shared by 2+ cluster LLMs is a real container, not
-  // per-iteration noise — keep it in the key instead of trimming it as noise.
+  // Count how many of the cluster's LLMs sit under each direct parent.
   const llmsPerParent = new Map<string, number>();
   for (const s of cluster) {
     const p = directParentId(s);
     llmsPerParent.set(p, (llmsPerParent.get(p) ?? 0) + 1);
   }
-  const directParentIsContainer = Array.from(llmsPerParent.values()).some((n) => n >= 2);
 
   const structuralPrefix = (s: LlmSpanInfo): string => {
-    if (directParentIsContainer) {
-      return s.idsPath.length >= 2 ? s.idsPath.slice(0, -1).join("\0") : directParentId(s);
+    const p = directParentId(s);
+    // This span's own parent is a real container (2+ cluster LLMs) → keep it.
+    if ((llmsPerParent.get(p) ?? 0) >= 2) {
+      return s.idsPath.length >= 2 ? s.idsPath.slice(0, -1).join("\0") : p;
     }
+    // Per-iteration wrapper → drop it (and the LLM) as noise.
     return s.idsPath.length <= 2 ? "" : s.idsPath.slice(0, -2).join("\0");
   };
 

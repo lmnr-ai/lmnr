@@ -786,6 +786,100 @@ describe("computeSubagentGroups", () => {
     assert.ok(gB.has("b_llm2") && !gB.has("a_llm1") && !gB.has("a_llm2"));
   });
 
+  it("collapses per-iteration wrappers even when a container subagent shares the cluster", () => {
+    // Mixed cluster: under one parent, three spans share the name "iter" (so all
+    // four LLMs share parentSpanPath + hash => one cluster). Two of them are
+    // per-iteration loop bodies (1 LLM each, one looping subagent) and one is a
+    // container (2 LLMs directly). The per-span trim must collapse the two
+    // iterations together while keeping the container as its own group; a
+    // cluster-global "is container?" flag would wrongly split the iterations.
+    const iterCallPath = ["root", "superloop", "iter", "call"];
+    const spans = buildSpans([
+      { id: "root", type: "DEFAULT", path: ["root"], idsPath: ["root"] },
+      {
+        id: "main_llm",
+        parentId: "root",
+        type: "LLM",
+        path: ["root", "main"],
+        idsPath: ["root", "main_llm"],
+        promptHash: "main_hash",
+        inputTokens: 100,
+      },
+      {
+        id: "superloop",
+        parentId: "root",
+        type: "DEFAULT",
+        path: ["root", "superloop"],
+        idsPath: ["root", "superloop"],
+      },
+      // Two per-iteration loop bodies (fresh span per iteration, 1 LLM each).
+      {
+        id: "loop_i1",
+        parentId: "superloop",
+        type: "DEFAULT",
+        path: ["root", "superloop", "iter"],
+        idsPath: ["root", "superloop", "loop_i1"],
+      },
+      {
+        id: "llm_x1",
+        parentId: "loop_i1",
+        type: "LLM",
+        path: iterCallPath,
+        idsPath: ["root", "superloop", "loop_i1", "llm_x1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "loop_i2",
+        parentId: "superloop",
+        type: "DEFAULT",
+        path: ["root", "superloop", "iter"],
+        idsPath: ["root", "superloop", "loop_i2"],
+      },
+      {
+        id: "llm_x2",
+        parentId: "loop_i2",
+        type: "LLM",
+        path: iterCallPath,
+        idsPath: ["root", "superloop", "loop_i2", "llm_x2"],
+        promptHash: "sub_hash",
+      },
+      // A container with the SAME name "iter" that directly parents 2 LLMs.
+      {
+        id: "agent_a",
+        parentId: "superloop",
+        type: "TOOL",
+        path: ["root", "superloop", "iter"],
+        idsPath: ["root", "superloop", "agent_a"],
+      },
+      {
+        id: "llm_a1",
+        parentId: "agent_a",
+        type: "LLM",
+        path: iterCallPath,
+        idsPath: ["root", "superloop", "agent_a", "llm_a1"],
+        promptHash: "sub_hash",
+      },
+      {
+        id: "llm_a2",
+        parentId: "agent_a",
+        type: "LLM",
+        path: iterCallPath,
+        idsPath: ["root", "superloop", "agent_a", "llm_a2"],
+        promptHash: "sub_hash",
+      },
+    ]);
+
+    const gx1 = groupContaining(spans, "llm_x1");
+    const ga = groupContaining(spans, "llm_a1");
+    assert.ok(gx1 && ga);
+    // The two per-iteration LLMs collapse into one group...
+    assert.ok(gx1.has("llm_x2"), "per-iteration wrappers must collapse together");
+    assert.ok(!gx1.has("llm_a1") && !gx1.has("llm_a2"), "container LLMs stay out of the iteration group");
+    // ...separate from the container subagent, whose two calls group together.
+    assert.ok(ga.has("llm_a2"), "the container's own calls group together");
+    assert.ok(!ga.has("llm_x1") && !ga.has("llm_x2"), "iteration LLMs stay out of the container group");
+  });
+
   it("tie-breaks tool assignment by nearest preceding LLM when multiple subagents share a parent", () => {
     // Two subagent LLMs are siblings under one orchestrator span. A TOOL between
     // them joins whichever LLM most recently preceded it.
