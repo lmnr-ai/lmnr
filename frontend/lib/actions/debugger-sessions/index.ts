@@ -65,6 +65,10 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
     })
     .returning();
 
+  if (!session) {
+    throw new Error("Session could not be created or updated");
+  }
+
   return session;
 };
 
