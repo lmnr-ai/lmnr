@@ -1,5 +1,5 @@
 import { Edit, Ellipsis, Trash } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
@@ -22,21 +22,17 @@ interface EvaluationHeader {
 }
 
 const EvaluationHeader = ({ name, urlKey, hasNonBinary }: EvaluationHeader) => {
-  const searchParams = useSearchParams();
   const { projectId, evaluationId } = useParams();
-  const targetId = searchParams.get("targetId");
 
   return (
     <div className="flex-none flex gap-2 px-4 items-center justify-between w-full">
       <AggregationSelect hidden={!hasNonBinary} />
       <div className="flex items-center gap-2">
-        {!targetId && (
-          <DownloadButton
-            uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
-            filenameFallback={`evaluation-results-${evaluationId}`}
-            supportedFormats={["csv", "json"]}
-          />
-        )}
+        <DownloadButton
+          uri={`/api/projects/${projectId}/evaluations/${evaluationId}/download`}
+          filenameFallback={`evaluation-results-${evaluationId}`}
+          supportedFormats={["csv", "json"]}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" className="h-7 w-7 p-0">
