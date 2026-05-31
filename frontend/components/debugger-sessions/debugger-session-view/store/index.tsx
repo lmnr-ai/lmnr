@@ -114,8 +114,12 @@ const createDebuggerSessionStore = ({
               });
             } else {
               const existing = historyRuns[existingIndex];
+              const existingEndMs = new Date(existing.endTime).getTime();
+              const newEndMs = new Date(newTrace.endTime).getTime();
+              // Guard against empty/invalid endTime (in-progress runs yield NaN);
+              // a NaN comparison would otherwise silently discard a valid update.
               const newEndTime =
-                new Date(newTrace.endTime).getTime() > new Date(existing.endTime).getTime()
+                !Number.isNaN(newEndMs) && (Number.isNaN(existingEndMs) || newEndMs > existingEndMs)
                   ? newTrace.endTime
                   : existing.endTime;
 
