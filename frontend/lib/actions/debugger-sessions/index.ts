@@ -59,6 +59,9 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
     .onConflictDoUpdate({
       target: rolloutSessions.id,
       set: { name: sql`coalesce(${name ?? null}, ${rolloutSessions.name})` },
+      // Scope the conflict update to the owning project so a caller supplying
+      // another project's session id can't overwrite its name.
+      setWhere: eq(rolloutSessions.projectId, projectId),
     })
     .returning();
 

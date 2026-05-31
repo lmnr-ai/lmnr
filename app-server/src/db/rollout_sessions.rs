@@ -43,10 +43,14 @@ pub async fn create_or_update_rollout_session(
     name: Option<String>,
 ) -> Result<RolloutSession> {
     let session = sqlx::query_as::<_, RolloutSession>(
+        // The conflict update is scoped to the owning project so a caller
+        // supplying another project's session id can't overwrite its name; the
+        // mismatch yields no row and the query errors instead.
         "INSERT INTO rollout_sessions (id, project_id, name)
         VALUES ($1, $2, $3)
         ON CONFLICT (id) DO UPDATE
             SET name = COALESCE(EXCLUDED.name, rollout_sessions.name)
+            WHERE rollout_sessions.project_id = $2
         RETURNING id, created_at, project_id, name, status",
     )
     .bind(session_id)
