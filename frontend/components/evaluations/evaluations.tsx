@@ -338,7 +338,7 @@ function EvaluationsContent() {
                 hoveredEvaluationId={hoveredEvaluationId}
               />
             </ResizablePanel>
-            <ResizableHandle withHandle className="z-30 mb-2 bg-transparent transition-colors duration-200" />
+            <ResizableHandle withHandle className="my-2 bg-transparent transition-colors duration-200" />
             <ResizablePanel className="flex flex-1 w-full overflow-hidden" minSize={40} defaultSize={40}>
               <InfiniteDataTable<Evaluation>
                 className="w-full"

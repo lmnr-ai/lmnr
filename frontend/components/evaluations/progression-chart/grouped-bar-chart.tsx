@@ -1,5 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+
+import ScrollEdgeFades from "@/components/ui/scroll-edge-fades";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";
 import { type ProgressionPoint } from "./shared";
@@ -68,8 +70,12 @@ export default function GroupedBarChart({ data, scores, visibleScores, chartConf
     return { rows, ranges };
   }, [data, scores]);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
   const visible = scores.filter((s) => visibleScores.includes(s));
-  const minWidth = Math.max(rows.length * MIN_GROUP_WIDTH, 320);
+  // Width each run-group enough for its bars to be readable (and the rounded
+  // corners visible) rather than slivers; scrolls horizontally when it overflows.
+  const perGroupWidth = Math.max(visible.length * 14 + 24, MIN_GROUP_WIDTH);
+  const minWidth = Math.max(rows.length * perGroupWidth, 320);
 
   return (
     <div className="flex h-full w-full flex-col gap-1">
@@ -77,47 +83,50 @@ export default function GroupedBarChart({ data, scores, visibleScores, chartConf
         <span className="inline-block size-1.5 rounded-full bg-muted-foreground/60" />
         <span>Each score scaled to its own min–max across runs. Hover a bar for the raw value.</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="h-full" style={{ minWidth }}>
-          <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-            <BarChart margin={{ top: 10, right: 10, bottom: 5, left: -8 }} data={rows} accessibilityLayer>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="name"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={6}
-                interval={0}
-                height={28}
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={6}
-                ticks={[0, 0.5, 1]}
-                domain={[0, 1]}
-                tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`}
-                width={36}
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              />
-              <Tooltip
-                cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
-                content={<NormalizedTooltip ranges={ranges} chartConfig={chartConfig} />}
-              />
-              {visible.map((score) => (
-                <Bar
-                  key={score}
-                  dataKey={score}
-                  name={score}
-                  fill={chartConfig[score]?.color}
-                  radius={[2, 2, 0, 0]}
-                  isAnimationActive={false}
+      <div className="relative min-h-0 flex-1">
+        <div ref={scrollRef} className="h-full w-full overflow-x-auto overflow-y-hidden">
+          <div className="h-full" style={{ minWidth }}>
+            <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+              <BarChart margin={{ top: 10, right: 10, bottom: 5, left: 0 }} data={rows} accessibilityLayer>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={6}
+                  interval={0}
+                  height={28}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 />
-              ))}
-            </BarChart>
-          </ChartContainer>
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={6}
+                  ticks={[0, 0.5, 1]}
+                  domain={[0, 1]}
+                  tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`}
+                  width={44}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                  content={<NormalizedTooltip ranges={ranges} chartConfig={chartConfig} />}
+                />
+                {visible.map((score) => (
+                  <Bar
+                    key={score}
+                    dataKey={score}
+                    name={score}
+                    fill={chartConfig[score]?.color}
+                    radius={[3, 3, 0, 0]}
+                    isAnimationActive={false}
+                  />
+                ))}
+              </BarChart>
+            </ChartContainer>
+          </div>
         </div>
+        <ScrollEdgeFades scrollRef={scrollRef} />
       </div>
     </div>
   );
