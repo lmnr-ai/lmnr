@@ -495,12 +495,9 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Tool-definition attributes are PRESERVED on the legacy /
-        // non-preprocessed path. The producer strips them only when it
-        // successfully extracts them into the dedup'd `tool_definitions_hash`
-        // column; spans that never went through producer extraction keep them
-        // so the frontend's `extractToolsFromAttributes` fallback can render
-        // them.
+        // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
+        // producer extraction) still render tools. New-path stripping is
+        // covered by `traces::tool_dedup` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))
