@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError, z, ZodError } from "zod/v4";
 
 import { generateSessionName } from "@/lib/actions/debugger-sessions/generate-name";
 
+const GenerateSessionNameParamsSchema = z.object({
+  projectId: z.guid(),
+  sessionId: z.guid(),
+});
+
 export async function POST(req: Request, props: { params: Promise<{ projectId: string; sessionId: string }> }) {
   try {
-    const { projectId, sessionId } = await props.params;
+    const { projectId, sessionId } = GenerateSessionNameParamsSchema.parse(await props.params);
 
     const result = await generateSessionName(projectId, sessionId);
 
