@@ -127,7 +127,7 @@ export default function DatapointRunsChart({
       <div className="h-[120px] overflow-x-auto overflow-y-hidden">
         <div className="h-full" style={{ minWidth }}>
           <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
-            <BarChart margin={{ top: 10, right: 12, bottom: 4, left: -8 }} data={points} accessibilityLayer>
+            <BarChart margin={{ top: 10, right: 12, bottom: 4, left: 0 }} data={points} accessibilityLayer>
               <XAxis
                 dataKey="createdAt"
                 tickFormatter={shortTime}
@@ -142,7 +142,7 @@ export default function DatapointRunsChart({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={4}
-                width="auto"
+                width={44}
                 domain={[0, "auto"]}
                 tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               />
