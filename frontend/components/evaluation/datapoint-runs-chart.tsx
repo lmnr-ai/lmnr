@@ -148,7 +148,7 @@ export default function DatapointRunsChart({
         <div className="h-[120px] overflow-x-auto overflow-y-hidden">
           <div className="h-full" style={{ minWidth }}>
             <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
-              <LineChart margin={{ top: 12, right: 16, bottom: 4, left: 0 }} data={points} accessibilityLayer>
+              <LineChart margin={{ top: 12, right: 16, bottom: 4, left: 8 }} data={points} accessibilityLayer>
                 <XAxis
                   dataKey="createdAt"
                   tickFormatter={shortTime}
