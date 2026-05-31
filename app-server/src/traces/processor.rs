@@ -555,10 +555,18 @@ pub async fn process_span_messages(
     };
 
     let span_branch = async {
-        // Strict order: shared_content -> mark_seen -> spans. `spans` is
-        // plain MergeTree, so a retry after a successful spans insert +
-        // failed shared_content insert would duplicate every span row.
-        // See CLAUDE.md.
+        // Strict order: shared_content -> spans -> mark_seen. `spans` is plain
+        // MergeTree, so a retry after a successful spans insert + failed
+        // shared_content insert would duplicate every span row. `mark_seen`
+        // runs LAST because the two key axes are backed by different tables:
+        // `s:` keys by `shared_content`, but `tn:` (trace-new) keys by
+        // `spans.*_new_message_indices`. Stamping `tn:` before the spans insert
+        // (the old order) left a window where a permanently-dropped spans
+        // insert orphaned the trace-new marker — later spans in the same trace
+        // saw the `tn:` key and shipped empty `*_new_message_indices`, so no
+        // span recorded the first occurrence. Stamp only after BOTH backing
+        // stores are durable. See CLAUDE.md "Ingest order in
+        // process_span_messages".
         if !shared_content.is_empty() {
             if let Err(e) = ch.insert_batch(&shared_content, config).await {
                 log::error!(
@@ -572,14 +580,6 @@ pub async fn process_span_messages(
                 )));
             }
         }
-        // Stamp Redis after the insert succeeded — even when `shared_content`
-        // was empty, trace-new keys may be non-empty (storage hits across
-        // traces still need their trace-new positions recorded for search).
-        if !storage_keys.is_empty() || !trace_new_keys.is_empty() {
-            mark_seen(&storage_keys, &trace_new_keys, cache.clone()).await;
-        }
-        // Tool-definition Redis keys share the `s:` namespace — already
-        // covered by `storage_keys`. No separate tool mark needed.
 
         if let Err(e) = ch.insert_batch(&ch_spans, config).await {
             log::error!(
@@ -591,6 +591,10 @@ pub async fn process_span_messages(
                 "Failed to insert spans to Clickhouse: {:?}",
                 e
             )));
+        }
+
+        if !storage_keys.is_empty() || !trace_new_keys.is_empty() {
+            mark_seen(&storage_keys, &trace_new_keys, cache.clone()).await;
         }
         Ok(())
     };
