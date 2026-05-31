@@ -54,7 +54,7 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
             ))}
         </SelectContent>
       </Select>
-      {targetId && <ArrowRight size={14} className="flex-none text-secondary-foreground" />}
+      <ArrowRight size={14} className="flex-none text-secondary-foreground" />
       <Select
         key={String(evaluationId)}
         value={String(evaluationId)}
