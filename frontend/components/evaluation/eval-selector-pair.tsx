@@ -13,7 +13,7 @@ interface EvalSelectorPairProps {
 }
 
 // Breadcrumb-styled trigger: no border / background, inherits font, default caret.
-const TRIGGER_CLASS = "h-auto w-auto border-none bg-transparent px-2 py-0 text-sm gap-1";
+const TRIGGER_CLASS = "h-auto w-auto border-none bg-transparent px-2 py-0 text-base gap-1";
 
 export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps) {
   const searchParams = useSearchParams();
