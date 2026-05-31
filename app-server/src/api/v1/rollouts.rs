@@ -50,22 +50,18 @@ pub async fn register_session(
     Ok(HttpResponse::Ok().json(session))
 }
 
-#[patch("rollouts/{session_id}/status")]
-pub async fn update_status(
-    path: web::Path<Uuid>,
-    body: web::Json<UpdateStatusRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-    pubsub: web::Data<Arc<PubSub>>,
-) -> ResponseResult {
-    let db = db.into_inner();
-    let session_id = path.into_inner();
-    let project_id = project_api_key.project_id;
-    let new_status = body.into_inner().status;
+/// Persist a session status change and notify the live trace view so the human
+/// sees status transitions. Shared by the SDK-facing and frontend-facing status
+/// endpoints so the two can't diverge.
+pub async fn update_status_and_broadcast(
+    db: &DB,
+    pubsub: &PubSub,
+    project_id: &Uuid,
+    session_id: &Uuid,
+    new_status: RolloutSessionStatus,
+) -> anyhow::Result<()> {
+    update_session_status(&db.pool, session_id, project_id, new_status).await?;
 
-    update_session_status(&db.pool, &session_id, &project_id, new_status).await?;
-
-    // Notify the live trace view so the human sees status transitions.
     let message = SseMessage {
         event_type: "status_update".to_string(),
         data: serde_json::json!({
@@ -74,7 +70,31 @@ pub async fn update_status(
         }),
     };
     let key = format!("rollout_session_{}", session_id);
-    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
+    send_to_key(pubsub, project_id, &key, message).await;
+
+    Ok(())
+}
+
+#[patch("rollouts/{session_id}/status")]
+pub async fn update_status(
+    path: web::Path<Uuid>,
+    body: web::Json<UpdateStatusRequest>,
+    project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
+) -> ResponseResult {
+    let session_id = path.into_inner();
+    let project_id = project_api_key.project_id;
+    let new_status = body.into_inner().status;
+
+    update_status_and_broadcast(
+        db.get_ref(),
+        pubsub.get_ref().as_ref(),
+        &project_id,
+        &session_id,
+        new_status,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().finish())
 }
