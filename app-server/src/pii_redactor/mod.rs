@@ -110,21 +110,6 @@ async fn resolve_opted_in_projects(
     opted_in
 }
 
-/// Per-direction (input or output) view of the dedup batch the redactor
-/// needs to walk: the per-span trace-new content buffer that Quickwit
-/// indexes. Indexed by `dedup_idx` (matching `recordable_indices`).
-///
-/// Note: byte-billing accuracy for PII-redacted content is slightly off
-/// because `span_content_bytes` is computed pre-redaction; an opted-in
-/// project pays for the raw size of storage-miss content rather than
-/// the redacted size. The over-bill is bounded by the redactor's
-/// shrinkage, typically small (a few percent), so we accept it for
-/// design simplicity rather than threading the byte-delta back through
-/// the dedup path.
-pub struct DedupRedactionView<'a> {
-    pub span_trace_new_contents: &'a mut [Vec<String>],
-}
-
 /// Redact `span.input` / `span.output` for every span whose project has
 /// `remove_pii=true`. Three buffer kinds are redacted in lockstep:
 ///
@@ -151,12 +136,23 @@ pub struct DedupRedactionView<'a> {
 ///
 /// Best-effort: any RPC failure is logged and the batch is left untouched —
 /// PII redaction must never block trace ingestion.
+///
+/// `input_trace_new_contents` / `output_trace_new_contents` are the per-span
+/// trace-new content buffers Quickwit indexes, indexed by `dedup_idx` (matching
+/// `recordable_indices`).
+///
+/// Note: byte-billing accuracy for PII-redacted content is slightly off because
+/// `span_content_bytes` is computed pre-redaction; an opted-in project pays for
+/// the raw size of storage-miss content rather than the redacted size. The
+/// over-bill is bounded by the redactor's shrinkage, typically small (a few
+/// percent), so we accept it for design simplicity rather than threading the
+/// byte-delta back through the dedup path.
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
     shared_content: &mut Vec<CHDedupedContent>,
-    input_view: DedupRedactionView<'_>,
-    output_view: DedupRedactionView<'_>,
+    input_trace_new_contents: &mut [Vec<String>],
+    output_trace_new_contents: &mut [Vec<String>],
     recordable_indices: &[usize],
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -193,7 +189,7 @@ pub async fn redact_spans_in_place(
         // Dedup'd LLM input: redact each trace-new content position so
         // Quickwit's per-trace indexer sees redacted content. Includes
         // storage-hit + trace-new content (cross-trace case).
-        if let Some(contents) = input_view.span_trace_new_contents.get(dedup_idx) {
+        if let Some(contents) = input_trace_new_contents.get(dedup_idx) {
             for (offset, c) in contents.iter().enumerate() {
                 targets.push(Target::TraceNew(Dir::Input, dedup_idx, offset));
                 texts.push(c.clone());
@@ -201,7 +197,7 @@ pub async fn redact_spans_in_place(
         }
 
         // Dedup'd LLM output: same shape as input.
-        if let Some(contents) = output_view.span_trace_new_contents.get(dedup_idx) {
+        if let Some(contents) = output_trace_new_contents.get(dedup_idx) {
             for (offset, c) in contents.iter().enumerate() {
                 targets.push(Target::TraceNew(Dir::Output, dedup_idx, offset));
                 texts.push(c.clone());
@@ -277,12 +273,6 @@ pub async fn redact_spans_in_place(
         return;
     }
 
-    let DedupRedactionView {
-        span_trace_new_contents: input_contents,
-    } = input_view;
-    let DedupRedactionView {
-        span_trace_new_contents: output_contents,
-    } = output_view;
     for (target, text) in targets.into_iter().zip(redacted.into_iter()) {
         match target {
             Target::Input(idx) => match serde_json::from_str(&text) {
@@ -303,8 +293,8 @@ pub async fn redact_spans_in_place(
             }
             Target::TraceNew(dir, dedup_idx, offset) => {
                 let contents_for_span = match dir {
-                    Dir::Input => input_contents.get_mut(dedup_idx),
-                    Dir::Output => output_contents.get_mut(dedup_idx),
+                    Dir::Input => input_trace_new_contents.get_mut(dedup_idx),
+                    Dir::Output => output_trace_new_contents.get_mut(dedup_idx),
                 };
                 if let Some(c) = contents_for_span.and_then(|v| v.get_mut(offset)) {
                     *c = sanitize_string(&text);

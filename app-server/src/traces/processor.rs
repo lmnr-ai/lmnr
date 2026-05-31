@@ -310,12 +310,8 @@ pub async fn process_span_messages(
             redactor,
             &mut spans,
             &mut shared_content,
-            crate::pii_redactor::DedupRedactionView {
-                span_trace_new_contents: &mut input_batch.span_trace_new_contents,
-            },
-            crate::pii_redactor::DedupRedactionView {
-                span_trace_new_contents: &mut output_batch.span_trace_new_contents,
-            },
+            &mut input_batch.span_trace_new_contents,
+            &mut output_batch.span_trace_new_contents,
             &recordable_indices,
             db.clone(),
             cache.clone(),
