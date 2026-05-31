@@ -53,7 +53,12 @@ const RunRail = () => {
       if (!res.ok) return;
 
       const data = (await res.json()) as { items: TraceRow[] };
-      setHistoryRuns(data.items ?? []);
+      // Sort newest-first so historyRuns[0] is the latest run regardless of the
+      // traces endpoint's default order, and the rail lists runs latest-first.
+      const sorted = (data.items ?? [])
+        .slice()
+        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+      setHistoryRuns(sorted);
     } catch (error) {
       console.error("Failed to load session runs:", error);
     } finally {
