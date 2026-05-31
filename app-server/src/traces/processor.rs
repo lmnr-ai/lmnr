@@ -383,11 +383,6 @@ pub async fn process_span_messages(
 
     // Build CHSpans with embedded events to insert to ClickHouse
     let ch_spans: Vec<CHSpan> = {
-        let _g: tracing::span::EnteredSpan = tracing::info_span!(
-            "preprocess.ch_span_build",
-            recordable = recordable_indices.len()
-        )
-        .entered();
         recordable_indices
             .iter()
             .enumerate()
