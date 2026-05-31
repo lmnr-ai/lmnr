@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -304,6 +304,86 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   }
 
   return results[0][col.id] ?? null;
+};
+
+/**
+ * Fetch the scores JSON for a single datapoint index across a set of evaluations.
+ * Used by the datapoint-comparison overview: pivot a single datapoint position
+ * across every run in its group.
+ *
+ * Returns one row per (evaluationId, index) found — evaluations that don't
+ * contain this index are simply omitted.
+ */
+export const GetEvaluationDatapointComparisonSchema = z.object({
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()).min(1),
+  index: z.number().int().nonnegative(),
+});
+
+export type EvaluationDatapointComparisonRow = {
+  evaluationId: string;
+  index: number;
+  scores: Record<string, number>;
+  traceId: string;
+};
+
+export const getEvaluationDatapointComparison = async (
+  input: z.infer<typeof GetEvaluationDatapointComparisonSchema>
+): Promise<EvaluationDatapointComparisonRow[]> => {
+  const { projectId, evaluationIds, index } = input;
+
+  // Authz: only consider evaluations that actually belong to this project.
+  // Filter at the DB instead of loading every project eval into memory.
+  const owned = await db.query.evaluations.findMany({
+    where: and(eq(evaluations.projectId, projectId), inArray(evaluations.id, evaluationIds)),
+    columns: { id: true },
+  });
+  const filteredIds = owned.map((e) => e.id);
+  if (filteredIds.length === 0) return [];
+
+  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
+  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
+  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
+  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
+  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
+  // `scores` may come back as a string or an object depending on the driver.
+  const rows = await executeQuery<{
+    eval_id: string;
+    idx: number | string;
+    scores: string | Record<string, unknown>;
+    tid: string;
+  }>({
+    query: `
+      SELECT toString(evaluation_id) AS eval_id, \`index\` AS idx, scores, toString(trace_id) AS tid
+      FROM evaluation_datapoints
+      WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
+        AND \`index\` = ${index}
+    `,
+    parameters: { evaluationIds: filteredIds },
+    projectId,
+  });
+
+  return rows.map((r) => {
+    let scoresObj: Record<string, unknown> | null = null;
+    if (typeof r.scores === "string") {
+      try {
+        scoresObj = r.scores ? (JSON.parse(r.scores) as Record<string, unknown>) : null;
+      } catch {
+        scoresObj = null;
+      }
+    } else if (r.scores && typeof r.scores === "object") {
+      scoresObj = r.scores;
+    }
+
+    const scores: Record<string, number> = scoresObj
+      ? Object.fromEntries(
+          Object.entries(scoresObj).filter(
+            (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])
+          )
+        )
+      : {};
+    return { evaluationId: r.eval_id, index: Number(r.idx), scores, traceId: r.tid };
+  });
 };
 
 export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSchema>) => {
