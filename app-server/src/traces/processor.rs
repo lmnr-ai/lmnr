@@ -33,7 +33,7 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        input_dedup::{MessageDedup, build_dedup_batch, mark_seen},
+        input_dedup::{DedupBatch, MessageDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
         realtime::{
             RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
@@ -280,86 +280,62 @@ pub async fn process_span_messages(
     // fields pay 32B per hash + any newly-inserted `messages.content`
     // (shared content billed once to the first referrer in the batch);
     // non-dedup'd or empty fields pay for the raw JSON. `estimate_size_bytes`
-    // intentionally excludes these so this loop owns the accounting.
+    // intentionally excludes input AND output so this loop owns 100% of
+    // their accounting.
     let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         dedup_lookup.insert(span_idx, dedup_idx);
     }
-    for (span_idx, span) in spans.iter_mut().enumerate() {
-        let mut added: usize = 0;
 
-        // Input bytes
-        added += if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
-            let hashes = input_batch
-                .span_hashes
-                .get(dedup_idx)
-                .map(|h| h.len())
-                .unwrap_or(0);
+    // Billed bytes for one field (input or output) of one span. Input and
+    // output are accounted identically (both are excluded from
+    // `estimate_size_bytes`, so this loop owns 100% of their charge):
+    //   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted
+    //     `shared_content` bytes (first referrer in batch pays the content).
+    //   - non-recordable + producer stripped the field to `None`: bill from
+    //     the wire dedup — 32B/hash + every trace-new content. Over-bills the
+    //     trace-new-but-storage-hit subset (content already in `shared_content`
+    //     from another trace) by its JSON size; acceptable, bounded by the
+    //     trace's unique-message tail, and the only post-dedup analogue
+    //     available without re-running `build_dedup_batch` for these spans.
+    //   - everyone else (populated, non-array, or genuinely empty field):
+    //     raw JSON size.
+    let field_bytes = |dedup_idx: Option<usize>,
+                       wire_dedup: Option<&MessageDedup>,
+                       batch: &DedupBatch,
+                       raw: &Option<serde_json::Value>|
+     -> usize {
+        if let Some(idx) = dedup_idx {
+            let hashes = batch.span_hashes.get(idx).map(|h| h.len()).unwrap_or(0);
             if hashes > 0 {
-                let content_bytes = input_batch
-                    .span_content_bytes
-                    .get(dedup_idx)
-                    .copied()
-                    .unwrap_or(0);
+                let content_bytes = batch.span_content_bytes.get(idx).copied().unwrap_or(0);
                 hashes * 32 + content_bytes
             } else {
-                span.input
-                    .as_ref()
-                    .map_or(0, crate::utils::estimate_json_size)
+                raw.as_ref().map_or(0, crate::utils::estimate_json_size)
             }
-        } else if let Some(d) = input_dedups.get(span_idx).and_then(|d| d.as_ref()) {
-            // Non-recordable LLM span whose `span.input` was stripped to None
-            // on the producer. Without this branch the fall-through would
-            // bill 0 bytes, regressing the "non-recorded spans contribute
-            // input bytes to workspace usage" invariant.
-            //
-            // We bill against `trace_new_contents` (every trace-new
-            // position carries content on the wire). For the storage-miss
-            // subset this matches what the consumer would have inserted
-            // into `shared_content`; for trace-new-but-storage-hit
-            // positions this is content that's already in `shared_content`
-            // from another trace, so technically we'd over-bill those
-            // by their JSON size. Acceptable: they're the cross-trace
-            // case and the over-bill amount is bounded by the trace's
-            // unique-message tail.
-            d.hashes.len() * 32
-                + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
+        } else if let Some(d) = wire_dedup {
+            d.hashes.len() * 32 + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
         } else {
-            span.input
-                .as_ref()
-                .map_or(0, crate::utils::estimate_json_size)
-        };
-
-        // Output bytes. `estimate_size_bytes` already counted `self.output`
-        // (unlike input, which it deliberately skips). Only add dedup'd
-        // accounting when the producer actually stripped `span.output` to
-        // `None` — for root / top spans the producer keeps `output`
-        // populated for `TraceAggregation::from_spans`, and adding hash +
-        // content bytes on top of the JSON `estimate_size_bytes` already
-        // counted would double-bill those spans.
-        if span.output.is_none() {
-            if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
-                let hashes = output_batch
-                    .span_hashes
-                    .get(dedup_idx)
-                    .map(|h| h.len())
-                    .unwrap_or(0);
-                if hashes > 0 {
-                    let content_bytes = output_batch
-                        .span_content_bytes
-                        .get(dedup_idx)
-                        .copied()
-                        .unwrap_or(0);
-                    added += hashes * 32 + content_bytes;
-                }
-            } else if let Some(d) = output_dedups.get(span_idx).and_then(|d| d.as_ref()) {
-                // Non-recordable LLM span whose `span.output` was stripped to
-                // None on the producer. See input branch for the
-                // trace-new-but-storage-hit over-bill caveat.
-                added += d.hashes.len() * 32
-                    + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>();
-            }
+            raw.as_ref().map_or(0, crate::utils::estimate_json_size)
         }
+    };
+
+    for (span_idx, span) in spans.iter_mut().enumerate() {
+        let dedup_idx = dedup_lookup.get(&span_idx).copied();
+        let mut added: usize = 0;
+
+        added += field_bytes(
+            dedup_idx,
+            input_dedups.get(span_idx).and_then(|d| d.as_ref()),
+            &input_batch,
+            &span.input,
+        );
+        added += field_bytes(
+            dedup_idx,
+            output_dedups.get(span_idx).and_then(|d| d.as_ref()),
+            &output_batch,
+            &span.output,
+        );
 
         // Tool-definition bytes. `should_keep_attribute` already filters the
         // source `ai.prompt.tools` / `llm.request.functions.*` /

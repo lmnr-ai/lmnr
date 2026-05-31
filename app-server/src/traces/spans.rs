@@ -1062,8 +1062,10 @@ impl Span {
     }
 
     /// Must run after `parse_and_enrich_attributes` + `convert_span_to_provider_format`.
-    /// Input is charged separately via `increment_size_bytes` (dedup'd LLM spans pay
-    /// for the hash array; everyone else pays for the raw JSON), so it's excluded here.
+    /// Input and output are charged separately via `increment_size_bytes` (dedup'd LLM
+    /// spans pay for the hash array + newly-inserted content; everyone else pays for the
+    /// raw JSON), so both are excluded here — the post-dedup loop in `processor.rs` owns
+    /// their accounting symmetrically.
     /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
     /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
     /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
@@ -1082,7 +1084,6 @@ impl Span {
                 .filter(|(k, _)| should_keep_attribute(k))
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
