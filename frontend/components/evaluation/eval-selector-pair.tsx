@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,11 +24,12 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
   const targetId = searchParams.get("targetId");
 
   // Compare-mode is purely a function of targetId being set in the URL.
-  // Clicking "Compare" picks the first available eval as the default target,
-  // so the dropdown shows up populated and the user can swap it via the picker.
+  // Clicking "Compare" picks the first available eval as the default target
+  // AND opens the picker so the user can swap to a different one.
   const inCompareMode = !!targetId;
   const firstAvailable = evaluations.find((e) => e.id !== evaluationId);
   const canCompare = !!firstAvailable;
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const setTarget = (value: string | undefined) => {
     const params = new URLSearchParams(searchParams);
@@ -43,7 +45,12 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
     <div className="flex items-center gap-1">
       {inCompareMode && (
         <>
-          <Select value={targetId ?? undefined} onValueChange={(v) => setTarget(v)}>
+          <Select
+            value={targetId ?? undefined}
+            open={compareOpen}
+            onOpenChange={setCompareOpen}
+            onValueChange={(v) => setTarget(v)}
+          >
             <SelectTrigger className={`${TRIGGER_CLASS} text-muted-foreground`}>
               <SelectValue />
             </SelectTrigger>
@@ -85,7 +92,15 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
           Reset
         </Button>
       ) : (
-        <Button variant="outline" size="sm" disabled={!canCompare} onClick={() => setTarget(firstAvailable?.id)}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canCompare}
+          onClick={() => {
+            setTarget(firstAvailable?.id);
+            setCompareOpen(true);
+          }}
+        >
           Compare
         </Button>
       )}
