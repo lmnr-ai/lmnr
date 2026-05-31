@@ -1549,7 +1549,9 @@ fn main() -> anyhow::Result<()> {
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
                                     let path = res.request().path();
-                                    if !path.ends_with("/sql/query") {
+                                    if path.ends_with("/sql/query") {
+                                        log::warn!("Bad request: {:?}", res.response().body());
+                                    } else {
                                         log::error!("Bad request: {:?}", res.response().body());
                                     }
                                     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
