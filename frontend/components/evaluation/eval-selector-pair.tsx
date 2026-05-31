@@ -22,7 +22,14 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
   const router = useRouter();
   const targetId = searchParams.get("targetId");
 
-  const handleChange = (value?: string) => {
+  // Compare-mode is purely a function of targetId being set in the URL.
+  // Clicking "Compare" picks the first available eval as the default target,
+  // so the dropdown shows up populated and the user can swap it via the picker.
+  const inCompareMode = !!targetId;
+  const firstAvailable = evaluations.find((e) => e.id !== evaluationId);
+  const canCompare = !!firstAvailable;
+
+  const setTarget = (value: string | undefined) => {
     const params = new URLSearchParams(searchParams);
     if (value) {
       params.set("targetId", value);
@@ -34,24 +41,25 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
 
   return (
     <div className="flex items-center gap-1">
-      <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-        <SelectTrigger
-          disabled={evaluations.length <= 1}
-          className={`${TRIGGER_CLASS} text-muted-foreground data-[placeholder]:text-muted-foreground [&>svg]:hidden`}
-        >
-          <SelectValue placeholder="Compare" />
-        </SelectTrigger>
-        <SelectContent>
-          {evaluations
-            .filter((item) => item.id !== evaluationId)
-            .map((item) => (
-              <SelectItem key={item.id} value={item.id} description={formatTimestamp(item.createdAt)}>
-                {item.name}
-              </SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
-      <ArrowRight size={14} className="flex-none text-secondary-foreground" />
+      {inCompareMode && (
+        <>
+          <Select value={targetId ?? undefined} onValueChange={(v) => setTarget(v)}>
+            <SelectTrigger className={`${TRIGGER_CLASS} text-muted-foreground`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {evaluations
+                .filter((item) => item.id !== evaluationId)
+                .map((item) => (
+                  <SelectItem key={item.id} value={item.id} description={formatTimestamp(item.createdAt)}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          <ArrowRight size={14} className="flex-none text-secondary-foreground" />
+        </>
+      )}
       <Select
         key={String(evaluationId)}
         value={String(evaluationId)}
@@ -72,9 +80,13 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
             ))}
         </SelectContent>
       </Select>
-      {targetId && (
-        <Button variant="outline" size="sm" onClick={() => handleChange(undefined)}>
+      {inCompareMode ? (
+        <Button variant="outline" size="sm" onClick={() => setTarget(undefined)}>
           Reset
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" disabled={!canCompare} onClick={() => setTarget(firstAvailable?.id)}>
+          Compare
         </Button>
       )}
     </div>
