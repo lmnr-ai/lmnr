@@ -1,6 +1,5 @@
-import { type ReactNode, useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, Tooltip, type TooltipProps, XAxis, YAxis } from "recharts";
-import { type NameType, type ValueType } from "recharts/types/component/DefaultTooltipContent";
+import { useMemo } from "react";
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 
 import { type ChartConfig, ChartContainer } from "../../ui/chart";
 import { type ProgressionPoint } from "./shared";
@@ -72,10 +71,6 @@ export default function GroupedBarChart({ data, scores, visibleScores, chartConf
   const visible = scores.filter((s) => visibleScores.includes(s));
   const minWidth = Math.max(rows.length * MIN_GROUP_WIDTH, 320);
 
-  const renderTooltip = (props: TooltipProps<ValueType, NameType>): ReactNode => (
-    <NormalizedTooltip {...props} ranges={ranges} chartConfig={chartConfig} />
-  );
-
   return (
     <div className="flex h-full w-full flex-col gap-1">
       <div className="flex items-center gap-1 px-1 text-[10px] text-muted-foreground">
@@ -106,7 +101,10 @@ export default function GroupedBarChart({ data, scores, visibleScores, chartConf
                 width={36}
                 tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               />
-              <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.4)" }} content={renderTooltip} />
+              <Tooltip
+                cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
+                content={<NormalizedTooltip ranges={ranges} chartConfig={chartConfig} />}
+              />
               {visible.map((score) => (
                 <Bar
                   key={score}
@@ -130,12 +128,14 @@ function NormalizedTooltip({
   payload,
   ranges,
   chartConfig,
-}: TooltipProps<ValueType, NameType> & {
+}: {
+  active?: boolean;
+  payload?: Array<{ name?: string | number; payload?: Row }>;
   ranges: Record<string, { min: number; max: number }>;
   chartConfig: ChartConfig;
 }) {
   if (!active || !payload || payload.length === 0) return null;
-  const row = payload[0].payload as Row | undefined;
+  const row = payload[0]?.payload;
   if (!row) return null;
   return (
     <div className="rounded-md border bg-background p-2 text-xs shadow-md">
