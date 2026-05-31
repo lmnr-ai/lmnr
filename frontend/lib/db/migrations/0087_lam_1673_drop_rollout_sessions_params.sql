@@ -1,0 +1,1 @@
+ALTER TABLE "rollout_sessions" DROP COLUMN IF EXISTS "params";

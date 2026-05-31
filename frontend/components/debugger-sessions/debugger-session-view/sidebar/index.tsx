@@ -1,57 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 
-import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-import RunTab from "./run-tab.tsx";
-import RunsTab from "./runs-tab";
-import TracesTab from "./traces-tab";
-
-type DebuggerSidebarTab = "run" | "runs" | "traces";
+import RunRail from "./run-rail";
+import SessionInfo from "./session-info";
 
 export default function DebuggerSidebar() {
-  const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
-
-  const [selectedTab, setSelectedTab] = useState<DebuggerSidebarTab>("run");
-
-  const isRunning = sessionStatus === "RUNNING";
-  const activeTab = isRunning ? "run" : selectedTab;
-
   return (
-    <div className="flex flex-col gap-1 flex-1 overflow-hidden">
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setSelectedTab(v as DebuggerSidebarTab)}
-        className="flex flex-col flex-1 overflow-hidden"
-      >
-        <div className="px-4 pt-4">
-          <TabsList className="w-full">
-            <TabsTrigger value="run" className="flex-1 text-xs">
-              Run
-            </TabsTrigger>
-            <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
-              Runs history
-            </TabsTrigger>
-            <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
-              Run from trace
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        <TabsContent value="run" className="flex flex-col flex-1 overflow-hidden">
-          <RunTab />
-        </TabsContent>
-
-        <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden">
-          <RunsTab />
-        </TabsContent>
-
-        <TabsContent value="traces" className="flex flex-col flex-1 overflow-hidden">
-          <TracesTab />
-        </TabsContent>
-      </Tabs>
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <SessionInfo />
+      <RunRail />
     </div>
   );
 }

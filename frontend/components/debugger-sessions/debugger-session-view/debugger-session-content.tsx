@@ -3,12 +3,11 @@
 import { get, isEmpty } from "lodash";
 import { AlertTriangle, CirclePlay, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/debugger-sessions/debugger-session-view/header";
 import Loading, { SpansLoading } from "@/components/debugger-sessions/debugger-session-view/loading.tsx";
 import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
-import { fetchSystemMessages } from "@/components/debugger-sessions/debugger-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/debugger-sessions/debugger-session-view/terminated-overlay.tsx";
 import {
   onRealtimeStartSpan,
@@ -72,13 +71,10 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
     // Debugger state
-    setSystemMessagesMap,
-    setIsSystemMessagesLoading,
     setSessionStatus,
     sessionStatus,
     isSessionDeleted,
     setIsSessionDeleted,
-    setParamValue,
   } = useDebuggerSessionStore((state) => ({
     // Data state
     selectedSpan: state.selectedSpan,
@@ -106,13 +102,10 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     // Debugger state
-    setSystemMessagesMap: state.setSystemMessagesMap,
-    setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
     setSessionStatus: state.setSessionStatus,
     sessionStatus: state.sessionStatus,
     isSessionDeleted: state.isSessionDeleted,
     setIsSessionDeleted: state.setIsSessionDeleted,
-    setParamValue: state.setParamValue,
   }));
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
@@ -213,19 +206,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
 
         setSpans(spans);
 
-        const rootSpan = spans.find((s) => !s.parentSpanId);
-        if (rootSpan) {
-          fetch(`/api/projects/${projectId}/traces/${trace?.id}/spans/${rootSpan.spanId}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((fullSpan) => {
-              if (!fullSpan?.input) return;
-              const inputStr =
-                typeof fullSpan.input === "string" ? fullSpan.input : JSON.stringify(fullSpan.input, null, 2);
-              setParamValue(inputStr);
-            })
-            .catch(() => {});
-        }
-
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
@@ -246,7 +226,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
       projectId,
       trace?.id,
       setSpans,
-      setParamValue,
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
@@ -329,43 +308,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     };
   }, [projectId, setSpans, setTraceError, setSpansError]);
 
-  const llmPathsRef = React.useRef<Array<{ key: string; path: string[] }>>([]);
-  const llmPaths = useMemo(() => {
-    const paths = new Map<string, string[]>();
-    for (const span of spans) {
-      const path = get(span.attributes, "lmnr.span.path") as string[] | undefined;
-      if (span.spanType === SpanType.LLM && path && !span.pending) {
-        paths.set(path.join("."), path);
-      }
-    }
-    const newPaths = Array.from(paths.entries()).map(([key, path]) => ({ key, path }));
-
-    if (newPaths.map((p) => p.key).join("|") === llmPathsRef.current.map((p) => p.key).join("|")) {
-      return llmPathsRef.current;
-    }
-
-    llmPathsRef.current = newPaths;
-    return newPaths;
-  }, [spans]);
-
-  useEffect(() => {
-    if (!projectId || !trace?.id || isEmpty(llmPaths)) return;
-
-    const loadSystemMessages = async () => {
-      setIsSystemMessagesLoading(true);
-      try {
-        const messages = await fetchSystemMessages(projectId as string, trace?.id, llmPaths);
-        setSystemMessagesMap(messages);
-      } catch (error) {
-        console.error("Failed to fetch system messages:", error);
-      } finally {
-        setIsSystemMessagesLoading(false);
-      }
-    };
-
-    loadSystemMessages();
-  }, [projectId, trace?.id, setIsSystemMessagesLoading, setSystemMessagesMap, llmPaths]);
-
   useRealtime({
     key: `rollout_session_${sessionId}`,
     projectId: projectId as string,
@@ -403,12 +345,12 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         <div className="max-w-md mx-auto">
           <Radio className="w-10 h-10 text-muted-foreground/50 mx-auto mb-4 animate-pulse" />
           <h3 className="text-base font-medium text-secondary-foreground mb-2">
-            {sessionStatus === "RUNNING" ? "Running debugger..." : "Waiting for agent to run..."}
+            {sessionStatus === "RUNNING" ? "Debug run in progress…" : "Waiting for a debug run…"}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             {sessionStatus === "RUNNING"
-              ? "Debugger is running. Traces will appear here once they arrive."
-              : "Run the debugger session by filling in input arguments and clicking run. Trace will appear here when your agent runs."}
+              ? "A run is in progress. Traces will appear here as spans arrive."
+              : "Run your instrumented program in debug mode. Traces grouped to this session will appear here in real time."}
           </p>
         </div>
       </div>

@@ -23,13 +23,11 @@ const DebuggerSessionContent = ({ sessionId }: DebuggerSessionContentProps) => (
 
 const DebuggerSession = ({
   projectId,
-  params,
   session,
   trace,
   initialStatus,
 }: {
   projectId: string;
-  params: Array<any>;
   session: DebuggerSessionType;
   trace?: TraceViewTrace;
   initialStatus?: DebuggerSessionStatus;
@@ -45,7 +43,6 @@ const DebuggerSession = ({
     <div className="flex-none border-t" />
     <DebuggerSessionStoreProvider
       trace={trace}
-      params={params}
       storeKey={`debugger-session-${session.id}`}
       initialStatus={initialStatus}
     >

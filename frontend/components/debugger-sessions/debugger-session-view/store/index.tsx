@@ -15,60 +15,34 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts"
 import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
 
-import { type SystemMessage } from "../system-messages-utils.ts";
-
-export const MIN_SIDEBAR_WIDTH = 450;
+export const MIN_SIDEBAR_WIDTH = 360;
 
 interface DebuggerSessionStoreState {
   sidebarWidth: number;
-  systemMessagesMap: Map<string, SystemMessage>;
-  isSystemMessagesLoading: boolean;
-  cachedSpanCounts: Record<string, number>;
-  checkpointSpanId: string | undefined;
-  overrides: Record<string, { system: string }>;
-  generatedNames: Record<string, string>;
   sessionStatus: DebuggerSessionStatus;
   isSessionDeleted: boolean;
-  params: Array<{ name: string; [key: string]: any }>;
-  paramValues: string;
   historyRuns: TraceRow[];
   isHistoryLoading: boolean;
 }
 
 interface DebuggerSessionStoreActions {
   setSidebarWidth: (width: number) => void;
-
-  setSystemMessagesMap: (
-    messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
-  ) => void;
-  setIsSystemMessagesLoading: (isLoading: boolean) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  isCheckpointSpan: (span: TraceViewSpan) => boolean;
-  setCheckpoint: (span: TraceViewSpan) => void;
-  clearCheckpoint: () => void;
-  toggleOverride: (messageId: string) => void;
-  updateOverride: (pathKey: string, content: string) => void;
-  isOverrideEnabled: (messageId: string) => boolean;
-  resetOverride: (messageId: string) => void;
   setSessionStatus: (status: DebuggerSessionStatus) => void;
   setIsSessionDeleted: (isSessionDeleted: boolean) => void;
-  setParamValue: (value: string) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
   setHistoryRuns: (runs: TraceRow[]) => void;
   setIsHistoryLoading: (loading: boolean) => void;
-  setGeneratedName: (pathKey: string, name: string) => void;
 }
 
 type DebuggerSessionStore = BaseTraceViewStore & DebuggerSessionStoreState & DebuggerSessionStoreActions;
 
 const createDebuggerSessionStore = ({
   trace,
-  params = [],
   storeKey = "debugger-session-state",
   initialStatus = "PENDING",
 }: {
   trace?: TraceViewTrace;
-  params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: DebuggerSessionStatus;
 }) => {
@@ -78,7 +52,7 @@ const createDebuggerSessionStore = ({
     persist(
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace: trace }),
-        // Override selectSpanById: rollout doesn't expand collapsed ancestors
+        // Override selectSpanById: debugger view doesn't expand collapsed ancestors
         selectSpanById: (spanId: string) => {
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
@@ -97,19 +71,6 @@ const createDebuggerSessionStore = ({
           }
 
           set({ spans: newSpans });
-
-          const cachedSpans = newSpans.filter((s) => s.spanType === SpanType.CACHED);
-          if (cachedSpans.length > 0) {
-            const newCachedCounts: Record<string, number> = {};
-            cachedSpans.forEach((s) => {
-              const sPath = s.attributes?.["lmnr.span.path"];
-              if (sPath && Array.isArray(sPath)) {
-                const pathKey = sPath.join(".");
-                newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
-              }
-            });
-            set({ cachedSpanCounts: newCachedCounts });
-          }
         },
 
         setTrace: (trace) => {
@@ -166,136 +127,25 @@ const createDebuggerSessionStore = ({
             }
           }
         },
-        isSpanCached: (span: TraceViewSpan): boolean => {
-          const spanPath = span.attributes?.["lmnr.span.path"];
-          if (!spanPath || !Array.isArray(spanPath)) return false;
 
-          const spanPathKey = spanPath.join(".");
-          const cacheCount = get().cachedSpanCounts[spanPathKey];
-
-          if (!cacheCount) return false;
-
-          const spans = get().spans;
-          const spansWithSamePath = spans
-            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => {
-              const sPath = s.attributes?.["lmnr.span.path"];
-              return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
-            })
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-          const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
-
-          return spanIndex !== -1 && spanIndex < cacheCount;
-        },
-
-        isCheckpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().checkpointSpanId,
-
-        setCheckpoint: (span: TraceViewSpan) => {
-          const spans = get().spans;
-          const clickedSpanTime = new Date(span.startTime).getTime();
-
-          const spansBefore = spans
-            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-          const newCachedCounts: Record<string, number> = {};
-
-          spansBefore.forEach((s) => {
-            const sPath = s.attributes?.["lmnr.span.path"];
-            if (sPath && Array.isArray(sPath)) {
-              const pathKey = sPath.join(".");
-              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
-            }
-          });
-
-          set({ cachedSpanCounts: newCachedCounts, checkpointSpanId: span.spanId });
-        },
-
-        clearCheckpoint: () => {
-          set({ cachedSpanCounts: {}, checkpointSpanId: undefined });
-        },
+        // Read-only replay indication: a span was replayed iff the SDK tagged it CACHED.
+        // The frontend never derives the spine boundary itself (see shared spec §9).
+        isSpanCached: (span: TraceViewSpan): boolean => span.spanType === SpanType.CACHED,
 
         sidebarWidth: MIN_SIDEBAR_WIDTH,
-        systemMessagesMap: new Map(),
-        isSystemMessagesLoading: false,
-        cachedSpanCounts: {},
-        checkpointSpanId: undefined,
-        overrides: {},
-        generatedNames: {},
         sessionStatus: initialStatus,
         isSessionDeleted: false,
-        params,
-        paramValues: "" as string,
         historyRuns: [],
         isHistoryLoading: false,
 
         setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
 
-        setSystemMessagesMap: (messages) => {
-          if (typeof messages === "function") {
-            const prevMessages = get().systemMessagesMap;
-            const newMessages = messages(prevMessages);
-            set({ systemMessagesMap: newMessages });
-          } else {
-            set({ systemMessagesMap: messages });
-          }
-        },
-
-        setIsSystemMessagesLoading: (isLoading) => set({ isSystemMessagesLoading: isLoading }),
-
-        toggleOverride: (messageId: string) => {
-          const message = get().systemMessagesMap.get(messageId);
-          if (!message) return;
-
-          const overrides = { ...get().overrides };
-
-          if (overrides[message.pathKey]) {
-            delete overrides[message.pathKey];
-          } else {
-            overrides[message.pathKey] = { system: message.content };
-          }
-
-          set({ overrides });
-        },
-
-        updateOverride: (pathKey: string, content: string) => {
-          const overrides = { ...get().overrides };
-          overrides[pathKey] = { system: content };
-          set({ overrides });
-        },
-
-        isOverrideEnabled: (messageId: string): boolean => {
-          const message = get().systemMessagesMap.get(messageId);
-          if (!message) return false;
-          return message.pathKey in get().overrides;
-        },
-
-        resetOverride: (messageId: string) => {
-          const message = get().systemMessagesMap.get(messageId);
-          if (!message) return;
-
-          const overrides = { ...get().overrides };
-          if (overrides[message.pathKey]) {
-            overrides[message.pathKey] = { system: message.content };
-            set({ overrides });
-          }
-        },
-
         setSessionStatus: (sessionStatus: DebuggerSessionStatus) => set({ sessionStatus }),
 
         setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
 
-        setParamValue: (value: string) => {
-          set({ paramValues: value });
-        },
-
         setHistoryRuns: (runs: TraceRow[]) => set({ historyRuns: runs }),
         setIsHistoryLoading: (isHistoryLoading: boolean) => set({ isHistoryLoading }),
-
-        setGeneratedName: (pathKey: string, name: string) =>
-          set({ generatedNames: { ...get().generatedNames, [pathKey]: name } }),
 
         loadHistoryTrace: async (projectId: string, traceId: string, startTime: string, endTime: string) => {
           loadTraceController?.abort();
@@ -326,9 +176,6 @@ const createDebuggerSessionStore = ({
             spansError: undefined,
             isTraceLoading: true,
             isSpansLoading: true,
-            cachedSpanCounts: {},
-            checkpointSpanId: undefined,
-            systemMessagesMap: new Map(),
           });
 
           try {
@@ -356,22 +203,7 @@ const createDebuggerSessionStore = ({
             }
 
             if (spansResult.status === "fulfilled" && spansResult.value) {
-              const spans = spansResult.value;
-              get().setSpans(enrichSpansWithPending(spans));
-
-              const rootSpan = spans.find((s) => !s.parentSpanId);
-              if (rootSpan) {
-                fetch(`/api/projects/${projectId}/traces/${traceId}/spans/${rootSpan.spanId}`, { signal })
-                  .then((r) => (r.ok ? r.json() : null))
-                  .then((fullSpan) => {
-                    if (signal.aborted || !fullSpan?.input) return;
-                    const inputStr =
-                      typeof fullSpan.input === "string" ? fullSpan.input : JSON.stringify(fullSpan.input, null, 2);
-
-                    set({ paramValues: inputStr });
-                  })
-                  .catch(() => {});
-              }
+              get().setSpans(enrichSpansWithPending(spansResult.value));
             } else if (spansResult.status === "rejected") {
               set({ spansError: "Failed to load spans" });
             }
@@ -394,7 +226,6 @@ const createDebuggerSessionStore = ({
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            generatedNames: state.generatedNames,
           };
         },
         merge: (persistedState, currentState) => {
@@ -417,17 +248,15 @@ export const DebuggerSessionStoreContext = createContext<StoreApi<DebuggerSessio
 
 const DebuggerSessionStoreProvider = ({
   trace,
-  params,
   storeKey,
   initialStatus,
   children,
 }: PropsWithChildren<{
   trace?: TraceViewTrace;
-  params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: DebuggerSessionStatus;
 }>) => {
-  const [storeState] = useState(() => createDebuggerSessionStore({ trace, params, storeKey, initialStatus }));
+  const [storeState] = useState(() => createDebuggerSessionStore({ trace, storeKey, initialStatus }));
 
   return (
     <TraceViewContext.Provider value={storeState}>

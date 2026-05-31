@@ -20,7 +20,6 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
   return (
     <DebuggerSession
       projectId={projectId}
-      params={session.params as Array<any>}
       session={session as DebuggerSessionType}
       trace={trace}
       initialStatus={session.status as DebuggerSessionStatus}

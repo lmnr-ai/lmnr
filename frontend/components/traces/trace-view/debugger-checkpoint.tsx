@@ -1,71 +1,39 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ArrowDown, Circle, DatabaseZap } from "lucide-react";
-import { type MouseEvent } from "react";
+import { DatabaseZap } from "lucide-react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface DebuggerCheckpointProps {
   span: TraceViewSpan;
 }
 
+// Read-only indicator marking LLM calls that were replayed from the source trace.
+// The SDK owns the replay decision and tags replayed spans as CACHED (shared spec §9).
 export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   const {
     enabled,
-    state: { isSpanCached, isCheckpointSpan, setCheckpoint, clearCheckpoint },
+    state: { isSpanCached },
   } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
-    isCheckpointSpan: s.isCheckpointSpan,
-    setCheckpoint: s.setCheckpoint,
-    clearCheckpoint: s.clearCheckpoint,
   }));
 
   if (!enabled) return null;
   if (span.spanType !== "LLM" && span.spanType !== "CACHED") return null;
 
-  const isCached = isSpanCached(span);
-  const isCheckpoint = isCheckpointSpan(span);
-
-  const handleClick = (e: MouseEvent) => {
-    e.stopPropagation();
-    if (isCheckpoint) {
-      clearCheckpoint();
-    } else {
-      setCheckpoint(span);
-    }
-  };
-
-  const icon = isCached ? (
-    <DatabaseZap className="h-3.5 w-3.5 text-muted-foreground" />
-  ) : isCheckpoint ? (
-    <ArrowDown className="h-3.5 w-3.5 text-success" />
-  ) : (
-    <Circle className="h-3.5 w-3.5 text-muted-foreground" />
-  );
-
-  const tooltipText = isCached
-    ? "Cached — will replay the recorded response instead of calling the model"
-    : isCheckpoint
-      ? "Unset checkpoint"
-      : "Run from here";
+  if (!isSpanCached(span)) return null;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="z-30 hover:bg-muted transition-all rounded-sm"
-          onClick={handleClick}
-        >
-          {icon}
-        </Button>
+        <div className="flex items-center justify-center rounded-sm">
+          <DatabaseZap className="h-3.5 w-3.5 text-muted-foreground" />
+        </div>
       </TooltipTrigger>
       <TooltipPortal>
         <TooltipContent side="left" className="text-xs">
-          {tooltipText}
+          Replayed from source trace
         </TooltipContent>
       </TooltipPortal>
     </Tooltip>
