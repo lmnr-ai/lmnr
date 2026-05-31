@@ -1070,7 +1070,7 @@ impl Span {
     /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
     /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
     /// so counting them here would double-bill against the input charge.
-    pub fn estimate_size_bytes(&mut self) {
+    pub fn estimate_size_bytes_no_payload(&mut self) {
         let size_bytes = 16 // span_id
             + 16 // trace_id
             + 16 // parent_span_id
