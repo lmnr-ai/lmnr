@@ -8,9 +8,11 @@ import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
 import DatapointOverview from "@/components/evaluation/datapoint-overview";
+import EvalSelectorPair from "@/components/evaluation/eval-selector-pair";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import MetricsPanel from "@/components/evaluation/metrics-panel";
+import { isBinaryDistribution } from "@/components/evaluation/metrics-panel/utils";
 import {
   buildColumnDefs,
   buildFetchParams,
@@ -47,7 +49,7 @@ const PAGE_SIZE = 50;
 const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 const RESOURCE = "evaluation";
 
-function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -302,6 +304,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     [columnDefs, isComparison]
   );
 
+  const hasNonBinary = useMemo(() => {
+    const dists = statsData?.allDistributions;
+    if (!dists) return true;
+    return scoreNames.some((name) => !isBinaryDistribution(dists[name] ?? null));
+  }, [scoreNames, statsData?.allDistributions]);
+
   const onDeleteCustomColumn = useCallback(
     (columnId: string) => removeCustomColumn(columnId.replace("custom:", "")),
     [removeCustomColumn]
@@ -314,14 +322,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 
   return (
     <>
-      <Header
-        path={[
-          { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
-          { name: statsData?.evaluation?.name || evaluationName },
-        ]}
-      />
+      <Header path={[{ name: "evaluations", href: `/project/${params.projectId}/evaluations` }]}>
+        <div className="text-secondary-foreground/40">/</div>
+        <EvalSelectorPair evaluations={evaluations} />
+      </Header>
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} evaluations={evaluations} />
+        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} hasNonBinary={hasNonBinary} />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
           {datapointId && !traceId && selectedRow ? (
             <DatapointOverview

@@ -53,7 +53,7 @@ export default function GroupsList() {
         ) : (
           <ul className="flex flex-col gap-px py-1">
             {groups.map((g) => {
-              const selected = g.groupId === groupId;
+              const isSelected = g.groupId === groupId;
               return (
                 <li key={g.groupId}>
                   <button
@@ -61,17 +61,24 @@ export default function GroupsList() {
                     onClick={() => onSelect(g.groupId)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-                      selected ? "bg-muted/50" : "hover:bg-muted/60"
+                      isSelected ? "bg-muted/50" : "hover:bg-muted/60"
                     )}
                   >
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-sm font-medium">{g.groupId}</span>
+                      <span
+                        className={cn(
+                          "truncate text-sm font-medium",
+                          isSelected ? "text-primary-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {g.groupId}
+                      </span>
                       <ClientTimestampFormatter
                         className="text-[11px] text-muted-foreground"
                         timestamp={g.lastEvaluationCreatedAt}
                       />
                     </div>
-                    <RunCountBadge count={g.runCount} selected={selected} />
+                    <RunCountBadge count={g.runCount} selected={isSelected} />
                   </button>
                 </li>
               );

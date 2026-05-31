@@ -1,17 +1,10 @@
 "use client";
 
-import { parseAsString, parseAsStringEnum, useQueryState } from "nuqs";
-import { useMemo } from "react";
+import { parseAsString, useQueryState } from "nuqs";
 
+import { useAggregation } from "@/components/evaluation/metrics-panel/aggregation-select";
 import ColumnStrip from "@/components/evaluation/metrics-panel/column-strip";
 import ExpandedDetail from "@/components/evaluation/metrics-panel/expanded-detail";
-import {
-  AGGREGATION_OPTIONS,
-  type AggregationKind,
-  DEFAULT_AGGREGATION,
-  isBinaryDistribution,
-} from "@/components/evaluation/metrics-panel/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
@@ -27,46 +20,17 @@ interface MetricsPanelProps {
   isLoading?: boolean;
 }
 
-const AGG_VALUES = AGGREGATION_OPTIONS.map((o) => o.value) as AggregationKind[];
-
 export default function MetricsPanel(props: MetricsPanelProps) {
   const [expanded, setExpanded] = useQueryState("expandedMetric", parseAsString);
-  const [aggregation, setAggregation] = useQueryState(
-    "agg",
-    parseAsStringEnum<AggregationKind>(AGG_VALUES).withDefault(DEFAULT_AGGREGATION)
-  );
+  const [aggregation] = useAggregation();
 
   const expandedStats = expanded ? (props.allStatistics?.[expanded] ?? null) : null;
   const expandedCStats = expanded ? (props.comparedAllStatistics?.[expanded] ?? null) : null;
   const expandedDist = expanded ? (props.allDistributions?.[expanded] ?? null) : null;
   const expandedCDist = expanded ? (props.comparedAllDistributions?.[expanded] ?? null) : null;
 
-  // Binary scores collapse to a pass/fail rate, so the aggregation toggle is
-  // meaningless when every score is binary — hide the dropdown in that case.
-  const hasNonBinary = useMemo(() => {
-    if (!props.allDistributions) return true;
-    return props.scoreNames.some((name) => !isBinaryDistribution(props.allDistributions?.[name] ?? null));
-  }, [props.scoreNames, props.allDistributions]);
-
   return (
-    <div className="relative shrink-0 py-8">
-      {!props.isLoading && hasNonBinary && (
-        <div className="absolute top-0 left-0 z-10 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Aggregation</span>
-          <Select value={aggregation} onValueChange={(v) => setAggregation(v as AggregationKind)}>
-            <SelectTrigger className="h-7 w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {AGGREGATION_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+    <div className="relative shrink-0 py-4">
       {props.isLoading ? (
         <Skeleton className="h-[156px] w-full rounded-[4px]" />
       ) : expanded ? (

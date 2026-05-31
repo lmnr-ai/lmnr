@@ -1,9 +1,10 @@
-import { ArrowRight, Edit, Ellipsis, Trash } from "lucide-react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Edit, Ellipsis, Trash } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
 import React, { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
+import { AggregationSelect } from "@/components/evaluation/metrics-panel/aggregation-select";
 import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
 import DownloadButton from "@/components/ui/download-button";
@@ -13,89 +14,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
-import { formatTimestamp } from "@/lib/utils";
 
 interface EvaluationHeader {
-  evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
+  hasNonBinary?: boolean;
 }
 
-const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
+const EvaluationHeader = ({ name, urlKey, hasNonBinary }: EvaluationHeader) => {
   const searchParams = useSearchParams();
-  const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
-  const router = useRouter();
   const targetId = searchParams.get("targetId");
-
-  const handleChange = (value?: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (value) {
-      params.set("targetId", value);
-    } else {
-      params.delete("targetId");
-    }
-    router.push(`${pathName}?${params}`);
-  };
 
   return (
     <div className="flex-none flex gap-2 px-4 items-center justify-between w-full">
-      <div className="flex items-center gap-2">
-        <div>
-          <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
-            <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
-              <SelectValue placeholder="Select compared evaluation" />
-            </SelectTrigger>
-            <SelectContent>
-              {evaluations
-                .filter((item) => item.id !== evaluationId)
-                .map((item) => (
-                  <SelectItem className="truncate" key={item.id} value={item.id}>
-                    <span>
-                      {item.name}
-                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-none text-secondary-foreground">
-          <ArrowRight size={16} />
-        </div>
-        <div>
-          <Select
-            key={String(evaluationId)}
-            value={String(evaluationId)}
-            onValueChange={(value) => {
-              router.push(`/project/${projectId}/evaluations/${value}?${searchParams.toString()}`);
-            }}
-          >
-            <SelectTrigger className="flex font-medium">
-              <SelectValue placeholder="Select evaluation" />
-            </SelectTrigger>
-            <SelectContent>
-              {evaluations
-                .filter((item) => item.id !== targetId)
-                .map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    <span>
-                      {item.name}
-                      <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {targetId && (
-          <Button variant="outline" onClick={() => handleChange(undefined)}>
-            Reset
-          </Button>
-        )}
-      </div>
+      <AggregationSelect hidden={!hasNonBinary} />
       <div className="flex items-center gap-2">
         {!targetId && (
           <DownloadButton
