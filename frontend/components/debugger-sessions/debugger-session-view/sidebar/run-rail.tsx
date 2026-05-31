@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
@@ -21,7 +21,7 @@ const RunStatusDot = ({ status }: { status: string }) => (
 
 const RunRail = () => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
-  const { historyRuns, isHistoryLoading, setHistoryRuns, setIsHistoryLoading, loadHistoryTrace, trace } =
+  const { historyRuns, isHistoryLoading, setHistoryRuns, setIsHistoryLoading, loadHistoryTrace, trace, sessionStatus } =
     useDebuggerSessionStore(
       useShallow((state) => ({
         historyRuns: state.historyRuns,
@@ -30,6 +30,7 @@ const RunRail = () => {
         setIsHistoryLoading: state.setIsHistoryLoading,
         loadHistoryTrace: state.loadHistoryTrace,
         trace: state.trace,
+        sessionStatus: state.sessionStatus,
       }))
     );
 
@@ -64,6 +65,18 @@ const RunRail = () => {
     if (!projectId || !sessionId) return;
     fetchHistory();
   }, [fetchHistory, projectId, sessionId]);
+
+  // Re-reconcile the run list against the backend on every session status
+  // transition (driven by the status_update SSE) so newly started/finished
+  // runs appear with authoritative data without a page reload. Skip the
+  // initial value to avoid duplicating the on-mount fetch.
+  const prevStatusRef = useRef(sessionStatus);
+  useEffect(() => {
+    if (!projectId || !sessionId) return;
+    if (prevStatusRef.current === sessionStatus) return;
+    prevStatusRef.current = sessionStatus;
+    fetchHistory();
+  }, [sessionStatus, fetchHistory, projectId, sessionId]);
 
   // Default to the latest run once runs are loaded and nothing is selected.
   useEffect(() => {
