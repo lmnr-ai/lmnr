@@ -14,6 +14,7 @@ pub mod project_api_keys;
 pub mod projects;
 pub mod reports;
 pub mod rollout_sessions;
+#[cfg(feature = "signals")]
 pub mod signals;
 pub mod slack_integrations;
 pub mod spans;

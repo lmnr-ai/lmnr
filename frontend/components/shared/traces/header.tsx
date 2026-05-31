@@ -17,9 +17,10 @@ import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onClose?: () => void;
+  isHideTimelineControls?: boolean;
 }
 
-const Header = ({ onClose }: HeaderProps) => {
+const Header = ({ onClose, isHideTimelineControls = false }: HeaderProps) => {
   const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
@@ -36,6 +37,7 @@ const Header = ({ onClose }: HeaderProps) => {
   }, [trace?.id, toast]);
 
   if (!onClose) {
+    if (isHideTimelineControls) return null;
     return (
       <div className="relative h-0">
         <CondensedTimelineControls
@@ -89,7 +91,9 @@ const Header = ({ onClose }: HeaderProps) => {
       </div>
 
       {/* Timeline toggle */}
-      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      {!isHideTimelineControls && (
+        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      )}
     </div>
   );
 };
