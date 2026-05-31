@@ -7,8 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
-import DatapointOverview from "@/components/evaluation/datapoint-overview";
-import EvalSelectorPair from "@/components/evaluation/eval-selector-pair";
+import DatapointRunsChart from "@/components/evaluation/datapoint-runs-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import MetricsPanel from "@/components/evaluation/metrics-panel";
@@ -32,11 +31,10 @@ import { useTableConfigStore, useTableView } from "@/components/ui/infinite-data
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -49,7 +47,7 @@ const PAGE_SIZE = 50;
 const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 const RESOURCE = "evaluation";
 
-function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -240,42 +238,22 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     [allDatapoints, datapointId]
   );
 
-  // Row click selects the datapoint for the overview panel; the user can then
-  // click "Open trace" to open the side panel. Clear traceId/spanId so the
-  // overview is shown even when the user row-clicks from inside an open trace
-  // (the conditional render gates on !traceId). Mirrors getRowHref's URL clear.
+  const selectedIndex = selectedRow != null ? Number(selectedRow["index"]) : NaN;
+
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
+    setTraceId(row.original["traceId"] as string);
     setDatapointId(row.original["id"] as string);
-    setTraceId(undefined);
   }, []);
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
       const next = new URLSearchParams(searchParams.toString());
-      next.delete("traceId");
-      next.delete("spanId");
+      next.set("traceId", row.original["traceId"] as string);
       next.set("datapointId", row.original["id"] as string);
       return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
   );
-
-  const handleCloseOverview = useCallback(() => {
-    setDatapointId(undefined);
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("datapointId");
-    push(`${pathName}?${next}`);
-  }, [searchParams, pathName, push]);
-
-  const handleOpenTraceFromOverview = useCallback(() => {
-    if (!selectedRow) return;
-    const tid = selectedRow["traceId"] as string | undefined;
-    if (!tid) return;
-    setTraceId(tid);
-    const next = new URLSearchParams(searchParams.toString());
-    next.set("traceId", tid);
-    push(`${pathName}?${next}`);
-  }, [selectedRow, searchParams, pathName, push]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
@@ -292,12 +270,16 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
     push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
 
-  const handleTraceChange = (id: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("traceId", id);
-    push(`${pathName}?${next}`);
-    setTraceId(id);
-  };
+  const handleTraceChange = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("traceId", id);
+      next.delete("spanId");
+      push(`${pathName}?${next}`);
+      setTraceId(id);
+    },
+    [searchParams, pathName, push]
+  );
 
   const visibleColumnDefs = useMemo(
     () => selectVisibleColumnDefs(columnDefs, isComparison),
@@ -322,36 +304,31 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
 
   return (
     <>
-      <Header path={[{ name: "evaluations", href: `/project/${params.projectId}/evaluations` }]}>
-        <div className="text-secondary-foreground/40">/</div>
-        <EvalSelectorPair evaluations={evaluations} />
-      </Header>
+      <Header
+        path={[
+          { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
+          { name: statsData?.evaluation?.name || evaluationName },
+        ]}
+      />
       <div className="flex-1 flex gap-2 flex-col relative overflow-hidden">
-        <EvaluationHeader name={statsData?.evaluation?.name} urlKey={statsUrl} hasNonBinary={hasNonBinary} />
+        <EvaluationHeader
+          name={statsData?.evaluation?.name}
+          urlKey={statsUrl}
+          evaluations={evaluations}
+          hasNonBinary={hasNonBinary}
+        />
         <div className="flex flex-col gap-2 flex-1 overflow-hidden px-4 pb-4">
-          {datapointId && !traceId && selectedRow ? (
-            <DatapointOverview
-              projectId={params.projectId}
-              evaluationId={evaluationId}
-              evaluations={evaluations}
-              scoreNames={scoreNames}
-              row={selectedRow}
-              onClose={handleCloseOverview}
-              onOpenTrace={handleOpenTraceFromOverview}
-            />
-          ) : (
-            <MetricsPanel
-              scoreNames={scoreNames}
-              selectedScore={selectedScore}
-              setSelectedScore={setSelectedScore}
-              allStatistics={statsData?.allStatistics}
-              allDistributions={statsData?.allDistributions}
-              comparedAllStatistics={targetStatsData?.allStatistics}
-              comparedAllDistributions={targetStatsData?.allDistributions}
-              isComparison={!!targetId}
-              isLoading={isStatsLoading}
-            />
-          )}
+          <MetricsPanel
+            scoreNames={scoreNames}
+            selectedScore={selectedScore}
+            setSelectedScore={setSelectedScore}
+            allStatistics={statsData?.allStatistics}
+            allDistributions={statsData?.allDistributions}
+            comparedAllStatistics={targetStatsData?.allStatistics}
+            comparedAllDistributions={targetStatsData?.allDistributions}
+            isComparison={!!targetId}
+            isLoading={isStatsLoading}
+          />
           <EvaluationDatapointsTable
             data={allDatapoints}
             isLoading={isStatsLoading || isLoadingDatapoints || isViewLoading}
@@ -379,36 +356,17 @@ function EvaluationContent({ evaluations, evaluationId }: EvaluationProps) {
       </div>
       {traceId && (
         <TraceViewSidePanel onClose={onClose} traceId={traceId}>
-          {targetId && (
-            <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-              <Select value={traceId} onValueChange={handleTraceChange}>
-                <SelectTrigger className="flex font-medium text-secondary-foreground">
-                  <SelectValue placeholder="Select evaluation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(selectedRow?.["traceId"] as string) && (
-                    <SelectItem value={selectedRow!["traceId"] as string}>
-                      <span>
-                        {statsData?.evaluation.name}
-                        <span className="text-secondary-foreground text-xs ml-2">
-                          {formatTimestamp(String(statsData?.evaluation.createdAt))}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  )}
-                  {(selectedRow?.["compared:traceId"] as string) && (
-                    <SelectItem value={selectedRow!["compared:traceId"] as string}>
-                      <span>
-                        {targetStatsData?.evaluation.name}
-                        <span className="text-secondary-foreground text-xs ml-2">
-                          {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          {selectedRow && Number.isFinite(selectedIndex) && evaluations.length > 1 && (
+            <DatapointRunsChart
+              projectId={params.projectId}
+              index={selectedIndex}
+              evaluations={evaluations}
+              currentTraceId={traceId}
+              scoreNames={scoreNames}
+              selectedScore={selectedScore}
+              onSelectScore={setSelectedScore}
+              onSelectTrace={handleTraceChange}
+            />
           )}
         </TraceViewSidePanel>
       )}

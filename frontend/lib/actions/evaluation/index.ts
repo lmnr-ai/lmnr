@@ -324,6 +324,7 @@ export type EvaluationDatapointComparisonRow = {
   evaluationId: string;
   index: number;
   scores: Record<string, number>;
+  traceId: string;
 };
 
 export const getEvaluationDatapointComparison = async (
@@ -340,21 +341,25 @@ export const getEvaluationDatapointComparison = async (
   const filteredIds = owned.map((e) => e.id);
   if (filteredIds.length === 0) return [];
 
-  // `scores` is a String column in CH; some drivers may return it as a JSON
-  // object instead, so handle both. `index` may come back number or string
-  // (Int64) depending on output_format_json_quote_64bit_integers.
+  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
+  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
+  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
+  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
+  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
+  // `scores` may come back as a string or an object depending on the driver.
   const rows = await executeQuery<{
-    evaluation_id: string;
-    index: number | string;
+    eval_id: string;
+    idx: number | string;
     scores: string | Record<string, unknown>;
+    tid: string;
   }>({
     query: `
-      SELECT toString(evaluation_id) AS evaluation_id, \`index\` AS \`index\`, scores
+      SELECT toString(evaluation_id) AS eval_id, \`index\` AS idx, scores, toString(trace_id) AS tid
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
-        AND \`index\` = {index:Int64}
+        AND \`index\` = ${index}
     `,
-    parameters: { evaluationIds: filteredIds, index },
+    parameters: { evaluationIds: filteredIds },
     projectId,
   });
 
@@ -377,7 +382,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.evaluation_id, index: Number(r.index), scores };
+    return { evaluationId: r.eval_id, index: Number(r.idx), scores, traceId: r.tid };
   });
 };
 
