@@ -12,6 +12,7 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY: &str = "workspace_signal_runs_usage";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";
 pub const AUTOCOMPLETE_CACHE_KEY: &str = "autocomplete";
