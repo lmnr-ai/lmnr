@@ -137,7 +137,7 @@ pub async fn process_span_messages(
         if !m.pre_processed {
             convert_span_to_provider_format(&mut m.span);
         }
-        // `estimate_size_bytes` is deferred until AFTER PII redaction
+        // `estimate_size_bytes_no_payload` is deferred until AFTER PII redaction
         // (post-dedup loop below) so the recorded size reflects the
         // redacted output.
 
@@ -273,13 +273,13 @@ pub async fn process_span_messages(
         // and AFTER PII redaction so the size reflects redacted content.
         // Input/output are excluded here — the post-dedup input-bytes loop
         // below owns those charges.
-        span.estimate_size_bytes();
+        span.estimate_size_bytes_no_payload();
     }
 
     // Charge each span for its input + output + tool definitions. Dedup'd
     // fields pay 32B per hash + any newly-inserted `messages.content`
     // (shared content billed once to the first referrer in the batch);
-    // non-dedup'd or empty fields pay for the raw JSON. `estimate_size_bytes`
+    // non-dedup'd or empty fields pay for the raw JSON. `estimate_size_bytes_no_payload`
     // intentionally excludes input AND output so this loop owns 100% of
     // their accounting.
     let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
@@ -289,7 +289,7 @@ pub async fn process_span_messages(
 
     // Billed bytes for one field (input or output) of one span. Input and
     // output are accounted identically (both are excluded from
-    // `estimate_size_bytes`, so this loop owns 100% of their charge):
+    // `estimate_size_bytes_no_payload`, so this loop owns 100% of their charge):
     //   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted
     //     `shared_content` bytes (first referrer in batch pays the content).
     //   - non-recordable + producer stripped the field to `None`: bill from
@@ -340,7 +340,7 @@ pub async fn process_span_messages(
         // Tool-definition bytes. `should_keep_attribute` already filters the
         // source `ai.prompt.tools` / `llm.request.functions.*` /
         // `gen_ai.tool.definitions` keys out of `CHSpan.attributes`, so
-        // `estimate_size_bytes` doesn't double-count them. Charge 32B for
+        // `estimate_size_bytes_no_payload` doesn't double-count them. Charge 32B for
         // the hash plus any newly-inserted content (first referrer in batch).
         if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
             if tool_dedups.get(span_idx).and_then(|d| d.as_ref()).is_some() {

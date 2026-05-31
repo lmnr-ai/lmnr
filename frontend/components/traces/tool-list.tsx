@@ -19,6 +19,17 @@ export interface Tool {
  * into the renderer's `Tool` shape.
  */
 const normalizeTool = (tool: any): Tool | null => {
+  // Legacy / unreified `ai.prompt.tools` entries can be JSON-encoded strings
+  // (older spans ingested before the backend reified them, or entries whose
+  // server-side parse failed). Parse them here so the attributes fallback
+  // still surfaces the tool instead of dropping it.
+  if (typeof tool === "string") {
+    try {
+      tool = JSON.parse(tool);
+    } catch {
+      return null;
+    }
+  }
   if (isNil(tool) || typeof tool !== "object") return null;
   const func = tool.function ?? tool;
   // Responses-API hosted tools (web_search, file_search, computer_use_preview, mcp, …)
@@ -100,10 +111,7 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
  * Resolve a span's tools, preferring the dedup'd `tool_definitions`
  * column and falling back to per-attribute extraction for legacy spans.
  */
-export const resolveTools = (span: {
-  toolDefinitions?: string | null;
-  attributes?: Record<string, any>;
-}): Tool[] => {
+export const resolveTools = (span: { toolDefinitions?: string | null; attributes?: Record<string, any> }): Tool[] => {
   const fromColumn = extractToolsFromColumn(span.toolDefinitions);
   if (fromColumn.length > 0) return fromColumn;
   return extractToolsFromAttributes(span.attributes ?? {});
