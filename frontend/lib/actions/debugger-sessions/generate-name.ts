@@ -61,10 +61,15 @@ export async function generateSessionName(projectId: string, sessionId: string):
     return { success: false, error: object.error || "Failed to generate name" };
   }
 
-  await db
+  const updated = await db
     .update(rolloutSessions)
     .set({ name: object.name })
-    .where(and(eq(rolloutSessions.id, sessionId), eq(rolloutSessions.projectId, projectId)));
+    .where(and(eq(rolloutSessions.id, sessionId), eq(rolloutSessions.projectId, projectId)))
+    .returning({ id: rolloutSessions.id });
+
+  if (updated.length === 0) {
+    return { success: false, error: "Session not found" };
+  }
 
   return { success: true, name: object.name };
 }
