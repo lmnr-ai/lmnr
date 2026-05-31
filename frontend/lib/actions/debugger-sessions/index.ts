@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -6,7 +6,6 @@ import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
-import { fetcherJSON } from "@/lib/utils";
 
 export type DebuggerSessionStatus = "PENDING" | "RUNNING" | "FINISHED" | "STOPPED";
 
@@ -15,7 +14,7 @@ export type DebuggerSession = {
   createdAt: string;
   name: string | null;
   projectId: string;
-  params: Record<string, any>;
+  params: Record<string, any> | null;
   status: DebuggerSessionStatus;
 };
 
@@ -43,6 +42,27 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
     .offset(offset);
 
   return { items: result };
+};
+
+export const CreateDebuggerSessionSchema = z.object({
+  projectId: z.guid(),
+  id: z.guid().optional(),
+  name: z.string().optional(),
+});
+
+export const createDebuggerSession = async (input: z.infer<typeof CreateDebuggerSessionSchema>) => {
+  const { projectId, id, name } = CreateDebuggerSessionSchema.parse(input);
+
+  const [session] = await db
+    .insert(rolloutSessions)
+    .values({ ...(id ? { id } : {}), projectId, name })
+    .onConflictDoUpdate({
+      target: rolloutSessions.id,
+      set: { name: sql`coalesce(${name ?? null}, ${rolloutSessions.name})` },
+    })
+    .returning();
+
+  return session;
 };
 
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {
@@ -107,39 +127,11 @@ export async function getLatestTraceBySessionId(
   };
 }
 
-const RunDebuggerSessionSchema = z.object({
-  projectId: z.guid(),
-  sessionId: z.guid(),
-  trace_id: z.guid().optional(),
-  path_to_count: z.record(z.string(), z.number()).optional(),
-  args: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
-  overrides: z.record(z.string(), z.any()).optional(),
-});
-
 const UpdateDebuggerSessionStatusSchema = z.object({
   projectId: z.guid(),
   sessionId: z.guid(),
   status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
 });
-
-export async function runDebuggerSession(input: z.infer<typeof RunDebuggerSessionSchema>) {
-  const { projectId, sessionId, trace_id, path_to_count, args, overrides } = RunDebuggerSessionSchema.parse(input);
-
-  const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/run`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      trace_id,
-      path_to_count,
-      args: args || {},
-      overrides: overrides || {},
-    }),
-  });
-
-  return result;
-}
 
 export async function updateDebuggerSessionStatus(input: z.infer<typeof UpdateDebuggerSessionStatusSchema>) {
   const { projectId, sessionId, status } = UpdateDebuggerSessionStatusSchema.parse(input);

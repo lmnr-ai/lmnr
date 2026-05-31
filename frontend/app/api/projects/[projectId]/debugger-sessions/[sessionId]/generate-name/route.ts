@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
-import { prettifyError, z, ZodError } from "zod/v4";
+import { prettifyError, ZodError } from "zod/v4";
 
-import { generatePromptName } from "@/lib/actions/debugger-sessions/generate-name";
-
-const GenerateNameSchema = z.object({
-  promptContent: z.string().min(1, "Prompt content is required"),
-});
+import { generateSessionName } from "@/lib/actions/debugger-sessions/generate-name";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string; sessionId: string }> }) {
   try {
-    await props.params;
-    const body = await req.json();
-    const { promptContent } = GenerateNameSchema.parse(body);
+    const { projectId, sessionId } = await props.params;
 
-    const result = await generatePromptName(promptContent);
+    const result = await generateSessionName(projectId, sessionId);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
@@ -25,10 +19,10 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    console.error("Generate prompt name error:", error);
+    console.error("Generate session name error:", error);
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate prompt name." },
+      { error: error instanceof Error ? error.message : "Failed to generate session name." },
       { status: 500 }
     );
   }
