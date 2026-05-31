@@ -1,8 +1,8 @@
 -- Project-scoped dedup for input/output messages and tool definitions.
--- The `shared_content` table is content-addressed by `(project_id, content_hash)`
+-- The `deduped_content` table is content-addressed by `(project_id, content_hash)`
 -- and stores any JSON blob the spans table references by hash. Same hash
 -- collapses across traces, across input/output, and across tools.
-CREATE TABLE IF NOT EXISTS shared_content
+CREATE TABLE IF NOT EXISTS deduped_content
 (
     project_id UUID,
     content_hash FixedString(32),
@@ -25,7 +25,7 @@ ALTER TABLE spans
 -- Forward-only migration: legacy spans keep their `input_message_hashes` resolved
 -- against the trace-scoped `llm_messages_dict` (created by `ensureLlmMessagesDict`
 -- in `frontend/instrumentation.ts`). New spans resolve against the project-scoped
--- `shared_content_dict` (created by `ensureSharedContentDict`). The view's
+-- `deduped_content_dict` (created by `ensureDedupedContentDict`). The view's
 -- `coalesce` falls through automatically for each row.
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
@@ -63,7 +63,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> coalesce(
-                        dictGetOrNull('shared_content_dict', 'content', tuple(project_id, h)),
+                        dictGetOrNull('deduped_content_dict', 'content', tuple(project_id, h)),
                         dictGetOrNull('llm_messages_dict', 'content', tuple(project_id, trace_id, h)),
                         'null'
                     ),
@@ -78,7 +78,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
             '[' || arrayStringConcat(
                 arrayMap(
                     h -> dictGetOrDefault(
-                        'shared_content_dict',
+                        'deduped_content_dict',
                         'content',
                         tuple(project_id, h),
                         'null'
@@ -92,7 +92,7 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         if(
             tool_definitions_hash != toFixedString('', 32),
             dictGetOrDefault(
-                'shared_content_dict',
+                'deduped_content_dict',
                 'content',
                 tuple(project_id, tool_definitions_hash),
                 ''

@@ -32,7 +32,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait};
-use crate::ch::shared_content::CHSharedContent;
+use crate::ch::deduped_content::CHDedupedContent;
 use crate::db::spans::Span;
 use crate::utils::sanitize_string;
 
@@ -119,7 +119,7 @@ pub fn canonical_json(value: &Value) -> String {
 ///
 /// Already-seen-in-trace-and-storage messages do NOT travel in
 /// `trace_new_contents`: only hash references ride the wire. The consumer
-/// never re-hashes — the `shared_content_dict` lookup at view-read time is
+/// never re-hashes — the `deduped_content_dict` lookup at view-read time is
 /// the only reader path for those.
 #[derive(Serialize, Debug, Clone)]
 pub struct MessageDedup {
@@ -280,7 +280,7 @@ pub fn build_dedup_batch(
     spans: &[&Span],
     dedups: &[Option<MessageDedup>],
     seen_storage_in_batch: &mut std::collections::HashSet<(Uuid, [u8; 32])>,
-    shared_content: &mut Vec<CHSharedContent>,
+    shared_content: &mut Vec<CHDedupedContent>,
 ) -> DedupBatch {
     debug_assert_eq!(spans.len(), dedups.len());
 
@@ -329,7 +329,7 @@ pub fn build_dedup_batch(
             if is_storage_miss && seen_storage_in_batch.insert((span.project_id, hash)) {
                 let content = content.clone();
                 content_bytes_for_span += content.len();
-                shared_content.push(CHSharedContent {
+                shared_content.push(CHDedupedContent {
                     project_id: span.project_id,
                     content_hash: hash,
                     content,
@@ -605,7 +605,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut shared_content: Vec<CHSharedContent> = Vec::new();
+        let mut shared_content: Vec<CHDedupedContent> = Vec::new();
         let mut seen: std::collections::HashSet<(Uuid, [u8; 32])> =
             std::collections::HashSet::new();
         let batch = build_dedup_batch(

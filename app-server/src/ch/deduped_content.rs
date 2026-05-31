@@ -14,17 +14,17 @@ use super::{ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIM
 /// traces in the same project collapses to one row. Spans reference rows by
 /// hash via `input_message_hashes`, `output_message_hashes`, and
 /// `tool_definitions_hash` columns; the `spans_v0` view reconstructs the
-/// JSON on read via the `shared_content_dict` dictionary.
+/// JSON on read via the `deduped_content_dict` dictionary.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHSharedContent {
+pub struct CHDedupedContent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     pub content_hash: [u8; 32],
     pub content: String,
 }
 
-impl ClickhouseInsertable for CHSharedContent {
-    const TABLE: Table = Table::SharedContent;
+impl ClickhouseInsertable for CHDedupedContent {
+    const TABLE: Table = Table::DedupedContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
         insert.with_option(
@@ -34,6 +34,6 @@ impl ClickhouseInsertable for CHSharedContent {
     }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
-        DataPlaneBatch::SharedContent(items)
+        DataPlaneBatch::DedupedContent(items)
     }
 }

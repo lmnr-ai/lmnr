@@ -137,11 +137,11 @@ export async function register() {
         });
       };
 
-      // Project-scoped dedup dict. Backs the `shared_content` table for
+      // Project-scoped dedup dict. Backs the `deduped_content` table for
       // both input/output messages and tool definitions. The `spans_v0`
       // view tries this dict first and falls back to `llm_messages_dict`
       // for legacy spans.
-      const ensureSharedContentDict = async () => {
+      const ensureDedupedContentDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
         const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
         const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
@@ -149,7 +149,7 @@ export async function register() {
 
         await clickhouseClient.command({
           query: `
-            CREATE OR REPLACE DICTIONARY shared_content_dict
+            CREATE OR REPLACE DICTIONARY deduped_content_dict
             (
                 project_id UUID,
                 content_hash String,
@@ -160,7 +160,7 @@ export async function register() {
                 USER '${user}'
                 PASSWORD '${password}'
                 DB '${db}'
-                TABLE 'shared_content'
+                TABLE 'deduped_content'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
             LIFETIME(MIN 30 MAX 60)
@@ -186,7 +186,7 @@ export async function register() {
           );
 
           await ensureLlmMessagesDict();
-          await ensureSharedContentDict();
+          await ensureDedupedContentDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;

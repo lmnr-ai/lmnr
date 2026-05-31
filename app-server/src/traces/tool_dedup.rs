@@ -27,7 +27,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait};
-use crate::ch::shared_content::CHSharedContent;
+use crate::ch::deduped_content::CHDedupedContent;
 use crate::db::spans::Span;
 use crate::traces::input_dedup::canonical_json;
 use crate::utils::sanitize_string;
@@ -36,7 +36,7 @@ fn storage_seen_key(project_id: Uuid, hash: &[u8; 32]) -> String {
     // Same `s:` namespace as messages — the `shared_content` table is
     // content-addressed, so a tool-definition row and a message row that
     // hashed to the same value would collapse cleanly. Sharing the namespace
-    // keeps the read-side `shared_content_dict` lookup uniform.
+    // keeps the read-side `deduped_content_dict` lookup uniform.
     format!("s:{}:{}", project_id.simple(), hex::encode(hash))
 }
 
@@ -195,7 +195,7 @@ pub fn resolve_tool_dedup(
     span: &Span,
     dedup: &ToolDedup,
     seen_storage_in_batch: &mut std::collections::HashSet<(Uuid, [u8; 32])>,
-    shared_content: &mut Vec<CHSharedContent>,
+    shared_content: &mut Vec<CHDedupedContent>,
 ) -> usize {
     let Some(content) = &dedup.content else {
         return 0;
@@ -204,7 +204,7 @@ pub fn resolve_tool_dedup(
         return 0;
     }
     let bytes = content.len();
-    shared_content.push(CHSharedContent {
+    shared_content.push(CHDedupedContent {
         project_id: span.project_id,
         content_hash: dedup.hash,
         content: content.clone(),

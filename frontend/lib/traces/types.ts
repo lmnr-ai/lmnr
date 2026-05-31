@@ -65,7 +65,7 @@ export type Span = {
   outputCost: number;
   totalCost: number;
   /**
-   * Deduped tool definitions reconstructed from `shared_content_dict` by
+   * Deduped tool definitions reconstructed from `deduped_content_dict` by
    * `spans_v0` (camelCased from the view's `tool_definitions` column).
    * Empty string when the span has no tools or for legacy spans whose
    * definitions still ride in the attributes blob — the frontend's

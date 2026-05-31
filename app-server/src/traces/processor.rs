@@ -12,7 +12,7 @@ use crate::{
     cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
-        shared_content::CHSharedContent,
+        deduped_content::CHDedupedContent,
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
     },
@@ -205,7 +205,7 @@ pub async fn process_span_messages(
             .map(|&i| tool_dedups[i].clone())
             .collect();
 
-        let mut shared_content: Vec<CHSharedContent> = Vec::new();
+        let mut shared_content: Vec<CHDedupedContent> = Vec::new();
         let mut seen_storage_in_batch: std::collections::HashSet<(Uuid, [u8; 32])> =
             std::collections::HashSet::new();
 

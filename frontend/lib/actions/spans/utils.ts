@@ -73,7 +73,7 @@ export const spansSelectColumns = [
   "model",
   "duration",
   // Dedup'd tool definitions, exposed as a virtual column by the
-  // `spans_v0` view (reconstructed from `shared_content_dict`). The raw
+  // `spans_v0` view (reconstructed from `deduped_content_dict`). The raw
   // `spans` table has no `tool_definitions` column — readers MUST go
   // through `executeQuery`, which routes the SQL through the query-engine
   // validator and rewrites `FROM spans` to `FROM spans_v0(project_id=...)`.

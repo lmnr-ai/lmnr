@@ -115,8 +115,8 @@ pub struct CHSpan {
     pub events: Vec<(i64, String, String)>,
     /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
     /// left empty and the view reconstructs the input JSON array by joining
-    /// against the project-scoped `shared_content` table via
-    /// `shared_content_dict`, or for legacy spans the trace-scoped
+    /// against the project-scoped `deduped_content` table via
+    /// `deduped_content_dict`, or for legacy spans the trace-scoped
     /// `llm_messages` table via `llm_messages_dict`.
     #[serde(default)]
     pub input_message_hashes: Vec<[u8; 32]>,
@@ -129,7 +129,7 @@ pub struct CHSpan {
     pub input_new_message_indices: Vec<u16>,
     /// Hashes of deduplicated LLM output messages. When non-empty, `output`
     /// is left empty and the view reconstructs the array via
-    /// `shared_content_dict`. Project-scoped — output of span A and input
+    /// `deduped_content_dict`. Project-scoped — output of span A and input
     /// of span B in the same project collapse to the same row when content
     /// matches.
     #[serde(default)]
@@ -140,7 +140,7 @@ pub struct CHSpan {
     pub output_new_message_indices: Vec<u16>,
     /// Single hash for the span's normalized tool-definitions array. Empty
     /// when the span has no tools or is a legacy span. Reconstructed by the
-    /// view as a virtual `tool_definitions` column via `shared_content_dict`.
+    /// view as a virtual `tool_definitions` column via `deduped_content_dict`.
     #[serde(default)]
     pub tool_definitions_hash: [u8; 32],
 }

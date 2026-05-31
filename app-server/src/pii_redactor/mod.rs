@@ -7,7 +7,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::ch::shared_content::CHSharedContent;
+use crate::ch::deduped_content::CHDedupedContent;
 use crate::db::DB;
 use crate::db::spans::Span;
 use crate::utils::limits::get_workspace_info_for_project_id;
@@ -154,7 +154,7 @@ pub struct DedupRedactionView<'a> {
 pub async fn redact_spans_in_place(
     client: &PiiRedactorClient,
     spans: &mut [Span],
-    shared_content: &mut Vec<CHSharedContent>,
+    shared_content: &mut Vec<CHDedupedContent>,
     input_view: DedupRedactionView<'_>,
     output_view: DedupRedactionView<'_>,
     recordable_indices: &[usize],
