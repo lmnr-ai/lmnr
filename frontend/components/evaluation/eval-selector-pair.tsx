@@ -37,7 +37,7 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
       <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
         <SelectTrigger
           disabled={evaluations.length <= 1}
-          className={`${TRIGGER_CLASS} text-muted-foreground data-[placeholder]:text-muted-foreground`}
+          className={`${TRIGGER_CLASS} text-muted-foreground data-[placeholder]:text-muted-foreground [&>svg]:hidden`}
         >
           <SelectValue placeholder="Compare" />
         </SelectTrigger>
@@ -45,11 +45,8 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
           {evaluations
             .filter((item) => item.id !== evaluationId)
             .map((item) => (
-              <SelectItem key={item.id} value={item.id} textValue={item.name}>
-                <span>
-                  {item.name}
-                  <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                </span>
+              <SelectItem key={item.id} value={item.id} description={formatTimestamp(item.createdAt)}>
+                {item.name}
               </SelectItem>
             ))}
         </SelectContent>
@@ -69,11 +66,8 @@ export default function EvalSelectorPair({ evaluations }: EvalSelectorPairProps)
           {evaluations
             .filter((item) => item.id !== targetId)
             .map((item) => (
-              <SelectItem key={item.id} value={item.id} textValue={item.name}>
-                <span>
-                  {item.name}
-                  <span className="text-secondary-foreground text-xs ml-2">{formatTimestamp(item.createdAt)}</span>
-                </span>
+              <SelectItem key={item.id} value={item.id} description={formatTimestamp(item.createdAt)}>
+                {item.name}
               </SelectItem>
             ))}
         </SelectContent>
