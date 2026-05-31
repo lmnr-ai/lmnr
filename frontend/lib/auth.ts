@@ -10,9 +10,9 @@ import OktaProvider from "next-auth/providers/okta";
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import PostHogClient from "@/lib/posthog/server";
 import { getEmailsConfig } from "@/lib/server-utils";
 
-import { sendWelcomeEmail } from "./emails/utils";
 import { Feature, isFeatureEnabled } from "./features/features";
 
 /**
@@ -46,6 +46,28 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
+};
+
+const trackUserCreated = async (email: string, provider: string): Promise<void> => {
+  try {
+    const client = PostHogClient();
+    if (!client) return;
+
+    const createdAt = new Date().toISOString();
+    client.capture({
+      distinctId: email,
+      event: "auth:user_created",
+      properties: {
+        provider,
+        $set_once: {
+          created_at: createdAt,
+          signup_provider: provider,
+        },
+      },
+    });
+  } catch {
+    // Analytics failures must never break login.
+  }
 };
 
 const getProviders = () => {
@@ -137,7 +159,7 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, profile, trigger }) {
+    async jwt({ token, account, trigger }) {
       if (trigger === "signIn") {
         if (!token.name || !token.email) {
           throw new Error("Name and email are required");
@@ -145,6 +167,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const existingUser = await getUserByEmail(token.email);
+          let isNewUser = false;
           if (existingUser) {
             token.userId = existingUser.id;
             if (!existingUser?.avatarUrl && token?.picture) {
@@ -153,10 +176,7 @@ export const authOptions: NextAuthOptions = {
           } else {
             const user = await createUser(token.name, token.email, token.picture);
             token.userId = user.id;
-
-            if (isFeatureEnabled(Feature.SEND_EMAIL) && profile?.email) {
-              await sendWelcomeEmail(profile?.email);
-            }
+            isNewUser = true;
           }
 
           // In self-hosted mode (no email sending), process any pending
@@ -166,8 +186,14 @@ export const authOptions: NextAuthOptions = {
           if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
             await processPendingInvitations(token.userId as string, token.email);
           }
+
+          if (isNewUser) {
+            await trackUserCreated(token.email, account?.provider ?? "unknown");
+          }
         } catch (e) {
-          throw new Error("Failed to authenticate user.");
+          throw new Error("Failed to authenticate user.", {
+            cause: e,
+          });
         }
       }
 

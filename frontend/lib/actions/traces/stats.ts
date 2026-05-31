@@ -6,7 +6,11 @@ import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
+import {
+  buildTracesStatsWhereConditions,
+  generateEmptyTimeBuckets,
+  parseCustomColumnsJson,
+} from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
@@ -38,9 +42,12 @@ export async function getTraceStats(
     filter: inputFilters,
     intervalValue,
     intervalUnit,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
+
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -62,6 +69,7 @@ export async function getTraceStats(
     traceType,
     traceIds,
     filters,
+    customColumns,
   });
 
   const {

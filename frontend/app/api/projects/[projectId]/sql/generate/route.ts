@@ -1,21 +1,14 @@
 import { type NextRequest } from "next/server";
-import { prettifyError, z, ZodError } from "zod/v4";
+import { prettifyError, ZodError } from "zod/v4";
 
 import { generateSql } from "@/lib/actions/sql/generate";
 
-const GenerateSchema = z.object({
-  prompt: z.string().min(1, "Prompt is required"),
-  mode: z.enum(["query", "eval-expression"]).optional(),
-  currentQuery: z.string().optional(),
-});
-
 export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   try {
-    await params;
+    const { projectId } = await params;
     const body = await request.json();
-    const { prompt, mode, currentQuery } = GenerateSchema.parse(body);
 
-    const result = await generateSql(prompt, mode, currentQuery);
+    const result = await generateSql({ ...body, projectId });
 
     if (!result.success) {
       return Response.json({ error: result.error }, { status: 400 });

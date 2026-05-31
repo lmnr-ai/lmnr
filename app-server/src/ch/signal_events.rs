@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};

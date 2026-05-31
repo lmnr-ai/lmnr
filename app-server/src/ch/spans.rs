@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,7 +13,10 @@ use crate::{
     utils::sanitize_string,
 };
 
-use super::{ClickhouseInsertable, DataPlaneBatch, Table, utils::chrono_to_nanoseconds};
+use super::{
+    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
+    utils::chrono_to_nanoseconds,
+};
 
 /// for inserting into clickhouse
 ///
@@ -109,6 +113,16 @@ pub struct CHSpan {
     /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
     #[serde(default)]
     pub events: Vec<(i64, String, String)>,
+    /// Hashes of deduplicated LLM input messages. When non-empty, `input` is
+    /// left empty and the view reconstructs the input JSON array by joining
+    /// against the `llm_messages` table.
+    #[serde(default)]
+    pub input_message_hashes: Vec<[u8; 32]>,
+    /// 0-based positions into `input_message_hashes` for messages this span
+    /// was first to introduce in its trace. Used by the search snippet query
+    /// to scope input matching to the new-messages subset only.
+    #[serde(default)]
+    pub input_new_message_indices: Vec<u16>,
 }
 
 impl CHSpan {
@@ -184,12 +198,24 @@ impl CHSpan {
                     )
                 })
                 .collect(),
+            input_message_hashes: Vec::new(),
+            input_new_message_indices: Vec::new(),
         }
     }
 }
 
 impl ClickhouseInsertable for CHSpan {
     const TABLE: Table = Table::Spans;
+
+    // Cap the server-side async-insert coalescing wait. The Rust batcher
+    // already coalesces upstream; without this, CH parks at the adaptive
+    // max (~1s) because per-flush byte size is well below the size cap.
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_option(
+            "async_insert_busy_timeout_max_ms",
+            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
+        )
+    }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Spans(items)

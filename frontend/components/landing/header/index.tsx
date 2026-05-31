@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowRight, Equal, X } from "lucide-react";
+import { Equal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import logo from "@/assets/logo/logo.svg";
+import logo from "@/assets/logo/laminar-wordmark.svg";
 import { cn } from "@/lib/utils";
 
 import LandingButton from "../landing-button";
@@ -21,77 +21,78 @@ const NAV_LINKS = [
   { href: "https://laminar.sh/docs", label: "Docs", external: true },
   { href: "/blog", label: "Blog", external: false },
   { href: "/pricing", label: "Pricing", external: false },
-  { href: "https://discord.gg/nNFUUDAKub", label: "Discord", external: true },
+  { href: "https://cal.com/robert-lmnr/demo", label: "Book a demo", external: true },
   { href: "https://github.com/lmnr-ai/lmnr", label: "GitHub", external: true },
 ];
 
 export default function LandingHeader({ hasSession, className, isIncludePadding = false }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Lock body scroll while the mobile menu is open. The overlay is fixed with
+  // pointer-events-auto, but wheel/touch events still bubble to <body> — without
+  // overflow:hidden you can scroll the page underneath.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileMenuOpen]);
+
   return (
     <>
-      <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
-        <span>Laminar raises $3M seed to build observability for long-running agents</span>
-        <Link
-          href="/blog/2026-03-16-laminar-launch"
-          className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
-        >
-          Read more
-          <ArrowRight className="size-3" />
-        </Link>
-      </div>
       <header
         className={cn(
           "flex items-center justify-between w-full relative z-50",
-          { "md:pt-y md:pr-[48px] md:pl-[48px] py-4 pl-[32px] pr-[20px]": isIncludePadding },
+          { "md:pr-[48px] md:pl-[48px] py-4 pl-[32px] pr-[20px]": isIncludePadding },
           className
         )}
       >
-        <div className={cn("relative shrink-0 md:w-[120px] md:h-[21px]", "w-[90px] h-[16px]")}>
-          <Link href="/" className="block">
-            <Image alt="Laminar logo" src={logo} fill className="object-contain" priority />
-          </Link>
-        </div>
+        <Link href="/" className="block shrink-0">
+          {/* Width-only CSS + h-auto preserves the SVG's native 100:18 aspect
+              ratio, which already matches the previous 100x18 / 80x14 wrapper
+              dimensions — no visual change. Setting one dimension and leaving
+              the other auto silences the Next.js "modified, but not the other"
+              warning that fill-mode + sized wrapper was triggering. */}
+          <Image alt="Laminar logo" src={logo} className="w-[80px] md:w-[100px] h-auto -translate-y-0.5" priority />
+        </Link>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
-          <nav className="hidden md:flex md:gap-[32px] items-center font-sans md:text-sm text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap text-xs">
-            <Link
-              href="https://laminar.sh/docs"
-              target="_blank"
-              className="no-underline text-landing-text-300 hover:text-landing-text-200"
-            >
+          <nav className="hidden md:flex md:gap-[32px] items-center font-sans-landing md:text-sm leading-normal whitespace-nowrap text-xs">
+            <Link href="https://laminar.sh/docs" target="_blank" className="no-underline hover:text-landing-text-200">
               Docs
             </Link>
-            <Link href="/blog" className="no-underline text-landing-text-300 hover:text-landing-text-200">
+            <Link href="/blog" className="no-underline hover:text-landing-text-200">
               Blog
             </Link>
-            <Link href="/pricing" className="no-underline text-landing-text-300 hover:text-landing-text-200">
+            <Link href="/pricing" className="no-underline hover:text-landing-text-200">
               Pricing
             </Link>
             <Link
               target="_blank"
-              href="https://discord.gg/nNFUUDAKub"
-              className="no-underline text-landing-text-300 hover:text-landing-text-200"
+              href="https://cal.com/robert-lmnr/demo"
+              className="no-underline hover:text-landing-text-200"
             >
-              Discord
+              Book demo
             </Link>
             <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="hidden lg:flex" />
           </nav>
           <div className={cn("flex md:gap-3 items-center", "gap-2")}>
             {hasSession ? (
               <Link href="/projects">
-                <LandingButton variant="outline" size="sm">
+                <LandingButton variant="outline" size="xs">
                   Dashboard
                 </LandingButton>
               </Link>
             ) : (
               <>
                 <Link href="/sign-in">
-                  <LandingButton variant="minimal" size="sm">
+                  <LandingButton variant="minimal" size="xs" className="py-1.5">
                     Sign in
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="sm">
+                  <LandingButton variant="outline" size="xs" className="py-1 px-3">
                     Sign up
                   </LandingButton>
                 </Link>
@@ -111,7 +112,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       {/* Mobile Menu Overlay - starts below header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[64px] z-40 bg-landing-surface-900 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-landing-surface-700 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
@@ -121,7 +122,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               key={link.href}
               href={link.href}
               target={link.external ? "_blank" : undefined}
-              className="font-space-grotesk text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
+              className="font-sans-landing font-medium text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}

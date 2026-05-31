@@ -4,7 +4,8 @@ import { type DependencyList, useCallback, useEffect } from "react";
 import { shallow } from "zustand/shallow";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableConfigStore } from "../model/table-config-store.tsx";
+import { useTableStore } from "../model/table-store.tsx";
 
 export interface InfiniteScrollOptions<TData> {
   fetchFn: (pageParam: number) => Promise<{ items: TData[]; count?: number }>;
@@ -13,7 +14,9 @@ export interface InfiniteScrollOptions<TData> {
 }
 
 export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }: InfiniteScrollOptions<TData>) {
-  const store = useDataTableStore<TData>();
+  const store = useTableStore<TData>();
+  // Auto-gate on view resolution; no-op for tables without views.
+  const isViewLoading = useTableConfigStore((s) => s.isViewLoading);
 
   const { data, currentPage, isFetching, isLoading, error, hasMore } = useStoreWithEqualityFn(
     store,
@@ -97,12 +100,12 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
   }, []);
 
   useEffect(() => {
-    if (enabled) {
+    if (enabled && !isViewLoading) {
       resetInfiniteScroll();
       fetchPage(0, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, depsString]);
+  }, [enabled, isViewLoading, depsString]);
 
   return {
     data,

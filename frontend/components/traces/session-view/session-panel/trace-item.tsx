@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,7 @@ export default function TraceItem({
   }, [lastFullSpan]);
 
   const handleToggle = useCallback(() => {
+    track("sessions", expanded ? "trace_card_collapsed" : "trace_card_expanded", { traceId: trace.id });
     if (expanded) {
       onToggle();
       return;

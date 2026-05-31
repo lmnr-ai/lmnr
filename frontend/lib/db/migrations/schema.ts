@@ -179,6 +179,7 @@ export const projects = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
+    settings: jsonb().default({}).notNull(),
   },
   (table) => [
     index("projects_workspace_id_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
@@ -991,6 +992,32 @@ export const notificationReads = pgTable(
       name: "notification_reads_user_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.projectId, table.userId, table.notificationId], name: "notification_reads_pkey" }),
+  ]
+);
+
+export const tableViews = pgTable(
+  "table_views",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    resource: text().notNull(),
+    name: text().notNull(),
+    config: jsonb().default({}).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("table_views_project_id_resource_name_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.resource.asc().nullsLast().op("text_ops"),
+      table.name.asc().nullsLast().op("text_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "table_views_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 

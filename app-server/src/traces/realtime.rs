@@ -8,15 +8,21 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{spans::Span, spans::SpanType, trace::Trace},
+    evaluations::realtime::lookup_trace_evaluation_id,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
 };
 
+const EVALUATION_TOP_SPAN_NAME: &str = "evaluation";
+const ROLLOUT_SESSION_METADATA_KEY: &str = "rollout.session_id";
+const EVALUATION_ID_METADATA_KEY: &str = "evaluation_id";
+
 /// Realtime trace data for frontend consumption
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RealtimeTrace {
+pub struct RealtimeTrace {
     id: Uuid,
     start_time: Option<DateTime<Utc>>,
     end_time: Option<DateTime<Utc>>,
@@ -41,7 +47,7 @@ struct RealtimeTrace {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RealtimeDebuggerTrace {
+pub struct RealtimeDebuggerTrace {
     trace_id: Uuid,
     metadata: Option<Value>,
     has_browser_session: Option<bool>,
@@ -119,73 +125,76 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     }
 }
 
-/// Send trace update events to SSE connections for the traces table
-pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
+pub async fn send_trace_updates<T: Serialize>(
+    project_id: &Uuid,
+    channel_key: &str,
+    traces: &[T],
+    pubsub: &PubSub,
+) {
     if traces.is_empty() {
         return;
     }
+    let message = SseMessage {
+        event_type: "trace_update".to_string(),
+        data: serde_json::json!({ "traces": traces }),
+    };
+    send_to_key(pubsub, project_id, channel_key, message).await;
+}
 
-    // Group traces by project_id
-    let mut traces_by_project: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
-    let mut traces_by_rollout_session: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> =
-        HashMap::new();
+#[derive(Debug, Clone)]
+pub enum TraceChannel {
+    Project,
+    Evaluation(Uuid),
+    RolloutDebugger(String),
+}
 
-    for trace in traces {
-        // Very rudimentary filter to exclude evaluation traces
-        if let Some(top_span_name) = trace.top_span_name() {
-            if top_span_name == "evaluation" {
-                continue;
-            }
-        }
+pub async fn channels_for_trace(trace: &Trace, cache: &Cache) -> Vec<TraceChannel> {
+    let mut channels = Vec::with_capacity(2);
 
-        traces_by_project
-            .entry(trace.project_id())
-            .or_default()
-            .push(RealtimeTrace::from_trace(trace));
+    let is_evaluation_trace = trace
+        .top_span_name()
+        .as_deref()
+        .is_some_and(|name| name == EVALUATION_TOP_SPAN_NAME);
 
-        if let Some(rollout_session_id) = trace
-            .metadata()
-            .and_then(|m| m.get("rollout.session_id"))
-            .and_then(|v| v.as_str())
-        {
-            traces_by_rollout_session
-                .entry((trace.project_id(), rollout_session_id.to_string()))
-                .or_default()
-                .push(RealtimeDebuggerTrace {
-                    trace_id: trace.id(),
-                    metadata: trace.metadata().cloned(),
-                    has_browser_session: trace.has_browser_session(),
-                });
-        }
-    }
-
-    for (project_id, traces_data) in traces_by_project {
-        let trace_message = SseMessage {
-            event_type: "trace_update".to_string(),
-            data: serde_json::json!({
-                "traces": traces_data
-            }),
+    if is_evaluation_trace {
+        let eval_id = match evaluation_id_from_metadata(trace) {
+            Some(id) => Some(id),
+            None => lookup_trace_evaluation_id(cache, &trace.project_id(), &trace.id()).await,
         };
 
-        send_to_key(pubsub, &project_id, "traces", trace_message).await;
+        if let Some(id) = eval_id {
+            channels.push(TraceChannel::Evaluation(id));
+        }
+    } else {
+        channels.push(TraceChannel::Project);
     }
 
-    for ((project_id, rollout_session_id), traces_data) in traces_by_rollout_session {
-        let trace_message = SseMessage {
-            event_type: "trace_update".to_string(),
-            data: serde_json::json!({
-                "traces": traces_data
-            }),
-        };
-
-        let rollout_session_key = format!("rollout_session_{}", rollout_session_id);
-        send_to_key(pubsub, &project_id, &rollout_session_key, trace_message).await;
+    if let Some(rollout_session_id) = rollout_session_id_from_metadata(trace) {
+        channels.push(TraceChannel::RolloutDebugger(rollout_session_id));
     }
+
+    channels
+}
+
+fn evaluation_id_from_metadata(trace: &Trace) -> Option<Uuid> {
+    trace
+        .metadata()
+        .and_then(|m| m.get(EVALUATION_ID_METADATA_KEY))
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+}
+
+fn rollout_session_id_from_metadata(trace: &Trace) -> Option<String> {
+    trace
+        .metadata()
+        .and_then(|m| m.get(ROLLOUT_SESSION_METADATA_KEY))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 impl RealtimeTrace {
     /// Convert database trace to realtime format
-    fn from_trace(trace: &Trace) -> Self {
+    pub fn from_trace(trace: &Trace) -> Self {
         Self {
             id: trace.id(),
             start_time: trace.start_time(),
@@ -209,6 +218,16 @@ impl RealtimeTrace {
             tags: trace.tags().clone(),
             root_span_input: trace.root_span_input(),
             root_span_output: trace.root_span_output(),
+        }
+    }
+}
+
+impl RealtimeDebuggerTrace {
+    pub fn from_trace(trace: &Trace) -> Self {
+        Self {
+            trace_id: trace.id(),
+            metadata: trace.metadata().cloned(),
+            has_browser_session: trace.has_browser_session(),
         }
     }
 }

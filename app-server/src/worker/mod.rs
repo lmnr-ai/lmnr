@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use serde::{Serialize, de::DeserializeOwned};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -11,6 +11,16 @@ use crate::mq::{
 };
 
 const DEFAULT_PREFETCH_COUNT: u16 = 128;
+
+/// Cap on the backoff between worker connect retries. Tunable so operators can
+/// slow the retry cadence when the broker is recovering from memory pressure.
+static CONNECT_BACKOFF_MAX_INTERVAL: LazyLock<Duration> = LazyLock::new(|| {
+    let secs = std::env::var("WORKER_CONNECT_BACKOFF_MAX_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(10);
+    Duration::from_secs(secs)
+});
 
 /// Message handler trait - implement this to process messages
 #[async_trait]
@@ -111,9 +121,11 @@ pub enum WorkerType {
     SpansIndexer,
     Notifications,
     NotificationDeliveries,
-    Clustering,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobSubmissionBatch,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobPendingBatch,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobRealtime,
     Logs,
     Reports,
@@ -125,7 +137,6 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
-            WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobSubmissionBatch => {
                 write!(f, "signal_job_submission_batch")
             }
@@ -209,7 +220,7 @@ impl<H: MessageHandler> QueueWorker<H> {
     async fn connect(&self) -> anyhow::Result<MessageQueueReceiver> {
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(Duration::from_secs(1))
-            .with_max_interval(Duration::from_secs(60))
+            .with_max_interval(*CONNECT_BACKOFF_MAX_INTERVAL)
             .with_max_elapsed_time(Some(Duration::from_secs(300)))
             .build();
 

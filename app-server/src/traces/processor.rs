@@ -3,17 +3,13 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 use rayon::prelude::*;
+use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::sampling::{get_sampling_factors_cached, should_sample_trace};
-use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::{
-        Cache, CacheTrait, autocomplete::populate_autocomplete_cache,
-        keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-    },
+    cache::{Cache, autocomplete::populate_autocomplete_cache},
     ch::{
         ClickhouseTrait,
         spans::CHSpan,
@@ -21,30 +17,36 @@ use crate::{
     },
     db::{
         DB,
-        spans::{Span, SpanType},
-        trace::{Trace, TraceType, upsert_trace_statistics_batch},
+        spans::Span,
+        trace::{
+            Trace, TraceMetadataPatch, merge_trace_metadata_batch, upsert_trace_statistics_batch,
+        },
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
+    pii_redactor::{PiiRedactorClient, redact_spans_in_place},
     pubsub::PubSub,
     quickwit::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
     traces::{
+        input_dedup::{LlmInputDedup, build_dedup_batch, mark_seen},
         provider::convert_span_to_provider_format,
-        realtime::{send_span_updates, send_trace_updates},
-        utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
+        realtime::{
+            RealtimeDebuggerTrace, RealtimeTrace, TraceChannel, channels_for_trace,
+            send_span_updates, send_trace_updates,
+        },
+        utils::{get_llm_usage_for_span, prepare_span_for_recording},
     },
-    utils::limits::{get_workspace_signal_runs_limit_exceeded, update_workspace_bytes_ingested},
+    utils::limits::update_workspace_bytes_ingested,
     worker::HandlerError,
 };
 
-const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
-#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
+#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, pii_redactor, config))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
@@ -53,44 +55,290 @@ pub async fn process_span_messages(
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
+    pii_redactor: Option<PiiRedactorClient>,
     config: Option<&WorkspaceDeployment>,
 ) -> Result<(), HandlerError> {
-    // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
-    let mut spans: Vec<Span> = messages
+    // Producer-side preprocessing already ran `parse_and_enrich_attributes`
+    // and `convert_span_to_provider_format` for `pre_processed` messages.
+    // Re-running on the consumer would double-apply the LangChain rewrite
+    // and double-copy attributes into `span.input`, breaking dedup identity.
+    let mut messages: Vec<RabbitMqSpanMessage> = messages
         .into_par_iter()
-        .map(|message| {
-            let mut span = message.span;
-            span.estimate_size_bytes();
-            span.parse_and_enrich_attributes();
-            span
+        .map(|mut message| {
+            if !message.pre_processed {
+                message.span.parse_and_enrich_attributes();
+            }
+            message
         })
         .collect();
 
-    // Enrich spans with usage info
-    let mut span_usage_vec = Vec::with_capacity(spans.len());
+    // Split metadata-only virtual spans (POST /v1/traces/metadata) out before
+    // the regular pipeline. They don't contribute span / token / time stats,
+    // they aren't recorded to ClickHouse, and their PG path is a metadata
+    // merge against an existing trace row — never an insert.
+    let metadata_patches: Vec<TraceMetadataPatch> = messages
+        .iter()
+        .filter(|m| m.span.attributes.is_metadata_only())
+        .filter_map(|m| {
+            let Some(metadata) = m.span.attributes.metadata() else {
+                log::warn!(
+                    "metadata-only span {} (trace {}) has no metadata attributes; patch dropped",
+                    m.span.span_id,
+                    m.span.trace_id
+                );
+                return None;
+            };
+            match serde_json::to_value(&metadata) {
+                Ok(metadata_value) => Some(TraceMetadataPatch {
+                    trace_id: m.span.trace_id,
+                    project_id: m.span.project_id,
+                    metadata: metadata_value,
+                }),
+                Err(e) => {
+                    log::warn!(
+                        "metadata-only span {} (trace {}): failed to serialize metadata; patch dropped: {:?}",
+                        m.span.span_id,
+                        m.span.trace_id,
+                        e
+                    );
+                    None
+                }
+            }
+        })
+        .collect();
+    messages.retain(|m| !m.span.attributes.is_metadata_only());
 
-    for span in &mut spans {
+    // Enrich spans with usage info
+    let mut span_usage_vec = Vec::with_capacity(messages.len());
+
+    for m in &mut messages {
         let span_usage = get_llm_usage_for_span(
-            &mut span.attributes,
+            &mut m.span.attributes,
             db.clone(),
             cache.clone(),
-            &span.name,
-            &span.project_id,
+            &m.span.name,
+            &m.span.project_id,
         )
         .await;
 
-        prepare_span_for_recording(span, &span_usage);
-        convert_span_to_provider_format(span);
+        prepare_span_for_recording(&mut m.span, &span_usage);
+        if !m.pre_processed {
+            convert_span_to_provider_format(&mut m.span);
+        }
+        // `estimate_size_bytes` is deferred until AFTER PII redaction
+        // (post-dedup loop below) so the recorded size reflects the
+        // redacted output.
 
         span_usage_vec.push(span_usage);
     }
 
-    // Process trace aggregations and update trace statistics
+    // Split into parallel `Vec`s — downstream code reads `spans` and
+    // `dedups` as separate slices keyed by index.
+    let (mut spans, dedups): (Vec<Span>, Vec<Option<LlmInputDedup>>) = messages
+        .into_iter()
+        .map(|m| (m.span, m.input_dedup))
+        .unzip();
+
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
-    // Upsert trace statistics in PostgreSQL
-    let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
-        Ok(updated_traces) => {
+    // Build the dedup batch up front so the size-bytes loop and CHSpans build
+    // can run before we kick off the parallel inserts.
+    let recordable_indices: Vec<usize> = spans
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.should_record_to_clickhouse())
+        .map(|(i, _)| i)
+        .collect();
+    let mut dedup = {
+        let dedup_input: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
+        let recordable_dedups: Vec<Option<LlmInputDedup>> = recordable_indices
+            .iter()
+            .map(|&i| dedups[i].clone())
+            .collect();
+        build_dedup_batch(&dedup_input, &recordable_dedups)
+    };
+
+    // Project-level PII redaction. Triggered by `projects.settings.removePii`
+    // (cached on `ProjectWithWorkspaceBillingInfo`). Runs AFTER dedup so the
+    // redacted bytes flow into both the `llm_messages` insert and Quickwit
+    // indexing through the same `dedup.messages` buffer; runs BEFORE the
+    // input-bytes accounting / `llm_messages` CH insert / Quickwit indexing
+    // so every storage tier holds the redacted content. Already-seen
+    // messages were redacted on first emit and ride the wire as hashes only.
+    // Best-effort: failures are logged inside `redact_spans_in_place` and
+    // do not fail the batch.
+    if let Some(redactor) = pii_redactor.as_ref() {
+        redact_spans_in_place(
+            redactor,
+            &mut spans,
+            &mut dedup,
+            &recordable_indices,
+            db.clone(),
+            cache.clone(),
+        )
+        .await;
+    }
+
+    for span in &mut spans {
+        // Must run AFTER provider conversion (LangChain rewrites `input`)
+        // and AFTER PII redaction so the size reflects redacted content.
+        // Input is excluded here — the post-dedup input-bytes loop below
+        // owns that charge.
+        span.estimate_size_bytes();
+    }
+
+    // Charge each span for its input: dedup'd LLM spans pay for the hash
+    // array + any newly-inserted `llm_messages.content` (shared messages are
+    // billed once, to the first referrer); everything else pays for the raw
+    // JSON. `estimate_size_bytes` intentionally excludes input so this loop
+    // owns the accounting.
+    let mut dedup_lookup: HashMap<usize, usize> = HashMap::with_capacity(recordable_indices.len());
+    for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
+        dedup_lookup.insert(span_idx, dedup_idx);
+    }
+    for (span_idx, span) in spans.iter_mut().enumerate() {
+        let added = if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .map(|h| h.len())
+                .unwrap_or(0);
+            if hashes > 0 {
+                let content_bytes = dedup
+                    .span_content_bytes
+                    .get(dedup_idx)
+                    .copied()
+                    .unwrap_or(0);
+                // 32 bytes per BLAKE3-256 hash + new `llm_messages.content` bytes.
+                hashes * 32 + content_bytes
+            } else {
+                span.input
+                    .as_ref()
+                    .map_or(0, crate::utils::estimate_json_size)
+            }
+        } else if let Some(d) = dedups.get(span_idx).and_then(|d| d.as_ref()) {
+            // Non-recordable LLM span (e.g. CC Bash-tool `anthropic.messages`)
+            // whose `span.input` was stripped to None on the producer. Without
+            // this branch the fall-through would bill 0 bytes, regressing the
+            // "non-recorded spans contribute input bytes to workspace usage"
+            // invariant. Closest post-dedup analogue: 32B per hash + the
+            // Redis-miss content the producer carried.
+            // 32 bytes per BLAKE3-256 hash + producer's Redis-miss content bytes.
+            d.hashes.len() * 32 + d.new_contents.iter().map(|s| s.len()).sum::<usize>()
+        } else {
+            span.input
+                .as_ref()
+                .map_or(0, crate::utils::estimate_json_size)
+        };
+        span.increment_size_bytes(added);
+    }
+
+    // Build CHSpans with embedded events to insert to ClickHouse
+    let ch_spans: Vec<CHSpan> = recordable_indices
+        .iter()
+        .enumerate()
+        .map(|(dedup_idx, &span_idx)| {
+            let span = &spans[span_idx];
+            let usage = &span_usage_vec[span_idx];
+            let mut ch_span = CHSpan::from_db_span(span, usage, span.project_id);
+            let hashes = dedup
+                .span_hashes
+                .get(dedup_idx)
+                .cloned()
+                .unwrap_or_default();
+            if !hashes.is_empty() {
+                ch_span.input = String::new();
+                ch_span.input_message_hashes = hashes;
+                ch_span.input_new_message_indices = dedup
+                    .span_new_indices
+                    .get(dedup_idx)
+                    .cloned()
+                    .unwrap_or_default();
+            }
+            ch_span
+        })
+        .collect();
+
+    // Parallelize trace upsert against the span path. Within the span path
+    // the strict order llm_messages -> mark_seen -> spans must be preserved
+    // (`spans` is plain MergeTree, so a retry after a successful spans
+    // insert + failed llm_messages insert would duplicate every span row).
+    // See CLAUDE.md "Ingest order in process_span_messages".
+    let ch = &ch;
+
+    let trace_branch = async {
+        // The aggregation upsert and the metadata-patch UPDATE target the same
+        // `(project_id, id)` row lock, but their failure modes are independent:
+        // a single flush can mix span ingestion for trace A with a metadata
+        // patch for unrelated trace B, and an aggregation upsert error must
+        // not drop B's patch. Run each step independently.
+        //
+        // Aggregation results are tracked separately so signals only see
+        // traces whose state actually changed via real span ingestion —
+        // metadata patches don't touch any field signals evaluate, and
+        // passing patch-only traces (from a pure metadata-only flush, or
+        // from a mixed flush touching different traces) to
+        // `check_and_push_signals` would trigger spurious re-evaluations.
+        let had_aggregations = !trace_aggregations.is_empty();
+        let mut aggregation_traces: Vec<Trace> = Vec::new();
+        let aggregation_ok = if had_aggregations {
+            match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+                Ok(traces) => {
+                    aggregation_traces = traces;
+                    true
+                }
+                Err(e) => {
+                    log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+                    false
+                }
+            }
+        } else {
+            true
+        };
+
+        // Patches are skipped (no row created) when the trace doesn't exist
+        // — the route handler validates existence up front.
+        let mut patched_traces: Vec<Trace> = Vec::new();
+        if !metadata_patches.is_empty() {
+            match merge_trace_metadata_batch(&db.pool, &metadata_patches).await {
+                Ok(patched) => patched_traces = patched,
+                Err(e) => {
+                    log::error!("Failed to merge trace metadata patches: {:?}", e);
+                }
+            }
+        }
+
+        // Build the CH / realtime payload as the deduped union, keeping the
+        // LATEST occurrence per `(project_id, id)`. When a single flush
+        // touches the same trace via BOTH the aggregation upsert AND a
+        // metadata patch, both stages return the same row keyed by
+        // `(project_id, id)`. The patch UPDATE bumps `num_spans` by 1, so
+        // `traces_replacing` (ReplacingMergeTree(num_spans)) would pick the
+        // patched row even if we shipped both — but skipping the redundant
+        // pre-patch insert saves a part on the hot ingest table. Patches
+        // are appended after aggregation, so last-write-wins preserves the
+        // patched metadata.
+        let mut updated_traces: Vec<Trace> =
+            Vec::with_capacity(aggregation_traces.len() + patched_traces.len());
+        updated_traces.extend(aggregation_traces.iter().cloned());
+        updated_traces.extend(patched_traces);
+        if updated_traces.len() > 1 {
+            let mut last_idx_by_key: HashMap<(Uuid, Uuid), usize> =
+                HashMap::with_capacity(updated_traces.len());
+            for (i, t) in updated_traces.iter().enumerate() {
+                last_idx_by_key.insert((t.project_id(), t.id()), i);
+            }
+            let kept: std::collections::HashSet<usize> =
+                last_idx_by_key.into_values().collect();
+            let mut idx = 0;
+            updated_traces.retain(|_| {
+                let keep = kept.contains(&idx);
+                idx += 1;
+                keep
+            });
+        }
+
+        if !updated_traces.is_empty() {
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
                 .map(|trace| CHTrace::from_db_trace(trace))
@@ -104,82 +352,117 @@ pub async fn process_span_messages(
                 );
             }
 
-            send_trace_updates(&updated_traces, &pubsub).await;
-
-            Some(updated_traces)
+            dispatch_trace_realtime_updates(&updated_traces, cache.clone(), &pubsub).await;
         }
-        Err(e) => {
-            log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+
+        // Return only the aggregation results to the signals path. `None`
+        // suppresses `check_and_push_signals` entirely — used for both an
+        // aggregation upsert error AND a pure metadata-only flush (no real
+        // spans aggregated). Metadata patches never need signal evaluation:
+        // they don't touch any field signals filter on, and re-running
+        // signals against a patched-only trace would spuriously refire any
+        // signal that already triggered for the trace.
+        if aggregation_ok && had_aggregations {
+            Some(aggregation_traces)
+        } else {
             None
         }
     };
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
-        .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
-        .collect();
-
-    // Record spans to clickhouse
-    if let Err(e) = ch.insert_batch(&ch_spans, config).await {
-        log::error!(
-            "Failed to record {} spans to clickhouse: {:?}",
-            ch_spans.len(),
-            e
-        );
-        return Err(HandlerError::transient(anyhow::anyhow!(
-            "Failed to insert spans to Clickhouse: {:?}",
-            e
-        )));
-    }
-
-    // Check signal triggers AFTER spans are inserted into ClickHouse
-    // so the signal agent can see the trace data when processing.
-    if let Some(updated_traces) = &updated_traces {
-        if is_feature_enabled(Feature::Signals) {
-            let default_trace_type: i16 = Into::<u8>::into(TraceType::DEFAULT) as i16;
-            let default_traces: Vec<Trace> = updated_traces
+    let span_branch = async {
+        if !dedup.messages.is_empty() {
+            let keys: Vec<(Uuid, Uuid, [u8; 32])> = dedup
+                .messages
                 .iter()
-                .filter(|trace| trace.trace_type() == default_trace_type)
-                .cloned()
+                .map(|m| (m.project_id, m.trace_id, m.message_hash))
                 .collect();
-            let traces_by_project = group_traces_by_project(&default_traces);
-            for (project_id, project_traces) in &traces_by_project {
-                check_and_push_signals(
-                    *project_id,
-                    project_traces,
-                    &spans,
-                    db.clone(),
-                    cache.clone(),
-                    clickhouse.clone(),
-                    queue.clone(),
-                )
-                .await;
+            if let Err(e) = ch.insert_batch(&dedup.messages, config).await {
+                log::error!(
+                    "Failed to insert {} llm_messages to ClickHouse: {:?}",
+                    dedup.messages.len(),
+                    e
+                );
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to insert llm_messages to Clickhouse: {:?}",
+                    e
+                )));
             }
+            mark_seen(&keys, cache.clone()).await;
         }
+
+        if let Err(e) = ch.insert_batch(&ch_spans, config).await {
+            log::error!(
+                "Failed to record {} spans to clickhouse: {:?}",
+                ch_spans.len(),
+                e
+            );
+            return Err(HandlerError::transient(anyhow::anyhow!(
+                "Failed to insert spans to Clickhouse: {:?}",
+                e
+            )));
+        }
+        Ok(())
+    };
+
+    let (updated_traces, span_result) = tokio::join!(trace_branch, span_branch);
+    span_result?;
+
+    // Must run AFTER the spans insert so the signal agent sees the trace data.
+    if let Some(updated_traces) = &updated_traces {
+        crate::signals::check_and_push_signals(
+            updated_traces,
+            &spans,
+            db.clone(),
+            cache.clone(),
+            clickhouse.clone(),
+            queue.clone(),
+        )
+        .await;
     }
 
     // Send realtime span updates
-    let recordable: Vec<&Span> = spans
-        .iter()
-        .filter(|span| span.should_record_to_clickhouse())
-        .collect();
+    let recordable_refs: Vec<&Span> = recordable_indices.iter().map(|&i| &spans[i]).collect();
 
-    let spans_for_realtime: Vec<Span> = recordable.iter().map(|s| (*s).clone()).collect();
+    let spans_for_realtime: Vec<Span> = recordable_refs.iter().map(|s| (*s).clone()).collect();
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    // Non-LLM spans are only indexed if their size is <= 5KB
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+    // Non-LLM spans are only indexed if their size is <= 5KB.
+    // For LLM spans, only the deduped "new messages" subset is indexed —
+    // older repeated history already searchable via the prior step's span.
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable_refs
         .iter()
-        .filter(|s| {
-            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        .enumerate()
+        .filter(|(_, s)| s.is_llm_span() || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES)
+        .map(|(dedup_idx, s)| {
+            // For LLM spans: parse this span's new messages into `Vec<Value>`
+            // for the indexer. `span_new_message_indices[dedup_idx]` points
+            // into `dedup.messages` — no layout assumption. Works for both
+            // the producer path (where `span.input` is `None`) and the
+            // legacy path. Unparseable JSON is dropped (filter_map) — the
+            // row still went to llm_messages, it just isn't searchable.
+            // A span with no hashes (non-array input or empty plan) gets
+            // `None`, so `from_span` falls through to raw `span.input`.
+            let new_messages = if s.is_llm_span()
+                && dedup
+                    .span_hashes
+                    .get(dedup_idx)
+                    .map(|h| !h.is_empty())
+                    .unwrap_or(false)
+            {
+                dedup.span_new_message_indices.get(dedup_idx).map(|idxs| {
+                    idxs.iter()
+                        .filter_map(|&i| dedup.messages.get(i))
+                        .filter_map(|m| serde_json::from_str::<Value>(&m.content).ok())
+                        .collect::<Vec<Value>>()
+                })
+            } else {
+                None
+            };
+            QuickwitIndexedSpan::from_span(s, new_messages.as_deref())
         })
-        .map(|s| (*s).into())
         .collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
+    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable_refs
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
         .collect();
@@ -246,165 +529,49 @@ pub async fn process_span_messages(
     Ok(())
 }
 
-async fn check_and_push_signals(
-    project_id: Uuid,
-    traces: &[&Trace],
-    spans: &[Span],
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-) {
-    let triggers = match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
-        Ok(triggers) => triggers,
-        Err(e) => {
-            log::error!(
-                "Failed to get signals triggers for project {}: {:?}",
-                project_id,
-                e
-            );
-            return;
-        }
-    };
-
-    if triggers.is_empty() {
+async fn dispatch_trace_realtime_updates(traces: &[Trace], cache: Arc<Cache>, pubsub: &PubSub) {
+    if traces.is_empty() {
         return;
     }
 
-    if is_feature_enabled(Feature::UsageLimit) {
-        let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
-            db.clone(),
-            clickhouse.clone(),
-            cache.clone(),
-            project_id,
-        )
-        .await;
-        if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
-            log::debug!(
-                "Workspace signal runs limit exceeded for project [{}]. Skipping triggers.",
-                project_id,
-            );
-            return;
+    let mut project_buckets: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
+    let mut evaluation_buckets: HashMap<(Uuid, Uuid), Vec<RealtimeTrace>> = HashMap::new();
+    let mut debugger_buckets: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> = HashMap::new();
+
+    for trace in traces {
+        for channel in channels_for_trace(trace, cache.as_ref()).await {
+            match channel {
+                TraceChannel::Project => {
+                    project_buckets
+                        .entry(trace.project_id())
+                        .or_default()
+                        .push(RealtimeTrace::from_trace(trace));
+                }
+                TraceChannel::Evaluation(evaluation_id) => {
+                    evaluation_buckets
+                        .entry((trace.project_id(), evaluation_id))
+                        .or_default()
+                        .push(RealtimeTrace::from_trace(trace));
+                }
+                TraceChannel::RolloutDebugger(rollout_session_id) => {
+                    debugger_buckets
+                        .entry((trace.project_id(), rollout_session_id))
+                        .or_default()
+                        .push(RealtimeDebuggerTrace::from_trace(trace));
+                }
+            }
         }
     }
 
-    // Lazily fetch pre-computed sampling factors only if any trigger has sampling enabled
-    let any_has_sampling = triggers.iter().any(|t| t.signal.sample_rate.is_some());
-    let sampling_factors = if any_has_sampling {
-        match get_sampling_factors_cached(cache.clone(), &clickhouse, project_id).await {
-            Ok(factors) => Some(factors),
-            Err(e) => {
-                log::error!(
-                    "Failed to get sampling factors for project {}: {:?}. \
-                     Sampled signals will be skipped; non-sampled signals proceed normally.",
-                    project_id,
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    for trigger in &triggers {
-        let matching_traces = traces
-            .iter()
-            .filter(|trace| trace.matches_filters(spans, &trigger.filters));
-
-        for trace in matching_traces {
-            // Check sampling if enabled for this signal
-            if let Some(sample_rate) = trigger.signal.sample_rate {
-                if let Some(ref factors) = sampling_factors {
-                    if !should_sample_trace(sample_rate, &trace.user_id(), factors) {
-                        log::debug!(
-                            "Skipping trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                        continue;
-                    } else {
-                        log::debug!(
-                            "Processing trace for user {}",
-                            trace.user_id().unwrap_or_default()
-                        );
-                    }
-                } else {
-                    // Sampling factors failed to load — skip sampled triggers
-                    // to avoid processing all traces unsampled (over-billing)
-                    continue;
-                }
-            }
-
-            // Filters matched - try to acquire lock to prevent duplicate triggers
-            let lock_key = format!(
-                "{}:{}:{}:{}",
-                SIGNAL_TRIGGER_LOCK_CACHE_KEY,
-                project_id,
-                trigger.signal.id,
-                trace.id(),
-            );
-
-            match cache.exists(&lock_key).await {
-                Ok(true) => {
-                    continue;
-                }
-                Ok(false) => {
-                    // Lock doesn't exist, try to acquire it
-                }
-                Err(e) => {
-                    log::warn!(
-                        "[Signal trigger] Failed to check lock existence (key {}): {:?}",
-                        lock_key,
-                        e
-                    );
-                    // Continue to try acquiring lock
-                }
-            }
-
-            // Try to acquire the lock
-            let lock_acquired = match cache
-                .try_acquire_lock(&lock_key, SIGNAL_TRIGGER_LOCK_TTL_SECONDS)
-                .await
-            {
-                Ok(acquired) => acquired,
-                Err(e) => {
-                    // On lock error, still try to push (fail-open behavior)
-                    log::error!(
-                        "Failed to acquire lock for signal '{}' on trace {}: {:?}",
-                        trigger.signal.name,
-                        trace.id(),
-                        e
-                    );
-                    true // Proceed anyway
-                }
-            };
-
-            if !lock_acquired {
-                // Lock was already held by another processor
-                continue;
-            }
-
-            // Lock acquired - enqueue signal trigger run
-            if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
-                trace.id(),
-                trace.project_id(),
-                trigger.id,
-                trigger.signal.clone(),
-                clickhouse.clone(),
-                queue.clone(),
-                trigger.mode.as_u8(),
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to enqueue signal trigger run: trace_id={}, project_id={}, trigger_id={}, signal={}, error={:?}",
-                    trace.id(),
-                    trace.project_id(),
-                    trigger.id,
-                    trigger.signal.name,
-                    e
-                );
-            }
-        }
+    for (project_id, traces_data) in project_buckets {
+        send_trace_updates(&project_id, "traces", &traces_data, pubsub).await;
+    }
+    for ((project_id, evaluation_id), traces_data) in evaluation_buckets {
+        let key = format!("evaluation_{}", evaluation_id);
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
+    }
+    for ((project_id, rollout_session_id), traces_data) in debugger_buckets {
+        let key = format!("rollout_session_{}", rollout_session_id);
+        send_trace_updates(&project_id, &key, &traces_data, pubsub).await;
     }
 }

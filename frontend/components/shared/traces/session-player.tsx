@@ -4,15 +4,16 @@ import "rrweb-player/dist/style.css";
 import "@/lib/styles/session-player.css";
 
 import { PauseIcon, PlayIcon } from "@radix-ui/react-icons";
+import { truncate } from "lodash";
 import { Loader2, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
-import SpanImagesVideoPlayer from "@/components/traces/span-images-video-player";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button.tsx";
+import { CopyButton } from "@/components/ui/copy-button.tsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,15 +24,13 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { formatSecondsToMinutesAndSeconds } from "@/lib/utils";
 
 interface SessionPlayerProps {
-  hasBrowserSession?: boolean;
   traceId: string;
-  llmSpanIds?: string[];
   onClose: () => void;
 }
 
 const speedOptions = [1, 2, 4, 8, 16];
 
-const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }: SessionPlayerProps) => {
+const SessionPlayer = ({ traceId, onClose }: SessionPlayerProps) => {
   const { setSessionTime, sessionTime } = useTraceViewStore((state) => ({
     setSessionTime: state.setSessionTime,
     sessionTime: state.sessionTime,
@@ -48,12 +47,9 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   const [duration, setDuration] = useState(0);
   const [currentUrl, setCurrentUrl] = useState("");
   const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
-  const [activeTab, setActiveTab] = useState(hasBrowserSession ? "browser-session" : "images");
-  const [imagesTabOpened, setImagesTabOpened] = useState(!hasBrowserSession);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
 
-  // Binary search to find current URL index - O(log n) complexity
   const findUrlIndex = (timeMs: number): number => {
     if (!urlChanges.length) return -1;
 
@@ -75,7 +71,6 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     return result;
   };
 
-  // Efficiently find current URL using binary search
   const updateCurrentUrl = useCallback(
     (timeMs: number) => {
       if (!urlChanges.length) return;
@@ -83,7 +78,6 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
       const newIndex = findUrlIndex(timeMs);
       if (newIndex === -1) return;
 
-      // Only update if index changed (avoids unnecessary state updates)
       if (newIndex !== currentUrlIndexRef.current) {
         currentUrlIndexRef.current = newIndex;
         const newUrl = urlChanges[newIndex].url;
@@ -106,29 +100,20 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   }, [sessionTime]);
 
   useEffect(() => {
-    if (!hasBrowserSession && activeTab === "browser-session") {
-      setActiveTab("images");
-    }
-  }, [hasBrowserSession, activeTab]);
-
-  useEffect(() => {
-    if (!browserContentRef.current || activeTab !== "browser-session") return;
+    if (!browserContentRef.current) return;
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-
         setDimensions({ width, height: height - 56 });
       }
     });
 
     resizeObserver.observe(browserContentRef.current);
     return () => resizeObserver.disconnect();
-  }, [activeTab]);
+  }, []);
 
   useEffect(() => {
-    if (!hasBrowserSession) return;
-
     const loadEvents = async () => {
       setIsLoading(true);
       try {
@@ -147,7 +132,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     };
 
     loadEvents();
-  }, [hasBrowserSession, traceId]);
+  }, [traceId]);
 
   useEffect(() => {
     if (!events?.length || !playerContainerRef.current) return;
@@ -238,126 +223,86 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
     [setSpeed]
   );
 
-  useHotkeys("space", handlePlayPause, { enabled: activeTab === "browser-session" });
+  useHotkeys("space", handlePlayPause);
 
   return (
     <div className="relative w-full h-full flex flex-col">
       <div className="h-8 border-b pl-4 flex items-center gap-0 shrink-0">
-        {hasBrowserSession && (
-          <button
-            onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
-              activeTab === "browser-session"
-                ? "border-secondary-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Session
-          </button>
-        )}
-
-        <button
-          onClick={() => {
-            setActiveTab("images");
-            setImagesTabOpened(true);
-          }}
-          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
-            activeTab === "images"
-              ? "border-secondary-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
-        >
-          Images
-        </button>
-
+        <span className="text-sm font-medium">Session</span>
         <Button onClick={onClose} className="ml-auto" variant="ghost">
           <X className="w-4 h-4" />
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0">
-        <div
-          ref={browserContentRef}
-          className={`h-full flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
-        >
-          {!hasBrowserSession ? (
-            <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-              <div className="text-center">
-                <h3 className="text-lg font-medium mb-2">No browser session</h3>
-                <p className="text-sm text-muted-foreground">
-                  Either there is no browser session, the session is still being processed or you have an outdated SDK
-                  version.
-                </p>
-              </div>
+      <div className="flex-1 min-h-0 min-w-0">
+        <div ref={browserContentRef} className="h-full flex flex-col">
+          <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
+            <button onClick={handlePlayPause} className="text-white py-1 rounded">
+              {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
+                {speed}x
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {speedOptions.map((speedOption) => (
+                  <DropdownMenuItem key={speedOption} onClick={() => handleChangeSpeed(speedOption)}>
+                    {speedOption}x
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <input
+              type="range"
+              className="grow cursor-pointer"
+              min="0"
+              step="0.1"
+              max={duration}
+              value={sessionTime || 0}
+              onChange={handleTimelineChange}
+            />
+            <span className="font-mono">
+              {formatSecondsToMinutesAndSeconds(sessionTime || 0)}/{formatSecondsToMinutesAndSeconds(duration)}
+            </span>
+          </div>
+
+          {currentUrl && (
+            <div className="flex items-center gap-2 px-2 py-1 border-b shrink-0 min-w-0 w-full overflow-hidden">
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground transition-colors truncate min-w-0 flex-1"
+                title={currentUrl}
+              >
+                {truncate(currentUrl, { length: 56, omission: "…" })}
+              </a>
+              <CopyButton
+                text={currentUrl}
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 text-secondary-foreground hover:text-foreground"
+                iconClassName="h-3 w-3"
+              />
             </div>
-          ) : (
-            <>
-              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
-                <button onClick={handlePlayPause} className="text-white py-1 rounded">
-                  {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
-                </button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="flex items-center text-white py-1 px-2 rounded text-sm">
-                    {speed}x
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {speedOptions.map((speedOption) => (
-                      <DropdownMenuItem key={speedOption} onClick={() => handleChangeSpeed(speedOption)}>
-                        {speedOption}x
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <input
-                  type="range"
-                  className="grow cursor-pointer"
-                  min="0"
-                  step="0.1"
-                  max={duration}
-                  value={sessionTime || 0}
-                  onChange={handleTimelineChange}
-                />
-                <span className="font-mono">
-                  {formatSecondsToMinutesAndSeconds(sessionTime || 0)}/{formatSecondsToMinutesAndSeconds(duration)}
-                </span>
-              </div>
-
-              {currentUrl && (
-                <div className="flex items-center px-4 py-1 border-b shrink-0">
-                  <a
-                    href={currentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
-                    title={currentUrl}
-                  >
-                    {currentUrl}
-                  </a>
-                </div>
-              )}
-
-              <div className="flex-1 min-h-0">
-                {isLoading ? (
-                  <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                    <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
-                  </div>
-                ) : !events.length ? (
-                  <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
-                    No browser session was recorded. Either the session is still being processed or you have an outdated
-                    SDK version.
-                  </div>
-                ) : (
-                  <div ref={playerContainerRef} className="w-full h-full" />
-                )}
-              </div>
-            </>
           )}
-        </div>
 
-        <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
-          <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} isShared enabled={imagesTabOpened} />
+          <div className="flex-1 min-h-0">
+            {isLoading ? (
+              <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
+              </div>
+            ) : !events.length ? (
+              <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
+                No browser session was recorded. Either the session is still being processed or you have an outdated SDK
+                version.
+              </div>
+            ) : (
+              <div ref={playerContainerRef} className="w-full h-full" />
+            )}
+          </div>
         </div>
       </div>
     </div>

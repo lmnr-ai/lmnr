@@ -17,6 +17,8 @@ import SessionTimeline from "../session-timeline";
 import { useSessionViewStore } from "../store";
 import SessionList from "./list";
 
+const EMPTY_SEARCH_VALUE: { filters: Filter[]; search: string } = { filters: [], search: "" };
+const SEARCH_OPTIONS = { suggestions: new Map(), disableHotKey: true };
 /**
  * Shell around the session view — header (session-id dropdown),
  * advanced-search input, optional session timeline, stats shields. The
@@ -58,7 +60,7 @@ export default function SessionPanel() {
   const sessionStats = useMemo(() => (traces.length === 0 ? null : computeTraceStats(traces)), [traces]);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden flex-1 border-r">
+    <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {/* Header */}
       <div className="flex flex-col gap-1.5 px-2 py-2 shrink-0">
         <div className="flex h-7 items-center justify-start gap-2">
@@ -79,15 +81,14 @@ export default function SessionPanel() {
         </div>
         {/* TODO(session-view): add autocomplete suggestions from loaded/matched spans */}
         <AdvancedSearch
-          mode="state"
           filters={filterColumns}
           resource="spans"
-          value={{ filters: [], search: "" }}
-          onSubmit={handleSearch}
+          value={EMPTY_SEARCH_VALUE}
+          onChange={({ filters, search }) => handleSearch(filters, search)}
           placeholder="Search text, name, id, tags..."
           className="w-full"
           disabled={isTracesLoading}
-          options={{ suggestions: new Map(), disableHotKey: true }}
+          options={SEARCH_OPTIONS}
         />
       </div>
 

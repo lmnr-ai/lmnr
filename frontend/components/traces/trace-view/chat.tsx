@@ -12,6 +12,7 @@ import { renderSpanReferences } from "@/components/traces/trace-view/span-refere
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,6 +76,7 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
   );
 
   const handleExampleClick = (question: string) => {
+    track("traces", "chat_message_sent", { source: "example" });
     sendMessage({
       role: "user",
       parts: [{ type: "text", text: question }],
@@ -313,6 +315,7 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
             onSubmit={(e) => {
               e.preventDefault();
               if (input.trim()) {
+                track("traces", "chat_message_sent", { source: "input" });
                 sendMessage({
                   role: "user",
                   parts: [{ type: "text", text: input }],
@@ -329,6 +332,7 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     if (input.trim()) {
+                      track("traces", "chat_message_sent", { source: "input" });
                       sendMessage({
                         role: "user",
                         parts: [{ type: "text", text: input }],
@@ -348,15 +352,6 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
                 className="h-7 w-7 rounded-full border bg-primary flex-shrink-0 mr-1 mb-1"
                 variant="ghost"
                 disabled={input.trim() === "" || status === "streaming"}
-                onClick={() => {
-                  if (input.trim()) {
-                    sendMessage({
-                      role: "user",
-                      parts: [{ type: "text", text: input }],
-                    });
-                    setInput("");
-                  }
-                }}
               >
                 <ArrowUp className="w-4 h-4" />
               </Button>

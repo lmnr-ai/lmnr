@@ -5,135 +5,140 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
+import { shallow } from "zustand/shallow";
 
 import fullLogo from "@/assets/logo/logo.svg";
+import { useAdvancedSearchUrlValue } from "@/components/common/advanced-search/use-url-value";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import {
+  buildColumnDefs,
+  buildFetchParams,
+  buildStatsParams,
+  EvalStoreProvider,
+  selectVisibleColumnDefs,
+  useEvalStore,
+} from "@/components/evaluation/store";
+import { type EvaluationStatsPayload } from "@/components/evaluation/utils";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
+import { useTableConfigStore } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  type EvalRow,
-  type Evaluation,
-  type EvaluationResultsInfo,
-  type EvaluationScoreDistributionBucket,
-  type EvaluationScoreStatistics,
-} from "@/lib/evaluation/types";
+import { type EvalRow, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { swrFetcher } from "@/lib/utils";
 
 interface SharedEvaluationProps {
   evaluationId: string;
   evaluationName: string;
+  initialScoreNames: string[];
 }
+
+const PAGE_SIZE = 50;
+const BASE_COLUMN_ORDER = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluationProps) {
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const pathName = usePathname();
-  const search = searchParams.get("search");
-  const filter = searchParams.getAll("filter");
-  const searchIn = searchParams.getAll("searchIn");
+
+  // Shared (public) eval has no view layer; URL params are canonical.
+  const { value: searchValue, onChange: onSearchChange } = useAdvancedSearchUrlValue();
+  const search = searchValue.search.length > 0 ? searchValue.search : null;
+  const filter = useMemo(() => searchValue.filters.map((f) => JSON.stringify(f)), [searchValue.filters]);
   const sortBy = searchParams.get("sortBy");
   const sortDirection = searchParams.get("sortDirection");
 
-  const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
-  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(
-    () => searchParams.get("datapointId") ?? undefined
+  // Shared eval ignores customColumns at render time (buildColumnDefs's isShared
+  // branch returns []) but still reads the store via the same selector for
+  // structural symmetry with the non-shared page.
+  const { customColumns } = useTableConfigStore((s) => ({ customColumns: s.config.customColumns }), shallow);
+
+  const scoreNames = useEvalStore((s) => s.scoreNames);
+  const isShared = useEvalStore((s) => s.isShared);
+
+  const columnDefs = useMemo(
+    () => buildColumnDefs({ scoreNames, customColumns, isShared }),
+    [scoreNames, customColumns, isShared]
   );
-
-  const pageSize = 50;
-
-  // Store actions
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
-  const setIsComparison = useEvalStore((s) => s.setIsComparison);
-  const setIsShared = useEvalStore((s) => s.setIsShared);
-
-  // Shared evals never have comparison mode — reset in case it persists from a previous page.
-  useEffect(() => {
-    setIsComparison(false);
-    setIsShared(true);
-  }, [setIsComparison, setIsShared]);
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const urlParams = buildStatsParams({ search, filter, sortBy, sortDirection }, columnDefs, scoreNames);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [evaluationId, search, filter, sortBy, sortDirection, columnDefs, scoreNames]);
 
-  const { data: statsData, isLoading: isStatsLoading } = useSWR<{
-    evaluation: Evaluation;
-    allStatistics: Record<string, EvaluationScoreStatistics>;
-    allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-    scores: string[];
-  }>(statsUrl, swrFetcher);
+  const { data: statsData, isLoading: isStatsLoading } = useSWR<EvaluationStatsPayload>(statsUrl, swrFetcher, {
+    revalidateOnFocus: false,
+  });
 
-  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
-
-  // Rebuild column defs when scores change.
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, rebuildColumns]);
-
-  // SQL strings from column defs — only changes when columns structurally change.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
-
-  const onClose = useCallback(() => {
-    setTraceId(undefined);
-    setDatapointId(undefined);
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("traceId");
-    params.delete("datapointId");
-    params.delete("spanId");
-    push(`${pathName}?${params}`);
-  }, [searchParams, pathName, push]);
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
-        search,
-        searchIn,
-        filter,
-        sortBy,
-        sortDirection,
-        pageNumber,
-        pageSize,
-      });
-
+      const urlParams = buildFetchParams(
+        { search, filter, sortBy, sortDirection, pageNumber, pageSize: PAGE_SIZE },
+        columnDefs
+      );
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error("Failed to fetch datapoints.");
-      }
+      if (!response.ok) throw new Error("Failed to fetch datapoints.");
       const data: EvaluationResultsInfo = await response.json();
-
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams]
+    [evaluationId, search, filter, sortBy, sortDirection, columnDefs]
   );
 
   const {
     data: allDatapoints,
-    hasMore: hasMorePages,
-    isFetching: isFetchingPage,
+    hasMore,
+    isFetching,
     isLoading: isLoadingDatapoints,
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
     enabled: !isStatsLoading,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls],
+    deps: [search, filter, evaluationId, sortBy, sortDirection, columnSqls],
   });
+
+  // Score-range heatmap input — derived from current data, no storage needed.
+  const scoreRanges = useMemo(() => {
+    if (!allDatapoints) return {};
+    const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
+    return scoreNames.reduce(
+      (acc, scoreName) => {
+        const values = allDatapoints.map((row) => row[`score:${scoreName}`]).filter(isValidNumber);
+        if (values.length === 0) return acc;
+        return { ...acc, [scoreName]: { min: Math.min(...values), max: Math.max(...values) } };
+      },
+      {} as Record<string, { min: number; max: number }>
+    );
+  }, [allDatapoints, scoreNames]);
+
+  const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
+  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
+  const [datapointId, setDatapointId] = useState<string | undefined>(
+    () => searchParams.get("datapointId") ?? undefined
+  );
+
+  if (!selectedScore && scoreNames.length > 0) {
+    setSelectedScore(scoreNames[0]);
+  }
+
+  const onClose = useCallback(() => {
+    setTraceId(undefined);
+    setDatapointId(undefined);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("traceId");
+    next.delete("datapointId");
+    next.delete("spanId");
+    push(`${pathName}?${next}`);
+  }, [searchParams, pathName, push]);
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
@@ -142,22 +147,30 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const getRowHref = useCallback(
     (row: Row<EvalRow>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original["traceId"] as string);
-      params.set("datapointId", row.original["id"] as string);
-      return `${pathName}?${params.toString()}`;
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("traceId", row.original["traceId"] as string);
+      next.set("datapointId", row.original["id"] as string);
+      return `${pathName}?${next.toString()}`;
     },
     [pathName, searchParams]
   );
 
-  const [prevScores, setPrevScores] = useState<string[]>([]);
-  if (scores !== prevScores) {
-    setPrevScores(scores);
-    if (scores.length > 0 && (!selectedScore || !scores.includes(selectedScore))) {
-      setSelectedScore(scores[0]);
-    }
-  }
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      const next = new URLSearchParams(searchParams.toString());
+      if (columnId) {
+        next.set("sortBy", columnId);
+        next.set("sortDirection", direction.toUpperCase());
+      } else {
+        next.delete("sortBy");
+        next.delete("sortDirection");
+      }
+      push(`${pathName}?${next.toString()}`);
+    },
+    [searchParams, push, pathName]
+  );
 
+  const visibleColumnDefs = useMemo(() => selectVisibleColumnDefs(columnDefs, false), [columnDefs]);
   const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth();
 
   return (
@@ -194,7 +207,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
             <>
               <div className="flex-none w-72">
                 <ScoreCard
-                  scores={scores}
+                  scores={scoreNames}
                   selectedScore={selectedScore}
                   setSelectedScore={setSelectedScore}
                   statistics={selectedScore ? (statsData?.allStatistics?.[selectedScore] ?? null) : null}
@@ -212,28 +225,28 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           )}
         </div>
         <EvaluationDatapointsTable
-          isLoading={isStatsLoading || isLoadingDatapoints}
-          datapointId={datapointId}
           data={allDatapoints}
-          scores={scores}
+          isLoading={isStatsLoading || isLoadingDatapoints}
+          isFetching={isFetching}
+          hasMore={hasMore}
+          fetchNextPage={fetchNextPage}
+          columnDefs={columnDefs}
+          visibleColumnDefs={visibleColumnDefs}
+          isComparison={false}
+          scoreRanges={scoreRanges}
+          datapointId={datapointId}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
-          hasMore={hasMorePages}
-          isFetching={isFetchingPage}
-          fetchNextPage={fetchNextPage}
+          sortBy={sortBy ?? undefined}
+          sortDirection={(sortDirection?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined}
+          onSort={handleSort}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
         />
       </div>
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            size={{
-              width: defaultTraceViewWidth,
-            }}
-          >
+          <Resizable onResizeStop={handleResizeStop} enable={{ left: true }} size={{ width: defaultTraceViewWidth }}>
             <div className="w-full h-full flex flex-col">
               <SharedEvalTraceView key={traceId} traceId={traceId} onClose={onClose} />
             </div>
@@ -245,9 +258,16 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 }
 
 export default function SharedEvaluation(props: SharedEvaluationProps) {
+  const defaultColumnOrder = useMemo(
+    () => [...BASE_COLUMN_ORDER, ...props.initialScoreNames.map((s) => `score:${s}`)],
+    [props.initialScoreNames]
+  );
+
   return (
-    <DataTableStateProvider storageKey="shared-evaluation-datapoints">
-      <SharedEvaluationContent {...props} />
-    </DataTableStateProvider>
+    <EvalStoreProvider key={props.evaluationId} initialScoreNames={props.initialScoreNames} isShared>
+      <InfiniteDataTableProvider defaults={{ columnOrder: defaultColumnOrder }}>
+        <SharedEvaluationContent {...props} />
+      </InfiniteDataTableProvider>
+    </EvalStoreProvider>
   );
 }

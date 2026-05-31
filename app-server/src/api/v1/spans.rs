@@ -8,7 +8,11 @@ use uuid::Uuid;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey, spans::{Span, SpanType}},
+    db::{
+        DB,
+        project_api_keys::ProjectApiKey,
+        spans::{Span, SpanType},
+    },
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     routes::types::ResponseResult,
@@ -99,7 +103,11 @@ pub async fn create_spans(
             span_id: req.span_id,
             trace_id: req.trace_id,
         });
-        messages.push(RabbitMqSpanMessage { span });
+        messages.push(RabbitMqSpanMessage {
+            span,
+            pre_processed: false,
+            input_dedup: None,
+        });
     }
 
     publish_span_messages(

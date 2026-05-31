@@ -120,21 +120,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
     return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
   }, [spans, condensedTimelineVisibleSpanIds]);
-  const llmSpanIds = useMemo(
-    () =>
-      spans
-        .filter((span) => {
-          if (span.spanType === SpanType.LLM) return true;
-          if (span.spanType === SpanType.CACHED) {
-            const originalType = span.attributes?.["lmnr.span.original_type"];
-            return originalType === SpanType.LLM || originalType === "LLM";
-          }
-          return false;
-        })
-        .map((span) => span.spanId),
-    [spans]
-  );
-
   const handleFetchTrace = useCallback(async () => {
     if (!trace?.id) return;
 
@@ -475,17 +460,19 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button
-                    disabled={!trace}
-                    className={cn("h-6 px-1.5 text-xs", {
-                      "border-primary text-primary": browserSession,
-                    })}
-                    variant="outline"
-                    onClick={() => setBrowserSession(!browserSession)}
-                  >
-                    <CirclePlay size={14} className="mr-1" />
-                    Media
-                  </Button>
+                  {hasBrowserSession && (
+                    <Button
+                      disabled={!trace}
+                      className={cn("h-6 px-1.5 text-xs", {
+                        "border-primary text-primary": browserSession,
+                      })}
+                      variant="outline"
+                      onClick={() => setBrowserSession(!browserSession)}
+                    >
+                      <CirclePlay size={14} className="mr-1" />
+                      Media
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -500,17 +487,12 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
               </div>
             )}
           </ResizablePanel>
-          {browserSession && (
+          {browserSession && hasBrowserSession && (
             <>
               <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" withHandle />
               <ResizablePanel>
                 {!isLoading && trace?.id && (
-                  <SessionPlayer
-                    onClose={() => setBrowserSession(false)}
-                    hasBrowserSession={hasBrowserSession}
-                    traceId={trace?.id}
-                    llmSpanIds={llmSpanIds}
-                  />
+                  <SessionPlayer onClose={() => setBrowserSession(false)} traceId={trace?.id} />
                 )}
               </ResizablePanel>
             </>

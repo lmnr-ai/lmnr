@@ -3,19 +3,22 @@ pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
 pub mod evaluation_datapoints;
+pub mod labeling_queue_items;
 pub mod limits;
+pub mod llm_messages;
 pub mod logs;
 pub mod notification_deliveries;
 pub mod notifications;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;
-pub mod signal_runs;
 pub mod spans;
 pub mod traces;
 pub mod utils;
 
 pub use data_plane::DataPlaneBatch;
+
+use std::sync::LazyLock;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -24,6 +27,17 @@ use serde::Serialize;
 
 use crate::db::workspaces::WorkspaceDeployment;
 
+/// Cap for CH's adaptive `async_insert_busy_timeout` on the hot ingest tables
+/// (`spans`, `traces_replacing`, `llm_messages`). Read once from
+/// `SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS`, defaults to 400 ms when unset OR set to
+/// an empty string (common with k8s ConfigMap keys whose values aren't filled in).
+pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "400".to_string())
+});
+
 #[derive(Serialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Table {
@@ -31,6 +45,7 @@ pub enum Table {
     Traces,
     NotificationDeliveries,
     Notifications,
+    LlmMessages,
 }
 
 impl Table {
@@ -40,6 +55,7 @@ impl Table {
             Table::Traces => "traces_replacing",
             Table::NotificationDeliveries => "notification_deliveries",
             Table::Notifications => "notifications",
+            Table::LlmMessages => "llm_messages",
         }
     }
 }

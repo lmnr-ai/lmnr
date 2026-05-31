@@ -128,7 +128,6 @@ export async function getSharedEvaluationStatistics({
       evaluation: Evaluation;
       allStatistics: Record<string, EvaluationScoreStatistics>;
       allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-      scores: string[];
     }
   | undefined
 > {
@@ -147,7 +146,6 @@ export async function getSharedEvaluationStatistics({
       evaluation,
       allStatistics: {},
       allDistributions: {},
-      scores: [],
     };
   }
 
@@ -175,14 +173,12 @@ export async function getSharedEvaluationStatistics({
     return { scores };
   });
 
-  const allScoreNames = [
-    ...new Set(parsedResults.flatMap((result) => (result.scores ? Object.keys(result.scores) : []))),
-  ];
+  const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
 
-  allScoreNames.forEach((scoreName) => {
+  scoreNamesInRows.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
   });
@@ -191,6 +187,5 @@ export async function getSharedEvaluationStatistics({
     evaluation,
     allStatistics,
     allDistributions,
-    scores: allScoreNames,
   };
 }

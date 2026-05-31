@@ -51,12 +51,10 @@ export const columns: ColumnDef<TraceRow, any>[] = [
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
-          "": row.getValue() === "info", // temporary color values
-          "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}
       />
     ),
-    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
+    accessorKey: "status",
     header: () => <div />,
     id: "status",
     enableSorting: true,
@@ -325,15 +323,6 @@ export const filters: ColumnFilter[] = [
     dataType: "enum",
     key: "status",
     options: ["success", "error"].map((v) => ({
-      label: capitalize(v),
-      value: v,
-    })),
-  },
-  {
-    name: "Analysis status",
-    dataType: "enum",
-    key: "analysis_status",
-    options: ["info", "warning", "error"].map((v) => ({
       label: capitalize(v),
       value: v,
     })),

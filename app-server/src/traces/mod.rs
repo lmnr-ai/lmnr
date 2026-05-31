@@ -1,14 +1,18 @@
 pub mod consumer;
 pub mod data_plane_consumer;
 pub mod grpc_service;
+pub mod input_dedup;
+pub mod opentelemetry_json;
+#[cfg(feature = "signals")]
+pub mod previews;
 pub mod processor;
 pub mod producer;
+pub mod prompt_hash;
 pub mod provider;
 pub mod realtime;
 pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
-pub mod trigger;
 pub mod utils;
 
 pub const OBSERVATIONS_QUEUE: &str = "observations_queue";

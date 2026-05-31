@@ -16,7 +16,7 @@ export async function register() {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
         await import("@/lib/db/migrations/schema.ts");
-      const { db } = await import("@/lib/db/drizzle.ts");
+      const { db, getDatabaseConfig } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -99,6 +99,43 @@ export async function register() {
         }
       };
 
+      // `CREATE OR REPLACE` so credential rotation is picked up on next boot
+      // without tripping the clickhouse-migrations MD5 checksum guard (which is
+      // why this lives here instead of in `43_llm_messages.sql`).
+      // Multi-replica boots race the DDL — CH serialises it, but each replace
+      // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
+      // Acceptable: layout is lazy (no preload), source lookups hit the
+      // `llm_messages` PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
+      // evicts/refreshes every minute under normal operation.
+      const ensureLlmMessagesDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const user = escape(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escape(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escape(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY llm_messages_dict
+            (
+                project_id UUID,
+                trace_id UUID,
+                message_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, trace_id, message_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'llm_messages'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
       const initializeClickHouse = async () => {
         try {
           const { migration } = await import("clickhouse-migrations");
@@ -115,13 +152,26 @@ export async function register() {
             "ENGINE=Atomic", // db_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
+
+          await ensureLlmMessagesDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;
         }
       };
       // Run Postgres migrations and data initialization
-      await db.execute("ALTER DATABASE postgres REFRESH COLLATION VERSION");
+      // Best-effort: requires DB owner / superuser, which managed Postgres
+      // (RDS, Supabase, Neon, Cloud SQL, Azure) doesn't grant to app roles.
+      try {
+        const dbName = getDatabaseConfig().database;
+        const quotedDbName = `"${dbName.replace(/"/g, '""')}"`;
+        await db.execute(`ALTER DATABASE ${quotedDbName} REFRESH COLLATION VERSION`);
+      } catch (error) {
+        console.warn(
+          "Skipping REFRESH COLLATION VERSION (insufficient privileges or unsupported):",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
       await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();

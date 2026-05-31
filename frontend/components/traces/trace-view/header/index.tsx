@@ -12,8 +12,10 @@ import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
@@ -22,6 +24,8 @@ import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
+
+const FREE_TIER_RETENTION_DAYS = 15;
 
 interface HeaderProps {
   handleClose: () => void;
@@ -34,6 +38,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
+  const { project } = useProjectContext();
 
   const {
     trace,
@@ -48,6 +53,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     setIsTraceSignalsLoading,
     setActiveSignalTabId,
     initialSignalId,
+    initialSearch,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -62,6 +68,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
       setActiveSignalTabId: state.setActiveSignalTabId,
       initialSignalId: state.initialSignalId,
+      initialSearch: state.initialSearch,
     }),
     shallow
   );
@@ -132,6 +139,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const handleOpenSession = useCallback(() => {
     if (!hasSession) return;
+    track("sessions", "detail_opened", { source: "trace_header" });
     const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
     window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
   }, [hasSession, sessionId, projectId]);
@@ -146,9 +154,10 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     if (!hasUser) return;
     const params = new URLSearchParams();
     params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
-    params.set("pastHours", "2160");
+    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
+    params.set("pastHours", String(retentionDays * 24));
     window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
-  }, [hasUser, userId, projectId]);
+  }, [hasUser, userId, projectId, project?.logRetentionDays]);
 
   return (
     <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
@@ -261,14 +270,21 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         </div>
       )}
       {signalsPanelOpen && (
-        <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} className="mt-2" />
+        <ResizableSignalCard
+          traceId={traceId}
+          onClose={() => {
+            track("traces", "signals_panel_closed");
+            setSignalsPanelOpen(false);
+          }}
+          className="mt-2"
+        />
       )}
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}
           onSubmit={onSearch}
           className="flex-1"
-          initialSearch={searchParams.get("search") ?? undefined}
+          initialSearch={initialSearch || undefined}
         />
       </div>
       {spans.length > 0 && (
