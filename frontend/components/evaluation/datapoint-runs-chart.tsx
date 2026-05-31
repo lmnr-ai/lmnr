@@ -1,15 +1,17 @@
 "use client";
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo } from "react";
-import { Bar, BarChart, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
+import { Button } from "@/components/ui/button";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { cn, formatTimestamp, swrFetcher } from "@/lib/utils";
 
 interface DatapointRunsChartProps {
   projectId: string;
@@ -20,6 +22,8 @@ interface DatapointRunsChartProps {
   selectedScore?: string;
   onSelectScore: (score: string) => void;
   onSelectTrace: (traceId: string) => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 type RunPoint = {
@@ -31,7 +35,7 @@ type RunPoint = {
   isCurrent: boolean;
 };
 
-const MIN_BAR_WIDTH = 64;
+const MIN_POINT_WIDTH = 72;
 const CHART_CONFIG: ChartConfig = { value: { color: "hsl(var(--chart-1))" } };
 
 const shortTime = (iso: string) => {
@@ -56,6 +60,8 @@ export default function DatapointRunsChart({
   selectedScore,
   onSelectScore,
   onSelectTrace,
+  collapsed,
+  onToggleCollapse,
 }: DatapointRunsChartProps) {
   const activeScore = selectedScore && scoreNames.includes(selectedScore) ? selectedScore : scoreNames[0];
 
@@ -89,7 +95,7 @@ export default function DatapointRunsChart({
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [data, evaluations, activeScore, currentTraceId]);
 
-  if (isLoading) {
+  if (isLoading && !collapsed) {
     return (
       <div className="flex-none border-b px-5 py-4">
         <Skeleton className="h-[120px] w-full rounded-[4px]" />
@@ -101,100 +107,116 @@ export default function DatapointRunsChart({
   // (only the current run has this datapoint), don't take up header space.
   if (error || points.length < 2) return null;
 
-  const minWidth = Math.max(points.length * MIN_BAR_WIDTH, 240);
+  const minWidth = Math.max(points.length * MIN_POINT_WIDTH, 240);
 
   return (
-    <div className="flex-none border-b px-5 py-4 space-y-2">
+    <div className={cn("flex-none border-b px-5", collapsed ? "py-2" : "py-4 space-y-2")}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-secondary-foreground truncate">
-          Row #{index} across {points.length} runs — click a bar to open that run&apos;s trace
+          Row #{index} across {points.length} runs
+          {!collapsed && " — click a point to open that run's trace"}
         </span>
-        {scoreNames.length > 1 && (
-          <Select value={activeScore} onValueChange={onSelectScore}>
-            <SelectTrigger className="h-6 w-[140px] text-xs bg-secondary flex-none">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {scoreNames.map((s) => (
-                <SelectItem key={s} value={s} className="text-xs">
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-      <div className="h-[120px] overflow-x-auto overflow-y-hidden">
-        <div className="h-full" style={{ minWidth }}>
-          <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
-            <BarChart margin={{ top: 10, right: 12, bottom: 4, left: 0 }} data={points} accessibilityLayer>
-              <XAxis
-                dataKey="createdAt"
-                tickFormatter={shortTime}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={6}
-                interval={0}
-                height={20}
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={4}
-                width={44}
-                domain={[0, "auto"]}
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              />
-              <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.4)" }} content={<RunTooltip score={activeScore} />} />
-              {/* minPointSize keeps zero-score runs visible + clickable; shape replaces the
-                  deprecated <Cell> and carries the current-run highlight + click handler. */}
-              <Bar
-                dataKey="value"
-                minPointSize={6}
-                isAnimationActive={false}
-                shape={<RunBar onSelect={onSelectTrace} />}
-              />
-            </BarChart>
-          </ChartContainer>
+        <div className="flex flex-none items-center gap-2">
+          {!collapsed && scoreNames.length > 1 && (
+            <Select value={activeScore} onValueChange={onSelectScore}>
+              <SelectTrigger className="h-6 w-[140px] text-xs bg-secondary flex-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {scoreNames.map((s) => (
+                  <SelectItem key={s} value={s} className="text-xs">
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-secondary-foreground"
+              onClick={onToggleCollapse}
+              aria-label={collapsed ? "Show run comparison" : "Hide run comparison"}
+            >
+              {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+            </Button>
+          )}
         </div>
       </div>
+      {!collapsed && (
+        <div className="h-[120px] overflow-x-auto overflow-y-hidden">
+          <div className="h-full" style={{ minWidth }}>
+            <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
+              <LineChart margin={{ top: 12, right: 16, bottom: 4, left: 0 }} data={points} accessibilityLayer>
+                <XAxis
+                  dataKey="createdAt"
+                  tickFormatter={shortTime}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={6}
+                  interval={0}
+                  height={20}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={4}
+                  width="auto"
+                  domain={[0, "auto"]}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                />
+                <Tooltip
+                  cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: 4 }}
+                  content={<RunTooltip score={activeScore} />}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="hsl(var(--chart-1))"
+                  strokeWidth={2}
+                  connectNulls
+                  isAnimationActive={false}
+                  activeDot={false}
+                  dot={<RunDot onSelect={onSelectTrace} />}
+                />
+              </LineChart>
+            </ChartContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// recharts injects x/y/width/height/payload when it clones this as the Bar `shape`.
-function RunBar({
-  onSelect,
-  x = 0,
-  y = 0,
-  width = 0,
-  height = 0,
+// recharts injects cx/cy/payload when it clones this as the Line `dot`.
+function RunDot({
+  cx,
+  cy,
   payload,
+  onSelect,
 }: {
-  onSelect: (traceId: string) => void;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
+  cx?: number;
+  cy?: number;
   payload?: RunPoint;
+  onSelect: (traceId: string) => void;
 }) {
-  const isCurrent = !!payload?.isCurrent;
+  if (cx == null || cy == null || payload?.value == null) return null;
+  const isCurrent = !!payload.isCurrent;
   return (
-    <rect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      rx={2}
-      ry={2}
-      fill="hsl(var(--chart-1))"
-      fillOpacity={isCurrent ? 1 : 0.4}
-      stroke={isCurrent ? "hsl(var(--chart-1))" : "none"}
-      strokeWidth={isCurrent ? 1.5 : 0}
-      style={{ cursor: "pointer" }}
-      onClick={() => payload?.traceId && onSelect(payload.traceId)}
-    />
+    <g style={{ cursor: "pointer" }} onClick={() => payload.traceId && onSelect(payload.traceId)}>
+      {/* enlarged transparent hit target so the small dots are easy to click */}
+      <circle cx={cx} cy={cy} r={9} fill="transparent" />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={isCurrent ? 5 : 3.5}
+        fill={isCurrent ? "hsl(var(--chart-1))" : "hsl(var(--background))"}
+        stroke="hsl(var(--chart-1))"
+        strokeWidth={isCurrent ? 2 : 1.5}
+      />
+    </g>
   );
 }
 

@@ -224,6 +224,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 
   // Side-panel + selected-row state for trace view.
   const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
+  // Lives here (not in the chart) so it survives trace switches — the chart remounts
+  // on the side panel's key={traceId}, which would otherwise reset local state.
+  const [runsChartCollapsed, setRunsChartCollapsed] = useState(false);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
@@ -366,6 +369,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
               selectedScore={selectedScore}
               onSelectScore={setSelectedScore}
               onSelectTrace={handleTraceChange}
+              collapsed={runsChartCollapsed}
+              onToggleCollapse={() => setRunsChartCollapsed((v) => !v)}
             />
           )}
         </TraceViewSidePanel>
