@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, Cell, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Tooltip, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
@@ -147,24 +147,54 @@ export default function DatapointRunsChart({
                 tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               />
               <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.4)" }} content={<RunTooltip score={activeScore} />} />
-              <Bar dataKey="value" radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                {points.map((p) => (
-                  <Cell
-                    key={p.evaluationId}
-                    fill="hsl(var(--chart-1))"
-                    fillOpacity={p.isCurrent ? 1 : 0.4}
-                    stroke={p.isCurrent ? "hsl(var(--chart-1))" : undefined}
-                    strokeWidth={p.isCurrent ? 1.5 : 0}
-                    cursor="pointer"
-                    onClick={() => onSelectTrace(p.traceId)}
-                  />
-                ))}
-              </Bar>
+              {/* minPointSize keeps zero-score runs visible + clickable; shape replaces the
+                  deprecated <Cell> and carries the current-run highlight + click handler. */}
+              <Bar
+                dataKey="value"
+                minPointSize={6}
+                isAnimationActive={false}
+                shape={<RunBar onSelect={onSelectTrace} />}
+              />
             </BarChart>
           </ChartContainer>
         </div>
       </div>
     </div>
+  );
+}
+
+// recharts injects x/y/width/height/payload when it clones this as the Bar `shape`.
+function RunBar({
+  onSelect,
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  payload,
+}: {
+  onSelect: (traceId: string) => void;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: RunPoint;
+}) {
+  const isCurrent = !!payload?.isCurrent;
+  return (
+    <rect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      rx={2}
+      ry={2}
+      fill="hsl(var(--chart-1))"
+      fillOpacity={isCurrent ? 1 : 0.4}
+      stroke={isCurrent ? "hsl(var(--chart-1))" : "none"}
+      strokeWidth={isCurrent ? 1.5 : 0}
+      style={{ cursor: "pointer" }}
+      onClick={() => payload?.traceId && onSelect(payload.traceId)}
+    />
   );
 }
 
