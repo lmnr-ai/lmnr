@@ -48,6 +48,61 @@ use crate::{
 
 const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
+/// Billed bytes for one field (input or output) of one span. Input and output
+/// are accounted identically (both are excluded from
+/// `estimate_size_bytes_no_payload`, so the billing loop owns 100% of their
+/// charge):
+///   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted
+///     `shared_content` bytes (first referrer in batch pays the content).
+///   - non-recordable + producer stripped the field to `None`: bill from the
+///     wire dedup — 32B/hash + every trace-new content. Over-bills the
+///     trace-new-but-storage-hit subset (content already in `shared_content`
+///     from another trace) by its JSON size; acceptable, bounded by the trace's
+///     unique-message tail, and the only post-dedup analogue available without
+///     re-running `build_dedup_batch` for these spans.
+///   - everyone else (populated, non-array, or genuinely empty field): raw JSON
+///     size.
+fn field_bytes(
+    dedup_idx: Option<usize>,
+    wire_dedup: Option<&MessageDedup>,
+    batch: &DedupBatch,
+    raw: &Option<serde_json::Value>,
+) -> usize {
+    if let Some(idx) = dedup_idx {
+        let hashes = batch.span_hashes.get(idx).map(|h| h.len()).unwrap_or(0);
+        if hashes > 0 {
+            let content_bytes = batch.span_content_bytes.get(idx).copied().unwrap_or(0);
+            hashes * 32 + content_bytes
+        } else {
+            raw.as_ref().map_or(0, crate::utils::estimate_json_size)
+        }
+    } else if let Some(d) = wire_dedup {
+        d.hashes.len() * 32 + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
+    } else {
+        raw.as_ref().map_or(0, crate::utils::estimate_json_size)
+    }
+}
+
+/// Billed bytes for a span's tool definitions: 32B for the hash plus any
+/// newly-inserted `shared_content` (first referrer in batch pays the content).
+/// `should_keep_attribute` already strips the source `ai.prompt.tools` /
+/// `llm.request.functions.*` / `gen_ai.tool.definitions` keys out of
+/// `CHSpan.attributes`, so this isn't double-counted by
+/// `estimate_size_bytes_no_payload`. Recordable spans read the per-batch
+/// content size; non-recordable spans (producer stripped the field) bill from
+/// the wire dedup's own content. No tool dedup → 0.
+fn tool_bytes(
+    dedup_idx: Option<usize>,
+    tool_dedup: Option<&ToolDedup>,
+    tool_content_bytes: &[usize],
+) -> usize {
+    match (dedup_idx, tool_dedup) {
+        (Some(idx), Some(_)) => 32 + tool_content_bytes.get(idx).copied().unwrap_or(0),
+        (None, Some(td)) => 32 + td.content.as_ref().map(|c| c.len()).unwrap_or(0),
+        _ => 0,
+    }
+}
+
 #[instrument(skip(
     messages,
     db,
@@ -287,39 +342,6 @@ pub async fn process_span_messages(
         dedup_lookup.insert(span_idx, dedup_idx);
     }
 
-    // Billed bytes for one field (input or output) of one span. Input and
-    // output are accounted identically (both are excluded from
-    // `estimate_size_bytes_no_payload`, so this loop owns 100% of their charge):
-    //   - recordable + dedup'd (hashes > 0): 32B/hash + newly-inserted
-    //     `shared_content` bytes (first referrer in batch pays the content).
-    //   - non-recordable + producer stripped the field to `None`: bill from
-    //     the wire dedup — 32B/hash + every trace-new content. Over-bills the
-    //     trace-new-but-storage-hit subset (content already in `shared_content`
-    //     from another trace) by its JSON size; acceptable, bounded by the
-    //     trace's unique-message tail, and the only post-dedup analogue
-    //     available without re-running `build_dedup_batch` for these spans.
-    //   - everyone else (populated, non-array, or genuinely empty field):
-    //     raw JSON size.
-    let field_bytes = |dedup_idx: Option<usize>,
-                       wire_dedup: Option<&MessageDedup>,
-                       batch: &DedupBatch,
-                       raw: &Option<serde_json::Value>|
-     -> usize {
-        if let Some(idx) = dedup_idx {
-            let hashes = batch.span_hashes.get(idx).map(|h| h.len()).unwrap_or(0);
-            if hashes > 0 {
-                let content_bytes = batch.span_content_bytes.get(idx).copied().unwrap_or(0);
-                hashes * 32 + content_bytes
-            } else {
-                raw.as_ref().map_or(0, crate::utils::estimate_json_size)
-            }
-        } else if let Some(d) = wire_dedup {
-            d.hashes.len() * 32 + d.trace_new_contents.iter().map(|s| s.len()).sum::<usize>()
-        } else {
-            raw.as_ref().map_or(0, crate::utils::estimate_json_size)
-        }
-    };
-
     for (span_idx, span) in spans.iter_mut().enumerate() {
         let dedup_idx = dedup_lookup.get(&span_idx).copied();
         let mut added: usize = 0;
@@ -336,23 +358,11 @@ pub async fn process_span_messages(
             &output_batch,
             &span.output,
         );
-
-        // Tool-definition bytes. `should_keep_attribute` already filters the
-        // source `ai.prompt.tools` / `llm.request.functions.*` /
-        // `gen_ai.tool.definitions` keys out of `CHSpan.attributes`, so
-        // `estimate_size_bytes_no_payload` doesn't double-count them. Charge 32B for
-        // the hash plus any newly-inserted content (first referrer in batch).
-        if let Some(&dedup_idx) = dedup_lookup.get(&span_idx) {
-            if tool_dedups.get(span_idx).and_then(|d| d.as_ref()).is_some() {
-                let content_bytes = tool_content_bytes_per_recordable
-                    .get(dedup_idx)
-                    .copied()
-                    .unwrap_or(0);
-                added += 32 + content_bytes;
-            }
-        } else if let Some(td) = tool_dedups.get(span_idx).and_then(|d| d.as_ref()) {
-            added += 32 + td.content.as_ref().map(|c| c.len()).unwrap_or(0);
-        }
+        added += tool_bytes(
+            dedup_idx,
+            tool_dedups.get(span_idx).and_then(|d| d.as_ref()),
+            &tool_content_bytes_per_recordable,
+        );
 
         span.increment_size_bytes(added);
     }
