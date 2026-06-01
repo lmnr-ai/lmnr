@@ -132,8 +132,8 @@ fn build_where_clause(query: &QueryStructure) -> Result<Option<String>, String> 
         conditions.push(filter_sql(filter)?);
     }
 
-    if query.time_range.is_some() {
-        conditions.extend(get_time_range_conditions(query));
+    if let Some(time_range) = &query.time_range {
+        conditions.extend(get_time_range_conditions(query, time_range));
     }
 
     if conditions.is_empty() {
@@ -143,9 +143,8 @@ fn build_where_clause(query: &QueryStructure) -> Result<Option<String>, String> 
     }
 }
 
-fn get_time_range_conditions(query: &QueryStructure) -> Vec<String> {
+fn get_time_range_conditions(query: &QueryStructure, time_range: &TimeRange) -> Vec<String> {
     let mut conditions = Vec::new();
-    let time_range = query.time_range.as_ref().unwrap();
     let col = &time_range.column;
     let time_from = &time_range.from;
     let time_to = &time_range.to;
