@@ -2,11 +2,12 @@
 
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo } from "react";
-import { Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, ReferenceLine, Text, XAxis, YAxis } from "recharts";
 import useSWR from "swr";
 
+import { formatScoreValue } from "@/components/evaluation/utils.ts";
 import { Button } from "@/components/ui/button";
-import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvaluationDatapointComparisonRow } from "@/lib/actions/evaluation";
@@ -35,7 +36,6 @@ type RunPoint = {
   isCurrent: boolean;
 };
 
-const MIN_POINT_WIDTH = 72;
 const CHART_CONFIG: ChartConfig = { value: { color: "hsl(var(--chart-1))" } };
 
 const shortTime = (iso: string) => {
@@ -48,8 +48,6 @@ const shortTime = (iso: string) => {
     minute: "2-digit",
   }).format(d);
 };
-
-const formatScore = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(3));
 
 export default function DatapointRunsChart({
   projectId,
@@ -107,14 +105,14 @@ export default function DatapointRunsChart({
   // (only the current run has this datapoint), don't take up header space.
   if (error || points.length < 2) return null;
 
-  const minWidth = Math.max(points.length * MIN_POINT_WIDTH, 240);
+  const horizontalPadding = Math.max(6 - points.length, 0) * 80;
+  const currentRun = points.find((p) => p.isCurrent);
 
   return (
-    <div className={cn("flex-none border-b px-5", collapsed ? "py-2" : "py-4 space-y-2")}>
+    <div className={cn("flex flex-col border-b px-4 py-2")}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-secondary-foreground truncate">
-          Row #{index} across {points.length} runs
-          {!collapsed && " — click a point to open that run's trace"}
+          Comparing row #{index} across {points.length} runs
         </span>
         <div className="flex flex-none items-center gap-2">
           {!collapsed && scoreNames.length > 1 && (
@@ -144,20 +142,25 @@ export default function DatapointRunsChart({
           )}
         </div>
       </div>
-      {!collapsed && (
-        <div className="h-[120px] overflow-x-auto overflow-y-hidden">
-          <div className="h-full" style={{ minWidth }}>
+      <div
+        className={cn(
+          "grid transition-all duration-300 ease-in-out",
+          collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="h-44 pt-2">
             <ChartContainer config={CHART_CONFIG} className="aspect-auto h-full w-full">
               <LineChart margin={{ top: 12, right: 16, bottom: 4, left: 8 }} data={points} accessibilityLayer>
                 <XAxis
                   dataKey="createdAt"
-                  tickFormatter={shortTime}
                   tickLine={false}
                   axisLine={false}
                   tickMargin={6}
                   interval={0}
-                  height={20}
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  height={40}
+                  padding={{ left: horizontalPadding, right: horizontalPadding }}
+                  tick={<RunXAxisTick points={points} />}
                 />
                 <YAxis
                   tickLine={false}
@@ -165,12 +168,50 @@ export default function DatapointRunsChart({
                   tickMargin={4}
                   width="auto"
                   domain={[0, "auto"]}
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />
-                <Tooltip
+                <CartesianGrid strokeDasharray="5 5 1 5" horizontal={false} syncWithTicks />
+                {currentRun && (
+                  <ReferenceLine
+                    x={currentRun.createdAt}
+                    stroke="hsl(var(--chart-1))"
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.5}
+                  />
+                )}
+                <ChartTooltip
                   cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: 4 }}
-                  content={<RunTooltip score={activeScore} />}
-                />
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(_value, payload) => {
+                        const p = payload?.[0]?.payload as RunPoint | undefined;
+                        if (!p) return null;
+                        return (
+                          <div className="truncate max-w-60">
+                            <div className="font-medium">{p.name}</div>
+                            <div className="font-normal text-muted-foreground">
+                              {p.createdAt ? formatTimestamp(p.createdAt) : "—"}
+                            </div>
+                          </div>
+                        );
+                      }}
+                      formatter={(value) => (
+                        <>
+                          <div
+                            className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                            style={{ background: "hsl(var(--chart-1))" }}
+                          />
+                          <div className="flex flex-1 items-center justify-between leading-none">
+                            <span className="text-muted-foreground">{activeScore ?? "score"}</span>
+                            <span className="ml-2 font-mono font-medium tabular-nums text-foreground">
+                              {value == null ? "—" : formatScoreValue(value as number)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    />
+                  }
+                />{" "}
                 <Line
                   type="monotone"
                   dataKey="value"
@@ -185,8 +226,59 @@ export default function DatapointRunsChart({
             </ChartContainer>
           </div>
         </div>
-      )}
+      </div>
     </div>
+  );
+}
+
+function RunXAxisTick({
+  x,
+  y,
+  payload,
+  index,
+  points,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+  index?: number;
+  points: RunPoint[];
+}) {
+  const name = index != null ? points[index]?.name : undefined;
+  const hasName = !!name && name !== "—";
+  const isCurrent = index != null ? !!points[index]?.isCurrent : false;
+  const nameWidth = Math.min(Math.max(900 / points.length, 56), 110);
+  return (
+    <g transform={`translate(${x ?? 0},${y ?? 0})`}>
+      {hasName && (
+        <Text
+          x={0}
+          y={0}
+          dy={4}
+          width={nameWidth}
+          className="truncate"
+          maxLines={1}
+          breakAll
+          textAnchor="middle"
+          verticalAnchor="start"
+          fill={isCurrent ? "hsl(var(--foreground))" : "hsl(var(--secondary-foreground))"}
+          style={{ fontSize: 12, fontWeight: isCurrent ? 600 : 400 }}
+        >
+          {name}
+        </Text>
+      )}
+      <Text
+        x={0}
+        y={0}
+        dy={hasName ? 20 : 4}
+        textAnchor="middle"
+        verticalAnchor="start"
+        fill={isCurrent ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))"}
+        style={{ fontSize: 11, fontWeight: isCurrent ? 500 : 400 }}
+      >
+        {payload?.value ? shortTime(payload.value) : ""}
+      </Text>
+    </g>
   );
 }
 
@@ -211,39 +303,12 @@ function RunDot({
       <circle
         cx={cx}
         cy={cy}
-        r={isCurrent ? 5 : 3.5}
+        r={isCurrent ? 4 : 3}
         fill={isCurrent ? "hsl(var(--chart-1))" : "hsl(var(--background))"}
         stroke="hsl(var(--chart-1))"
         strokeWidth={isCurrent ? 2 : 1.5}
+        strokeOpacity={isCurrent ? 1 : 0.6}
       />
     </g>
-  );
-}
-
-function RunTooltip({
-  active,
-  payload,
-  score,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload?: RunPoint }>;
-  score?: string;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  const point = payload[0]?.payload;
-  if (!point) return null;
-  return (
-    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
-      <div className="font-medium mb-1 truncate max-w-60">
-        {point.name}
-        {point.isCurrent && <span className="ml-1 text-muted-foreground">(current)</span>}
-      </div>
-      <div className="text-muted-foreground">{point.createdAt ? formatTimestamp(point.createdAt) : "—"}</div>
-      <div className="mt-1 flex items-center gap-2">
-        <span className="size-2 rounded-sm shrink-0" style={{ background: "hsl(var(--chart-1))" }} />
-        <span className="text-muted-foreground">{score ?? "score"}</span>
-        <span className="ml-auto font-mono">{point.value === null ? "—" : formatScore(point.value)}</span>
-      </div>
-    </div>
   );
 }

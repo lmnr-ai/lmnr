@@ -1,7 +1,8 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -113,13 +114,12 @@ export default function Evaluations() {
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
+  const [groupId] = useQueryState("groupId", parseAsString);
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
   );
-  const groupId = searchParams.get("groupId");
   const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
   const search = effective.search.length > 0 ? effective.search : null;
 
@@ -226,7 +226,7 @@ function EvaluationsContent() {
         <EvaluationsGroupsBar />
         <div className="flex flex-col w-full gap-2 overflow-hidden">
           <div className="flex gap-4 items-center">
-            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
+            <div className="font-medium text-lg">{groupId}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}
