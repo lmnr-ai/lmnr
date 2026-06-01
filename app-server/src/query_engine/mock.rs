@@ -1,4 +1,4 @@
-use super::query_engine::QueryStructure;
+use super::in_process::types::QueryStructure;
 use super::{QueryEngineTrait, QueryEngineValidationResult};
 use anyhow::Result;
 use uuid::Uuid;

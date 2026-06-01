@@ -39,10 +39,7 @@ use notifications::{
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
-use query_engine::{
-    QueryEngine, query_engine::query_engine_service_client::QueryEngineServiceClient,
-    query_engine_impl::QueryEngineImpl,
-};
+use query_engine::{QueryEngine, in_process::InProcessQueryEngine};
 use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_ROUTING_KEY};
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 #[cfg(feature = "signals")]
@@ -781,22 +778,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Query engine ==
-    let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
-        let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
-        runtime_handle.block_on(async {
-            let query_engine_grpc_client = Arc::new(
-                QueryEngineServiceClient::connect(query_engine_url)
-                    .await
-                    .map_err(tonic_error_to_io_error)?,
-            );
-            Ok::<_, io::Error>(Arc::new(
-                QueryEngineImpl::new(query_engine_grpc_client).into(),
-            ))
-        })?
-    } else {
-        log::info!("Using mock query engine");
-        Arc::new(query_engine::mock::MockQueryEngine {}.into())
-    };
+    let query_engine: Arc<QueryEngine> = Arc::new(InProcessQueryEngine::new().into());
 
     // == Clickhouse ==
     let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
