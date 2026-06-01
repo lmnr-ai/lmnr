@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useMemo } from "react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, type TooltipProps, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, Tooltip, type TooltipProps, XAxis, YAxis } from "recharts";
 import { type NameType, type ValueType } from "recharts/types/component/DefaultTooltipContent";
 
 import { cn } from "@/lib/utils";
@@ -124,9 +124,6 @@ export default function CombinedChart({
           tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
         />
         <Tooltip cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }} content={renderTooltip} />
-        {hoveredEvaluationId && (
-          <ReferenceLine x={hoveredEvaluationId} stroke="hsl(var(--muted-foreground))" ifOverflow="extendDomain" />
-        )}
         {visible.map((score) => (
           <Line
             key={score}
