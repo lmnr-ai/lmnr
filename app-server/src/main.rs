@@ -1650,7 +1650,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::rollouts::stream)
+                                    .service(api::v1::rollouts::register)
                                     .service(api::v1::rollouts::update_status)
                                     .service(api::v1::rollouts::send_span_update)
                                     .service(api::v1::rollouts::delete),

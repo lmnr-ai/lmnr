@@ -14,7 +14,7 @@ use crate::{
         spans::SpanType,
     },
     pubsub::PubSub,
-    realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
+    realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
 };
 
@@ -42,18 +42,29 @@ pub struct UpdateStatusRequest {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct StreamRequest {
+#[serde(rename_all = "camelCase")]
+pub struct RegisterRequest {
+    #[serde(default)]
     pub params: Vec<InputParam>,
+    #[serde(default)]
     pub name: Option<String>,
 }
 
+// project_id is derived server-side from the API key; the SDK needs it to build
+// the debugger URL `<frontend>/project/<project_id>/debugger-sessions/<session_id>`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterResponse {
+    pub session_id: Uuid,
+    pub project_id: Uuid,
+}
+
 #[post("rollouts/{session_id}")]
-pub async fn stream(
+pub async fn register(
     path: web::Path<Uuid>,
     project_api_key: ProjectApiKey,
-    body: web::Json<StreamRequest>,
+    body: web::Json<RegisterRequest>,
     db: web::Data<DB>,
-    connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
@@ -64,26 +75,10 @@ pub async fn stream(
     let name = request_body.name;
     create_or_update_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
 
-    // Prepare handshake message
-    let handshake = SseMessage {
-        event_type: "handshake".to_string(),
-        data: serde_json::json!({
-            "session_id": session_id,
-            "project_id": project_id,
-        }),
-    };
-
-    // Start stream with initial handshake
-    let key = format!("rollout_sdk_{}", session_id);
-    let sse_response = create_sse_response(
+    Ok(HttpResponse::Ok().json(RegisterResponse {
+        session_id,
         project_id,
-        key.clone(),
-        connections.get_ref().clone(),
-        Some(handshake),
-    )
-    .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-    Ok(sse_response)
+    }))
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
