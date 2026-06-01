@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
+import useSWR from "swr";
 
 import { type MessageLabel } from "@/components/traces/span-view/messages";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -6,7 +7,9 @@ import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseOpenAIOutput } from "@/lib/spans/types/openai";
 import { type Span } from "@/lib/traces/types";
+import { swrFetcher } from "@/lib/utils.ts";
 
 const normalize = (data: unknown): unknown => {
   if (typeof data === "string") {
@@ -27,41 +30,26 @@ const extractPayloadUrl = (data: unknown): string | null => {
   return null;
 };
 
-const fetchPayload = async (raw: unknown): Promise<unknown> => {
-  const url = extractPayloadUrl(raw);
-  if (!url) return raw;
-  const fullUrl = url.startsWith("/") ? `${url}?payloadType=raw` : url;
-  const response = await fetch(fullUrl);
-  return response.json();
-};
-
 const PureSpanOverview = ({ span }: { span: Span }) => {
   const { toast } = useToast();
 
-  const [inputData, setInputData] = useState<unknown>(span.input);
-  const [outputData, setOutputData] = useState<unknown>(span.output);
-  const [isLoading, setIsLoading] = useState(false);
+  const inputUrl = extractPayloadUrl(span.input);
+  const outputUrl = extractPayloadUrl(span.output);
+  const toFull = (u: string | null) => (u ? (u.startsWith("/") ? `${u}?payloadType=raw` : u) : null);
+  const onError = () => toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
 
-  const loadData = useCallback(async () => {
-    const hasInputUrl = extractPayloadUrl(span.input);
-    const hasOutputUrl = extractPayloadUrl(span.output);
-    if (!hasInputUrl && !hasOutputUrl) return;
+  const { data: fetchedInput, isLoading: loadingInput } = useSWR(toFull(inputUrl), swrFetcher, {
+    revalidateOnFocus: false,
+    onError,
+  });
+  const { data: fetchedOutput, isLoading: loadingOutput } = useSWR(toFull(outputUrl), swrFetcher, {
+    revalidateOnFocus: false,
+    onError,
+  });
 
-    try {
-      setIsLoading(true);
-      const [input, output] = await Promise.all([fetchPayload(span.input), fetchPayload(span.output)]);
-      if (hasInputUrl) setInputData(input);
-      if (hasOutputUrl) setOutputData(output);
-    } catch {
-      toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [span.input, span.output, toast]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const inputData = inputUrl ? fetchedInput : span.input;
+  const outputData = outputUrl ? fetchedOutput : span.output;
+  const isLoading = (!!inputUrl && loadingInput) || (!!outputUrl && loadingOutput);
 
   // Overview = last 2 input messages stitched with the output, rendered through
   // the same ContentRenderer the I/O tabs use so users get the mode toggle
@@ -70,7 +58,8 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
     const input = normalize(inputData);
     const output = normalize(outputData);
     const inputArray = Array.isArray(input) ? input.slice(-2) : [];
-    const outputTail = output == null ? [] : Array.isArray(output) ? output : [output];
+    const openAIOutput = parseOpenAIOutput(output);
+    const outputTail = openAIOutput ?? (output == null ? [] : Array.isArray(output) ? output : [output]);
     const labels: MessageLabel[] = [];
     if (inputArray.length > 0) {
       labels.push({
