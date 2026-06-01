@@ -140,7 +140,7 @@ export default function CombinedChart({
             activeDot={{ r: 4 }}
             isAnimationActive={false}
             connectNulls
-            type="monotone"
+            type="linear"
           />
         ))}
       </LineChart>

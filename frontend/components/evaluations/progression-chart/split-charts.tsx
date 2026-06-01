@@ -24,7 +24,7 @@ interface ScoreRow {
   value: number | null;
 }
 
-const COMBINED_WIDTH = 400;
+const COMBINED_WIDTH = 540;
 const COLUMN_WIDTH = 300;
 const CARDS_PER_COLUMN = 2;
 const GAP = 12;
