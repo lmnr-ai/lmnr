@@ -60,7 +60,10 @@ export default function CombinedChart({
       };
     }
 
-    const rows: Row[] = data.map((point) => {
+    // Sort chronologically — line segments cross over themselves otherwise.
+    const sorted = data.slice().sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+    const rows: Row[] = sorted.map((point) => {
       const raw: Record<string, number | null> = {};
       const row: Row = {
         evaluationId: point.evaluationId,
@@ -122,7 +125,7 @@ export default function CombinedChart({
         />
         <Tooltip cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }} content={renderTooltip} />
         {hoveredEvaluationId && (
-          <ReferenceLine x={hoveredEvaluationId} stroke="hsl(var(--primary))" ifOverflow="extendDomain" />
+          <ReferenceLine x={hoveredEvaluationId} stroke="hsl(var(--muted-foreground))" ifOverflow="extendDomain" />
         )}
         {visible.map((score) => (
           <Line
@@ -131,11 +134,22 @@ export default function CombinedChart({
             name={score}
             stroke={chartConfig[score]?.color}
             strokeWidth={1.5}
+            strokeOpacity={hoveredEvaluationId ? 0.6 : 1}
             dot={(props: { cx?: number; cy?: number; payload?: Row; key?: string | number }) => {
               const { cx, cy, payload, key } = props;
-              const r = payload?.evaluationId === hoveredEvaluationId ? 5 : 2;
+              const isHovered = payload?.evaluationId === hoveredEvaluationId;
+              const r = isHovered ? 5 : 2;
+              const opacity = hoveredEvaluationId ? (isHovered ? 1 : 0.6) : 1;
               return (
-                <circle key={key} cx={cx} cy={cy} r={r} fill={chartConfig[score]?.color} stroke="none" />
+                <circle
+                  key={key}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill={chartConfig[score]?.color}
+                  fillOpacity={opacity}
+                  stroke="none"
+                />
               );
             }}
             activeDot={{ r: 4 }}
