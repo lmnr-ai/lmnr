@@ -306,14 +306,6 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   return results[0][col.id] ?? null;
 };
 
-/**
- * Fetch the scores JSON for a single datapoint index across a set of evaluations.
- * Used by the datapoint-comparison overview: pivot a single datapoint position
- * across every run in its group.
- *
- * Returns one row per (evaluationId, index) found — evaluations that don't
- * contain this index are simply omitted.
- */
 export const GetEvaluationDatapointComparisonSchema = z.object({
   projectId: z.guid(),
   evaluationIds: z.array(z.guid()).min(1),
@@ -348,13 +340,13 @@ export const getEvaluationDatapointComparison = async (
   // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
   // `scores` may come back as a string or an object depending on the driver.
   const rows = await executeQuery<{
-    eval_id: string;
+    evaluationId: string;
     idx: number | string;
     scores: string | Record<string, unknown>;
-    tid: string;
+    traceId: string;
   }>({
     query: `
-      SELECT toString(evaluation_id) AS eval_id, \`index\` AS idx, scores, toString(trace_id) AS tid
+      SELECT evaluation_id AS evaluationId, \`index\` AS idx, scores, trace_id AS traceId
       FROM evaluation_datapoints
       WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
         AND \`index\` = ${index}
@@ -382,7 +374,7 @@ export const getEvaluationDatapointComparison = async (
           )
         )
       : {};
-    return { evaluationId: r.eval_id, index: Number(r.idx), scores, traceId: r.tid };
+    return { evaluationId: r.evaluationId, index: Number(r.idx), scores, traceId: r.traceId };
   });
 };
 
