@@ -166,7 +166,7 @@ export default function ProgressionChart({
         {variant === "grouped" ? (
           <GroupedBarChart data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
         ) : variant === "combined" ? (
-          <div className="flex h-full w-full gap-3 min-w-0">
+          <div className="flex h-full w-full gap-3 min-w-0 rounded-[4px] border border-border bg-secondary px-4 py-3">
             <CombinedLegend
               scores={scoreKeys}
               visibleScores={scores}

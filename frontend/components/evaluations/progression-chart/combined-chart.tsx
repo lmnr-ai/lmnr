@@ -122,12 +122,7 @@ export default function CombinedChart({
         />
         <Tooltip cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }} content={renderTooltip} />
         {hoveredEvaluationId && (
-          <ReferenceLine
-            x={hoveredEvaluationId}
-            stroke="hsl(var(--muted-foreground))"
-            strokeDasharray="3 3"
-            ifOverflow="extendDomain"
-          />
+          <ReferenceLine x={hoveredEvaluationId} stroke="hsl(var(--primary))" ifOverflow="extendDomain" />
         )}
         {visible.map((score) => (
           <Line
@@ -136,7 +131,13 @@ export default function CombinedChart({
             name={score}
             stroke={chartConfig[score]?.color}
             strokeWidth={1.5}
-            dot={{ r: 2 }}
+            dot={(props: { cx?: number; cy?: number; payload?: Row; key?: string | number }) => {
+              const { cx, cy, payload, key } = props;
+              const r = payload?.evaluationId === hoveredEvaluationId ? 5 : 2;
+              return (
+                <circle key={key} cx={cx} cy={cy} r={r} fill={chartConfig[score]?.color} stroke="none" />
+              );
+            }}
             activeDot={{ r: 4 }}
             isAnimationActive={false}
             connectNulls
