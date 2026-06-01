@@ -495,7 +495,9 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Verify function metadata is PRESERVED
+        // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
+        // producer extraction) still render tools. New-path stripping is
+        // covered by `traces::tool_dedup` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))
