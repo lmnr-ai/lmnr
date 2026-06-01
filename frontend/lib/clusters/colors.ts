@@ -4,8 +4,7 @@
 
 // 100 colors sampled at equal intervals from a piecewise-linear curve through
 // the original 17-color signal palette in HSL space (treated as a closed loop
-// from red → ... → rose → red). Generated once via /tmp/gen-100-palette.mjs;
-// edit by re-running the generator, not by hand.
+// from red → ... → rose → red).
 export const CLUSTER_COLOR_PALETTE = [
   "#ef4444",
   "#f0493c",
