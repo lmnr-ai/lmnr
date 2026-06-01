@@ -14,6 +14,7 @@ interface SplitChartsProps {
   visibleScores: string[];
   chartConfig: ChartConfig;
   hoveredEvaluationId?: string;
+  onToggleScore?: (score: string) => void;
 }
 
 interface ScoreRow {
@@ -35,14 +36,13 @@ export default function SplitCharts({
   visibleScores,
   chartConfig,
   hoveredEvaluationId,
+  onToggleScore,
 }: SplitChartsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const visible = scores.filter((s) => visibleScores.includes(s));
-  if (visible.length === 0) {
+  if (scores.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Select a score to display
-      </div>
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">No score data</div>
     );
   }
 
@@ -67,6 +67,7 @@ export default function SplitCharts({
                 scores={scores}
                 visibleScores={visibleScores}
                 chartConfig={chartConfig}
+                onToggle={onToggleScore}
                 className="w-24 shrink-0 overflow-y-auto"
               />
               <div className="min-w-0 flex-1">

@@ -191,6 +191,7 @@ export default function ProgressionChart({
             visibleScores={scores}
             chartConfig={chartConfig}
             hoveredEvaluationId={hoveredEvaluationId}
+            onToggleScore={toggleScore}
           />
         )}
       </div>
