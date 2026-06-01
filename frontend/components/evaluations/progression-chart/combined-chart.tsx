@@ -42,7 +42,7 @@ export default function CombinedChart({
   fillParent = false,
   showXAxisLabels = true,
 }: CombinedChartProps) {
-  const { rows, ranges } = useMemo(() => {
+  const { rows, ranks } = useMemo(() => {
     const ranges: Record<string, { min: number; max: number }> = {};
     for (const score of scores) {
       let min = Infinity;
@@ -89,14 +89,29 @@ export default function CombinedChart({
       return row;
     });
 
-    return { rows, ranges };
+    // Per-score ranks: how each eval's value places vs the others (1 = best).
+    const ranks: Record<string, Record<string, { position: number; total: number }>> = {};
+    for (const score of scores) {
+      const ranked = rows
+        .map((r) => ({ evaluationId: r.evaluationId, raw: r.__raw[score] }))
+        .filter((e): e is { evaluationId: string; raw: number } => e.raw !== null && e.raw !== undefined)
+        .sort((a, b) => b.raw - a.raw);
+      const total = ranked.length;
+      const scoreRanks: Record<string, { position: number; total: number }> = {};
+      ranked.forEach((entry, idx) => {
+        scoreRanks[entry.evaluationId] = { position: idx + 1, total };
+      });
+      ranks[score] = scoreRanks;
+    }
+
+    return { rows, ranks };
   }, [data, scores]);
 
   const visible = scores.filter((s) => visibleScores.includes(s));
   const minWidth = fillParent ? undefined : Math.max(rows.length * MIN_POINT_WIDTH, 320);
 
   const renderTooltip = (props: TooltipProps<ValueType, NameType>): ReactNode => (
-    <NormalizedTooltip {...props} ranges={ranges} chartConfig={chartConfig} />
+    <NormalizedTooltip {...props} ranks={ranks} chartConfig={chartConfig} />
   );
 
   const chart = (
@@ -113,16 +128,7 @@ export default function CombinedChart({
           tick={showXAxisLabels ? { fontSize: 11, fill: "hsl(var(--muted-foreground))" } : false}
           tickFormatter={(id: string) => rows.find((r) => r.evaluationId === id)?.name ?? ""}
         />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={6}
-          ticks={[0, 0.5, 1]}
-          domain={[0, 1]}
-          tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`}
-          width={36}
-          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-        />
+        <YAxis hide domain={[0, 1]} />
         <Tooltip cursor={{ stroke: "hsl(var(--muted-foreground))", strokeOpacity: 0.4 }} content={renderTooltip} />
         {visible.map((score) => (
           <Line
@@ -175,10 +181,10 @@ export default function CombinedChart({
 function NormalizedTooltip({
   active,
   payload,
-  ranges,
+  ranks,
   chartConfig,
 }: TooltipProps<ValueType, NameType> & {
-  ranges: Record<string, { min: number; max: number }>;
+  ranks: Record<string, Record<string, { position: number; total: number }>>;
   chartConfig: ChartConfig;
 }) {
   if (!active || !payload || payload.length === 0) return null;
@@ -191,16 +197,16 @@ function NormalizedTooltip({
         {payload.map((entry) => {
           const score = String(entry.name ?? "");
           const raw = row.__raw[score];
-          const range = ranges[score];
+          const rank = ranks[score]?.[row.evaluationId];
           const color = chartConfig[score]?.color;
           return (
             <div key={score} className="flex items-center gap-2">
               <span className="size-2 rounded-sm shrink-0" style={{ background: color }} />
               <span className="text-muted-foreground">{score}</span>
               <span className="ml-auto font-mono">{raw === null || raw === undefined ? "—" : formatNumber(raw)}</span>
-              {range && (
-                <span className="text-muted-foreground/60 font-mono">
-                  [{formatNumber(range.min)} – {formatNumber(range.max)}]
+              {rank && (
+                <span className="text-muted-foreground/60 font-mono tabular-nums">
+                  Rank {rank.position}/{rank.total}
                 </span>
               )}
             </div>
