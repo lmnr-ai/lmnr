@@ -324,6 +324,27 @@ fn test_metric_without_alias_uses_fn_column_pattern() {
 }
 
 #[test]
+fn test_string_filter_value_escapes_single_quotes() {
+    let q = QueryStructure {
+        table: "spans".to_string(),
+        metrics: vec![metric("count", "*", Some("value"))],
+        dimensions: vec![],
+        filters: vec![sfilter("name", "eq", "O'Brien")],
+        time_range: None,
+        order_by: vec![],
+        limit: None,
+    };
+
+    let sql = convert(&q);
+    assert!(contains_ws(&sql, "name = 'O''Brien'"), "got: {sql}");
+
+    // The escaped SQL must parse back cleanly (no spurious quote breaking the literal).
+    use sqlparser::dialect::ClickHouseDialect;
+    use sqlparser::parser::Parser;
+    Parser::parse_sql(&ClickHouseDialect {}, &sql).expect("escaped SQL should parse");
+}
+
+#[test]
 fn test_empty_query_validation() {
     let q = QueryStructure {
         table: "spans".to_string(),

@@ -50,7 +50,7 @@ fn format_filter_value(value: &FilterValue) -> String {
             if is_placeholder(s) {
                 s.clone()
             } else {
-                format!("'{s}'")
+                format!("'{}'", s.replace('\'', "''"))
             }
         }
     }
