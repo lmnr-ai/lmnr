@@ -17,8 +17,8 @@ use crate::{
 };
 
 #[derive(serde::Deserialize)]
-pub struct UpdateStatusRequest {
-    pub status: RolloutSessionStatus,
+struct UpdateStatusRequest {
+    status: RolloutSessionStatus,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -51,9 +51,8 @@ pub async fn register_session(
 }
 
 /// Persist a session status change and notify the live trace view so the human
-/// sees status transitions. Shared by the SDK-facing and frontend-facing status
-/// endpoints so the two can't diverge.
-pub async fn update_status_and_broadcast(
+/// sees status transitions.
+async fn update_status_and_broadcast(
     db: &DB,
     pubsub: &PubSub,
     project_id: &Uuid,

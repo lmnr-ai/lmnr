@@ -15,6 +15,10 @@ This is a multi-service monorepo with three main components:
 - **query-engine/** - Python gRPC service for SQL query processing
 - **pii-redactor/** - optional Rust gRPC service that runs a HuggingFace token-classification PII model on CPU via ONNX Runtime. Standalone — not linked from app-server. Tested with the OpenAI privacy filter (BIOES) and Piiranha (BIO); accepts either scheme via `config.json` `id2label`. See `pii-redactor/README.md` for the gRPC contract, model layout (`model.onnx` + optional `model.onnx_data*` external-data shards + `tokenizer.json` + `config.json`), and the weight-baking Dockerfile.
 
+### app-server route modules
+
+- `app-server/src/api/v1/` holds SDK-facing routes (authenticated by `ProjectApiKey`); `app-server/src/routes/` holds the UI-facing "private" routes (authenticated by Next.js middleware). When a handler's logic must be shared between the two, do NOT cross-import one route module from the other — extract the shared functions into their own feature module (e.g. `app-server/src/rollout`) and have both route modules call into it. Keeping the shared logic in a dedicated module avoids "shared by ..." comments and keeps the call graph between the two route trees explicit.
+
 ## Development Commands
 
 ### Frontend (Next.js)
