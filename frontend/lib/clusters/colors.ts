@@ -112,8 +112,12 @@ export const CLUSTER_COLOR_PALETTE = [
 // Fallback for the synthetic "Unclustered" bucket in the cluster list.
 export const UNCLUSTERED_COLOR = "var(--color-primary)";
 
+// Bump to shift every cluster's color into a different palette slot.
+// Stays under FNV's seed (a u32) so the hash domain doesn't degenerate.
+const HASH_SALT = "v4";
+
 // FNV-1a. Stable across machines so the same cluster id always lands on the
-// same palette index.
+// same palette index (for a given HASH_SALT).
 function hashSeed(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
@@ -125,7 +129,7 @@ function hashSeed(seed: string): number {
 
 export function getClusterColorById(id: string | null | undefined): string {
   if (!id) return CLUSTER_COLOR_PALETTE[0];
-  return CLUSTER_COLOR_PALETTE[hashSeed(id) % CLUSTER_COLOR_PALETTE.length];
+  return CLUSTER_COLOR_PALETTE[hashSeed(HASH_SALT + id) % CLUSTER_COLOR_PALETTE.length];
 }
 
 export function withOpacity(color: string, opacity: number): string {
