@@ -619,8 +619,11 @@ impl VisitorMut for ViewRewriter<'_> {
             let mut fn_args = vec![named_arg("project_id", string_expr(self.project_id))];
 
             if table_name == "traces" {
-                let (start_time, end_time) =
-                    extract_time_filters_for_traces(self.where_stack.last().and_then(|w| w.as_ref()));
+                let table_alias = alias.as_ref().map(|a| a.name.value.to_lowercase());
+                let (start_time, end_time) = extract_time_filters_for_traces(
+                    self.where_stack.last().and_then(|w| w.as_ref()),
+                    table_alias.as_deref(),
+                );
                 fn_args.push(named_arg("start_time", start_time));
                 fn_args.push(named_arg("end_time", end_time));
             }
@@ -658,15 +661,30 @@ fn string_expr(value: &str) -> Expr {
 
 /// Extract start_time / end_time bounds for the traces view function from a
 /// WHERE expression. Defaults to the unix epoch / far future when absent.
-fn extract_time_filters_for_traces(where_expr: Option<&Expr>) -> (Expr, Expr) {
+/// `table_alias` is the alias the query gave the traces table (if any), so
+/// predicates qualified by the alias (`FROM traces t WHERE t.start_time >= …`)
+/// are still picked up rather than dropped to the epoch-wide default.
+fn extract_time_filters_for_traces(
+    where_expr: Option<&Expr>,
+    table_alias: Option<&str>,
+) -> (Expr, Expr) {
     let mut start_time = string_expr(DEFAULT_START_TIME);
     let mut end_time = string_expr(DEFAULT_END_TIME);
 
     if let Some(expr) = where_expr {
-        walk_time_filters(expr, &mut start_time, &mut end_time);
+        walk_time_filters(expr, table_alias, &mut start_time, &mut end_time);
     }
 
     (start_time, end_time)
+}
+
+/// Whether a column qualifier refers to the traces table being rewritten:
+/// unqualified, the literal table name `traces`, or the query's alias for it.
+fn qualifier_matches_traces(qualifier: Option<&str>, table_alias: Option<&str>) -> bool {
+    match qualifier {
+        None => true,
+        Some(q) => q == "traces" || table_alias == Some(q),
+    }
 }
 
 /// Returns `(qualifier, column_name_lower)` for an identifier/compound column.
@@ -686,19 +704,24 @@ fn column_ref(expr: &Expr) -> Option<(Option<String>, String)> {
     }
 }
 
-fn walk_time_filters(expr: &Expr, start_time: &mut Expr, end_time: &mut Expr) {
+fn walk_time_filters(
+    expr: &Expr,
+    table_alias: Option<&str>,
+    start_time: &mut Expr,
+    end_time: &mut Expr,
+) {
     use sqlparser::ast::BinaryOperator as Op;
 
     match expr {
-        Expr::Nested(inner) => walk_time_filters(inner, start_time, end_time),
+        Expr::Nested(inner) => walk_time_filters(inner, table_alias, start_time, end_time),
         Expr::BinaryOp { left, op, right } => match op {
             Op::And | Op::Or => {
-                walk_time_filters(left, start_time, end_time);
-                walk_time_filters(right, start_time, end_time);
+                walk_time_filters(left, table_alias, start_time, end_time);
+                walk_time_filters(right, table_alias, start_time, end_time);
             }
             Op::Gt | Op::GtEq | Op::Lt | Op::LtEq | Op::Eq => {
                 if let Some((qualifier, column)) = column_ref(left) {
-                    if matches!(qualifier.as_deref(), Some(q) if q != "traces") {
+                    if !qualifier_matches_traces(qualifier.as_deref(), table_alias) {
                         return;
                     }
                     if column == "start_time" {
@@ -723,7 +746,7 @@ fn walk_time_filters(expr: &Expr, start_time: &mut Expr, end_time: &mut Expr) {
             high,
         } => {
             if let Some((qualifier, column)) = column_ref(inner) {
-                if matches!(qualifier.as_deref(), Some(q) if q != "traces") {
+                if !qualifier_matches_traces(qualifier.as_deref(), table_alias) {
                     return;
                 }
                 if column == "start_time" {

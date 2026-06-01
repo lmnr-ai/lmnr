@@ -167,6 +167,24 @@ fn test_traces_with_partial_time_filters() {
 }
 
 #[test]
+fn test_traces_with_aliased_time_filters() {
+    // Predicates qualified by the table's alias must still drive the view's
+    // start_time / end_time bounds, not fall through to the epoch-wide default.
+    let result = validate_ok(
+        "SELECT t.trace_id FROM traces t WHERE t.start_time >= '2024-01-01' AND t.end_time <= '2024-01-02'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS t"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
 fn test_reject_write_operations() {
     // Write operations sqlparser parses as a non-Query statement: rejected by
     // the SELECT-only security gate with the canonical message.
