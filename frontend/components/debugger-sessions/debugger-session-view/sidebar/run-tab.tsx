@@ -2,7 +2,7 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { CirclePlay, Loader, Loader2, MessageSquare, Square } from "lucide-react";
+import { CirclePlay, Loader2, MessageSquare } from "lucide-react";
 import React, { useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
@@ -16,12 +16,11 @@ import SystemMessageEditor from "./system-message-editor";
 
 interface ConfigTabProps {
   onRun: () => void;
-  onCancel: () => void;
   isLoading?: boolean;
   isActive?: boolean;
 }
 
-export default function RunTab({ onRun, onCancel, isLoading, isActive }: ConfigTabProps) {
+export default function RunTab({ onRun, isLoading, isActive }: ConfigTabProps) {
   const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue, error, sessionStatus } =
     useDebuggerSessionStore((state) => ({
       systemMessagesMap: state.systemMessagesMap,
@@ -120,42 +119,25 @@ export default function RunTab({ onRun, onCancel, isLoading, isActive }: ConfigT
       <div className="flex items-center gap-2 border-t px-4 pt-4 pb-4">
         {error && <span className="text-sm font-semibold text-destructive">{error}</span>}
         <div className="flex ml-auto">
-          {isRunning ? (
-            <Button variant="destructive" onClick={onCancel} disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 size={14} className="mr-1.5 animate-spin" />
-                  Stopping...
-                </>
-              ) : (
-                <>
-                  <Square size={14} className="mr-1.5" />
-                  <span className="mr-1.5">Stop</span>
-                  <Loader className="animate-spin w-4 h-4" />
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button onClick={onRun} disabled={isLoading || isRunning}>
-              {isLoading ? (
-                <>
-                  <Loader2 size={14} className="mr-1.5 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <CirclePlay size={14} className="mr-1.5" />
-                  <span className="mr-1.5">Run</span>
-                  <kbd
-                    data-slot="kbd"
-                    className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
-                  >
-                    ⌘ ⏎
-                  </kbd>
-                </>
-              )}
-            </Button>
-          )}
+          <Button onClick={onRun} disabled={isLoading || isRunning}>
+            {isLoading ? (
+              <>
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                Starting...
+              </>
+            ) : (
+              <>
+                <CirclePlay size={14} className="mr-1.5" />
+                <span className="mr-1.5">Run</span>
+                <kbd
+                  data-slot="kbd"
+                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
+                >
+                  ⌘ ⏎
+                </kbd>
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </div>

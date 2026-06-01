@@ -56,7 +56,6 @@ interface DebuggerSessionStoreActions {
   setSessionStatus: (status: DebuggerSessionStatus) => void;
   setIsSessionDeleted: (isSessionDeleted: boolean) => void;
   runDebugger: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
-  cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   setParamValue: (value: string) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
   setHistoryRuns: (runs: TraceRow[]) => void;
@@ -344,31 +343,6 @@ const createDebuggerSessionStore = ({
           }
         },
         setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
-
-        cancelSession: async (projectId: string, sessionId: string) => {
-          try {
-            set({ isLoading: true });
-
-            const response = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/status`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "STOPPED" }),
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-              throw new Error(errorData.error || "Failed to cancel debugger");
-            }
-
-            set({ sessionStatus: "STOPPED" });
-            return { success: true };
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Failed to cancel debugger";
-            return { success: false, error: errorMessage };
-          } finally {
-            set({ isLoading: false });
-          }
-        },
 
         setParamValue: (value: string) => {
           set({ paramValues: value });

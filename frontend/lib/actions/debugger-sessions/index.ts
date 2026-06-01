@@ -133,34 +133,3 @@ export async function getLatestTraceBySessionId(
     visibility: sharedTrace ? "public" : "private",
   };
 }
-
-const UpdateDebuggerSessionStatusSchema = z.object({
-  projectId: z.guid(),
-  sessionId: z.guid(),
-  status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
-});
-
-export async function updateDebuggerSessionStatus(input: z.infer<typeof UpdateDebuggerSessionStatusSchema>) {
-  const { projectId, sessionId, status } = UpdateDebuggerSessionStatusSchema.parse(input);
-
-  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${sessionId}/status`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      status,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Failed to update status");
-  }
-
-  // Handle empty response body from backend
-  const text = await res.text();
-  const result = text ? JSON.parse(text) : { success: true };
-
-  return result;
-}
