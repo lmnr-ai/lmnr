@@ -103,12 +103,9 @@ function buildScoreColumns(
           return <Mono>{formatScoreValue(v)}</Mono>;
         }
         return (
-          <div
-            className="px-1 py-0.5 min-w-5 rounded text-center transition-all duration-200 whitespace-nowrap text-xs"
-            style={style}
-            title={String(v)}
-          >
-            {formatScoreValue(v)}
+          <div className="flex items-center gap-1.5" title={String(v)}>
+            <span className="size-2 rounded-sm shrink-0" style={{ background: style.background }} />
+            <Mono>{formatScoreValue(v)}</Mono>
           </div>
         );
       }

@@ -32,12 +32,9 @@ const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
   }
 
   return (
-    <div
-      className="px-1 py-0.5 min-w-5 rounded text-center transition-all duration-200 whitespace-nowrap text-xs"
-      style={style}
-      title={value.toString()}
-    >
-      {formattedValue}
+    <div className="flex items-center gap-1.5 whitespace-nowrap text-xs" title={value.toString()}>
+      <span className="size-2 rounded-sm shrink-0" style={{ background: style.background }} />
+      <span>{formattedValue}</span>
     </div>
   );
 };
