@@ -5,4 +5,4 @@ export interface ProgressionPoint {
   values: Record<string, number | null>;
 }
 
-export type ChartVariant = "grouped" | "split";
+export type ChartVariant = "grouped" | "split" | "combined";

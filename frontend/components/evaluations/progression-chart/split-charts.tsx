@@ -4,6 +4,8 @@ import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import ScrollEdgeFades from "@/components/ui/scroll-edge-fades";
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../../ui/chart";
+import CombinedChart from "./combined-chart";
+import CombinedLegend from "./combined-legend";
 import { type ProgressionPoint } from "./shared";
 
 interface SplitChartsProps {
@@ -21,8 +23,10 @@ interface ScoreRow {
   value: number | null;
 }
 
-const CARD_WIDTH = 340;
-const CARD_GAP = 12;
+const COMBINED_WIDTH = 400;
+const COLUMN_WIDTH = 300;
+const CARDS_PER_COLUMN = 2;
+const GAP = 12;
 const DIMMED_OPACITY = 0.4;
 
 export default function SplitCharts({
@@ -41,23 +45,54 @@ export default function SplitCharts({
       </div>
     );
   }
-  // Same shape as GroupedBarChart: outer flex flex-col h-full + inner min-h-0 flex-1
-  // overflow-x-auto scroll container + explicit minWidth on the row. The flex-1 here is
-  // what gives the row definite pixel height, which then lets each card's h-full resolve.
-  const minWidth = visible.length * CARD_WIDTH + (visible.length - 1) * CARD_GAP;
+
+  // Group visible scores into pairs (each column stacks CARDS_PER_COLUMN cards).
+  const columns: string[][] = [];
+  for (let i = 0; i < visible.length; i += CARDS_PER_COLUMN) {
+    columns.push(visible.slice(i, i + CARDS_PER_COLUMN));
+  }
+
+  const minWidth = COMBINED_WIDTH + columns.length * COLUMN_WIDTH + (columns.length + 1) * GAP;
+
   return (
     <div className="flex h-full w-full flex-col">
       <div className="relative min-h-0 flex-1">
         <div ref={scrollRef} className="h-full w-full overflow-x-auto overflow-y-hidden">
-          <div className="flex h-full" style={{ minWidth, gap: CARD_GAP }}>
-            {visible.map((score) => (
-              <ScoreCard
-                key={score}
-                score={score}
-                data={data}
+          <div className="flex h-full" style={{ minWidth, gap: GAP }}>
+            <div
+              className="flex h-full shrink-0 gap-2 rounded-[4px] border border-border bg-secondary p-3"
+              style={{ width: COMBINED_WIDTH }}
+            >
+              <CombinedLegend
+                scores={scores}
+                visibleScores={visibleScores}
                 chartConfig={chartConfig}
-                hoveredEvaluationId={hoveredEvaluationId}
+                className="w-24 shrink-0 overflow-y-auto"
               />
+              <div className="min-w-0 flex-1">
+                <CombinedChart
+                  data={data}
+                  scores={scores}
+                  visibleScores={visibleScores}
+                  chartConfig={chartConfig}
+                  hoveredEvaluationId={hoveredEvaluationId}
+                  fillParent
+                  showXAxisLabels={false}
+                />
+              </div>
+            </div>
+            {columns.map((col, idx) => (
+              <div key={idx} className="flex h-full shrink-0 flex-col" style={{ width: COLUMN_WIDTH, gap: GAP }}>
+                {col.map((score) => (
+                  <ScoreCard
+                    key={score}
+                    score={score}
+                    data={data}
+                    chartConfig={chartConfig}
+                    hoveredEvaluationId={hoveredEvaluationId}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         </div>
@@ -88,8 +123,6 @@ function ScoreCard({
   const color = chartConfig[score]?.color ?? "hsl(var(--chart-1))";
   const scoreConfig: ChartConfig = { value: { color, label: score } };
 
-  // Rank: sort rows that have a numeric value desc; show 1-indexed rank of hovered eval.
-  // Total denominator counts only rows with a value (null rows can't be ranked).
   const rank = (() => {
     if (!hoveredEvaluationId) return null;
     const ranked = rows.filter((r) => r.value !== null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
@@ -99,10 +132,7 @@ function ScoreCard({
   })();
 
   return (
-    <div
-      className="flex h-full shrink-0 flex-col gap-2 rounded-[4px] border border-border bg-secondary p-3"
-      style={{ width: CARD_WIDTH }}
-    >
+    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-[4px] border border-border bg-secondary p-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs leading-4 text-muted-foreground truncate">{score}</span>
         {rank && (

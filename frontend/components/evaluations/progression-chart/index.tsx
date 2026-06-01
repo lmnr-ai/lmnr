@@ -11,11 +11,13 @@ import { type ChartConfig } from "../../ui/chart";
 import { Label } from "../../ui/label";
 import { Skeleton } from "../../ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "../../ui/tabs";
+import CombinedChart from "./combined-chart";
+import CombinedLegend from "./combined-legend";
 import GroupedBarChart from "./grouped-bar-chart";
 import { type ChartVariant, type ProgressionPoint } from "./shared";
 import SplitCharts from "./split-charts";
 
-const VARIANT_PARSER = parseAsStringEnum<ChartVariant>(["grouped", "split"]).withDefault("grouped");
+const VARIANT_PARSER = parseAsStringEnum<ChartVariant>(["grouped", "split", "combined"]).withDefault("grouped");
 
 export function useChartVariant() {
   return useQueryState("chart", VARIANT_PARSER);
@@ -28,6 +30,9 @@ export function ChartVariantToggle() {
       <TabsList className="h-8">
         <TabsTrigger className="text-xs" value="grouped">
           Grouped
+        </TabsTrigger>
+        <TabsTrigger className="text-xs" value="combined">
+          Combined
         </TabsTrigger>
         <TabsTrigger className="text-xs" value="split">
           Split
@@ -160,6 +165,25 @@ export default function ProgressionChart({
       <div className="flex-1 min-h-0 min-w-0">
         {variant === "grouped" ? (
           <GroupedBarChart data={points} scores={scoreKeys} visibleScores={scores} chartConfig={chartConfig} />
+        ) : variant === "combined" ? (
+          <div className="flex h-full w-full gap-3 min-w-0">
+            <CombinedLegend
+              scores={scoreKeys}
+              visibleScores={scores}
+              chartConfig={chartConfig}
+              onToggle={toggleScore}
+              className="w-32 shrink-0 overflow-y-auto"
+            />
+            <div className="min-w-0 flex-1">
+              <CombinedChart
+                data={points}
+                scores={scoreKeys}
+                visibleScores={scores}
+                chartConfig={chartConfig}
+                hoveredEvaluationId={hoveredEvaluationId}
+              />
+            </div>
+          </div>
         ) : (
           <SplitCharts
             data={points}
@@ -170,7 +194,8 @@ export default function ProgressionChart({
           />
         )}
       </div>
-      {/* Legend is only meaningful for the grouped variant; split cards label themselves. */}
+      {/* Legend is only meaningful for the grouped variant; combined renders its
+          own left-side legend and split labels each card. */}
       {variant === "grouped" && (
         <div className="flex flex-wrap flex-row justify-center w-full mt-2 gap-2 items-center">
           {scoreKeys.map((key) => (
