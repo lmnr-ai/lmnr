@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -75,11 +75,12 @@ function PayloadValue({
 
 export default function ExpandedContent({ traceId, signal }: Props) {
   const { projectId } = useParams();
-  const { selectSpanById, spans, traceSignalsCount } = useTraceViewStore(
+  const { selectSpanById, spans, traceSignalsCount, openSignalInChat } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
       spans: state.spans,
       traceSignalsCount: state.traceSignals.length,
+      openSignalInChat: state.openSignalInChat,
     }),
     shallow
   );
@@ -88,9 +89,16 @@ export default function ExpandedContent({ traceId, signal }: Props) {
   const events = (signal.events as EventRow[]) ?? [];
   const latestEvent = events[0];
   const isUnclustered = signal.clusterPath.length === 0;
-  // Hover toolbar only appears in case 4 (multi-signal, this signal unclustered).
-  // Cases 1-3 expose the open-in-signals action via the header ArrowUpRight.
-  const showHoverToolbar = traceSignalsCount > 1 && isUnclustered;
+  // "Open in Signals" only needs to appear in case 4 (multi-signal, this signal
+  // unclustered). Cases 1-3 already expose it via the header ArrowUpRight /
+  // ClusterLink. "Open in AI Chat" always appears in the hover toolbar.
+  const showOpenInSignals = traceSignalsCount > 1 && isUnclustered;
+
+  const handleOpenInChat = () => {
+    const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
+    const eventPayload = latestEvent ? latestEvent.payload : "No events found";
+    openSignalInChat(signalDefinition, eventPayload);
+  };
 
   const schemaFields = useMemo(
     () => jsonSchemaToSchemaFields(schemaFieldsToStructuredOutput(signal.schemaFields)),
@@ -113,7 +121,7 @@ export default function ExpandedContent({ traceId, signal }: Props) {
           take up gap space when collapsed; the hover popover's height: auto
           animation visually grows it into view, plus we fade in to soften the
           appearance after the popover has finished growing. */}
-      {hovered && showHoverToolbar && (
+      {hovered && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -123,13 +131,23 @@ export default function ExpandedContent({ traceId, signal }: Props) {
           <Button
             variant="outline"
             className="h-6 px-2 text-xs bg-transparent hover:bg-muted text-secondary-foreground border-blue-400/40"
-            asChild
+            onClick={handleOpenInChat}
           >
-            <Link href={`/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`} target="_blank">
-              <ExternalLink className="size-3.5 mr-1" />
-              Open in Signals
-            </Link>
+            <Sparkles className="size-3.5 mr-1" />
+            Open in AI Chat
           </Button>
+          {showOpenInSignals && (
+            <Button
+              variant="outline"
+              className="h-6 px-2 text-xs bg-transparent hover:bg-muted text-secondary-foreground border-blue-400/40"
+              asChild
+            >
+              <Link href={`/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`} target="_blank">
+                <ExternalLink className="size-3.5 mr-1" />
+                Open in Signals
+              </Link>
+            </Button>
+          )}
         </motion.div>
       )}
       {!latestEvent ? (

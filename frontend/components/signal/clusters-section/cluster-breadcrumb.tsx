@@ -49,7 +49,7 @@ export default function ClusterBreadcrumb({
   onNavigateToBreadcrumb,
 }: ClusterBreadcrumbProps) {
   return (
-    <div className="flex items-center text-sm min-w-0 pl-1">
+    <div className="flex items-center text-sm w-full min-w-0 pl-1">
       <button
         className={`hover:underline shrink-0 ${!selectedClusterId ? "text-secondary-foreground" : "text-muted-foreground"}`}
         onClick={() => onNavigateToBreadcrumb(-1)}
@@ -64,7 +64,7 @@ export default function ClusterBreadcrumb({
           return (
             <motion.div
               key={index}
-              className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
+              className={`relative min-w-0 overflow-hidden ${isLast ? "shrink-0" : "flex-shrink"} ${SLASH_CONTAINER_PL}`}
               style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
               {...levelTransition}
             >

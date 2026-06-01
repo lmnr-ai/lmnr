@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 import ClusterLink from "./cluster-link";
 import ExpandedContent from "./expanded-content";
+import { usePanelHover } from "./hover-context";
 
 interface Props {
   traceId: string;
@@ -29,6 +30,7 @@ interface Props {
  *  toolbar. Outer border / background / sizing are owned by `index.tsx`. */
 export default function PanelBody({ traceId, onClose }: Props) {
   const { projectId } = useParams();
+  const isHover = usePanelHover();
   const { traceSignals, isTraceSignalsLoading, activeSignalTabId, setActiveSignalTabId, initialSignalId } =
     useTraceViewStore(
       (state) => ({
@@ -144,20 +146,35 @@ export default function PanelBody({ traceId, onClose }: Props) {
           )}
         </div>
       </TooltipProvider>
-      {/* `[&>div>div]:!block` — Radix wraps Viewport children in a div with
-          inline `display:table; min-width:100%`, which lets long content force
-          horizontal overflow. Keep this override. */}
-      <ScrollArea className="flex-1 min-h-0 [&>div>div]:!block">
-        {traceSignals.map((signal) => (
-          <TabsContent
-            key={signal.signalId}
-            value={signal.signalId}
-            className="m-0 outline-none data-[state=inactive]:hidden"
-          >
-            <ExpandedContent traceId={traceId} signal={signal} />
-          </TabsContent>
-        ))}
-      </ScrollArea>
+      {/* Closed (trigger) state clips overflow; only the hovered popover scrolls.
+          `[&>div>div]:!block` — Radix wraps the ScrollArea Viewport children in a
+          div with inline `display:table; min-width:100%`, which lets long content
+          force horizontal overflow. Keep this override. */}
+      {isHover ? (
+        <ScrollArea className="flex-1 min-h-0 [&>div>div]:!block">
+          {traceSignals.map((signal) => (
+            <TabsContent
+              key={signal.signalId}
+              value={signal.signalId}
+              className="m-0 outline-none data-[state=inactive]:hidden"
+            >
+              <ExpandedContent traceId={traceId} signal={signal} />
+            </TabsContent>
+          ))}
+        </ScrollArea>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {traceSignals.map((signal) => (
+            <TabsContent
+              key={signal.signalId}
+              value={signal.signalId}
+              className="m-0 outline-none data-[state=inactive]:hidden"
+            >
+              <ExpandedContent traceId={traceId} signal={signal} />
+            </TabsContent>
+          ))}
+        </div>
+      )}
     </Tabs>
   );
 }

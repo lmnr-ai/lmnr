@@ -51,12 +51,15 @@ export async function GET(
       return NextResponse.json([]);
     }
 
-    // Resolve cluster metadata (names, parent chain).
+    // Resolve cluster metadata (names, parent chain) in a single round-trip.
+    // The event's `clusters` array already contains the full ancestor chain
+    // (every level the event was assigned to), so looking up exactly those
+    // ids is enough — no walk-up needed.
     let clusterMeta = new Map<string, ClusterNode>();
     const allClusterIds = new Set<string>();
     for (const e of eventRows) for (const cid of e.clusters ?? []) allClusterIds.add(cid);
     if (allClusterIds.size > 0) {
-      clusterMeta = await fetchClustersWithAncestors(projectId, [...allClusterIds]);
+      clusterMeta = await fetchClustersByIds(projectId, [...allClusterIds]);
     }
 
     // For an event, find the deepest cluster in the set — i.e. the one whose
@@ -144,32 +147,24 @@ export async function GET(
   }
 }
 
-async function fetchClustersWithAncestors(projectId: string, clusterIds: string[]): Promise<Map<string, ClusterNode>> {
+async function fetchClustersByIds(projectId: string, clusterIds: string[]): Promise<Map<string, ClusterNode>> {
+  const rows = await executeQuery<ClusterMetaRow>({
+    projectId,
+    query: `
+      SELECT id, name, parent_id as parentId, level
+      FROM clusters
+      WHERE id IN ({clusterIds: Array(UUID)})
+    `,
+    parameters: { clusterIds },
+  });
   const out = new Map<string, ClusterNode>();
-  let pending = new Set(clusterIds);
-
-  while (pending.size > 0) {
-    const ids = [...pending];
-    pending = new Set();
-    const rows = await executeQuery<ClusterMetaRow>({
-      projectId,
-      query: `
-        SELECT id, name, parent_id as parentId, level
-        FROM clusters
-        WHERE id IN ({clusterIds: Array(UUID)})
-      `,
-      parameters: { clusterIds: ids },
+  for (const r of rows) {
+    out.set(r.id, {
+      id: r.id,
+      name: r.name,
+      parentId: r.parentId && r.parentId !== "00000000-0000-0000-0000-000000000000" ? r.parentId : null,
+      level: r.level,
     });
-    for (const r of rows) {
-      const node: ClusterNode = {
-        id: r.id,
-        name: r.name,
-        parentId: r.parentId && r.parentId !== "00000000-0000-0000-0000-000000000000" ? r.parentId : null,
-        level: r.level,
-      };
-      out.set(r.id, node);
-      if (node.parentId && !out.has(node.parentId)) pending.add(node.parentId);
-    }
   }
   return out;
 }
