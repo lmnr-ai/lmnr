@@ -1,15 +1,25 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
+import { Settings as SettingsIcon } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import { createHeatmapStyle, formatScoreValue, isValidScore } from "@/components/evaluation/utils";
 import ProgressionChart, { ChartVariantToggle } from "@/components/evaluations/progression-chart";
+import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
@@ -18,7 +28,9 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar.tsx";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
+import { Switch } from "@/components/ui/switch";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
+import { type ScoreRange } from "@/lib/colors";
 import { type Evaluation, type EvaluationTimeProgression } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
@@ -73,7 +85,9 @@ const baseColumns: ColumnDef<Evaluation>[] = [
 
 function buildScoreColumns(
   scoreNames: string[],
-  scoresByEvalId: Record<string, Record<string, number | null>>
+  scoresByEvalId: Record<string, Record<string, number | null>>,
+  heatmapEnabled: boolean,
+  scoreRanges: Record<string, ScoreRange>
 ): ColumnDef<Evaluation>[] {
   return scoreNames.map((scoreName) => ({
     id: `score:${scoreName}`,
@@ -81,7 +95,23 @@ function buildScoreColumns(
     accessorFn: (row) => scoresByEvalId[row.id]?.[scoreName] ?? null,
     cell: (cell) => {
       const v = cell.getValue() as number | null;
-      if (v === null || v === undefined) return <span className="text-muted-foreground">—</span>;
+      if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
+      const range = scoreRanges[scoreName];
+      if (heatmapEnabled && range) {
+        const style = createHeatmapStyle(v, range);
+        if (style.background === "transparent") {
+          return <Mono>{formatScoreValue(v)}</Mono>;
+        }
+        return (
+          <div
+            className="px-1 py-0.5 min-w-5 rounded text-center transition-all duration-200 whitespace-nowrap text-xs"
+            style={style}
+            title={String(v)}
+          >
+            {formatScoreValue(v)}
+          </div>
+        );
+      }
       return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
     },
     size: 120,
@@ -156,6 +186,7 @@ function EvaluationsContent() {
 
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
 
   const fetchEvaluations = useCallback(
     async (pageNumber: number) => {
@@ -268,9 +299,29 @@ function EvaluationsContent() {
     return { scoreNames: names, scoresByEvalId: byEvalId };
   }, [progression]);
 
+  // Per-score min/max across the currently-loaded evals. The detail page derives
+  // the same range from its currently-loaded datapoints — both shift as infinite
+  // scroll brings in more rows, which is intentional.
+  const scoreRanges = useMemo<Record<string, ScoreRange>>(() => {
+    const out: Record<string, ScoreRange> = {};
+    for (const name of scoreNames) {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const evalId of Object.keys(scoresByEvalId)) {
+        const v = scoresByEvalId[evalId]?.[name];
+        if (typeof v === "number" && !isNaN(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+      if (min !== Infinity) out[name] = { min, max };
+    }
+    return out;
+  }, [scoreNames, scoresByEvalId]);
+
   const columns = useMemo<ColumnDef<Evaluation>[]>(
-    () => [...baseColumns, ...buildScoreColumns(scoreNames, scoresByEvalId)],
-    [scoreNames, scoresByEvalId]
+    () => [...baseColumns, ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges)],
+    [scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges]
   );
 
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
@@ -375,6 +426,26 @@ function EvaluationsContent() {
                     }))}
                   />
                   <ViewsToolbar projectId={params.projectId} resource={RESOURCE} />
+                  {scoreNames.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="h-7 w-7" variant="outline" size="icon">
+                          <SettingsIcon className="h-4 w-4 text-secondary-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-64">
+                        <DropdownMenuLabel className="text-xs font-medium">Settings</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <div className="flex items-center justify-between px-2 py-2">
+                          <div className="flex flex-col">
+                            <span className="text-xs">Scores Heatmap</span>
+                            <span className="text-xs text-muted-foreground">Color-code score values</span>
+                          </div>
+                          <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
                 <div className="w-full">
                   <AdvancedSearch
