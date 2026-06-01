@@ -1,11 +1,13 @@
 import { type CellContext } from "@tanstack/react-table";
 import { ArrowRight } from "lucide-react";
 
+import HeatmapValue from "@/components/evaluation/heatmap-value";
 import {
   calculatePercentageChange,
-  createHeatmapStyle,
+  DEFAULT_HEATMAP_VARIANT,
   type DisplayValue,
   formatScoreValue,
+  type HeatmapVariant,
   isValidScore,
   type ScoreValue,
   shouldShowHeatmap,
@@ -15,40 +17,59 @@ import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ChangeIndicator, shouldShowComparisonIndicator } from "./comparison-cell";
 
-const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
+const ScoreDisplay = ({
+  range,
+  value,
+  variant,
+}: {
+  range: ScoreRange;
+  value: ScoreValue;
+  variant: HeatmapVariant;
+}) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500">-</span>;
   }
 
-  const style = createHeatmapStyle(value, range);
-  const formattedValue = formatScoreValue(value);
-
-  if (style.background === "transparent") {
-    return (
-      <span className="text-current" title={value.toString()}>
-        {formattedValue}
-      </span>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-1.5 whitespace-nowrap text-xs" title={value.toString()}>
-      <span className="size-2 rounded-sm shrink-0" style={{ background: style.background }} />
-      <span>{formattedValue}</span>
-    </div>
+    <HeatmapValue
+      value={value}
+      range={range}
+      variant={variant}
+      text={
+        <span className="text-current" title={value.toString()}>
+          {formatScoreValue(value)}
+        </span>
+      }
+    />
   );
 };
 
-const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
+const HeatmapScoreCell = ({
+  value,
+  range,
+  variant,
+}: {
+  value: ScoreValue;
+  range: ScoreRange;
+  variant: HeatmapVariant;
+}) => <ScoreDisplay range={range} value={value} variant={variant} />;
 
 // -- Comparison sub-components (absorbed from comparison-score-cell.tsx) --
 
-const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
+const ComparisonScoreValue = ({
+  value,
+  range,
+  variant,
+}: {
+  value: ScoreValue;
+  range: ScoreRange;
+  variant: HeatmapVariant;
+}) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500 text-center block text-xs">-</span>;
   }
 
-  return ScoreDisplay(range, value);
+  return <ScoreDisplay range={range} value={value} variant={variant} />;
 };
 
 const HeatmapComparisonCell = ({
@@ -57,12 +78,14 @@ const HeatmapComparisonCell = ({
   originalValue,
   comparisonValue,
   range,
+  variant,
 }: {
   original: DisplayValue;
   comparison: DisplayValue;
   originalValue?: number;
   comparisonValue?: number;
   range: ScoreRange;
+  variant: HeatmapVariant;
 }) => {
   const showComparison = shouldShowComparisonIndicator(originalValue, comparisonValue);
   const showHeatmap = shouldShowHeatmap(range);
@@ -75,7 +98,7 @@ const HeatmapComparisonCell = ({
         <span className="text-current">{original ?? "-"}</span>
         {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
           <span className="text-secondary-foreground">
-            {originalValue >= comparisonValue ? "\u25B2" : "\u25BC"} (
+            {originalValue >= comparisonValue ? "▲" : "▼"} (
             {calculatePercentageChange(originalValue, comparisonValue)}
             %)
           </span>
@@ -87,11 +110,11 @@ const HeatmapComparisonCell = ({
   return (
     <div className="flex items-center space-x-1 w-full min-w-0">
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={comparisonValue} range={range} />
+        <ComparisonScoreValue value={comparisonValue} range={range} variant={variant} />
       </div>
       <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={originalValue} range={range} />
+        <ComparisonScoreValue value={originalValue} range={range} variant={variant} />
       </div>
       {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
         <ChangeIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
@@ -114,7 +137,7 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
       </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (
         <span className="text-secondary-foreground">
-          {original >= comparison ? "\u25B2" : "\u25BC"} ({calculatePercentageChange(original, comparison)}%)
+          {original >= comparison ? "▲" : "▼"} ({calculatePercentageChange(original, comparison)}%)
         </span>
       )}
     </div>
@@ -125,7 +148,12 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 
 export const createScoreColumnCell = (scoreName: string) => {
   const ScoreColumnCell = ({ row, table }: CellContext<EvalRow, unknown>) => {
-    const { isComparison = false, heatmapEnabled = false, scoreRanges = {} } = table.options.meta?.evalCellMeta ?? {};
+    const {
+      isComparison = false,
+      heatmapEnabled = false,
+      heatmapVariant = DEFAULT_HEATMAP_VARIANT,
+      scoreRanges = {},
+    } = table.options.meta?.evalCellMeta ?? {};
     const value = row.original[`score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
 
@@ -140,6 +168,7 @@ export const createScoreColumnCell = (scoreName: string) => {
             originalValue={value}
             comparisonValue={comparison}
             range={range}
+            variant={heatmapVariant}
           />
         );
       }
@@ -148,7 +177,7 @@ export const createScoreColumnCell = (scoreName: string) => {
     }
 
     if (heatmapEnabled && range) {
-      return <HeatmapScoreCell value={value} range={range} />;
+      return <HeatmapScoreCell value={value} range={range} variant={heatmapVariant} />;
     }
 
     return value ?? "-";

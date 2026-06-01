@@ -7,7 +7,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { createHeatmapStyle, formatScoreValue, isValidScore } from "@/components/evaluation/utils";
+import HeatmapValue from "@/components/evaluation/heatmap-value";
+import {
+  DEFAULT_HEATMAP_VARIANT,
+  formatScoreValue,
+  HEATMAP_VARIANT_OPTIONS,
+  type HeatmapVariant,
+  isValidScore,
+} from "@/components/evaluation/utils";
 import ProgressionChart, { ChartVariantToggle } from "@/components/evaluations/progression-chart";
 import { Button } from "@/components/ui/button";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
@@ -17,6 +24,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -87,6 +96,7 @@ function buildScoreColumns(
   scoreNames: string[],
   scoresByEvalId: Record<string, Record<string, number | null>>,
   heatmapEnabled: boolean,
+  heatmapVariant: HeatmapVariant,
   scoreRanges: Record<string, ScoreRange>
 ): ColumnDef<Evaluation>[] {
   return scoreNames.map((scoreName) => ({
@@ -98,15 +108,13 @@ function buildScoreColumns(
       if (!isValidScore(v)) return <span className="text-muted-foreground">—</span>;
       const range = scoreRanges[scoreName];
       if (heatmapEnabled && range) {
-        const style = createHeatmapStyle(v, range);
-        if (style.background === "transparent") {
-          return <Mono>{formatScoreValue(v)}</Mono>;
-        }
         return (
-          <div className="flex items-center gap-1.5" title={String(v)}>
-            <span className="size-2 rounded-sm shrink-0" style={{ background: style.background }} />
-            <Mono>{formatScoreValue(v)}</Mono>
-          </div>
+          <HeatmapValue
+            value={v}
+            range={range}
+            variant={heatmapVariant}
+            text={<Mono>{formatScoreValue(v)}</Mono>}
+          />
         );
       }
       return <Mono>{Number.isInteger(v) ? v.toString() : v.toFixed(3)}</Mono>;
@@ -184,6 +192,7 @@ function EvaluationsContent() {
   const [aggregationFunction, setAggregationFunction] = useState<AggregationFunction>(AggregationFunction.AVG);
   const [hoveredEvaluationId, setHoveredEvaluationId] = useState<string | undefined>(undefined);
   const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [heatmapVariant, setHeatmapVariant] = useState<HeatmapVariant>(DEFAULT_HEATMAP_VARIANT);
 
   const fetchEvaluations = useCallback(
     async (pageNumber: number) => {
@@ -317,8 +326,8 @@ function EvaluationsContent() {
   }, [scoreNames, scoresByEvalId]);
 
   const columns = useMemo<ColumnDef<Evaluation>[]>(
-    () => [...baseColumns, ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges)],
-    [scoreNames, scoresByEvalId, heatmapEnabled, scoreRanges]
+    () => [...baseColumns, ...buildScoreColumns(scoreNames, scoresByEvalId, heatmapEnabled, heatmapVariant, scoreRanges)],
+    [scoreNames, scoresByEvalId, heatmapEnabled, heatmapVariant, scoreRanges]
   );
 
   const handleDeleteEvaluations = async (evaluationIds: string[]) => {
@@ -440,6 +449,24 @@ function EvaluationsContent() {
                           </div>
                           <Switch checked={heatmapEnabled} onCheckedChange={setHeatmapEnabled} />
                         </div>
+                        {heatmapEnabled && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                              Style
+                            </DropdownMenuLabel>
+                            <DropdownMenuRadioGroup
+                              value={heatmapVariant}
+                              onValueChange={(v) => setHeatmapVariant(v as HeatmapVariant)}
+                            >
+                              {HEATMAP_VARIANT_OPTIONS.map((opt) => (
+                                <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs">
+                                  {opt.label}
+                                </DropdownMenuRadioItem>
+                              ))}
+                            </DropdownMenuRadioGroup>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}

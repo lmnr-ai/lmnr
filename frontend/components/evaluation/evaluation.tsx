@@ -75,6 +75,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
   const isShared = useEvalStore((s) => s.isShared);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
+  const heatmapVariant = useEvalStore((s) => s.heatmapVariant);
+  const setHeatmapVariant = useEvalStore((s) => s.setHeatmapVariant);
   const addScoreName = useEvalStore((s) => s.addScoreName);
 
   const isComparison = !!targetId;
@@ -350,6 +352,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
             onSort={handleSort}
             heatmapEnabled={heatmapEnabled}
             onHeatmapEnabledChange={setHeatmapEnabled}
+            heatmapVariant={heatmapVariant}
+            onHeatmapVariantChange={setHeatmapVariant}
             onDeleteCustomColumn={onDeleteCustomColumn}
             searchValue={searchValue}
             onSearchChange={setSearchAndFilters}

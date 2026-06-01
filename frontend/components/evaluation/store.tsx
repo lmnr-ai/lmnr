@@ -13,6 +13,7 @@ import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
+import { DEFAULT_HEATMAP_VARIANT, type HeatmapVariant } from "./utils";
 
 interface RawUrlParams {
   search: string | null;
@@ -37,6 +38,7 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
 export interface EvalStoreState {
   // Data
   heatmapEnabled: boolean;
+  heatmapVariant: HeatmapVariant;
   isShared: boolean;
   /**
    * Single source of truth for the list of score names belonging to the
@@ -49,6 +51,7 @@ export interface EvalStoreState {
 
   // Actions
   setHeatmapEnabled: (enabled: boolean) => void;
+  setHeatmapVariant: (variant: HeatmapVariant) => void;
   addScoreName: (name: string) => void;
 }
 
@@ -180,10 +183,12 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
     persist(
       (set, get) => ({
         heatmapEnabled: false,
+        heatmapVariant: DEFAULT_HEATMAP_VARIANT,
         isShared,
         scoreNames: initialScoreNames,
 
         setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
+        setHeatmapVariant: (variant) => set({ heatmapVariant: variant }),
 
         addScoreName: (name) => {
           const { scoreNames } = get();
@@ -195,6 +200,7 @@ function createEvalStore({ initialScoreNames, isShared = false }: EvalStoreInit)
         name: "evaluation-store",
         partialize: (state) => ({
           heatmapEnabled: state.heatmapEnabled,
+          heatmapVariant: state.heatmapVariant,
         }),
       }
     )

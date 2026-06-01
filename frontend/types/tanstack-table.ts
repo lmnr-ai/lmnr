@@ -1,7 +1,7 @@
 import { type RowData } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
-import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type HeatmapVariant, type ScoreRanges } from "@/components/evaluation/utils";
 
 // -- tanstack module augmentation --
 declare module "@tanstack/react-table" {
@@ -16,6 +16,7 @@ declare module "@tanstack/react-table" {
       isComparison: boolean;
       isShared: boolean;
       heatmapEnabled: boolean;
+      heatmapVariant: HeatmapVariant;
       scoreRanges: ScoreRanges;
     };
   }
