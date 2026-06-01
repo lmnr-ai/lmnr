@@ -78,6 +78,25 @@ export default function ClusterItem({
     []
   );
 
+  // Close the hover card on user-perceptible scroll while open. Threshold
+  // ignores tiny phantom shifts (e.g. body width changes from the card's open
+  // animation, focus auto-scroll-into-view) so the card doesn't dismiss itself.
+  useEffect(() => {
+    if (!hovered) return;
+    const startY = window.scrollY;
+    const startX = window.scrollX;
+    const onScroll = () => {
+      const dy = Math.abs(window.scrollY - startY);
+      const dx = Math.abs(window.scrollX - startX);
+      if (dy < 4 && dx < 4) return;
+      clearLeaveTimeout();
+      setHovered(false);
+      setRect(null);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hovered, clearLeaveTimeout]);
+
   // Schedule the open in JS so we measure the row's rect *after* the user has settled,
   // not when the cursor first crosses it during a scroll. The framer-motion delay is gone.
   const handleMouseEnter = useCallback(() => {
@@ -102,7 +121,7 @@ export default function ClusterItem({
   }, [clearLeaveTimeout, clearOpenTimeout]);
 
   const icon = (
-    <div className={cn("size-4 flex  justify-center items-center", { "blur-[5px]": isPaywall })}>
+    <div className={cn("size-4 flex justify-center items-center", { "blur-[5px]": isPaywall })}>
       {iconVariant === "boxes" ? (
         <Boxes
           className="size-4.5 shrink-0"

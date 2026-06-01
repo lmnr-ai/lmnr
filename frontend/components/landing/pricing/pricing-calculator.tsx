@@ -1,12 +1,16 @@
 "use client";
 
 import { Info } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { retentionLabel, TIER_RETENTION } from "@/lib/billing/retention";
+import { type Tier, TIERS } from "@/lib/billing/tiers";
 import { cn } from "@/lib/utils";
+
+import { microLabel, subSection } from "../class-names";
 
 const TOKEN_STEPS = [
   100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
@@ -39,32 +43,23 @@ function estimateDataFromTokens(tokens: number): number {
   return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
 }
 
-function buildEstimate(
-  name: string,
-  basePrice: number,
-  includedDataGB: number,
-  includedSignalSteps: number,
-  dataOverageRate: number,
-  signalOverageRate: number,
-  dataGB: number,
-  signalStepsProcessed: number,
-  retention: string,
-  support: string
-): TierEstimate {
-  const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
-  const signalOverageCost = Math.max(0, signalStepsProcessed - includedSignalSteps) * signalOverageRate;
+function buildEstimate(tier: Tier, dataGB: number, signalStepsProcessed: number): TierEstimate {
+  const t = TIERS[tier];
+  const basePrice = t.basePriceMonthly ?? 0;
+  const dataOverageCost = Math.max(0, dataGB - t.includedBytesGB) * t.dataOverageRatePerGB;
+  const signalOverageCost = Math.max(0, signalStepsProcessed - t.includedSignalSteps) * t.signalOverageRatePerStep;
   return {
-    name,
+    name: t.name,
     basePrice,
-    includedDataGB,
-    includedSignalSteps,
-    dataOverageRate,
-    signalOverageRate,
+    includedDataGB: t.includedBytesGB,
+    includedSignalSteps: t.includedSignalSteps,
+    dataOverageRate: t.dataOverageRatePerGB,
+    signalOverageRate: t.signalOverageRatePerStep,
     dataOverageCost,
     signalOverageCost,
     total: basePrice + dataOverageCost + signalOverageCost,
-    retention,
-    support,
+    retention: TIER_RETENTION[tier].duration,
+    support: t.support,
   };
 }
 
@@ -98,42 +93,45 @@ function formatDataSize(gb: number): string {
   return `${gb.toFixed(1)} GB`;
 }
 
-function RecommendedBadge({ tooltip }: { tooltip?: string }) {
-  if (tooltip) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
-              Recommended
-              <Info size={11} />
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
+// Tooltip is required — the badge only makes sense paired with a "why this
+// tier is recommended" explanation.
+function RecommendedBadge({ tooltip }: { tooltip: string }) {
   return (
-    <Badge variant="default" className="text-xs shrink-0">
-      Recommended
-    </Badge>
+    <TooltipProvider delayDuration={0}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
+            Recommended
+            <Info size={11} />
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+// Badge only renders when a tooltip is supplied — keeps the name-only call
+// shape valid for any future reuse without a recommendation context.
+function TierHeader({ name, tooltip }: { name: string; tooltip?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className={cn(subSection, "text-white")}>{name}</span>
+      {tooltip && <RecommendedBadge tooltip={tooltip} />}
+    </div>
   );
 }
 
 function TierColumn({
   estimate,
-  isRecommended,
-  recommendationTooltip,
+  tooltip,
   dataGB,
   signalStepsProcessed,
 }: {
   estimate: TierEstimate;
-  isRecommended: boolean;
-  recommendationTooltip?: string;
+  tooltip?: string;
   dataGB: number;
   signalStepsProcessed: number;
 }) {
@@ -141,31 +139,23 @@ function TierColumn({
   const extraSignals = Math.max(0, signalStepsProcessed - estimate.includedSignalSteps);
 
   return (
-    <div
-      className={cn(
-        "flex-1 rounded-lg p-4 space-y-3",
-        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">{estimate.name}</span>
-        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
-      </div>
+    <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
+      <TierHeader name={estimate.name} tooltip={tooltip} />
 
-      <div className="space-y-1.5 text-sm">
+      <div className="space-y-2 text-sm">
         <div>
-          <div className="flex justify-between text-landing-text-200">
+          <div className="flex justify-between text-white">
             <span>Base</span>
             <span>${formatDollars(estimate.basePrice)}</span>
           </div>
-          <div className="text-xs text-landing-text-400">
+          <div className={cn(microLabel, "mt-0.5 text-landing-text-300")}>
             {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} Signals steps
             included
           </div>
         </div>
 
         {estimate.dataOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-300">
+          <div className="flex justify-between text-landing-text-200">
             <span>
               {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
             </span>
@@ -179,7 +169,7 @@ function TierColumn({
         )}
 
         {estimate.signalOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-300">
+          <div className="flex justify-between text-landing-text-200">
             <span>
               {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/step
             </span>
@@ -193,18 +183,22 @@ function TierColumn({
         )}
       </div>
 
-      <div className="border-t border-landing-surface-400 pt-2">
-        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
+      <div className="border-t pt-3 border-landing-surface-500">
+        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>${formatDollars(estimate.total)}/mo</span>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+      <div className="flex flex-wrap gap-2">
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.retention} retention
         </span>
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+        <span
+          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
+        >
           {estimate.support} support
         </span>
       </div>
@@ -212,31 +206,15 @@ function TierColumn({
   );
 }
 
-function EnterpriseTierColumn({
-  isRecommended,
-  recommendationTooltip,
-}: {
-  isRecommended: boolean;
-  recommendationTooltip?: string;
-}) {
+function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
   return (
-    <div
-      className={cn(
-        "flex-1 rounded-lg p-4 space-y-3",
-        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">Enterprise</span>
-        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
-      </div>
+    <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
+      <TierHeader name="Enterprise" tooltip={tooltip} />
 
-      <div className="space-y-1.5 text-sm">
-        <div>
-          <div className="flex justify-between text-landing-text-200">
-            <span>Base</span>
-            <span>Custom</span>
-          </div>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between text-white">
+          <span>Base</span>
+          <span>Custom</span>
         </div>
         <div className="flex justify-between text-landing-text-300">
           <span>Additional data</span>
@@ -248,18 +226,18 @@ function EnterpriseTierColumn({
         </div>
       </div>
 
-      <div className="border-t border-landing-surface-400 pt-2">
-        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
+      <div className="border-t pt-3 border-landing-surface-500">
+        <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>Custom</span>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-1">
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
-          Custom retention
+      <div className="flex flex-wrap gap-2">
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+          {retentionLabel("enterprise")}
         </span>
-        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
           Dedicated support
         </span>
       </div>
@@ -276,6 +254,25 @@ function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: numb
   return "hobby";
 }
 
+interface SliderBlockProps {
+  label: string;
+  value: ReactNode;
+  sliderValue: number;
+  max: number;
+  onChange: (v: number) => void;
+  className?: string;
+}
+
+const SliderBlock = ({ label, value, sliderValue, max, onChange, className }: SliderBlockProps) => (
+  <div className={cn("space-y-2", className)}>
+    <div className="flex justify-between">
+      <span className="text-white">{label}</span>
+      <span className="text-white">{value}</span>
+    </div>
+    <Slider value={[sliderValue]} max={max} min={0} step={1} onValueChange={(v) => onChange(v[0])} className="w-full" />
+  </div>
+);
+
 export default function PricingCalculator() {
   const [tokenIdx, setTokenIdx] = useState(0);
   const [signalIdx, setSignalIdx] = useState(0);
@@ -284,87 +281,64 @@ export default function PricingCalculator() {
   const dataGB = estimateDataFromTokens(tokens);
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
-  const free = buildEstimate("Free", 0, 1, 1000, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 30, 3, 5_000, 2, 0.0075, dataGB, signalRuns, "30-day", "Email");
-  const pro = buildEstimate("Pro", 150, 10, 50_000, 1.5, 0.005, dataGB, signalRuns, "90-day", "Slack");
+  const free = buildEstimate("free", dataGB, signalRuns);
+  const hobby = buildEstimate("hobby", dataGB, signalRuns);
+  const pro = buildEstimate("pro", dataGB, signalRuns);
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 
-  const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
+  const freeTooltip = "Your usage fits within the Free tier. No payment needed.";
   const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
   const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
   const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
 
+  const tokensValue = (
+    <>
+      {formatTokens(tokens)} <span className="text-sm text-landing-text-300">≈ {formatDataSize(dataGB)}</span>
+    </>
+  );
+
+  const tokenSlider = (
+    <SliderBlock
+      label="Tokens per month"
+      value={tokensValue}
+      sliderValue={tokenIdx}
+      max={TOKEN_STEPS.length - 1}
+      onChange={setTokenIdx}
+    />
+  );
+  const signalSlider = (
+    <SliderBlock
+      label="Signals steps per month"
+      value={formatNumber(signalRuns)}
+      sliderValue={signalIdx}
+      max={SIGNAL_STEPS.length - 1}
+      onChange={setSignalIdx}
+    />
+  );
+
+  const preview = (
+    <>
+      {state === "free" && (
+        <TierColumn estimate={free} tooltip={freeTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
+      )}
+      {state === "hobby" && (
+        <TierColumn estimate={hobby} tooltip={hobbyTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
+      )}
+      {state === "pro" && (
+        <TierColumn estimate={pro} tooltip={proTooltip} dataGB={dataGB} signalStepsProcessed={signalRuns} />
+      )}
+      {state === "enterprise" && <EnterpriseTierColumn tooltip={enterpriseTooltip} />}
+    </>
+  );
+
   return (
-    <div className="w-full max-w-xl mt-16 px-4">
-      <div className="p-8 border border-landing-surface-400 rounded-lg space-y-6">
-        <h3 className="text-xl font-semibold font-space-grotesk text-landing-text-100">Pricing calculator</h3>
-
-        <div className="space-y-6 font-medium">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Tokens per month</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-landing-text-100">{formatTokens(tokens)}</span>
-                <span className="text-sm text-landing-text-300">≈ {formatDataSize(dataGB)}</span>
-              </div>
-            </div>
-            <Slider
-              value={[tokenIdx]}
-              max={TOKEN_STEPS.length - 1}
-              min={0}
-              step={1}
-              onValueChange={(v) => setTokenIdx(v[0])}
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="font-medium text-landing-text-100">Signals steps per month</span>
-              <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
-            </div>
-            <Slider
-              value={[signalIdx]}
-              max={SIGNAL_STEPS.length - 1}
-              min={0}
-              step={1}
-              onValueChange={(v) => setSignalIdx(v[0])}
-              className="w-full"
-            />
-          </div>
-        </div>
-
-        <div className="border-t border-landing-surface-400 pt-4">
-          {state === "free" && (
-            <TierColumn
-              estimate={free}
-              isRecommended
-              recommendationTooltip={freeTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "hobby" && (
-            <TierColumn
-              estimate={hobby}
-              isRecommended
-              recommendationTooltip={hobbyTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "pro" && (
-            <TierColumn
-              estimate={pro}
-              isRecommended
-              recommendationTooltip={proTooltip}
-              dataGB={dataGB}
-              signalStepsProcessed={signalRuns}
-            />
-          )}
-          {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}
-        </div>
+    <div className="w-full space-y-6">
+      <p className={cn(subSection, "text-white")}>Pricing calculator</p>
+      <div className="flex flex-col gap-6 w-full">
+        {tokenSlider}
+        {signalSlider}
+        {preview}
       </div>
     </div>
   );

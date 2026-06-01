@@ -303,9 +303,7 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
     if (base64Data.length < 50) continue;
 
     // Identify image type by checking the first characters
-    let imageType = null;
-
-    imageType = inferImageType(base64Data);
+    const imageType = inferImageType(base64Data);
 
     if (!imageType) continue;
 

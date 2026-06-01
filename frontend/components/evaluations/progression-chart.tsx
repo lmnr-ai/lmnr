@@ -105,7 +105,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
       ) : (
         <>
           <ChartContainer config={chartConfig} className="h-5/6 w-full">
-            <LineChart margin={{ top: 10, right: 10, bottom: 5, left: -12 }} accessibilityLayer data={convertedScores}>
+            <LineChart accessibilityLayer data={convertedScores}>
               <CartesianGrid vertical={false} />
               <XAxis
                 type="category"
@@ -116,7 +116,7 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
                 height={8}
                 padding={{ left: horizontalPadding, right: horizontalPadding }}
               />
-              <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={5} />
+              <YAxis tickLine={false} axisLine={false} tickMargin={8} tickCount={5} width="auto" />
               <ChartTooltip
                 cursor={false}
                 content={

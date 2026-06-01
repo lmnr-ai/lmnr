@@ -1,4 +1,16 @@
 import { type OnboardingFormValues } from "@/components/onboarding/types";
+import { retentionLabel } from "@/lib/billing/retention";
+import {
+  formatDataIncluded,
+  formatDataOverage,
+  formatPrice,
+  formatProjects,
+  formatSeats,
+  formatSignalsCount,
+  formatSignalsOverage,
+  formatSupport,
+  TIERS,
+} from "@/lib/billing/tiers";
 
 export interface PlanFeature {
   label: string;
@@ -14,47 +26,30 @@ export interface PlanOption {
   features: PlanFeature[];
 }
 
-export const PLANS: PlanOption[] = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
+// Onboarding only offers the paid signup tiers (free, hobby, pro) — there is
+// no Enterprise option here.
+type OnboardingTier = Extract<OnboardingFormValues["selectedTier"], "free" | "hobby" | "pro">;
+
+const buildPlan = (tier: OnboardingTier): PlanOption => {
+  const isPaid = TIERS[tier].dataOverageRatePerGB > 0;
+  return {
+    id: tier,
+    name: TIERS[tier].name,
+    price: formatPrice(tier),
     priceSubtext: "/ month",
     features: [
-      { label: "1 GB ingested data", sub: "no overage" },
-      { label: "1,000 Signals steps processing", sub: "no overage" },
-      { label: "15 day retention" },
-      { label: "1 project" },
-      { label: "1 seat" },
-      { label: "Community support" },
+      isPaid
+        ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
+        : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
+      isPaid
+        ? { label: `${formatSignalsCount(tier)} Signals steps`, sub: `then ${formatSignalsOverage(tier)}` }
+        : { label: `${formatSignalsCount(tier)} Signals steps`, sub: "no overage" },
+      { label: retentionLabel(tier) },
+      { label: formatProjects(tier) },
+      { label: formatSeats(tier) },
+      { label: formatSupport(tier) },
     ],
-  },
-  {
-    id: "hobby",
-    name: "Hobby",
-    price: "$30",
-    priceSubtext: "/ month",
-    features: [
-      { label: "3 GB ingested data", sub: "then $2 / GB" },
-      { label: "5,000 Signals steps processing included", sub: "then $0.0075 / Signals step" },
-      { label: "30 day retention" },
-      { label: "Unlimited projects" },
-      { label: "Unlimited seats" },
-      { label: "Email support" },
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$150",
-    priceSubtext: "/ month",
-    features: [
-      { label: "10 GB ingested data", sub: "then $1.50 / GB" },
-      { label: "50,000 Signals steps processing included", sub: "then $0.005 / Signals step" },
-      { label: "90 day retention" },
-      { label: "Unlimited projects" },
-      { label: "Unlimited seats" },
-      { label: "Slack support" },
-    ],
-  },
-];
+  };
+};
+
+export const PLANS: PlanOption[] = [buildPlan("free"), buildPlan("hobby"), buildPlan("pro")];
