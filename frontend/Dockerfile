@@ -1,4 +1,4 @@
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* pnpm-workspace.yaml* ./
-RUN yarn global add pnpm && pnpm i --frozen-lockfile
+RUN npm i -g pnpm@latest-11
+RUN pnpm i --frozen-lockfile
 
 
 # Rebuild the source code only when needed

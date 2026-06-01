@@ -21,6 +21,7 @@ interface ValueSuggestion {
   type: "value";
   field: string;
   value: string;
+  label?: string;
 }
 
 interface RawSearchSuggestion {
@@ -51,7 +52,7 @@ export const buildSuggestions = (
   }));
 
   const valueSuggestions: Suggestion[] = buildValueSuggestions(input, filters, autocompleteData).map(
-    ({ field, value }) => ({ type: "value" as const, field, value })
+    ({ field, value, label }) => ({ type: "value" as const, field, value, label })
   );
 
   return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
@@ -282,7 +283,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
                       onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
                     >
                       <span className="text-muted-foreground">{displayName}:</span>{" "}
-                      <span className="font-medium">{suggestion.value}</span>
+                      <span className="font-medium">{suggestion.label ?? suggestion.value}</span>
                     </div>
                   );
                 }

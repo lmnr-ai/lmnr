@@ -52,7 +52,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   }
 
   const mainQuery = `
-    SELECT 
+    SELECT
       span_id as spanId,
       parent_span_id as parentSpanId,
       name,
@@ -71,6 +71,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       output,
       path,
       attributes,
+      tool_definitions as toolDefinitions,
       events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}

@@ -121,7 +121,6 @@ pub enum WorkerType {
     SpansIndexer,
     Notifications,
     NotificationDeliveries,
-    Clustering,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     SignalJobSubmissionBatch,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
@@ -138,7 +137,6 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::NotificationDeliveries => write!(f, "notification_deliveries"),
-            WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobSubmissionBatch => {
                 write!(f, "signal_job_submission_batch")
             }

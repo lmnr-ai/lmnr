@@ -14,16 +14,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::ch::signal_events::CHSignalEvent;
 use crate::db::events::Event;
 use crate::db::spans::Span;
 use crate::utils::json_value_to_string;
 use preprocess::{clean_for_indexing, preprocess_text};
-use utils::extract_text_from_json_value;
+use utils::{extract_text_from_json_value, preprocess_json_strings};
 
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
 pub const EVENTS_INDEX_ID: &str = "events";
+pub const SIGNAL_EVENTS_INDEX_ID: &str = "signal_events";
 
 pub static SPANS_INDEX_ID: LazyLock<String> =
     LazyLock::new(|| std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string()));
@@ -42,15 +44,23 @@ pub struct QuickwitIndexedSpan {
 impl QuickwitIndexedSpan {
     /// Build a span document for Quickwit indexing.
     ///
-    /// `new_input_messages`: when provided (LLM spans only), `input` is the
-    /// JSON array of just those messages — the search index sees only the new
-    /// turn, so older repeated history doesn't dominate matches. Pass `None`
-    /// for non-LLM spans / non-array inputs to fall through to raw `span.input`.
+    /// `new_input_messages` / `new_output_messages`: when provided (LLM spans
+    /// only), `input` / `output` is the JSON array of just those messages —
+    /// the search index sees only the new turn, so older repeated history
+    /// doesn't dominate matches. Pass `None` for non-LLM spans / non-array
+    /// inputs to fall through to raw `span.input` / `span.output`. Output is
+    /// dedup'd the same way input is: post-LAM-1608 `span.output` is `None`
+    /// on the wire for dedup'd LLM spans, so the indexer must reconstruct the
+    /// trace-new output array from the dedup verdict, not read `span.output`.
     ///
     /// Cleaning runs here (base64 / signature stripping, role-key stripping
     /// for LLM input/output, whitespace collapse) so the Quickwit consumer
     /// doesn't have to know about provider-specific shapes.
-    pub fn from_span(span: &Span, new_input_messages: Option<&[Value]>) -> Self {
+    pub fn from_span(
+        span: &Span,
+        new_input_messages: Option<&[Value]>,
+        new_output_messages: Option<&[Value]>,
+    ) -> Self {
         // `is_llm_span()` matches the dedup / new-messages-subset predicate so
         // cached LLM spans get role-key stripping like regular LLM spans.
         let is_llm = span.is_llm_span();
@@ -64,8 +74,11 @@ impl QuickwitIndexedSpan {
             .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));
 
-        let output = span
-            .output
+        let raw_output = match new_output_messages {
+            Some(msgs) => Some(Value::Array(msgs.to_vec())),
+            None => span.output.clone(),
+        };
+        let output = raw_output
             .as_ref()
             .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));
@@ -118,10 +131,39 @@ impl From<&Event> for QuickwitIndexedEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickwitIndexedSignalEvent {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub signal_id: Uuid,
+    pub trace_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub severity: u8,
+    pub payload: Value,
+}
+
+impl QuickwitIndexedSignalEvent {
+    pub fn from_event(event: &CHSignalEvent) -> Self {
+        let timestamp = DateTime::<Utc>::from_timestamp_nanos(event.timestamp);
+        let payload = serde_json::from_str::<Value>(&event.payload).unwrap_or(Value::Null);
+
+        Self {
+            id: event.id,
+            project_id: event.project_id,
+            signal_id: event.signal_id,
+            trace_id: event.trace_id,
+            timestamp,
+            severity: event.severity,
+            payload,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum IndexerQueuePayload {
     Spans(Vec<QuickwitIndexedSpan>),
     Events(Vec<QuickwitIndexedEvent>),
+    SignalEvents(Vec<QuickwitIndexedSignalEvent>),
 }
 
 /// Flatten JSON values for searchability and indexing. Each implementation
@@ -141,6 +183,12 @@ impl FlattenJson for QuickwitIndexedEvent {
         let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
         self.attributes = serde_json::Value::String(attributes_text);
     }
+}
+
+impl FlattenJson for QuickwitIndexedSignalEvent {
+    // `payload` is a Quickwit `json` field — ship the parsed Value as-is so
+    // each subfield gets its own token stream.
+    fn flatten_json(&mut self) {}
 }
 
 /// Preprocess text fields for Quickwit indexing. Normalizes escape sequences,
@@ -164,6 +212,12 @@ impl PreprocessForIndexing for QuickwitIndexedEvent {
     }
 }
 
+impl PreprocessForIndexing for QuickwitIndexedSignalEvent {
+    fn preprocess_for_indexing(&mut self) {
+        preprocess_json_strings(&mut self.payload);
+    }
+}
+
 /// Enum to hold different document types for Quickwit ingestion.
 /// Holds Serialize and FlattenJson traits for ingestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +226,7 @@ impl PreprocessForIndexing for QuickwitIndexedEvent {
 pub enum QuickwitDocument {
     Span(QuickwitIndexedSpan),
     Event(QuickwitIndexedEvent),
+    SignalEvent(QuickwitIndexedSignalEvent),
 }
 
 impl IndexerQueuePayload {
@@ -180,6 +235,7 @@ impl IndexerQueuePayload {
         match self {
             IndexerQueuePayload::Spans(_) => &SPANS_INDEX_ID,
             IndexerQueuePayload::Events(_) => EVENTS_INDEX_ID,
+            IndexerQueuePayload::SignalEvents(_) => SIGNAL_EVENTS_INDEX_ID,
         }
     }
 
@@ -192,6 +248,10 @@ impl IndexerQueuePayload {
             IndexerQueuePayload::Events(events) => {
                 events.into_iter().map(QuickwitDocument::Event).collect()
             }
+            IndexerQueuePayload::SignalEvents(events) => events
+                .into_iter()
+                .map(QuickwitDocument::SignalEvent)
+                .collect(),
         }
     }
 }

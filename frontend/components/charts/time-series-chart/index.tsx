@@ -2,14 +2,13 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
-import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
+import { Bar, BarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 
+import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
-import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -87,23 +86,18 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
-    if (e && e.activeLabel) {
-      setRefArea({ left: e.activeLabel });
+    if (e?.activeLabel != null) {
+      setRefArea({ left: String(e.activeLabel) });
     }
   }, []);
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (refArea.left && e && e.activeLabel) {
-        setRefArea({ left: refArea.left, right: e.activeLabel });
+      if (refArea.left && e?.activeLabel != null) {
+        setRefArea({ left: refArea.left, right: String(e.activeLabel) });
       }
     },
     [refArea.left]
-  );
-
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
-    [chartConfig, fields]
   );
 
   return (
@@ -111,7 +105,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <BarChart
           data={data}
-          margin={{ left: -8, top: 8 }}
+          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -123,11 +117,12 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
+            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
           {showTooltip && (
             <ChartTooltip
               content={
@@ -140,20 +135,13 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               }
             />
           )}
-          {fields.map((fieldKey) => {
-            const config = chartConfig[fieldKey];
-            if (!config) return null;
-
-            return (
-              <Bar
-                key={fieldKey}
-                dataKey={fieldKey}
-                fill={config.color}
-                stackId={config.stackId}
-                shape={BarShapeWithConfig}
-              />
-            );
-          })}
+          <BarStack radius={[4, 4, 4, 4]}>
+            {fields.map((fieldKey) => {
+              const config = chartConfig[fieldKey];
+              if (!config) return null;
+              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
+            })}
+          </BarStack>
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}

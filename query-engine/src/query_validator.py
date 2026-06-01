@@ -61,6 +61,7 @@ class TableRegistry:
             "attributes",
             "trace_id",
             "tags",
+            "tool_definitions",
         }
 
         traces_columns = {

@@ -16,6 +16,8 @@ export const getEmailsConfig = async (): Promise<string[] | false> => {
 
     return jsonData?.emails ?? [];
   } catch (e) {
-    throw new Error(`Invalid file format for ${allowedEmailsFileName}`);
+    throw new Error(`Invalid file format for ${allowedEmailsFileName}`, {
+      cause: e,
+    });
   }
 };

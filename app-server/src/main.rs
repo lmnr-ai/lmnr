@@ -18,12 +18,6 @@ use api::v1::browser_sessions::{
 };
 use aws_config::BehaviorVersion;
 use browser_events::BrowserEventHandler;
-use clustering::batching::ClusteringEventBatchingHandler;
-use clustering::queue::{
-    EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_QUEUE,
-    EVENT_CLUSTERING_BATCH_ROUTING_KEY, EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE,
-    EVENT_CLUSTERING_ROUTING_KEY,
-};
 use features::{Feature, is_feature_enabled};
 use lapin::{
     Connection, ConnectionProperties, ExchangeKind,
@@ -93,13 +87,10 @@ use std::{
 };
 use storage::{Storage, mock::MockStorage};
 
+use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
 use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
-use crate::{
-    batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool},
-    clustering::clustering::ClusteringHandler,
-};
 use crate::{
     ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse, service::ClickhouseService},
     reports::generator::ReportsGenerator,
@@ -512,58 +503,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.7 Event Clustering message queue ====
-            channel
-                .exchange_declare(
-                    EVENT_CLUSTERING_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    EVENT_CLUSTERING_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.7b Event Clustering Batch message queue ====
-            channel
-                .exchange_declare(
-                    EVENT_CLUSTERING_BATCH_EXCHANGE.into(),
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    EVENT_CLUSTERING_BATCH_QUEUE.into(),
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
             // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
             #[cfg(feature = "signals")]
             {
@@ -775,13 +714,6 @@ fn main() -> anyhow::Result<()> {
             NOTIFICATION_DELIVERIES_EXCHANGE,
             NOTIFICATION_DELIVERIES_QUEUE,
         );
-        // ==== 3.7 Event Clustering message queue ====
-        queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
-        // ==== 3.7b Event Clustering Batch message queue ====
-        queue.register_queue(
-            EVENT_CLUSTERING_BATCH_EXCHANGE,
-            EVENT_CLUSTERING_BATCH_QUEUE,
-        );
         // ==== 3.8 Signal Job Submission Batch message queue ====
         #[cfg(feature = "signals")]
         {
@@ -942,10 +874,11 @@ fn main() -> anyhow::Result<()> {
     // redacted via the pii-redactor gRPC service for projects whose
     // `projects.remove_pii` toggle is on. Failure to connect at startup
     // disables the feature without blocking app-server boot.
-    let pii_redactor: Option<pii_redactor::PiiRedactorClient> =
-        if is_feature_enabled(Feature::PiiRedaction) {
-            let url = env::var("PII_REDACTOR_URL").expect("PII_REDACTOR_URL must be set");
-            match runtime_handle.block_on(
+    let pii_redactor: Option<pii_redactor::PiiRedactorClient> = if is_feature_enabled(
+        Feature::PiiRedaction,
+    ) {
+        let url = env::var("PII_REDACTOR_URL").expect("PII_REDACTOR_URL must be set");
+        match runtime_handle.block_on(
                 pii_redactor::pii_redactor::pii_redactor_service_client::PiiRedactorServiceClient::connect(url.clone()),
             ) {
                 Ok(client) => {
@@ -959,9 +892,9 @@ fn main() -> anyhow::Result<()> {
                     None
                 }
             }
-        } else {
-            None
-        };
+    } else {
+        None
+    };
 
     // == HTTP client ==
     let http_client = reqwest::Client::new();
@@ -1062,16 +995,6 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
-        let num_clustering_batching_workers = env::var("NUM_CLUSTERING_BATCHING_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
-
-        let num_clustering_workers = env::var("NUM_CLUSTERING_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
-
         let num_signal_job_submission_batch_workers =
             env::var("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS")
                 .unwrap_or(String::from("4"))
@@ -1094,7 +1017,7 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
@@ -1102,8 +1025,6 @@ fn main() -> anyhow::Result<()> {
             num_signals_workers,
             num_notification_workers,
             num_notification_delivery_workers,
-            num_clustering_batching_workers,
-            num_clustering_workers,
             num_signal_job_submission_batch_workers,
             num_signal_job_pending_batch_workers,
             num_logs_workers,
@@ -1275,7 +1196,6 @@ fn main() -> anyhow::Result<()> {
                     // Spawn signals workers using new worker pool
                     #[cfg(feature = "signals")]
                     if llm_provider_client.is_some() {
-                        // Spawn clustering batching workers
                         let batch_size: usize = get_unsigned_env_with_default(
                             "SIGNALS_BATCH_SIZE",
                             crate::signals::private::queue::DEFAULT_BATCH_SIZE,
@@ -1361,66 +1281,6 @@ fn main() -> anyhow::Result<()> {
                                 NOTIFICATION_DELIVERIES_QUEUE,
                                 NOTIFICATION_DELIVERIES_EXCHANGE,
                                 NOTIFICATION_DELIVERIES_ROUTING_KEY,
-                            ),
-                        );
-                    }
-
-                    // Spawn clustering batching workers
-                    let batch_size: usize = env::var("CLUSTERING_EVENTS_BATCH_SIZE")
-                        .unwrap_or_else(|_| "100".to_string())
-                        .parse()
-                        .unwrap_or(100);
-                    let batch_flush_interval_sec: u64 =
-                        env::var("CLUSTERING_EVENTS_BATCH_FLUSH_INTERVAL_SEC")
-                            .unwrap_or_else(|_| "300".to_string())
-                            .parse()
-                            .unwrap_or(300);
-                    let batch_flush_interval = Duration::from_secs(batch_flush_interval_sec);
-                    {
-                        let queue: Arc<MessageQueue> = mq_for_consumer.clone();
-                        batch_worker_pool_clone.spawn(
-                            BatchWorkerType::ClusteringBatching,
-                            num_clustering_batching_workers as usize,
-                            move || {
-                                ClusteringEventBatchingHandler::new(
-                                    queue.clone(),
-                                    BatchingConfig {
-                                        size: batch_size,
-                                        flush_interval: batch_flush_interval,
-                                    },
-                                )
-                            },
-                            QueueConfig::new(
-                                EVENT_CLUSTERING_QUEUE,
-                                EVENT_CLUSTERING_EXCHANGE,
-                                EVENT_CLUSTERING_ROUTING_KEY,
-                            ),
-                        );
-                    }
-
-                    // Spawn clustering workers
-                    {
-                        let cache = cache_for_consumer.clone();
-                        let client = reqwest::Client::new();
-                        let db = db_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let queue = mq_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Clustering,
-                            num_clustering_workers as usize,
-                            move || {
-                                ClusteringHandler::new(
-                                    cache.clone(),
-                                    client.clone(),
-                                    db.clone(),
-                                    clickhouse.clone(),
-                                    queue.clone(),
-                                )
-                            },
-                            QueueConfig::new(
-                                EVENT_CLUSTERING_BATCH_QUEUE,
-                                EVENT_CLUSTERING_BATCH_EXCHANGE,
-                                EVENT_CLUSTERING_BATCH_ROUTING_KEY,
                             ),
                         );
                     }
@@ -1688,7 +1548,12 @@ fn main() -> anyhow::Result<()> {
                             .wrap(ErrorHandlers::new().handler(
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
-                                    log::error!("Bad request: {:?}", res.response().body());
+                                    let path = res.request().path();
+                                    if path.ends_with("/sql/query") {
+                                        log::warn!("Bad request: {:?}", res.response().body());
+                                    } else {
+                                        log::error!("Bad request: {:?}", res.response().body());
+                                    }
                                     Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
                                 },
                             ))
@@ -1726,7 +1591,8 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/traces")
                                     .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::traces::process_traces),
+                                    .service(api::v1::traces::process_traces)
+                                    .service(api::v1::traces_metadata::update_trace_metadata),
                             )
                             .service(
                                 web::scope("/v1/spans")
@@ -1798,6 +1664,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
+                                    .service(routes::signal_events::search_signal_events)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
                                     .service(routes::spans::get_skeleton_hashes);

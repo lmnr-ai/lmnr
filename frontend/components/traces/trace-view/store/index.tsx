@@ -49,6 +49,7 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialChatOpen?: boolean;
+  initialSearch?: string;
 }) =>
   createStore<TraceViewStore>()(
     persist(
@@ -58,6 +59,7 @@ const createTraceViewStore = (options?: {
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
           initialChatOpen: options?.initialChatOpen,
+          initialSearch: options?.initialSearch,
         });
 
         return {
@@ -167,12 +169,14 @@ const TraceViewStoreProvider = ({
   isAlwaysSelectSpan,
   initialSignalId,
   initialChatOpen,
+  initialSearch,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialChatOpen?: boolean;
+  initialSearch?: string;
 }>) => {
   const [storeState] = useState(() =>
     createTraceViewStore({
@@ -181,6 +185,7 @@ const TraceViewStoreProvider = ({
       isAlwaysSelectSpan,
       initialSignalId,
       initialChatOpen,
+      initialSearch,
     })
   );
 

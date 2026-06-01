@@ -6,10 +6,12 @@ use crate::notifications::AlertType;
 
 /// Severity levels: 0 = info, 1 = warning, 2 = critical.
 /// Defaults to critical when absent (historical alerts).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const DEFAULT_SEVERITY: u8 = 2;
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub struct AlertMetadata {
     #[serde(default)]
     pub severities: Option<Vec<u8>>,
@@ -17,6 +19,7 @@ pub struct AlertMetadata {
     pub skip_similar: Option<bool>,
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 impl AlertMetadata {
     pub fn skip_similar(&self) -> bool {
         // False by default to not break historical alerts
@@ -25,6 +28,7 @@ impl AlertMetadata {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub struct AlertInfo {
     pub id: Uuid,
     pub name: String,
@@ -35,6 +39,7 @@ pub struct AlertInfo {
 
 /// Look up all alerts for a given project and signal ID, optionally filtered by alert type.
 /// Used by the clustering handler to discover which alerts match a signal.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_alerts_for_signal(
     pool: &PgPool,
     project_id: Uuid,

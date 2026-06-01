@@ -16,7 +16,7 @@ import { useSpanSearchState } from "@/components/traces/span-view/span-search-co
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
-import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
+import { type GeminiContentsSchema, parseGeminiContents } from "@/lib/spans/types/gemini";
 import { parseGenAIMessages } from "@/lib/spans/types/gen-ai";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
@@ -168,14 +168,9 @@ export function processMessages(data: unknown): ProcessedMessages {
     return { messages: anthropicInput, type: "anthropic" };
   }
 
-  const geminiOutput = parseGeminiOutput(data);
-  if (geminiOutput) {
-    return { messages: geminiOutput, type: "gemini" };
-  }
-
-  const geminiInput = parseGeminiInput(data);
-  if (geminiInput) {
-    return { messages: geminiInput, type: "gemini" };
+  const geminiContents = parseGeminiContents(data);
+  if (geminiContents) {
+    return { messages: geminiContents, type: "gemini" };
   }
 
   return {
