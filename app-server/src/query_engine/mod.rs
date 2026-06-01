@@ -1,17 +1,20 @@
 use anyhow::Result;
+use in_process::InProcessQueryEngine;
 use mock::MockQueryEngine;
-use query_engine_impl::QueryEngineImpl;
 use uuid::Uuid;
 
+pub mod in_process;
 pub mod mock;
-pub mod query_engine;
-pub mod query_engine_impl;
 
-pub use query_engine_impl::QueryEngineValidationResult;
+#[derive(Debug, Clone)]
+pub enum QueryEngineValidationResult {
+    Success { validated_query: String },
+    Error { error: String },
+}
 
 #[enum_dispatch::enum_dispatch(QueryEngineTrait)]
 pub enum QueryEngine {
-    Grpc(QueryEngineImpl),
+    InProcess(InProcessQueryEngine),
     Mock(MockQueryEngine),
 }
 
@@ -23,7 +26,10 @@ pub trait QueryEngineTrait {
         project_id: Uuid,
     ) -> Result<QueryEngineValidationResult>;
 
-    async fn sql_to_json(&self, sql: String) -> Result<query_engine::QueryStructure>;
+    async fn sql_to_json(&self, sql: String) -> Result<in_process::types::QueryStructure>;
 
-    async fn json_to_sql(&self, query_structure: query_engine::QueryStructure) -> Result<String>;
+    async fn json_to_sql(
+        &self,
+        query_structure: in_process::types::QueryStructure,
+    ) -> Result<String>;
 }
