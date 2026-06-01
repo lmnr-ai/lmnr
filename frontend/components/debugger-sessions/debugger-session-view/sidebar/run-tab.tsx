@@ -2,11 +2,9 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { CirclePlay, Loader2, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import React, { useMemo } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
-import { Button } from "@/components/ui/button";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,37 +12,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDebuggerSessionStore } from "../store";
 import SystemMessageEditor from "./system-message-editor";
 
-interface ConfigTabProps {
-  onRun: () => void;
-  isLoading?: boolean;
-  isActive?: boolean;
-}
-
-export default function RunTab({ onRun, isLoading, isActive }: ConfigTabProps) {
-  const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue, error, sessionStatus } =
-    useDebuggerSessionStore((state) => ({
+export default function RunTab() {
+  const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue } = useDebuggerSessionStore(
+    (state) => ({
       systemMessagesMap: state.systemMessagesMap,
       isSystemMessagesLoading: state.isSystemMessagesLoading,
       params: state.params,
       paramValues: state.paramValues,
       setParamValue: state.setParamValue,
-      error: state.error,
-      sessionStatus: state.sessionStatus,
-    }));
-
-  const isRunning = sessionStatus === "RUNNING";
-
-  useHotkeys(
-    "meta+enter,ctrl+enter",
-    () => {
-      if (!isRunning && !isLoading && isActive) {
-        onRun();
-      }
-    },
-    {
-      enabled: !isRunning && !isLoading && isActive,
-    },
-    [isRunning, isLoading, isActive, onRun]
+    })
   );
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
@@ -115,31 +91,6 @@ export default function RunTab({ onRun, isLoading, isActive }: ConfigTabProps) {
           </div>
         </div>
       </ScrollArea>
-
-      <div className="flex items-center gap-2 border-t px-4 pt-4 pb-4">
-        {error && <span className="text-sm font-semibold text-destructive">{error}</span>}
-        <div className="flex ml-auto">
-          <Button onClick={onRun} disabled={isLoading || isRunning}>
-            {isLoading ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <CirclePlay size={14} className="mr-1.5" />
-                <span className="mr-1.5">Run</span>
-                <kbd
-                  data-slot="kbd"
-                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
-                >
-                  ⌘ ⏎
-                </kbd>
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

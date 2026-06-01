@@ -9,14 +9,9 @@ import RunTab from "./run-tab.tsx";
 import RunsTab from "./runs-tab";
 import TracesTab from "./traces-tab";
 
-interface DebuggerSidebarProps {
-  onRun: () => void;
-  isLoading?: boolean;
-}
-
 type DebuggerSidebarTab = "run" | "runs" | "traces";
 
-export default function DebuggerSidebar({ onRun, isLoading }: DebuggerSidebarProps) {
+export default function DebuggerSidebar() {
   const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
   const [selectedTab, setSelectedTab] = useState<DebuggerSidebarTab>("run");
@@ -46,7 +41,7 @@ export default function DebuggerSidebar({ onRun, isLoading }: DebuggerSidebarPro
         </div>
 
         <TabsContent value="run" className="flex flex-col flex-1 overflow-hidden">
-          <RunTab onRun={onRun} isLoading={isLoading} isActive={activeTab === "run"} />
+          <RunTab />
         </TabsContent>
 
         <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden">
