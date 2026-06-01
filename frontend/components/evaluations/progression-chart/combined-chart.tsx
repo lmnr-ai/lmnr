@@ -134,12 +134,12 @@ export default function CombinedChart({
             name={score}
             stroke={chartConfig[score]?.color}
             strokeWidth={1.5}
-            strokeOpacity={hoveredEvaluationId ? 0.6 : 1}
+            strokeOpacity={hoveredEvaluationId ? 0.4 : 1}
             dot={(props: { cx?: number; cy?: number; payload?: Row; key?: string | number }) => {
               const { cx, cy, payload, key } = props;
               const isHovered = payload?.evaluationId === hoveredEvaluationId;
               const r = isHovered ? 5 : 2;
-              const opacity = hoveredEvaluationId ? (isHovered ? 1 : 0.6) : 1;
+              const opacity = hoveredEvaluationId ? (isHovered ? 1 : 0.4) : 1;
               return (
                 <circle
                   key={key}
