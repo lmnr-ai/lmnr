@@ -1,6 +1,6 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -24,26 +24,42 @@ impl RolloutSessionStatus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct RolloutSession {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub project_id: Uuid,
+    pub name: Option<String>,
+    pub status: String,
+}
+
+/// Idempotent upsert keyed on the SDK-supplied `session_id`. A null `name`
+/// never clobbers a name already set (e.g. via the frontend).
 pub async fn create_or_update_rollout_session(
     pool: &PgPool,
     session_id: &Uuid,
     project_id: &Uuid,
-    params: Value,
     name: Option<String>,
-) -> Result<()> {
-    sqlx::query(
-        "INSERT INTO rollout_sessions (id, project_id, params, name)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (id) DO UPDATE SET params = $3, name = $4",
+) -> Result<RolloutSession> {
+    let session = sqlx::query_as::<_, RolloutSession>(
+        // The conflict update is scoped to the owning project so a caller
+        // supplying another project's session id can't overwrite its name; the
+        // mismatch yields no row and the query errors instead.
+        "INSERT INTO rollout_sessions (id, project_id, name)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (id) DO UPDATE
+            SET name = COALESCE(EXCLUDED.name, rollout_sessions.name)
+            WHERE rollout_sessions.project_id = $2
+        RETURNING id, created_at, project_id, name, status",
     )
     .bind(session_id)
     .bind(project_id)
-    .bind(params)
     .bind(name)
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
 
-    Ok(())
+    Ok(session)
 }
 
 pub async fn delete_rollout_session(

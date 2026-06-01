@@ -14,7 +14,6 @@ import {
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
-import { tryParseJson } from "@/lib/utils.ts";
 
 import { type SystemMessage } from "../system-messages-utils.ts";
 
@@ -28,8 +27,6 @@ interface DebuggerSessionStoreState {
   checkpointSpanId: string | undefined;
   overrides: Record<string, { system: string }>;
   generatedNames: Record<string, string>;
-  isLoading: boolean;
-  error?: string;
   sessionStatus: DebuggerSessionStatus;
   isSessionDeleted: boolean;
   params: Array<{ name: string; [key: string]: any }>;
@@ -55,8 +52,6 @@ interface DebuggerSessionStoreActions {
   resetOverride: (messageId: string) => void;
   setSessionStatus: (status: DebuggerSessionStatus) => void;
   setIsSessionDeleted: (isSessionDeleted: boolean) => void;
-  runDebugger: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
-  cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   setParamValue: (value: string) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
   setHistoryRuns: (runs: TraceRow[]) => void;
@@ -229,8 +224,6 @@ const createDebuggerSessionStore = ({
         checkpointSpanId: undefined,
         overrides: {},
         generatedNames: {},
-        isLoading: false,
-        error: undefined,
         sessionStatus: initialStatus,
         isSessionDeleted: false,
         params,
@@ -292,83 +285,7 @@ const createDebuggerSessionStore = ({
 
         setSessionStatus: (sessionStatus: DebuggerSessionStatus) => set({ sessionStatus }),
 
-        runDebugger: async (projectId: string, sessionId: string) => {
-          try {
-            set({ isLoading: true, error: undefined });
-
-            const overrides = get().overrides;
-            const currentTraceId = get()?.trace?.id;
-            const cachedSpanCounts = get().cachedSpanCounts;
-            const paramValues = get().paramValues;
-
-            const rolloutPayload: Record<string, any> = {};
-
-            set({ spans: [], cachedSpanCounts: {}, checkpointSpanId: undefined, trace: undefined });
-            if (currentTraceId) {
-              rolloutPayload.trace_id = currentTraceId;
-            }
-
-            if (Object.keys(cachedSpanCounts).length > 0) {
-              rolloutPayload.path_to_count = cachedSpanCounts;
-            }
-
-            if (paramValues && paramValues.trim() !== "") {
-              rolloutPayload.args = tryParseJson(paramValues);
-            }
-
-            if (Object.keys(overrides).length > 0) {
-              rolloutPayload.overrides = overrides;
-            }
-
-            const response = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/run`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(rolloutPayload),
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-              throw new Error(errorData.error || "Failed to run debugger");
-            }
-
-            await response.json();
-            set({ sessionStatus: "RUNNING" });
-
-            return { success: true };
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Failed to run debugger";
-            set({ error: errorMessage });
-            return { success: false, error: errorMessage };
-          } finally {
-            set({ isLoading: false });
-          }
-        },
         setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
-
-        cancelSession: async (projectId: string, sessionId: string) => {
-          try {
-            set({ isLoading: true });
-
-            const response = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/status`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "STOPPED" }),
-            });
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-              throw new Error(errorData.error || "Failed to cancel debugger");
-            }
-
-            set({ sessionStatus: "STOPPED" });
-            return { success: true };
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Failed to cancel debugger";
-            return { success: false, error: errorMessage };
-          } finally {
-            set({ isLoading: false });
-          }
-        },
 
         setParamValue: (value: string) => {
           set({ paramValues: value });
