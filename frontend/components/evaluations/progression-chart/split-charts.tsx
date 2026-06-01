@@ -15,6 +15,7 @@ interface SplitChartsProps {
   chartConfig: ChartConfig;
   hoveredEvaluationId?: string;
   onToggleScore?: (score: string) => void;
+  onPointClick?: (evaluationId: string) => void;
 }
 
 interface ScoreRow {
@@ -37,6 +38,7 @@ export default function SplitCharts({
   chartConfig,
   hoveredEvaluationId,
   onToggleScore,
+  onPointClick,
 }: SplitChartsProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const visible = scores.filter((s) => visibleScores.includes(s));
@@ -77,6 +79,7 @@ export default function SplitCharts({
                   visibleScores={visibleScores}
                   chartConfig={chartConfig}
                   hoveredEvaluationId={hoveredEvaluationId}
+                  onPointClick={onPointClick}
                   fillParent
                   showXAxisLabels={false}
                 />

@@ -1,7 +1,7 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -138,6 +138,7 @@ export default function Evaluations() {
 
 function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
+  const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
@@ -336,6 +337,7 @@ function EvaluationsContent() {
                 aggregationFunction={aggregationFunction}
                 baselineEvaluationId={selectedEvaluationId}
                 hoveredEvaluationId={hoveredEvaluationId}
+                onPointClick={(id) => router.push(`/project/${params?.projectId}/evaluations/${id}`)}
               />
             </ResizablePanel>
             <ResizableHandle withHandle className="my-2 bg-transparent transition-colors duration-200" />

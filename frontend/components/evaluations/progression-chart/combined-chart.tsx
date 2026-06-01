@@ -15,6 +15,7 @@ interface CombinedChartProps {
   visibleScores: string[];
   chartConfig: ChartConfig;
   hoveredEvaluationId?: string;
+  onPointClick?: (evaluationId: string) => void;
   className?: string;
   // When true the chart fills its parent without its own horizontal scroll
   // (used in Split where the parent owns the scroll container).
@@ -38,6 +39,7 @@ export default function CombinedChart({
   visibleScores,
   chartConfig,
   hoveredEvaluationId,
+  onPointClick,
   className,
   fillParent = false,
   showXAxisLabels = true,
@@ -115,8 +117,19 @@ export default function CombinedChart({
   );
 
   const chart = (
-    <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-      <LineChart margin={{ top: 8, right: 8, bottom: 4, left: -8 }} data={rows} accessibilityLayer>
+    <ChartContainer config={chartConfig} className={cn("aspect-auto h-full w-full", onPointClick && "cursor-pointer")}>
+      <LineChart
+        margin={{ top: 8, right: 8, bottom: 4, left: -8 }}
+        data={rows}
+        accessibilityLayer
+        onClick={
+          onPointClick
+            ? (state: { activeLabel?: string | number }) => {
+                if (typeof state?.activeLabel === "string") onPointClick(state.activeLabel);
+              }
+            : undefined
+        }
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="evaluationId"

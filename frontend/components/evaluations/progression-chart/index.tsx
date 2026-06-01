@@ -63,6 +63,7 @@ interface ProgressionChartProps {
   evaluations: { id: string; name: string }[];
   baselineEvaluationId?: string;
   hoveredEvaluationId?: string;
+  onPointClick?: (evaluationId: string) => void;
 }
 
 export default function ProgressionChart({
@@ -71,6 +72,7 @@ export default function ProgressionChart({
   evaluations,
   baselineEvaluationId,
   hoveredEvaluationId,
+  onPointClick,
 }: ProgressionChartProps) {
   const [scores, setScores] = useState<string[]>([]);
   const [variant] = useChartVariant();
@@ -181,6 +183,7 @@ export default function ProgressionChart({
                 visibleScores={scores}
                 chartConfig={chartConfig}
                 hoveredEvaluationId={hoveredEvaluationId}
+                onPointClick={onPointClick}
               />
             </div>
           </div>
@@ -192,6 +195,7 @@ export default function ProgressionChart({
             chartConfig={chartConfig}
             hoveredEvaluationId={hoveredEvaluationId}
             onToggleScore={toggleScore}
+            onPointClick={onPointClick}
           />
         )}
       </div>
