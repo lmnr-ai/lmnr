@@ -1,6 +1,5 @@
 "use client";
 
-import { Star } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -39,21 +38,17 @@ export default function GitHubStarsButton({ owner, repo, className }: GitHubStar
       href={`https://github.com/${owner}/${repo}`}
       target="_blank"
       className={cn(
-        "flex items-center h-7 rounded-md overflow-hidden no-underline transition-colors",
-        "bg-landing-surface-600 border border-landing-surface-400 hover:bg-landing-surface-500 hover:border-landing-text-400",
+        "flex items-center h-7 gap-2 rounded-md overflow-hidden no-underline transition-colors group",
         className
       )}
     >
-      <div className="flex items-center px-2.5 h-full">
-        <IconGitHub className="w-4 h-4 text-landing-text-300" />
+      <div className="flex items-center h-full">
+        <IconGitHub className="w-4 h-4 text-landing-text-300 group-hover:text-landing-text-100" />
       </div>
       {stars !== null && (
-        <div className="flex items-center gap-1.5 px-2.5 h-full border-l border-landing-surface-400 bg-landing-surface-700">
-          <Star className="w-3.5 h-3.5 text-landing-text-300" />
-          <span className="font-sans text-xs font-medium text-landing-text-300">
-            {formatCount(stars)}
-          </span>
-        </div>
+        <span className="font-sans text-xs font-medium text-landing-text-300 group-hover:text-landing-text-100">
+          {formatCount(stars)}
+        </span>
       )}
     </Link>
   );

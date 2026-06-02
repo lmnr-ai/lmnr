@@ -191,7 +191,9 @@ export const authOptions: NextAuthOptions = {
             await trackUserCreated(token.email, account?.provider ?? "unknown");
           }
         } catch (e) {
-          throw new Error("Failed to authenticate user.");
+          throw new Error("Failed to authenticate user.", {
+            cause: e,
+          });
         }
       }
 

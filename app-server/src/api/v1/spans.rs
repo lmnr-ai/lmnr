@@ -107,6 +107,8 @@ pub async fn create_spans(
             span,
             pre_processed: false,
             input_dedup: None,
+            output_dedup: None,
+            tool_dedup: None,
         });
     }
 

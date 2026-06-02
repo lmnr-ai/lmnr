@@ -485,15 +485,12 @@ async fn send_soft_limit_notification(
 
     let usage_item_str = match usage_item {
         UsageItem::Bytes => "bytes",
-        UsageItem::SignalRuns => "signal_runs",
         UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
 
     let tier_included = match usage_item {
         UsageItem::Bytes => tier_name.included_bytes(),
-        UsageItem::SignalRuns | UsageItem::SignalStepsProcessed => {
-            tier_name.included_signal_steps()
-        }
+        UsageItem::SignalStepsProcessed => tier_name.included_signal_steps(),
     };
     let at_tier_included_allowance = tier_included == Some(limit_value);
     let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
@@ -561,10 +558,6 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
                 format!("{:.2} MB", gb * 1024.0)
             };
             ("Data ingestion".to_string(), formatted)
-        }
-        UsageItem::SignalRuns => {
-            let formatted = format_number_with_commas(limit_value);
-            ("Signal runs".to_string(), formatted)
         }
         UsageItem::SignalStepsProcessed => {
             let formatted = format_number_with_commas(limit_value);
