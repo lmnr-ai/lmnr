@@ -3,13 +3,15 @@
 import { Check, ExternalLink, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { type EventRow } from "@/lib/events/types";
+import { Feature } from "@/lib/features/features.ts";
 
 interface SignalTabProps {
   signalId: string;
@@ -76,39 +78,20 @@ function PayloadValue({
 
 export default function SignalTab({ signalId, signalName, prompt, structuredOutput, events, traceId }: SignalTabProps) {
   const { projectId } = useParams();
+  const featureFlags = useFeatureFlags();
   const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
   const selectSpanById = useTraceViewStore((state) => state.selectSpanById);
 
   const schemaFields = useMemo(() => jsonSchemaToSchemaFields(structuredOutput), [structuredOutput]);
   const validFields = useMemo(() => schemaFields.filter((f) => f.name.trim()), [schemaFields]);
 
-  const resolveSpanId = useCallback(
-    async (sequentialId: string): Promise<string | null> => {
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          return data.spanId;
-        }
-      } catch (error) {
-        console.error("Error resolving span ID:", error);
-      }
-      return null;
-    },
-    [projectId, traceId]
-  );
-
   const spanRefCallbacks = useMemo<SpanReferenceCallbacks>(
     () => ({
-      resolveSpanId,
       onSelectSpan: selectSpanById,
     }),
-    [resolveSpanId, selectSpanById]
+    [selectSpanById]
   );
 
-  // Show the most recent event
   const safeEvents = events ?? [];
   const latestEvent = safeEvents[0];
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
@@ -121,17 +104,18 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
 
   return (
     <div className="py-1.5 space-y-1.5">
-      {/* Action buttons */}
       <div className="flex items-center justify-start">
         <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
-            onClick={handleOpenInChat}
-          >
-            <Sparkles className="size-3.5 mr-1" />
-            Open in AI Chat
-          </Button>
+          {featureFlags[Feature.AGENT] && (
+            <Button
+              variant="outline"
+              className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
+              onClick={handleOpenInChat}
+            >
+              <Sparkles className="size-3.5 mr-1" />
+              Open in AI Chat
+            </Button>
+          )}
           <Button
             variant="outline"
             className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
@@ -145,7 +129,6 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
         </div>
       </div>
 
-      {/* Event payload */}
       {!latestEvent ? (
         <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">No events found</div>
       ) : (
