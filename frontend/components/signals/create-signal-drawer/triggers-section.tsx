@@ -227,7 +227,7 @@ export default function TriggersSection() {
       <div className="space-y-2">
         {fields.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-md">
-            No triggers configured. The signal will only run via jobs. Click &quot;Add trigger&quot; to add one.
+            No triggers configured. The signal will not run on new traces. Click &quot;Add trigger&quot; to add one.
           </div>
         )}
         {fields.map((field, index) => (
