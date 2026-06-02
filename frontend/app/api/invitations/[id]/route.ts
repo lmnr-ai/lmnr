@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -42,6 +43,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
       await tx.insert(membersOfWorkspaces).values({ userId: user.id, memberRole: "member", workspaceId });
     });
+
+    // Subscribe the authenticated session user (matching the membership insert
+    // above, which uses user.id), not the caller-supplied invitation email.
+    // Best-effort: the membership transaction is already committed, so a subscribe
+    // failure must not 500 — a retry would 404 since the invitation row is gone.
+    try {
+      await subscribeMemberToWorkspaceNotifications(workspaceId, user.email);
+    } catch (e) {
+      console.error("Failed to subscribe member to workspace notifications:", e);
+    }
+
     return new Response("Invitation accepted.", { status: 200 });
   }
 

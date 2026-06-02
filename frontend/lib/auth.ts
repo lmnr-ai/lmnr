@@ -7,6 +7,7 @@ import GoogleProvider from "next-auth/providers/google";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import OktaProvider from "next-auth/providers/okta";
 
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -46,6 +47,19 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
+
+  // Opt the new member into the workspace's reports and alerts, mirroring the
+  // onboarding auto-subscription. Best-effort: this runs inside the jwt callback's
+  // try/catch, so an unhandled error would be re-thrown as a login failure — and
+  // since the invitation rows are already deleted, a retry could never re-attempt
+  // it. Swallow errors so a notification hiccup never blocks authentication.
+  for (const invitation of pendingInvitations) {
+    try {
+      await subscribeMemberToWorkspaceNotifications(invitation.workspaceId, email);
+    } catch (e) {
+      console.error("Failed to subscribe member to workspace notifications:", e);
+    }
+  }
 };
 
 const trackUserCreated = async (email: string, provider: string): Promise<void> => {
