@@ -9,6 +9,7 @@ import { shallow } from "zustand/shallow";
 
 import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
+import DatapointRunsChart from "@/components/evaluation/datapoint-runs-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
@@ -32,11 +33,10 @@ import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/mo
 import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { swrFetcher } from "@/lib/utils";
 
 import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
@@ -226,6 +226,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
 
   // Side-panel + selected-row state for trace view.
   const [selectedScore, setSelectedScore] = useState<string | undefined>(() => scoreNames[0]);
+  // Lives here (not in the chart) so it survives trace switches — the chart remounts
+  // on the side panel's key={traceId}, which would otherwise reset local state.
+  const [runsChartCollapsed, setRunsChartCollapsed] = useState(false);
   const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
@@ -239,6 +242,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     () => allDatapoints?.find((row) => row["id"] === datapointId),
     [allDatapoints, datapointId]
   );
+
+  const selectedIndex = selectedRow != null ? Number(selectedRow["index"]) : NaN;
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
@@ -270,12 +275,16 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     push(`${pathName}?${next}`);
   }, [searchParams, pathName, push]);
 
-  const handleTraceChange = (id: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("traceId", id);
-    push(`${pathName}?${next}`);
-    setTraceId(id);
-  };
+  const handleTraceChange = useCallback(
+    (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("traceId", id);
+      next.delete("spanId");
+      push(`${pathName}?${next}`);
+      setTraceId(id);
+    },
+    [searchParams, pathName, push]
+  );
 
   const visibleColumnDefs = useMemo(
     () => selectVisibleColumnDefs(columnDefs, isComparison),
@@ -370,36 +379,19 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
       </div>
       {traceId && (
         <TraceViewSidePanel onClose={onClose} traceId={traceId}>
-          {targetId && (
-            <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-              <Select value={traceId} onValueChange={handleTraceChange}>
-                <SelectTrigger className="flex font-medium text-secondary-foreground">
-                  <SelectValue placeholder="Select evaluation" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(selectedRow?.["traceId"] as string) && (
-                    <SelectItem value={selectedRow!["traceId"] as string}>
-                      <span>
-                        {statsData?.evaluation.name}
-                        <span className="text-secondary-foreground text-xs ml-2">
-                          {formatTimestamp(String(statsData?.evaluation.createdAt))}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  )}
-                  {(selectedRow?.["compared:traceId"] as string) && (
-                    <SelectItem value={selectedRow!["compared:traceId"] as string}>
-                      <span>
-                        {targetStatsData?.evaluation.name}
-                        <span className="text-secondary-foreground text-xs ml-2">
-                          {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          {selectedRow && Number.isFinite(selectedIndex) && evaluations.length > 1 && (
+            <DatapointRunsChart
+              projectId={params.projectId}
+              index={selectedIndex}
+              evaluations={evaluations}
+              currentTraceId={traceId}
+              scoreNames={scoreNames}
+              selectedScore={selectedScore}
+              onSelectScore={setSelectedScore}
+              onSelectTrace={handleTraceChange}
+              collapsed={runsChartCollapsed}
+              onToggleCollapse={() => setRunsChartCollapsed((v) => !v)}
+            />
           )}
         </TraceViewSidePanel>
       )}

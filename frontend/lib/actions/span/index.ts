@@ -6,7 +6,7 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
-import { type Span } from "@/lib/traces/types.ts";
+import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.guid(),
@@ -52,7 +52,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   }
 
   const mainQuery = `
-    SELECT 
+    SELECT
       span_id as spanId,
       parent_span_id as parentSpanId,
       name,
@@ -71,6 +71,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       output,
       path,
       attributes,
+      tool_definitions as toolDefinitions,
       events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}
@@ -172,3 +173,31 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
+
+export const resolveSpanId = async (
+  projectId: string,
+  traceId: string,
+  sequentialId: number
+): Promise<{ spanId: string; spanType: SpanType } | null> => {
+  const spans = await executeQuery({
+    projectId,
+    query: `
+      SELECT span_id, span_type
+      FROM spans
+      WHERE trace_id = {trace_id: UUID}
+      ORDER BY start_time ASC
+      LIMIT 1 OFFSET {offset: UInt32}
+    `,
+    parameters: {
+      trace_id: traceId,
+      offset: sequentialId - 1,
+    },
+  });
+
+  if (spans.length === 0) {
+    return null;
+  }
+
+  const row = spans[0] as { span_id: string; span_type: string };
+  return { spanId: row.span_id, spanType: row.span_type as SpanType };
+};

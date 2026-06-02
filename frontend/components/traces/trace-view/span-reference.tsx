@@ -7,25 +7,14 @@ import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
-/**
- * Matches XML-like span references in text:
- *   <span id='123' name='my-span' />
- *   <span id='123' name='my-span' reference_text='...' />
- */
-const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g;
+const SPAN_REF_REGEX = /<span\s+id='([0-9a-f]{6})'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/gi;
 
 export interface SpanReferenceCallbacks {
-  /** XML refs: resolve sequential id → uuid + type via the agent endpoint. */
   resolveSpanId: (sequentialId: string) => Promise<{ uuid: string; type: SpanType } | null>;
-  /** Markdown refs: sync lookup of type from already-loaded store spans. */
   getSpanType: (uuid: string) => SpanType | undefined;
   onSelectSpan: (spanUuid: string) => void;
 }
 
-/**
- * Shared chip rendering: 16px icon container colored by span type, plus the
- * span name in muted text. Used by both XML and markdown badges.
- */
 function SpanChip({
   name,
   spanType,
@@ -118,9 +107,6 @@ function MarkdownSpanBadge({
   return <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan(spanUuid)} />;
 }
 
-/**
- * Collect all span reference matches (XML and markdown) and sort by position.
- */
 interface SpanMatch {
   index: number;
   length: number;
@@ -130,7 +116,6 @@ interface SpanMatch {
 function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMatch[] {
   const matches: SpanMatch[] = [];
 
-  // XML-style: <span id='123' name='my-span' />
   SPAN_REF_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SPAN_REF_REGEX.exec(text)) !== null) {
@@ -150,9 +135,6 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
     });
   }
 
-  // Markdown-style: [Label](https://...?spanId=UUID)
-  // Only links with a spanId are actionable here — the trace-view already has
-  // a fixed traceId, so cross-trace links without spanId aren't useful as badges.
   for (const link of parseSpanLinks(text)) {
     if (!link.spanId) continue;
     matches.push({
@@ -169,17 +151,10 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
     });
   }
 
-  // Sort by position so we can iterate left-to-right
   matches.sort((a, b) => a.index - b.index);
   return matches;
 }
 
-/**
- * Renders a string with span references replaced by clickable badges.
- * Handles both XML-style (<span id='...' name='...' />) and
- * markdown-style ([Label](url?spanId=UUID)) references.
- * Non-matching text is rendered as-is.
- */
 export function renderSpanReferences(text: string, callbacks: SpanReferenceCallbacks): React.ReactNode {
   const matches = collectMatches(text, callbacks);
 
@@ -191,7 +166,6 @@ export function renderSpanReferences(text: string, callbacks: SpanReferenceCallb
   let lastIndex = 0;
 
   for (const m of matches) {
-    // Skip overlapping matches
     if (m.index < lastIndex) continue;
 
     if (m.index > lastIndex) {

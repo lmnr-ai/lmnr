@@ -1,12 +1,14 @@
-import { resolveSpanId } from "@/lib/actions/trace/agent/spans";
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-export async function GET(req: Request, props: { params: Promise<{ projectId: string; traceId: string }> }) {
+import { resolveSpanId } from "@/lib/actions/span";
+
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string; traceId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
 
-  const url = new URL(req.url);
-  const sequentialId = url.searchParams.get("id");
+  const sequentialId = req.nextUrl.searchParams.get("id");
 
   if (!sequentialId || isNaN(parseInt(sequentialId, 10)) || parseInt(sequentialId, 10) <= 0) {
     return Response.json({ error: "Invalid span ID" }, { status: 400 });
@@ -22,6 +24,11 @@ export async function GET(req: Request, props: { params: Promise<{ projectId: st
     return Response.json(resolved);
   } catch (error) {
     console.error(error);
+
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to resolve span ID." },
       { status: 500 }

@@ -487,11 +487,3 @@ export const useTraceViewBaseStore = <T>(
   }
   return useStoreWithEqualityFn(store, selector, equalityFn);
 };
-
-export const useTraceViewBaseStoreRaw = () => {
-  const store = useContext(TraceViewContext);
-  if (!store) {
-    throw new Error("useTraceViewBaseStore must be used within a TraceViewContext provider");
-  }
-  return store;
-};

@@ -1062,13 +1062,15 @@ impl Span {
     }
 
     /// Must run after `parse_and_enrich_attributes` + `convert_span_to_provider_format`.
-    /// Input is charged separately via `increment_size_bytes` (dedup'd LLM spans pay
-    /// for the hash array; everyone else pays for the raw JSON), so it's excluded here.
+    /// Input and output are charged separately via `increment_size_bytes` (dedup'd LLM
+    /// spans pay for the hash array + newly-inserted content; everyone else pays for the
+    /// raw JSON), so both are excluded here — the post-dedup loop in `processor.rs` owns
+    /// their accounting symmetrically.
     /// `raw_attributes` is filtered via `should_keep_attribute` to match what CH stores
     /// in the `attributes` column — attributes like `lmnr.span.input` / `ai.prompt.messages`
     /// are copied into `span.input` during parsing but dropped from the CH attributes blob,
     /// so counting them here would double-bill against the input charge.
-    pub fn estimate_size_bytes(&mut self) {
+    pub fn estimate_size_bytes_no_payload(&mut self) {
         let size_bytes = 16 // span_id
             + 16 // trace_id
             + 16 // parent_span_id
@@ -1082,7 +1084,6 @@ impl Span {
                 .filter(|(k, _)| should_keep_attribute(k))
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
@@ -4276,10 +4277,8 @@ mod tests {
     #[test]
     fn test_gen_ai_rename_skipped_when_name_attribute_missing_or_empty() {
         // No tool name attribute → name unchanged.
-        let mut attributes = HashMap::from([(
-            "gen_ai.operation.name".to_string(),
-            json!("execute_tool"),
-        )]);
+        let mut attributes =
+            HashMap::from([("gen_ai.operation.name".to_string(), json!("execute_tool"))]);
         let mut span = Span {
             span_id: Uuid::new_v4(),
             project_id: Uuid::new_v4(),

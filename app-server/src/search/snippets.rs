@@ -198,12 +198,13 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 }
 
 fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
-    // For LLM (deduped) spans, input snippet matches only the deduped
+    // For LLM (deduped) spans, input/output snippets match only the deduped
     // "new messages" — older repeated history is searchable via earlier
-    // spans in the trace. For non-LLM spans, `input_message_hashes` is
-    // empty and the raw text lives in `spans.input`. Output / attributes
-    // are untransformed columns. Reading raw `spans` directly skips the
-    // `spans_v0` view's full input reconstruction.
+    // spans in the trace. Project-scoped `deduped_content_dict` is tried
+    // first; legacy spans fall back to the trace-scoped `llm_messages_dict`
+    // for input. Output reconstruction has no legacy fallback. Attributes
+    // are untransformed. Reading raw `spans` directly skips the `spans_v0`
+    // view's full reconstruction.
     format!(
         "SELECT span_id,
                 if(
@@ -211,10 +212,17 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
                     extract(
                         arrayStringConcat(
                             arrayMap(
-                                i -> dictGetOrDefault(
-                                    'llm_messages_dict',
-                                    'content',
-                                    tuple(project_id, trace_id, input_message_hashes[i + 1]),
+                                i -> coalesce(
+                                    dictGetOrNull(
+                                        'deduped_content_dict',
+                                        'content',
+                                        tuple(project_id, input_message_hashes[i + 1])
+                                    ),
+                                    dictGetOrNull(
+                                        'llm_messages_dict',
+                                        'content',
+                                        tuple(project_id, trace_id, input_message_hashes[i + 1])
+                                    ),
                                     'null'
                                 ),
                                 input_new_message_indices
@@ -225,7 +233,25 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
                     ),
                     extract(input, '{context_regex}')
                 ) AS input_snippet,
-                extract(output, '{context_regex}') AS output_snippet,
+                if(
+                    notEmpty(output_message_hashes),
+                    extract(
+                        arrayStringConcat(
+                            arrayMap(
+                                i -> dictGetOrDefault(
+                                    'deduped_content_dict',
+                                    'content',
+                                    tuple(project_id, output_message_hashes[i + 1]),
+                                    'null'
+                                ),
+                                output_new_message_indices
+                            ),
+                            ','
+                        ),
+                        '{context_regex}'
+                    ),
+                    extract(output, '{context_regex}')
+                ) AS output_snippet,
                 extract(attributes, '{context_regex}') AS attributes_snippet
          FROM spans
          WHERE project_id = '{project_id}'
