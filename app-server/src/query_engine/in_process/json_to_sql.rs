@@ -244,7 +244,9 @@ fn contains_sql_comment(sql: &str) -> bool {
                     | Token::Whitespace(Whitespace::MultiLineComment(_))
             )
         }),
-        Err(_) => false,
+        // Fail closed on a tokenizer error: this is a security boundary, so an
+        // unparseable fragment is treated as "comment present" and rejected.
+        Err(_) => true,
     }
 }
 
