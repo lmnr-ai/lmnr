@@ -44,7 +44,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       await tx.insert(membersOfWorkspaces).values({ userId: user.id, memberRole: "member", workspaceId });
     });
 
-    await subscribeMemberToWorkspaceNotifications(workspaceId, email);
+    // Subscribe the authenticated session user (matching the membership insert
+    // above, which uses user.id), not the caller-supplied invitation email.
+    await subscribeMemberToWorkspaceNotifications(workspaceId, user.email);
 
     return new Response("Invitation accepted.", { status: 200 });
   }
