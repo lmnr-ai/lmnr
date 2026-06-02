@@ -315,7 +315,9 @@ fn validate_raw_expression(expr: &str) -> Result<String, String> {
         ));
     }
 
-    Ok(select.projection[0].to_string())
+    // Return the alias-stripped expression: `metric_sql` re-wraps it with the
+    // metric's own alias, so keeping a user `AS` here yields `(expr AS x) AS y`.
+    Ok(inner_expr.to_string())
 }
 
 /// Sanitize a metric column by parsing and regenerating. `*` passes through.
