@@ -170,6 +170,19 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
   return candidates.map((c) => c.content);
 };
 
+// Content (input) and Candidate (output) are different Gemini shapes. The span
+// overview stitches input + output into one array, so accept a mix and unwrap
+// any candidates to their inner content.
+const GeminiContentOrCandidateSchema = z.union([GeminiContentSchema, GeminiCandidateSchema]);
+
+/** Parse `data` as a possibly-mixed array of Gemini Contents/Candidates. Returns null on mismatch. */
+export const parseGeminiContents = (data: unknown): z.infer<typeof GeminiContentsSchema> | null => {
+  const arr = Array.isArray(data) ? data : [data];
+  const result = z.array(GeminiContentOrCandidateSchema).safeParse(arr);
+  if (!result.success || result.data.length === 0) return null;
+  return result.data.map((el) => ("content" in el ? el.content : el));
+};
+
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (

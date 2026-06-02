@@ -11,7 +11,8 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
     traces::{
-        input_dedup::LlmInputDedup,
+        input_dedup::MessageDedup,
+        tool_dedup::ToolDedup,
         {opentelemetry_json::decode_export_trace_service_request, producer::push_spans_to_queue},
     },
     utils::limits::get_workspace_bytes_limit_exceeded,
@@ -25,15 +26,27 @@ pub struct RabbitMqSpanMessage {
     /// `convert_span_to_provider_format` already ran. Consumer skips them.
     /// Older agents emit messages without this field; default `false` keeps
     /// the legacy on-consumer pipeline working unchanged.
+    /// TODO: remove this field
     #[serde(default)]
     pub pre_processed: bool,
-    /// Pre-computed dedup verdict for an LLM span's input messages. Producer
-    /// hashes each message and consults Redis: messages already seen in this
-    /// `(project_id, trace_id)` are stripped from `span.input` and ride the
-    /// queue as hash references only. The consumer treats this as
-    /// authoritative — it does not re-hash or re-check Redis.
+    /// Pre-computed dedup verdict for an LLM span's input messages.
+    /// Storage is project-scoped; trace-new tracking is trace-scoped to
+    /// preserve the "first occurrence per trace" search semantic. The
+    /// consumer treats this as authoritative — it does not re-hash or
+    /// re-check Redis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input_dedup: Option<LlmInputDedup>,
+    pub input_dedup: Option<MessageDedup>,
+    /// Pre-computed dedup verdict for an LLM span's output messages. Same
+    /// shape as `input_dedup`. Cross-direction collapse: model output of
+    /// span A and input of span B that share content emit one
+    /// `shared_content` row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dedup: Option<MessageDedup>,
+    /// Pre-computed dedup verdict for an LLM span's tool definitions.
+    /// Single hash per span; storage project-scoped via the shared
+    /// `shared_content` table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_dedup: Option<ToolDedup>,
 }
 
 // /v1/traces

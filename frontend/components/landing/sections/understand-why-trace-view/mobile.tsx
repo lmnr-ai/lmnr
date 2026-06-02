@@ -12,9 +12,6 @@ import SlackNotificationCard from "../slack-notification-card";
 // Mock card widths intentionally overflow the typical phone viewport — the
 // page root has `overflow-x-clip` so the visuals read at full scale without
 // causing horizontal scroll.
-const MOBILE_HREF_SIGNALS = "https://laminar.sh/docs/signals";
-const MOBILE_HREF_TRACE = "https://laminar.sh/docs/tracing";
-
 const UnderstandWhyTraceViewMobile = () => {
   // Parallax for the transcript image — scroll-driven Y shift so the card
   // breathes as it passes through the viewport.
@@ -27,19 +24,20 @@ const UnderstandWhyTraceViewMobile = () => {
 
   return (
     <section className="w-full flex flex-col gap-16 px-6 py-16">
-      {/* 01. Notifications */}
+      {/* 01. Signals */}
       <div className="flex flex-col gap-6 items-start w-full">
         <div className="flex flex-col gap-3 items-start">
           <span className={microLabel}>01.</span>
           <h2 className={subSection}>{"Get alerts when\nyour agent breaks."}</h2>
           <p className={bodyMedium}>
-            Describe what you want to track in plain English. Laminar analyzes traces of your agent and pings you in
-            Slack the moment a trace matches.
+            {
+              'Signals let you describe the error in plain English – "agent is stuck in a loop". Laminar reads every agent run and pings you in Slack when it happens.'
+            }
           </p>
         </div>
         <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
           <SlackNotificationCard className="w-[600px] max-w-[600px] shrink-0" />
-          <SectionFootnote name="Notifications" href={MOBILE_HREF_SIGNALS} />
+          <SectionFootnote name="Signals" href="https://laminar.sh/docs/signals/introduction" />
         </div>
       </div>
 
@@ -52,17 +50,17 @@ const UnderstandWhyTraceViewMobile = () => {
         </div>
         <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
           <SignalEventCard className="w-[600px] max-w-[600px] shrink-0" />
-          <SectionFootnote name="Trace view" href={MOBILE_HREF_TRACE} />
+          <SectionFootnote name="Signals" href="https://laminar.sh/docs/signals/introduction" />
         </div>
       </div>
 
       {/* Transcript — clear, concise view of your agent run */}
       <div className="flex flex-col gap-6 items-start w-full">
         <div className="flex flex-col gap-3 items-start">
-          <h3 className={subSubSection}>Clear, concise view of your agent run</h3>
+          <h3 className={subSubSection}>A clear, concise view of your agent run</h3>
           <p className={bodyMedium}>
-            Laminar makes the agent run navigable by surfacing input, LLM reasoning, tool calls, and sub-agents as a
-            readable transcript.
+            Laminar makes the agent run easily navigable by surfacing input, LLM reasoning, tool calls, and sub-agents
+            in a readable transcript and timeline.
           </p>
         </div>
         <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px]">
@@ -83,7 +81,7 @@ const UnderstandWhyTraceViewMobile = () => {
             <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-landing-surface-550/80 to-transparent pointer-events-none z-10" />
           </div>
           <div className="absolute bottom-0 left-0 right-0 h-[160px] bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none z-10" />
-          <SectionFootnote name="Transcript" href={MOBILE_HREF_TRACE} />
+          <SectionFootnote name="Transcript view" href="https://laminar.sh/docs/platform/viewing-traces" />
         </div>
       </div>
 
@@ -94,9 +92,10 @@ const UnderstandWhyTraceViewMobile = () => {
           card bottom-right-anchored as it shrinks. */}
       <div className="flex flex-col gap-6 items-start w-full">
         <div className="flex flex-col gap-3 items-start">
-          <h3 className={subSubSection}>Long complex run? Chat with AI</h3>
+          <h3 className={subSubSection}>Ask any question about your agent run</h3>
           <p className={bodyMedium}>
-            Ask any question, dive deep into any agent run. Click span references to jump straight into context.
+            Dive deep into any issue within the agent run by simply asking. Get answers that reference specific context
+            that you can jump to directly.
           </p>
         </div>
         <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
@@ -113,7 +112,7 @@ const UnderstandWhyTraceViewMobile = () => {
             />
           </div>
           <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-landing-surface-550/80 to-transparent pointer-events-none z-10" />
-          <SectionFootnote name="Ask AI" href={MOBILE_HREF_TRACE} />
+          <SectionFootnote name="Ask AI" href="https://laminar.sh/docs/platform/viewing-traces#chat-with-trace" />
         </div>
       </div>
     </section>

@@ -145,6 +145,7 @@ impl TableRegistry {
             "attributes",
             "trace_id",
             "tags",
+            "tool_definitions",
         ];
 
         let traces_columns = [

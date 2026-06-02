@@ -9,7 +9,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import SpanStatsShields from "@/components/traces/stats-shields";
 import { StructuredOutputSchema } from "@/components/traces/structured-output-schema";
-import { extractToolsFromAttributes, ToolList } from "@/components/traces/tool-list";
+import { extractToolsFromAttributes, resolveTools, ToolList } from "@/components/traces/tool-list";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
@@ -72,7 +72,7 @@ export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <ToolList tools={resolveTools(span)} />
             <StructuredOutputSchema
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />

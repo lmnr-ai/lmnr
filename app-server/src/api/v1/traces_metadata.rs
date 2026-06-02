@@ -97,6 +97,8 @@ pub async fn update_trace_metadata(
         span,
         pre_processed: false,
         input_dedup: None,
+        output_dedup: None,
+        tool_dedup: None,
     }];
 
     publish_span_messages(
