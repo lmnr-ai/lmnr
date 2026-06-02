@@ -347,7 +347,13 @@ fn safe_column_expr(col: &str) -> Result<String, String> {
         return Err("Column must be a single expression".to_string());
     }
 
-    Ok(select.projection[0].to_string())
+    // Strip any alias: `metric_sql` re-wraps the column with the metric's own
+    // alias, so a user `col AS x` would yield `sum(col AS x) AS y`.
+    match &select.projection[0] {
+        SelectItem::UnnamedExpr(e) => Ok(e.to_string()),
+        SelectItem::ExprWithAlias { expr, .. } => Ok(expr.to_string()),
+        _ => Err("Column must be a single expression".to_string()),
+    }
 }
 
 fn metric_sql(metric: &Metric) -> Result<String, String> {
