@@ -51,7 +51,13 @@ const handleInvitation = async (
         await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
 
-      await subscribeMemberToWorkspaceNotifications(workspaceId, email);
+      // Best-effort: a subscribe failure must not skip the onboarding cleanup +
+      // redirect below, or the (app) layout would trap the now-member in the wizard.
+      try {
+        await subscribeMemberToWorkspaceNotifications(workspaceId, email);
+      } catch (e) {
+        console.error("Failed to subscribe member to workspace notifications:", e);
+      }
 
       // Joining a real team workspace supersedes any in-progress wizard — without
       // this clear, the (app) layout would bounce /workspace/<id> back to /onboarding.
