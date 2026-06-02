@@ -46,7 +46,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     // Subscribe the authenticated session user (matching the membership insert
     // above, which uses user.id), not the caller-supplied invitation email.
-    await subscribeMemberToWorkspaceNotifications(workspaceId, user.email);
+    // Best-effort: the membership transaction is already committed, so a subscribe
+    // failure must not 500 — a retry would 404 since the invitation row is gone.
+    try {
+      await subscribeMemberToWorkspaceNotifications(workspaceId, user.email);
+    } catch (e) {
+      console.error("Failed to subscribe member to workspace notifications:", e);
+    }
 
     return new Response("Invitation accepted.", { status: 200 });
   }
