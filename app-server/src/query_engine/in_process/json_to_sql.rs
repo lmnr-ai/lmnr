@@ -34,13 +34,12 @@ fn is_placeholder(value: &str) -> bool {
     value.starts_with('{') && value.ends_with('}') && value.contains(':')
 }
 
-/// Render a number without a trailing `.0` (matches Python's int/float str()).
+/// Render a JSON number for SQL. serde deserializes every JSON number as `f64`,
+/// so an integer like `42` arrives as `42.0`; `f64`'s `Display` renders it as
+/// `42` (whole numbers drop the trailing `.0`) without scientific notation or
+/// the saturation an `as i64` cast would introduce for out-of-range magnitudes.
 fn format_number(n: f64) -> String {
-    if n.fract() == 0.0 && n.is_finite() {
-        format!("{}", n as i64)
-    } else {
-        format!("{n}")
-    }
+    format!("{n}")
 }
 
 fn format_filter_value(value: &FilterValue) -> String {
