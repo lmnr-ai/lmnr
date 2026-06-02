@@ -49,9 +49,16 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 
   // Opt the new member into the workspace's reports and alerts, mirroring the
-  // onboarding auto-subscription. Idempotent, so re-processed invitations are safe.
+  // onboarding auto-subscription. Best-effort: this runs inside the jwt callback's
+  // try/catch, so an unhandled error would be re-thrown as a login failure — and
+  // since the invitation rows are already deleted, a retry could never re-attempt
+  // it. Swallow errors so a notification hiccup never blocks authentication.
   for (const invitation of pendingInvitations) {
-    await subscribeMemberToWorkspaceNotifications(invitation.workspaceId, email);
+    try {
+      await subscribeMemberToWorkspaceNotifications(invitation.workspaceId, email);
+    } catch (e) {
+      console.error("Failed to subscribe member to workspace notifications:", e);
+    }
   }
 };
 
