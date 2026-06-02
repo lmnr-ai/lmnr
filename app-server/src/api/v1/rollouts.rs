@@ -42,6 +42,7 @@ pub struct UpdateStatusRequest {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterRequest {
     #[serde(default)]
     pub params: Vec<InputParam>,
