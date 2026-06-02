@@ -92,10 +92,10 @@ const EmptyRow = (
     <TableCell className="text-center p-4 rounded-b w-full h-auto">
       <div className="flex flex-1 justify-center">
         <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No active debugger sessions</h3>
+          <h3 className="text-base font-medium text-secondary-foreground">No debugger sessions</h3>
           <p className="text-sm text-muted-foreground text-center">
-            Active sessions will appear here when you start one from the CLI with{" "}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">npx lmnr-cli dev</code>.
+            Sessions appear here when you run your instrumented program in debug mode with{" "}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">LMNR_DEBUG=true</code>.
           </p>
           <a
             href="https://laminar.sh/docs/platform/debugger"
