@@ -7,8 +7,9 @@ import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { Feature } from "@/lib/features/features";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
@@ -51,6 +52,7 @@ export default function TraceViewContent({
   const pathName = usePathname();
   const { projectId } = useParams();
 
+  const featureFlags = useFeatureFlags();
   // Panel visibility states
   const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
@@ -364,7 +366,7 @@ export default function TraceViewContent({
     </div>
   );
 
-  const isChatEnabled = isFeatureEnabled(Feature.AGENT);
+  const isChatEnabled = featureFlags[Feature.AGENT];
   const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
