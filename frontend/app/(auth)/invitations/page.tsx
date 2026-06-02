@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth";
 import InvitationActions from "@/components/invitations/invitation-actions";
 import { LaminarLogo } from "@/components/ui/icons";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
@@ -23,7 +24,13 @@ const verifyToken = (token: string): JwtPayload => {
   }
 };
 
-const handleInvitation = async (action: "accept" | "decline", id: string, workspaceId: string, userId: string) => {
+const handleInvitation = async (
+  action: "accept" | "decline",
+  id: string,
+  workspaceId: string,
+  userId: string,
+  email: string
+) => {
   "use server";
 
   if (id) {
@@ -43,6 +50,8 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
 
         await tx.insert(membersOfWorkspaces).values({ userId, memberRole: "member", workspaceId });
       });
+
+      await subscribeMemberToWorkspaceNotifications(workspaceId, email);
 
       // Joining a real team workspace supersedes any in-progress wizard — without
       // this clear, the (app) layout would bounce /workspace/<id> back to /onboarding.
@@ -100,12 +109,12 @@ export default async function InvitationsPage(props: {
 
   async function acceptInvitation() {
     "use server";
-    return handleInvitation("accept", decoded.id, decoded.workspaceId, user!.id);
+    return handleInvitation("accept", decoded.id, decoded.workspaceId, user!.id, user!.email);
   }
 
   async function declineInvitation() {
     "use server";
-    return handleInvitation("decline", decoded.id, decoded.workspaceId, user!.id);
+    return handleInvitation("decline", decoded.id, decoded.workspaceId, user!.id, user!.email);
   }
 
   return (

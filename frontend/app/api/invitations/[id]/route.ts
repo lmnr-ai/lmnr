@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -42,6 +43,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
       await tx.insert(membersOfWorkspaces).values({ userId: user.id, memberRole: "member", workspaceId });
     });
+
+    await subscribeMemberToWorkspaceNotifications(workspaceId, email);
+
     return new Response("Invitation accepted.", { status: 200 });
   }
 

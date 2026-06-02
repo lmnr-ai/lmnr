@@ -7,6 +7,7 @@ import GoogleProvider from "next-auth/providers/google";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import OktaProvider from "next-auth/providers/okta";
 
+import { subscribeMemberToWorkspaceNotifications } from "@/lib/actions/workspaces/subscribe";
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
@@ -46,6 +47,12 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
+
+  // Opt the new member into the workspace's reports and alerts, mirroring the
+  // onboarding auto-subscription. Idempotent, so re-processed invitations are safe.
+  for (const invitation of pendingInvitations) {
+    await subscribeMemberToWorkspaceNotifications(invitation.workspaceId, email);
+  }
 };
 
 const trackUserCreated = async (email: string, provider: string): Promise<void> => {
