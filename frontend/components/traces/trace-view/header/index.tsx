@@ -12,10 +12,11 @@ import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { project } = useProjectContext();
+  const featureFlags = useFeatureFlags();
 
   const {
     trace,
@@ -185,7 +187,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <TraceDropdown traceId={traceId} />
             </span>
           )}
-          {isFeatureEnabled(Feature.LAMINAR_CLOUD) && spans.length > 0 && (
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setTracesAgentOpen(!tracesAgentOpen)}

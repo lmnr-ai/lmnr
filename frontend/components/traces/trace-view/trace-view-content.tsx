@@ -364,7 +364,7 @@ export default function TraceViewContent({
     </div>
   );
 
-  const isChatEnabled = isFeatureEnabled(Feature.LAMINAR_CLOUD);
+  const isChatEnabled = isFeatureEnabled(Feature.AGENT);
   const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />

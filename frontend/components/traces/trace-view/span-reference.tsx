@@ -2,8 +2,11 @@
 
 import React from "react";
 
+import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
+import { SpanType } from "@/lib/traces/types";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 // Matches XML span refs <span id='abc123' name='...' [reference_text='...']/> where id is the 6-hex short id
@@ -14,30 +17,24 @@ export interface SpanReferenceCallbacks {
   onSelectSpan: (spanUuid: string) => void;
 }
 
-// Subscribes to the trace-view store directly so each link re-renders when spans load,
-// regardless of upstream Streamdown block memoization.
 function SpanLink({
   spanId,
   fallbackName,
-  referenceText,
   onSelectSpan,
 }: {
   spanId: string;
   fallbackName: string;
-  referenceText?: string;
   onSelectSpan: (spanUuid: string) => void;
 }) {
-  const resolved = useTraceViewBaseStore((state) => {
+  const span = useTraceViewBaseStore((state) => {
     const lower = spanId.toLowerCase();
-    const match = state.spans.find((s) => s.spanId.toLowerCase() === lower || s.spanId.toLowerCase().endsWith(lower));
-    return match ? match.spanId : null;
+    return state.spans.find((s) => s.spanId.toLowerCase() === lower || s.spanId.toLowerCase().endsWith(lower)) ?? null;
   });
-  const disabled = resolved === null;
+  const disabled = span === null;
+  const spanType = span?.spanType ?? SpanType.DEFAULT;
   const handleClick = () => {
-    if (resolved) onSelectSpan(resolved);
+    if (span) onSelectSpan(span.spanId);
   };
-
-  const preview = referenceText ? truncateRef(referenceText) : null;
 
   return (
     <button
@@ -46,21 +43,21 @@ function SpanLink({
       disabled={disabled}
       title={disabled ? "Span not loaded" : `Open ${fallbackName}`}
       className={cn(
-        "font-mono text-[12px] underline-offset-2 inline align-baseline",
-        disabled
-          ? "text-muted-foreground cursor-not-allowed"
-          : "text-primary hover:text-primary/80 hover:underline cursor-pointer"
+        "inline-flex max-w-full min-w-0 items-center gap-1 rounded align-middle transition-colors p-1",
+        disabled ? "border-border/40 bg-muted/40 cursor-not-allowed" : "border-landing-text-300/20 hover:bg-muted"
       )}
     >
-      {fallbackName}
-      {preview && <span className="text-muted-foreground"> ({preview})</span>}
+      <span
+        className="inline-flex items-center justify-center rounded size-4 shrink-0"
+        style={{ backgroundColor: SPAN_TYPE_TO_COLOR[spanType] ?? SPAN_TYPE_TO_COLOR[SpanType.DEFAULT] }}
+      >
+        {createSpanTypeIcon(spanType, "w-3 h-3 text-white", 12)}
+      </span>
+      <span className={cn("min-w-0 truncate text-xs text-secondary-foreground", disabled && "opacity-60")}>
+        {fallbackName}
+      </span>
     </button>
   );
-}
-
-function truncateRef(text: string): string {
-  const unescaped = text.replace(/\\"/g, '"');
-  return unescaped.length > 24 ? unescaped.slice(0, 24) + "…" : unescaped;
 }
 
 interface SpanMatch {
@@ -75,7 +72,7 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
   SPAN_REF_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = SPAN_REF_REGEX.exec(text)) !== null) {
-    const [fullMatch, shortId, embeddedName, referenceText] = match;
+    const [fullMatch, shortId, embeddedName] = match;
     matches.push({
       index: match.index,
       length: fullMatch.length,
@@ -84,7 +81,6 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
           key={`xml-ref-${match.index}`}
           spanId={shortId}
           fallbackName={embeddedName}
-          referenceText={referenceText}
           onSelectSpan={callbacks.onSelectSpan}
         />
       ),
