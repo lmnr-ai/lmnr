@@ -9,9 +9,9 @@ import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { useSpanRefCallbacks } from "@/components/traces/trace-view/span-reference/use-span-ref-callbacks";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
-import { useSpanRefCallbacks } from "@/components/traces/trace-view/use-span-ref-callbacks";
 import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
 

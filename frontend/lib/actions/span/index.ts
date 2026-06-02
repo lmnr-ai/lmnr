@@ -40,6 +40,12 @@ export const PushSpanSchema = z.object({
   queueId: z.guid(),
 });
 
+export const ResolveSpanIdSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+  sequentialId: z.coerce.number().int().positive(),
+});
+
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   const { spanId, traceId, projectId } = GetSpanSchema.parse(input);
 
@@ -174,11 +180,36 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   });
 }
 
+export const GetSpanTypesSchema = z.object({
+  projectId: z.guid(),
+  spanIds: z.array(z.string()),
+});
+
+export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): Promise<Record<string, SpanType>> {
+  const { projectId, spanIds } = GetSpanTypesSchema.parse(input);
+
+  if (spanIds.length === 0) {
+    return {};
+  }
+
+  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_id as spanId, span_type as spanType
+      FROM spans
+      WHERE span_id IN ({spanIds: Array(UUID)})
+    `,
+    parameters: { spanIds },
+  });
+
+  return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
+}
+
 export const resolveSpanId = async (
-  projectId: string,
-  traceId: string,
-  sequentialId: number
+  input: z.input<typeof ResolveSpanIdSchema>
 ): Promise<{ spanId: string; spanType: SpanType } | null> => {
+  const { projectId, traceId, sequentialId } = ResolveSpanIdSchema.parse(input);
+
   const spans = await executeQuery({
     projectId,
     query: `

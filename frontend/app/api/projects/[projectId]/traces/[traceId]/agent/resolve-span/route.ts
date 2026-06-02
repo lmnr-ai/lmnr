@@ -4,18 +4,14 @@ import { prettifyError, ZodError } from "zod/v4";
 import { resolveSpanId } from "@/lib/actions/span";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string; traceId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const traceId = params.traceId;
-
-  const sequentialId = req.nextUrl.searchParams.get("id");
-
-  if (!sequentialId || isNaN(parseInt(sequentialId, 10)) || parseInt(sequentialId, 10) <= 0) {
-    return Response.json({ error: "Invalid span ID" }, { status: 400 });
-  }
+  const { projectId, traceId } = await props.params;
 
   try {
-    const resolved = await resolveSpanId(projectId, traceId, parseInt(sequentialId, 10));
+    const resolved = await resolveSpanId({
+      projectId,
+      traceId,
+      sequentialId: req.nextUrl.searchParams.get("id"),
+    });
 
     if (!resolved) {
       return Response.json({ error: "Span not found" }, { status: 404 });

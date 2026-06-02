@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
@@ -9,10 +10,20 @@ import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
 const SPAN_REF_REGEX = /<span\s+id='([0-9a-f]{6})'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/gi;
 
+/**
+ * Navigation target for a span reference. `traceId` is only carried by markdown
+ * links (which may point at a different trace than the one being viewed);
+ * consumers that select within a single trace can ignore it.
+ */
+export interface SpanRefTarget {
+  traceId?: string;
+  spanId?: string;
+}
+
 export interface SpanReferenceCallbacks {
   resolveSpanId: (sequentialId: string) => Promise<{ uuid: string; type: SpanType } | null>;
   getSpanType: (uuid: string) => SpanType | undefined;
-  onSelectSpan: (spanUuid: string) => void;
+  onSelectSpan: (target: SpanRefTarget) => void;
 }
 
 function SpanChip({
@@ -29,16 +40,23 @@ function SpanChip({
   const resolvedType = spanType ?? SpanType.DEFAULT;
   return (
     <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 rounded border border-landing-text-300/20 bg-landing-text-300/20 pl-1 pr-1.5 align-middle hover:bg-landing-text-300/30 transition-colors"
+      onClick={(e) => {
+        // The badge can live inside clickable rows / anchors (e.g. the signal
+        // events table), so stop the click from also triggering row navigation.
+        e.stopPropagation();
+        e.preventDefault();
+        onClick();
+      }}
+      className="inline-flex items-center gap-1 rounded px-1 underline py-0.5 align-middle hover:bg-landing-text-300/30 transition-colors cursor-pointer"
     >
       <span
-        className="inline-flex items-center justify-center rounded size-3.5 shrink-0"
+        className="inline-flex items-center justify-center rounded size-4 shrink-0"
         style={{ backgroundColor: SPAN_TYPE_TO_COLOR[resolvedType] ?? SPAN_TYPE_TO_COLOR[SpanType.DEFAULT] }}
       >
         {createSpanTypeIcon(resolvedType, "w-3 h-3 text-white", 12)}
       </span>
-      <span className={`text-xs text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
+      <span className={`text-sm text-secondary-foreground ${loading ? "opacity-60" : ""}`}>{name}</span>
+      <ArrowUpRight className="w-3.5 h-3.5" />
     </button>
   );
 }
@@ -69,13 +87,13 @@ function SpanBadge({
 
   const handleClick = async () => {
     if (resolved) {
-      callbacks.onSelectSpan(resolved.uuid);
+      callbacks.onSelectSpan({ spanId: resolved.uuid });
       return;
     }
     // Mount-fetch still in flight (or not yet started) — resolve inline so
     // clicks before the icon backdrop appears don't silently no-op.
     const r = await callbacks.resolveSpanId(spanId);
-    if (r) callbacks.onSelectSpan(r.uuid);
+    if (r) callbacks.onSelectSpan({ spanId: r.uuid });
   };
 
   if (referenceText) {
@@ -96,15 +114,19 @@ function SpanBadge({
 /** Badge for markdown span refs — uuid known, type resolved sync from store. */
 function MarkdownSpanBadge({
   label,
+  traceId,
   spanUuid,
   callbacks,
 }: {
   label: string;
-  spanUuid: string;
+  traceId: string;
+  spanUuid?: string;
   callbacks: SpanReferenceCallbacks;
 }) {
-  const spanType = callbacks.getSpanType(spanUuid);
-  return <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan(spanUuid)} />;
+  const spanType = spanUuid ? callbacks.getSpanType(spanUuid) : undefined;
+  return (
+    <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan({ traceId, spanId: spanUuid })} />
+  );
 }
 
 interface SpanMatch {
@@ -136,7 +158,6 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
   }
 
   for (const link of parseSpanLinks(text)) {
-    if (!link.spanId) continue;
     matches.push({
       index: link.index,
       length: link.length,
@@ -144,6 +165,7 @@ function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMa
         <MarkdownSpanBadge
           key={`md-ref-${link.index}`}
           label={link.label}
+          traceId={link.traceId}
           spanUuid={link.spanId}
           callbacks={callbacks}
         />

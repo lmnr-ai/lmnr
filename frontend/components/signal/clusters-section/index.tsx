@@ -79,10 +79,10 @@ export default function ClustersSection() {
     return map;
   }, [visibleClusters]);
 
-  // Fetch clusters on mount
   useEffect(() => {
-    fetchClusters();
-  }, [fetchClusters]);
+    if (!pastHours && !(startDate && endDate)) return;
+    fetchClusters({ pastHours, startDate, endDate });
+  }, [fetchClusters, pastHours, startDate, endDate]);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
