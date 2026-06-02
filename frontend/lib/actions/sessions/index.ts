@@ -77,6 +77,49 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     projectId,
   });
 
+  if (items.length > 0) {
+    const sessionIds = items.map((s) => s.sessionId);
+    // Span ingestion only writes `session_id` on the root span; the cache-read attribute
+    // lives on nested LLM spans. Map via traces.id → traces.session_id instead.
+    const traceMappings = await executeQuery<{ id: string; sessionId: string }>({
+      query: `
+        SELECT toString(id) as id, session_id as sessionId
+        FROM traces
+        WHERE session_id IN ({sessionIds:Array(String)})
+      `,
+      projectId,
+      parameters: { sessionIds },
+    });
+
+    if (traceMappings.length > 0) {
+      const traceToSession = new Map(traceMappings.map((t) => [t.id, t.sessionId]));
+      const traceIds = Array.from(traceToSession.keys());
+      const cacheRows = await executeQuery<{ traceId: string; cacheReadInputTokens: number }>({
+        query: `
+          SELECT
+            toString(trace_id) as traceId,
+            SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens
+          FROM spans
+          WHERE trace_id IN ({traceIds:Array(UUID)})
+            AND span_type = 'LLM'
+          GROUP BY trace_id
+        `,
+        projectId,
+        parameters: { traceIds },
+      });
+
+      const cacheBySession = new Map<string, number>();
+      for (const row of cacheRows) {
+        const sessionId = traceToSession.get(row.traceId);
+        if (!sessionId) continue;
+        cacheBySession.set(sessionId, (cacheBySession.get(sessionId) ?? 0) + row.cacheReadInputTokens);
+      }
+      for (const item of items) {
+        item.cacheReadInputTokens = cacheBySession.get(item.sessionId) ?? 0;
+      }
+    }
+  }
+
   const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
 
   return { items: sessionItems };
