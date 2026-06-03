@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { cn } from "@/lib/utils.ts";
 

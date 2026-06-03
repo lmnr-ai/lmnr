@@ -1,65 +1,47 @@
 "use client";
 
-import React, { useCallback } from "react";
+import { type ComponentProps } from "react";
 
-import DebuggerSessionContent from "@/components/debugger-sessions/debugger-session-view/debugger-session-content";
-import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
-import { MIN_SIDEBAR_WIDTH, useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { type TraceViewTrace } from "@/components/traces/trace-view/store";
+import Header from "@/components/ui/header";
+
+import DebugInfoPopover from "./debug-info-popover";
+import DebuggerSessionViewContent from "./debugger-session-view-content";
+import DebuggerSessionViewProvider from "./debugger-session-view-provider";
+import { type SeedTrace } from "./store";
+import TmpControlPanel from "./tmp-control-panel";
 
 interface DebuggerSessionViewProps {
-  sessionId: string;
-  spanId?: string;
+  // Single-trace harness (/alpha) passes a hydrated trace; multi-trace sessions pass seeds.
+  trace?: TraceViewTrace;
+  seeds?: SeedTrace[];
+  // Breadcrumb path; when omitted falls back to the first trace.
+  headerPath?: ComponentProps<typeof Header>["path"];
+  // Debugger session id — enables realtime span streaming for the session's runs.
+  sessionId?: string;
 }
 
-const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps) => {
-  const { sidebarWidth, setSidebarWidth } = useDebuggerSessionStore((state) => ({
-    sidebarWidth: state.sidebarWidth,
-    setSidebarWidth: state.setSidebarWidth,
-  }));
-
-  const handleResizeSidebar = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = sidebarWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX);
-        setSidebarWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [setSidebarWidth, sidebarWidth]
-  );
-
-  return (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex h-full w-full min-h-0">
-        <div className="flex-none border-r bg-background flex flex-col relative" style={{ width: sidebarWidth }}>
-          <DebuggerSidebar />
-          <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-            onMouseDown={handleResizeSidebar}
-          >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-          </div>
-        </div>
-
-        <div className="flex-1">
-          <DebuggerSessionContent sessionId={sessionId} spanId={spanId} />
-        </div>
-      </div>
-    </div>
-  );
+// Last breadcrumb segment is the session/trace title rendered in the header.
+const titleFromPath = (path: ComponentProps<typeof Header>["path"]): string => {
+  if (Array.isArray(path)) return path[path.length - 1]?.name ?? "Session";
+  return path.split("/").pop() ?? "Session";
 };
 
-export default function DebuggerSessionView(props: DebuggerSessionViewProps) {
-  return <PureDebuggerSessionView {...props} />;
+// Main exported component
+export default function DebuggerSessionView({ trace, seeds, headerPath, sessionId }: DebuggerSessionViewProps) {
+  const resolvedSeeds: SeedTrace[] = seeds && seeds.length > 0 ? seeds : trace ? [{ traceId: trace.id }] : [];
+  const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
+  const sessionTitle = titleFromPath(path);
+
+  return (
+    <DebuggerSessionViewProvider seeds={resolvedSeeds} initialTrace={trace}>
+      {/* TODO: remove — testing control panel for trace-render variants. */}
+      <TmpControlPanel />
+      <Header path={path}>
+        <DebugInfoPopover />
+      </Header>
+      <div className="flex-none border-t" />
+      <DebuggerSessionViewContent sessionId={sessionId} sessionTitle={sessionTitle} />
+    </DebuggerSessionViewProvider>
+  );
 }

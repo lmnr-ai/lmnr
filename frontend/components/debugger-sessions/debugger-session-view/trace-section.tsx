@@ -3,11 +3,11 @@
 import RunBody from "./run-body";
 import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 
 // One run in the article: its agent-authored comment, then the trace body.
 export default function TraceSection({ traceId, index, total }: { traceId: string; index: number; total: number }) {
-  const exists = useUltimateTraceViewStore((state) => state.traces.has(traceId));
+  const exists = useDebuggerSessionViewStore((state) => state.traces.has(traceId));
 
   if (!exists) return null;
 

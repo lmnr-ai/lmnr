@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { buildHeadingComponents, noteMarkdownComponents, noteProseClassName, spanTagsToLinks } from "./note-markdown";
 import { SpanChip } from "./span-reference";
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 import { useTmpVariantStore } from "./tmp-variant-store";
 
 interface RunCommentProps {
@@ -27,9 +27,9 @@ const REFERENCE_TEXT_PREVIEW_LEN = 24;
  * a chip. Renders nothing when the run has no note.
  */
 export default function RunComment({ traceId }: RunCommentProps) {
-  const comment = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.comment);
-  const getSpanType = useUltimateTraceViewStore((state) => state.getSpanType);
-  const openSidePanel = useUltimateTraceViewStore((state) => state.openSidePanel);
+  const comment = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.comment);
+  const getSpanType = useDebuggerSessionViewStore((state) => state.getSpanType);
+  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
   // TODO: remove — temporary toggle to compare markdown vs raw note rendering.
   const renderAsMarkdown = useTmpVariantStore((s) => s.renderNotesAsMarkdown);
 

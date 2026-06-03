@@ -14,11 +14,11 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { InputItem, SpanItem } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 
 export default function TraceIOCard({ traceId }: { traceId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
-  const openSidePanel = useUltimateTraceViewStore((state) => state.openSidePanel);
+  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
 
   const { previews } = useBatchedTraceIO(projectId, [traceId]);
   const traceIO = previews[traceId];

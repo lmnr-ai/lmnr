@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
+import { type SeedTrace } from "@/components/debugger-sessions/debugger-session-view/store";
 import Header from "@/components/ui/header";
-import UltimateTraceView from "@/components/ultimate-trace-view";
-import { type SeedTrace } from "@/components/ultimate-trace-view/store";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -65,7 +65,7 @@ async function fetchSessionTraceIds(projectId: string, sessionId: string, signal
 }
 
 /**
- * Debugger session view: the ultimate trace view IS the session view. Each real
+ * Debugger session view: the debugger session view IS the session view. Each real
  * run (trace) becomes a stacked block (run header + timeline + note).
  *
  * The run note is the agent-authored `rollout.note` trace metadata (written via
@@ -91,7 +91,7 @@ export default function MultiTraceView({ projectId, sessionId, sessionName }: Mu
   }, [projectId, sessionId]);
 
   // Seed the trace ids; the store fills each run's note from trace metadata once
-  // the trace loads. UltimateTraceView captures seeds once at store creation, so
+  // the trace loads. DebuggerSessionView captures seeds once at store creation, so
   // this is only consumed after realTraceIds has settled (the loading gate below).
   const seeds: SeedTrace[] = useMemo(() => (realTraceIds ?? []).map((traceId) => ({ traceId })), [realTraceIds]);
 
@@ -123,5 +123,5 @@ export default function MultiTraceView({ projectId, sessionId, sessionName }: Mu
     );
   }
 
-  return <UltimateTraceView seeds={seeds} headerPath={headerPath} sessionId={sessionId} />;
+  return <DebuggerSessionView seeds={seeds} headerPath={headerPath} sessionId={sessionId} />;
 }

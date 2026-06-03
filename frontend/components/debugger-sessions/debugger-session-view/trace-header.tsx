@@ -2,7 +2,7 @@ import { useCallback } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 
 interface TraceHeaderProps {
   traceId: string;
@@ -17,7 +17,7 @@ interface TraceHeaderProps {
  * heading inside the markdown note (rendered below by RunComment).
  */
 export default function TraceHeader({ traceId, index, total }: TraceHeaderProps) {
-  const openSidePanel = useUltimateTraceViewStore((state) => state.openSidePanel);
+  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
   const { toast } = useToast();
 
   const handleCopyTraceId = useCallback(async () => {

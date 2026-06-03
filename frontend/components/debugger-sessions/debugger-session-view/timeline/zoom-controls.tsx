@@ -2,15 +2,15 @@ import { Minus, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-import { MAX_ZOOM, MIN_ZOOM, useUltimateTraceViewStore, ZOOM_INCREMENT } from "../store";
+import { MAX_ZOOM, MIN_ZOOM, useDebuggerSessionViewStore, ZOOM_INCREMENT } from "../store";
 
 interface ZoomControlsProps {
   traceId: string;
 }
 
 export default function ZoomControls({ traceId }: ZoomControlsProps) {
-  const zoom = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
-  const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
+  const zoom = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
+  const setZoom = useDebuggerSessionViewStore((state) => state.setZoom);
 
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">

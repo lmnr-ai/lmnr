@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import TmpControlPanel from "@/components/debugger-sessions/debugger-session-view/tmp-control-panel";
+import { useTmpVariantStore } from "@/components/debugger-sessions/debugger-session-view/tmp-variant-store";
 import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
@@ -13,8 +15,6 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
-import TmpControlPanel from "@/components/ultimate-trace-view/tmp-control-panel";
-import { useTmpVariantStore } from "@/components/ultimate-trace-view/tmp-variant-store";
 import { type DebuggerSession } from "@/lib/actions/debugger-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";

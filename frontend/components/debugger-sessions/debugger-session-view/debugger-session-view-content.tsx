@@ -10,12 +10,12 @@ import { type RealtimeSpan } from "@/lib/traces/types";
 
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
-import { type UltimateTraceViewStore, useUltimateTraceViewStore, useUltimateTraceViewStoreRaw } from "./store";
+import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 import TraceSection from "./trace-section";
 
 // Earliest run start / latest run end across loaded traces (epoch ms). Returned
 // as primitives so the header only re-renders when the bounds actually move.
-const selectCreatedMs = (s: UltimateTraceViewStore): number | undefined => {
+const selectCreatedMs = (s: DebuggerSessionViewStore): number | undefined => {
   let min: number | undefined;
   for (const tid of s.traceOrder) {
     const t = s.traces.get(tid)?.trace;
@@ -26,7 +26,7 @@ const selectCreatedMs = (s: UltimateTraceViewStore): number | undefined => {
   return min;
 };
 
-const selectLastActivityMs = (s: UltimateTraceViewStore): number | undefined => {
+const selectLastActivityMs = (s: DebuggerSessionViewStore): number | undefined => {
   let max: number | undefined;
   for (const tid of s.traceOrder) {
     const t = s.traces.get(tid)?.trace;
@@ -38,7 +38,7 @@ const selectLastActivityMs = (s: UltimateTraceViewStore): number | undefined => 
 };
 
 // Inner content: fetches data and renders trace sections + the right-rail outline.
-export default function UltimateTraceViewContent({
+export default function DebuggerSessionViewContent({
   sessionId,
   sessionTitle,
 }: {
@@ -46,15 +46,15 @@ export default function UltimateTraceViewContent({
   sessionTitle: string;
 }) {
   const { projectId } = useParams<{ projectId: string }>();
-  const storeApi = useUltimateTraceViewStoreRaw();
+  const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const traceOrder = useUltimateTraceViewStore((state) => state.traceOrder);
-  const sidePanelTraceId = useUltimateTraceViewStore((state) => state.sidePanelTraceId);
-  const sidePanelSpanId = useUltimateTraceViewStore((state) => state.sidePanelSpanId);
-  const closeSidePanel = useUltimateTraceViewStore((state) => state.closeSidePanel);
+  const traceOrder = useDebuggerSessionViewStore((state) => state.traceOrder);
+  const sidePanelTraceId = useDebuggerSessionViewStore((state) => state.sidePanelTraceId);
+  const sidePanelSpanId = useDebuggerSessionViewStore((state) => state.sidePanelSpanId);
+  const closeSidePanel = useDebuggerSessionViewStore((state) => state.closeSidePanel);
 
-  const createdMs = useUltimateTraceViewStore(selectCreatedMs);
-  const lastActivityMs = useUltimateTraceViewStore(selectLastActivityMs);
+  const createdMs = useDebuggerSessionViewStore(selectCreatedMs);
+  const lastActivityMs = useDebuggerSessionViewStore(selectLastActivityMs);
 
   // Ref on the confirmed scroll container (the overflow-y-auto div below) so
   // "Jump to bottom" scrolls it to the very end.

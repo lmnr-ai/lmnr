@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 
 interface RunHeaderProps {
   traceId: string;
@@ -28,8 +28,8 @@ interface RunHeaderProps {
  * dropdown (copy id / open trace), and inline span stats. Right: relative time.
  */
 export default function RunHeader({ traceId, index, total }: RunHeaderProps) {
-  const trace = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.trace);
-  const openSidePanel = useUltimateTraceViewStore((state) => state.openSidePanel);
+  const trace = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.trace);
+  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
   const { toast } = useToast();
 
   const handleCopyTraceId = async () => {

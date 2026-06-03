@@ -11,7 +11,7 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { useUltimateTraceViewStore } from "../store";
+import { useDebuggerSessionViewStore } from "../store";
 import TimelineElement, { ROW_HEIGHT } from "./timeline-element";
 import ZoomControls from "./zoom-controls";
 
@@ -22,15 +22,15 @@ interface TimelineProps {
 function Timeline({ traceId }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const zoom = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
-  const isSpansLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isSpansLoading ?? false);
-  const spans = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.spans);
-  const getCondensedTimelineData = useUltimateTraceViewStore((state) => state.getCondensedTimelineData);
-  const selectSpan = useUltimateTraceViewStore((state) => state.selectSpan);
-  const selectedSpanId = useUltimateTraceViewStore((state) => state.selectedSpanId);
-  const selectedTraceId = useUltimateTraceViewStore((state) => state.selectedTraceId);
-  const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
-  const openSidePanel = useUltimateTraceViewStore((state) => state.openSidePanel);
+  const zoom = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
+  const isSpansLoading = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.isSpansLoading ?? false);
+  const spans = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.spans);
+  const getCondensedTimelineData = useDebuggerSessionViewStore((state) => state.getCondensedTimelineData);
+  const selectSpan = useDebuggerSessionViewStore((state) => state.selectSpan);
+  const selectedSpanId = useDebuggerSessionViewStore((state) => state.selectedSpanId);
+  const selectedTraceId = useDebuggerSessionViewStore((state) => state.selectedTraceId);
+  const setZoom = useDebuggerSessionViewStore((state) => state.setZoom);
+  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
 
   // Full-detail layout: one bar per span (row/left/width). No depth condensing.
   const {

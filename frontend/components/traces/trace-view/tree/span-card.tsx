@@ -2,7 +2,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";

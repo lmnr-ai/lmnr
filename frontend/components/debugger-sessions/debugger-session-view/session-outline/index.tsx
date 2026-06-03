@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type UltimateTraceViewStore, useUltimateTraceViewStore, useUltimateTraceViewStoreRaw } from "../store";
+import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { headingAnchorId, parseNoteHeadings, traceAnchorId } from "./utils";
 
 // One outline row: a trace (rendered as a chip) or a heading pulled from that
@@ -16,7 +16,7 @@ type OutlineRow =
   | { kind: "trace"; key: string; anchor: string; index: number }
   | { kind: "heading"; key: string; anchor: string; level: number; text: string };
 
-const buildRows = (state: UltimateTraceViewStore): OutlineRow[] => {
+const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   state.traceOrder.forEach((traceId, i) => {
     const ts = state.traces.get(traceId);
@@ -45,11 +45,11 @@ interface SessionOutlineProps {
  * IntersectionObserver rooted at the browser viewport (exactly like the blog).
  */
 export default function SessionOutline({ onJumpToBottom, className }: SessionOutlineProps) {
-  const storeApi = useUltimateTraceViewStoreRaw();
+  const storeApi = useDebuggerSessionViewStoreRaw();
 
   // Primitive signature: rebuild rows only when order / load-state / note text
   // actually changes (not on every streamed span that swaps the traces Map).
-  const signature = useUltimateTraceViewStore((s) =>
+  const signature = useDebuggerSessionViewStore((s) =>
     s.traceOrder
       .map((id) => {
         const t = s.traces.get(id);

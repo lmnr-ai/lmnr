@@ -6,7 +6,7 @@
 import { cn } from "@/lib/utils";
 
 import RunHeader from "./run-header";
-import { useUltimateTraceViewStore } from "./store";
+import { useDebuggerSessionViewStore } from "./store";
 import Timeline from "./timeline";
 import { useTmpVariantStore } from "./tmp-variant-store";
 import TraceIOCard from "./trace-io-card";
@@ -14,7 +14,7 @@ import TraceIOCard from "./trace-io-card";
 export default function RunBody({ traceId, index, total }: { traceId: string; index: number; total: number }) {
   const variant = useTmpVariantStore((s) => s.variant);
   // Highlight the card while its trace is open in the trace-view side panel.
-  const isOpenInSidePanel = useUltimateTraceViewStore((s) => s.sidePanelTraceId === traceId);
+  const isOpenInSidePanel = useDebuggerSessionViewStore((s) => s.sidePanelTraceId === traceId);
   const borderColor = isOpenInSidePanel ? "border-primary/70" : "border-border";
 
   // Variant 2: session-view-style input/output only.

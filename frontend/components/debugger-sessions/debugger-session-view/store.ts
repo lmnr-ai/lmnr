@@ -42,7 +42,7 @@ export interface SeedTrace {
 }
 
 // Per-trace state
-export interface UltimateTraceState {
+export interface DebuggerSessionTraceState {
   trace?: TraceViewTrace;
   // Agent-authored markdown note rendered below the timeline (may embed span refs)
   comment?: string;
@@ -54,7 +54,7 @@ export interface UltimateTraceState {
   zoom: number;
 }
 
-const createDefaultTraceState = (trace?: TraceViewTrace, comment?: string): UltimateTraceState => ({
+const createDefaultTraceState = (trace?: TraceViewTrace, comment?: string): DebuggerSessionTraceState => ({
   trace,
   comment,
   spans: [],
@@ -88,8 +88,8 @@ const realtimeToTraceViewSpan = (s: RealtimeSpan, mode: "start" | "update"): Tra
     totalCost: 0,
   }) as TraceViewSpan;
 
-export interface UltimateTraceViewState {
-  traces: Map<string, UltimateTraceState>;
+export interface DebuggerSessionViewState {
+  traces: Map<string, DebuggerSessionTraceState>;
   traceOrder: string[];
   selectedSpanId: string | null;
   selectedTraceId: string | null;
@@ -98,7 +98,7 @@ export interface UltimateTraceViewState {
   sidePanelSpanId: string | null;
 }
 
-export interface UltimateTraceViewActions {
+export interface DebuggerSessionViewActions {
   removeTrace: (traceId: string) => void;
 
   setTraceData: (traceId: string, trace: TraceViewTrace) => void;
@@ -125,18 +125,18 @@ export interface UltimateTraceViewActions {
   closeSidePanel: () => void;
 
   getCondensedTimelineData: (traceId: string) => CondensedTimelineData;
-  getTraceState: (traceId: string) => UltimateTraceState | undefined;
+  getTraceState: (traceId: string) => DebuggerSessionTraceState | undefined;
   // Span type for an already-loaded span (drives the span-ref chip icon color)
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
 }
 
-export type UltimateTraceViewStore = UltimateTraceViewState & UltimateTraceViewActions;
+export type DebuggerSessionViewStore = DebuggerSessionViewState & DebuggerSessionViewActions;
 
 function updateTraceState(
-  traces: Map<string, UltimateTraceState>,
+  traces: Map<string, DebuggerSessionTraceState>,
   traceId: string,
-  update: Partial<UltimateTraceState>
-): Map<string, UltimateTraceState> {
+  update: Partial<DebuggerSessionTraceState>
+): Map<string, DebuggerSessionTraceState> {
   const existing = traces.get(traceId);
   if (!existing) return traces;
   const next = new Map(traces);
@@ -145,8 +145,10 @@ function updateTraceState(
 }
 
 // Build the initial trace map / order from one or more seed traces (multi-trace sessions)
-const buildInitialTraces = (seeds: SeedTrace[]): { traces: Map<string, UltimateTraceState>; traceOrder: string[] } => {
-  const traces = new Map<string, UltimateTraceState>();
+const buildInitialTraces = (
+  seeds: SeedTrace[]
+): { traces: Map<string, DebuggerSessionTraceState>; traceOrder: string[] } => {
+  const traces = new Map<string, DebuggerSessionTraceState>();
   const traceOrder: string[] = [];
   for (const seed of seeds) {
     if (traces.has(seed.traceId)) continue;
@@ -156,8 +158,8 @@ const buildInitialTraces = (seeds: SeedTrace[]): { traces: Map<string, UltimateT
   return { traces, traceOrder };
 };
 
-export const createUltimateTraceViewStore = (seeds: SeedTrace[], initialTrace?: TraceViewTrace) =>
-  createStore<UltimateTraceViewStore>()((set, get) => {
+export const createDebuggerSessionViewStore = (seeds: SeedTrace[], initialTrace?: TraceViewTrace) =>
+  createStore<DebuggerSessionViewStore>()((set, get) => {
     const { traces: initialTraces, traceOrder: initialOrder } = buildInitialTraces(seeds);
     // Hydrate the first seed's trace meta when provided (single-trace /alpha harness)
     if (initialTrace && initialOrder.length > 0) {
@@ -305,20 +307,20 @@ export const createUltimateTraceViewStore = (seeds: SeedTrace[], initialTrace?: 
   });
 
 // Context and hooks
-export const UltimateTraceViewContext = createContext<StoreApi<UltimateTraceViewStore> | undefined>(undefined);
+export const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSessionViewStore> | undefined>(undefined);
 
-export const useUltimateTraceViewStore = <T>(selector: (store: UltimateTraceViewStore) => T): T => {
-  const store = useContext(UltimateTraceViewContext);
+export const useDebuggerSessionViewStore = <T>(selector: (store: DebuggerSessionViewStore) => T): T => {
+  const store = useContext(DebuggerSessionViewContext);
   if (!store) {
-    throw new Error("useUltimateTraceViewStore must be used within a UltimateTraceViewContext provider");
+    throw new Error("useDebuggerSessionViewStore must be used within a DebuggerSessionViewContext provider");
   }
   return useStore(store, selector);
 };
 
-export const useUltimateTraceViewStoreRaw = () => {
-  const store = useContext(UltimateTraceViewContext);
+export const useDebuggerSessionViewStoreRaw = () => {
+  const store = useContext(DebuggerSessionViewContext);
   if (!store) {
-    throw new Error("useUltimateTraceViewStoreRaw must be used within a UltimateTraceViewContext provider");
+    throw new Error("useDebuggerSessionViewStoreRaw must be used within a DebuggerSessionViewContext provider");
   }
   return store;
 };

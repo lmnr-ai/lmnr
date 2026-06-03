@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 
-import UltimateTraceView from "@/components/ultimate-trace-view";
+import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
 import { getTrace } from "@/lib/actions/trace";
 
-export default async function UltimateTraceViewPage(props: {
+export default async function DebuggerSessionViewPage(props: {
   params: Promise<{ projectId: string; traceId: string }>;
 }) {
   const params = await props.params;
@@ -16,5 +16,5 @@ export default async function UltimateTraceViewPage(props: {
     return notFound();
   }
 
-  return <UltimateTraceView trace={trace} />;
+  return <DebuggerSessionView trace={trace} />;
 }

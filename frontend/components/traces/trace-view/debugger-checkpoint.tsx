@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { DatabaseZap } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 

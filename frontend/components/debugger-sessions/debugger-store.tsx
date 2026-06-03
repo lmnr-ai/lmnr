@@ -1,3 +1,12 @@
+// Debugger session store: cached-span detection (`isSpanCached`), replay/run
+// history, and the optional-context hook trace-view reads. Parked from the old
+// debugger-session-view. Today only `useOptionalDebuggerStore` is consumed (by
+// trace-view, to show "Replayed from source trace" markers). The new
+// DebuggerSessionView does NOT mount this provider yet, so those markers are
+// dormant.
+// TODO: wire DebuggerSessionStoreProvider into DebuggerSessionView so the
+// cached-span indicators light up; until then this store is intentionally kept
+// but not provided anywhere.
 import { isNil } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
