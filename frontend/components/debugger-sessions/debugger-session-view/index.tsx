@@ -7,7 +7,7 @@ import Header from "@/components/ui/header";
 import { type TraceRow } from "@/lib/traces/types";
 
 import DebuggerSessionViewContent from "./debugger-session-view-content";
-import DebuggerSessionViewStoreProvider from "./store";
+import DebuggerSessionViewStoreProvider, { useDebuggerSessionViewStore } from "./store";
 
 interface DebuggerSessionViewProps {
   // Single-trace harness (/alpha) passes a hydrated trace; multi-trace sessions pass sessionId.
@@ -55,6 +55,17 @@ const traceToRow = (trace: TraceViewTrace): TraceRow => {
   };
 };
 
+// Breadcrumb that tracks live renames: the store's `sessionName` (updated by the
+// realtime `session_update` handler) replaces the last path segment's name. Must
+// render inside the store provider.
+function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["path"] }) {
+  const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
+  const livePath = Array.isArray(path)
+    ? path.map((segment, i) => (i === path.length - 1 ? { ...segment, name: sessionName } : segment))
+    : path;
+  return <Header path={livePath} />;
+}
+
 export default function DebuggerSessionView({ trace, headerPath, sessionId }: DebuggerSessionViewProps) {
   const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
   const sessionTitle = titleFromPath(path);
@@ -66,7 +77,7 @@ export default function DebuggerSessionView({ trace, headerPath, sessionId }: De
       initialTraceRow={initialTraceRow}
       initialSessionName={sessionTitle}
     >
-      <Header path={path} />
+      <LiveSessionBreadcrumb path={path} />
       <div className="flex-none border-t" />
       <DebuggerSessionViewContent sessionId={sessionId} />
     </DebuggerSessionViewStoreProvider>
