@@ -27,14 +27,28 @@ export interface ProjectApiKeyResponse {
   name: string | null;
   shorthand: string;
   isIngestOnly: boolean;
+  // SHA3-256 hex digest of `value`. Exposed so tx callers can populate the
+  // cache post-commit via `cacheProjectApiKey` (see CLI grant approval).
+  hash: string;
 }
 
-export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySchema>): Promise<ProjectApiKeyResponse> {
+// Accept an optional drizzle transaction handle so callers can compose the
+// insert with other writes that must roll back together (e.g. CLI auth grant
+// approval, where minting the key and updating the grant row need to be
+// atomic — see `approveGrant` in lib/actions/cli-login/index.ts). When no tx
+// is passed we fall back to the singleton `db`.
+type DrizzleExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function createApiKey(
+  input: z.infer<typeof CreateProjectApiKeySchema>,
+  tx?: DrizzleExecutor
+): Promise<ProjectApiKeyResponse> {
   const { projectId, name, isIngestOnly } = CreateProjectApiKeySchema.parse(input);
 
   const { value, hash, shorthand } = createProjectApiKey();
+  const executor = tx ?? db;
 
-  const [key] = await db
+  const [key] = await executor
     .insert(projectApiKeys)
     .values({
       projectId,
@@ -45,15 +59,19 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
     })
     .returning();
 
-  // Cache the newly created key
-  const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
-  await cache.set(cacheKey, {
-    projectId: key.projectId,
-    name: key.name,
-    hash: key.hash,
-    shorthand: key.shorthand,
-    isIngestOnly: key.isIngestOnly,
-  });
+  // Cache the newly created key. Skip when running inside a transaction —
+  // otherwise a rollback would leave a phantom cache entry for a key that has
+  // no DB row backing it. Tx callers are responsible for populating the cache
+  // themselves after commit (see `cacheProjectApiKey` below).
+  if (!tx) {
+    await cacheProjectApiKey({
+      projectId: key.projectId,
+      name: key.name,
+      hash,
+      shorthand: key.shorthand,
+      isIngestOnly: key.isIngestOnly,
+    });
+  }
 
   return {
     value,
@@ -61,7 +79,21 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
     name: name || null,
     shorthand,
     isIngestOnly,
+    hash,
   };
+}
+
+// Exposed for tx callers that need to populate the cache only after a
+// successful commit. See the `!tx` skip in `createApiKey` above.
+export async function cacheProjectApiKey(key: {
+  projectId: string;
+  name: string | null;
+  hash: string;
+  shorthand: string | null;
+  isIngestOnly: boolean;
+}): Promise<void> {
+  const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${key.hash}`;
+  await cache.set(cacheKey, key);
 }
 
 export async function getApiKeys(

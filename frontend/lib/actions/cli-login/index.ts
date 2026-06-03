@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod/v4";
 
-import { createApiKey } from "@/lib/actions/project-api-keys";
+import { cacheProjectApiKey, createApiKey } from "@/lib/actions/project-api-keys";
 import { db } from "@/lib/db/drizzle";
 import { cliLoginGrants, membersOfWorkspaces, projects, users, workspaces } from "@/lib/db/migrations/schema";
 
@@ -118,7 +118,10 @@ const ApproveGrantSchema = z.object({
 export const approveGrant = async (input: z.infer<typeof ApproveGrantSchema>): Promise<ApproveGrantResult> => {
   const { sessionId, projectId, userId, userEmail } = ApproveGrantSchema.parse(input);
 
-  // Re-fetch the grant atomically with state checks.
+  // Pre-check the grant outside the transaction so common-case rejects (typo'd
+  // session_id, expired, already-approved) fail fast WITHOUT minting an api
+  // key. The transaction below re-checks with a `WHERE status='pending'` guard
+  // on the UPDATE so the race-window winner is the only caller that lands.
   const grants = await db.select().from(cliLoginGrants).where(eq(cliLoginGrants.sessionId, sessionId)).limit(1);
   if (grants.length === 0) {
     const err = new Error("Grant not found");
@@ -160,42 +163,72 @@ export const approveGrant = async (input: z.infer<typeof ApproveGrantSchema>): P
   }
   const { projectName, workspaceId, workspaceName } = rows[0];
 
+  // Single transaction: mint api key, then UPDATE the grant row gated on
+  // status='pending'. If the UPDATE affects 0 rows (concurrent approve already
+  // won the race), throw 409 — the transaction rolls back the api-key insert
+  // so no orphan key is left behind. The api-key insert lives INSIDE the
+  // transaction so a post-mint DB hiccup also rolls back the key.
   const hostnameSuffix = (grant.clientInfo as ClientInfo | null | undefined)?.hostname ?? "unknown-host";
   const today = new Date().toISOString().slice(0, 10);
-  const apiKey = await createApiKey({
+
+  const result = await db.transaction(async (tx) => {
+    const apiKey = await createApiKey(
+      {
+        projectId,
+        name: `CLI - ${hostnameSuffix} - ${today}`,
+        isIngestOnly: false,
+      },
+      tx
+    );
+
+    const payload = JSON.stringify({
+      projectApiKey: apiKey.value,
+      projectId,
+      projectName,
+      workspaceId,
+      workspaceName,
+      userEmail,
+      createdAt: new Date().toISOString(),
+    });
+
+    const { encryptedPayload, encryptedNonce, ephemeralPublicKey } = encryptPayload(payload, grant.publicKey);
+
+    const updated = await tx
+      .update(cliLoginGrants)
+      .set({
+        status: "approved",
+        approvedUserId: userId,
+        approvedProjectId: projectId,
+        approvedWorkspaceId: workspaceId,
+        encryptedPayload,
+        encryptedNonce,
+        ephemeralPublicKey,
+        approvedAt: new Date().toISOString(),
+      })
+      .where(and(eq(cliLoginGrants.sessionId, sessionId), eq(cliLoginGrants.status, "pending")))
+      .returning({ sessionId: cliLoginGrants.sessionId });
+
+    if (updated.length === 0) {
+      const err = new Error("Grant is not pending");
+      (err as any).status = 409;
+      throw err;
+    }
+
+    return { shorthand: apiKey.shorthand, hash: apiKey.hash };
+  });
+
+  // Cache the freshly-minted api key now that the tx has committed. Outside
+  // the tx body so a rollback can't leave a phantom cache entry — see
+  // `createApiKey` for the matching skip-when-tx branch.
+  await cacheProjectApiKey({
     projectId,
     name: `CLI - ${hostnameSuffix} - ${today}`,
+    hash: result.hash,
+    shorthand: result.shorthand,
     isIngestOnly: false,
   });
 
-  const payload = JSON.stringify({
-    projectApiKey: apiKey.value,
-    projectId,
-    projectName,
-    workspaceId,
-    workspaceName,
-    userEmail,
-    createdAt: new Date().toISOString(),
-  });
-
-  const { encryptedPayload, encryptedNonce, ephemeralPublicKey } = encryptPayload(payload, grant.publicKey);
-
-  // Update grant row — final state for the polling endpoint.
-  await db
-    .update(cliLoginGrants)
-    .set({
-      status: "approved",
-      approvedUserId: userId,
-      approvedProjectId: projectId,
-      approvedWorkspaceId: workspaceId,
-      encryptedPayload,
-      encryptedNonce,
-      ephemeralPublicKey,
-      approvedAt: new Date().toISOString(),
-    })
-    .where(and(eq(cliLoginGrants.sessionId, sessionId), eq(cliLoginGrants.status, "pending")));
-
-  return { ok: true, projectName, workspaceName, shorthand: apiKey.shorthand };
+  return { ok: true, projectName, workspaceName, shorthand: result.shorthand };
 };
 
 export interface UserContextResult {
