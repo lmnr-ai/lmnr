@@ -133,6 +133,10 @@ interface DebuggerSessionViewState {
   // prop at store creation; updated live by the `session_update` realtime event so
   // a rename reflects without reload.
   sessionName: string;
+
+  // True when a run was added live via trace_update — drives the "New trace" pill
+  // at the bottom of the view. Cleared on pill click / dismiss. Transient.
+  newTraceNotice: boolean;
 }
 
 interface DebuggerSessionViewActions {
@@ -160,6 +164,9 @@ interface DebuggerSessionViewActions {
   // Update the displayed session name live (driven by the `session_update`
   // realtime event after a rename via PATCH /v1/.../rollouts/{id}/name).
   setSessionName: (name: string) => void;
+
+  // Hide the "New trace" pill (pill click or its X).
+  dismissNewTraceNotice: () => void;
 
   // Read the agent-authored note (`rollout.note`) off a run's metadata object.
   noteForTrace: (traceId: string) => string | undefined;
@@ -189,6 +196,7 @@ const createDebuggerSessionViewStore = (options?: {
           traceViewTraceId: null,
           sessionName: options?.initialSessionName ?? "Session",
           realtimeSpanBuffer: {},
+          newTraceNotice: false,
 
           // Selecting a span (opening the span panel) closes the full trace-view
           // overlay so the two right-side overlays never stack. Delegates the rest
@@ -333,6 +341,8 @@ const createDebuggerSessionViewStore = (options?: {
               });
               get().setTraceExpanded(t.traceId, true);
               void get().hydrateTraceRow(t.traceId);
+              // Surface the "New trace" pill so the user can jump to the new run.
+              set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
               return;
             }
 
@@ -419,6 +429,8 @@ const createDebuggerSessionViewStore = (options?: {
           closeTraceView: () => set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>),
 
           setSessionName: (name) => set({ sessionName: name } as Partial<DebuggerSessionViewStore>),
+
+          dismissNewTraceNotice: () => set({ newTraceNotice: false } as Partial<DebuggerSessionViewStore>),
 
           noteForTrace: (traceId) => {
             const row = get().traces.find((t) => t.id === traceId);

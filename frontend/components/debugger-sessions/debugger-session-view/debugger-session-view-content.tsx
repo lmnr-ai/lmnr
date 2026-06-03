@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
@@ -11,6 +11,7 @@ import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
 import DebuggerTraceList from "./debugger-trace-list";
+import NewTracePill from "./new-trace-pill";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
@@ -54,6 +55,13 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
   // to it and the outline shares the same scroll context.
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+
+  // "Jump to bottom" against the page scroll container (restored from the
+  // pre-rework content component — the virtualizer keeps scrollHeight sized via
+  // its total-size spacer, so scrolling the container itself stays correct).
+  const scrollToBottom = useCallback(() => {
+    scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+  }, [scrollEl]);
 
   // Push projectId into the store so store-owned actions can issue requests.
   useEffect(() => {
@@ -141,6 +149,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       )}
       {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
       {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}
+      {/* New run arrived via realtime → jump-to-bottom pill. */}
+      <NewTracePill onScrollToBottom={scrollToBottom} />
     </div>
   );
 }

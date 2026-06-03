@@ -346,7 +346,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
             style={{ ...positionStyle, left: 0, width: "100%", scrollMarginTop: STICKY_HEADER_HEIGHT }}
           >
             {row.type === "run-note" ? (
-              <div className="px-1 pb-3 pt-1">
+              <div className="px-1 pb-5 pt-1">
                 <RunComment traceId={row.traceId} />
               </div>
             ) : row.type === "trace-header" ? (
@@ -373,7 +373,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
               <div
                 className={cn(
                   "px-2 flex justify-center items-center",
-                  row.type === "trace-expanded-end" ? "h-12" : "h-10"
+                  row.type === "trace-expanded-end" ? "h-20" : "h-20"
                 )}
               >
                 <div className="w-full border-b" />
