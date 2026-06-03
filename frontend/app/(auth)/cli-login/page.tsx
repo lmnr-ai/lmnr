@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import CliLoginClient from "@/components/cli-login";
 import CliLoginError from "@/components/cli-login/error-panel";
 import { UserContextProvider } from "@/contexts/user-context";
-import { getUserContext } from "@/lib/actions/cli-login";
+import { getUserContext, peekGrantStatus } from "@/lib/actions/cli-login";
 import { authOptions } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -32,6 +32,22 @@ export default async function CliLoginPage(props: CliLoginPageProps) {
 
   if (!sp.session_id || !sp.public_key) {
     return <CliLoginError reason="missing-params" />;
+  }
+
+  // Pre-validate the grant — refuse to render the picker for typo'd / expired /
+  // already-approved session_ids. Saves the user the mental round trip of
+  // picking a project just to receive a toast on click. Uses `peekGrantStatus`
+  // (read-only) instead of `getGrant` so we don't accidentally claim an
+  // approved-but-unclaimed grant just because the user reloaded the URL.
+  const peek = await peekGrantStatus({ sessionId: sp.session_id });
+  if (!peek) {
+    return <CliLoginError reason="invalid-session" />;
+  }
+  if (peek.status === "expired") {
+    return <CliLoginError reason="expired-session" />;
+  }
+  if (peek.status !== "pending") {
+    return <CliLoginError reason="claimed-session" />;
   }
 
   const user = session.user;

@@ -62,6 +62,30 @@ export interface GetGrantResult {
   ephemeralPublicKey?: string;
 }
 
+// Read-only grant status check. Unlike `getGrant`, this does NOT flip an
+// approved-but-unclaimed grant to claimed — used by the /cli-login page to
+// pre-validate the session_id before rendering the picker. Returns the
+// lifecycle state without exposing the ciphertext.
+export const peekGrantStatus = async (input: { sessionId: string }): Promise<{ status: GrantStatus } | null> => {
+  const sessionId = String(input.sessionId);
+  const rows = await db
+    .select({ status: cliLoginGrants.status, expiresAt: cliLoginGrants.expiresAt, claimedAt: cliLoginGrants.claimedAt })
+    .from(cliLoginGrants)
+    .where(eq(cliLoginGrants.sessionId, sessionId))
+    .limit(1);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+
+  if (new Date(row.expiresAt).getTime() < Date.now() && row.status !== "approved") {
+    return { status: "expired" };
+  }
+  if (row.status === "pending") return { status: "pending" };
+  if (row.status === "approved") {
+    return { status: row.claimedAt ? "already_claimed" : "approved" };
+  }
+  return { status: "expired" };
+};
+
 export const getGrant = async (input: { sessionId: string }): Promise<GetGrantResult | null> => {
   const sessionId = String(input.sessionId);
   const rows = await db.select().from(cliLoginGrants).where(eq(cliLoginGrants.sessionId, sessionId)).limit(1);
