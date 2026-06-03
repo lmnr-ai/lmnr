@@ -19,7 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { useSessionViewStore } from "../store";
+import { useSessionViewBaseStore } from "../store";
 import { buildSessionFlatRows, formatGap } from "../utils";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
@@ -52,7 +52,7 @@ export default function SessionList() {
     setScrollTimeRange,
     scrollToGroup,
     consumeScrollToGroup,
-  } = useSessionViewStore(
+  } = useSessionViewBaseStore(
     (s) => ({
       projectId: s.projectId,
       traces: s.traces,

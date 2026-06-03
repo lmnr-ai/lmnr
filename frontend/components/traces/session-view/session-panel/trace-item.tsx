@@ -22,7 +22,7 @@ import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import { useSessionViewStore } from "../store";
+import { useSessionViewBaseStore } from "../store";
 import { spanToListSpan } from "../utils";
 
 interface TraceItemProps {
@@ -48,7 +48,7 @@ export default function TraceItem({
   const projectId = params.projectId;
   const { toast } = useToast();
 
-  const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewStore(
+  const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],

@@ -3,10 +3,10 @@
 import { SpanView, type SpanViewTab } from "@/components/traces/span-view";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 
-import { useSessionViewStore } from "./store";
+import { useSessionViewBaseStore } from "./store";
 
 export default function SessionSpanPanel() {
-  const { selection, setSpanPanelOpen } = useSessionViewStore((s) => ({
+  const { selection, setSpanPanelOpen } = useSessionViewBaseStore((s) => ({
     selection: s.selectedSpan,
     setSpanPanelOpen: s.setSpanPanelOpen,
   }));
