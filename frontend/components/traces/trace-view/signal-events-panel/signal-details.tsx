@@ -100,8 +100,6 @@ export default function SignalDetails({ traceId, signal }: Props) {
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
 
   const spanRefCallbacks = useSpanRefCallbacks({
-    projectId: projectId as string,
-    traceId,
     spans,
     onSelectSpan: selectSpanById,
   });
