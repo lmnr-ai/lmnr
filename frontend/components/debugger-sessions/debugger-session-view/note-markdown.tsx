@@ -126,10 +126,15 @@ export const noteProseClassName = "text-sm text-secondary-foreground";
 // markdown link (the proven Streamdown `a`-override chip path); RunComment's `a`
 // renderer turns links carrying `lmnrSpanChip=1` into chips and leaves the rest
 // as anchors. Query values are URL-encoded so the link survives markdown syntax.
-const SPAN_TAG_RE = /<span\s+id='([^']+)'\s+name='([^']*)'(?:\s+reference_text='([\s\S]*?)')?\s*\/>/g;
+// Attributes accept single OR double quotes (backreference-matched), and the
+// lazy values backtrack past internal quotes of the same kind when the tag
+// still closes (`name='Bob's tool'` parses; the previous `[^']*` couldn't).
+// Agents writing quote-heavy text can switch that attribute's delimiters.
+const SPAN_TAG_RE =
+  /<span\s+id=(['"])([^'"]+)\1\s+name=(['"])([\s\S]*?)\3(?:\s+reference_text=(['"])([\s\S]*?)\5)?\s*\/>/g;
 
 export function spanTagsToLinks(note: string, traceId: string): string {
-  return note.replace(SPAN_TAG_RE, (_match, id: string, name: string, referenceText?: string) => {
+  return note.replace(SPAN_TAG_RE, (_match, _q1, id: string, _q2, name: string, _q3, referenceText?: string) => {
     // Markdown link labels can't contain unescaped brackets; span names rarely do.
     const label = name.replace(/[[\]]/g, " ").trim() || "span";
     const params = new URLSearchParams({ spanId: id, lmnrSpanChip: "1" });
