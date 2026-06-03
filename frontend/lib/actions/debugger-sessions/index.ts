@@ -16,6 +16,8 @@ export type DebuggerSession = {
   // Last time a trace arrived for this session (max trace start_time, from
   // ClickHouse). Null when the session has no traces yet.
   lastActivity: string | null;
+  // Number of traces grouped to this session (from ClickHouse).
+  traceCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -41,7 +43,7 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
     .limit(limit)
     .offset(offset);
 
-  const lastActivityById = await getLastActivityBySessionIds(
+  const statsById = await getStatsBySessionIds(
     projectId,
     rows.map((r) => r.id)
   );
@@ -49,27 +51,31 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
   const items: DebuggerSession[] = rows.map((row) => ({
     ...row,
     params: (row.params ?? null) as Record<string, any> | null,
-    lastActivity: lastActivityById.get(row.id) ?? null,
+    lastActivity: statsById.get(row.id)?.lastActivity ?? null,
+    traceCount: statsById.get(row.id)?.traceCount ?? 0,
   }));
 
   return { items };
 };
 
+type SessionStats = { lastActivity: string; traceCount: number };
+
 /**
- * Last trace arrival time per session, from ClickHouse: max(start_time) grouped
- * by the `rollout.session_id` trace-metadata key, scoped to the given session
- * ids. Best-effort — a CH error returns an empty map so the sessions list still
- * renders (just without "last activity" times).
+ * Per-session trace stats from ClickHouse: max(start_time) and trace count,
+ * grouped by the `rollout.session_id` trace-metadata key, scoped to the given
+ * session ids. Best-effort — a CH error returns an empty map so the sessions
+ * list still renders (just without "last activity" / trace counts).
  */
-async function getLastActivityBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, string>> {
+async function getStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
   if (sessionIds.length === 0) return new Map();
 
   try {
-    const rows = await executeQuery<{ sessionId: string; lastActivity: string }>({
+    const rows = await executeQuery<{ sessionId: string; lastActivity: string; traceCount: string }>({
       query: `
         SELECT
           simpleJSONExtractString(metadata, 'rollout.session_id') AS sessionId,
-          formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity
+          formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
+          count(DISTINCT id) AS traceCount
         FROM traces
         WHERE simpleJSONExtractString(metadata, 'rollout.session_id') IN ({sessionIds: Array(String)})
         GROUP BY sessionId
@@ -77,7 +83,7 @@ async function getLastActivityBySessionIds(projectId: string, sessionIds: string
       projectId,
       parameters: { sessionIds },
     });
-    return new Map(rows.map((r) => [r.sessionId, r.lastActivity]));
+    return new Map(rows.map((r) => [r.sessionId, { lastActivity: r.lastActivity, traceCount: Number(r.traceCount) }]));
   } catch {
     return new Map();
   }

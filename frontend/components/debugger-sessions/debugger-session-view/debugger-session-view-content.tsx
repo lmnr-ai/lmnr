@@ -184,7 +184,7 @@ export default function DebuggerSessionViewContent({
           </div>
           <SessionOutline
             onJumpToBottom={scrollToBottom}
-            className="sticky top-[160px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex"
+            className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex"
           />
         </div>
       </div>

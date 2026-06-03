@@ -118,7 +118,22 @@ export default function SessionOutline({ onJumpToBottom, className }: SessionOut
     const el = rowRefs.current.get(active);
     if (!el) return;
     setIndicator({ top: el.offsetTop, height: el.offsetHeight });
-    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Scope this to the rail's own scroller via scrollBy. `scrollIntoView` would
+    // bubble to EVERY scrollable ancestor — including the content container the
+    // rail lives in — which fights "Jump to bottom" (the content scroll loses on
+    // the first click). scrollBy only moves the nav.
+    const nav = el.closest("nav");
+    if (nav) {
+      const elRect = el.getBoundingClientRect();
+      const navRect = nav.getBoundingClientRect();
+      const delta =
+        elRect.top < navRect.top
+          ? elRect.top - navRect.top
+          : elRect.bottom > navRect.bottom
+            ? elRect.bottom - navRect.bottom
+            : 0;
+      if (delta !== 0) nav.scrollBy({ top: delta, behavior: "smooth" });
+    }
   }, [active, rows]);
 
   if (rows.length === 0) return null;

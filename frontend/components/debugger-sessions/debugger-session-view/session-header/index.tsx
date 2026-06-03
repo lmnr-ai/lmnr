@@ -18,7 +18,7 @@ export interface SessionHeaderProps {
  */
 export default function SessionHeader({ title, createdMs, lastActivityMs, runCount }: SessionHeaderProps) {
   return (
-    <header className="flex flex-col gap-2 py-5 h-[160px] pt-14">
+    <header className="flex flex-col gap-2 py-5 h-[180px] pt-14">
       <h1 className="text-2xl font-medium text-foreground">{title}</h1>
       <div className="flex items-center gap-1.5 text-xs text-secondary-foreground">
         <span>Created {fmtRelative(createdMs)}</span>
