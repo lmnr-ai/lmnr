@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 import { type ClusterNode } from "../utils";
 import ClusterItem, { type IconVariant } from "./cluster-item";
+import ClusterListEmptyState from "./empty-state";
 
 interface ClusterListProps {
   drillDownDepth: number;
@@ -33,6 +34,9 @@ export default function ClusterList({
   isPaywall,
 }: ClusterListProps) {
   const showUnclustered = drillDownDepth === 0;
+  const hasUnclustered = showUnclustered && unclusteredCount > 0;
+  // Truly empty: no clusters to render and (at the top level) nothing unclustered.
+  const isEmpty = visibleClusters.length === 0 && !hasUnclustered;
 
   // Sort clusters so empty ones (0 items in selected range) sink to the bottom.
   const orderedClusters = useMemo(
@@ -45,45 +49,47 @@ export default function ClusterList({
     [visibleClusters, filteredCountByCluster]
   );
 
+  if (isEmpty) {
+    return (
+      <div className={cn("border-r bg-secondary overflow-hidden min-w-0", className)}>
+        <ClusterListEmptyState title={showUnclustered ? "No clusters during this period" : "No sub-clusters"} />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden min-w-0", className)}>
       <div className="flex flex-col gap-0.5 py-2 px-2 min-w-0">
-        {visibleClusters.length === 0 && !showUnclustered ? (
-          <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
-        ) : (
-          <>
-            {orderedClusters.map((cluster) => {
-              const hasChildren = cluster.children.length > 0;
-              const filteredCount = filteredCountByCluster.get(cluster.id);
-              const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
-              return (
-                <ClusterItem
-                  key={cluster.id}
-                  cluster={cluster}
-                  iconVariant={iconVariant}
-                  color={getClusterColorById(cluster.id)}
-                  isSelected={selectedClusterId === cluster.id}
-                  filteredCount={filteredCount}
-                  onClick={() => onNavigateToCluster(cluster.id)}
-                  isPaywall={isPaywall}
-                />
-              );
-            })}
+        {orderedClusters.map((cluster) => {
+          const hasChildren = cluster.children.length > 0;
+          const filteredCount = filteredCountByCluster.get(cluster.id);
+          const iconVariant: IconVariant = hasChildren ? "boxes" : "box";
+          return (
+            <ClusterItem
+              key={cluster.id}
+              cluster={cluster}
+              iconVariant={iconVariant}
+              color={getClusterColorById(cluster.id)}
+              isSelected={selectedClusterId === cluster.id}
+              filteredCount={filteredCount}
+              onClick={() => onNavigateToCluster(cluster.id)}
+              isPaywall={isPaywall}
+            />
+          );
+        })}
 
-            {showUnclustered && unclusteredCount > 0 && (
-              <>
-                {visibleClusters.length > 0 && <div className="border-t my-1" />}
-                <ClusterItem
-                  cluster={unclusteredVirtualCluster}
-                  iconVariant="circle-dashed"
-                  color={UNCLUSTERED_COLOR}
-                  isSelected={selectedClusterId === UNCLUSTERED_ID}
-                  filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
-                  onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
-                  isPaywall={isPaywall}
-                />
-              </>
-            )}
+        {hasUnclustered && (
+          <>
+            {visibleClusters.length > 0 && <div className="border-t my-1" />}
+            <ClusterItem
+              cluster={unclusteredVirtualCluster}
+              iconVariant="circle-dashed"
+              color={UNCLUSTERED_COLOR}
+              isSelected={selectedClusterId === UNCLUSTERED_ID}
+              filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
+              onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
+              isPaywall={isPaywall}
+            />
           </>
         )}
       </div>
