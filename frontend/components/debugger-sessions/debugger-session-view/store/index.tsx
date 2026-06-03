@@ -63,6 +63,23 @@ const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan =>
     totalCost: 0,
   }) as TraceViewSpan;
 
+// Merge incoming spans into an existing list: dedupe by spanId (incoming wins,
+// preserving the existing span's `collapsed`), sort by startTime, enrich pending.
+// `incomingWins=false` flips precedence so a base list (e.g. a CH fetch) overrides
+// buffered/streamed duplicates for the same spanId.
+const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWins = true): TraceViewSpan[] => {
+  const byId = new Map<string, TraceViewSpan>();
+  for (const s of base) byId.set(s.spanId, s);
+  for (const s of incoming) {
+    const prev = byId.get(s.spanId);
+    if (!prev) byId.set(s.spanId, s);
+    else if (incomingWins) byId.set(s.spanId, { ...s, collapsed: prev.collapsed });
+    // incomingWins=false: keep the base entry (it already won)
+  }
+  const merged = [...byId.values()].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  return enrichSpansWithPending(merged);
+};
+
 // Build a minimal TraceRow slot for a trace we only know the id (and maybe
 // metadata) of — used by /alpha seeding and live trace_update of an unknown run.
 const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}): TraceRow => ({
@@ -85,6 +102,12 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 interface DebuggerSessionViewState {
   // Run note source-of-truth lives on each TraceRow's metadata; no extra state.
   noteMetadataKey: string;
+
+  // Realtime spans that arrived for a trace whose `traceSpans[traceId]` slot
+  // didn't exist yet (the backend dispatches the span branch and the trace_update
+  // branch concurrently, so spans can race ahead of the slot). Buffered by traceId
+  // and flushed into `traceSpans` when the slot is created. Transient, not persisted.
+  realtimeSpanBuffer: Record<string, TraceViewSpan[]>;
 
   // Trace id whose FULL trace view is open in the overlay side panel (null =
   // closed). Distinct from base `selectedSpan` (which drives the SPAN panel):
@@ -151,6 +174,7 @@ const createDebuggerSessionViewStore = (options?: {
           noteMetadataKey: NOTE_METADATA_KEY,
           traceViewTraceId: null,
           sessionName: options?.initialSessionName ?? "Session",
+          realtimeSpanBuffer: {},
 
           // Selecting a span (opening the span panel) closes the full trace-view
           // overlay so the two right-side overlays never stack. Delegates the rest
@@ -210,23 +234,26 @@ const createDebuggerSessionViewStore = (options?: {
             const traceId = span.traceId;
             const tvSpan = realtimeToTraceViewSpan(span);
 
-            // Only upsert when the trace's spans are already loaded. Unloaded traces
-            // fetch fresh on expand via ensureTraceSpans; streaming into an unloaded
-            // trace would race that fetch.
             if (get().traceSpans[traceId]) {
-              const existing = get().traceSpans[traceId];
-              const idx = existing.findIndex((s) => s.spanId === tvSpan.spanId);
-              const merged =
-                idx === -1
-                  ? [...existing, tvSpan]
-                  : existing.map((s) => (s.spanId === tvSpan.spanId ? { ...tvSpan, collapsed: s.collapsed } : s));
-              merged.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-              get().setTraceSpans(traceId, enrichSpansWithPending(merged));
+              // Slot exists → merge straight into the live list (dedupe + sort + enrich).
+              get().setTraceSpans(traceId, mergeSpans(get().traceSpans[traceId], [tvSpan]));
+            } else {
+              // Slot not created yet. The backend dispatches the span branch and the
+              // trace_update branch concurrently, so spans routinely arrive BEFORE the
+              // trace_update creates the slot. Buffer here (dedupe by spanId); the
+              // new-run branch in applyTraceUpdate flushes the buffer once the slot
+              // exists. Previously these spans were dropped → "(no spans)" on short runs.
+              set((state) => {
+                const buffered = state.realtimeSpanBuffer[traceId] ?? [];
+                return {
+                  realtimeSpanBuffer: { ...state.realtimeSpanBuffer, [traceId]: mergeSpans(buffered, [tvSpan]) },
+                } as Partial<DebuggerSessionViewStore>;
+              });
             }
 
-            // Bump the owning trace row's endTime when the span extends past it —
-            // the lazy fetch window is `endTime + 1s`, so a stale endTime would
-            // truncate the fetch and skew list stats/ordering for a live run.
+            // Bump the owning trace row's endTime when the span extends past it (keeps
+            // list stats/ordering correct for a live run). No-op if the row doesn't
+            // exist yet — the slot's endTime is seeded from the trace_update / hydrate.
             const spanEndMs = new Date(span.endTime).getTime();
             get().setTraces((traces) =>
               traces.map((t) => {
@@ -243,10 +270,23 @@ const createDebuggerSessionViewStore = (options?: {
             const existing = get().traces.find((row) => row.id === t.traceId);
 
             if (!existing) {
-              // Unknown run → add a lightweight slot (placeholder stats), append to
-              // ordering, auto-expand so it streams open, then refetch the full row so
-              // tokens/cost/startTime show real values without a manual reload.
+              // Unknown run → add a lightweight slot (placeholder stats) and append to
+              // ordering. Initialize the spans slot to the FLUSHED realtime buffer (any
+              // spans that raced ahead of this event) so the run is realtime-fed: with a
+              // non-empty/defined `traceSpans[id]`, the auto-expand's ensureTraceSpans
+              // short-circuits and we skip the doomed lazy fetch (it would window on the
+              // placeholder "now" times AND lag ClickHouse → return [], the "(no spans)"
+              // bug). Pre-existing CH spans for a run that started before view-open are
+              // recovered by the one-shot fetch in hydrateTraceRow (real times, merged).
+              const buffered = get().realtimeSpanBuffer[t.traceId] ?? [];
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
+              get().setTraceSpans(t.traceId, buffered);
+              set((state) => {
+                if (!(t.traceId in state.realtimeSpanBuffer)) return {} as Partial<DebuggerSessionViewStore>;
+                const next = { ...state.realtimeSpanBuffer };
+                delete next[t.traceId];
+                return { realtimeSpanBuffer: next } as Partial<DebuggerSessionViewStore>;
+              });
               get().setTraceExpanded(t.traceId, true);
               void get().hydrateTraceRow(t.traceId);
               return;
@@ -293,8 +333,34 @@ const createDebuggerSessionViewStore = (options?: {
                   };
                 })
               );
+
+              // Recover spans that were persisted in ClickHouse BEFORE the view opened
+              // (a run already in progress) — the realtime stream only carries spans
+              // emitted after we subscribed. Fetch once now that we have REAL trace
+              // times (the new-run slot's lazy fetch was intentionally skipped because
+              // it would have windowed on placeholder "now" times). Merge CH-wins over
+              // the realtime-fed slot so duplicates resolve to the fuller fetched span,
+              // and any spans that streamed in during this fetch are preserved.
+              const startDate = new Date(new Date(fetched.startTime).getTime() - 1000).toISOString();
+              const endDate = new Date(new Date(fetched.endTime).getTime() + 1000).toISOString();
+              const spanParams = new URLSearchParams();
+              spanParams.append("searchIn", "input");
+              spanParams.append("searchIn", "output");
+              spanParams.set("startDate", startDate);
+              spanParams.set("endDate", endDate);
+              const spansRes = await fetch(
+                `/api/projects/${projectId}/traces/${traceId}/spans?${spanParams.toString()}`
+              );
+              if (spansRes.ok) {
+                const fetchedSpans = (await spansRes.json()) as TraceViewSpan[];
+                if (fetchedSpans.length > 0) {
+                  const live = get().traceSpans[traceId] ?? [];
+                  // CH-wins: base = live (realtime), incoming = fetched with incomingWins.
+                  get().setTraceSpans(traceId, mergeSpans(live, fetchedSpans, true));
+                }
+              }
             } catch {
-              // Best-effort hydration — placeholder stats remain on failure.
+              // Best-effort hydration — placeholder stats / realtime-fed spans remain on failure.
             }
           },
 
