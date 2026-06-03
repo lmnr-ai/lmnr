@@ -24,7 +24,7 @@ export type TraceSignal = {
   signalName: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
-  clusterPath: TraceSignalClusterNode[];
+  leafCluster: TraceSignalClusterNode | null;
   events: EventRow[];
 };
 
@@ -32,7 +32,7 @@ type SignalEventRow = EventRow & { clusters: string[] | null };
 
 /**
  * Signals (with their events) that fired on a trace, for the trace-view panel.
- * Each signal carries a root→leaf cluster breadcrumb derived from its latest event.
+ * Each signal carries its deepest (leaf) cluster derived from its latest event.
  */
 export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchema>): Promise<TraceSignal[]> {
   const { projectId, traceId } = GetTraceSignalsSchema.parse(input);
@@ -67,8 +67,8 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
     eventsBySignal.set(e.signalId, list);
   }
 
-  // The breadcrumb is shown once per signal, off its latest event — so we only
-  // need cluster metadata for those clusters.
+  // The panel shows one leaf cluster per signal, off its latest event — so we
+  // only need cluster metadata for those clusters to pick the deepest one.
   const latestClusterIds = new Set<string>();
   for (const events of eventsBySignal.values()) {
     for (const cid of events[0].clusters ?? []) latestClusterIds.add(cid);
@@ -89,18 +89,18 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
 
   return signalRows.map((signal) => {
     const events = eventsBySignal.get(signal.id) ?? [];
-    const clusterPath = (events[0]?.clusters ?? [])
-      .map((id) => clusterMeta.get(id))
-      .filter((n): n is TraceSignalClusterNode => !!n)
-      // Higher level = closer to root; sort descending so the leaf lands last.
-      .sort((a, b) => b.level - a.level);
+    const leafCluster =
+      (events[0]?.clusters ?? [])
+        .map((id) => clusterMeta.get(id))
+        .filter((n): n is TraceSignalClusterNode => !!n)
+        .sort((a, b) => a.level - b.level)[0] ?? null;
 
     return {
       signalId: signal.id,
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema as Record<string, unknown>,
-      clusterPath,
+      leafCluster,
       events: events.map((e) => ({
         id: e.id,
         signalId: e.signalId,
@@ -123,6 +123,7 @@ async function fetchClusterNodes(
       SELECT id, name, level
       FROM clusters
       WHERE id IN ({clusterIds: Array(UUID)})
+        AND level != 0
     `,
     parameters: { clusterIds },
   });

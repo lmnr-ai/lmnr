@@ -102,7 +102,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          clusterPath?: Array<{ id: string; name: string; level: number }>;
+          leafCluster?: { id: string; name: string; level: number } | null;
           events: EventRow[];
         }>;
         if (!Array.isArray(data)) return;
@@ -111,7 +111,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalId: s.signalId,
           signalName: s.signalName,
           prompt: s.prompt ?? "",
-          clusterPath: Array.isArray(s.clusterPath) ? s.clusterPath : [],
+          leafCluster: s.leafCluster ?? null,
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,

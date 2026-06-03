@@ -4,7 +4,8 @@ import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import { type ClusterStatsDataPoint, type EventCluster } from "@/lib/actions/clusters";
+import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
 interface ClusterStackedChartProps {
@@ -30,10 +31,13 @@ export default function ClusterStackedChart({
       const key = cluster.id;
       const baseColor = colorMap.get(key) ?? UNCLUSTERED_COLOR;
       const color = withOpacity(baseColor, 0.75);
+      const iconVariant: IconVariant =
+        key === UNCLUSTERED_ID ? "circle-dashed" : cluster.numChildrenClusters > 0 ? "boxes" : "box";
       config[key] = {
         label: cluster.name,
         color,
         stackId: "stack",
+        icon: () => <ClusterIcon iconVariant={iconVariant} color={baseColor} />,
       };
       fieldKeys.push(key);
     });

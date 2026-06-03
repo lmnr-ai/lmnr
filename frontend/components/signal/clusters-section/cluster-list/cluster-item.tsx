@@ -1,17 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Box, Boxes, CircleDashed } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import { type ClusterNode } from "../utils";
+import ClusterIcon, { type IconVariant } from "./cluster-icon";
 
-export type IconVariant = "boxes" | "box" | "circle-dashed";
+export type { IconVariant };
 
 interface HoverRect {
   top: number;
@@ -120,27 +119,7 @@ export default function ClusterItem({
     }, 80);
   }, [clearLeaveTimeout, clearOpenTimeout]);
 
-  const icon = (
-    <div className={cn("size-4 flex justify-center items-center", { "blur-[5px]": isPaywall })}>
-      {iconVariant === "boxes" ? (
-        <Boxes
-          className="size-4.5 shrink-0"
-          fill={withOpacity(color, 0.1)}
-          stroke={withOpacity(color, 0.7)}
-          strokeWidth={1}
-        />
-      ) : iconVariant === "circle-dashed" ? (
-        <CircleDashed className="size-3.5 shrink-0" stroke={color} />
-      ) : (
-        <Box
-          fill={isSelected ? withOpacity(color, 0.5) : withOpacity(color, 0.1)}
-          stroke={isSelected ? color : withOpacity(color, 0.7)}
-          className="size-3.5 shrink-0"
-          strokeWidth={1.5}
-        />
-      )}
-    </div>
-  );
+  const icon = <ClusterIcon iconVariant={iconVariant} color={color} isSelected={isSelected} isPaywall={isPaywall} />;
 
   return (
     <>

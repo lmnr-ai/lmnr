@@ -112,7 +112,7 @@ function SpanBadge({
 }
 
 /** Badge for markdown span refs — uuid known, type resolved sync from store. */
-function MarkdownSpanBadge({
+export function MarkdownSpanBadge({
   label,
   traceId,
   spanUuid,

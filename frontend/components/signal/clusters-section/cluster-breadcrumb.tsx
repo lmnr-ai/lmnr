@@ -1,11 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Box } from "lucide-react";
 
-import { getClusterColorById, withOpacity } from "@/lib/clusters/colors";
+import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 
 import { type ClusterNode } from "./utils";
+
+function clusterIconVariant(node: ClusterNode): IconVariant {
+  if (node.id === UNCLUSTERED_ID) return "circle-dashed";
+  return node.children.length > 0 ? "boxes" : "box";
+}
 
 interface ClusterBreadcrumbProps {
   breadcrumb: ClusterNode[];
@@ -75,18 +81,15 @@ export default function ClusterBreadcrumb({
                     /
                   </motion.span>
                   <motion.button
-                    className={`hover:underline truncate flex items-center gap-1 max-w-full text-left ${
+                    className={`hover:underline truncate flex items-center gap-1.5 max-w-full text-left ${
                       isLast ? "text-secondary-foreground" : "text-muted-foreground"
                     }`}
                     onClick={() => onNavigateToBreadcrumb(index)}
                     {...slideIn}
                   >
-                    <Box
-                      className="size-3 shrink-0"
-                      fill={withOpacity(getClusterColorById(node.id), 0.1)}
-                      stroke={withOpacity(getClusterColorById(node.id), 0.7)}
-                      strokeWidth={1.5}
-                      aria-hidden
+                    <ClusterIcon
+                      iconVariant={clusterIconVariant(node)}
+                      color={node.id === UNCLUSTERED_ID ? UNCLUSTERED_COLOR : getClusterColorById(node.id)}
                     />
                     <span className="truncate">{node.name}</span>
                   </motion.button>
