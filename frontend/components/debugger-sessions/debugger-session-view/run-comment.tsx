@@ -3,12 +3,12 @@
 import { type ComponentProps, useMemo } from "react";
 
 import { Response } from "@/components/ai-elements/response";
+import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { cn } from "@/lib/utils";
 
 import { buildHeadingComponents, noteMarkdownComponents, noteProseClassName, spanTagsToLinks } from "./note-markdown";
 import { SpanChip } from "./span-reference";
 import { useDebuggerSessionViewStore } from "./store";
-import { useTmpVariantStore } from "./tmp-variant-store";
 
 interface RunCommentProps {
   traceId: string;
@@ -17,38 +17,31 @@ interface RunCommentProps {
 const REFERENCE_TEXT_PREVIEW_LEN = 24;
 
 /**
- * Agent-authored run note: sits under the run's index row and above the
- * timeline. There is no separate run title — the note owns its own heading. The
- * note (trace metadata `rollout.note`) is markdown, rendered via Streamdown.
- *
- * Span references are written by the agent as `<span id='<spanId>' name='..' />`
- * tags (see `spanTagsToLinks`); those become clickable span chips. Plain
- * markdown links render as ordinary anchors — the XML tag is the ONLY way to get
- * a chip. Renders nothing when the run has no note.
+ * Agent-authored run note (debugger context): markdown rendered above its run's
+ * body. The note (trace metadata `rollout.note`) owns its own heading; there is
+ * no separate run title. Span references are `<span id='..' name='..' />` tags
+ * (see `spanTagsToLinks`) which become clickable chips that open the span panel.
+ * Renders nothing when the run has no note.
  */
 export default function RunComment({ traceId }: RunCommentProps) {
-  const comment = useDebuggerSessionViewStore((state) => state.traces.get(traceId)?.comment);
+  const comment = useDebuggerSessionViewStore((state) => state.noteForTrace(traceId));
   const getSpanType = useDebuggerSessionViewStore((state) => state.getSpanType);
-  const openSidePanel = useDebuggerSessionViewStore((state) => state.openSidePanel);
-  // TODO: remove — temporary toggle to compare markdown vs raw note rendering.
-  const renderAsMarkdown = useTmpVariantStore((s) => s.renderNotesAsMarkdown);
+  // Open the span via the shared session-view selection model (opens the span panel).
+  const setSelectedSpan = useSessionViewBaseStore((s) => s.setSelectedSpan);
 
   // Rewrite `<span .../>` tags to marked links before markdown rendering.
   const processed = useMemo(() => (comment ? spanTagsToLinks(comment, traceId) : comment), [comment, traceId]);
 
-  // Element styling comes from the editable `noteMarkdownComponents` config; we
-  // add the `a` override here because it needs store callbacks. Memoised so
-  // Streamdown's memo isn't busted every render.
+  // Element styling comes from `noteMarkdownComponents`; the `a` override needs
+  // store callbacks so it's built here. Memoised so Streamdown's memo isn't busted.
   const components = useMemo<ComponentProps<typeof Response>["components"]>(
     () => ({
       ...noteMarkdownComponents,
       // Stamp anchor ids on headings so the session outline can scroll to them.
       ...buildHeadingComponents(traceId),
-      // `node` is react-markdown's AST node — drop it so it isn't spread onto
-      // the DOM <a> (React warns on unknown DOM props otherwise).
+      // `node` is react-markdown's AST node — drop it so it isn't spread onto the DOM <a>.
       a: ({ href, children, node: _node, ...rest }) => {
-        // Only links minted from a `<span .../>` tag (carrying lmnrSpanChip=1)
-        // become chips; every other link is a plain anchor.
+        // Only links minted from a `<span .../>` tag (carrying lmnrSpanChip=1) become chips.
         let spanId: string | null = null;
         let referenceText: string | null = null;
         if (href) {
@@ -81,7 +74,7 @@ export default function RunComment({ traceId }: RunCommentProps) {
                 )
               }
               spanType={getSpanType(traceId, id)}
-              onClick={() => openSidePanel(traceId, id)}
+              onClick={() => setSelectedSpan({ traceId, spanId: id })}
             />
           );
         }
@@ -92,21 +85,16 @@ export default function RunComment({ traceId }: RunCommentProps) {
         );
       },
     }),
-    [getSpanType, openSidePanel, traceId]
+    [getSpanType, setSelectedSpan, traceId]
   );
 
   if (!comment) return null;
 
   return (
     <div className="flex w-full items-start">
-      {renderAsMarkdown ? (
-        <Response className={cn("flex-1", noteProseClassName)} components={components}>
-          {processed}
-        </Response>
-      ) : (
-        // TODO: remove — raw view for comparison against the markdown renderer.
-        <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-secondary-foreground">{comment}</p>
-      )}
+      <Response className={cn("flex-1", noteProseClassName)} components={components}>
+        {processed}
+      </Response>
     </div>
   );
 }

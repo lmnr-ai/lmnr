@@ -5,8 +5,6 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import TmpControlPanel from "@/components/debugger-sessions/debugger-session-view/tmp-control-panel";
-import { useTmpVariantStore } from "@/components/debugger-sessions/debugger-session-view/tmp-variant-store";
 import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
@@ -72,8 +70,6 @@ function DebuggerSessionsContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  // TODO: remove — lets us preview the empty/onboarding state even with sessions.
-  const forceEmptyState = useTmpVariantStore((s) => s.forceEmptyState);
 
   useEffect(() => {
     track("debugger_sessions", "page_viewed");
@@ -126,24 +122,16 @@ function DebuggerSessionsContent() {
   });
 
   // Show the stylized startup page (not the table) once we know the project has
-  // no sessions. `forceEmptyState` is a temp toggle for previewing.
-  const showPlaceholder = forceEmptyState || (!isLoading && (debuggerSessions?.length ?? 0) === 0);
+  // no sessions.
+  const showPlaceholder = !isLoading && (debuggerSessions?.length ?? 0) === 0;
 
   if (showPlaceholder) {
-    return (
-      <>
-        {/* TODO: remove — testing control panel (toggle the empty/onboarding state). */}
-        <TmpControlPanel />
-        {/* SessionsPlaceholder renders its own Header. */}
-        <SessionsPlaceholder />
-      </>
-    );
+    // SessionsPlaceholder renders its own Header.
+    return <SessionsPlaceholder />;
   }
 
   return (
     <>
-      {/* TODO: remove — testing control panel (toggle the empty/onboarding state). */}
-      <TmpControlPanel />
       <Header path="debugger sessions" />
       <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
         <div className="flex overflow-hidden flex-1">

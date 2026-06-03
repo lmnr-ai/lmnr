@@ -4,20 +4,17 @@ import { type ComponentProps } from "react";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
+import { type TraceRow } from "@/lib/traces/types";
 
-import DebugInfoPopover from "./debug-info-popover";
 import DebuggerSessionViewContent from "./debugger-session-view-content";
-import DebuggerSessionViewProvider from "./debugger-session-view-provider";
-import { type SeedTrace } from "./store";
-import TmpControlPanel from "./tmp-control-panel";
+import DebuggerSessionViewStoreProvider from "./store";
 
 interface DebuggerSessionViewProps {
-  // Single-trace harness (/alpha) passes a hydrated trace; multi-trace sessions pass seeds.
+  // Single-trace harness (/alpha) passes a hydrated trace; multi-trace sessions pass sessionId.
   trace?: TraceViewTrace;
-  seeds?: SeedTrace[];
   // Breadcrumb path; when omitted falls back to the first trace.
   headerPath?: ComponentProps<typeof Header>["path"];
-  // Debugger session id — enables realtime span streaming for the session's runs.
+  // Debugger session id — drives the trace fetch + realtime span streaming.
   sessionId?: string;
 }
 
@@ -27,21 +24,47 @@ const titleFromPath = (path: ComponentProps<typeof Header>["path"]): string => {
   return path.split("/").pop() ?? "Session";
 };
 
-// Main exported component
-export default function DebuggerSessionView({ trace, seeds, headerPath, sessionId }: DebuggerSessionViewProps) {
-  const resolvedSeeds: SeedTrace[] = seeds && seeds.length > 0 ? seeds : trace ? [{ traceId: trace.id }] : [];
+// Map the /alpha `TraceViewTrace` (metadata is a JSON string) onto a minimal
+// `TraceRow` (metadata is an object) so it can seed the store's base `traces`.
+const traceToRow = (trace: TraceViewTrace): TraceRow => {
+  let metadata: Record<string, string>;
+  try {
+    const parsed = JSON.parse(trace.metadata) as Record<string, unknown>;
+    metadata = Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, typeof v === "string" ? v : String(v)]));
+  } catch {
+    metadata = {};
+  }
+  return {
+    id: trace.id,
+    startTime: trace.startTime,
+    endTime: trace.endTime,
+    inputTokens: trace.inputTokens,
+    outputTokens: trace.outputTokens,
+    totalTokens: trace.totalTokens,
+    cacheReadInputTokens: trace.cacheReadInputTokens,
+    inputCost: trace.inputCost,
+    outputCost: trace.outputCost,
+    totalCost: trace.totalCost,
+    traceType: (trace.traceType as TraceRow["traceType"]) ?? "DEFAULT",
+    sessionId: trace.sessionId,
+    metadata,
+    userId: trace.userId,
+    status: trace.status,
+    spanTags: [],
+    traceTags: [],
+  };
+};
+
+export default function DebuggerSessionView({ trace, headerPath, sessionId }: DebuggerSessionViewProps) {
   const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
   const sessionTitle = titleFromPath(path);
+  const initialTraceRow = trace ? traceToRow(trace) : undefined;
 
   return (
-    <DebuggerSessionViewProvider seeds={resolvedSeeds} initialTrace={trace}>
-      {/* TODO: remove — testing control panel for trace-render variants. */}
-      <TmpControlPanel />
-      <Header path={path}>
-        <DebugInfoPopover />
-      </Header>
+    <DebuggerSessionViewStoreProvider key={sessionId ?? trace?.id} initialTraceRow={initialTraceRow}>
+      <Header path={path} />
       <div className="flex-none border-t" />
       <DebuggerSessionViewContent sessionId={sessionId} sessionTitle={sessionTitle} />
-    </DebuggerSessionViewProvider>
+    </DebuggerSessionViewStoreProvider>
   );
 }

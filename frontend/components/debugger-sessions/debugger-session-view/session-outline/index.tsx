@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
@@ -17,13 +18,12 @@ type OutlineRow =
 
 const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
   const rows: OutlineRow[] = [];
-  state.traceOrder.forEach((traceId, i) => {
-    const ts = state.traces.get(traceId);
-    for (const h of parseNoteHeadings(ts?.comment)) {
-      const a = headingAnchorId(traceId, h.slug);
+  state.traces.forEach((trace: TraceRow, i: number) => {
+    for (const h of parseNoteHeadings(state.noteForTrace(trace.id))) {
+      const a = headingAnchorId(trace.id, h.slug);
       rows.push({ kind: "heading", key: a, anchor: a, level: h.level, text: h.text });
     }
-    const anchor = traceAnchorId(traceId);
+    const anchor = traceAnchorId(trace.id);
     rows.push({ kind: "trace", key: anchor, anchor, index: i + 1 });
   });
   return rows;
@@ -34,25 +34,18 @@ interface SessionOutlineProps {
 }
 
 /**
- * Right-rail session outline (Figma node 4296:35849), modeled on the blog
- * TableOfContents: a continuous left track with a single framer-motion indicator
- * that slides to the active row. Each trace is a chip; its note headings are
- * indented rows above it. Rows are native `#anchor` links (the browser scrolls
- * whichever element actually scrolls); active state is tracked with an
- * IntersectionObserver rooted at the browser viewport (exactly like the blog).
+ * Right-rail session outline (Figma node 4296:35849): a continuous left track
+ * with a single framer-motion indicator that slides to the active row. Each
+ * trace is a chip; its note headings are indented rows above it. Active state is
+ * tracked with an IntersectionObserver rooted at the browser viewport.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  // Primitive signature: rebuild rows only when order / load-state / note text
-  // actually changes (not on every streamed span that swaps the traces Map).
+  // Primitive signature: rebuild rows only when order / start-time / note text
+  // actually changes (not on every streamed span that mutates traceSpans).
   const signature = useDebuggerSessionViewStore((s) =>
-    s.traceOrder
-      .map((id) => {
-        const t = s.traces.get(id);
-        return `${id}${t?.trace?.startTime ?? ""}${t?.comment ?? ""}`;
-      })
-      .join("")
+    s.traces.map((t) => `${t.id}${t.startTime}${s.noteForTrace(t.id) ?? ""}`).join("")
   );
   // `signature` is the change-trigger; the rows are read from the store snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,12 +62,9 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     [activeAnchor, rows]
   );
 
-  // Newest run is the last row (each run pushes its headings then its trace chip).
-  const lastAnchor = rows[rows.length - 1]?.anchor;
-
   // After a click we optimistically highlight the clicked row and ignore the
   // observer briefly, so a row that can't be scrolled high enough to enter the
-  // top band (the last row, short rows with padding below) still lights up.
+  // top band still lights up.
   const suppressRef = useRef(false);
   const suppressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectOnClick = (anchor: string) => {
@@ -87,9 +77,8 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   };
   useEffect(() => () => (suppressTimer.current ? clearTimeout(suppressTimer.current) : undefined), []);
 
-  // Active-row detection. Root is the browser viewport (root: null), like the
-  // blog — works regardless of WHICH element scrolls, because the targets move
-  // on screen as any ancestor scrolls. Active = crossed into the top 15%.
+  // Active-row detection. Root is the browser viewport (root: null) — works
+  // regardless of WHICH element scrolls. Active = crossed into the top 15%.
   useEffect(() => {
     if (rows.length === 0) return;
     const targets = rows.map((r) => document.getElementById(r.anchor)).filter((el): el is HTMLElement => el !== null);
@@ -108,17 +97,12 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     return () => observer.disconnect();
   }, [rows]);
 
-  // Slide the indicator to the active row (post-layout so the first paint is
-  // positioned) and keep that row visible inside the rail.
+  // Slide the indicator to the active row (post-layout) and keep it visible.
   useLayoutEffect(() => {
     if (!active) return;
     const el = rowRefs.current.get(active);
     if (!el) return;
     setIndicator({ top: el.offsetTop, height: el.offsetHeight });
-    // Scope this to the rail's own scroller via scrollBy. `scrollIntoView` would
-    // bubble to EVERY scrollable ancestor — including the content container the
-    // rail lives in — which fights "Jump to bottom" (the content scroll loses on
-    // the first click). scrollBy only moves the nav.
     const nav = el.closest("nav");
     if (nav) {
       const elRect = el.getBoundingClientRect();
@@ -137,8 +121,6 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   return (
     <nav className={cn("flex flex-col gap-6 overflow-y-auto thin-scrollbar pt-1", className)}>
-      {/* Continuous track + a single sliding indicator (blog pattern). The
-          relative wrapper is the containing block for both. */}
       <div className="relative flex flex-col">
         <div className="absolute bottom-0 left-0 top-0 w-px bg-border" />
         {indicator && (

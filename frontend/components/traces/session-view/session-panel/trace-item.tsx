@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import RunComment from "@/components/debugger-sessions/debugger-session-view/run-comment";
+import { useOptionalDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
@@ -117,6 +119,12 @@ export default function TraceItem({
 
   const handleSpanSelect = (spanId: string) => setSelectedSpan({ traceId: trace.id, spanId });
 
+  // Debugger context only: render the agent-authored run note above the card.
+  // No-op under the regular session provider (enabled=false, NOOP store).
+  const { enabled: isDebugger, state: hasNote } = useOptionalDebuggerSessionStore((s) =>
+    typeof s.noteForTrace === "function" ? !!s.noteForTrace(trace.id) : false
+  );
+
   return (
     <div
       className={cn(
@@ -124,6 +132,11 @@ export default function TraceItem({
         className
       )}
     >
+      {isDebugger && hasNote && (
+        <div className="px-1 pb-2">
+          <RunComment traceId={trace.id} />
+        </div>
+      )}
       <div
         className={cn(
           "overflow-hidden w-full border border-[rgba(232,232,232,0.1)] rounded-lg",

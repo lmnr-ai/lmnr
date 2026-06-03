@@ -8,7 +8,10 @@ import { type TraceRow } from "@/lib/traces/types";
 
 import FillWidthLayout, { type SessionViewPanels } from "./fill-width-layout";
 import SessionPanel from "./session-panel";
+import RegularSearchSlot from "./session-panel/regular-search-slot";
+import RegularTimelineToggle from "./session-panel/regular-timeline-toggle";
 import SessionSpanPanel from "./session-span-panel";
+import SessionTimeline from "./session-timeline";
 import { useSessionViewStore } from "./store";
 
 interface SessionViewContentProps {
@@ -20,18 +23,26 @@ const PAGE_SIZE = 200;
 export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
   const { projectId } = useParams<{ projectId: string }>();
 
-  const { spanPanelOpen, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
-    useSessionViewStore(
-      (s) => ({
-        spanPanelOpen: s.spanPanelOpen,
-        setTraces: s.setTraces,
-        setIsTracesLoading: s.setIsTracesLoading,
-        setTracesError: s.setTracesError,
-        setSession: s.setSession,
-        setProjectId: s.setProjectId,
-      }),
-      shallow
-    );
+  const {
+    spanPanelOpen,
+    sessionTimelineEnabled,
+    setTraces,
+    setIsTracesLoading,
+    setTracesError,
+    setSession,
+    setProjectId,
+  } = useSessionViewStore(
+    (s) => ({
+      spanPanelOpen: s.spanPanelOpen,
+      sessionTimelineEnabled: s.sessionTimelineEnabled,
+      setTraces: s.setTraces,
+      setIsTracesLoading: s.setIsTracesLoading,
+      setTracesError: s.setTracesError,
+      setSession: s.setSession,
+      setProjectId: s.setProjectId,
+    }),
+    shallow
+  );
 
   // Push projectId into the store so store-owned async actions
   // (e.g. ensureTraceSpans) can issue requests without prop-drilling.
@@ -77,11 +88,17 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
 
   const panels: SessionViewPanels = useMemo(
     () => ({
-      sessionPanel: <SessionPanel />,
+      sessionPanel: (
+        <SessionPanel
+          searchSlot={<RegularSearchSlot />}
+          timelineToggle={<RegularTimelineToggle />}
+          timelinePanel={sessionTimelineEnabled ? <SessionTimeline /> : undefined}
+        />
+      ),
       spanPanel: <SessionSpanPanel />,
       showSpan: spanPanelOpen,
     }),
-    [spanPanelOpen]
+    [spanPanelOpen, sessionTimelineEnabled]
   );
 
   return <FillWidthLayout panels={panels} />;
