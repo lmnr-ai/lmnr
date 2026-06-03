@@ -168,8 +168,11 @@ export default function DebuggerSessionViewContent({
       {/* Native scroll container owns the scrollbar. Inside it, a centered row
           pairs the article column with the right-rail outline (Figma 4296:35652). */}
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-[1040px] gap-20 px-6 pb-[160px]">
-          <div className="min-w-0 flex-1">
+        <div className="mx-auto flex w-full gap-16 px-6 pb-[160px]">
+          <div className="flex flex-1 shrink-0 justify-center">
+            <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+          </div>
+          <div className="min-w-0 w-[720px]">
             <SessionHeader
               title={sessionTitle}
               createdMs={createdMs}
@@ -182,10 +185,7 @@ export default function DebuggerSessionViewContent({
               ))}
             </div>
           </div>
-          <SessionOutline
-            onJumpToBottom={scrollToBottom}
-            className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex"
-          />
+          <div className="flex flex-1" />
         </div>
       </div>
       {sidePanelTraceId && (

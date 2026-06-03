@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -31,8 +30,6 @@ const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
 };
 
 interface SessionOutlineProps {
-  // Scrolls the confirmed scroll container to its very end.
-  onJumpToBottom: () => void;
   className?: string;
 }
 
@@ -44,7 +41,7 @@ interface SessionOutlineProps {
  * whichever element actually scrolls); active state is tracked with an
  * IntersectionObserver rooted at the browser viewport (exactly like the blog).
  */
-export default function SessionOutline({ onJumpToBottom, className }: SessionOutlineProps) {
+export default function SessionOutline({ className }: SessionOutlineProps) {
   const storeApi = useDebuggerSessionViewStoreRaw();
 
   // Primitive signature: rebuild rows only when order / load-state / note text
@@ -140,19 +137,6 @@ export default function SessionOutline({ onJumpToBottom, className }: SessionOut
 
   return (
     <nav className={cn("flex flex-col gap-6 overflow-y-auto thin-scrollbar pt-1", className)}>
-      <button
-        onClick={() => {
-          if (lastAnchor) selectOnClick(lastAnchor);
-          onJumpToBottom();
-        }}
-        className="flex h-7 w-full items-center justify-center gap-1.5 rounded bg-primary px-3 py-1 text-xs text-primary-foreground transition-opacity hover:opacity-90"
-      >
-        Jump to bottom
-        <ArrowDown className="size-3.5" />
-      </button>
-
-      <div className="h-px w-full bg-border" />
-
       {/* Continuous track + a single sliding indicator (blog pattern). The
           relative wrapper is the containing block for both. */}
       <div className="relative flex flex-col">
