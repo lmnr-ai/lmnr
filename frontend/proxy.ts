@@ -119,5 +119,6 @@ export const config = {
     "/invitations",
     "/onboarding",
     "/checkout",
+    "/cli-login",
   ],
 };
