@@ -161,7 +161,10 @@ export default function DebuggerSessionViewContent({
   });
 
   return (
-    <div className="relative flex flex-1 min-h-0 w-full">
+    // No `relative` here: the side panel (absolute top-0 bottom-0) intentionally
+    // anchors to the layout's SidebarInset so it covers the breadcrumb row too,
+    // matching the traces page. A relative wrapper would trap it below the header.
+    <div className="flex flex-1 min-h-0 w-full">
       {/* Native scroll container owns the scrollbar. Inside it, a centered row
           pairs the article column with the right-rail outline (Figma 4296:35652). */}
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
