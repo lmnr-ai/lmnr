@@ -20,7 +20,7 @@ export default function CopyIdFlag({
     <div className="relative flex w-full">
       <button
         type="button"
-        className="absolute -right-2 top-1/2 z-10 -translate-y-1/2 rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
+        className="absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
         onClick={async (e) => {
           // Rows have their own click behavior (expand toggle / span select).
           e.stopPropagation();
