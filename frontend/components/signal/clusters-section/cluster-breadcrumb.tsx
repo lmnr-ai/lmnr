@@ -2,7 +2,16 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 
+import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
+
 import { type ClusterNode } from "./utils";
+
+function clusterIconVariant(node: ClusterNode): IconVariant {
+  if (node.id === UNCLUSTERED_ID) return "circle-dashed";
+  return node.children.length > 0 ? "boxes" : "box";
+}
 
 interface ClusterBreadcrumbProps {
   breadcrumb: ClusterNode[];
@@ -46,7 +55,7 @@ export default function ClusterBreadcrumb({
   onNavigateToBreadcrumb,
 }: ClusterBreadcrumbProps) {
   return (
-    <div className="flex items-center text-sm min-w-0 pl-1">
+    <div className="flex items-center text-sm w-full min-w-0 pl-1">
       <button
         className={`hover:underline shrink-0 ${!selectedClusterId ? "text-secondary-foreground" : "text-muted-foreground"}`}
         onClick={() => onNavigateToBreadcrumb(-1)}
@@ -61,24 +70,28 @@ export default function ClusterBreadcrumb({
           return (
             <motion.div
               key={index}
-              className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
+              className={`relative min-w-0 overflow-hidden ${isLast ? "shrink-0" : "flex-shrink"} ${SLASH_CONTAINER_PL}`}
               style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
               {...levelTransition}
             >
               {/* Inner: handles swaps within this level (e.g. sibling leaf selection) */}
               <AnimatePresence initial={false} mode="wait">
-                <motion.div key={node.id} className="flex">
+                <motion.div key={node.id} className="flex items-center">
                   <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
                     /
                   </motion.span>
                   <motion.button
-                    className={`hover:underline truncate block max-w-full text-left ${
+                    className={`hover:underline truncate flex items-center gap-1.5 max-w-full text-left ${
                       isLast ? "text-secondary-foreground" : "text-muted-foreground"
                     }`}
                     onClick={() => onNavigateToBreadcrumb(index)}
                     {...slideIn}
                   >
-                    {node.name}
+                    <ClusterIcon
+                      iconVariant={clusterIconVariant(node)}
+                      color={node.id === UNCLUSTERED_ID ? UNCLUSTERED_COLOR : getClusterColorById(node.id)}
+                    />
+                    <span className="truncate">{node.name}</span>
                   </motion.button>
                 </motion.div>
               </AnimatePresence>

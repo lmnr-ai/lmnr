@@ -6,7 +6,7 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
-import { type Span } from "@/lib/traces/types.ts";
+import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.guid(),
@@ -38,6 +38,12 @@ export const PushSpanSchema = z.object({
   spanId: z.guid(),
   projectId: z.guid(),
   queueId: z.guid(),
+});
+
+export const ResolveSpanIdSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+  sequentialId: z.coerce.number().int().positive(),
 });
 
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
@@ -173,3 +179,56 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
     ],
   });
 }
+
+export const GetSpanTypesSchema = z.object({
+  projectId: z.guid(),
+  spanIds: z.array(z.string()),
+});
+
+export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): Promise<Record<string, SpanType>> {
+  const { projectId, spanIds } = GetSpanTypesSchema.parse(input);
+
+  if (spanIds.length === 0) {
+    return {};
+  }
+
+  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_id as spanId, span_type as spanType
+      FROM spans
+      WHERE span_id IN ({spanIds: Array(UUID)})
+    `,
+    parameters: { spanIds },
+  });
+
+  return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
+}
+
+export const resolveSpanId = async (
+  input: z.input<typeof ResolveSpanIdSchema>
+): Promise<{ spanId: string; spanType: SpanType } | null> => {
+  const { projectId, traceId, sequentialId } = ResolveSpanIdSchema.parse(input);
+
+  const spans = await executeQuery({
+    projectId,
+    query: `
+      SELECT span_id, span_type
+      FROM spans
+      WHERE trace_id = {trace_id: UUID}
+      ORDER BY start_time ASC
+      LIMIT 1 OFFSET {offset: UInt32}
+    `,
+    parameters: {
+      trace_id: traceId,
+      offset: sequentialId - 1,
+    },
+  });
+
+  if (spans.length === 0) {
+    return null;
+  }
+
+  const row = spans[0] as { span_id: string; span_type: string };
+  return { spanId: row.span_id, spanType: row.span_type as SpanType };
+};
