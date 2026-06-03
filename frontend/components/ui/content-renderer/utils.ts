@@ -254,70 +254,132 @@ export function createImageDecorationPlugin(imageMap: Record<string, ImageData>)
   );
 }
 
-// Extracts base64 images and returns processed text with placeholder tags
-function extractBase64Images(text: string): { processedText: string; imageMap: Record<string, ImageData> } {
-  const imageMap: Record<string, ImageData> = {};
-  let processedText = text;
-  let imageCount = 0;
+const MIN_RAW_BASE64_LENGTH = 50;
+const MIN_RAW_BASE64_RUN = 20;
 
-  // Pattern 1: Look for data URI image patterns
+const Char = {
+  Quote: 34,
+  Plus: 43,
+  Slash: 47,
+  Digit0: 48,
+  Digit9: 57,
+  Equals: 61,
+  UpperA: 65,
+  UpperZ: 90,
+  LowerA: 97,
+  LowerZ: 122,
+} as const;
+
+function isBase64Char(code: number): boolean {
+  return (
+    (code >= Char.Digit0 && code <= Char.Digit9) ||
+    (code >= Char.UpperA && code <= Char.UpperZ) ||
+    (code >= Char.LowerA && code <= Char.LowerZ) ||
+    code === Char.Plus ||
+    code === Char.Slash
+  );
+}
+
+interface ImageSpan {
+  start: number;
+  end: number;
+  original: string;
+  type: string;
+  src: string;
+  id?: string;
+}
+
+// Linear, non-backtracking equivalent of /"([A-Za-z0-9+/]{20,}={0,2})"/g.
+// Avoids the regex-engine stack overflow on multi-MB base64 tokens.
+function scanRawBase64Spans(text: string): ImageSpan[] {
+  const spans: ImageSpan[] = [];
+  let i = 0;
+
+  while (i < text.length) {
+    if (text.charCodeAt(i) !== Char.Quote) {
+      i++;
+      continue;
+    }
+
+    const start = i;
+    let end = i + 1;
+    while (end < text.length && isBase64Char(text.charCodeAt(end))) end++;
+
+    const runLength = end - (start + 1);
+    let padding = 0;
+    while (end < text.length && text.charCodeAt(end) === Char.Equals && padding < 2) {
+      end++;
+      padding++;
+    }
+
+    const closedByQuote = end < text.length && text.charCodeAt(end) === Char.Quote;
+    if (runLength >= MIN_RAW_BASE64_RUN && closedByQuote) {
+      const base64 = text.slice(start + 1, end);
+      const type = base64.length >= MIN_RAW_BASE64_LENGTH ? inferImageType(base64) : null;
+      if (type) {
+        spans.push({
+          start,
+          end: end + 1,
+          original: text.slice(start, end + 1),
+          type,
+          src: `data:${type};base64,${base64}`,
+        });
+      }
+      i = end + 1;
+    } else {
+      // Re-scan from just after this quote, like the global regex would.
+      i = start + 1;
+    }
+  }
+
+  return spans;
+}
+
+// data:image/... URIs — [^"]+ is a non-recursive scan in V8, so this stays a regex.
+function scanDataUriSpans(text: string): ImageSpan[] {
   const dataUriRegex = /"(data:image\/([^;]+);base64,([^"]+))"/g;
-  let match;
-
-  // Collect matches first to avoid issues with string replacements changing positions
-  const matches: Array<{ fullMatch: string; dataUri: string; type: string; base64: string }> = [];
+  const spans: ImageSpan[] = [];
+  let match: RegExpExecArray | null;
 
   while ((match = dataUriRegex.exec(text)) !== null) {
-    matches.push({
-      fullMatch: match[0],
-      dataUri: match[1],
+    spans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      original: match[0],
       type: match[2],
-      base64: match[3],
+      src: match[1],
     });
   }
 
-  // Now replace them all with numbered placeholders
-  for (const { fullMatch, dataUri, type } of matches) {
-    const id = String(imageCount++);
-    imageMap[id] = {
-      src: dataUri,
-      type,
-      original: fullMatch,
-    };
-    processedText = processedText.replace(fullMatch, `"[IMG:${id}]"`);
+  return spans;
+}
+
+// Single-pass rebuild from ordered, non-overlapping spans (avoids repeated String.replace).
+function replaceSpansWithPlaceholders(text: string, spans: ImageSpan[]): string {
+  if (spans.length === 0) return text;
+  let result = "";
+  let cursor = 0;
+  for (const span of spans) {
+    result += text.slice(cursor, span.start) + `"[IMG:${span.id}]"`;
+    cursor = span.end;
   }
+  return result + text.slice(cursor);
+}
 
-  // Pattern 2: Raw base64 patterns
-  const rawBase64Regex = /"([A-Za-z0-9+/]{20,}={0,2})"/g;
-  const rawMatches: Array<{ fullMatch: string; base64Data: string }> = [];
+// Replaces base64 images with [IMG:n] placeholders and returns the image lookup map.
+function extractBase64Images(text: string): { processedText: string; imageMap: Record<string, ImageData> } {
+  const imageMap: Record<string, ImageData> = {};
 
-  while ((match = rawBase64Regex.exec(text)) !== null) {
-    rawMatches.push({
-      fullMatch: match[0],
-      base64Data: match[1],
-    });
-  }
+  // Number data-URI spans before raw spans to match the original id ordering.
+  const orderedSpans = [...scanDataUriSpans(text), ...scanRawBase64Spans(text)];
+  orderedSpans.forEach((span, index) => {
+    span.id = String(index);
+    imageMap[span.id] = { src: span.src, type: span.type, original: span.original };
+  });
 
-  for (const { fullMatch, base64Data } of rawMatches) {
-    // Skip if it's too short to be an image
-    if (base64Data.length < 50) continue;
-
-    // Identify image type by checking the first characters
-    const imageType = inferImageType(base64Data);
-
-    if (!imageType) continue;
-
-    const dataUri = `data:${imageType};base64,${base64Data}`;
-    const id = String(imageCount++);
-
-    imageMap[id] = {
-      src: dataUri,
-      type: imageType,
-      original: fullMatch,
-    };
-
-    processedText = processedText.replace(fullMatch, `"[IMG:${id}]"`);
-  }
+  // data-URI runs start with `data:` (the ':' breaks a base64 run), so spans never overlap.
+  const spansByPosition = [...orderedSpans].sort((a, b) => a.start - b.start);
+  const processedText = replaceSpansWithPlaceholders(text, spansByPosition);
 
   return { processedText, imageMap };
 }
