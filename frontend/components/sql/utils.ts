@@ -335,6 +335,62 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "event_name", type: "String", description: "Event name of the log" },
     ],
   },
+  signal_events_all: {
+    description: "Same as signal_events but with L0-cluster membership included in `clusters`",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
+      { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
+      { name: "name", type: "String", description: "Name of the signal event" },
+      { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
+      { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
+      {
+        name: "severity",
+        type: "UInt8",
+        description: "Numeric severity level. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
+      },
+      {
+        name: "summary",
+        type: "String",
+        description: "Short, human-readable description of the event. May be empty for older events",
+      },
+      {
+        name: "clusters",
+        type: "Array(UUID)",
+        description: "Cluster IDs this event belongs to, including L0 clusters",
+      },
+    ],
+  },
+  clusters: {
+    description: "Clusters of similar signal events (excludes L0 clusters)",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the cluster" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "name", type: "String", description: "Human-readable name of the cluster" },
+      { name: "level", type: "UInt8", description: "Hierarchy level of the cluster (always > 0)" },
+      { name: "parent_id", type: "UUID", description: "ID of the parent cluster" },
+      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      { name: "num_children_clusters", type: "UInt16", description: "Number of child clusters" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },
+    ],
+  },
+  event_clusters_all: {
+    description: "Mapping of signal events to clusters, including L0 clusters",
+    columns: [
+      { name: "event_id", type: "UUID", description: "Unique identifier for the signal event" },
+      { name: "cluster_id", type: "UUID", description: "Unique identifier for the cluster" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "level", type: "UInt8", description: "Hierarchy level of the cluster" },
+      { name: "cluster_name", type: "String", description: "Human-readable name of the cluster" },
+      { name: "parent_id", type: "UUID", description: "ID of the parent cluster" },
+      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      { name: "num_children_clusters", type: "UInt16", description: "Number of child clusters" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },
+    ],
+  },
 };
 
 // --- String / option helpers -------------------------------------------------
