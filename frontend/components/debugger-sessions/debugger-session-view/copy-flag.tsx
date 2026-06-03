@@ -18,16 +18,16 @@ import { useToast } from "@/lib/hooks/use-toast";
 const flagVariants = {
   hidden: {
     opacity: 0,
-    x: -40,
+    x: -12,
     pointerEvents: "none" as const,
-    transition: { duration: 0.18, ease: "easeOut" as const },
+    transition: { duration: 0.05, ease: "easeOut" as const },
   },
   // Delay only on reveal — hover-out hides without the lag.
   visible: {
     opacity: 1,
     x: 0,
     pointerEvents: "auto" as const,
-    transition: { delay: 0.3, duration: 0.18, ease: "easeOut" as const },
+    transition: { delay: 0.3, duration: 0.05, ease: "easeOut" as const },
   },
 };
 
@@ -43,8 +43,8 @@ export default function CopyFlag({
   return (
     <motion.div className="relative flex w-full" initial="hidden" whileHover="visible">
       <span className="absolute left-full top-1/2 z-10 ml-3 -translate-y-1/2">
-        <motion.div variants={flagVariants} className="flex flex-col gap-1">
-          {description && <p className="whitespace-nowrap text-xs text-muted-foreground">{description}</p>}
+        <motion.div variants={flagVariants} className="flex flex-col gap-2 max-w-[120px]">
+          {description && <p className="text-xs text-muted-foreground w-full">{description}</p>}
           <button
             type="button"
             className="self-start whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
