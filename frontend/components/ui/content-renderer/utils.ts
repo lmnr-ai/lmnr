@@ -286,8 +286,10 @@ interface ImageSpan {
   original: string;
   type: string;
   src: string;
-  id?: string;
 }
+
+// A span that has been assigned its placeholder id.
+type PlacedSpan = ImageSpan & { id: string };
 
 // Linear, non-backtracking equivalent of /"([A-Za-z0-9+/]{20,}={0,2})"/g.
 // Avoids the regex-engine stack overflow on multi-MB base64 tokens.
@@ -354,12 +356,15 @@ function scanDataUriSpans(text: string): ImageSpan[] {
   return spans;
 }
 
-// Single-pass rebuild from ordered, non-overlapping spans (avoids repeated String.replace).
-function replaceSpansWithPlaceholders(text: string, spans: ImageSpan[]): string {
+// Single-pass rebuild from position-sorted spans (avoids repeated String.replace).
+// Skips any span overlapping an already-consumed one so a future sort/overlap
+// regression can't silently drop interleaved text.
+function replaceSpansWithPlaceholders(text: string, spans: PlacedSpan[]): string {
   if (spans.length === 0) return text;
   let result = "";
   let cursor = 0;
   for (const span of spans) {
+    if (span.start < cursor) continue;
     result += text.slice(cursor, span.start) + `"[IMG:${span.id}]"`;
     cursor = span.end;
   }
@@ -371,14 +376,14 @@ function extractBase64Images(text: string): { processedText: string; imageMap: R
   const imageMap: Record<string, ImageData> = {};
 
   // Number data-URI spans before raw spans to match the original id ordering.
-  const orderedSpans = [...scanDataUriSpans(text), ...scanRawBase64Spans(text)];
-  orderedSpans.forEach((span, index) => {
-    span.id = String(index);
-    imageMap[span.id] = { src: span.src, type: span.type, original: span.original };
+  const placedSpans: PlacedSpan[] = [...scanDataUriSpans(text), ...scanRawBase64Spans(text)].map((span, index) => {
+    const id = String(index);
+    imageMap[id] = { src: span.src, type: span.type, original: span.original };
+    return { ...span, id };
   });
 
   // data-URI runs start with `data:` (the ':' breaks a base64 run), so spans never overlap.
-  const spansByPosition = [...orderedSpans].sort((a, b) => a.start - b.start);
+  const spansByPosition = placedSpans.sort((a, b) => a.start - b.start);
   const processedText = replaceSpansWithPlaceholders(text, spansByPosition);
 
   return { processedText, imageMap };
