@@ -252,7 +252,6 @@ class TableRegistry:
             "signal_id",
             "name",
             "level",
-            "centroid",
             "parent_id",
             "num_signal_events",
             "num_children_clusters",
