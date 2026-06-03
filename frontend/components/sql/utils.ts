@@ -319,33 +319,6 @@ export const tableSchemas: Record<string, TableSchema> = {
       },
     ],
   },
-  signal_events_all: {
-    description: "L0-inclusive sibling of signal_events. Same schema, but clusters also includes L0 cluster membership",
-    columns: [
-      { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
-      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
-      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-      { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-      { name: "name", type: "String", description: "Name of the signal event" },
-      { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
-      { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
-      {
-        name: "severity",
-        type: "UInt8",
-        description: "Numeric severity level. 0 = INFO, 1 = WARNING, 2 = CRITICAL",
-      },
-      {
-        name: "summary",
-        type: "String",
-        description: "Short, human-readable description of the event. May be empty for older events",
-      },
-      {
-        name: "clusters",
-        type: "Array(UUID)",
-        description: "Cluster IDs this event belongs to. Includes L0 clusters",
-      },
-    ],
-  },
   clusters: {
     description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
     columns: [
