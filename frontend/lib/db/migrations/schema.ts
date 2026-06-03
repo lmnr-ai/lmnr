@@ -43,7 +43,6 @@ export const rolloutSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     projectId: uuid("project_id").notNull(),
     params: jsonb().default({}),
-    status: text().default("PENDING").notNull(),
     name: text(),
   },
   (table) => [

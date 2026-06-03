@@ -71,8 +71,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
     // Debugger state
-    setSessionStatus,
-    sessionStatus,
     isSessionDeleted,
     setIsSessionDeleted,
   } = useDebuggerSessionStore((state) => ({
@@ -102,8 +100,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     // Debugger state
-    setSessionStatus: state.setSessionStatus,
-    sessionStatus: state.sessionStatus,
     isSessionDeleted: state.isSessionDeleted,
     setIsSessionDeleted: state.setIsSessionDeleted,
   }));
@@ -250,12 +246,6 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
           }
         }
       },
-      status_update: (event: MessageEvent) => {
-        const payload = JSON.parse(event.data);
-        if (payload.status) {
-          setSessionStatus(payload.status);
-        }
-      },
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (payload.traces && Array.isArray(payload.traces)) {
@@ -281,7 +271,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         }
       },
     }),
-    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, setIsSessionDeleted]
+    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setIsSessionDeleted]
   );
 
   useEffect(() => {
@@ -334,23 +324,18 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     );
   }
 
-  // Show placeholder when session has no trace loaded (e.g. freshly created or just started running
-  // with trace cleared). Skipped when user has selected a previous trace to browse while PENDING.
-  const showSessionPlaceholder =
-    isEmpty(spans) && !isSpansLoading && (sessionStatus === "PENDING" || sessionStatus === "RUNNING") && !trace;
+  // Show placeholder when the session has no trace loaded yet (freshly created,
+  // no runs grouped) and the user hasn't selected a previous trace to browse.
+  const showSessionPlaceholder = isEmpty(spans) && !isSpansLoading && !trace;
 
   if (showSessionPlaceholder) {
     return (
       <div className="flex flex-1 h-full flex-col items-center justify-center p-8 text-center">
         <div className="max-w-md mx-auto">
           <Radio className="w-10 h-10 text-muted-foreground/50 mx-auto mb-4 animate-pulse" />
-          <h3 className="text-base font-medium text-secondary-foreground mb-2">
-            {sessionStatus === "RUNNING" ? "Debug run in progress…" : "Waiting for a debug run…"}
-          </h3>
+          <h3 className="text-base font-medium text-secondary-foreground mb-2">Waiting for a debug run…</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            {sessionStatus === "RUNNING"
-              ? "A run is in progress. Traces will appear here as spans arrive."
-              : "Run your instrumented program in debug mode. Traces grouped to this session will appear here in real time."}
+            Run your instrumented program in debug mode. Traces grouped to this session will appear here in real time.
           </p>
         </div>
       </div>

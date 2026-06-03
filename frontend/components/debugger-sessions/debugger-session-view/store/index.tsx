@@ -12,14 +12,12 @@ import {
   type TraceViewTrace,
 } from "@/components/traces/trace-view/store/base.ts";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
-import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
 
 export const MIN_SIDEBAR_WIDTH = 360;
 
 interface DebuggerSessionStoreState {
   sidebarWidth: number;
-  sessionStatus: DebuggerSessionStatus;
   isSessionDeleted: boolean;
   historyRuns: TraceRow[];
   isHistoryLoading: boolean;
@@ -28,7 +26,6 @@ interface DebuggerSessionStoreState {
 interface DebuggerSessionStoreActions {
   setSidebarWidth: (width: number) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  setSessionStatus: (status: DebuggerSessionStatus) => void;
   setIsSessionDeleted: (isSessionDeleted: boolean) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
   setHistoryRuns: (runs: TraceRow[]) => void;
@@ -40,11 +37,9 @@ type DebuggerSessionStore = BaseTraceViewStore & DebuggerSessionStoreState & Deb
 const createDebuggerSessionStore = ({
   trace,
   storeKey = "debugger-session-state",
-  initialStatus = "PENDING",
 }: {
   trace?: TraceViewTrace;
   storeKey?: string;
-  initialStatus?: DebuggerSessionStatus;
 }) => {
   let loadTraceController: AbortController | null = null;
 
@@ -137,14 +132,11 @@ const createDebuggerSessionStore = ({
         isSpanCached: (span: TraceViewSpan): boolean => span.spanType === SpanType.CACHED,
 
         sidebarWidth: MIN_SIDEBAR_WIDTH,
-        sessionStatus: initialStatus,
         isSessionDeleted: false,
         historyRuns: [],
         isHistoryLoading: false,
 
         setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-
-        setSessionStatus: (sessionStatus: DebuggerSessionStatus) => set({ sessionStatus }),
 
         setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
 
@@ -253,14 +245,12 @@ export const DebuggerSessionStoreContext = createContext<StoreApi<DebuggerSessio
 const DebuggerSessionStoreProvider = ({
   trace,
   storeKey,
-  initialStatus,
   children,
 }: PropsWithChildren<{
   trace?: TraceViewTrace;
   storeKey?: string;
-  initialStatus?: DebuggerSessionStatus;
 }>) => {
-  const [storeState] = useState(() => createDebuggerSessionStore({ trace, storeKey, initialStatus }));
+  const [storeState] = useState(() => createDebuggerSessionStore({ trace, storeKey }));
 
   return (
     <TraceViewContext.Provider value={storeState}>

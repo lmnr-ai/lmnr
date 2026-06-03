@@ -7,8 +7,7 @@ use crate::{
         DB,
         project_api_keys::ProjectApiKey,
         rollout_sessions::{
-            RolloutSessionStatus, create_or_update_rollout_session, delete_rollout_session,
-            update_session_status,
+            create_or_update_rollout_session, delete_rollout_session, update_rollout_session_name,
         },
     },
     pubsub::PubSub,
@@ -17,8 +16,8 @@ use crate::{
 };
 
 #[derive(serde::Deserialize)]
-struct UpdateStatusRequest {
-    status: RolloutSessionStatus,
+struct UpdateNameRequest {
+    name: String,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -50,50 +49,25 @@ pub async fn register_session(
     Ok(HttpResponse::Ok().json(session))
 }
 
-/// Persist a session status change and notify the live trace view so the human
-/// sees status transitions.
-async fn update_status_and_broadcast(
-    db: &DB,
-    pubsub: &PubSub,
-    project_id: &Uuid,
-    session_id: &Uuid,
-    new_status: RolloutSessionStatus,
-) -> anyhow::Result<()> {
-    update_session_status(&db.pool, session_id, project_id, new_status).await?;
-
-    let message = SseMessage {
-        event_type: "status_update".to_string(),
-        data: serde_json::json!({
-            "session_id": session_id,
-            "status": new_status,
-        }),
-    };
-    let key = format!("rollout_session_{}", session_id);
-    send_to_key(pubsub, project_id, &key, message).await;
-
-    Ok(())
-}
-
-#[patch("rollouts/{session_id}/status")]
-pub async fn update_status(
+/// Rename an existing debug session. Update-only: 404 when the session id is
+/// unknown for this project (so a mistyped id is an error, not a ghost create).
+/// Registration/creation stays the SDK's job via `register_session`.
+#[patch("rollouts/{session_id}/name")]
+pub async fn update_name(
     path: web::Path<Uuid>,
-    body: web::Json<UpdateStatusRequest>,
+    body: web::Json<UpdateNameRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
-    pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
+    let db = db.into_inner();
     let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
-    let new_status = body.into_inner().status;
+    let name = body.into_inner().name;
 
-    update_status_and_broadcast(
-        db.get_ref(),
-        pubsub.get_ref().as_ref(),
-        &project_id,
-        &session_id,
-        new_status,
-    )
-    .await?;
+    let updated = update_rollout_session_name(&db.pool, &session_id, &project_id, &name).await?;
+    if !updated {
+        return Ok(HttpResponse::NotFound().json("Session not found"));
+    }
 
     Ok(HttpResponse::Ok().finish())
 }

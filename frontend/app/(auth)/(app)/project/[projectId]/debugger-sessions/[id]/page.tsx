@@ -1,12 +1,7 @@
 import { notFound } from "next/navigation";
 
-import DebuggerSession from "@/components/debugger-sessions";
-import {
-  type DebuggerSession as DebuggerSessionType,
-  type DebuggerSessionStatus,
-  getDebuggerSession,
-  getLatestTraceBySessionId,
-} from "@/lib/actions/debugger-sessions";
+import MultiTraceView from "@/components/debugger-sessions/multi-trace-view";
+import { getDebuggerSession } from "@/lib/actions/debugger-sessions";
 
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
@@ -15,14 +10,5 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
 
   if (!session) return notFound();
 
-  const trace = await getLatestTraceBySessionId({ projectId, sessionId: id });
-
-  return (
-    <DebuggerSession
-      projectId={projectId}
-      session={session as DebuggerSessionType}
-      trace={trace}
-      initialStatus={session.status as DebuggerSessionStatus}
-    />
-  );
+  return <MultiTraceView projectId={projectId} sessionId={session.id} sessionName={session.name ?? session.id} />;
 }

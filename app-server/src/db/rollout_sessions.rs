@@ -4,26 +4,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum RolloutSessionStatus {
-    Pending,
-    Running,
-    Finished,
-    Stopped,
-}
-
-impl RolloutSessionStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Pending => "PENDING",
-            Self::Running => "RUNNING",
-            Self::Finished => "FINISHED",
-            Self::Stopped => "STOPPED",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct RolloutSession {
@@ -31,7 +11,6 @@ pub struct RolloutSession {
     pub created_at: DateTime<Utc>,
     pub project_id: Uuid,
     pub name: Option<String>,
-    pub status: String,
 }
 
 /// Idempotent upsert keyed on the SDK-supplied `session_id`. A null `name`
@@ -51,7 +30,7 @@ pub async fn create_or_update_rollout_session(
         ON CONFLICT (id) DO UPDATE
             SET name = COALESCE(EXCLUDED.name, rollout_sessions.name)
             WHERE rollout_sessions.project_id = $2
-        RETURNING id, created_at, project_id, name, status",
+        RETURNING id, created_at, project_id, name",
     )
     .bind(session_id)
     .bind(project_id)
@@ -79,22 +58,26 @@ pub async fn delete_rollout_session(
     Ok(())
 }
 
-pub async fn update_session_status(
+/// Rename an existing session. Update-only (no upsert): returns `false` when no
+/// row matches `(id, project_id)` so the caller can 404 instead of silently
+/// creating a ghost session for a mistyped id.
+pub async fn update_rollout_session_name(
     pool: &PgPool,
     session_id: &Uuid,
     project_id: &Uuid,
-    status: RolloutSessionStatus,
-) -> Result<()> {
-    sqlx::query(
+    name: &str,
+) -> Result<bool> {
+    let result = sqlx::query(
         "UPDATE rollout_sessions
-        SET status = $1
+        SET name = $1
         WHERE id = $2 AND project_id = $3",
     )
-    .bind(status.as_str())
+    .bind(name)
     .bind(session_id)
     .bind(project_id)
     .execute(pool)
     .await?;
 
-    Ok(())
+    Ok(result.rows_affected() > 0)
 }
+

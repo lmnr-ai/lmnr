@@ -6,10 +6,7 @@ import DebuggerSessionView from "@/components/debugger-sessions/debugger-session
 import DebuggerSessionStoreProvider from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
-import {
-  type DebuggerSession as DebuggerSessionType,
-  type DebuggerSessionStatus,
-} from "@/lib/actions/debugger-sessions";
+import { type DebuggerSession as DebuggerSessionType } from "@/lib/actions/debugger-sessions";
 
 interface DebuggerSessionContentProps {
   sessionId: string;
@@ -25,12 +22,10 @@ const DebuggerSession = ({
   projectId,
   session,
   trace,
-  initialStatus,
 }: {
   projectId: string;
   session: DebuggerSessionType;
   trace?: TraceViewTrace;
-  initialStatus?: DebuggerSessionStatus;
 }) => (
   <>
     <Header
@@ -41,11 +36,7 @@ const DebuggerSession = ({
       childrenContainerClassName="flex-none mr-2 h-12"
     />
     <div className="flex-none border-t" />
-    <DebuggerSessionStoreProvider
-      trace={trace}
-      storeKey={`debugger-session-${session.id}`}
-      initialStatus={initialStatus}
-    >
+    <DebuggerSessionStoreProvider trace={trace} storeKey={`debugger-session-${session.id}`}>
       <DebuggerSessionContent sessionId={session.id} />
     </DebuggerSessionStoreProvider>
   </>
