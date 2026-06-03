@@ -40,12 +40,6 @@ export const PushSpanSchema = z.object({
   queueId: z.guid(),
 });
 
-export const ResolveSpanIdSchema = z.object({
-  projectId: z.guid(),
-  traceId: z.guid(),
-  sequentialId: z.coerce.number().int().positive(),
-});
-
 export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   const { spanId, traceId, projectId } = GetSpanSchema.parse(input);
 
@@ -204,31 +198,3 @@ export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): P
 
   return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
 }
-
-export const resolveSpanId = async (
-  input: z.input<typeof ResolveSpanIdSchema>
-): Promise<{ spanId: string; spanType: SpanType } | null> => {
-  const { projectId, traceId, sequentialId } = ResolveSpanIdSchema.parse(input);
-
-  const spans = await executeQuery({
-    projectId,
-    query: `
-      SELECT span_id, span_type
-      FROM spans
-      WHERE trace_id = {trace_id: UUID}
-      ORDER BY start_time ASC
-      LIMIT 1 OFFSET {offset: UInt32}
-    `,
-    parameters: {
-      trace_id: traceId,
-      offset: sequentialId - 1,
-    },
-  });
-
-  if (spans.length === 0) {
-    return null;
-  }
-
-  const row = spans[0] as { span_id: string; span_type: string };
-  return { spanId: row.span_id, spanType: row.span_type as SpanType };
-};
