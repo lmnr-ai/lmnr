@@ -99,6 +99,12 @@ interface DebuggerSessionViewActions {
   // Realtime: merge a trace_update into the run list (add + auto-expand if new).
   applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
 
+  // Fetch the full TraceRow (real stats: tokens/cost/startTime) for a single
+  // trace and merge it onto the existing row. Used to hydrate a run that first
+  // appeared via a trace_update (whose payload carries no stats). Preserves the
+  // row's current metadata (already merged from realtime) and its bumped endTime.
+  hydrateTraceRow: (traceId: string) => Promise<void>;
+
   // Read the agent-authored note (`rollout.note`) off a run's metadata object.
   noteForTrace: (traceId: string) => string | undefined;
   // Span type for an already-loaded span (drives the span-ref chip icon color).
@@ -141,10 +147,19 @@ const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; 
               return;
             }
             const body = (await res.json()) as { items: TraceRow[] };
+            // The /traces endpoint returns `metadata` as a raw JSON STRING (the CH
+            // `metadata` column is selected verbatim — see lib/actions/traces/utils.ts;
+            // the traces table parses it lazily in JsonTooltip). `TraceRow.metadata`
+            // is typed as an object, so normalize here before storing — otherwise
+            // noteForTrace / getSpanType read the string as an object and notes +
+            // outline headings never render. (Realtime trace_update already ships a
+            // JSON object and goes through normalizeMetadata in applyTraceUpdate.)
+            const normalized = (body.items ?? []).map((item) => ({
+              ...item,
+              metadata: normalizeMetadata(item.metadata),
+            }));
             // API already sorts ASC; defensively sort oldest-first for display.
-            const sorted = (body.items ?? [])
-              .slice()
-              .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            const sorted = normalized.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
             get().setTraces(sorted);
           } catch (e) {
             get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
@@ -190,10 +205,12 @@ const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; 
           const existing = get().traces.find((row) => row.id === t.traceId);
 
           if (!existing) {
-            // Unknown run → add a lightweight slot (full row hydrates via refetch /
-            // realtime spans), append to ordering, and auto-expand so it streams open.
+            // Unknown run → add a lightweight slot (placeholder stats), append to
+            // ordering, auto-expand so it streams open, then refetch the full row so
+            // tokens/cost/startTime show real values without a manual reload.
             get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
             get().setTraceExpanded(t.traceId, true);
+            void get().hydrateTraceRow(t.traceId);
             return;
           }
 
@@ -203,6 +220,44 @@ const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; 
           get().setTraces((traces) =>
             traces.map((row) => (row.id === t.traceId ? { ...row, metadata: { ...row.metadata, ...metadata } } : row))
           );
+        },
+
+        hydrateTraceRow: async (traceId) => {
+          const { projectId } = get();
+          if (!projectId) return;
+          // Skip if the row already has real stats (a slot has startTime===endTime).
+          const current = get().traces.find((t) => t.id === traceId);
+          if (current && current.startTime !== current.endTime) return;
+
+          try {
+            const params = new URLSearchParams();
+            params.set("pageNumber", "0");
+            params.set("pageSize", "1");
+            params.append("filter", JSON.stringify({ column: "id", operator: "eq", value: traceId }));
+            const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
+            if (!res.ok) return;
+            const body = (await res.json()) as { items: TraceRow[] };
+            const fetched = body.items?.[0];
+            if (!fetched) return;
+            const normalizedMeta = normalizeMetadata(fetched.metadata);
+
+            get().setTraces((traces) =>
+              traces.map((row) => {
+                if (row.id !== traceId) return row;
+                // Keep the live-merged metadata + any realtime-bumped endTime if it's
+                // already ahead of the fetched row's (mid-run, the fetched snapshot
+                // may lag the streamed spans).
+                const liveEndAhead = new Date(row.endTime).getTime() > new Date(fetched.endTime).getTime();
+                return {
+                  ...fetched,
+                  metadata: { ...normalizedMeta, ...row.metadata },
+                  endTime: liveEndAhead ? row.endTime : fetched.endTime,
+                };
+              })
+            );
+          } catch {
+            // Best-effort hydration — placeholder stats remain on failure.
+          }
         },
 
         noteForTrace: (traceId) => {
