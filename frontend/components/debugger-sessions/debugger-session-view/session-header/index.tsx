@@ -1,6 +1,6 @@
 "use client";
-
-import { CopyButton } from "@/components/ui/copy-button";
+import { Check, Copy } from "lucide-react";
+import { type MouseEvent, useState } from "react";
 
 import { fmtRelative } from "./utils";
 
@@ -20,10 +20,28 @@ export interface SessionHeaderProps {
  * jump-to-latest affordance lives in the right-rail outline, not here.
  */
 export default function SessionHeader({ title, createdMs, lastActivityMs, runCount, sessionId }: SessionHeaderProps) {
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = async (e: MouseEvent<HTMLButtonElement>) => {
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      await navigator.clipboard.writeText(sessionId);
+
+      setCopied(true);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
   return (
     <header className="flex flex-col gap-2 py-5 h-[180px] pt-14">
       <h1 className="text-2xl font-medium text-foreground">{title}</h1>
-      <div className="flex items-center gap-1.5 text-xs text-secondary-foreground">
+      <div className="flex items-center gap-1.5 text-sm text-secondary-foreground">
         <span>Created {fmtRelative(createdMs)}</span>
         <span>·</span>
         <span>Updated {fmtRelative(lastActivityMs)}</span>
@@ -32,9 +50,13 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
           {runCount} {runCount === 1 ? "trace" : "traces"}
         </span>
         <span>·</span>
-        <span>
-          <CopyButton text={sessionId} variant="ghost" />
-        </span>
+        <button
+          onClick={onCopy}
+          className="hover:text-primary-foreground max-w-[140px] flex flex-row items-center gap-2"
+        >
+          Copy ID
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+        </button>
       </div>
     </header>
   );
