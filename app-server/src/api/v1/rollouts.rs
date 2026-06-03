@@ -16,6 +16,7 @@ use crate::{
 };
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct UpdateNameRequest {
     name: String,
 }
