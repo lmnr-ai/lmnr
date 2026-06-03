@@ -8,7 +8,6 @@ import CodeHighlighter from "@/components/ui/code-highlighter";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PYTHON_INSTALL, TYPESCRIPT_INSTALL } from "@/lib/const";
 import { useToast } from "@/lib/hooks/use-toast";
 
 // TODO: replace with the real "run your agent in debug mode" prompt when ready.
@@ -40,46 +39,41 @@ export default function SessionsPlaceholder() {
     <div className="flex h-full w-full flex-col overflow-hidden">
       <Header path="debugger sessions" />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8 p-6 pb-16">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold">Get started with the debugger</h1>
+        <div className="mx-auto flex max-w-3xl flex-col gap-12 p-6 pb-16">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold">Get started with the Debugger</h1>
             <p className="text-sm text-muted-foreground">
-              You don{"'"}t have any debugger sessions yet. Run your instrumented agent in debug mode and its sessions
-              show up here to capture and replay.
+              Run your instrumented agent in debug mode and its sessions show up here to capture and replay.
             </p>
           </div>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="flex border-none">
+              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+              <TabsTrigger value="python">Python</TabsTrigger>
+            </TabsList>
+            <TabsContent value="typescript">
+              <CodeHighlighter
+                copyable
+                className="rounded-md border bg-background p-4 text-xs"
+                code={DEBUG_RUN.typescript}
+                language="bash"
+              />
+            </TabsContent>
+            <TabsContent value="python">
+              <CodeHighlighter
+                copyable
+                className="rounded-md border bg-background p-4 text-xs"
+                code={DEBUG_RUN.python}
+                language="bash"
+              />
+            </TabsContent>
+          </Tabs>
 
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">Install Laminar SDK</h2>
-            <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="flex border-none">
-                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-              </TabsList>
-              <TabsContent value="typescript">
-                <CodeHighlighter
-                  copyable
-                  className="rounded-md border bg-background p-4 text-xs"
-                  code={TYPESCRIPT_INSTALL}
-                  language="bash"
-                />
-              </TabsContent>
-              <TabsContent value="python">
-                <CodeHighlighter
-                  copyable
-                  className="rounded-md border bg-background p-4 text-xs"
-                  code={PYTHON_INSTALL}
-                  language="bash"
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">Run your agent in debug mode</h2>
-            <p className="text-sm text-muted-foreground">
-              Debug mode is built for coding agents. Copy the prompt and let your agent drive the runs.
-            </p>
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-lg font-medium">Debugger is built for coding agents.</h2>
+              <p className="text-sm text-muted-foreground">Copy the prompt and let your coding agent drive the runs.</p>
+            </div>
             <div className="flex items-center gap-2">
               <Button size="md" onClick={handleCopyPrompt}>
                 Copy prompt
@@ -91,29 +85,6 @@ export default function SessionsPlaceholder() {
                 </a>
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">Or run it yourself:</p>
-            <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="flex border-none">
-                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
-                <TabsTrigger value="python">Python</TabsTrigger>
-              </TabsList>
-              <TabsContent value="typescript">
-                <CodeHighlighter
-                  copyable
-                  className="rounded-md border bg-background p-4 text-xs"
-                  code={DEBUG_RUN.typescript}
-                  language="bash"
-                />
-              </TabsContent>
-              <TabsContent value="python">
-                <CodeHighlighter
-                  copyable
-                  className="rounded-md border bg-background p-4 text-xs"
-                  code={DEBUG_RUN.python}
-                  language="bash"
-                />
-              </TabsContent>
-            </Tabs>
           </div>
 
           <div className="flex items-center gap-6 text-sm">
@@ -122,16 +93,25 @@ export default function SessionsPlaceholder() {
               href={DOCS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-muted-foreground underline transition-colors hover:text-primary"
+              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
             >
               Documentation
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <a
+              href="https://laminar.sh/docs/tracing/integrations/overview"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+            >
+              Make sure your agent is instrumented
               <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
             <a
               href="https://discord.com/invite/nNFUUDAKub"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-muted-foreground underline transition-colors hover:text-primary"
+              className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
             >
               Need help? Join Discord
               <ArrowUpRight className="h-3.5 w-3.5" />

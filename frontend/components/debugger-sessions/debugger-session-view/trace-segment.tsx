@@ -1,0 +1,348 @@
+"use client";
+
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
+
+import TraceItem from "@/components/traces/session-view/session-panel/trace-item";
+import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { computeTranscriptEntries } from "@/components/traces/session-view/utils";
+import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
+import {
+  type TraceViewListSpan,
+  type TraceViewSpan,
+  type TranscriptListGroup,
+} from "@/components/traces/trace-view/store/base";
+import {
+  AgentGroupHeader,
+  GroupChildWrapper,
+  InputItem,
+  SpanItem,
+} from "@/components/traces/trace-view/transcript/item";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SpanType, type TraceRow } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
+
+import CopyFlag from "./copy-flag";
+import RunComment from "./run-comment";
+import { traceAnchorId } from "./session-outline/utils";
+import { useDebuggerSessionViewStore } from "./store";
+
+// Paste-to-agent prompt for "cache and rerun from here": the SDK resolves
+// LMNR_DEBUG_CACHE_UNTIL from a span id (see lmnr-ts debug/config.ts
+// parseCacheUntil) — no need to compute an occurrence count here.
+const rerunPrompt = (traceId: string, spanId: string, sessionId?: string) =>
+  [
+    "Rerun the agent with these env vars:",
+    "LMNR_DEBUG=true",
+    ...(sessionId ? [`LMNR_DEBUG_SESSION_ID=${sessionId}`] : []),
+    `LMNR_DEBUG_REPLAY_TRACE_ID=${traceId}`,
+    `LMNR_DEBUG_CACHE_UNTIL=${spanId}`,
+  ].join("\n");
+
+// LLM spans get the "cache and rerun" prompt flag; every other span type gets
+// the plain Copy-span-ID flag.
+const spanFlagProps = (span: TraceViewListSpan, traceId: string, sessionId?: string) =>
+  span.spanType === SpanType.LLM
+    ? {
+        label: "Copy prompt",
+        toastTitle: "Copied rerun prompt",
+        description: "Cache and rerun from here",
+        value: rerunPrompt(traceId, span.spanId, sessionId),
+      }
+    : { label: "Copy span ID", toastTitle: "Copied span ID", value: span.spanId };
+
+// Transcript rows local to one trace (the only virtualized content).
+type TranscriptRow =
+  | { type: "user-input" }
+  | { type: "span"; span: TraceViewListSpan }
+  | { type: "group-header"; group: TranscriptListGroup; collapsed: boolean }
+  | { type: "group-span"; span: TraceViewListSpan; isLast: boolean };
+
+const buildTranscriptRows = (
+  spans: TraceViewSpan[],
+  traceId: string,
+  transcriptExpandedGroups: Set<string>
+): TranscriptRow[] => {
+  const rows: TranscriptRow[] = [{ type: "user-input" }];
+  const entries = computeTranscriptEntries(spans);
+  for (const entry of entries) {
+    if (entry.type === "span") {
+      rows.push({ type: "span", span: entry.span });
+    } else if (entry.type === "group") {
+      const collapsed = !transcriptExpandedGroups.has(`${traceId}::${entry.groupId}`);
+      rows.push({ type: "group-header", group: entry, collapsed });
+      if (!collapsed) {
+        const children = entries.filter((e) => e.type === "group-span" && e.groupId === entry.groupId);
+        children.forEach((child, i) => {
+          if (child.type === "group-span") {
+            rows.push({ type: "group-span", span: child.span, isLast: i === children.length - 1 });
+          }
+        });
+      }
+    }
+  }
+  return rows;
+};
+
+export interface TraceSegmentProps {
+  trace: TraceRow;
+  traceIndex: number;
+  totalTraces: number;
+  scrollEl: HTMLElement | null;
+  sessionId?: string;
+  // Bumped by the list's column ResizeObserver whenever content heights change —
+  // each segment re-measures its scrollMargin (offset within the scroll content).
+  layoutVersion: number;
+  // Report this segment's currently-visible span ids for batched preview fetching.
+  reportVisibleSpans: (traceId: string, visible: string[], inputs: string[]) => void;
+  previews: Record<string, string | null>;
+  userInputs: Record<string, string | null>;
+  agentNames: Record<string, string | null>;
+  traceIO?: TraceIOEntry | null;
+  allSpansById: Map<string, TraceViewSpan>;
+}
+
+/**
+ * One trace's article section, in normal document flow:
+ *   note (always mounted) → sticky header → virtualized transcript viewport.
+ *
+ * The transcript uses a PER-TRACE virtualizer bound to the shared page scroll
+ * element via `scrollMargin` (the documented multiple-virtualizers-per-scroll-
+ * element pattern). The header is plain CSS `sticky top-0` INSIDE this segment
+ * container, so the browser pins it while the segment is in view and pushes it
+ * out at the segment's bottom edge — it can never cover content below the
+ * trace's last span.
+ */
+export default function TraceSegment({
+  trace,
+  traceIndex,
+  totalTraces,
+  scrollEl,
+  sessionId,
+  layoutVersion,
+  reportVisibleSpans,
+  previews,
+  userInputs,
+  agentNames,
+  traceIO,
+  allSpansById,
+}: TraceSegmentProps) {
+  const traceId = trace.id;
+
+  // Narrow per-trace store selections: streamed spans re-render only this segment.
+  const { spans, loading, error, expanded, selectedSpan } = useSessionViewBaseStore(
+    (s) => ({
+      spans: s.traceSpans[traceId],
+      loading: s.traceSpansLoading[traceId],
+      error: s.traceSpansError[traceId],
+      expanded: s.expandedTraceIds.has(traceId),
+      selectedSpan: s.selectedSpan,
+    }),
+    shallow
+  );
+  const transcriptExpandedGroups = useSessionViewBaseStore((s) => s.transcriptExpandedGroups);
+  const toggleTraceExpanded = useSessionViewBaseStore((s) => s.toggleTraceExpanded);
+  const toggleTranscriptGroup = useSessionViewBaseStore((s) => s.toggleTranscriptGroup);
+  const setSelectedSpan = useSessionViewBaseStore((s) => s.setSelectedSpan);
+
+  const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
+  const openTraceView = useDebuggerSessionViewStore((s) => s.openTraceView);
+
+  const rows = useMemo<TranscriptRow[]>(
+    () => (expanded && spans && spans.length > 0 ? buildTranscriptRows(spans, traceId, transcriptExpandedGroups) : []),
+    [expanded, spans, traceId, transcriptExpandedGroups]
+  );
+
+  // --- Per-trace virtualizer, offset into the shared scroll element. ---
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // Measure this viewport's offset within the scroll content (rect math instead
+  // of offsetTop — robust to positioned ancestors). Re-measured whenever the
+  // column's height changes (layoutVersion) since anything above us moving
+  // shifts the offset. The ±1px guard keeps re-measure→re-render convergent.
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !scrollEl) return;
+    const next = Math.round(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop);
+    setScrollMargin((prev) => (Math.abs(prev - next) <= 1 ? prev : next));
+  }, [scrollEl, layoutVersion, expanded, rows.length]);
+
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const getItemKey = useCallback((index: number) => {
+    const row = rowsRef.current[index];
+    if (!row) return index;
+    switch (row.type) {
+      case "user-input":
+        return "ui";
+      case "span":
+        return `sp::${row.span.spanId}`;
+      case "group-header":
+        return `gh::${row.group.groupId}`;
+      case "group-span":
+        return `gs::${row.span.spanId}`;
+    }
+  }, []);
+
+  const estimateSize = useCallback((index: number) => {
+    const row = rowsRef.current[index];
+    if (!row) return 70;
+    return row.type === "group-header" ? 36 : 70;
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollEl,
+    estimateSize,
+    overscan: 10,
+    scrollMargin,
+    getItemKey,
+  });
+
+  const items = virtualizer.getVirtualItems();
+
+  // --- Report visible span ids for preview batching (same derivation the flat
+  // list used, now per segment). Signature-guarded against effect loops. ---
+  const visibleSignature = items.map((i) => i.index).join(",");
+  useEffect(() => {
+    const visible: string[] = [];
+    const inputs: string[] = [];
+    const push = (arr: string[], id: string) => {
+      if (!arr.includes(id)) arr.push(id);
+    };
+    for (const vi of items) {
+      const row = rows[vi.index];
+      if (!row) continue;
+      if (row.type === "span" || row.type === "group-span") {
+        push(visible, row.span.spanId);
+      } else if (row.type === "group-header") {
+        if (row.group.firstLlmSpanId) {
+          push(visible, row.group.firstLlmSpanId);
+          push(inputs, row.group.firstLlmSpanId);
+        }
+        if (row.collapsed && row.group.lastLlmSpanId) push(visible, row.group.lastLlmSpanId);
+      }
+    }
+    reportVisibleSpans(traceId, visible, inputs);
+    // visibleSignature stands in for `items` (new array identity every render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleSignature, rows, traceId, reportVisibleSpans]);
+
+  // Scroll selected span (in this trace) to center, once per selection.
+  const lastScrolledSpanIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedSpan || selectedSpan.traceId !== traceId) return;
+    if (lastScrolledSpanIdRef.current === selectedSpan.spanId) return;
+    const idx = rows.findIndex(
+      (r) => (r.type === "span" || r.type === "group-span") && r.span.spanId === selectedSpan.spanId
+    );
+    if (idx === -1) return;
+    lastScrolledSpanIdRef.current = selectedSpan.spanId;
+    const rafId = requestAnimationFrame(() => virtualizer.scrollToIndex(idx, { align: "center" }));
+    return () => cancelAnimationFrame(rafId);
+  }, [selectedSpan, rows, traceId, virtualizer]);
+
+  return (
+    <div id={traceAnchorId(traceId)} className="relative">
+      {note && (
+        <div className="px-1 pb-5 pt-1">
+          <RunComment traceId={traceId} />
+        </div>
+      )}
+
+      {/* Sticky only while expanded: CSS bounds it to THIS container, so it pins
+          at the top and is pushed out by the segment's bottom edge. */}
+      <div className={cn(expanded && "sticky top-0 z-10 bg-background")}>
+        <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
+          <TraceItem
+            trace={trace}
+            expanded={expanded}
+            traceIndex={traceIndex}
+            totalTraces={totalTraces}
+            onToggle={() => toggleTraceExpanded(traceId)}
+            traceIO={traceIO}
+            onOpenTraceView={openTraceView}
+          />
+        </CopyFlag>
+      </div>
+
+      {expanded && error && <div className="py-4 px-2 text-sm text-destructive">{error}</div>}
+      {expanded && !error && !spans && (
+        <div className="flex flex-col gap-2 py-2 px-2">
+          <Skeleton className="h-5 w-full" />
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-5 w-2/3" />
+        </div>
+      )}
+      {expanded && !error && spans && spans.length === 0 && !loading && (
+        <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
+      )}
+
+      {expanded && rows.length > 0 && (
+        <div ref={viewportRef} className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+          {items.map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            if (!row) return null;
+            return (
+              <div
+                key={virtualRow.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
+                }}
+              >
+                {row.type === "user-input" ? (
+                  <InputItem
+                    text={traceIO?.inputPreview ?? null}
+                    isLoading={traceIO === undefined}
+                    className="rounded-lg"
+                  />
+                ) : row.type === "group-header" ? (
+                  <AgentGroupHeader
+                    group={row.group}
+                    collapsed={row.collapsed}
+                    previews={previews}
+                    inputPreviews={userInputs}
+                    agentNames={agentNames}
+                    className="mx-0"
+                    onToggle={() => toggleTranscriptGroup(traceId, row.group.groupId)}
+                  />
+                ) : row.type === "group-span" ? (
+                  <GroupChildWrapper isLast={row.isLast} className="mx-0">
+                    <CopyFlag {...spanFlagProps(row.span, traceId, sessionId)}>
+                      <SpanItem
+                        span={row.span}
+                        fullSpan={allSpansById.get(row.span.spanId)}
+                        output={previews[row.span.spanId]}
+                        onSpanSelect={(s) => setSelectedSpan({ traceId, spanId: s.spanId })}
+                        isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
+                        inGroup
+                      />
+                    </CopyFlag>
+                  </GroupChildWrapper>
+                ) : (
+                  <CopyFlag {...spanFlagProps(row.span, traceId, sessionId)}>
+                    <SpanItem
+                      span={row.span}
+                      fullSpan={allSpansById.get(row.span.spanId)}
+                      output={previews[row.span.spanId]}
+                      onSpanSelect={(s) => setSelectedSpan({ traceId, spanId: s.spanId })}
+                      isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
+                    />
+                  </CopyFlag>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

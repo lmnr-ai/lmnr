@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,19 @@ interface SessionOutlineProps {
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const storeApi = useDebuggerSessionViewStoreRaw();
+  const navRef = useRef<HTMLElement>(null);
+
+  // Edge state for the fade gradients: hide the top fade at the very top and
+  // the bottom fade at the very bottom (both hidden when the nav doesn't
+  // scroll at all). Mirrors the blog TOC's scrollable-nav treatment.
+  const [edges, setEdges] = useState({ atTop: true, atBottom: true });
+  const updateEdges = useCallback(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const atTop = el.scrollTop <= 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    setEdges((prev) => (prev.atTop === atTop && prev.atBottom === atBottom ? prev : { atTop, atBottom }));
+  }, []);
 
   // Primitive signature: rebuild rows only when order / start-time / note text
   // actually changes (not on every streamed span that mutates traceSpans).
@@ -92,6 +105,18 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
     return () => observer.disconnect();
   }, [rows]);
 
+  // Re-derive the edge state when rows change (content height moved without a
+  // scroll event) and when the nav resizes. Keyed on `rows` so the observer
+  // attaches once the nav actually mounts (rows start empty → early return null).
+  useEffect(() => {
+    updateEdges();
+    const el = navRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [rows, updateEdges]);
+
   // Slide the indicator to the active row (post-layout) and keep it visible.
   useLayoutEffect(() => {
     if (!active) return;
@@ -115,45 +140,67 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
   if (rows.length === 0) return null;
 
   return (
-    <nav className={cn("flex flex-col gap-6 overflow-y-auto thin-scrollbar pt-1", className)}>
-      <div className="relative flex flex-col">
-        <div className="absolute bottom-0 left-0 top-0 w-px bg-border" />
-        {indicator && (
-          <motion.div
-            className="absolute left-0 w-px bg-primary-foreground"
-            initial={false}
-            animate={{ top: indicator.top, height: indicator.height }}
-            transition={{ type: "spring", stiffness: 380, damping: 30 }}
-          />
-        )}
+    // The relative wrapper carries the caller's sticky/size classes and hosts
+    // the edge-fade overlays — they must sit OUTSIDE the scroll port so they
+    // stay clipped to the visible area instead of scrolling with the rows.
+    <div className={cn("relative", className)}>
+      <nav
+        ref={navRef}
+        onScroll={updateEdges}
+        className="no-scrollbar flex max-h-full w-full flex-col gap-6 overflow-y-auto pb-20 pt-1"
+      >
+        <div className="relative flex flex-col">
+          <div className="absolute bottom-0 left-0 top-0 w-px bg-border" />
+          {indicator && (
+            <motion.div
+              className="absolute left-0 w-px bg-primary-foreground"
+              initial={false}
+              animate={{ top: indicator.top, height: indicator.height }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            />
+          )}
 
-        {rows.map((row) => {
-          const isActive = active === row.anchor;
-          return (
-            <a
-              key={row.key}
-              ref={(el) => {
-                if (el) rowRefs.current.set(row.anchor, el);
-                else rowRefs.current.delete(row.anchor);
-              }}
-              href={`#${row.anchor}`}
-              onClick={() => selectOnClick(row.anchor)}
-              className="flex h-[30px] items-center pl-4 text-left no-underline"
-            >
-              <span
-                className={cn(
-                  "truncate text-sm transition-colors",
-                  row.level === 2 && "pl-3",
-                  row.level >= 3 && "pl-6",
-                  isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
+          {rows.map((row) => {
+            const isActive = active === row.anchor;
+            return (
+              <a
+                key={row.key}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(row.anchor, el);
+                  else rowRefs.current.delete(row.anchor);
+                }}
+                href={`#${row.anchor}`}
+                onClick={() => selectOnClick(row.anchor)}
+                className="flex h-[30px] items-center pl-4 text-left no-underline"
               >
-                {row.text}
-              </span>
-            </a>
-          );
-        })}
-      </div>
-    </nav>
+                <span
+                  className={cn(
+                    "truncate text-sm transition-colors",
+                    row.level === 2 && "pl-3",
+                    row.level >= 3 && "pl-6",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {row.text}
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      </nav>
+      {/* Edge fades: soften the clip when there's more content above/below. */}
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-background to-transparent"
+        initial={false}
+        animate={{ opacity: edges.atTop ? 0 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      />
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent"
+        initial={false}
+        animate={{ opacity: edges.atBottom ? 0 : 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      />
+    </div>
   );
 }

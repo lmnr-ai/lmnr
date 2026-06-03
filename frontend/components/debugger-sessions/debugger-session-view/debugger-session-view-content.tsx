@@ -16,6 +16,11 @@ import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 
+// How close to the bottom counts as "pinned" for stick-to-bottom. Small enough
+// that a deliberate scroll-up unpins immediately; big enough that sub-pixel
+// rounding and momentum-scroll settle don't break the pin.
+const PIN_SLACK_PX = 40;
+
 // Earliest run start / latest run end across loaded traces (epoch ms).
 const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
   let min: number | undefined;
@@ -61,6 +66,32 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   // its total-size spacer, so scrolling the container itself stays correct).
   const scrollToBottom = useCallback(() => {
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+  }, [scrollEl]);
+
+  // iMessage-style pinning: while the user sits at (or near) the bottom, keep
+  // them there as streamed spans/traces grow the content. Pinned-ness is a ref
+  // updated on every user scroll; a ResizeObserver on the content column snaps
+  // the scroll back down whenever the content height changes while pinned.
+  // Scrolling up past the slack unpins, so reading history is never hijacked.
+  useEffect(() => {
+    if (!scrollEl) return;
+    const pinned = { current: false };
+    const measure = () => {
+      pinned.current = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - PIN_SLACK_PX;
+    };
+    measure();
+    scrollEl.addEventListener("scroll", measure, { passive: true });
+    const content = scrollEl.firstElementChild;
+    const observer = new ResizeObserver(() => {
+      // Instant (not smooth) — growth can come every frame while streaming and
+      // queued smooth scrolls would rubber-band.
+      if (pinned.current) scrollEl.scrollTop = scrollEl.scrollHeight;
+    });
+    if (content) observer.observe(content);
+    return () => {
+      scrollEl.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
   }, [scrollEl]);
 
   // Push projectId into the store so store-owned actions can issue requests.
@@ -122,15 +153,23 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           pairs the article column with the right-rail outline (Figma 4296:35652).
           min-w-0 lets the in-flow span panel compress this side smoothly. */}
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
-        <div className="mx-auto flex w-full gap-16 px-6 pb-[160px]">
+        <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex min-w-0 grow-1 justify-center shrink-0">
             {/* Hidden while the span panel is open so this spacer carries no
                 min-width (the outline's 220px) and the article can slide left. */}
+            {/* Sticky full-height rail: top-0 + h-screen + pt instead of
+                top-[180px], so the outline is hard-bounded by the viewport and
+                scrolls internally only when it's truly too long. pb covers the
+                breadcrumb row above the scroll container plus breathing room. */}
             {!spanPanelOpen && (
-              <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] shrink-0 w-[220px] flex-none self-start lg:flex" />
+              <div className="sticky top-0 hidden h-screen w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
+                <SessionOutline className="max-h-full w-full" />
+              </div>
             )}
           </div>
-          <div className="min-w-0 w-[720px]">
+          {/* Bottom padding lives on the article column (not the page row) so
+              only the traces/notes get the scroll-past room. */}
+          <div className="min-w-0 w-[720px] pb-[160px]">
             <SessionHeader
               title={sessionName}
               createdMs={createdMs}
@@ -152,8 +191,9 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       <SessionSpanPanel />
       {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
       {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}
-      {/* New run arrived via realtime → jump-to-bottom pill. */}
-      <NewTracePill onScrollToBottom={scrollToBottom} />
+      {/* New run arrived via realtime → jump-to-bottom pill. Self-dismisses
+          when the user scrolls (or is pinned) to the bottom themselves. */}
+      <NewTracePill onScrollToBottom={scrollToBottom} scrollEl={scrollEl} />
     </div>
   );
 }
