@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 
@@ -18,6 +20,13 @@ use api::v1::browser_sessions::{
 };
 use aws_config::BehaviorVersion;
 use browser_events::BrowserEventHandler;
+#[cfg(feature = "signals")]
+use clustering::private::{
+    EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_QUEUE,
+    EVENT_CLUSTERING_BATCH_ROUTING_KEY, EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE,
+    EVENT_CLUSTERING_ROUTING_KEY, batching::ClusteringEventBatchingHandler, build_runner_from_env,
+    handler::ClusteringHandler,
+};
 use features::{Feature, is_feature_enabled};
 use lapin::{
     Connection, ConnectionProperties, ExchangeKind,
@@ -96,6 +105,8 @@ use crate::{
     reports::generator::ReportsGenerator,
 };
 
+#[cfg(feature = "signals")]
+mod agent;
 mod api;
 mod auth;
 mod batch_worker;
@@ -503,6 +514,61 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.7 Event Clustering message queue ====
+            #[cfg(feature = "signals")]
+            {
+                channel
+                    .exchange_declare(
+                        EVENT_CLUSTERING_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_declare(
+                        EVENT_CLUSTERING_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+
+                // ==== 3.7b Event Clustering Batch message queue ====
+                channel
+                    .exchange_declare(
+                        EVENT_CLUSTERING_BATCH_EXCHANGE.into(),
+                        ExchangeKind::Fanout,
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        FieldTable::default(),
+                    )
+                    .await
+                    .unwrap();
+
+                channel
+                    .queue_declare(
+                        EVENT_CLUSTERING_BATCH_QUEUE.into(),
+                        QueueDeclareOptions {
+                            durable: true,
+                            ..Default::default()
+                        },
+                        quorum_queue_args.clone(),
+                    )
+                    .await
+                    .unwrap();
+            }
+
             // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
             #[cfg(feature = "signals")]
             {
@@ -714,6 +780,16 @@ fn main() -> anyhow::Result<()> {
             NOTIFICATION_DELIVERIES_EXCHANGE,
             NOTIFICATION_DELIVERIES_QUEUE,
         );
+        // ==== 3.7 Event Clustering message queue ====
+        #[cfg(feature = "signals")]
+        {
+            queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
+            // ==== 3.7b Event Clustering Batch message queue ====
+            queue.register_queue(
+                EVENT_CLUSTERING_BATCH_EXCHANGE,
+                EVENT_CLUSTERING_BATCH_QUEUE,
+            );
+        }
         // ==== 3.8 Signal Job Submission Batch message queue ====
         #[cfg(feature = "signals")]
         {
@@ -995,6 +1071,16 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_clustering_batching_workers = env::var("NUM_CLUSTERING_BATCHING_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
+        let num_clustering_workers = env::var("NUM_CLUSTERING_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
         let num_signal_job_submission_batch_workers =
             env::var("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS")
                 .unwrap_or(String::from("4"))
@@ -1017,7 +1103,7 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
@@ -1025,6 +1111,8 @@ fn main() -> anyhow::Result<()> {
             num_signals_workers,
             num_notification_workers,
             num_notification_delivery_workers,
+            num_clustering_batching_workers,
+            num_clustering_workers,
             num_signal_job_submission_batch_workers,
             num_signal_job_pending_batch_workers,
             num_logs_workers,
@@ -1285,6 +1373,95 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
+                    // Spawn clustering batching + clustering workers.
+                    // Clustering is Signals-only; OSS builds skip the
+                    // consumer entirely. The clusterer runs in-process
+                    // — embeddings (local ONNX or OpenAI-compatible)
+                    // and naming (shared `LlmClient`) are built once
+                    // per app-server boot and shared across worker
+                    // instances via `Arc`. Build failure (e.g. an
+                    // embedding-dim warmup mismatch) skips the workers
+                    // entirely so raw events stay queued for a future
+                    // restart with a fixed config.
+                    #[cfg(feature = "signals")]
+                    if is_feature_enabled(Feature::Clustering) {
+                        let llm_for_clustering = llm_provider_client.clone();
+                        let runner_build = match llm_for_clustering {
+                            Some(llm) => {
+                                build_runner_from_env(clickhouse_for_consumer.clone(), llm).await
+                            }
+                            None => Err(anyhow::anyhow!(
+                                "LlmClient unavailable; clustering naming requires it",
+                            )),
+                        };
+                        match runner_build {
+                            Ok(runner) => {
+                                let batch_size: usize = env::var("CLUSTERING_EVENTS_BATCH_SIZE")
+                                    .unwrap_or_else(|_| "100".to_string())
+                                    .parse()
+                                    .unwrap_or(100);
+                                let batch_flush_interval_sec: u64 =
+                                    env::var("CLUSTERING_EVENTS_BATCH_FLUSH_INTERVAL_SEC")
+                                        .unwrap_or_else(|_| "300".to_string())
+                                        .parse()
+                                        .unwrap_or(300);
+                                let batch_flush_interval =
+                                    Duration::from_secs(batch_flush_interval_sec);
+                                {
+                                    let queue: Arc<MessageQueue> = mq_for_consumer.clone();
+                                    batch_worker_pool_clone.spawn(
+                                        BatchWorkerType::ClusteringBatching,
+                                        num_clustering_batching_workers as usize,
+                                        move || {
+                                            ClusteringEventBatchingHandler::new(
+                                                queue.clone(),
+                                                BatchingConfig {
+                                                    size: batch_size,
+                                                    flush_interval: batch_flush_interval,
+                                                },
+                                            )
+                                        },
+                                        QueueConfig::new(
+                                            EVENT_CLUSTERING_QUEUE,
+                                            EVENT_CLUSTERING_EXCHANGE,
+                                            EVENT_CLUSTERING_ROUTING_KEY,
+                                        ),
+                                    );
+                                }
+
+                                let cache = cache_for_consumer.clone();
+                                let db = db_for_consumer.clone();
+                                let clickhouse = clickhouse_for_consumer.clone();
+                                let queue = mq_for_consumer.clone();
+                                worker_pool_clone.spawn(
+                                    WorkerType::Clustering,
+                                    num_clustering_workers as usize,
+                                    move || {
+                                        ClusteringHandler::new(
+                                            cache.clone(),
+                                            db.clone(),
+                                            clickhouse.clone(),
+                                            runner.clone(),
+                                            queue.clone(),
+                                        )
+                                    },
+                                    QueueConfig::new(
+                                        EVENT_CLUSTERING_BATCH_QUEUE,
+                                        EVENT_CLUSTERING_BATCH_EXCHANGE,
+                                        EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+                                    ),
+                                );
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Failed to build clustering runner: {e:?}. \
+                                     Clustering batching and consumer workers will not start; \
+                                     raw events stay queued for a future restart.",
+                                );
+                            }
+                        }
+                    }
+
                     // Spawn LLM batch submissions workers
                     #[cfg(feature = "signals")]
                     if let Some(llm_client) = llm_provider_client.as_ref() {
@@ -1536,6 +1713,8 @@ fn main() -> anyhow::Result<()> {
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
                         cache_for_http.clone(),
+                        llm_provider_client_for_http.clone(),
+                        mq_for_http.clone(),
                     ));
 
                     log::info!("Spinning up full HTTP server");
@@ -1671,7 +1850,8 @@ fn main() -> anyhow::Result<()> {
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
-                                    .service(crate::signals::private::routes::test_signal);
+                                    .service(crate::signals::private::routes::test_signal)
+                                    .service(crate::agent::routes::post_agent_chat);
                                 scope
                             })
                             .service(routes::probes::check_health)

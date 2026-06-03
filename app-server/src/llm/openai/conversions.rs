@@ -19,7 +19,11 @@ use crate::llm::models::{
 use serde_json::{Value, json};
 
 /// Build the OpenAI Chat Completions request body from a `ProviderRequest`.
-pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -> Value {
+pub fn provider_request_to_openai_body(
+    model: &str,
+    request: &ProviderRequest,
+    is_openai_direct: bool,
+) -> Value {
     let mut messages: Vec<Value> = Vec::new();
 
     if let Some(sys) = request.system_instruction.as_ref() {
@@ -71,15 +75,32 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         if let Some(m) = gc.max_output_tokens {
             body["max_completion_tokens"] = json!(m);
         }
-        if let Some(tc) = gc.thinking_config.as_ref() {
-            if let Some(level) = tc.thinking_level.as_ref() {
-                if let Some(effort) = thinking_level_to_effort(level) {
-                    body["reasoning_effort"] = json!(effort);
+
+        // OpenAI direct rejects `reasoning_effort` with tool calls; proxies accept it.
+        if !is_openai_direct {
+            if let Some(tc) = gc.thinking_config.as_ref() {
+                if let Some(level) = tc.thinking_level.as_ref() {
+                    if let Some(effort) = thinking_level_to_effort(level) {
+                        body["reasoning_effort"] = json!(effort);
+                    }
                 }
             }
         }
     }
 
+    body
+}
+
+/// Same as [`provider_request_to_openai_body`] but flags the request for SSE streaming and asks
+/// the upstream to emit a final usage-only chunk (`stream_options.include_usage`).
+pub fn provider_request_to_openai_stream_body(
+    model: &str,
+    request: &ProviderRequest,
+    is_openai_direct: bool,
+) -> Value {
+    let mut body = provider_request_to_openai_body(model, request, is_openai_direct);
+    body["stream"] = json!(true);
+    body["stream_options"] = json!({ "include_usage": true });
     body
 }
 
@@ -292,7 +313,7 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
     })
 }
 
-fn map_finish_reason(s: &str) -> ProviderFinishReason {
+pub(super) fn map_finish_reason(s: &str) -> ProviderFinishReason {
     match s {
         "stop" | "tool_calls" | "function_call" => ProviderFinishReason::Stop,
         "length" => ProviderFinishReason::MaxTokens,
@@ -301,7 +322,7 @@ fn map_finish_reason(s: &str) -> ProviderFinishReason {
     }
 }
 
-fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
+pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
     let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
@@ -335,7 +356,7 @@ mod tests {
     use crate::llm::models::{
         ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderThinkingConfig,
-        ProviderTool,
+        ProviderThinkingLevel, ProviderTool,
     };
 
     fn text_part(s: &str) -> ProviderPart {
@@ -393,7 +414,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5-mini", &req);
+        let body = provider_request_to_openai_body("gpt-5-mini", &req, true);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0]["role"], "system");
@@ -418,7 +439,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req);
+        let body = provider_request_to_openai_body("gpt-5", &req, true);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0]["role"], "user");
@@ -446,7 +467,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req);
+        let body = provider_request_to_openai_body("gpt-5", &req, true);
         let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
         // uuid v4 is 36 chars with 4 hyphens.
         assert_eq!(id.len(), 36);
@@ -469,7 +490,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req);
+        let body = provider_request_to_openai_body("gpt-5", &req, true);
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["type"], "function");
@@ -478,8 +499,8 @@ mod tests {
     }
 
     #[test]
-    fn thinking_level_maps_to_reasoning_effort_and_drops_sampling_params() {
-        let req = ProviderRequest {
+    fn thinking_forwarded_only_for_non_openai_direct_and_sampling_params_dropped() {
+        let make_req = || ProviderRequest {
             contents: vec![user("hi")],
             system_instruction: None,
             tools: None,
@@ -496,13 +517,20 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req);
-        assert_eq!(body["reasoning_effort"], "high");
-        assert_eq!(body["max_completion_tokens"], 100);
-        assert!(body.get("max_tokens").is_none());
+
+        // OpenAI direct: thinking dropped (it would otherwise 400 with tools).
+        let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
+        assert!(direct.get("reasoning_effort").is_none());
+
+        // Proxy / OpenAI-compatible endpoint: thinking forwarded.
+        let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
+        assert_eq!(proxy["reasoning_effort"], "high");
+
+        assert_eq!(direct["max_completion_tokens"], 100);
+        assert!(direct.get("max_tokens").is_none());
         // We never forward sampling params — see provider_request_to_openai_body.
-        assert!(body.get("temperature").is_none());
-        assert!(body.get("top_p").is_none());
+        assert!(direct.get("temperature").is_none());
+        assert!(direct.get("top_p").is_none());
     }
 
     #[test]
