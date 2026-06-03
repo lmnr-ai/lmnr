@@ -1,16 +1,15 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import FillWidthLayout, { type SessionViewPanels } from "@/components/traces/session-view/fill-width-layout";
-import SessionPanel from "@/components/traces/session-view/session-panel";
-import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
+import DebuggerTraceList from "./debugger-trace-list";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStoreRaw } from "./store";
@@ -28,6 +27,11 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
   return { createdMs: min, lastActivityMs: max };
 };
 
+// Inner content: restores the user's hand-placed shell (page scroll container,
+// sticky LEFT outline, 720px article column, right spacer; span view via an
+// overlaying TraceViewSidePanel) wired to the new composed store. The ONLY UI
+// change vs 0b1f5435c is the article column's trace cards (now the virtualized
+// session-view trace items in DebuggerTraceList).
 export default function DebuggerSessionViewContent({
   sessionId,
   sessionTitle,
@@ -38,10 +42,14 @@ export default function DebuggerSessionViewContent({
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { traces, spanPanelOpen } = useSessionViewBaseStore(
-    (s) => ({ traces: s.traces, spanPanelOpen: s.spanPanelOpen }),
+  const { traces, selectedSpan, setSelectedSpan } = useSessionViewBaseStore(
+    (s) => ({ traces: s.traces, selectedSpan: s.selectedSpan, setSelectedSpan: s.setSelectedSpan }),
     shallow
   );
+
+  // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
+  // to it and the outline shares the same scroll context.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 
   // Push projectId into the store so store-owned actions can issue requests.
   useEffect(() => {
@@ -85,32 +93,37 @@ export default function DebuggerSessionViewContent({
     eventHandlers,
   });
 
-  const panels: SessionViewPanels = useMemo(
-    () => ({
-      // Debugger: no search, no timeline (no slots passed → no concrete-store hook runs).
-      sessionPanel: <SessionPanel />,
-      spanPanel: <SessionSpanPanel />,
-      showSpan: spanPanelOpen,
-    }),
-    [spanPanelOpen]
-  );
-
   return (
+    // No `relative` here: the side panel (absolute top-0 bottom-0) intentionally
+    // anchors to the layout's SidebarInset so it covers the breadcrumb row too,
+    // matching the traces page. A relative wrapper would trap it below the header.
     <div className="flex flex-1 min-h-0 w-full">
-      <div className="flex flex-col flex-1 min-w-0">
-        <SessionHeader
-          title={sessionTitle}
-          createdMs={createdMs}
-          lastActivityMs={lastActivityMs}
-          runCount={traces.length}
-        />
-        <div className="flex-1 min-h-0">
-          <FillWidthLayout panels={panels} />
+      {/* Native scroll container owns the scrollbar. Inside it, a centered row
+          pairs the article column with the right-rail outline (Figma 4296:35652). */}
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
+        <div className="mx-auto flex w-full gap-16 px-6 pb-[160px]">
+          <div className="flex flex-1 shrink-0 justify-center">
+            <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+          </div>
+          <div className="min-w-0 w-[720px]">
+            <SessionHeader
+              title={sessionTitle}
+              createdMs={createdMs}
+              lastActivityMs={lastActivityMs}
+              runCount={traces.length}
+            />
+            <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} />
+          </div>
+          <div className="flex flex-1" />
         </div>
       </div>
-      {/* Outline shows only when the span panel is closed; the span panel (inside
-          FillWidthLayout) replaces it when open. */}
-      {!spanPanelOpen && <SessionOutline className="hidden w-[220px] flex-none border-l px-4 py-6 lg:flex" />}
+      {selectedSpan && (
+        <TraceViewSidePanel
+          traceId={selectedSpan.traceId}
+          spanId={selectedSpan.spanId}
+          onClose={() => setSelectedSpan(undefined)}
+        />
+      )}
     </div>
   );
 }
