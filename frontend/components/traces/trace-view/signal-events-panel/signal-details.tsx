@@ -1,18 +1,20 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
+import { ArrowUpRight, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useSpanRefCallbacks } from "@/components/traces/trace-view/span-reference/use-span-ref-callbacks";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import Markdown from "@/components/traces/trace-view/transcript/markdown.tsx";
-import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
+import { getClusterColorById } from "@/lib/clusters/colors";
 import { type EventRow } from "@/lib/events/types";
 import { Feature } from "@/lib/features/features.ts";
 
@@ -52,7 +54,7 @@ function PayloadValue({
       return <span>{value ? "true" : "false"}</span>;
     case "enum":
       return (
-        <span className="inline-flex items-center rounded-md border bg-muted px-1.5 py-0.5 text-xs font-medium">
+        <span className="inline-flex items-center rounded-full border border-blue-400/30 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
           {String(value)}
         </span>
       );
@@ -61,7 +63,7 @@ function PayloadValue({
     case "string":
       return (
         <span className="whitespace-pre-wrap break-words">
-          <Markdown output={String(value)} spanRefCallbacks={spanRefCallbacks} />
+          <Markdown contentClassName="pb-0" output={String(value)} spanRefCallbacks={spanRefCallbacks} />
         </span>
       );
   }
@@ -104,16 +106,45 @@ export default function SignalDetails({ traceId, signal }: Props) {
     onSelectSpan: selectSpanById,
   });
 
+  const leafCluster = signal.leafCluster;
+  const signalHref = leafCluster
+    ? `/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}&traceId=${traceId}`
+    : `/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`;
+
   return (
-    <div className="px-3 pb-3 pt-2.5 flex flex-col gap-3">
-      {featureFlags[Feature.AGENT] && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Button variant="outline" className="h-6 px-2 text-xs" onClick={handleOpenInChat}>
-            <Sparkles className="size-3.5 mr-1" />
-            Open in AI Chat
-          </Button>
-        </div>
-      )}
+    <div className="px-2 pt-2 pb-0.5 flex flex-col gap-3">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {leafCluster ? (
+          <Link
+            href={signalHref}
+            target="_blank"
+            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
+          >
+            <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
+            <span className="truncate text-xs font-medium">{leafCluster.name}</span>
+            <ArrowUpRight className="size-3.5 shrink-0" />
+          </Link>
+        ) : (
+          <Link
+            href={signalHref}
+            target="_blank"
+            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
+          >
+            <span className="truncate text-xs font-medium">Open in Signals</span>
+            <ArrowUpRight className="size-3.5 shrink-0" />
+          </Link>
+        )}
+        {featureFlags[Feature.AGENT] && (
+          <button
+            type="button"
+            onClick={handleOpenInChat}
+            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
+          >
+            <Sparkles className="size-3.5 shrink-0" />
+            <span className="truncate text-xs font-medium">Open in AI Chat</span>
+          </button>
+        )}
+      </div>
       {!latestEvent ? (
         <div className="py-2 text-sm text-muted-foreground">No events found</div>
       ) : (

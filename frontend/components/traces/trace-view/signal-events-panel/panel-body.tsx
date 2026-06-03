@@ -2,7 +2,6 @@
 
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2, X } from "lucide-react";
-import { useParams } from "next/navigation";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -14,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 import SignalDetails from "./signal-details";
-import SignalHeaderLink from "./signal-header-link";
 
 interface Props {
   traceId: string;
@@ -25,7 +23,6 @@ const MIN_BODY_HEIGHT = 120;
 const MAX_BODY_HEIGHT = 320;
 
 export default function PanelBody({ traceId, onClose }: Props) {
-  const { projectId } = useParams();
   const contentRef = useRef<HTMLDivElement>(null);
   const [bodyHeight, setBodyHeight] = useState<number | null>(null);
   const resizedRef = useRef(false);
@@ -82,7 +79,6 @@ export default function PanelBody({ traceId, onClose }: Props) {
 
   const isSingleSignal = traceSignals.length === 1;
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
-  const leafCluster = activeSignal?.leafCluster;
 
   const closeButton = (
     <Tooltip>
@@ -98,7 +94,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
   );
 
   return (
-    <div className="flex flex-col rounded-lg border bg-secondary overflow-hidden border-blue-400/30">
+    <div className="flex flex-col rounded-md border bg-blue-400/12 overflow-hidden border-blue-400/30">
       {isTraceSignalsLoading ? (
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
@@ -106,45 +102,29 @@ export default function PanelBody({ traceId, onClose }: Props) {
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
           <TooltipProvider delayDuration={300}>
-            <div className="shrink-0 flex flex-col gap-2 px-2 py-1.5 bg-blue-400/12">
-              <div className="flex items-center gap-2 justify-between">
-                {isSingleSignal && activeSignal && (
-                  <SignalHeaderLink
-                    signal={activeSignal}
-                    leafCluster={leafCluster}
-                    projectId={projectId as string}
-                    traceId={traceId}
-                    compact
-                  />
-                )}
-                {!isSingleSignal && (
-                  <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
-                    {traceSignals.map((signal) => (
-                      <TabsTrigger
-                        key={signal.signalId}
-                        value={signal.signalId}
-                        className={cn(
-                          "flex-1 min-w-0 h-auto px-2 py-1 text-xs rounded",
-                          "data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:text-foreground",
-                          "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <span className="block w-full truncate text-center">{signal.signalName}</span>
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                )}
-                {closeButton}
-              </div>
-              {!isSingleSignal && activeSignal && (
-                <SignalHeaderLink
-                  signal={activeSignal}
-                  leafCluster={leafCluster}
-                  projectId={projectId as string}
-                  traceId={traceId}
-                  compact
-                />
+            <div className="shrink-0 flex items-center gap-2 justify-between px-2 py-1 bg-blue-400/12">
+              {isSingleSignal && activeSignal ? (
+                <span className="flex items-center min-w-0 pl-1 text-xs font-medium">
+                  <span className="truncate">{activeSignal.signalName}</span>
+                </span>
+              ) : (
+                <TabsList className="flex-1 min-w-0 h-auto bg-transparent p-0 gap-1 justify-start">
+                  {traceSignals.map((signal) => (
+                    <TabsTrigger
+                      key={signal.signalId}
+                      value={signal.signalId}
+                      className={cn(
+                        "flex-1 min-w-0 h-auto px-2 py-1 text-xs rounded-md",
+                        "data-[state=active]:bg-gray-900 data-[state=active]:shadow-none data-[state=active]:text-foreground",
+                        "text-secondary-foreground hover:text-foreground"
+                      )}
+                    >
+                      <span className="block w-full truncate text-center">{signal.signalName}</span>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
               )}
+              {closeButton}
             </div>
           </TooltipProvider>
           <ScrollArea
