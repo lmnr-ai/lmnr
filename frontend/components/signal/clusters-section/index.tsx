@@ -57,7 +57,7 @@ export default function ClustersSection() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const hasTimeRange = !!(pastHours || startDate);
+  const hasTimeRange = !!(pastHours || (startDate && endDate));
 
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
   const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
