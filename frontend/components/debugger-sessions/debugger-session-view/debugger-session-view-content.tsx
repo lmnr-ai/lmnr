@@ -136,8 +136,9 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
               createdMs={createdMs}
               lastActivityMs={lastActivityMs}
               runCount={traces.length}
+              sessionId={sessionId ?? ""}
             />
-            <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} />
+            <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
           </div>
           <div className="flex flex-1" />
         </div>

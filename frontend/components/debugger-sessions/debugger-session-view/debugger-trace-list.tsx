@@ -9,7 +9,11 @@ import { useSessionSpanPreviews } from "@/components/traces/session-view/session
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { buildSessionFlatRows, formatGap, type SessionFlatRow } from "@/components/traces/session-view/utils";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TraceViewSpan, type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import {
+  type TraceViewListSpan,
+  type TraceViewSpan,
+  type TranscriptListGroup,
+} from "@/components/traces/trace-view/store/base";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
@@ -17,9 +21,10 @@ import {
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-import CopyIdFlag from "./copy-id-flag";
+import CopyFlag from "./copy-flag";
 import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
@@ -37,7 +42,33 @@ interface DebuggerTraceListProps {
   // binds to it so the whole article scrolls as one with the rest of the page.
   scrollEl: HTMLElement | null;
   projectId?: string;
+  // Debug session id — interpolated into the LLM-span "Copy prompt" payload.
+  sessionId?: string;
 }
+
+// Paste-to-agent prompt for "cache and rerun from here": the SDK resolves
+// LMNR_DEBUG_CACHE_UNTIL from a span id (see lmnr-ts debug/config.ts
+// parseCacheUntil) — no need to compute an occurrence count here.
+const rerunPrompt = (traceId: string, spanId: string, sessionId?: string) =>
+  [
+    "Rerun the agent with these env vars:",
+    "LMNR_DEBUG=true",
+    ...(sessionId ? [`LMNR_DEBUG_SESSION_ID=${sessionId}`] : []),
+    `LMNR_DEBUG_REPLAY_TRACE_ID=${traceId}`,
+    `LMNR_DEBUG_CACHE_UNTIL=${spanId}`,
+  ].join("\n");
+
+// LLM spans get the "cache and rerun" prompt flag; every other span type gets
+// the plain Copy-span-ID flag.
+const spanFlagProps = (span: TraceViewListSpan, traceId: string, sessionId?: string) =>
+  span.spanType === SpanType.LLM
+    ? {
+        label: "Copy prompt",
+        toastTitle: "Copied rerun prompt",
+        description: "Cache and rerun from here",
+        value: rerunPrompt(traceId, span.spanId, sessionId),
+      }
+    : { label: "Copy span ID", toastTitle: "Copied span ID", value: span.spanId };
 
 /**
  * Virtualized trace list for the DEBUGGER article column. Reuses every shared
@@ -52,7 +83,7 @@ interface DebuggerTraceListProps {
  * reporting and no scroll-to-group; run notes ride inside each TraceItem via the
  * optional debugger store. Sticky trace headers are preserved.
  */
-export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTraceListProps) {
+export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
   const {
     traces,
     traceSpans,
@@ -351,7 +382,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                 <RunComment traceId={row.traceId} />
               </div>
             ) : row.type === "trace-header" ? (
-              <CopyIdFlag label="Copy trace ID" toastTitle="Copied trace ID" value={row.trace.id}>
+              <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={row.trace.id}>
                 <TraceItem
                   trace={row.trace}
                   expanded={row.expanded}
@@ -361,7 +392,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                   traceIO={traceIO[row.trace.id]}
                   onOpenTraceView={openTraceView}
                 />
-              </CopyIdFlag>
+              </CopyFlag>
             ) : row.type === "trace-loading" ? (
               <div className="flex flex-col gap-2 py-2 px-2">
                 <Skeleton className="h-5 w-full" />
@@ -403,7 +434,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
               />
             ) : row.type === "group-span" ? (
               <GroupChildWrapper isLast={row.isLast} className="mx-0">
-                <CopyIdFlag label="Copy span ID" toastTitle="Copied span ID" value={row.span.spanId}>
+                <CopyFlag {...spanFlagProps(row.span, row.traceId, sessionId)}>
                   <SpanItem
                     span={row.span}
                     fullSpan={allSpansById.get(row.span.spanId)}
@@ -414,10 +445,10 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                     }
                     inGroup
                   />
-                </CopyIdFlag>
+                </CopyFlag>
               </GroupChildWrapper>
             ) : (
-              <CopyIdFlag label="Copy span ID" toastTitle="Copied span ID" value={row.span.spanId}>
+              <CopyFlag {...spanFlagProps(row.span, row.traceId, sessionId)}>
                 <SpanItem
                   span={row.span}
                   fullSpan={allSpansById.get(row.span.spanId)}
@@ -427,7 +458,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                     !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
                   }
                 />
-              </CopyIdFlag>
+              </CopyFlag>
             )}
           </div>
         );

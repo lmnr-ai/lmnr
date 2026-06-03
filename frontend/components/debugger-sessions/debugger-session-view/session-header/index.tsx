@@ -1,5 +1,7 @@
 "use client";
 
+import { CopyButton } from "@/components/ui/copy-button";
+
 import { fmtRelative } from "./utils";
 
 export interface SessionHeaderProps {
@@ -9,6 +11,7 @@ export interface SessionHeaderProps {
   createdMs?: number;
   lastActivityMs?: number;
   runCount: number;
+  sessionId: string;
 }
 
 /**
@@ -16,7 +19,7 @@ export interface SessionHeaderProps {
  * left-aligned, a 24px medium title over a single muted meta line. The
  * jump-to-latest affordance lives in the right-rail outline, not here.
  */
-export default function SessionHeader({ title, createdMs, lastActivityMs, runCount }: SessionHeaderProps) {
+export default function SessionHeader({ title, createdMs, lastActivityMs, runCount, sessionId }: SessionHeaderProps) {
   return (
     <header className="flex flex-col gap-2 py-5 h-[180px] pt-14">
       <h1 className="text-2xl font-medium text-foreground">{title}</h1>
@@ -27,6 +30,10 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
         <span>·</span>
         <span>
           {runCount} {runCount === 1 ? "trace" : "traces"}
+        </span>
+        <span>·</span>
+        <span>
+          <CopyButton text={sessionId} variant="ghost" />
         </span>
       </div>
     </header>
