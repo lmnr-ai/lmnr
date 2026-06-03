@@ -7,24 +7,19 @@ import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
-import { headingAnchorId, parseNoteHeadings, traceAnchorId } from "./utils";
+import { headingAnchorId, parseNoteHeadings } from "./utils";
 
-// One outline row: a trace (rendered as a chip) or a heading pulled from that
-// trace's note. The note's headings come BEFORE the trace chip — matching the
-// article, where the comment renders above its trace body.
-type OutlineRow =
-  | { kind: "trace"; key: string; anchor: string; index: number }
-  | { kind: "heading"; key: string; anchor: string; level: number; text: string };
+// One outline row per markdown heading pulled from the runs' notes — the
+// outline is a pure note TOC; traces themselves get no row.
+type OutlineRow = { key: string; anchor: string; level: number; text: string };
 
 const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
   const rows: OutlineRow[] = [];
-  state.traces.forEach((trace: TraceRow, i: number) => {
+  state.traces.forEach((trace: TraceRow) => {
     for (const h of parseNoteHeadings(state.noteForTrace(trace.id))) {
       const a = headingAnchorId(trace.id, h.slug);
-      rows.push({ kind: "heading", key: a, anchor: a, level: h.level, text: h.text });
+      rows.push({ key: a, anchor: a, level: h.level, text: h.text });
     }
-    const anchor = traceAnchorId(trace.id);
-    rows.push({ kind: "trace", key: anchor, anchor, index: i + 1 });
   });
   return rows;
 };
@@ -34,10 +29,10 @@ interface SessionOutlineProps {
 }
 
 /**
- * Right-rail session outline (Figma node 4296:35849): a continuous left track
- * with a single framer-motion indicator that slides to the active row. Each
- * trace is a chip; its note headings are indented rows above it. Active state is
- * tracked with an IntersectionObserver rooted at the browser viewport.
+ * Left-rail session outline: a continuous left track with a single
+ * framer-motion indicator that slides to the active row. Rows are the markdown
+ * headings from each run's note (a pure note TOC — no per-trace rows). Active
+ * state is tracked with an IntersectionObserver rooted at the browser viewport.
  */
 export default function SessionOutline({ className }: SessionOutlineProps) {
   const storeApi = useDebuggerSessionViewStoreRaw();
@@ -145,27 +140,16 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
               onClick={() => selectOnClick(row.anchor)}
               className="flex h-[30px] items-center pl-4 text-left no-underline"
             >
-              {row.kind === "trace" ? (
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded border border-border bg-secondary px-2 py-0.5 text-xs transition-colors",
-                    isActive ? "text-primary-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  Trace {row.index}
-                </span>
-              ) : (
-                <span
-                  className={cn(
-                    "truncate text-sm leading-none transition-colors",
-                    row.level === 2 && "pl-3",
-                    row.level >= 3 && "pl-6",
-                    isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {row.text}
-                </span>
-              )}
+              <span
+                className={cn(
+                  "truncate text-sm leading-none transition-colors",
+                  row.level === 2 && "pl-3",
+                  row.level >= 3 && "pl-6",
+                  isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {row.text}
+              </span>
             </a>
           );
         })}
