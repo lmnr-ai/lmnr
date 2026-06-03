@@ -4,7 +4,7 @@ use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
 use bytes::Bytes;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    handler::server::wrapper::Parameters,
     model::*,
     schemars,
     service::{RequestContext, serve_directly},
@@ -17,8 +17,9 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
+    llm::LlmClient,
+    mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::get_trace_structure_as_string,
     sql::{self, ClickhouseReadonlyClient},
 };
 
@@ -52,13 +53,17 @@ pub struct GetTraceContextParams {
 
 #[derive(Clone)]
 pub struct LaminarMcpServer {
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-    tool_router: ToolRouter<LaminarMcpServer>,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    llm_client: Option<Arc<LlmClient>>,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    queue: Arc<MessageQueue>,
 }
 
 #[tool_router]
@@ -70,6 +75,8 @@ impl LaminarMcpServer {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
+        llm_client: Option<Arc<LlmClient>>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             clickhouse,
@@ -78,7 +85,8 @@ impl LaminarMcpServer {
             http_client,
             db,
             cache,
-            tool_router: Self::tool_router(),
+            llm_client,
+            queue,
         }
     }
 
@@ -166,7 +174,8 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match get_trace_structure_as_string(self.clickhouse.clone(), project_id, params.trace_id)
+        match self
+            .compress_trace_for_mcp(project_id, params.trace_id)
             .await
         {
             Ok(trace_str) => Ok(CallToolResult::success(vec![Content::text(trace_str)])),
@@ -175,6 +184,64 @@ impl LaminarMcpServer {
                 e
             ))])),
         }
+    }
+}
+
+#[cfg(feature = "signals")]
+impl LaminarMcpServer {
+    async fn compress_trace_for_mcp(
+        &self,
+        project_id: Uuid,
+        trace_id: Uuid,
+    ) -> anyhow::Result<String> {
+        use crate::signals::private::compression::{TraceCompressor, render};
+        use crate::signals::private::spans::get_trace_ch_spans;
+        use crate::traces::previews::PreviewExtractor;
+
+        let llm_client = self.llm_client.clone().ok_or_else(|| {
+            anyhow::anyhow!(
+                "LLM client unavailable; configure LLM_PROVIDER + credentials to use get_trace_context"
+            )
+        })?;
+
+        let spans = get_trace_ch_spans(self.clickhouse.clone(), project_id, trace_id).await?;
+        if spans.is_empty() {
+            return Ok(format!(
+                "No spans found for trace {trace_id}. Either the trace does not exist in this project or there are no spans in the trace."
+            ));
+        }
+
+        let extractor = Arc::new(PreviewExtractor::new(
+            self.cache.clone(),
+            llm_client.clone(),
+        ));
+        let compressor = TraceCompressor::new(
+            extractor,
+            self.cache.clone(),
+            llm_client,
+            self.queue.clone(),
+            None,
+        );
+        let compressed = compressor
+            .compress_for_chat(&spans, project_id, trace_id, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("Trace compression failed: {}", e))?;
+
+        Ok(render(&compressed))
+    }
+}
+
+#[cfg(not(feature = "signals"))]
+impl LaminarMcpServer {
+    async fn compress_trace_for_mcp(
+        &self,
+        _project_id: Uuid,
+        _trace_id: Uuid,
+    ) -> anyhow::Result<String> {
+        Ok(
+            "get_trace_context is unavailable in this build (signals feature disabled)."
+                .to_string(),
+        )
     }
 }
 
@@ -201,6 +268,8 @@ impl McpState {
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
         cache: Arc<Cache>,
+        llm_client: Option<Arc<LlmClient>>,
+        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -210,6 +279,8 @@ impl McpState {
                 http_client,
                 db,
                 cache,
+                llm_client,
+                queue,
             ),
         }
     }

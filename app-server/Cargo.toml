@@ -30,22 +30,26 @@ deadpool = "0.12.2"
 dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
+eventsource-stream = "0.2.3"
 futures-util = "0.3"
+half = {version = "2.7.1", features = ["serde"]}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "4.7"
 log = "0.4.29"
 moka = {version = "0.12", features = ["sync", "future"]}
+ndarray = "0.17"
 num_cpus = "1.17.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
+ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"]}
 prost = "0.14"
 rand = "0.9.4"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
 regex = "1.12.3"
-reqwest = {version = "0.12.22", features = ["json"]}
+reqwest = {version = "0.12.22", features = ["json", "stream"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
@@ -59,6 +63,7 @@ sodiumoxide = "0.2.7"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
 tikv-jemallocator = "0.6.0"
+tokenizers = {version = "0.21", default-features = false, features = ["onig"]}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.14", features = ["gzip"]}

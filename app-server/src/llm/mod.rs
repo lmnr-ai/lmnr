@@ -3,6 +3,7 @@ pub mod gemini;
 pub mod mock;
 pub mod models;
 pub mod openai;
+pub(crate) mod sse;
 
 pub use bedrock::BedrockClient;
 pub use gemini::GeminiClient;
@@ -16,6 +17,7 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::OnceLock;
 use thiserror::Error;
+use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
@@ -60,6 +62,33 @@ impl ProviderError {
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub(crate) fn emit_response_as_chunks(
+    response: &ProviderResponse,
+    chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+) {
+    let Some(parts) = response
+        .candidates
+        .as_ref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.content.as_ref())
+        .and_then(|content| content.parts.as_ref())
+    else {
+        return;
+    };
+    for part in parts {
+        let Some(text) = part.text.as_ref().filter(|t| !t.is_empty()) else {
+            continue;
+        };
+        let chunk = if part.thought == Some(true) {
+            ProviderStreamChunk::Thought(text.clone())
+        } else {
+            ProviderStreamChunk::Text(text.clone())
+        };
+        let _ = chunk_tx.send(chunk);
+    }
+}
+
 #[enum_dispatch]
 pub(crate) trait LanguageModelClient: Send + Sync {
     fn supports_batch(&self) -> bool {
@@ -71,6 +100,18 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse>;
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    async fn generate_content_stream(
+        &self,
+        model: &str,
+        request: &ProviderRequest,
+        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+    ) -> ProviderResult<ProviderResponse> {
+        let response = self.generate_content(model, request).await?;
+        emit_response_as_chunks(&response, chunk_tx);
+        Ok(response)
+    }
 
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     async fn create_batch(
@@ -425,6 +466,18 @@ impl LlmClient {
     ) -> ProviderResult<ProviderResponse> {
         let (client, model) = self.resolve(request)?;
         client.generate_content(&model, request).await
+    }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub async fn generate_content_stream(
+        &self,
+        request: &ProviderRequest,
+        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+    ) -> ProviderResult<ProviderResponse> {
+        let (client, model) = self.resolve(request)?;
+        client
+            .generate_content_stream(&model, request, chunk_tx)
+            .await
     }
 
     /// Resolve `(model, provider)` strings for `request` without firing
