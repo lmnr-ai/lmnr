@@ -61,10 +61,14 @@ export default function DebuggerSessionView({ trace, headerPath, sessionId }: De
   const initialTraceRow = trace ? traceToRow(trace) : undefined;
 
   return (
-    <DebuggerSessionViewStoreProvider key={sessionId ?? trace?.id} initialTraceRow={initialTraceRow}>
+    <DebuggerSessionViewStoreProvider
+      key={sessionId ?? trace?.id}
+      initialTraceRow={initialTraceRow}
+      initialSessionName={sessionTitle}
+    >
       <Header path={path} />
       <div className="flex-none border-t" />
-      <DebuggerSessionViewContent sessionId={sessionId} sessionTitle={sessionTitle} />
+      <DebuggerSessionViewContent sessionId={sessionId} />
     </DebuggerSessionViewStoreProvider>
   );
 }

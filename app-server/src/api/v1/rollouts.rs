@@ -59,6 +59,7 @@ pub async fn update_name(
     body: web::Json<UpdateNameRequest>,
     project_api_key: ProjectApiKey,
     db: web::Data<DB>,
+    pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
@@ -69,6 +70,19 @@ pub async fn update_name(
     if !updated {
         return Ok(HttpResponse::NotFound().json("Session not found"));
     }
+
+    // Notify the frontend live so an open debugger session view updates its title
+    // without a reload. Mirrors the `delete` handler's publish; fire-and-forget
+    // (`send_to_key` swallows errors) so a pubsub failure never fails the rename.
+    let message = SseMessage {
+        event_type: "session_update".to_string(),
+        data: serde_json::json!({
+            "sessionId": session_id,
+            "name": name,
+        }),
+    };
+    let key = format!("rollout_session_{}", session_id);
+    send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
     Ok(HttpResponse::Ok().finish())
 }

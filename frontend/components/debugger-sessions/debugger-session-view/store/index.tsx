@@ -91,6 +91,11 @@ interface DebuggerSessionViewState {
   // span clicks open the span panel; only the trace-card dropdown's
   // "Open trace view" opens this full TraceViewSidePanel overlay.
   traceViewTraceId: string | null;
+
+  // Displayed session name (the SessionHeader title). Seeded from the breadcrumb
+  // prop at store creation; updated live by the `session_update` realtime event so
+  // a rename reflects without reload.
+  sessionName: string;
 }
 
 interface DebuggerSessionViewActions {
@@ -115,6 +120,10 @@ interface DebuggerSessionViewActions {
   openTraceView: (traceId: string) => void;
   closeTraceView: () => void;
 
+  // Update the displayed session name live (driven by the `session_update`
+  // realtime event after a rename via PATCH /v1/.../rollouts/{id}/name).
+  setSessionName: (name: string) => void;
+
   // Read the agent-authored note (`rollout.note`) off a run's metadata object.
   noteForTrace: (traceId: string) => string | undefined;
   // Span type for an already-loaded span (drives the span-ref chip icon color).
@@ -123,7 +132,11 @@ interface DebuggerSessionViewActions {
 
 export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionViewState & DebuggerSessionViewActions;
 
-const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; storeKey?: string }) =>
+const createDebuggerSessionViewStore = (options?: {
+  initialTraceRow?: TraceRow;
+  initialSessionName?: string;
+  storeKey?: string;
+}) =>
   createStore<DebuggerSessionViewStore>()(
     persist(
       (set, get) => {
@@ -137,6 +150,7 @@ const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; 
 
           noteMetadataKey: NOTE_METADATA_KEY,
           traceViewTraceId: null,
+          sessionName: options?.initialSessionName ?? "Session",
 
           // Selecting a span (opening the span panel) closes the full trace-view
           // overlay so the two right-side overlays never stack. Delegates the rest
@@ -294,6 +308,8 @@ const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; 
           },
           closeTraceView: () => set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>),
 
+          setSessionName: (name) => set({ sessionName: name } as Partial<DebuggerSessionViewStore>),
+
           noteForTrace: (traceId) => {
             const row = get().traces.find((t) => t.id === traceId);
             const note = row?.metadata?.[NOTE_METADATA_KEY];
@@ -327,15 +343,19 @@ export const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSession
 
 interface DebuggerSessionViewStoreProviderProps {
   initialTraceRow?: TraceRow;
+  initialSessionName?: string;
   storeKey?: string;
 }
 
 const DebuggerSessionViewStoreProvider = ({
   children,
   initialTraceRow,
+  initialSessionName,
   storeKey,
 }: PropsWithChildren<DebuggerSessionViewStoreProviderProps>) => {
-  const [storeState] = useState(() => createDebuggerSessionViewStore({ initialTraceRow, storeKey }));
+  const [storeState] = useState(() =>
+    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, storeKey })
+  );
 
   // Provide both the base context (shared session-view children) and the
   // debugger context (debugger chrome + the optional hook).

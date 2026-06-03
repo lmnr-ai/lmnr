@@ -33,13 +33,7 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 // overlaying TraceViewSidePanel) wired to the new composed store. The ONLY UI
 // change vs 0b1f5435c is the article column's trace cards (now the virtualized
 // session-view trace items in DebuggerTraceList).
-export default function DebuggerSessionViewContent({
-  sessionId,
-  sessionTitle,
-}: {
-  sessionId?: string;
-  sessionTitle: string;
-}) {
+export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
@@ -52,6 +46,10 @@ export default function DebuggerSessionViewContent({
   // "Open trace view"; span clicks open the span panel via selectedSpan instead).
   const traceViewTraceId = useDebuggerSessionViewStore((s) => s.traceViewTraceId);
   const closeTraceView = useDebuggerSessionViewStore((s) => s.closeTraceView);
+
+  // Displayed session title — store-backed so `session_update` (rename) reflects
+  // live. Seeded from the breadcrumb prop at store creation (index.tsx).
+  const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
 
   // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
   // to it and the outline shares the same scroll context.
@@ -88,8 +86,16 @@ export default function DebuggerSessionViewContent({
           storeApi.getState().applyTraceUpdate(t);
         }
       },
+      // Session renamed (PATCH /v1/.../rollouts/{id}/name) → update the title live.
+      // Payload is `{sessionId, name}` (camelCase, see app-server rollouts.rs::update_name).
+      session_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { sessionId?: string; name?: string };
+        if (payload.sessionId === sessionId && typeof payload.name === "string") {
+          storeApi.getState().setSessionName(payload.name);
+        }
+      },
     }),
-    [storeApi]
+    [storeApi, sessionId]
   );
 
   useRealtime({
@@ -113,7 +119,7 @@ export default function DebuggerSessionViewContent({
           </div>
           <div className="min-w-0 w-[720px]">
             <SessionHeader
-              title={sessionTitle}
+              title={sessionName}
               createdMs={createdMs}
               lastActivityMs={lastActivityMs}
               runCount={traces.length}
