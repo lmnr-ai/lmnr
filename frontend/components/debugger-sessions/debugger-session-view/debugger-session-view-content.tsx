@@ -123,11 +123,11 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           min-w-0 lets the in-flow span panel compress this side smoothly. */}
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
         <div className="mx-auto flex w-full gap-16 px-6 pb-[160px]">
-          <div className="flex min-w-0 flex-1 justify-center">
+          <div className="flex min-w-0 grow-1 justify-center shrink-0">
             {/* Hidden while the span panel is open so this spacer carries no
                 min-width (the outline's 220px) and the article can slide left. */}
             {!spanPanelOpen && (
-              <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+              <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] shrink-0 w-[220px] flex-none self-start lg:flex" />
             )}
           </div>
           <div className="min-w-0 w-[720px]">

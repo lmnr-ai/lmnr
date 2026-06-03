@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+import CopyIdFlag from "./copy-id-flag";
 import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
@@ -350,15 +351,17 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                 <RunComment traceId={row.traceId} />
               </div>
             ) : row.type === "trace-header" ? (
-              <TraceItem
-                trace={row.trace}
-                expanded={row.expanded}
-                traceIndex={traceIndexById.get(row.trace.id) ?? 0}
-                totalTraces={traces.length}
-                onToggle={() => toggleTraceExpanded(row.trace.id)}
-                traceIO={traceIO[row.trace.id]}
-                onOpenTraceView={openTraceView}
-              />
+              <CopyIdFlag label="Copy trace ID" toastTitle="Copied trace ID" value={row.trace.id}>
+                <TraceItem
+                  trace={row.trace}
+                  expanded={row.expanded}
+                  traceIndex={traceIndexById.get(row.trace.id) ?? 0}
+                  totalTraces={traces.length}
+                  onToggle={() => toggleTraceExpanded(row.trace.id)}
+                  traceIO={traceIO[row.trace.id]}
+                  onOpenTraceView={openTraceView}
+                />
+              </CopyIdFlag>
             ) : row.type === "trace-loading" ? (
               <div className="flex flex-col gap-2 py-2 px-2">
                 <Skeleton className="h-5 w-full" />
@@ -400,6 +403,21 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
               />
             ) : row.type === "group-span" ? (
               <GroupChildWrapper isLast={row.isLast} className="mx-0">
+                <CopyIdFlag label="Copy span ID" toastTitle="Copied span ID" value={row.span.spanId}>
+                  <SpanItem
+                    span={row.span}
+                    fullSpan={allSpansById.get(row.span.spanId)}
+                    output={previews[row.span.spanId]}
+                    onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                    isSelected={
+                      !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                    }
+                    inGroup
+                  />
+                </CopyIdFlag>
+              </GroupChildWrapper>
+            ) : (
+              <CopyIdFlag label="Copy span ID" toastTitle="Copied span ID" value={row.span.spanId}>
                 <SpanItem
                   span={row.span}
                   fullSpan={allSpansById.get(row.span.spanId)}
@@ -408,19 +426,8 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                   isSelected={
                     !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
                   }
-                  inGroup
                 />
-              </GroupChildWrapper>
-            ) : (
-              <SpanItem
-                span={row.span}
-                fullSpan={allSpansById.get(row.span.spanId)}
-                output={previews[row.span.spanId]}
-                onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
-                isSelected={
-                  !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
-                }
-              />
+              </CopyIdFlag>
             )}
           </div>
         );
