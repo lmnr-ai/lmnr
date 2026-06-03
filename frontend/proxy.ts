@@ -14,6 +14,20 @@ export default withAuth(
 
     const token = req.nextauth.token;
 
+    // CLI auth grant lifecycle is unauthenticated (the CLI mints the session id
+    // locally before any session exists). `/api/cli/me` is session-authed for
+    // the approval page; check token explicitly so unauthed requests get 401
+    // rather than reaching a server component.
+    if (req.nextUrl.pathname.startsWith("/api/cli/grants")) {
+      return NextResponse.next();
+    }
+    if (req.nextUrl.pathname.startsWith("/api/cli/")) {
+      if (!token) {
+        return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
+      }
+      return NextResponse.next();
+    }
+
     const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
     if (projectIdMatch) {
       if (!token) {
@@ -92,6 +106,7 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
+    "/api/cli/:path+",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to
     // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links
