@@ -7,7 +7,6 @@ import Link from "next/link";
 import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { getClusterColorById } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -42,11 +41,7 @@ export default function SignalHeaderLink({ signal, leafCluster, projectId, trace
       )}
     >
       <span className="flex shrink-0">
-        {leafCluster ? (
-          <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
-        ) : (
-          <Radio className="size-4 shrink-0 text-primary" />
-        )}
+        {leafCluster ? <ClusterIcon iconVariant="box" color="#E8E3E3" /> : <Radio className="size-4 shrink-0" />}
       </span>
 
       <Tooltip>

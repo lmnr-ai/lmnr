@@ -24,4 +24,5 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   formatValue?: (value: number) => string;
   showTotal?: boolean;
   showTooltip?: boolean;
+  hideZeroValues?: boolean;
 }

@@ -82,6 +82,7 @@ export default function ClusterStackedChart({
       containerWidth={containerWidth}
       showTotal={false}
       showTooltip={showTooltip}
+      hideZeroValues
       className="!h-full"
     />
   );

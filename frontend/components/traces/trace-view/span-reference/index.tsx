@@ -8,6 +8,8 @@ import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 
+import { useReactiveSpanType } from "./use-reactive-span-type";
+
 const SPAN_REF_REGEX = /<span\s+id='([0-9a-f]{6})'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/gi;
 
 /**
@@ -47,7 +49,7 @@ function SpanChip({
         e.preventDefault();
         onClick();
       }}
-      className="inline-flex items-center gap-1 rounded px-1 underline py-0.5 align-middle hover:bg-landing-text-300/30 transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-landing-text-300/20 hover:bg-landing-text-300/30 transition-colors cursor-pointer"
     >
       <span
         className="inline-flex items-center justify-center rounded size-4 shrink-0"
@@ -111,7 +113,6 @@ function SpanBadge({
   return <SpanChip name={spanName} spanType={resolved?.type} onClick={handleClick} loading={!resolved} />;
 }
 
-/** Badge for markdown span refs — uuid known, type resolved sync from store. */
 export function MarkdownSpanBadge({
   label,
   traceId,
@@ -123,7 +124,8 @@ export function MarkdownSpanBadge({
   spanUuid?: string;
   callbacks: SpanReferenceCallbacks;
 }) {
-  const spanType = spanUuid ? callbacks.getSpanType(spanUuid) : undefined;
+  const storeSpanType = useReactiveSpanType(spanUuid);
+  const spanType = storeSpanType ?? (spanUuid ? callbacks.getSpanType(spanUuid) : undefined);
   return (
     <SpanChip name={label} spanType={spanType} onClick={() => callbacks.onSelectSpan({ traceId, spanId: spanUuid })} />
   );

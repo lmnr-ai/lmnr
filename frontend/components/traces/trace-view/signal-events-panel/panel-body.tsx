@@ -3,7 +3,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -11,20 +11,53 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import SignalDetails from "./signal-details";
 import SignalHeaderLink from "./signal-header-link";
-import { getSignalAccentColor } from "./utils";
 
 interface Props {
   traceId: string;
   onClose: () => void;
 }
 
+const MIN_BODY_HEIGHT = 120;
+const MAX_BODY_HEIGHT = 320;
+
 export default function PanelBody({ traceId, onClose }: Props) {
   const { projectId } = useParams();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [bodyHeight, setBodyHeight] = useState<number | null>(null);
+  const resizedRef = useRef(false);
+
+  // Initialize to content height (capped at max) once, before paint.
+  useLayoutEffect(() => {
+    if (resizedRef.current || bodyHeight !== null || !contentRef.current) return;
+    const measured = contentRef.current.scrollHeight;
+    setBodyHeight(Math.min(MAX_BODY_HEIGHT, Math.max(MIN_BODY_HEIGHT, measured)));
+  });
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = bodyHeight ?? contentRef.current?.scrollHeight ?? MIN_BODY_HEIGHT;
+      resizedRef.current = true;
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const next = startHeight + (moveEvent.clientY - startY);
+        setBodyHeight(Math.min(MAX_BODY_HEIGHT, Math.max(MIN_BODY_HEIGHT, next)));
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [bodyHeight]
+  );
+
   const { traceSignals, isTraceSignalsLoading, activeSignalTabId, setActiveSignalTabId, initialSignalId } =
     useTraceViewStore(
       (state) => ({
@@ -50,7 +83,6 @@ export default function PanelBody({ traceId, onClose }: Props) {
   const isSingleSignal = traceSignals.length === 1;
   const activeSignal = traceSignals.find((s) => s.signalId === effectiveTabId);
   const leafCluster = activeSignal?.leafCluster;
-  const accent = getSignalAccentColor(activeSignal);
 
   const closeButton = (
     <Tooltip>
@@ -66,10 +98,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
   );
 
   return (
-    <div
-      className="flex flex-col rounded-lg border bg-secondary overflow-hidden"
-      style={{ borderColor: withOpacity(accent, 0.35) }}
-    >
+    <div className="flex flex-col rounded-lg border bg-secondary overflow-hidden border-blue-400/30">
       {isTraceSignalsLoading ? (
         <div className="flex items-center justify-center py-8 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
@@ -77,10 +106,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
       ) : (
         <Tabs value={effectiveTabId} onValueChange={setActiveSignalTabId} className="flex flex-col gap-0">
           <TooltipProvider delayDuration={300}>
-            <div
-              className="shrink-0 flex flex-col gap-2 px-2 py-1.5"
-              style={{ backgroundColor: withOpacity(accent, 0.08) }}
-            >
+            <div className="shrink-0 flex flex-col gap-2 px-2 py-1.5 bg-blue-400/12">
               <div className="flex items-center gap-2 justify-between">
                 {isSingleSignal && activeSignal && (
                   <SignalHeaderLink
@@ -88,6 +114,7 @@ export default function PanelBody({ traceId, onClose }: Props) {
                     leafCluster={leafCluster}
                     projectId={projectId as string}
                     traceId={traceId}
+                    compact
                   />
                 )}
                 {!isSingleSignal && (
@@ -120,17 +147,30 @@ export default function PanelBody({ traceId, onClose }: Props) {
               )}
             </div>
           </TooltipProvider>
-          <ScrollArea className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:max-h-40 xl:[&>[data-radix-scroll-area-viewport]]:max-h-64">
-            {traceSignals.map((signal) => (
-              <TabsContent
-                key={signal.signalId}
-                value={signal.signalId}
-                className="m-0 outline-none data-[state=inactive]:hidden"
-              >
-                <SignalDetails traceId={traceId} signal={signal} />
-              </TabsContent>
-            ))}
+          <ScrollArea
+            className="[&>div>div]:!block [&>[data-radix-scroll-area-viewport]]:!h-full"
+            style={bodyHeight !== null ? { height: bodyHeight } : undefined}
+          >
+            <div ref={contentRef}>
+              {traceSignals.map((signal) => (
+                <TabsContent
+                  key={signal.signalId}
+                  value={signal.signalId}
+                  className="m-0 outline-none data-[state=inactive]:hidden"
+                >
+                  <SignalDetails traceId={traceId} signal={signal} />
+                </TabsContent>
+              ))}
+            </div>
           </ScrollArea>
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            onMouseDown={handleResizeMouseDown}
+            className="group h-1.5 shrink-0 cursor-row-resize flex items-center justify-center hover:bg-blue-300/10 transition-colors"
+          >
+            <div className="h-0.5 w-8 rounded-full bg-primary-foreground/20" />
+          </div>
         </Tabs>
       )}
     </div>

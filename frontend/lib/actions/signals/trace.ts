@@ -93,8 +93,7 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
       (events[0]?.clusters ?? [])
         .map((id) => clusterMeta.get(id))
         .filter((n): n is TraceSignalClusterNode => !!n)
-        .sort((a, b) => a.level - b.level)[0] ?? null;
-
+        .sort((a, b) => b.level - a.level)[0] ?? null;
     return {
       signalId: signal.id,
       signalName: signal.name,
