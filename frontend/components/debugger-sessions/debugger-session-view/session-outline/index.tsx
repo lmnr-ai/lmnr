@@ -142,7 +142,7 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
             >
               <span
                 className={cn(
-                  "truncate text-sm leading-none transition-colors",
+                  "truncate text-sm transition-colors",
                   row.level === 2 && "pl-3",
                   row.level >= 3 && "pl-6",
                   isActive ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground"
