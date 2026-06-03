@@ -40,8 +40,18 @@ const normalizeMetadata = (metadata: unknown): Record<string, string> => {
 
 // Map a streamed RealtimeSpan onto the TraceViewSpan shape the shared list reads.
 // Only `"update"` mode exists now (span_start is dead — see content component).
-const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan =>
-  ({
+// Token/cost fields come off `gen_ai.usage.*` attributes, mirroring trace-view's
+// onRealtimeUpdateSpans — without this, streamed LLM spans render 0 tokens / $0.
+const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan => {
+  const attrs = (s.attributes ?? {}) as Record<string, unknown>;
+  const num = (key: string) => Number(attrs[key]) || 0;
+  const inputTokens = num("gen_ai.usage.input_tokens");
+  const outputTokens = num("gen_ai.usage.output_tokens");
+  const inputCost = num("gen_ai.usage.input_cost");
+  const outputCost = num("gen_ai.usage.output_cost");
+  const model = (attrs["gen_ai.response.model"] ?? attrs["gen_ai.request.model"]) as string | undefined;
+
+  return {
     spanId: s.spanId,
     parentSpanId: s.parentSpanId,
     traceId: s.traceId,
@@ -53,15 +63,19 @@ const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan =>
     path: "",
     events: [],
     status: s.status,
+    model,
     pending: false,
     collapsed: false,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalTokens: 0,
-    inputCost: 0,
-    outputCost: 0,
-    totalCost: 0,
-  }) as TraceViewSpan;
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    cacheReadInputTokens: num("gen_ai.usage.cache_read_input_tokens"),
+    reasoningTokens: num("gen_ai.usage.reasoning_tokens"),
+    inputCost,
+    outputCost,
+    totalCost: num("gen_ai.usage.cost") || inputCost + outputCost,
+  } as TraceViewSpan;
+};
 
 // Merge incoming spans into an existing list: dedupe by spanId (incoming wins,
 // preserving the existing span's `collapsed`), sort by startTime, enrich pending.
@@ -222,7 +236,32 @@ const createDebuggerSessionViewStore = (options?: {
               const sorted = normalized.sort(
                 (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
               );
-              get().setTraces(sorted);
+              // MERGE with current rows instead of replacing: a run that started while
+              // this fetch was in flight was added by applyTraceUpdate but is absent
+              // from the (CH-lagged) response — replacing wholesale wipes its row, and
+              // the next trace_update then re-runs the new-run branch and clobbers the
+              // populated spans slot with the (already-flushed) empty buffer →
+              // "(no spans)". Fetched rows win per-id (richer stats) but keep the live
+              // row's merged metadata + realtime-bumped endTime (same semantics as
+              // hydrateTraceRow); realtime-only rows are kept as-is.
+              get().setTraces((prev) => {
+                const prevById = new Map(prev.map((t) => [t.id, t]));
+                const merged = sorted.map((fetched) => {
+                  const live = prevById.get(fetched.id);
+                  if (!live) return fetched;
+                  const liveEndAhead = new Date(live.endTime).getTime() > new Date(fetched.endTime).getTime();
+                  return {
+                    ...fetched,
+                    metadata: { ...fetched.metadata, ...live.metadata },
+                    endTime: liveEndAhead ? live.endTime : fetched.endTime,
+                  };
+                });
+                const fetchedIds = new Set(sorted.map((t) => t.id));
+                const realtimeOnly = prev.filter((t) => !fetchedIds.has(t.id));
+                return [...merged, ...realtimeOnly].sort(
+                  (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+                );
+              });
             } catch (e) {
               get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
             } finally {
@@ -279,8 +318,13 @@ const createDebuggerSessionViewStore = (options?: {
               // bug). Pre-existing CH spans for a run that started before view-open are
               // recovered by the one-shot fetch in hydrateTraceRow (real times, merged).
               const buffered = get().realtimeSpanBuffer[t.traceId] ?? [];
+              // Never overwrite an existing populated slot: the row can vanish-and-
+              // return (e.g. it was realtime-added, then a wholesale traces update
+              // dropped it) while the slot kept its streamed spans — re-seeding from
+              // the (already-flushed, empty) buffer would wipe them.
+              const existingSlot = get().traceSpans[t.traceId];
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
-              get().setTraceSpans(t.traceId, buffered);
+              get().setTraceSpans(t.traceId, existingSlot ? mergeSpans(existingSlot, buffered) : buffered);
               set((state) => {
                 if (!(t.traceId in state.realtimeSpanBuffer)) return {} as Partial<DebuggerSessionViewStore>;
                 const next = { ...state.realtimeSpanBuffer };
