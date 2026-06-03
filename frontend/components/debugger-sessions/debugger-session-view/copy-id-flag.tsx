@@ -15,8 +15,19 @@ import { useToast } from "@/lib/hooks/use-toast";
 // Tailwind -translate-y-1/2 — framer overwrites class transforms, so centering
 // and slide must live on different elements.
 const flagVariants = {
-  hidden: { opacity: 0, x: -20, pointerEvents: "none" as const },
-  visible: { opacity: 1, x: 0, pointerEvents: "auto" as const },
+  hidden: {
+    opacity: 0,
+    x: -40,
+    pointerEvents: "none" as const,
+    transition: { duration: 0.18, ease: "easeOut" as const },
+  },
+  // Delay only on reveal — hover-out hides without the lag.
+  visible: {
+    opacity: 1,
+    x: 0,
+    pointerEvents: "auto" as const,
+    transition: { delay: 0.3, duration: 0.18, ease: "easeOut" as const },
+  },
 };
 
 export default function CopyIdFlag({
@@ -33,7 +44,6 @@ export default function CopyIdFlag({
         <motion.button
           type="button"
           variants={flagVariants}
-          transition={{ duration: 0.12, ease: "easeOut" }}
           className="whitespace-nowrap rounded-md border bg-secondary px-3 py-1 text-xs text-secondary-foreground hover:bg-muted"
           onClick={async (e) => {
             // Rows have their own click behavior (expand toggle / span select).
