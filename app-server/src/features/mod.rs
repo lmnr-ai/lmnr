@@ -14,7 +14,6 @@ pub enum Feature {
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
     RabbitMQ,
-    SqlQueryEngine,
     ClickhouseReadOnly,
     Tracing,
     Signals,
@@ -40,7 +39,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .as_str(),
         ),
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
-        Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
         Feature::ClickhouseReadOnly => {
             env::var("CLICKHOUSE_RO_USER").is_ok() && env::var("CLICKHOUSE_RO_PASSWORD").is_ok()
         }

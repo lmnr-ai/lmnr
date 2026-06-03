@@ -22,9 +22,6 @@ jobs:
             image: ghcr.io/lmnr-ai/frontend
             build-args: |
               NEXT_PUBLIC_APP_VERSION=${{ github.event.release.tag_name }}
-          - dockerfile: ./query-engine/Dockerfile
-            context: ./query-engine
-            image: ghcr.io/lmnr-ai/query-engine
     permissions:
       contents: read
       packages: write

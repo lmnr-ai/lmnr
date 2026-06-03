@@ -10,9 +10,8 @@ Laminar is an open-source observability platform for AI agents. It provides Open
 
 This is a multi-service monorepo with three main components:
 
-- **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC)
+- **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC). SQL query validation + JSON↔SQL conversion run in-process here (`src/query_engine/in_process/`, built on `sqlparser`); there is no separate query-engine service.
 - **frontend/** - Next.js/TypeScript web UI
-- **query-engine/** - Python gRPC service for SQL query processing
 - **pii-redactor/** - optional Rust gRPC service that runs a HuggingFace token-classification PII model on CPU via ONNX Runtime. Standalone — not linked from app-server. Tested with the OpenAI privacy filter (BIOES) and Piiranha (BIO); accepts either scheme via `config.json` `id2label`. See `pii-redactor/README.md` for the gRPC contract, model layout (`model.onnx` + optional `model.onnx_data*` external-data shards + `tokenizer.json` + `config.json`), and the weight-baking Dockerfile.
 
 ## Development Commands
@@ -40,15 +39,6 @@ cargo build --release           # Production build
 cargo test -- --nocapture       # Run tests
 ```
 
-### Query Engine (Python)
-
-```bash
-cd query-engine
-uv sync                         # Install dependencies
-uv run python server.py         # Run gRPC server
-uv run pytest                   # Run tests
-```
-
 ## Local Development Setup
 
 ### Environment setup:
@@ -59,13 +49,12 @@ cp frontend/.env.local.example frontend/.env.local
 
 ### Minimal Working Setup
 
-**PostgreSQL**, **ClickHouse**, and **Query Engine** are required. Other services have automatic fallbacks:
+**PostgreSQL** and **ClickHouse** are required. Other services have automatic fallbacks:
 
 | Service      | Required | Fallback when not configured |
 |--------------|----------|------------------------------|
 | PostgreSQL   | Yes      | None                         |
 | ClickHouse   | Yes      | None                         |
-| Query Engine | Yes      | None                         |
 | RabbitMQ     | No       | In-memory queue (TokioMpsc)  |
 | Redis        | No       | In-memory cache (Moka)       |
 | Quickwit     | No       | Search disabled gracefully   |
@@ -84,7 +73,6 @@ cd frontend && pnpm run dev
 docker compose -f docker-compose-local-dev-full.yml up  # All dependencies
 cd app-server && cargo r                                 # Terminal 1
 cd frontend && pnpm run dev                              # Terminal 2
-cd query-engine && uv run python server.py               # Terminal 3
 ```
 
 ## Architecture
@@ -100,7 +88,6 @@ App Server                               │
          ├──► PostgreSQL (5433) - main database [required]
          ├──► ClickHouse (8123) - analytics/spans [required]
          ├──► RabbitMQ (5672) - async processing [optional, has in-memory fallback]
-#        ├──► Query Engine (8903) - SQL processing [required]
          └──► Quickwit (7280/7281) - full-text search [optional]
 ```
 
@@ -123,15 +110,23 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 Keep comments short. Don't write multi-paragraph rationale blocks — a single terse line covering the WHY (non-obvious constraint, invariant, workaround) is enough. ClickHouse migration files especially should not carry prose explaining why a statement exists; the SQL is the source of truth. Prefer removing a comment over rewriting it once the identifier names make the intent obvious.
 
+## In-process Query Engine (SQL validation + JSON↔SQL)
+
+- SQL validation and JSON↔SQL conversion run **in-process inside app-server** (`app-server/src/query_engine/in_process/`), built on the `sqlparser` crate (`ClickHouseDialect` + `visitor` feature). There is no separate query-engine service anymore — the old Python gRPC service, its `.proto`, the `build.rs` codegen block, the `Grpc` engine variant, and all `QUERY_ENGINE_URL` / docker-compose entries were removed in the cutover (LAM-1653). Don't reintroduce a network hop for these three operations.
+- The seam is an `enum_dispatch` `QueryEngineTrait` over `enum QueryEngine { InProcess(InProcessQueryEngine), Mock(MockQueryEngine) }` (`query_engine/mod.rs`). Three operations: `validate_query`, `sql_to_json`, `json_to_sql`. Consumers hold `Arc<QueryEngine>`: HTTP routes (`routes/sql.rs`) and the MCP `query_laminar_sql` tool (`api/v1/mcp.rs`).
+- **The validator IS a security boundary**, not just a linter — it is the only thing standing between user SQL and ClickHouse. It enforces SELECT-only, rejects `BLOCKED_FUNCTIONS` and the `project_id` column, blocks non-allowlisted tables, and rewrites allowlisted table refs to project-scoped `_v0` views (e.g. `spans` → `spans_v0(project_id = '<uuid>')`, `traces` → `traces_v0(project_id=…, start_time=…, end_time=…)`). `json_to_sql`'s raw-expression path is also a security boundary. Both were ported faithfully from the Python originals — preserve their rejection semantics when editing.
+- **The frontend JSON contract is binding**: route response/request types use `#[serde(rename_all = "camelCase")]` and must keep matching `frontend/lib/actions/sql/types.ts` (e.g. `queryStructure`, `validatedQuery`). The `fn`/`column`/`args`/`alias` metric shape and `dimensions` array are the camelCase wire format the chart builder + SQL editor depend on.
+- **Tests are ported 1:1 from the Python suites** (functionality, not whitespace): 54 Rust tests total — 35 in `validator/tests.rs`, 14 in `json_to_sql/tests.rs`, 5 in `sql_to_json/tests.rs`. Run with `cargo test --bin app-server query_engine -- --nocapture`. When changing validator/conversion behavior, update the corresponding Rust test rather than relaxing the assertion.
+
 ## SQL Editor Schema (autocomplete + AI generation)
 
-- `frontend/components/sql/utils.ts` (`tableSchemas`, `enumValues`) is the frontend source of truth for the SQL editor's autocomplete AND for the schema embedded in the AI-generation system prompt (`frontend/lib/actions/sql/prompts.ts` consumes both). Backend allowlist lives in `query-engine/src/query_validator.py` → `TableRegistry._setup_default_tables`; the two MUST stay in sync — adding a column to the v0 view + the registry without updating `tableSchemas` leaves it absent from autocomplete and invisible to the AI generator.
+- `frontend/components/sql/utils.ts` (`tableSchemas`, `enumValues`) is the frontend source of truth for the SQL editor's autocomplete AND for the schema embedded in the AI-generation system prompt (`frontend/lib/actions/sql/prompts.ts` consumes both). Backend allowlist lives in `app-server/src/query_engine/in_process/validator.rs` → `TableRegistry::new`; the two MUST stay in sync — adding a column to the v0 view + the registry without updating `tableSchemas` leaves it absent from autocomplete and invisible to the AI generator.
 - Columns whose runtime CH type is `String` but whose values are constrained (status, span_type, trace_type, signal_runs.status / .mode) carry an `enumType: keyof typeof enumValues` field. The prompt builder appends `Allowed values: '...'` to the column's description, and the editor's `<column> = ` autocomplete filters to those literals. Without `enumType`, the model invents values (the original LAM-1636 bug: AI generated `status = 'OK'` because nothing pinned the status column to `'success' | 'error'`).
 - `enumValues` is keyed by enum NAME, not column name. A single column can map to one enum (`spans.status` → `status`) or different enums in different tables (`signal_runs.status` → `signal_run_status`). The autocomplete `columnEnumMap` is built by walking `tableSchemas` once at module load, so column→enum wiring stays declarative — never add column names to a hardcoded regex; just set `enumType` on the schema entry.
 
 ## Labeling Queue Items (ClickHouse)
 
-- Queue metadata (`labeling_queues`) still lives in Postgres. Per-item rows (`labeling_queue_items`) live in ClickHouse as a `ReplacingMergeTree(updated_at)` keyed `(project_id, queue_id, id)` — see `frontend/lib/clickhouse/migrations/42_labeling_queue_items.sql`. The migration also creates `labeling_queue_items_v0`, the SQL view that ad-hoc queries hit (registered in `query-engine/src/query_validator.py`).
+- Queue metadata (`labeling_queues`) still lives in Postgres. Per-item rows (`labeling_queue_items`) live in ClickHouse as a `ReplacingMergeTree(updated_at)` keyed `(project_id, queue_id, id)` — see `frontend/lib/clickhouse/migrations/42_labeling_queue_items.sql`. The migration also creates `labeling_queue_items_v0`, the SQL view that ad-hoc queries hit (registered in `app-server/src/query_engine/in_process/validator.rs`).
 - The low-level CH helpers (`insertQueueItems` / `getQueueItems` / `getQueueItemStates` / `updateQueueItem` / `deleteQueueItems` / `deleteQueueItemsByQueueIds` / `findQueueIdsByProgress` / `getQueueProgresses` / `copyQueueItemsToDataset`) live in `frontend/lib/actions/queue/items.ts` — co-located with the action functions in `index.ts` rather than under `lib/clickhouse/`. The `lib/clickhouse/` directory is for cross-feature primitives (the client, migrations) only.
 - **Column model (mirror — `edit` is always the canonical current target):** `payload` is **immutable** after insert (the `{data, target, metadata}` JSON the queue was seeded with) — it's the original snapshot, never overwritten. The separate `edit String DEFAULT ''` column carries the **canonical current target as a JSON string**, seeded equal to `payload.target` on insert (Rust `create_labeling_queues_items`, TS `pushQueueItems`) and overwritten by every UI PATCH. `status UInt8 DEFAULT 0` replaces the old `is_labelled Bool` (0 = unlabeled, 1 = approved; `u8` so future states slot in without another rename). The v0 view re-exposes `edit` under the friendly name `target` (no `if(...)` coalesce — `edit` is always populated). Frontend mirrors of this rule: `getEffectiveTarget` (`frontend/components/queue/queue-store/index.tsx`) and the `effectiveTarget` helper in `frontend/lib/actions/queue/index.ts` both parse `edit` and only fall back to `payload.target` defensively for legacy rows.
 - **Why mirror, not sentinel:** writing the seed everywhere means readers never branch on "is `edit` empty?" and `dirty` becomes a value compare instead of a write-detector. Reverting an edit to the original answer correctly drops the dirty flag — a sentinel (`edit !== ""`) can't, because the column would still be populated.

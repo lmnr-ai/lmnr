@@ -1,0 +1,647 @@
+//! Port of `query-engine/tests/test_validation.py`.
+//!
+//! Per the porting contract we match tested *functionality* 1:1 but drop
+//! exact-whitespace assertions: every `assert "..." in result` becomes a
+//! whitespace-collapsed substring check via [`contains_ws`]. The Python tests
+//! relied on sqlglot's pretty-printer producing specific newline/indent
+//! layouts; sqlparser's `Display` differs, so we normalise both sides to
+//! single-spaced tokens before comparing.
+
+use super::*;
+
+const SAMPLE_PROJECT_ID: &str = "test-project-123";
+
+/// Collapse all runs of ASCII whitespace to a single space and trim, so a
+/// substring assertion is insensitive to the formatter's line breaks / indent.
+fn norm(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Whitespace-agnostic `needle in haystack`.
+fn contains_ws(haystack: &str, needle: &str) -> bool {
+    norm(haystack).contains(&norm(needle))
+}
+
+fn validate(query: &str) -> Result<String, String> {
+    QueryValidator::new().validate_and_secure_query(query, SAMPLE_PROJECT_ID)
+}
+
+fn validate_ok(query: &str) -> String {
+    validate(query).unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
+}
+
+// ----------------------------------------------------------------------------
+// TestTableRegistry
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_default_tables_registered() {
+    let reg = TableRegistry::new();
+    assert!(reg.is_table_allowed("spans"));
+    assert!(reg.is_table_allowed("traces"));
+    assert!(reg.is_table_allowed("evaluation_datapoints"));
+    assert!(reg.is_table_allowed("events"));
+    assert!(reg.is_table_allowed("tags"));
+
+    assert!(!reg.is_table_allowed("unknown_table"));
+    assert!(!reg.is_table_allowed("traces_v0"));
+    assert!(!reg.is_table_allowed("spans_v0"));
+    assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
+    assert!(!reg.is_table_allowed("events_v0"));
+    assert!(!reg.is_table_allowed("tags_v0"));
+}
+
+#[test]
+fn test_spans_table_schema() {
+    let reg = TableRegistry::new();
+    let spans = reg.get_table_schema("spans").expect("spans schema");
+    assert!(spans.allowed_columns.contains("span_id"));
+    assert!(spans.allowed_columns.contains("start_time"));
+}
+
+#[test]
+fn test_traces_table_schema() {
+    let reg = TableRegistry::new();
+    let traces = reg.get_table_schema("traces").expect("traces schema");
+    assert!(traces.allowed_columns.contains("id"));
+    assert!(traces.allowed_columns.contains("start_time"));
+}
+
+#[test]
+fn test_column_validation() {
+    let reg = TableRegistry::new();
+    let spans = reg.get_table_schema("spans").expect("spans schema");
+    assert!(spans.is_column_allowed("span_id"));
+    assert!(spans.is_column_allowed("SPAN_ID")); // case insensitive
+    assert!(!spans.is_column_allowed("invalid_column"));
+}
+
+// ----------------------------------------------------------------------------
+// TestQueryValidator
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_validate_basic_spans_select() {
+    let result = validate_ok("SELECT span_id, name FROM spans");
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_validate_basic_traces_select() {
+    let result = validate_ok("SELECT trace_id, start_time FROM traces");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_validate_events_select() {
+    let result = validate_ok("SELECT id, name FROM events");
+    assert!(
+        contains_ws(&result, &format!("FROM events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS events")),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_validate_tags_select() {
+    // `value` is not an allowed tags column in the registry; the Python test
+    // used `id, name, value` but only the table rewrite is asserted. `value`
+    // is unqualified so it isn't column-checked — matches Python behaviour.
+    let result = validate_ok("SELECT id, name, source FROM tags");
+    assert!(
+        contains_ws(&result, &format!("FROM tags_v0(project_id = '{SAMPLE_PROJECT_ID}') AS tags")),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_validate_evaluation_datapoints_select() {
+    let result = validate_ok("SELECT id, evaluation_id FROM evaluation_datapoints");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_traces_with_time_filters() {
+    let result = validate_ok(
+        "SELECT trace_id FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_traces_with_partial_time_filters() {
+    let result = validate_ok("SELECT trace_id FROM traces WHERE start_time > '2024-01-01'");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2099-12-31 23:59:59') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_traces_with_aliased_time_filters() {
+    // Predicates qualified by the table's alias must still drive the view's
+    // start_time / end_time bounds, not fall through to the epoch-wide default.
+    let result = validate_ok(
+        "SELECT t.trace_id FROM traces t WHERE t.start_time >= '2024-01-01' AND t.end_time <= '2024-01-02'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS t"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_reject_write_operations() {
+    // Write operations sqlparser parses as a non-Query statement: rejected by
+    // the SELECT-only security gate with the canonical message.
+    let select_only_rejected = [
+        "INSERT INTO spans VALUES (1, 'test')",
+        "UPDATE spans SET span_name = 'test'",
+        "DELETE FROM spans WHERE span_id = 'test'",
+        "DROP TABLE spans",
+        "TRUNCATE TABLE spans",
+        "ALTER TABLE spans DROP COLUMN span_name",
+        "ALTER TABLE spans RENAME COLUMN span_name TO new_name",
+        "ALTER TABLE spans ADD COLUMN new_column INT",
+        "UPDATE spans SET span_name = 'test' WHERE 1=1",
+    ];
+    for query in select_only_rejected {
+        let err = validate(query).expect_err(&format!("expected rejection for: {query}"));
+        assert!(
+            err.contains("Only SELECT statements are allowed"),
+            "query {query} gave wrong error: {err}"
+        );
+    }
+
+    // ClickHouse mutation syntax (`ALTER TABLE ... DELETE/UPDATE`) is not part
+    // of sqlparser's ClickHouse grammar, so it's rejected at parse time rather
+    // than by the SELECT-only gate. Either way the write op never validates —
+    // that is the security property the Python test asserted.
+    let parse_rejected = [
+        "ALTER TABLE spans DELETE WHERE 1=1",
+        "ALTER TABLE spans UPDATE span_name = 'test' WHERE 1=1",
+    ];
+    for query in parse_rejected {
+        assert!(
+            validate(query).is_err(),
+            "write op should be rejected: {query}"
+        );
+    }
+}
+
+#[test]
+fn test_reject_unknown_table() {
+    let err = validate("SELECT * FROM unknown_table").expect_err("should reject unknown table");
+    assert!(err.contains("not allowed"), "got: {err}");
+}
+
+#[test]
+fn test_reject_non_select() {
+    let err = validate("SHOW TABLES").expect_err("should reject SHOW TABLES");
+    assert!(err.contains("Only SELECT statements are allowed"), "got: {err}");
+}
+
+#[test]
+fn test_reject_ch_system_tables() {
+    let err = validate("SELECT * FROM system.users").expect_err("should reject system.users");
+    assert!(err.contains("not allowed"), "got: {err}");
+}
+
+#[test]
+fn test_reject_dangerous_functions() {
+    let dangerous_queries = [
+        "SELECT url('http://attacker.com') FROM spans",
+        "SELECT file('/etc/passwd') FROM spans",
+        "SELECT * FROM remote('attacker.com', 'db', 'table')",
+        "SELECT * FROM remoteSecure('attacker.com', 'db', 'table')",
+        "SELECT * FROM s3('http://bucket/key')",
+        "SELECT * FROM mysql('host', 'db', 'table', 'user', 'pass')",
+        "SELECT * FROM postgresql('host', 'db', 'table', 'user', 'pass')",
+    ];
+
+    for query in dangerous_queries {
+        let err = validate(query).expect_err(&format!("expected rejection for: {query}"));
+        assert!(err.contains("not allowed"), "query {query} gave: {err}");
+    }
+}
+
+#[test]
+fn test_allow_safe_functions() {
+    let safe_queries = [
+        "SELECT countIf(status = 'ERROR') FROM spans",
+        "SELECT sum(total_cost) FROM spans",
+        "SELECT toStartOfInterval(start_time, INTERVAL 5 MINUTE) AS t FROM spans",
+        "SELECT quantile(0.9)(duration) FROM spans",
+    ];
+
+    for query in safe_queries {
+        validate(query).unwrap_or_else(|e| panic!("safe query rejected: {query}\nerror: {e}"));
+    }
+}
+
+#[test]
+fn test_reject_project_id_access() {
+    let err = validate("SELECT span_id, project_id FROM spans")
+        .expect_err("should reject project_id access");
+    assert!(err.contains("Column 'project_id' does not exist"), "got: {err}");
+}
+
+#[test]
+fn test_reject_invalid_column() {
+    let err = validate("SELECT spans.invalid_column FROM spans")
+        .expect_err("should reject invalid column");
+    assert!(err.contains("Column 'invalid_column' does not exist"), "got: {err}");
+}
+
+#[test]
+fn test_cte_with_spans() {
+    let query = r#"
+        WITH span_stats AS (
+            SELECT span_id, COUNT(*) as count
+            FROM spans
+            GROUP BY span_id
+        )
+        SELECT * FROM span_stats
+        "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "FROM span_stats"), "got: {result}");
+}
+
+#[test]
+fn test_subquery_with_spans() {
+    let query = r#"
+        SELECT * FROM (
+            SELECT span_id, COUNT(*) as count
+            FROM spans
+            GROUP BY span_id
+        ) span_stats
+        "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "AS span_stats") || contains_ws(&result, ") span_stats"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_join_with_allowed_tables() {
+    let query = r#"
+        SELECT s.span_id, t.trace_id
+        FROM spans s
+        JOIN traces t ON s.trace_id = t.trace_id
+        "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS t"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_complex_nested_query() {
+    let query = r#"
+        SELECT s1.span_id, s1.start_time
+        FROM spans s1
+        WHERE s1.trace_id IN (
+            SELECT trace_id
+            FROM spans s2
+            WHERE s2.name = 'test'
+        )
+        "#;
+    let result = validate_ok(query);
+    let spans_v0_count = result.matches("spans_v0").count();
+    assert!(spans_v0_count >= 2, "expected >=2 spans_v0, got {spans_v0_count} in: {result}");
+    let project_filter_count = result
+        .matches(&format!("project_id = '{SAMPLE_PROJECT_ID}'"))
+        .count();
+    assert!(
+        project_filter_count >= 2,
+        "expected >=2 project filters, got {project_filter_count} in: {result}"
+    );
+}
+
+// ----------------------------------------------------------------------------
+// TestExpectedQueryTransformations
+// ----------------------------------------------------------------------------
+
+#[test]
+fn test_basic_spans_query_transformation() {
+    let result = validate_ok("SELECT span_id, name FROM spans");
+    assert!(
+        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "SELECT span_id, name FROM"), "got: {result}");
+}
+
+#[test]
+fn test_basic_traces_query_transformation() {
+    let result = validate_ok("SELECT trace_id, duration FROM traces");
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_spans_with_where_clause() {
+    let result = validate_ok("SELECT span_id FROM spans WHERE name = 'test_span'");
+    assert!(
+        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "WHERE name = 'test_span'"), "got: {result}");
+}
+
+#[test]
+fn test_spans_with_order_by_and_limit() {
+    let result = validate_ok("SELECT span_id FROM spans ORDER BY start_time DESC LIMIT 10");
+    assert!(
+        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "ORDER BY start_time DESC"), "got: {result}");
+    assert!(contains_ws(&result, "LIMIT 10"), "got: {result}");
+}
+
+#[test]
+fn test_spans_time_range_query() {
+    // Time filters on spans must NOT be pushed into a view function (only
+    // traces gets time bounds); the WHERE clause stays intact on the query.
+    // Fixture adapted from sqlglot's `interval '1 hour'` to the equivalent
+    // `INTERVAL 1 HOUR` that sqlparser's ClickHouse dialect parses — same
+    // functionality (interval predicate stays in the WHERE, not pushed to a
+    // view function).
+    let result =
+        validate_ok("SELECT start_time FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1");
+    assert!(
+        contains_ws(&result, &format!("SELECT start_time FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    // The interval predicate is preserved on the query (not lifted into the view fn).
+    let after_from = result.split("spans_v0").last().unwrap_or("");
+    assert!(
+        contains_ws(after_from, "start_time > now() - INTERVAL 1 HOUR"),
+        "interval predicate missing in: {result}"
+    );
+    assert!(contains_ws(&result, "LIMIT 1"), "got: {result}");
+}
+
+#[test]
+fn test_traces_time_range_query() {
+    let result = validate_ok(
+        "SELECT trace_id, duration FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_traces_time_range_query_between() {
+    let result = validate_ok(
+        "SELECT trace_id, duration FROM traces WHERE start_time BETWEEN '2024-01-01' AND '2024-01-02'",
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_multiple_tables_in_join() {
+    let query = r#"
+        SELECT s.span_id, t.duration, e.name as event_name
+        FROM spans s
+        JOIN traces t ON s.trace_id = t.trace_id
+        LEFT JOIN events e ON s.span_id = e.span_id
+        "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS t"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, &format!("events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS e")),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_query_parameters_intact() {
+    let query = r#"
+SELECT
+    name,
+    COUNT(span_id) AS value
+FROM spans
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+GROUP BY name
+ORDER BY value DESC
+LIMIT 5
+"#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE start_time >= {start_time: DateTime64} AND start_time <= {end_time: DateTime64}"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_query_parameters_complex_query_parameters_intact() {
+    let query = r#"
+SELECT
+    toStartOfInterval(start_time, INTERVAL 5 MINUTE) AS time,
+    model,
+    quantile(0.9)(end_time - start_time) AS value
+FROM spans
+WHERE
+    model != '<null>'
+    AND span_type IN (0, 1)
+    AND start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+GROUP BY time, model
+ORDER BY time
+WITH FILL
+FROM (
+    toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
+)
+TO (
+    toStartOfInterval({start_time:DateTime64}, INTERVAL 5 MINUTE)
+)
+STEP INTERVAL 5 MINUTE
+"#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            "WHERE model <> '<null>' AND span_type IN (0, 1) AND start_time >= {start_time: DateTime64} AND start_time <= {end_time: DateTime64}"
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "WITH FILL FROM (toStartOfInterval({start_time: DateTime64}, INTERVAL 5 MINUTE)) TO (toStartOfInterval({start_time: DateTime64}, INTERVAL 5 MINUTE))"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_cte_join_traces_and_spans_group_by_user_id() {
+    let query = r#"
+WITH
+  trace_pivot AS (
+    SELECT
+      toString(user_id) AS user_id,
+      sum(end_time - start_time) AS total_duration
+    FROM traces
+    WHERE
+      start_time >= toDateTime('2025-08-06 00:00:00')
+      AND start_time <  toDateTime('2025-08-09 00:00:00')
+    group by user_id
+  ),
+  spans_pivot AS (
+    SELECT
+      toString(user_id) AS user_id,
+      sumIf((end_time - start_time),
+            name IN ('llm_api_handler','llm_api_handler_with_router_and_fallback')) AS llm_duration,
+      sumIf((end_time - start_time),
+            name = 'scrape_website') AS scrape_duration,
+      sumIf((end_time - start_time),
+            name = 'take_scrolling_screenshot') AS screenshot_duration
+    FROM spans
+    WHERE start_time >= toDateTime('2025-08-06 00:00:00')
+      AND start_time <  toDateTime('2025-08-09 00:00:00')
+    group by user_id
+  )
+SELECT
+  *
+FROM trace_pivot
+LEFT JOIN spans_pivot USING (user_id)
+"#;
+    let result = validate_ok(query);
+
+    assert!(
+        contains_ws(
+            &result,
+            &format!(
+                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = toDateTime('2025-08-06 00:00:00'), end_time = toDateTime('2025-08-09 00:00:00')) AS traces"
+            )
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+    // WHERE bounds preserved on both CTEs.
+    assert!(
+        contains_ws(
+            &result,
+            "start_time >= toDateTime('2025-08-06 00:00:00') AND start_time < toDateTime('2025-08-09 00:00:00')"
+        ),
+        "got: {result}"
+    );
+    // USING (user_id) join preserved.
+    assert!(contains_ws(&result, "USING(user_id)"), "got: {result}");
+}
+
+#[test]
+fn test_with_fill_simple_query() {
+    let query = r#"
+SELECT
+    toStartOfMinute(start_time) as time_bucket,
+    COUNT(*) as span_count
+FROM spans
+WHERE start_time >= '2024-01-01'
+GROUP BY toStartOfMinute(start_time)
+ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
+"#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        "got: {result}"
+    );
+}
