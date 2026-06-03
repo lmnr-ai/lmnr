@@ -86,6 +86,12 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 interface DebuggerSessionViewState {
   // Run note source-of-truth lives on each TraceRow's metadata; no extra state.
   noteMetadataKey: string;
+
+  // Trace id whose FULL trace view is open in the overlay side panel (null =
+  // closed). Distinct from base `selectedSpan` (which drives the SPAN panel):
+  // span clicks open the span panel; only the trace-card dropdown's
+  // "Open trace view" opens this full TraceViewSidePanel overlay.
+  traceViewTraceId: string | null;
 }
 
 interface DebuggerSessionViewActions {
@@ -105,6 +111,11 @@ interface DebuggerSessionViewActions {
   // row's current metadata (already merged from realtime) and its bumped endTime.
   hydrateTraceRow: (traceId: string) => Promise<void>;
 
+  // Open / close the full trace-view overlay for a trace (dropdown "Open trace
+  // view"). Opening one closes any open span panel so the two overlays don't stack.
+  openTraceView: (traceId: string) => void;
+  closeTraceView: () => void;
+
   // Read the agent-authored note (`rollout.note`) off a run's metadata object.
   noteForTrace: (traceId: string) => string | undefined;
   // Span type for an already-loaded span (drives the span-ref chip icon color).
@@ -116,158 +127,183 @@ export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionVie
 const createDebuggerSessionViewStore = (options?: { initialTraceRow?: TraceRow; storeKey?: string }) =>
   createStore<DebuggerSessionViewStore>()(
     persist(
-      (set, get) => ({
-        ...createBaseSessionViewSlice<DebuggerSessionViewStore>(set, get, {}),
+      (set, get) => {
+        const baseSlice = createBaseSessionViewSlice<DebuggerSessionViewStore>(set, get, {});
 
-        // Seed base `traces` with the single /alpha trace when provided.
-        traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
+        return {
+          ...baseSlice,
 
-        noteMetadataKey: NOTE_METADATA_KEY,
+          // Seed base `traces` with the single /alpha trace when provided.
+          traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
 
-        fetchSessionTraces: async (sessionId) => {
-          const { projectId } = get();
-          if (!projectId) return;
+          noteMetadataKey: NOTE_METADATA_KEY,
+          traceViewTraceId: null,
 
-          get().setIsTracesLoading(true);
-          get().setTracesError(undefined);
-          try {
-            const params = new URLSearchParams();
-            params.set("pageNumber", "0");
-            params.set("pageSize", String(MAX_RUNS));
-            params.set("sortDirection", "ASC");
-            params.append(
-              "filter",
-              JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
-            );
+          // Selecting a span (opening the span panel) closes the full trace-view
+          // overlay so the two right-side overlays never stack. Delegates the rest
+          // to the base implementation (sets selectedSpan + spanPanelOpen + fits panels).
+          setSelectedSpan: (selection) => {
+            if (selection) set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>);
+            baseSlice.setSelectedSpan(selection);
+          },
 
-            const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
-            if (!res.ok) {
-              const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
-              get().setTracesError(err.error || "Failed to load session traces");
-              return;
+          fetchSessionTraces: async (sessionId) => {
+            const { projectId } = get();
+            if (!projectId) return;
+
+            get().setIsTracesLoading(true);
+            get().setTracesError(undefined);
+            try {
+              const params = new URLSearchParams();
+              params.set("pageNumber", "0");
+              params.set("pageSize", String(MAX_RUNS));
+              params.set("sortDirection", "ASC");
+              params.append(
+                "filter",
+                JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
+              );
+
+              const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
+              if (!res.ok) {
+                const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
+                get().setTracesError(err.error || "Failed to load session traces");
+                return;
+              }
+              const body = (await res.json()) as { items: TraceRow[] };
+              // The /traces endpoint returns `metadata` as a raw JSON STRING (the CH
+              // `metadata` column is selected verbatim — see lib/actions/traces/utils.ts;
+              // the traces table parses it lazily in JsonTooltip). `TraceRow.metadata`
+              // is typed as an object, so normalize here before storing — otherwise
+              // noteForTrace / getSpanType read the string as an object and notes +
+              // outline headings never render. (Realtime trace_update already ships a
+              // JSON object and goes through normalizeMetadata in applyTraceUpdate.)
+              const normalized = (body.items ?? []).map((item) => ({
+                ...item,
+                metadata: normalizeMetadata(item.metadata),
+              }));
+              // API already sorts ASC; defensively sort oldest-first for display.
+              const sorted = normalized.sort(
+                (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+              );
+              get().setTraces(sorted);
+            } catch (e) {
+              get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
+            } finally {
+              get().setIsTracesLoading(false);
             }
-            const body = (await res.json()) as { items: TraceRow[] };
-            // The /traces endpoint returns `metadata` as a raw JSON STRING (the CH
-            // `metadata` column is selected verbatim — see lib/actions/traces/utils.ts;
-            // the traces table parses it lazily in JsonTooltip). `TraceRow.metadata`
-            // is typed as an object, so normalize here before storing — otherwise
-            // noteForTrace / getSpanType read the string as an object and notes +
-            // outline headings never render. (Realtime trace_update already ships a
-            // JSON object and goes through normalizeMetadata in applyTraceUpdate.)
-            const normalized = (body.items ?? []).map((item) => ({
-              ...item,
-              metadata: normalizeMetadata(item.metadata),
-            }));
-            // API already sorts ASC; defensively sort oldest-first for display.
-            const sorted = normalized.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-            get().setTraces(sorted);
-          } catch (e) {
-            get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
-          } finally {
-            get().setIsTracesLoading(false);
-          }
-        },
+          },
 
-        applyRealtimeSpan: (span) => {
-          const traceId = span.traceId;
-          const tvSpan = realtimeToTraceViewSpan(span);
+          applyRealtimeSpan: (span) => {
+            const traceId = span.traceId;
+            const tvSpan = realtimeToTraceViewSpan(span);
 
-          // Only upsert when the trace's spans are already loaded. Unloaded traces
-          // fetch fresh on expand via ensureTraceSpans; streaming into an unloaded
-          // trace would race that fetch.
-          if (get().traceSpans[traceId]) {
-            const existing = get().traceSpans[traceId];
-            const idx = existing.findIndex((s) => s.spanId === tvSpan.spanId);
-            const merged =
-              idx === -1
-                ? [...existing, tvSpan]
-                : existing.map((s) => (s.spanId === tvSpan.spanId ? { ...tvSpan, collapsed: s.collapsed } : s));
-            merged.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-            get().setTraceSpans(traceId, enrichSpansWithPending(merged));
-          }
+            // Only upsert when the trace's spans are already loaded. Unloaded traces
+            // fetch fresh on expand via ensureTraceSpans; streaming into an unloaded
+            // trace would race that fetch.
+            if (get().traceSpans[traceId]) {
+              const existing = get().traceSpans[traceId];
+              const idx = existing.findIndex((s) => s.spanId === tvSpan.spanId);
+              const merged =
+                idx === -1
+                  ? [...existing, tvSpan]
+                  : existing.map((s) => (s.spanId === tvSpan.spanId ? { ...tvSpan, collapsed: s.collapsed } : s));
+              merged.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+              get().setTraceSpans(traceId, enrichSpansWithPending(merged));
+            }
 
-          // Bump the owning trace row's endTime when the span extends past it —
-          // the lazy fetch window is `endTime + 1s`, so a stale endTime would
-          // truncate the fetch and skew list stats/ordering for a live run.
-          const spanEndMs = new Date(span.endTime).getTime();
-          get().setTraces((traces) =>
-            traces.map((t) => {
-              if (t.id !== traceId) return t;
-              if (Number.isNaN(spanEndMs) || spanEndMs <= new Date(t.endTime).getTime()) return t;
-              return { ...t, endTime: span.endTime };
-            })
-          );
-        },
-
-        applyTraceUpdate: (t) => {
-          if (!t.traceId) return;
-          const metadata = normalizeMetadata(t.metadata);
-          const existing = get().traces.find((row) => row.id === t.traceId);
-
-          if (!existing) {
-            // Unknown run → add a lightweight slot (placeholder stats), append to
-            // ordering, auto-expand so it streams open, then refetch the full row so
-            // tokens/cost/startTime show real values without a manual reload.
-            get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
-            get().setTraceExpanded(t.traceId, true);
-            void get().hydrateTraceRow(t.traceId);
-            return;
-          }
-
-          // Known run → merge metadata (this is what makes live note updates work:
-          // `rollout.note` arrives here after a POST /v1/traces/metadata patch).
-          if (Object.keys(metadata).length === 0) return;
-          get().setTraces((traces) =>
-            traces.map((row) => (row.id === t.traceId ? { ...row, metadata: { ...row.metadata, ...metadata } } : row))
-          );
-        },
-
-        hydrateTraceRow: async (traceId) => {
-          const { projectId } = get();
-          if (!projectId) return;
-          // Skip if the row already has real stats (a slot has startTime===endTime).
-          const current = get().traces.find((t) => t.id === traceId);
-          if (current && current.startTime !== current.endTime) return;
-
-          try {
-            const params = new URLSearchParams();
-            params.set("pageNumber", "0");
-            params.set("pageSize", "1");
-            params.append("filter", JSON.stringify({ column: "id", operator: "eq", value: traceId }));
-            const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
-            if (!res.ok) return;
-            const body = (await res.json()) as { items: TraceRow[] };
-            const fetched = body.items?.[0];
-            if (!fetched) return;
-            const normalizedMeta = normalizeMetadata(fetched.metadata);
-
+            // Bump the owning trace row's endTime when the span extends past it —
+            // the lazy fetch window is `endTime + 1s`, so a stale endTime would
+            // truncate the fetch and skew list stats/ordering for a live run.
+            const spanEndMs = new Date(span.endTime).getTime();
             get().setTraces((traces) =>
-              traces.map((row) => {
-                if (row.id !== traceId) return row;
-                // Keep the live-merged metadata + any realtime-bumped endTime if it's
-                // already ahead of the fetched row's (mid-run, the fetched snapshot
-                // may lag the streamed spans).
-                const liveEndAhead = new Date(row.endTime).getTime() > new Date(fetched.endTime).getTime();
-                return {
-                  ...fetched,
-                  metadata: { ...normalizedMeta, ...row.metadata },
-                  endTime: liveEndAhead ? row.endTime : fetched.endTime,
-                };
+              traces.map((t) => {
+                if (t.id !== traceId) return t;
+                if (Number.isNaN(spanEndMs) || spanEndMs <= new Date(t.endTime).getTime()) return t;
+                return { ...t, endTime: span.endTime };
               })
             );
-          } catch {
-            // Best-effort hydration — placeholder stats remain on failure.
-          }
-        },
+          },
 
-        noteForTrace: (traceId) => {
-          const row = get().traces.find((t) => t.id === traceId);
-          const note = row?.metadata?.[NOTE_METADATA_KEY];
-          return typeof note === "string" ? note : undefined;
-        },
+          applyTraceUpdate: (t) => {
+            if (!t.traceId) return;
+            const metadata = normalizeMetadata(t.metadata);
+            const existing = get().traces.find((row) => row.id === t.traceId);
 
-        getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,
-      }),
+            if (!existing) {
+              // Unknown run → add a lightweight slot (placeholder stats), append to
+              // ordering, auto-expand so it streams open, then refetch the full row so
+              // tokens/cost/startTime show real values without a manual reload.
+              get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
+              get().setTraceExpanded(t.traceId, true);
+              void get().hydrateTraceRow(t.traceId);
+              return;
+            }
+
+            // Known run → merge metadata (this is what makes live note updates work:
+            // `rollout.note` arrives here after a POST /v1/traces/metadata patch).
+            if (Object.keys(metadata).length === 0) return;
+            get().setTraces((traces) =>
+              traces.map((row) => (row.id === t.traceId ? { ...row, metadata: { ...row.metadata, ...metadata } } : row))
+            );
+          },
+
+          hydrateTraceRow: async (traceId) => {
+            const { projectId } = get();
+            if (!projectId) return;
+            // Skip if the row already has real stats (a slot has startTime===endTime).
+            const current = get().traces.find((t) => t.id === traceId);
+            if (current && current.startTime !== current.endTime) return;
+
+            try {
+              const params = new URLSearchParams();
+              params.set("pageNumber", "0");
+              params.set("pageSize", "1");
+              params.append("filter", JSON.stringify({ column: "id", operator: "eq", value: traceId }));
+              const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
+              if (!res.ok) return;
+              const body = (await res.json()) as { items: TraceRow[] };
+              const fetched = body.items?.[0];
+              if (!fetched) return;
+              const normalizedMeta = normalizeMetadata(fetched.metadata);
+
+              get().setTraces((traces) =>
+                traces.map((row) => {
+                  if (row.id !== traceId) return row;
+                  // Keep the live-merged metadata + any realtime-bumped endTime if it's
+                  // already ahead of the fetched row's (mid-run, the fetched snapshot
+                  // may lag the streamed spans).
+                  const liveEndAhead = new Date(row.endTime).getTime() > new Date(fetched.endTime).getTime();
+                  return {
+                    ...fetched,
+                    metadata: { ...normalizedMeta, ...row.metadata },
+                    endTime: liveEndAhead ? row.endTime : fetched.endTime,
+                  };
+                })
+              );
+            } catch {
+              // Best-effort hydration — placeholder stats remain on failure.
+            }
+          },
+
+          openTraceView: (traceId) => {
+            // Opening the full trace view closes any span panel so only one overlay shows.
+            set({
+              traceViewTraceId: traceId,
+              selectedSpan: undefined,
+              spanPanelOpen: false,
+            } as Partial<DebuggerSessionViewStore>);
+          },
+          closeTraceView: () => set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>),
+
+          noteForTrace: (traceId) => {
+            const row = get().traces.find((t) => t.id === traceId);
+            const note = row?.metadata?.[NOTE_METADATA_KEY];
+            return typeof note === "string" ? note : undefined;
+          },
+
+          getSpanType: (traceId, spanId) => get().traceSpans[traceId]?.find((s) => s.spanId === spanId)?.spanType,
+        };
+      },
       {
         // Distinct from `session-view-state` AND the parked `debugger-session-state`.
         name: options?.storeKey ?? "debugger-session-view-state",

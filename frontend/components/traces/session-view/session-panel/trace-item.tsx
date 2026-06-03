@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { useOptionalDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
@@ -103,9 +104,21 @@ export default function TraceItem({
     toast({ title: "Copied trace ID", duration: 1000 });
   }, [trace.id, toast]);
 
+  // In the debugger context, "Open trace view" opens the full TraceViewSidePanel
+  // overlay (no navigation) via the debugger store. Under the regular session
+  // provider there's no debugger context, so it falls back to opening the trace
+  // page in a new tab. Defensive selector tolerates the NOOP store (enabled=false).
+  const { enabled: isDebugger, state: openTraceView } = useOptionalDebuggerSessionStore((s) =>
+    typeof s.openTraceView === "function" ? s.openTraceView : undefined
+  );
+
   const handleOpenInTraceView = useCallback(() => {
+    if (isDebugger && openTraceView) {
+      openTraceView(trace.id);
+      return;
+    }
     window.open(`/project/${projectId}/traces?traceId=${trace.id}`, "_blank");
-  }, [projectId, trace.id]);
+  }, [isDebugger, openTraceView, projectId, trace.id]);
 
   const relativeTime = useMemo(() => {
     try {
@@ -166,7 +179,7 @@ export default function TraceItem({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleOpenInTraceView}>
                   <ExternalLink size={14} />
-                  Open in trace view
+                  Open trace view
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

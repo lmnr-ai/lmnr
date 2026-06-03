@@ -9,10 +9,11 @@ import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
+import DebuggerSpanPanel from "./debugger-span-panel";
 import DebuggerTraceList from "./debugger-trace-list";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
-import { useDebuggerSessionViewStoreRaw } from "./store";
+import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 
 // Earliest run start / latest run end across loaded traces (epoch ms).
 const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
@@ -46,6 +47,11 @@ export default function DebuggerSessionViewContent({
     (s) => ({ traces: s.traces, selectedSpan: s.selectedSpan, setSelectedSpan: s.setSelectedSpan }),
     shallow
   );
+
+  // Full trace-view overlay state (opened only by the trace-card dropdown's
+  // "Open trace view"; span clicks open the span panel via selectedSpan instead).
+  const traceViewTraceId = useDebuggerSessionViewStore((s) => s.traceViewTraceId);
+  const closeTraceView = useDebuggerSessionViewStore((s) => s.closeTraceView);
 
   // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
   // to it and the outline shares the same scroll context.
@@ -117,13 +123,16 @@ export default function DebuggerSessionViewContent({
           <div className="flex flex-1" />
         </div>
       </div>
+      {/* Span click → SPAN panel overlay (just that span's <SpanView>). */}
       {selectedSpan && (
-        <TraceViewSidePanel
+        <DebuggerSpanPanel
           traceId={selectedSpan.traceId}
           spanId={selectedSpan.spanId}
           onClose={() => setSelectedSpan(undefined)}
         />
       )}
+      {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
+      {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}
     </div>
   );
 }
