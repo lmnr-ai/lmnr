@@ -4,12 +4,12 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
-import DebuggerSpanPanel from "./debugger-span-panel";
 import DebuggerTraceList from "./debugger-trace-list";
 import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
@@ -43,8 +43,8 @@ export default function DebuggerSessionViewContent({
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { traces, selectedSpan, setSelectedSpan } = useSessionViewBaseStore(
-    (s) => ({ traces: s.traces, selectedSpan: s.selectedSpan, setSelectedSpan: s.setSelectedSpan }),
+  const { traces, selectedSpan } = useSessionViewBaseStore(
+    (s) => ({ traces: s.traces, selectedSpan: s.selectedSpan }),
     shallow
   );
 
@@ -123,13 +123,15 @@ export default function DebuggerSessionViewContent({
           <div className="flex flex-1" />
         </div>
       </div>
-      {/* Span click → SPAN panel overlay (just that span's <SpanView>). */}
+      {/* Span click → SPAN panel: reuse session view's SessionSpanPanel verbatim,
+          dropped into an absolute right overlay (same anchoring as TraceViewSidePanel,
+          NOT a resizable shell). SessionSpanPanel reads the base store the debugger
+          provider supplies, and its close calls setSpanPanelOpen(false) which clears
+          selectedSpan — so the `selectedSpan` gate handles open AND close. */}
       {selectedSpan && (
-        <DebuggerSpanPanel
-          traceId={selectedSpan.traceId}
-          spanId={selectedSpan.spanId}
-          onClose={() => setSelectedSpan(undefined)}
-        />
+        <div className="absolute top-0 right-0 bottom-0 z-50 flex w-[600px] max-w-[calc(100%-80px)] border-l bg-background">
+          <SessionSpanPanel />
+        </div>
       )}
       {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
       {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}

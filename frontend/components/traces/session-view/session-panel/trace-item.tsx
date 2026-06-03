@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { useOptionalDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
@@ -34,6 +33,12 @@ interface TraceItemProps {
   onToggle: () => void;
   traceIO?: TraceIOEntry | null;
   className?: string;
+  /** Optional override for the dropdown's "Open trace view". When provided (the
+   *  debugger view passes its store's openTraceView), it opens an in-page side
+   *  panel instead of the default new-tab navigation. Passed as a prop — NOT read
+   *  from a feature store here — so this shared component has no cross-feature
+   *  import and is immune to context-module-duplication. */
+  onOpenTraceView?: (traceId: string) => void;
 }
 
 export default function TraceItem({
@@ -44,6 +49,7 @@ export default function TraceItem({
   onToggle,
   traceIO,
   className,
+  onOpenTraceView,
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -104,21 +110,15 @@ export default function TraceItem({
     toast({ title: "Copied trace ID", duration: 1000 });
   }, [trace.id, toast]);
 
-  // In the debugger context, "Open trace view" opens the full TraceViewSidePanel
-  // overlay (no navigation) via the debugger store. Under the regular session
-  // provider there's no debugger context, so it falls back to opening the trace
-  // page in a new tab. Defensive selector tolerates the NOOP store (enabled=false).
-  const { enabled: isDebugger, state: openTraceView } = useOptionalDebuggerSessionStore((s) =>
-    typeof s.openTraceView === "function" ? s.openTraceView : undefined
-  );
-
+  // "Open trace view": the debugger passes `onOpenTraceView` (in-page side panel);
+  // the regular session view passes nothing → open the trace page in a new tab.
   const handleOpenInTraceView = useCallback(() => {
-    if (isDebugger && openTraceView) {
-      openTraceView(trace.id);
+    if (onOpenTraceView) {
+      onOpenTraceView(trace.id);
       return;
     }
     window.open(`/project/${projectId}/traces?traceId=${trace.id}`, "_blank");
-  }, [isDebugger, openTraceView, projectId, trace.id]);
+  }, [onOpenTraceView, projectId, trace.id]);
 
   const relativeTime = useMemo(() => {
     try {

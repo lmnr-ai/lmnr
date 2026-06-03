@@ -1,4 +1,3 @@
-import { isNil } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -361,21 +360,6 @@ export const useDebuggerSessionViewStoreRaw = () => {
     throw new Error("useDebuggerSessionViewStoreRaw must be used within a DebuggerSessionViewContext provider");
   }
   return store;
-};
-
-const NOOP_DEBUGGER_SESSION_STORE = createStore(() => ({})) as unknown as StoreApi<DebuggerSessionViewStore>;
-
-/**
- * Optional debugger-session-store hook for shared session-view children: returns
- * `{ enabled:false }` under the regular session provider (no DebuggerSessionViewContext).
- * Selectors MUST tolerate the empty NOOP state — read defensively or guard on `enabled`.
- */
-export const useOptionalDebuggerSessionStore = <T,>(
-  selector: (state: DebuggerSessionViewStore) => T
-): { enabled: boolean; state: T } => {
-  const store = useContext(DebuggerSessionViewContext);
-  const state = useStore(store ?? NOOP_DEBUGGER_SESSION_STORE, selector);
-  return { enabled: !isNil(store), state };
 };
 
 export default DebuggerSessionViewStoreProvider;

@@ -87,6 +87,10 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
     s.traces.map((t) => `${t.id}:${s.noteForTrace(t.id) ? 1 : 0}`).join("|")
   );
   const noteForTrace = useDebuggerSessionViewStore((s) => s.noteForTrace);
+  // Passed down to TraceItem's dropdown so "Open trace view" opens the in-page
+  // TraceViewSidePanel overlay (no navigation). Read from the debugger store here
+  // — under the debugger provider, which DebuggerTraceList always renders within.
+  const openTraceView = useDebuggerSessionViewStore((s) => s.openTraceView);
 
   const baseRows = useMemo(
     () =>
@@ -353,6 +357,7 @@ export default function DebuggerTraceList({ scrollEl, projectId }: DebuggerTrace
                 totalTraces={traces.length}
                 onToggle={() => toggleTraceExpanded(row.trace.id)}
                 traceIO={traceIO[row.trace.id]}
+                onOpenTraceView={openTraceView}
               />
             ) : row.type === "trace-loading" ? (
               <div className="flex flex-col gap-2 py-2 px-2">
