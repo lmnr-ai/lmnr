@@ -38,8 +38,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { traces, selectedSpan } = useSessionViewBaseStore(
-    (s) => ({ traces: s.traces, selectedSpan: s.selectedSpan }),
+  const { traces, spanPanelOpen } = useSessionViewBaseStore(
+    (s) => ({ traces: s.traces, spanPanelOpen: s.spanPanelOpen }),
     shallow
   );
 
@@ -119,11 +119,16 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     // matching the traces page. A relative wrapper would trap it below the header.
     <div className="flex flex-1 min-h-0 w-full">
       {/* Native scroll container owns the scrollbar. Inside it, a centered row
-          pairs the article column with the right-rail outline (Figma 4296:35652). */}
-      <div ref={setScrollEl} className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
+          pairs the article column with the right-rail outline (Figma 4296:35652).
+          min-w-0 lets the in-flow span panel compress this side smoothly. */}
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
         <div className="mx-auto flex w-full gap-16 px-6 pb-[160px]">
-          <div className="flex flex-1 shrink-0 justify-center">
-            <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+          <div className="flex min-w-0 flex-1 justify-center">
+            {/* Hidden while the span panel is open so this spacer carries no
+                min-width (the outline's 220px) and the article can slide left. */}
+            {!spanPanelOpen && (
+              <SessionOutline className="sticky top-[180px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+            )}
           </div>
           <div className="min-w-0 w-[720px]">
             <SessionHeader
@@ -137,16 +142,13 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           <div className="flex flex-1" />
         </div>
       </div>
-      {/* Span click → SPAN panel: reuse session view's SessionSpanPanel verbatim,
-          dropped into an absolute right overlay (same anchoring as TraceViewSidePanel,
-          NOT a resizable shell). SessionSpanPanel reads the base store the debugger
-          provider supplies, and its close calls setSpanPanelOpen(false) which clears
-          selectedSpan — so the `selectedSpan` gate handles open AND close. */}
-      {selectedSpan && (
-        <div className="absolute top-0 right-0 bottom-0 z-50 flex w-[600px] max-w-[calc(100%-80px)] border-l bg-background">
-          <SessionSpanPanel />
-        </div>
-      )}
+      {/* Span click → SPAN panel: session view's SessionSpanPanel, now IN-FLOW as
+          the row's last flex child (not an overlay). It owns its own visibility,
+          open/close animation, and left-edge resizability — opening it pushes the
+          scroll container (and the centered article) over to the left. Must be a
+          DIRECT child of this row: the panel measures its parentElement to clamp
+          resize widths. */}
+      <SessionSpanPanel />
       {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
       {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}
       {/* New run arrived via realtime → jump-to-bottom pill. */}

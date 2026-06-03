@@ -15,10 +15,10 @@ export default function NewTracePill({ onScrollToBottom }: { onScrollToBottom: (
 
   return (
     <div className="absolute bottom-6 left-1/2 z-30 -translate-x-1/2">
-      <div className="flex items-center overflow-hidden rounded-full border bg-background shadow-md">
+      <div className="flex items-center overflow-hidden rounded-full border bg-primary shadow-md hover:bg-landing-primary-300">
         <button
           type="button"
-          className="px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          className="pl-3 py-1.5 text-sm font-medium"
           onClick={() => {
             onScrollToBottom();
             dismiss();
@@ -26,12 +26,7 @@ export default function NewTracePill({ onScrollToBottom }: { onScrollToBottom: (
         >
           New trace
         </button>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          className="border-l px-2 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={dismiss}
-        >
+        <button type="button" aria-label="Dismiss" className="px-2 py-1.5 text-primary-foreground" onClick={dismiss}>
           <X className="h-4 w-4" />
         </button>
       </div>
