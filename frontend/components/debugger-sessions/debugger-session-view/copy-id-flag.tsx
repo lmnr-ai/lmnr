@@ -29,7 +29,7 @@ export default function CopyIdFlag({
 
   return (
     <motion.div className="relative flex w-full" initial="hidden" whileHover="visible">
-      <span className="absolute left-full top-1/2 z-10 ml-2 -translate-y-1/2">
+      <span className="absolute left-full top-1/2 z-10 ml-3 -translate-y-1/2">
         <motion.button
           type="button"
           variants={flagVariants}
