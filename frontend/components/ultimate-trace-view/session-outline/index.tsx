@@ -31,6 +31,8 @@ const buildRows = (state: UltimateTraceViewStore): OutlineRow[] => {
 };
 
 interface SessionOutlineProps {
+  // Scrolls the confirmed scroll container to its very end.
+  onJumpToBottom: () => void;
   className?: string;
 }
 
@@ -42,7 +44,7 @@ interface SessionOutlineProps {
  * whichever element actually scrolls); active state is tracked with an
  * IntersectionObserver rooted at the browser viewport (exactly like the blog).
  */
-export default function SessionOutline({ className }: SessionOutlineProps) {
+export default function SessionOutline({ onJumpToBottom, className }: SessionOutlineProps) {
   const storeApi = useUltimateTraceViewStoreRaw();
 
   // Primitive signature: rebuild rows only when order / load-state / note text
@@ -123,14 +125,16 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   return (
     <nav className={cn("flex flex-col gap-6 overflow-y-auto thin-scrollbar pt-1", className)}>
-      <a
-        href={lastAnchor ? `#${lastAnchor}` : undefined}
-        onClick={() => lastAnchor && selectOnClick(lastAnchor)}
-        className="flex h-7 w-full items-center justify-center gap-1.5 rounded bg-primary px-3 py-1 text-xs text-primary-foreground no-underline transition-opacity hover:opacity-90"
+      <button
+        onClick={() => {
+          if (lastAnchor) selectOnClick(lastAnchor);
+          onJumpToBottom();
+        }}
+        className="flex h-7 w-full items-center justify-center gap-1.5 rounded bg-primary px-3 py-1 text-xs text-primary-foreground transition-opacity hover:opacity-90"
       >
         Jump to bottom
         <ArrowDown className="size-3.5" />
-      </a>
+      </button>
 
       <div className="h-px w-full bg-border" />
 

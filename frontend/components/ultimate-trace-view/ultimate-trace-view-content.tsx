@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -55,6 +55,13 @@ export default function UltimateTraceViewContent({
 
   const createdMs = useUltimateTraceViewStore(selectCreatedMs);
   const lastActivityMs = useUltimateTraceViewStore(selectLastActivityMs);
+
+  // Ref on the confirmed scroll container (the overflow-y-auto div below) so
+  // "Jump to bottom" scrolls it to the very end.
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const scrollToBottom = useCallback(() => {
+    scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
+  }, [scrollEl]);
 
   // Track which traces we've already fetched
   const fetchedRef = useRef<Set<string>>(new Set());
@@ -157,7 +164,7 @@ export default function UltimateTraceViewContent({
     <div className="relative flex flex-1 min-h-0 w-full">
       {/* Native scroll container owns the scrollbar. Inside it, a centered row
           pairs the article column with the right-rail outline (Figma 4296:35652). */}
-      <div className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
+      <div ref={setScrollEl} className="thin-scrollbar min-h-0 w-full flex-1 scroll-smooth overflow-y-auto">
         <div className="mx-auto flex w-full max-w-[1040px] gap-20 px-6 pb-[160px]">
           <div className="min-w-0 flex-1">
             <SessionHeader
@@ -172,7 +179,10 @@ export default function UltimateTraceViewContent({
               ))}
             </div>
           </div>
-          <SessionOutline className="sticky top-[160px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex" />
+          <SessionOutline
+            onJumpToBottom={scrollToBottom}
+            className="sticky top-[160px] hidden max-h-[calc(100vh-2rem)] w-[220px] flex-none self-start lg:flex"
+          />
         </div>
       </div>
       {sidePanelTraceId && (
