@@ -6,19 +6,6 @@ import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { type SpanType } from "@/lib/traces/types";
 
-/**
- * Shared wiring for `renderSpanReferences` inside a single trace view (chat and
- * the signal-events panel). The callbacks resolve against the already-loaded
- * store spans and select within the current trace:
- *   - `resolveSpanId` — sequential id → uuid + type, resolved locally from the
- *     loaded store spans when available, falling back to the agent endpoint only
- *     when the spans list isn't loaded yet.
- *   - `getSpanType` — sync uuid → type from the already-loaded store spans
- *   - `onSelectSpan` — caller-supplied span navigation (within the current trace)
- *
- * Contexts without a loaded spans list (e.g. the signal events table) build
- * their own callbacks instead of using this hook.
- */
 export function useSpanRefCallbacks({
   projectId,
   traceId,
