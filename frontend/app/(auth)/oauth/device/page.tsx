@@ -1,4 +1,5 @@
 import { type Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { OAuthDeviceClient } from "@/components/oauth-device";
@@ -18,12 +19,19 @@ interface OAuthDevicePageProps {
 }
 
 export default async function OAuthDevicePage(props: OAuthDevicePageProps) {
-  const session = await getServerSession(authOptions);
-  const user = session!.user;
-
   const params = await props.searchParams;
   const rawCode = params?.user_code?.trim().toUpperCase();
   const userCode = rawCode ? normalizeUserCode(rawCode) : null;
+
+  // Unauthenticated users need the `user_code` preserved through sign-in.
+  // The `(auth)/layout.tsx` redirect would drop it; do an explicit redirect
+  // with the encoded callbackUrl here instead.
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    const callback = userCode ? `/oauth/device?user_code=${encodeURIComponent(userCode)}` : "/oauth/device";
+    redirect(`/sign-in?callbackUrl=${encodeURIComponent(callback)}`);
+  }
+  const user = session.user;
 
   if (!userCode) {
     return (

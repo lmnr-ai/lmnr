@@ -92,6 +92,8 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
+    "/api/oauth/device/decision",
+    "/api/cli/:path+",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to
     // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links
