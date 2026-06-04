@@ -49,6 +49,8 @@ export interface BaseSessionViewState {
 
   /** One-shot scroll request: timeline click → panel list scrolls to group header. */
   scrollToGroup: { traceId: string; groupId: string } | null;
+  /** One-shot scroll request: a trace was collapsed → scroll its header into view. */
+  scrollToTraceId: string | null;
 
   // Absolute-ms (start, end) covering the times of rows currently visible in
   // the session panel virtualizer.
@@ -93,6 +95,7 @@ export interface BaseSessionViewActions {
   toggleTranscriptGroup: (traceId: string, groupId: string) => void;
   requestScrollToGroup: (traceId: string, groupId: string) => void;
   consumeScrollToGroup: () => void;
+  consumeScrollToTrace: () => void;
 
   setTraceViewMode: (traceId: string, mode: "tree" | "transcript") => void;
   toggleTraceShowTreeContent: (traceId: string) => void;
@@ -195,6 +198,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     traceViewModes: {},
     traceShowTreeContent: {},
     scrollToGroup: null,
+    scrollToTraceId: null,
 
     scrollStartTime: undefined,
     scrollEndTime: undefined,
@@ -279,7 +283,9 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       const willExpand = !next.has(traceId);
       if (willExpand) next.add(traceId);
       else next.delete(traceId);
-      set({ expandedTraceIds: next } as Partial<T>);
+      // On COLLAPSE, request a scroll-to-header so a deeply-scrolled trace doesn't
+      // strand the viewport. (Expand scrolls via selection/normal flow already.)
+      set({ expandedTraceIds: next, ...(willExpand ? {} : { scrollToTraceId: traceId }) } as Partial<T>);
 
       if (willExpand) {
         const trace = state.traces.find((t) => t.id === traceId);
@@ -335,6 +341,9 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     requestScrollToGroup: (traceId, groupId) => set({ scrollToGroup: { traceId, groupId } } as Partial<T>),
     consumeScrollToGroup: () => {
       if (get().scrollToGroup !== null) set({ scrollToGroup: null } as Partial<T>);
+    },
+    consumeScrollToTrace: () => {
+      if (get().scrollToTraceId !== null) set({ scrollToTraceId: null } as Partial<T>);
     },
 
     setTraceViewMode: (traceId, mode) =>

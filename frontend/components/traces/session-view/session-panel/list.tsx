@@ -57,6 +57,8 @@ export default function SessionList() {
     setScrollTimeRange,
     scrollToGroup,
     consumeScrollToGroup,
+    scrollToTraceId,
+    consumeScrollToTrace,
   } = useSessionViewBaseStore(
     (s) => ({
       projectId: s.projectId,
@@ -77,6 +79,8 @@ export default function SessionList() {
       setScrollTimeRange: s.setScrollTimeRange,
       scrollToGroup: s.scrollToGroup,
       consumeScrollToGroup: s.consumeScrollToGroup,
+      scrollToTraceId: s.scrollToTraceId,
+      consumeScrollToTrace: s.consumeScrollToTrace,
     }),
     shallow
   );
@@ -344,6 +348,27 @@ export default function SessionList() {
     });
     return () => cancelAnimationFrame(rafId);
   }, [scrollToGroup, flatRows, virtualizer, consumeScrollToGroup]);
+
+  // Scroll the just-collapsed trace's header into view. Keyed on flatRows so it
+  // runs AFTER the collapse rebuilds rows (expanded body rows removed, indices
+  // shifted). `align:"auto"` scrolls ONLY when the header is out of view — no
+  // jump if it's already visible, never snaps to list top. Two-pass rAF re-runs
+  // after the freshly-estimated post-collapse rows are measured, so the header
+  // lands correctly even though surrounding offsets were estimates.
+  useEffect(() => {
+    if (!scrollToTraceId) return;
+    const idx = flatRows.findIndex((r) => r.type === "trace-header" && r.trace.id === scrollToTraceId);
+    if (idx === -1) {
+      consumeScrollToTrace();
+      return;
+    }
+    virtualizer.scrollToIndex(idx, { align: "auto" });
+    const rafId = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: "auto" });
+      consumeScrollToTrace();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToTraceId, flatRows, virtualizer, consumeScrollToTrace]);
 
   // --- Preview fetching (batched across traces) ---
   //
