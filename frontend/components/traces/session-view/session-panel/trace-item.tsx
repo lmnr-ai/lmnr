@@ -187,7 +187,7 @@ export default function TraceItem({
                   "sibling-body-hover:border sibling-body-hover:bg-[rgba(232,232,232,0.05)] sibling-body-hover:gap-1 sibling-body-hover:pl-2.5"
                 )}
               >
-                <span className="opacity-0 group-hover:opacity-100 sibling-body-hover:opacity-100 overflow-hidden group-hover:w-[50px] sibling-body-hover:w-[50px] w-0 trnasition-all duration-200">
+                <span className="opacity-0 group-hover:opacity-100 sibling-body-hover:opacity-100 overflow-hidden group-hover:w-[50px] sibling-body-hover:w-[50px] w-0 transition-all duration-200">
                   {expanded ? "Collapse" : "Expand"}
                 </span>
                 <ChevronDown
