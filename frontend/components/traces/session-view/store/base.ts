@@ -42,6 +42,11 @@ export interface BaseSessionViewState {
   /** Namespaced `${traceId}::${groupId}` set — EXPANDED transcript groups (default collapsed). */
   transcriptExpandedGroups: Set<string>;
 
+  /** Per-trace view mode. Absent → "transcript" (default). Not persisted. */
+  traceViewModes: Record<string, "tree" | "transcript">;
+  /** Per-trace LLM-content visibility in tree mode. Absent → true (default). Not persisted. */
+  traceShowTreeContent: Record<string, boolean>;
+
   /** One-shot scroll request: timeline click → panel list scrolls to group header. */
   scrollToGroup: { traceId: string; groupId: string } | null;
 
@@ -88,6 +93,12 @@ export interface BaseSessionViewActions {
   toggleTranscriptGroup: (traceId: string, groupId: string) => void;
   requestScrollToGroup: (traceId: string, groupId: string) => void;
   consumeScrollToGroup: () => void;
+
+  setTraceViewMode: (traceId: string, mode: "tree" | "transcript") => void;
+  toggleTraceShowTreeContent: (traceId: string) => void;
+  /** Flip `collapsed` on one span inside a trace's span array. Writes a NEW
+   *  array identity so flat-row useMemos keyed on traceSpans recompute. */
+  toggleSpanCollapse: (traceId: string, spanId: string) => void;
 
   setScrollTimeRange: (start?: number, end?: number) => void;
 
@@ -181,6 +192,8 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
 
     expandedTraceIds: new Set<string>(),
     transcriptExpandedGroups: new Set<string>(),
+    traceViewModes: {},
+    traceShowTreeContent: {},
     scrollToGroup: null,
 
     scrollStartTime: undefined,
@@ -322,6 +335,19 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     requestScrollToGroup: (traceId, groupId) => set({ scrollToGroup: { traceId, groupId } } as Partial<T>),
     consumeScrollToGroup: () => {
       if (get().scrollToGroup !== null) set({ scrollToGroup: null } as Partial<T>);
+    },
+
+    setTraceViewMode: (traceId, mode) =>
+      set({ traceViewModes: { ...get().traceViewModes, [traceId]: mode } } as Partial<T>),
+    toggleTraceShowTreeContent: (traceId) => {
+      const current = get().traceShowTreeContent[traceId] ?? true;
+      set({ traceShowTreeContent: { ...get().traceShowTreeContent, [traceId]: !current } } as Partial<T>);
+    },
+    toggleSpanCollapse: (traceId, spanId) => {
+      const spans = get().traceSpans[traceId];
+      if (!spans) return;
+      const next = spans.map((s) => (s.spanId === spanId ? { ...s, collapsed: !s.collapsed } : s));
+      set({ traceSpans: { ...get().traceSpans, [traceId]: next } } as Partial<T>);
     },
 
     setScrollTimeRange: (start, end) => set({ scrollStartTime: start, scrollEndTime: end } as Partial<T>),

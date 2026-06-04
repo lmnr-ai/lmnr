@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
 import { spanToListSpan } from "../utils";
+import TraceControlBar from "./trace-control-bar";
 
 interface TraceItemProps {
   trace: TraceRow;
@@ -39,6 +40,9 @@ interface TraceItemProps {
    *  from a feature store here — so this shared component has no cross-feature
    *  import and is immune to context-module-duplication. */
   onOpenTraceView?: (traceId: string) => void;
+  /** Which surface this card belongs to — drives the control bar's analytics
+   *  attribution. The debugger passes "debugger_sessions"; defaults to "sessions". */
+  analyticsFeature?: "sessions" | "debugger_sessions";
 }
 
 export default function TraceItem({
@@ -50,6 +54,7 @@ export default function TraceItem({
   traceIO,
   className,
   onOpenTraceView,
+  analyticsFeature,
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -216,8 +221,7 @@ export default function TraceItem({
           </button>
           {expanded && (
             <div className="bg-secondary/50 px-3 py-1 border-t">
-              {/* TODO: put tree transcript picker (please reuse component from trace view) also the metadata button in the trace view header should go here too*/}
-              Tree / Trasncript, Metadata
+              <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />
             </div>
           )}
         </div>

@@ -264,6 +264,7 @@ export default function TraceSegment({
             onToggle={() => toggleTraceExpanded(traceId)}
             traceIO={traceIO}
             onOpenTraceView={openTraceView}
+            analyticsFeature="debugger_sessions"
           />
         </CopyFlag>
       </div>
