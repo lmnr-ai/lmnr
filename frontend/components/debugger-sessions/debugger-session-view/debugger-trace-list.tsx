@@ -5,9 +5,9 @@ import { shallow } from "zustand/shallow";
 
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
-import { formatGap } from "@/components/traces/session-view/utils";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { formatDuration } from "@/lib/utils";
 
 import TraceSegment from "./trace-segment";
 
@@ -19,19 +19,6 @@ interface DebuggerTraceListProps {
   sessionId?: string;
 }
 
-/**
- * Debugger article column: one `TraceSegment` per run, in normal document flow
- * (note → sticky header → per-trace virtualized transcript), separated by gap
- * dividers. Each segment runs its OWN virtualizer bound to the shared page
- * scroll element via `scrollMargin` — the documented TanStack pattern for
- * multiple virtualizers in a single scrolling element. Only the transcript
- * rows are virtualized; notes/headers/cards stay mounted, which keeps the
- * outline's heading anchors alive and makes sticky headers a pure-CSS concern
- * bounded by their own segment (a header can never cover content below its
- * trace's last span).
- *
- * The regular session list (`session-panel/list.tsx`) is untouched.
- */
 export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
   const { traces, traceSpans } = useSessionViewBaseStore(
     (s) => ({ traces: s.traces, traceSpans: s.traceSpans }),
@@ -139,8 +126,8 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
             {next && (
               <div className="px-2 flex h-20 items-center justify-center">
                 <div className="w-full border-b" />
-                {formatGap(gapMs) && (
-                  <span className="shrink-0 px-2 text-xs text-muted-foreground">{formatGap(gapMs)}</span>
+                {formatDuration(gapMs) && (
+                  <span className="shrink-0 px-2 text-xs text-muted-foreground">{formatDuration(gapMs)}</span>
                 )}
                 <div className="w-full border-b" />
               </div>

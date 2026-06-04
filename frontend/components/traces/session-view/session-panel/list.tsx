@@ -18,10 +18,10 @@ import {
   useReportVisibleTimeRange,
 } from "@/components/traces/trace-view/use-report-visible-time-range";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
-import { buildSessionFlatRows, formatGap } from "../utils";
+import { buildSessionFlatRows } from "../utils";
 import TraceCollapsedBody from "./trace-collapsed-body.tsx";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
@@ -518,8 +518,8 @@ export default function SessionList() {
                   )}
                 >
                   <div className="w-full border-b" />
-                  {formatGap(row.gapMs) && (
-                    <span className="text-xs text-muted-foreground shrink-0 px-2">{formatGap(row.gapMs)}</span>
+                  {formatDuration(row.gapMs) && (
+                    <span className="text-xs text-muted-foreground shrink-0 px-2">{formatDuration(row.gapMs)}</span>
                   )}
                   <div className="w-full border-b" />
                 </div>

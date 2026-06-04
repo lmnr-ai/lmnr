@@ -44,17 +44,12 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     shallow
   );
 
-  // Displayed session title — store-backed so `session_update` (rename) reflects
-  // live. Seeded from the breadcrumb prop at store creation (index.tsx).
   const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
 
   // The page-owned scroll container — the virtualizer (DebuggerTraceList) binds
   // to it and the outline shares the same scroll context.
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 
-  // "Jump to bottom" against the page scroll container (restored from the
-  // pre-rework content component — the virtualizer keeps scrollHeight sized via
-  // its total-size spacer, so scrolling the container itself stays correct).
   const scrollToBottom = useCallback(() => {
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
   }, [scrollEl]);
@@ -85,11 +80,6 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     };
   }, [scrollEl]);
 
-  // Push projectId into the store so store-owned actions can issue requests.
-  useEffect(() => {
-    storeApi.getState().setProjectId(projectId);
-  }, [projectId, storeApi]);
-
   // Initial fetch of the session's runs (skipped for the /alpha single-trace
   // harness, which seeded base `traces` with one row at store creation).
   useEffect(() => {
@@ -105,16 +95,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
       span_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.spans)) return;
-        for (const span of payload.spans as RealtimeSpan[]) {
-          storeApi.getState().applyRealtimeSpan(span);
-        }
+        storeApi.getState().applyRealtimeSpans(payload.spans as RealtimeSpan[]);
       },
       trace_update: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (!Array.isArray(payload.traces)) return;
-        for (const t of payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) {
-          storeApi.getState().applyTraceUpdate(t);
-        }
+        storeApi
+          .getState()
+          .applyTraceUpdates(payload.traces as { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]);
       },
       // Session renamed (PATCH /v1/.../rollouts/{id}/name) → update the title live.
       // Payload is `{sessionId, name}` (camelCase, see app-server rollouts.rs::update_name).
@@ -136,30 +124,16 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   });
 
   return (
-    // No `relative` here: the side panel (absolute top-0 bottom-0) intentionally
-    // anchors to the layout's SidebarInset so it covers the breadcrumb row too,
-    // matching the traces page. A relative wrapper would trap it below the header.
     <div className="flex flex-1 min-h-0 w-full">
-      {/* Native scroll container owns the scrollbar. Inside it, a centered row
-          pairs the article column with the right-rail outline (Figma 4296:35652).
-          min-w-0 lets the in-flow span panel compress this side smoothly. */}
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex min-w-0 grow-1 justify-center shrink-0">
-            {/* Hidden while the span panel is open so this spacer carries no
-                min-width (the outline's 220px) and the article can slide left. */}
-            {/* Sticky full-height rail: top-0 + h-screen + pt instead of
-                top-[180px], so the outline is hard-bounded by the viewport and
-                scrolls internally only when it's truly too long. pb covers the
-                breadcrumb row above the scroll container plus breathing room. */}
             {!spanPanelOpen && (
               <div className="sticky top-0 hidden h-screen w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
                 <SessionOutline className="max-h-full w-full" />
               </div>
             )}
           </div>
-          {/* Bottom padding lives on the article column (not the page row) so
-              only the traces/notes get the scroll-past room. */}
           <div className="min-w-0 w-[720px] pb-[160px]">
             <SessionHeader
               title={sessionName}

@@ -1,3 +1,4 @@
+import { useParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -161,8 +162,14 @@ interface DebuggerSessionViewActions {
   // Realtime: upsert a streamed span into its (already-loaded) trace.
   applyRealtimeSpan: (span: RealtimeSpan) => void;
 
+  // Realtime: batch entry point for a span_update payload (one store call per event).
+  applyRealtimeSpans: (spans: RealtimeSpan[]) => void;
+
   // Realtime: merge a trace_update into the run list (add + auto-expand if new).
   applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
+
+  // Realtime: batch entry point for a trace_update payload (one store call per event).
+  applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
 
   // Fetch the full TraceRow (real stats: tokens/cost/startTime) for a single
   // trace and merge it onto the existing row. Used to hydrate a run that first
@@ -188,6 +195,7 @@ export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionVie
 const createDebuggerSessionViewStore = (options?: {
   initialTraceRow?: TraceRow;
   initialSessionName?: string;
+  projectId?: string;
   storeKey?: string;
 }) =>
   createStore<DebuggerSessionViewStore>()(
@@ -197,6 +205,10 @@ const createDebuggerSessionViewStore = (options?: {
 
         return {
           ...baseSlice,
+
+          // Seeded at store creation (projectId is static for the page) instead of
+          // synced from the URL param in an effect.
+          projectId: options?.projectId,
 
           // Seed base `traces` with the single /alpha trace when provided.
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
@@ -350,6 +362,10 @@ const createDebuggerSessionViewStore = (options?: {
             get().setTraces((traces) => traces.map((t) => (t.id === traceId ? { ...t, endTime: span.endTime } : t)));
           },
 
+          applyRealtimeSpans: (spans) => {
+            for (const span of spans) get().applyRealtimeSpan(span);
+          },
+
           applyTraceUpdate: (t) => {
             if (!t.traceId) return;
             const metadata = normalizeMetadata(t.metadata);
@@ -414,6 +430,10 @@ const createDebuggerSessionViewStore = (options?: {
                   : row
               )
             );
+          },
+
+          applyTraceUpdates: (traces) => {
+            for (const t of traces) get().applyTraceUpdate(t);
           },
 
           hydrateTraceRow: async (traceId) => {
@@ -538,8 +558,9 @@ const DebuggerSessionViewStoreProvider = ({
   initialSessionName,
   storeKey,
 }: PropsWithChildren<DebuggerSessionViewStoreProviderProps>) => {
+  const { projectId } = useParams<{ projectId: string }>();
   const [storeState] = useState(() =>
-    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, storeKey })
+    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, projectId, storeKey })
   );
 
   // Provide both the base context (shared session-view children) and the

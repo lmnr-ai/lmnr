@@ -45,29 +45,6 @@ export type SessionFlatRow =
   | { type: "trace-collapsed-end"; traceId: string; gapMs?: number }
   | { type: "trace-expanded-end"; traceId: string; gapMs?: number };
 
-/** Format an inter-trace gap in ms as a short human-readable string.
- *  Returns null for zero/negative/invalid gaps — callers should render
- *  just a divider line in that case. */
-export function formatGap(ms: number | undefined): string | null {
-  if (ms === undefined || !Number.isFinite(ms) || ms <= 0) return null;
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 1) return "<1s";
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    const s = seconds % 60;
-    return s === 0 ? `${minutes}m` : `${minutes}m ${s}s`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const m = minutes % 60;
-    return m === 0 ? `${hours}h` : `${hours}h ${m}m`;
-  }
-  const days = Math.floor(hours / 24);
-  const h = hours % 24;
-  return h === 0 ? `${days}d` : `${days}d ${h}h`;
-}
-
 interface BuildFlatRowsOpts {
   traces: TraceRow[];
   traceSpans: Record<string, TraceViewSpan[]>;
