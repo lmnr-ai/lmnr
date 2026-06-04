@@ -41,6 +41,7 @@ export type SessionFlatRow =
       branchMask: boolean[];
       hasChildren: boolean;
     }
+  | { type: "trace-collapsed-body"; traceId: string }
   | { type: "trace-collapsed-end"; traceId: string; gapMs?: number }
   | { type: "trace-expanded-end"; traceId: string; gapMs?: number };
 
@@ -112,6 +113,9 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     rows.push({ type: "trace-header", trace, expanded });
 
     if (!expanded) {
+      // The collapsed body (input + last-span preview) is its OWN row so the
+      // trace-header row stays a uniform ~40px and can be sticky in all states.
+      rows.push({ type: "trace-collapsed-body", traceId: trace.id });
       rows.push({ type: "trace-collapsed-end", traceId: trace.id, gapMs });
       continue;
     }

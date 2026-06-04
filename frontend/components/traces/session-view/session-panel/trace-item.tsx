@@ -6,24 +6,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
-import { type TraceIOEntry } from "@/components/traces/sessions-table/use-batched-trace-io";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
-import { InputItem, SpanItem } from "@/components/traces/trace-view/transcript/item";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
-import { spanToListSpan } from "../utils";
 import TraceControlBar from "./trace-control-bar";
 
 interface TraceItemProps {
@@ -32,7 +27,6 @@ interface TraceItemProps {
   traceIndex: number;
   totalTraces: number;
   onToggle: () => void;
-  traceIO?: TraceIOEntry | null;
   className?: string;
   /** Which surface this card belongs to — drives the control bar's analytics
    *  attribution. The debugger passes "debugger_sessions"; defaults to "sessions". */
@@ -45,7 +39,6 @@ export default function TraceItem({
   traceIndex,
   totalTraces,
   onToggle,
-  traceIO,
   className,
   analyticsFeature,
 }: TraceItemProps) {
@@ -53,13 +46,14 @@ export default function TraceItem({
   const projectId = params.projectId;
   const { toast } = useToast();
 
-  const { spans, spansError, selectedSpan, ensureTraceSpans, setSelectedSpan } = useSessionViewBaseStore(
+  // Only the data the header chrome needs: `spans` gates the pending-expand
+  // spinner; `spansError` lets a failed lazy-load still flip out of pending.
+  // The collapsed body (input + last-span preview) is its own row now.
+  const { spans, spansError, ensureTraceSpans } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
-      selectedSpan: s.selectedSpan,
       ensureTraceSpans: s.ensureTraceSpans,
-      setSelectedSpan: s.setSelectedSpan,
     }),
     shallow
   );
@@ -77,16 +71,6 @@ export default function TraceItem({
       });
     }
   }, [spans, spansError, onToggle]);
-
-  const lastFullSpan = useMemo(() => {
-    if (!traceIO?.outputSpan) return null;
-    return traceIO.outputSpan as unknown as TraceViewSpan;
-  }, [traceIO?.outputSpan]);
-
-  const lastSpan = useMemo(() => {
-    if (!lastFullSpan) return null;
-    return spanToListSpan(lastFullSpan);
-  }, [lastFullSpan]);
 
   const handleToggle = useCallback(() => {
     track("sessions", expanded ? "trace_card_collapsed" : "trace_card_expanded", { traceId: trace.id });
@@ -121,8 +105,6 @@ export default function TraceItem({
     }
   }, [trace.endTime]);
 
-  const handleSpanSelect = (spanId: string) => setSelectedSpan({ traceId: trace.id, spanId });
-
   return (
     <div
       className={cn(
@@ -130,10 +112,15 @@ export default function TraceItem({
         className
       )}
     >
+      {/* When collapsed, the card is only the header chrome: top-rounded, NO
+          bottom border/rounding — the trace-collapsed-body row beneath provides
+          the side+bottom borders and bottom rounding, stitching one card across
+          two virtual rows. The header button's own `border-b` (collapsed) is the
+          single divider. When expanded the body rows below are borderless spans. */}
       <div
         className={cn(
-          "overflow-hidden w-full border border-[rgba(232,232,232,0.1)] rounded-lg",
-          expanded ? "bg-muted" : "bg-muted/75"
+          "overflow-hidden w-full border-x border-t border-[rgba(232,232,232,0.1)]",
+          expanded ? "bg-muted rounded-lg border-b" : "bg-muted/75 rounded-t-lg"
         )}
       >
         <div onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
@@ -213,41 +200,6 @@ export default function TraceItem({
             </div>
           )}
         </div>
-
-        {!expanded && (
-          <div className="flex flex-col">
-            {spansError ? (
-              <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>
-            ) : !traceIO ? (
-              <>
-                <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <InputItem text={null} isLoading className="bg-transparent" />
-                </div>
-                <div className="flex flex-col gap-2 px-3 py-2">
-                  <Skeleton className="h-5 w-full" />
-                  <Skeleton className="h-5 w-3/4" />
-                </div>
-              </>
-            ) : !lastSpan ? (
-              <div className="px-3 py-3 text-xs text-muted-foreground text-center">No LLM spans in this trace</div>
-            ) : (
-              <>
-                <div className="border-b border-[rgba(232,232,232,0.1)]">
-                  <InputItem text={traceIO.inputPreview ?? null} isLoading={false} className="bg-transparent" />
-                </div>
-                <SpanItem
-                  span={lastSpan}
-                  fullSpan={lastFullSpan ?? undefined}
-                  output={traceIO.outputPreview}
-                  onSpanSelect={(s) => handleSpanSelect(s.spanId)}
-                  isSelected={
-                    !!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId
-                  }
-                />
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

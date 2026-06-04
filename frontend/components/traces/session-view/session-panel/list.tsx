@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
 import { buildSessionFlatRows, formatGap } from "../utils";
+import TraceCollapsedBody from "./trace-collapsed-body.tsx";
 import TraceItem from "./trace-item.tsx";
 import { useSessionSpanPreviews } from "./use-session-span-previews.ts";
 
@@ -110,10 +111,20 @@ export default function SessionList() {
     return map;
   }, [traces]);
 
+  // Resolve a TraceRow by id for the trace-collapsed-body row (which carries
+  // only traceId to stay light + avoid stale snapshots).
+  const traceById = useMemo(() => {
+    const map = new Map<string, (typeof traces)[number]>();
+    for (const t of traces) map.set(t.id, t);
+    return map;
+  }, [traces]);
+
+  // Every trace-header row is sticky — collapsed AND expanded. The collapsed
+  // body is its own (non-sticky) row, so a stuck header pins just the ~40px bar.
   const stickyIndexes = useMemo(
     () =>
       flatRows.reduce<number[]>((acc, row, idx) => {
-        if (row.type === "trace-header" && row.expanded) acc.push(idx);
+        if (row.type === "trace-header") acc.push(idx);
         return acc;
       }, []),
     [flatRows]
@@ -171,6 +182,8 @@ export default function SessionList() {
         return `gs::${row.traceId}::${row.span.spanId}`;
       case "tree-span":
         return `ts::${row.traceId}::${row.span.spanId}`;
+      case "trace-collapsed-body":
+        return `tcb::${row.traceId}`;
       case "trace-collapsed-end":
         return `tcend::${row.traceId}`;
       case "trace-expanded-end":
@@ -187,7 +200,12 @@ export default function SessionList() {
     if (!row) return 70;
     switch (row.type) {
       case "trace-header":
-        return row.expanded ? 36 : 280;
+        // Uniform header height in BOTH states (the collapsed body is its own row).
+        return 36;
+      case "trace-collapsed-body":
+        // Input preview + last-span preview (~the old 280 collapsed card minus
+        // the ~40px header). The virtualizer measures the real height.
+        return 240;
       case "group-header":
         return 36;
       case "tree-span":
@@ -446,8 +464,12 @@ export default function SessionList() {
                   traceIndex={traceIndexById.get(row.trace.id) ?? 0}
                   totalTraces={traces.length}
                   onToggle={() => toggleTraceExpanded(row.trace.id)}
-                  traceIO={traceIO[row.trace.id]}
                 />
+              ) : row.type === "trace-collapsed-body" ? (
+                (() => {
+                  const t = traceById.get(row.traceId);
+                  return t ? <TraceCollapsedBody trace={t} traceIO={traceIO[row.traceId]} /> : null;
+                })()
               ) : row.type === "trace-loading" ? (
                 <div className="flex flex-col gap-2 py-2 px-2">
                   <Skeleton className="h-5 w-full" />

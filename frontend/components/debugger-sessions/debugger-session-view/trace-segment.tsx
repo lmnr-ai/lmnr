@@ -293,7 +293,6 @@ export default function TraceSegment({
             traceIndex={traceIndex}
             totalTraces={totalTraces}
             onToggle={() => toggleTraceExpanded(traceId)}
-            traceIO={traceIO}
             analyticsFeature="debugger_sessions"
           />
         </CopyFlag>
