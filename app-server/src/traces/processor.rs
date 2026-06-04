@@ -708,6 +708,19 @@ pub async fn process_span_messages(
         }
     }
 
+    // Emit checkpoints for conversation-start LLM spans. Best-effort: the
+    // system prompt is trace-new for these spans, so it's available in
+    // `input_batch.span_trace_new_contents` even when storage-deduped.
+    crate::checkpoints::producer::publish_checkpoints_for_batch(
+        &spans,
+        &recordable_indices,
+        &input_batch,
+        &tool_dedups,
+        cache.clone(),
+        queue.clone(),
+    )
+    .await;
+
     // Populate autocomplete cache per project
     let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).unique().collect();
     for project_id in &project_ids {

@@ -3,6 +3,7 @@ use std::env;
 use regex::Regex;
 use sqlx::PgPool;
 
+pub mod agents;
 pub mod alert_targets;
 pub mod custom_model_costs;
 pub mod datasets;

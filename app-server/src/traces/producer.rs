@@ -25,9 +25,6 @@ use super::{
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    checkpoints::{
-        CHECKPOINTS_EXCHANGE, CHECKPOINTS_ROUTING_KEY, consumer::CheckpointsQueueMessage,
-    },
     data_plane::get_workspace_deployment,
     db::{DB, spans::Span, workspaces::DeploymentMode},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
@@ -40,14 +37,6 @@ use crate::{
     },
 };
 
-/// Number of input messages a span must carry to qualify as a checkpoint:
-/// a system prompt + the first turn.
-const CHECKPOINT_INPUT_MESSAGE_COUNT: usize = 2;
-
-/// Upper bound on the best-effort checkpoint publish so a slow/blocked broker
-/// can't stall span ingestion.
-const CHECKPOINT_PUBLISH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
-
 /// Producer's per-span dedup verdicts. Each is `None` when the span isn't
 /// an LLM span, the field isn't present, or the field isn't a non-empty
 /// JSON array.
@@ -55,9 +44,6 @@ struct DedupVerdicts {
     input: Option<MessageDedup>,
     output: Option<MessageDedup>,
     tools: Option<ToolDedup>,
-    /// Set only for LLM spans whose input is an array of exactly
-    /// [`CHECKPOINT_INPUT_MESSAGE_COUNT`] messages including a system prompt.
-    checkpoint: Option<CheckpointsQueueMessage>,
 }
 
 /// Run the producer-side preprocessing pipeline that the consumer would
@@ -78,30 +64,13 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     span.parse_and_enrich_attributes();
     convert_span_to_provider_format(span);
 
-    let is_llm = span.is_llm_span();
-
-    // Captured before any input nulling below: a checkpoint needs the raw
-    // system prompt, and non-root LLM spans have `input` zeroed out further
-    // down.
-    let mut system_prompt: Option<String> = None;
-    let input_message_count = if is_llm {
-        span.input
-            .as_ref()
-            .and_then(|v| v.as_array())
-            .map(|arr| arr.len())
-            .unwrap_or(0)
-    } else {
-        0
-    };
-
-    if is_llm {
+    if span.is_llm_span() {
         if let Some((system_text, _)) = span.input.as_ref().and_then(|v| extract_system_message(v))
         {
             span.attributes.raw_attributes.insert(
                 SPAN_PROMPT_HASH.to_string(),
                 serde_json::Value::String(structural_skeleton_hash(&system_text)),
             );
-            system_prompt = Some(system_text);
         }
     }
 
@@ -110,24 +79,6 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     let tools = build_tool_dedup(span, cache.clone()).await;
     let input = build_message_dedup(span, span.input.as_ref(), cache.clone()).await;
     let output = build_message_dedup(span, span.output.as_ref(), cache).await;
-
-    // A checkpoint is an LLM span at the start of a conversation: exactly two
-    // input messages, one of them a system prompt. Built here (before the
-    // input-nulling carve-out) so the raw system prompt survives.
-    let checkpoint = if is_llm && input_message_count == CHECKPOINT_INPUT_MESSAGE_COUNT {
-        system_prompt.map(|system_prompt| CheckpointsQueueMessage {
-            project_id: span.project_id,
-            system_prompt,
-            tool_definitions_hash: tools
-                .as_ref()
-                .map(|t| hex::encode(t.hash))
-                .unwrap_or_default(),
-            model: span.attributes.request_model().unwrap_or_default(),
-            span_ids_path: span.attributes.ids_path().unwrap_or_default(),
-        })
-    } else {
-        None
-    };
 
     let keep_root_payload = span.parent_span_id.is_none() || is_top_span(span, &span.attributes);
 
@@ -153,38 +104,6 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
         input,
         output,
         tools,
-        checkpoint,
-    }
-}
-
-/// Best-effort publish of checkpoint messages to the checkpoints queue.
-///
-/// Must be called AFTER the main span queue publish. Failures here never
-/// propagate — a checkpoint is auxiliary data, so we log and move on rather
-/// than failing span ingestion.
-async fn publish_checkpoints(checkpoints: Vec<CheckpointsQueueMessage>, queue: Arc<MessageQueue>) {
-    if checkpoints.is_empty() {
-        return;
-    }
-
-    let payload = match serde_json::to_vec(&checkpoints) {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("[CHECKPOINTS] Failed to serialize checkpoint messages: {e:?}");
-            return;
-        }
-    };
-
-    if let Err(e) = queue
-        .publish(
-            &payload,
-            CHECKPOINTS_EXCHANGE,
-            CHECKPOINTS_ROUTING_KEY,
-            None,
-        )
-        .await
-    {
-        log::error!("[CHECKPOINTS] Failed to publish checkpoint messages: {e:?}");
     }
 }
 
@@ -204,7 +123,6 @@ pub async fn publish_span_messages(
     // Producer-side preprocessing: per-span, sequential rather than parallel
     // because each Redis check is cheap and we don't want to flood Redis with
     // a thundering herd on large batches. Most ingest calls carry 1-N spans.
-    let mut checkpoints: Vec<CheckpointsQueueMessage> = Vec::new();
     for msg in &mut messages {
         if msg.pre_processed {
             continue;
@@ -214,9 +132,6 @@ pub async fn publish_span_messages(
         msg.input_dedup = verdicts.input;
         msg.output_dedup = verdicts.output;
         msg.tool_dedup = verdicts.tools;
-        if let Some(checkpoint) = verdicts.checkpoint {
-            checkpoints.push(checkpoint);
-        }
     }
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
@@ -256,19 +171,6 @@ pub async fn publish_span_messages(
                 )
                 .await?;
         }
-    }
-
-    // Publish checkpoints only after the main span queue publish succeeded.
-    // Best-effort — never fails span ingestion, and bounded by a small
-    // timeout so a slow broker can't stall the ingest path.
-    if tokio::time::timeout(
-        CHECKPOINT_PUBLISH_TIMEOUT,
-        publish_checkpoints(checkpoints, queue.clone()),
-    )
-    .await
-    .is_err()
-    {
-        log::error!("[CHECKPOINTS] Publishing checkpoints timed out");
     }
 
     Ok(0)
