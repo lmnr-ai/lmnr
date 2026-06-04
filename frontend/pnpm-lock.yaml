@@ -350,9 +350,6 @@ importers:
       tweetnacl:
         specifier: ^1.0.3
         version: 1.0.3
-      tweetnacl-util:
-        specifier: ^0.15.1
-        version: 0.15.1
       use-stick-to-bottom:
         specifier: ^1.1.1
         version: 1.1.1(react@19.2.3)
@@ -6423,9 +6420,6 @@ packages:
     resolution: {integrity: sha512-z55WnYpscs9Ih4O6M7LA2NVUsfBo2ZVjbyRrOCN/RyNKqMQfOk6ANzBW3RCeHXDJZXua7oFOGXHjUjxZG6S7Dg==}
     peerDependencies:
       tailwindcss: '>=4.0.0-0'
-
-  tweetnacl-util@0.15.1:
-    resolution: {integrity: sha512-RKJBIj8lySrShN4w6i/BonWp2Z/uxwC3h4y7xsRrpP59ZboCd0GpEVsOnMDYLMmKBpYhb5TgHzZXy7wTfYFBRw==}
 
   tweetnacl@1.0.3:
     resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
@@ -13157,8 +13151,6 @@ snapshots:
   tw-shimmer@0.4.2(tailwindcss@4.3.0):
     dependencies:
       tailwindcss: 4.3.0
-
-  tweetnacl-util@0.15.1: {}
 
   tweetnacl@1.0.3: {}
 
