@@ -45,7 +45,10 @@ export default function TraceCollapsedBody({ trace, traceIO }: TraceCollapsedBod
   }, [lastFullSpan]);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-[rgba(232,232,232,0.1)] bg-muted/75">
+    <div
+      data-collapsed-body
+      className="flex flex-col overflow-hidden rounded-b-lg border-x border-b border-[rgba(232,232,232,0.1)] bg-muted/75"
+    >
       {spansError ? (
         <div className="px-3 py-2 text-xs text-destructive text-center">{spansError}</div>
       ) : !traceIO ? (

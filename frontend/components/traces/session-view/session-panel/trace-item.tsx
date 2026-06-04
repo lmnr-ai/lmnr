@@ -181,10 +181,13 @@ export default function TraceItem({
               <span
                 className={cn(
                   "flex items-center justify-center rounded-full pl-1 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap",
-                  "group-hover:border border-[rgba(232,232,232,0.1)] group-hover:bg-[rgba(232,232,232,0.05)] group-hover:gap-1 group-hover:pl-2.5"
+                  "group-hover:border border-[rgba(232,232,232,0.1)] group-hover:bg-[rgba(232,232,232,0.05)] group-hover:gap-1 group-hover:pl-2.5",
+                  // Mirror the hover reveal when the adjacent collapsed-body virtual
+                  // row is hovered (R3 split the body into its own row).
+                  "sibling-body-hover:border sibling-body-hover:bg-[rgba(232,232,232,0.05)] sibling-body-hover:gap-1 sibling-body-hover:pl-2.5"
                 )}
               >
-                <span className="opacity-0 group-hover:opacity-100 overflow-hidden group-hover:w-[50px] w-0 trnasition-all duration-200">
+                <span className="opacity-0 group-hover:opacity-100 sibling-body-hover:opacity-100 overflow-hidden group-hover:w-[50px] sibling-body-hover:w-[50px] w-0 trnasition-all duration-200">
                   {expanded ? "Collapse" : "Expand"}
                 </span>
                 <ChevronDown

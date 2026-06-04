@@ -484,6 +484,7 @@ export default function SessionList() {
               key={virtualRow.key}
               ref={virtualizer.measureElement}
               data-index={virtualRow.index}
+              data-vrow
               style={{ ...positionStyle, left: 0, width: "100%" }}
             >
               {row.type === "trace-header" ? (

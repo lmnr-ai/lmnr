@@ -314,7 +314,7 @@ export default function TraceSegment({
           When collapsed the body below it is the (non-sticky) TraceCollapsedBody
           sibling, so the stuck header pins just the ~40px bar over its own body —
           the same row-split the regular view does, without a flat-row builder. */}
-      <div ref={headerRef} className="sticky top-0 z-20 bg-background">
+      <div ref={headerRef} data-vrow className="sticky top-0 z-20 bg-background">
         <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
           <TraceItem
             trace={trace}
