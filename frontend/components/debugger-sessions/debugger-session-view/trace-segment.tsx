@@ -13,12 +13,14 @@ import {
   type TraceViewSpan,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
+import { computePathInfoMap, transformSpansToTree } from "@/components/traces/trace-view/store/utils";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
   InputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
+import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -57,7 +59,23 @@ type TranscriptRow =
   | { type: "user-input" }
   | { type: "span"; span: TraceViewListSpan }
   | { type: "group-header"; group: TranscriptListGroup; collapsed: boolean }
-  | { type: "group-span"; span: TraceViewListSpan; isLast: boolean };
+  | { type: "group-span"; span: TraceViewListSpan; isLast: boolean }
+  | { type: "tree-span"; span: TraceViewSpan; depth: number; branchMask: boolean[]; hasChildren: boolean };
+
+const buildTreeRows = (spans: TraceViewSpan[]): TranscriptRow[] => {
+  const rows: TranscriptRow[] = [{ type: "user-input" }];
+  const pathInfoMap = computePathInfoMap(spans);
+  for (const ts of transformSpansToTree(spans, pathInfoMap)) {
+    rows.push({
+      type: "tree-span",
+      span: ts.span,
+      depth: ts.depth,
+      branchMask: ts.branchMask,
+      hasChildren: ts.hasChildren,
+    });
+  }
+  return rows;
+};
 
 const buildTranscriptRows = (
   spans: TraceViewSpan[],
@@ -145,14 +163,17 @@ export default function TraceSegment({
   const toggleTraceExpanded = useSessionViewBaseStore((s) => s.toggleTraceExpanded);
   const toggleTranscriptGroup = useSessionViewBaseStore((s) => s.toggleTranscriptGroup);
   const setSelectedSpan = useSessionViewBaseStore((s) => s.setSelectedSpan);
+  const mode = useSessionViewBaseStore((s) => s.traceViewModes[traceId] ?? "transcript");
+  const showTreeContent = useSessionViewBaseStore((s) => s.traceShowTreeContent[traceId] ?? true);
+  const toggleSpanCollapse = useSessionViewBaseStore((s) => s.toggleSpanCollapse);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
   const openTraceView = useDebuggerSessionViewStore((s) => s.openTraceView);
 
-  const rows = useMemo<TranscriptRow[]>(
-    () => (expanded && spans && spans.length > 0 ? buildTranscriptRows(spans, traceId, transcriptExpandedGroups) : []),
-    [expanded, spans, traceId, transcriptExpandedGroups]
-  );
+  const rows = useMemo<TranscriptRow[]>(() => {
+    if (!expanded || !spans || spans.length === 0) return [];
+    return mode === "tree" ? buildTreeRows(spans) : buildTranscriptRows(spans, traceId, transcriptExpandedGroups);
+  }, [expanded, spans, traceId, transcriptExpandedGroups, mode]);
 
   // --- Per-trace virtualizer, offset into the shared scroll element. ---
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -183,13 +204,16 @@ export default function TraceSegment({
         return `gh::${row.group.groupId}`;
       case "group-span":
         return `gs::${row.span.spanId}`;
+      case "tree-span":
+        return `ts::${row.span.spanId}`;
     }
   }, []);
 
   const estimateSize = useCallback((index: number) => {
     const row = rowsRef.current[index];
     if (!row) return 70;
-    return row.type === "group-header" ? 36 : 70;
+    if (row.type === "group-header" || row.type === "tree-span") return 36;
+    return 70;
   }, []);
 
   const virtualizer = useVirtualizer({
@@ -215,7 +239,7 @@ export default function TraceSegment({
     for (const vi of items) {
       const row = rows[vi.index];
       if (!row) continue;
-      if (row.type === "span" || row.type === "group-span") {
+      if (row.type === "span" || row.type === "group-span" || row.type === "tree-span") {
         push(visible, row.span.spanId);
       } else if (row.type === "group-header") {
         if (row.group.firstLlmSpanId) {
@@ -236,7 +260,9 @@ export default function TraceSegment({
     if (!selectedSpan || selectedSpan.traceId !== traceId) return;
     if (lastScrolledSpanIdRef.current === selectedSpan.spanId) return;
     const idx = rows.findIndex(
-      (r) => (r.type === "span" || r.type === "group-span") && r.span.spanId === selectedSpan.spanId
+      (r) =>
+        (r.type === "span" || r.type === "group-span" || r.type === "tree-span") &&
+        r.span.spanId === selectedSpan.spanId
     );
     if (idx === -1) return;
     lastScrolledSpanIdRef.current = selectedSpan.spanId;
@@ -328,6 +354,18 @@ export default function TraceSegment({
                       />
                     </CopyFlag>
                   </GroupChildWrapper>
+                ) : row.type === "tree-span" ? (
+                  <SpanCard
+                    span={row.span}
+                    branchMask={row.branchMask}
+                    depth={row.depth}
+                    hasChildren={row.hasChildren}
+                    output={previews[row.span.spanId]}
+                    showTreeContent={showTreeContent}
+                    isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
+                    onSpanSelect={(s) => s && setSelectedSpan({ traceId, spanId: s.spanId })}
+                    onToggleCollapse={(spanId) => toggleSpanCollapse(traceId, spanId)}
+                  />
                 ) : (
                   <CopyFlag {...spanFlagProps(row.span, traceId, sessionId)}>
                     <SpanItem
