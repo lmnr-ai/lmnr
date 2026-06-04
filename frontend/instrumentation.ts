@@ -210,6 +210,16 @@ export async function register() {
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
 
+      // OAuth Device Flow: ensure a JWT signing key exists. Idempotent —
+      // generates one only on first boot. See lib/oauth/signing-key.ts.
+      try {
+        const { getOrCreateActiveSigningKey } = await import("@/lib/oauth/signing-key.ts");
+        await getOrCreateActiveSigningKey();
+        console.log("✓ OAuth signing key ready");
+      } catch (error) {
+        console.error("Failed to ensure OAuth signing key:", error);
+      }
+
       // Fetch model costs and populate the database
       console.log("Fetching model costs...");
       const modelCostsOk = await initializeModelCosts();
