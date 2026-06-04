@@ -17,6 +17,11 @@ const chartConfig = {
     color: "hsl(var(--success-bright))",
     stackId: "stack",
   },
+  warningCount: {
+    label: "warning",
+    color: "rgb(250 204 21)", // yellow-400
+    stackId: "stack",
+  },
   errorCount: {
     label: "error",
     color: "hsl(var(--destructive-bright))",
@@ -24,7 +29,7 @@ const chartConfig = {
   },
 } as const;
 
-const fields = ["successCount", "errorCount"] as const;
+const fields = ["successCount", "warningCount", "errorCount"] as const;
 
 export default function TracesChart({ className, containerRef }: TracesChartProps) {
   const { stats, isLoadingStats, chartContainerWidth } = useTracesStoreContext((state) => ({
