@@ -289,7 +289,9 @@ const createDebuggerSessionViewStore = (options?: {
               const params = new URLSearchParams();
               params.set("pageNumber", "0");
               params.set("pageSize", String(MAX_RUNS));
-              params.set("sortDirection", "ASC");
+              // DESC so a session with > MAX_RUNS runs keeps the NEWEST window;
+              // the display sort below restores oldest-first within it.
+              params.set("sortDirection", "DESC");
               params.append(
                 "filter",
                 JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
@@ -313,7 +315,7 @@ const createDebuggerSessionViewStore = (options?: {
                 ...item,
                 metadata: normalizeMetadata(item.metadata),
               }));
-              // API already sorts ASC; defensively sort oldest-first for display.
+              // API returned newest-first; display order is oldest-first.
               const sorted = normalized.sort(
                 (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
               );
