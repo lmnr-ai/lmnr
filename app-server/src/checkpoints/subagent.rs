@@ -1,12 +1,12 @@
-//! Subagent detection for checkpoints (step 7).
+//! Subagent detection for checkpoints.
 
 use uuid::Uuid;
 
 use super::consumer::CheckpointsQueueMessage;
 use crate::db::DB;
 
-/// Step 7: resolve the parent agent(s) of `agent_id` when this checkpoint
-/// belongs to a subagent. Returns an empty vec when this is a main agent
+/// Resolve the parent agent(s) of `agent_id` when this checkpoint belongs to a
+/// subagent. Returns an empty vec when this is a main agent
 /// (caller then quits without bumping anything).
 ///
 /// Parentage is inferred from `message.span_ids_path` (the span hierarchy)

@@ -1640,11 +1640,12 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn checkpoints workers (no-op handler for now)
+                    // Spawn checkpoints workers
                     {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let llm_client = llm_provider_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers as usize,
@@ -1652,6 +1653,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
+                                llm_client: llm_client.clone(),
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,

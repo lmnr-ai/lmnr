@@ -18,12 +18,13 @@ use uuid::Uuid;
 
 use super::{
     classifier::{self, AgentClassification},
-    subagent, system_prompt,
-    version::{self, AgentFingerprint},
+    subagent, system_prompt, version,
 };
 use crate::{
     cache::Cache,
-    db::DB,
+    ch::deduped_content,
+    db::{DB, agents},
+    llm::LlmClient,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -40,6 +41,7 @@ pub struct CheckpointsHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
+    pub llm_client: Option<Arc<LlmClient>>,
 }
 
 #[async_trait]
@@ -63,65 +65,94 @@ impl MessageHandler for CheckpointsHandler {
 
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
-        // 1. Extract the non-dynamic (stable) part of the system prompt.
-        let non_dynamic_system_prompt =
-            system_prompt::extract_non_dynamic_system_prompt(&message.system_prompt);
+        // Extract the stable part of the system prompt (no dynamic content).
+        let stable_system_prompt = system_prompt::extract_stable_system_prompt(
+            &message.system_prompt,
+            self.cache.clone(),
+            self.llm_client.clone(),
+        )
+        .await;
 
-        // 2. Hash the non-dynamic system prompt.
-        let sys_prompt_hash = system_prompt::hash_system_prompt(&non_dynamic_system_prompt);
+        // Compute a single version hash over (stable system prompt, tool
+        // definitions hash, model). This is the agent version's identity.
+        let version_hash = version::compute_version_hash(
+            &stable_system_prompt,
+            &message.tool_definitions_hash,
+            &message.model,
+        );
 
-        let fingerprint = AgentFingerprint {
-            sys_prompt_hash,
-            tool_def_hash: message.tool_definitions_hash.clone(),
-            model: message.model.clone(),
-        };
-
-        // 3 & 4. Look for an exact (sys_prompt_hash, tool_def_hash, model)
-        // match in the project. An exact match means nothing changed — quit.
-        if version::find_matching_agent_version(&self.db, message.project_id, &fingerprint)
+        // An exact (project_id, version_hash) match means this shape has
+        // already been seen — nothing changed, quit.
+        if agents::get_agent_by_version_hash(&self.db.pool, message.project_id, &version_hash)
             .await?
             .is_some()
         {
             return Ok(());
         }
 
-        // 5. No exact match — ask the LLM whether this is a brand-new agent or
+        // A new version is being recorded — resolve the original tool
+        // definitions from ClickHouse to store alongside it
+        let tool_definitions = if message.tool_definitions_hash.is_empty() {
+            String::new()
+        } else {
+            deduped_content::get_content_by_hash(
+                &self.clickhouse,
+                message.project_id,
+                &message.tool_definitions_hash,
+            )
+            .await?
+            .unwrap_or_default()
+        };
+
+        // No exact match — ask the LLM whether this is a brand-new agent or
         // a modified version of an existing one, using the project's existing
         // agent system prompts as context.
-        let existing_agents = version::list_existing_agents(&self.db, message.project_id).await?;
+        let existing_agents =
+            agents::list_latest_agent_versions(&self.db.pool, message.project_id).await?;
         let classification =
-            classifier::classify_agent(&non_dynamic_system_prompt, &existing_agents).await?;
+            classifier::classify_agent(&stable_system_prompt, &existing_agents, self.llm_client.clone())
+                .await?;
 
-        // 6. Create the new agent, or bump the matched agent's version.
+        // Create the new agent, or bump the matched agent's version.
         let agent_id = match classification {
             AgentClassification::NewAgent => {
-                version::create_agent(
-                    &self.db,
+                agents::create_agent(
+                    &self.db.pool,
                     message.project_id,
-                    &fingerprint,
-                    &non_dynamic_system_prompt,
+                    &version_hash,
+                    &stable_system_prompt,
+                    &tool_definitions,
+                    &message.model,
                 )
                 .await?
             }
-            AgentClassification::ExistingAgent { agent_id, diff } => {
-                version::bump_agent_version(
-                    &self.db,
+            AgentClassification::ExistingAgent { agent_id } => {
+                agents::create_new_agent_version(
+                    &self.db.pool,
                     message.project_id,
                     agent_id,
-                    &fingerprint,
-                    diff,
+                    &version_hash,
+                    &stable_system_prompt,
+                    &tool_definitions,
+                    &message.model,
                 )
                 .await?;
                 agent_id
             }
         };
 
-        // 7. If this checkpoint belongs to a subagent, bump every parent
+        // If this checkpoint belongs to a subagent, bump every parent
         // agent's version too. Empty parent set == main agent == quit.
+        // TODO: implement later, currently no op
         let parent_agent_ids = subagent::get_parent_agent_ids(&self.db, message, agent_id).await?;
         for parent_id in parent_agent_ids {
-            version::bump_parent_agent_version(&self.db, message.project_id, parent_id, agent_id)
-                .await?;
+            agents::bump_parent_agent_version(
+                &self.db.pool,
+                message.project_id,
+                parent_id,
+                agent_id,
+            )
+            .await?;
         }
 
         Ok(())
