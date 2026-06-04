@@ -166,6 +166,8 @@ export default function TraceSegment({
   const mode = useSessionViewBaseStore((s) => s.traceViewModes[traceId] ?? "transcript");
   const showTreeContent = useSessionViewBaseStore((s) => s.traceShowTreeContent[traceId] ?? true);
   const toggleSpanCollapse = useSessionViewBaseStore((s) => s.toggleSpanCollapse);
+  const scrollToTraceId = useSessionViewBaseStore((s) => s.scrollToTraceId);
+  const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
 
@@ -176,7 +178,31 @@ export default function TraceSegment({
 
   // --- Per-trace virtualizer, offset into the shared scroll element. ---
   const viewportRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
+
+  // R1: when THIS trace was just collapsed, bring its header into view — only if
+  // out of view (mirrors the regular view's scrollToIndex align:"auto"). The
+  // debugger has no flat-row virtualizer to scrollToIndex against; the header is
+  // plain DOM, so we bounds-check it against the page scroll container and scroll
+  // only when it's outside the viewport, then consume the one-shot request. Keyed
+  // on `expanded` too so it runs AFTER the collapse rebuilds this segment's height.
+  useEffect(() => {
+    if (scrollToTraceId !== traceId) return;
+    const header = headerRef.current;
+    if (!header || !scrollEl) {
+      consumeScrollToTrace();
+      return;
+    }
+    const headerRect = header.getBoundingClientRect();
+    const scRect = scrollEl.getBoundingClientRect();
+    // Out of view = header top above the container top, or below its bottom.
+    if (headerRect.top < scRect.top || headerRect.top > scRect.bottom) {
+      const target = scrollEl.scrollTop + (headerRect.top - scRect.top);
+      scrollEl.scrollTo({ top: Math.max(0, target), behavior: "auto" });
+    }
+    consumeScrollToTrace();
+  }, [scrollToTraceId, traceId, expanded, scrollEl, consumeScrollToTrace]);
 
   // Measure this viewport's offset within the scroll content (rect math instead
   // of offsetTop — robust to positioned ancestors). Re-measured whenever the
@@ -288,7 +314,7 @@ export default function TraceSegment({
           When collapsed the body below it is the (non-sticky) TraceCollapsedBody
           sibling, so the stuck header pins just the ~40px bar over its own body —
           the same row-split the regular view does, without a flat-row builder. */}
-      <div className="sticky top-0 z-10 bg-background">
+      <div ref={headerRef} className="sticky top-0 z-10 bg-background">
         <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
           <TraceItem
             trace={trace}
