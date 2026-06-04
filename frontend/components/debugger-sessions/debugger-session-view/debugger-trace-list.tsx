@@ -6,7 +6,6 @@ import { shallow } from "zustand/shallow";
 import { useSessionSpanPreviews } from "@/components/traces/session-view/session-panel/use-session-span-previews";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { formatDuration } from "@/lib/utils";
 
 import TraceSegment from "./trace-segment";
@@ -94,14 +93,6 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     spanTypesByTrace,
   });
 
-  const allSpansById = useMemo(() => {
-    const map = new Map<string, TraceViewSpan>();
-    for (const spans of Object.values(traceSpans)) {
-      for (const s of spans) map.set(s.spanId, s);
-    }
-    return map;
-  }, [traceSpans]);
-
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
   const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
 
@@ -124,7 +115,6 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
               userInputs={userInputs}
               agentNames={agentNames}
               traceIO={traceIO[trace.id]}
-              allSpansById={allSpansById}
             />
             {next && (
               <div className="px-2 flex h-20 items-center justify-center">

@@ -4,7 +4,6 @@ import { useRef } from "react";
 
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
-import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
@@ -31,10 +30,6 @@ interface SpanCardProps {
   hasChildren: boolean;
   isSelected: boolean;
   showTreeContent: boolean;
-  /** Reserve the replay-indicator (lock) column for alignment. Set by the parent
-   *  when the trace contains any CACHED span — the indicator itself only renders
-   *  on CACHED rows (see DebuggerCheckpoint). */
-  cachingEnabled?: boolean;
   onToggleCollapse: (spanId: string) => void;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
@@ -48,7 +43,6 @@ export function SpanCard({
   hasChildren,
   isSelected,
   showTreeContent,
-  cachingEnabled = false,
   onToggleCollapse,
 }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -75,8 +69,6 @@ export function SpanCard({
     { "opacity-60": isCached }
   );
 
-  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch");
-
   return (
     <div
       ref={ref}
@@ -87,13 +79,7 @@ export function SpanCard({
         }
       }}
     >
-      {cachingEnabled && (
-        <div className={lockColumnClasses}>
-          <DebuggerCheckpoint span={span} />
-        </div>
-      )}
-
-      <div className={cn("flex flex-row flex-1 min-w-0 text-md", !cachingEnabled && "pl-2")}>
+      <div className="flex flex-row flex-1 min-w-0 text-md pl-2">
         <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
         <div className="flex flex-col items-center shrink-0 pt-1.5 self-stretch">

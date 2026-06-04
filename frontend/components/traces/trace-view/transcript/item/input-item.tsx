@@ -7,13 +7,10 @@ interface InputItemProps {
   text: string | null;
   isLoading: boolean;
   inGroup?: boolean;
-  /** Indent to clear the replay-indicator (lock) column so the input row aligns
-   *  with span rows. Set when the trace contains any CACHED span. */
-  cachingEnabled?: boolean;
   className?: string;
 }
 
-export function InputItem({ text, inGroup, cachingEnabled = false, className }: InputItemProps) {
+export function InputItem({ text, inGroup, className }: InputItemProps) {
   if (!text) return null;
 
   return (
@@ -24,7 +21,7 @@ export function InputItem({ text, inGroup, cachingEnabled = false, className }: 
           {
             "bg-muted/60": inGroup,
           },
-          cachingEnabled ? "pl-11" : "pl-1",
+          "pl-1",
           className
         )}
       >

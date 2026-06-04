@@ -98,10 +98,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     return map;
   }, [spans]);
 
-  // Reserve the replay-indicator (lock) column / debugger input padding only when
-  // the trace has a replayed span; the icon renders per-row via DebuggerCheckpoint.
-  const traceHasCachedSpan = useMemo(() => spans.some((s) => s.spanType === "CACHED"), [spans]);
-
   const transcriptEntries = useMemo(
     () => getTranscriptListData(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -385,7 +381,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
     (row: FlatRow) => {
       switch (row.type) {
         case "user-input":
-          return <InputItem text={userInput} isLoading={isUserInputLoading} cachingEnabled={traceHasCachedSpan} />;
+          return <InputItem text={userInput} isLoading={isUserInputLoading} />;
 
         case "group": {
           const isCollapsed = !transcriptExpandedGroups.has(row.groupId);
@@ -409,7 +405,7 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           const isLoadingInput = inputPreviews[row.firstLlmSpanId] === undefined;
           return (
             <GroupChildWrapper>
-              <InputItem text={inputText} isLoading={isLoadingInput} cachingEnabled={traceHasCachedSpan} inGroup />
+              <InputItem text={inputText} isLoading={isLoadingInput} inGroup />
             </GroupChildWrapper>
           );
         }
@@ -419,11 +415,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
             <GroupChildWrapper isLast={row.isLast}>
               <SpanItem
                 span={row.span}
-                fullSpan={spansById.get(row.span.spanId)}
                 output={previews[row.span.spanId]}
                 onSpanSelect={handleSpanSelect}
                 isSelected={selectedSpan?.spanId === row.span.spanId}
-                cachingEnabled={traceHasCachedSpan}
                 inGroup
               />
             </GroupChildWrapper>
@@ -433,11 +427,9 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           return (
             <SpanItem
               span={row.span}
-              fullSpan={spansById.get(row.span.spanId)}
               output={previews[row.span.spanId]}
               onSpanSelect={handleSpanSelect}
               isSelected={selectedSpan?.spanId === row.span.spanId}
-              cachingEnabled={traceHasCachedSpan}
             />
           );
       }
@@ -453,7 +445,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
       handleSpanSelect,
       selectedSpan,
       spansById,
-      traceHasCachedSpan,
     ]
   );
 

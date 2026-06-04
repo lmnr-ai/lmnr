@@ -3,11 +3,10 @@ import { X } from "lucide-react";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder.tsx";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TraceViewListSpan, type TraceViewSpan } from "@/components/traces/trace-view/store/base";
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,27 +84,18 @@ function LLMOutputPreview({
 
 export interface SpanItemProps {
   span: TraceViewListSpan;
-  /** Full span data — only needed for the replay-indicator (checkpoint).
-   *  When omitted, the row renders normally but without the indicator. */
-  fullSpan?: TraceViewSpan;
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   isSelected: boolean;
-  /** Reserve the replay-indicator (lock) column for alignment. Set by the parent
-   *  when the trace contains any CACHED span — the indicator only renders on
-   *  CACHED rows (see DebuggerCheckpoint). */
-  cachingEnabled?: boolean;
   inGroup?: boolean;
   className?: string;
 }
 
 export default function SpanItem({
   span,
-  fullSpan,
   output,
   onSpanSelect,
   isSelected,
-  cachingEnabled = false,
   inGroup = false,
   className,
 }: SpanItemProps) {
@@ -134,12 +124,6 @@ export default function SpanItem({
         }
       }}
     >
-      {cachingEnabled && fullSpan && (
-        <div className="flex items-start justify-center shrink-0 w-10 p-0.5 self-stretch">
-          <DebuggerCheckpoint span={fullSpan} />
-        </div>
-      )}
-
       <div className="flex flex-col flex-1 min-w-0 py-1.5 gap-1 pl-1.5 pr-2">
         <div className="flex gap-2 items-center min-w-0">
           <SpanTypeIcon

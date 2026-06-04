@@ -70,7 +70,6 @@ export default function TraceCollapsedBody({ trace, traceIO }: TraceCollapsedBod
           </div>
           <SpanItem
             span={lastSpan}
-            fullSpan={lastFullSpan ?? undefined}
             output={traceIO.outputPreview}
             onSpanSelect={(s) => setSelectedSpan({ traceId: trace.id, spanId: s.spanId })}
             isSelected={!!selectedSpan && selectedSpan.traceId === trace.id && selectedSpan.spanId === lastSpan.spanId}

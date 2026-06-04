@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useBatchedTraceIO } from "@/components/traces/sessions-table/use-batched-trace-io";
-import { type TraceViewSpan, type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
+import { type TranscriptListGroup } from "@/components/traces/trace-view/store/base";
 import {
   AgentGroupHeader,
   GroupChildWrapper,
@@ -433,15 +433,6 @@ export default function SessionList() {
     spanTypesByTrace,
   });
 
-  // Flat spanId → TraceViewSpan lookup across all loaded traces.
-  const allSpansById = useMemo(() => {
-    const map = new Map<string, TraceViewSpan>();
-    for (const spans of Object.values(traceSpans)) {
-      for (const s of spans) map.set(s.spanId, s);
-    }
-    return map;
-  }, [traceSpans]);
-
   // Main-agent input/output text + output span, fetched in one batched call
   // per session. Reuses the `/traces/io` endpoint + hook that powers the
   // sessions-table trace cards. Sessions can have many traces, so we pass
@@ -543,7 +534,6 @@ export default function SessionList() {
                 <GroupChildWrapper isLast={row.isLast} className="mx-0">
                   <SpanItem
                     span={row.span}
-                    fullSpan={allSpansById.get(row.span.spanId)}
                     output={previews[row.span.spanId]}
                     onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
                     isSelected={
@@ -569,7 +559,6 @@ export default function SessionList() {
               ) : (
                 <SpanItem
                   span={row.span}
-                  fullSpan={allSpansById.get(row.span.spanId)}
                   output={previews[row.span.spanId]}
                   onSpanSelect={(s) => setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
                   isSelected={

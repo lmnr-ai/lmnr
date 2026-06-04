@@ -49,10 +49,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
-  // Reserve the replay-indicator (lock) column only when the trace actually has a
-  // replayed span; the icon itself renders per-row via DebuggerCheckpoint.
-  const traceHasCachedSpan = useMemo(() => spans.some((s) => s.spanType === "CACHED"), [spans]);
-
   const virtualizer = useVirtualizer({
     count: treeSpans.length,
     getScrollElement: () => scrollRef.current,
@@ -191,7 +187,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                     hasChildren={spanItem.hasChildren}
                     isSelected={spanItem.span.spanId === selectedSpan?.spanId}
                     showTreeContent={showTreeContent ?? true}
-                    cachingEnabled={traceHasCachedSpan}
                     onToggleCollapse={toggleCollapse}
                     onSpanSelect={onSpanSelect}
                   />
