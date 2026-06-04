@@ -168,7 +168,6 @@ export default function TraceSegment({
   const toggleSpanCollapse = useSessionViewBaseStore((s) => s.toggleSpanCollapse);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
-  const openTraceView = useDebuggerSessionViewStore((s) => s.openTraceView);
 
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];
@@ -295,7 +294,6 @@ export default function TraceSegment({
             totalTraces={totalTraces}
             onToggle={() => toggleTraceExpanded(traceId)}
             traceIO={traceIO}
-            onOpenTraceView={openTraceView}
             analyticsFeature="debugger_sessions"
           />
         </CopyFlag>

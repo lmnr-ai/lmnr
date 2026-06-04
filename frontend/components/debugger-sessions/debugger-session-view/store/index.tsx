@@ -123,12 +123,6 @@ interface DebuggerSessionViewState {
   // and flushed into `traceSpans` when the slot is created. Transient, not persisted.
   realtimeSpanBuffer: Record<string, TraceViewSpan[]>;
 
-  // Trace id whose FULL trace view is open in the overlay side panel (null =
-  // closed). Distinct from base `selectedSpan` (which drives the SPAN panel):
-  // span clicks open the span panel; only the trace-card dropdown's
-  // "Open trace view" opens this full TraceViewSidePanel overlay.
-  traceViewTraceId: string | null;
-
   // Displayed session name (the SessionHeader title). Seeded from the breadcrumb
   // prop at store creation; updated live by the `session_update` realtime event so
   // a rename reflects without reload.
@@ -155,11 +149,6 @@ interface DebuggerSessionViewActions {
   // appeared via a trace_update (whose payload carries no stats). Preserves the
   // row's current metadata (already merged from realtime) and its bumped endTime.
   hydrateTraceRow: (traceId: string) => Promise<void>;
-
-  // Open / close the full trace-view overlay for a trace (dropdown "Open trace
-  // view"). Opening one closes any open span panel so the two overlays don't stack.
-  openTraceView: (traceId: string) => void;
-  closeTraceView: () => void;
 
   // Update the displayed session name live (driven by the `session_update`
   // realtime event after a rename via PATCH /v1/.../rollouts/{id}/name).
@@ -193,18 +182,9 @@ const createDebuggerSessionViewStore = (options?: {
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
 
           noteMetadataKey: NOTE_METADATA_KEY,
-          traceViewTraceId: null,
           sessionName: options?.initialSessionName ?? "Session",
           realtimeSpanBuffer: {},
           newTraceNotice: false,
-
-          // Selecting a span (opening the span panel) closes the full trace-view
-          // overlay so the two right-side overlays never stack. Delegates the rest
-          // to the base implementation (sets selectedSpan + spanPanelOpen + fits panels).
-          setSelectedSpan: (selection) => {
-            if (selection) set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>);
-            baseSlice.setSelectedSpan(selection);
-          },
 
           fetchSessionTraces: async (sessionId) => {
             const { projectId } = get();
@@ -417,16 +397,6 @@ const createDebuggerSessionViewStore = (options?: {
               // Best-effort hydration — placeholder stats / realtime-fed spans remain on failure.
             }
           },
-
-          openTraceView: (traceId) => {
-            // Opening the full trace view closes any span panel so only one overlay shows.
-            set({
-              traceViewTraceId: traceId,
-              selectedSpan: undefined,
-              spanPanelOpen: false,
-            } as Partial<DebuggerSessionViewStore>);
-          },
-          closeTraceView: () => set({ traceViewTraceId: null } as Partial<DebuggerSessionViewStore>),
 
           setSessionName: (name) => set({ sessionName: name } as Partial<DebuggerSessionViewStore>),
 

@@ -34,12 +34,6 @@ interface TraceItemProps {
   onToggle: () => void;
   traceIO?: TraceIOEntry | null;
   className?: string;
-  /** Optional override for the dropdown's "Open trace view". When provided (the
-   *  debugger view passes its store's openTraceView), it opens an in-page side
-   *  panel instead of the default new-tab navigation. Passed as a prop — NOT read
-   *  from a feature store here — so this shared component has no cross-feature
-   *  import and is immune to context-module-duplication. */
-  onOpenTraceView?: (traceId: string) => void;
   /** Which surface this card belongs to — drives the control bar's analytics
    *  attribution. The debugger passes "debugger_sessions"; defaults to "sessions". */
   analyticsFeature?: "sessions" | "debugger_sessions";
@@ -53,7 +47,6 @@ export default function TraceItem({
   onToggle,
   traceIO,
   className,
-  onOpenTraceView,
   analyticsFeature,
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
@@ -115,15 +108,10 @@ export default function TraceItem({
     toast({ title: "Copied trace ID", duration: 1000 });
   }, [trace.id, toast]);
 
-  // "Open trace view": the debugger passes `onOpenTraceView` (in-page side panel);
-  // the regular session view passes nothing → open the trace page in a new tab.
+  // "Open trace view": open the full-screen trace page in a new tab (both surfaces).
   const handleOpenInTraceView = useCallback(() => {
-    if (onOpenTraceView) {
-      onOpenTraceView(trace.id);
-      return;
-    }
-    window.open(`/project/${projectId}/traces?traceId=${trace.id}`, "_blank");
-  }, [onOpenTraceView, projectId, trace.id]);
+    window.open(`/project/${projectId}/traces/${trace.id}`, "_blank", "noopener,noreferrer");
+  }, [projectId, trace.id]);
 
   const relativeTime = useMemo(() => {
     try {
@@ -205,11 +193,11 @@ export default function TraceItem({
               {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
               <span
                 className={cn(
-                  "flex items-center justify-center rounded-full pl-2.5 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap gap-1",
-                  "group-hover:border border-[rgba(232,232,232,0.1)] group-hover:bg-[rgba(232,232,232,0.05)]"
+                  "flex items-center justify-center rounded-full pl-1 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap",
+                  "group-hover:border border-[rgba(232,232,232,0.1)] group-hover:bg-[rgba(232,232,232,0.05)] group-hover:gap-1 group-hover:pl-2.5"
                 )}
               >
-                <span className="opacity-0 group-hover:opacity-100 overflow-hidden group-hover:w-[45px] w-0 trnasition-all duration-200">
+                <span className="opacity-0 group-hover:opacity-100 overflow-hidden group-hover:w-[50px] w-0 trnasition-all duration-200">
                   {expanded ? "Collapse" : "Expand"}
                 </span>
                 <ChevronDown
@@ -220,7 +208,7 @@ export default function TraceItem({
             </div>
           </button>
           {expanded && (
-            <div className="bg-secondary/50 px-3 py-1 border-t">
+            <div className="bg-secondary/75 px-3 py-2 border-t">
               <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />
             </div>
           )}

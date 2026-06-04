@@ -6,7 +6,6 @@ import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
-import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
@@ -35,9 +34,9 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 };
 
 // Inner content: restores the user's hand-placed shell (page scroll container,
-// sticky LEFT outline, 720px article column, right spacer; span view via an
-// overlaying TraceViewSidePanel) wired to the new composed store. The ONLY UI
-// change vs 0b1f5435c is the article column's trace cards (now the virtualized
+// sticky LEFT outline, 720px article column, right spacer; span clicks open the
+// in-flow SessionSpanPanel) wired to the new composed store. The ONLY UI change
+// vs 0b1f5435c is the article column's trace cards (now the virtualized
 // session-view trace items in DebuggerTraceList).
 export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
   const { projectId } = useParams<{ projectId: string }>();
@@ -47,11 +46,6 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     (s) => ({ traces: s.traces, spanPanelOpen: s.spanPanelOpen }),
     shallow
   );
-
-  // Full trace-view overlay state (opened only by the trace-card dropdown's
-  // "Open trace view"; span clicks open the span panel via selectedSpan instead).
-  const traceViewTraceId = useDebuggerSessionViewStore((s) => s.traceViewTraceId);
-  const closeTraceView = useDebuggerSessionViewStore((s) => s.closeTraceView);
 
   // Displayed session title — store-backed so `session_update` (rename) reflects
   // live. Seeded from the breadcrumb prop at store creation (index.tsx).
@@ -189,8 +183,6 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           DIRECT child of this row: the panel measures its parentElement to clamp
           resize widths. */}
       <SessionSpanPanel />
-      {/* Dropdown "Open trace view" → full trace-view overlay (no navigation). */}
-      {traceViewTraceId && <TraceViewSidePanel traceId={traceViewTraceId} onClose={closeTraceView} />}
       {/* New run arrived via realtime → jump-to-bottom pill. Self-dismisses
           when the user scrolls (or is pinned) to the bottom themselves. */}
       <NewTracePill onScrollToBottom={scrollToBottom} scrollEl={scrollEl} />
