@@ -27,7 +27,10 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
 
   // --- Layout version: bumped whenever the column's height changes (expand,
   // collapse, streaming, measurement settle) so every segment re-measures its
-  // scrollMargin. Segments guard with a ±1px compare, so this converges. ---
+  // scrollMargin. Segments guard with a ±1px compare, so this converges.
+  // ResizeObserver-driven scrollMargin re-measure is TanStack's documented
+  // approach for multiple virtualizers in one scrolling element:
+  // https://tanstack.com/virtual/latest/docs/api/virtualizer#scrollmargin ---
   const columnRef = useRef<HTMLDivElement>(null);
   const [layoutVersion, setLayoutVersion] = useState(0);
   useEffect(() => {
