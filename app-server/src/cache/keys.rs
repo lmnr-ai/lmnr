@@ -34,3 +34,4 @@ pub const TRACE_EVALUATION_ID_CACHE_KEY: &str = "trace_evaluation_id";
 pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
+pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";

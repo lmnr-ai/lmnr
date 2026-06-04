@@ -21,7 +21,7 @@ use super::{
     subagent, system_prompt, version,
 };
 use crate::{
-    cache::Cache,
+    cache::{Cache, CacheTrait, keys::AGENT_VERSION_HASH_CACHE_KEY},
     ch::deduped_content,
     db::{DB, agents},
     llm::LlmClient,
@@ -83,9 +83,9 @@ impl CheckpointsHandler {
 
         // An exact (project_id, version_hash) match means this shape has
         // already been seen — nothing changed, quit.
-        if agents::get_agent_by_version_hash(&self.db.pool, message.project_id, &version_hash)
+        if self
+            .is_known_version_hash(message.project_id, &version_hash)
             .await?
-            .is_some()
         {
             return Ok(());
         }
@@ -142,6 +142,11 @@ impl CheckpointsHandler {
             }
         };
 
+        // Cache the freshly-written shape so the next identical checkpoint
+        // short-circuits at the read-through above instead of hitting the DB.
+        self.cache_version_hash(message.project_id, &version_hash, agent_id)
+            .await;
+
         // If this checkpoint belongs to a subagent, bump every parent
         // agent's version too. Empty parent set == main agent == quit.
         // TODO: implement later, currently no op
@@ -157,5 +162,54 @@ impl CheckpointsHandler {
         }
 
         Ok(())
+    }
+
+    /// Whether this `(project_id, version_hash)` shape already exists. Reads
+    /// through the cache first — most checkpoints repeat a known shape, so only
+    /// genuinely new version hashes should ever reach Postgres. The mapping is
+    /// immutable, so a cache hit is authoritative; a DB hit back-fills the
+    /// cache so subsequent identical checkpoints skip the DB.
+    async fn is_known_version_hash(
+        &self,
+        project_id: Uuid,
+        version_hash: &str,
+    ) -> anyhow::Result<bool> {
+        let cache_key = Self::version_hash_cache_key(project_id, version_hash);
+        if self
+            .cache
+            .get::<Uuid>(&cache_key)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("Failed to read agent version-hash cache {cache_key}: {e:?}");
+                None
+            })
+            .is_some()
+        {
+            return Ok(true);
+        }
+
+        if let Some(agent_id) =
+            agents::get_agent_by_version_hash(&self.db.pool, project_id, version_hash).await?
+        {
+            self.cache_version_hash(project_id, version_hash, agent_id)
+                .await;
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    /// Best-effort write of the `(project_id, version_hash) → agent_id`
+    /// mapping. No TTL — the mapping never changes. Cache failures must not
+    /// fail the checkpoint, so errors are logged and swallowed.
+    async fn cache_version_hash(&self, project_id: Uuid, version_hash: &str, agent_id: Uuid) {
+        let cache_key = Self::version_hash_cache_key(project_id, version_hash);
+        if let Err(e) = self.cache.insert::<Uuid>(&cache_key, agent_id).await {
+            log::warn!("Failed to write agent version-hash cache {cache_key}: {e:?}");
+        }
+    }
+
+    fn version_hash_cache_key(project_id: Uuid, version_hash: &str) -> String {
+        format!("{AGENT_VERSION_HASH_CACHE_KEY}:{project_id}:{version_hash}")
     }
 }
