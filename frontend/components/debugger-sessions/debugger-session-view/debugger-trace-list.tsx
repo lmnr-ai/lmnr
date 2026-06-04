@@ -63,15 +63,23 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     });
   }, []);
 
+  // Live trace-id set. A wholesale `setTraces` replace can drop ids while leaving a
+  // stale visibleAgg entry behind, which would keep fetching previews for a
+  // no-longer-displayed run (finding #5). Filter the CONSUMED maps by live ids
+  // rather than pruning state in an effect (avoids a setState-in-effect cascade);
+  // visibleAgg itself stays bounded by MAX_RUNS and re-fills when an id returns.
+  const liveTraceIds = useMemo(() => new Set(traces.map((t) => t.id)), [traces]);
+
   const { visibleSpanIdsByTrace, inputSpanIdsByTrace } = useMemo(() => {
     const visible: Record<string, string[]> = {};
     const inputs: Record<string, string[]> = {};
     for (const [traceId, entry] of Object.entries(visibleAgg)) {
+      if (!liveTraceIds.has(traceId)) continue;
       if (entry.visible.length > 0) visible[traceId] = entry.visible;
       if (entry.inputs.length > 0) inputs[traceId] = entry.inputs;
     }
     return { visibleSpanIdsByTrace: visible, inputSpanIdsByTrace: inputs };
-  }, [visibleAgg]);
+  }, [visibleAgg, liveTraceIds]);
 
   const spanTypesByTrace = useMemo(() => {
     const out: Record<string, Record<string, string>> = {};

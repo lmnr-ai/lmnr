@@ -132,6 +132,11 @@ interface DebuggerSessionViewState {
   // at the bottom of the view. Cleared on pill click / dismiss. Transient.
   newTraceNotice: boolean;
 
+  // True once the initial fetchSessionTraces has settled. Gates newTraceNotice so a
+  // trace_update that races ahead of the first fetch (for a run already in the
+  // initial set) can't flash the "New trace" pill on page load (finding #8).
+  tracesHydrated: boolean;
+
   // Per-trace "hydration in flight" flag (set while hydrateTraceRow runs). Drives
   // the segment skeleton so a placeholder empty `[]` slot doesn't flash "No spans
   // found" before the one-shot hydrate fetch settles. Transient.
@@ -200,6 +205,7 @@ const createDebuggerSessionViewStore = (options?: {
           sessionName: options?.initialSessionName ?? "Session",
           realtimeSpanBuffer: {},
           newTraceNotice: false,
+          tracesHydrated: false,
           traceHydrating: {},
           traceSpansConfirmedEmpty: {},
 
@@ -304,6 +310,9 @@ const createDebuggerSessionViewStore = (options?: {
               get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
             } finally {
               get().setIsTracesLoading(false);
+              // Mark hydrated even on error: a failed initial fetch shouldn't leave the
+              // pill permanently suppressed — subsequent live runs are genuinely new.
+              set({ tracesHydrated: true } as Partial<DebuggerSessionViewStore>);
             }
           },
 
@@ -329,16 +338,16 @@ const createDebuggerSessionViewStore = (options?: {
             }
 
             // Bump the owning trace row's endTime when the span extends past it (keeps
-            // list stats/ordering correct for a live run). No-op if the row doesn't
-            // exist yet — the slot's endTime is seeded from the trace_update / hydrate.
+            // list stats/ordering correct for a live run). Find the row FIRST and only
+            // rebuild `traces` when the endTime actually moves — otherwise every streamed
+            // span would mint a new array identity and bust every derived memo
+            // (previewTraces, traceIds, allSpansById, …) for no change (finding #6). No-op
+            // if the row doesn't exist yet — endTime is seeded from trace_update / hydrate.
             const spanEndMs = new Date(span.endTime).getTime();
-            get().setTraces((traces) =>
-              traces.map((t) => {
-                if (t.id !== traceId) return t;
-                if (Number.isNaN(spanEndMs) || spanEndMs <= new Date(t.endTime).getTime()) return t;
-                return { ...t, endTime: span.endTime };
-              })
-            );
+            if (Number.isNaN(spanEndMs)) return;
+            const targetRow = get().traces.find((t) => t.id === traceId);
+            if (!targetRow || spanEndMs <= new Date(targetRow.endTime).getTime()) return;
+            get().setTraces((traces) => traces.map((t) => (t.id === traceId ? { ...t, endTime: span.endTime } : t)));
           },
 
           applyTraceUpdate: (t) => {
@@ -379,16 +388,31 @@ const createDebuggerSessionViewStore = (options?: {
               );
               get().setTraceExpanded(t.traceId, true);
               void get().hydrateTraceRow(t.traceId);
-              // Surface the "New trace" pill so the user can jump to the new run.
-              set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
+              // Surface the "New trace" pill so the user can jump to the new run — but
+              // only once the initial fetch has settled, so a trace_update that beat the
+              // first fetch (for a run already in the initial set) can't flash it on load.
+              if (get().tracesHydrated) set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
               return;
             }
 
-            // Known run → merge metadata (this is what makes live note updates work:
-            // `rollout.note` arrives here after a POST /v1/traces/metadata patch).
-            if (Object.keys(metadata).length === 0) return;
+            // Known run → merge metadata (makes live note updates work: `rollout.note`
+            // arrives here after a POST /v1/traces/metadata patch) AND any non-metadata
+            // fields the payload carries (e.g. hasBrowserSession). Bail only when there
+            // is genuinely nothing to apply, so a browser-session signal isn't dropped
+            // just because the metadata happened to be empty (finding #10).
+            const hasMetadata = Object.keys(metadata).length > 0;
+            const hasBrowserSession = typeof t.hasBrowserSession === "boolean";
+            if (!hasMetadata && !hasBrowserSession) return;
             get().setTraces((traces) =>
-              traces.map((row) => (row.id === t.traceId ? { ...row, metadata: { ...row.metadata, ...metadata } } : row))
+              traces.map((row) =>
+                row.id === t.traceId
+                  ? {
+                      ...row,
+                      ...(hasMetadata && { metadata: { ...row.metadata, ...metadata } }),
+                      ...(hasBrowserSession && { hasBrowserSession: t.hasBrowserSession }),
+                    }
+                  : row
+              )
             );
           },
 

@@ -1,6 +1,5 @@
 import { X } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
@@ -86,12 +85,16 @@ function LLMOutputPreview({
 
 export interface SpanItemProps {
   span: TraceViewListSpan;
-  /** Full span data — only needed for debugger features (checkpoint, cache).
-   *  When omitted, the row renders normally but without debugger UI. */
+  /** Full span data — only needed for the replay-indicator (checkpoint).
+   *  When omitted, the row renders normally but without the indicator. */
   fullSpan?: TraceViewSpan;
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   isSelected: boolean;
+  /** Reserve the replay-indicator (lock) column for alignment. Set by the parent
+   *  when the trace contains any CACHED span — the indicator only renders on
+   *  CACHED rows (see DebuggerCheckpoint). */
+  cachingEnabled?: boolean;
   inGroup?: boolean;
   className?: string;
 }
@@ -102,17 +105,12 @@ export default function SpanItem({
   output,
   onSpanSelect,
   isSelected,
+  cachingEnabled = false,
   inGroup = false,
   className,
 }: SpanItemProps) {
-  const {
-    enabled: cachingEnabled,
-    state: { isSpanCached },
-  } = useOptionalDebuggerStore((s) => ({
-    isSpanCached: s.isSpanCached,
-  }));
-
-  const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
+  // Replayed spans are tagged CACHED by the SDK (shared spec §9).
+  const isCached = span.spanType === "CACHED";
 
   const isLLMType = span.spanType === "LLM" || span.spanType === "CACHED";
   const isPending = span.pending;

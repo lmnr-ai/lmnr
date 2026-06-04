@@ -1,6 +1,5 @@
 import { ArrowRight } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { cn } from "@/lib/utils.ts";
 
@@ -8,12 +7,13 @@ interface InputItemProps {
   text: string | null;
   isLoading: boolean;
   inGroup?: boolean;
+  /** Indent to clear the replay-indicator (lock) column so the input row aligns
+   *  with span rows. Set when the trace contains any CACHED span. */
+  cachingEnabled?: boolean;
   className?: string;
 }
 
-export function InputItem({ text, inGroup, className }: InputItemProps) {
-  const { enabled: isDebuggerMode } = useOptionalDebuggerStore(() => null);
-
+export function InputItem({ text, inGroup, cachingEnabled = false, className }: InputItemProps) {
   if (!text) return null;
 
   return (
@@ -24,7 +24,7 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
           {
             "bg-muted/60": inGroup,
           },
-          isDebuggerMode ? "pl-11" : "pl-1",
+          cachingEnabled ? "pl-11" : "pl-1",
           className
         )}
       >

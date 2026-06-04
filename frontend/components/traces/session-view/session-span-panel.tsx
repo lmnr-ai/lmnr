@@ -36,9 +36,15 @@ export default function SessionSpanPanel() {
   );
 
   // Keep rendering the last selection while the exit animation plays
-  // (closing clears `selectedSpan` before AnimatePresence unmounts us).
+  // (closing clears `selectedSpan` before AnimatePresence unmounts us). Compare by
+  // VALUE (traceId+spanId): `selectedSpan` is a fresh object on every set, so a
+  // reference compare fired a render-phase setState even when re-selecting the same
+  // span (finding #7). Re-selecting the same span is a no-op here; the panel still
+  // re-opens because `spanPanelOpen` flips independently in setSelectedSpan.
   const [lastSelection, setLastSelection] = useState(selection);
-  if (selection && selection !== lastSelection) setLastSelection(selection);
+  if (selection && (selection.traceId !== lastSelection?.traceId || selection.spanId !== lastSelection?.spanId)) {
+    setLastSelection(selection);
+  }
   const shown = selection ?? lastSelection;
 
   const onResize = useCallback((_: unknown, delta: number) => resizePanel("span", delta), [resizePanel]);

@@ -1,7 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { DatabaseZap } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -10,19 +9,10 @@ interface DebuggerCheckpointProps {
 }
 
 // Read-only indicator marking LLM calls that were replayed from the source trace.
-// The SDK owns the replay decision and tags replayed spans as CACHED (shared spec §9).
+// The SDK owns the replay decision and tags replayed spans as CACHED (shared spec §9),
+// so the indicator is derived purely from the span type — no store/provider needed.
 export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
-  const {
-    enabled,
-    state: { isSpanCached },
-  } = useOptionalDebuggerStore((s) => ({
-    isSpanCached: s.isSpanCached,
-  }));
-
-  if (!enabled) return null;
-  if (span.spanType !== "LLM" && span.spanType !== "CACHED") return null;
-
-  if (!isSpanCached(span)) return null;
+  if (span.spanType !== "CACHED") return null;
 
   return (
     <Tooltip>

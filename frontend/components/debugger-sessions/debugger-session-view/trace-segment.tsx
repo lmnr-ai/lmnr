@@ -174,6 +174,10 @@ export default function TraceSegment({
   // a placeholder empty `[]` slot on the skeleton instead of "No spans found".
   const hydrating = useDebuggerSessionViewStore((s) => !!s.traceHydrating[traceId]);
 
+  // Reserve the replay-indicator (lock) column only when this run has a replayed
+  // span; the icon renders per-row via DebuggerCheckpoint.
+  const traceHasCachedSpan = useMemo(() => !!spans?.some((s) => s.spanType === "CACHED"), [spans]);
+
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];
     return mode === "tree" ? buildTreeRows(spans) : buildTranscriptRows(spans, traceId, transcriptExpandedGroups);
@@ -391,6 +395,7 @@ export default function TraceSegment({
                         output={previews[row.span.spanId]}
                         onSpanSelect={(s) => setSelectedSpan({ traceId, spanId: s.spanId })}
                         isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
+                        cachingEnabled={traceHasCachedSpan}
                         inGroup
                       />
                     </CopyFlag>
@@ -403,6 +408,7 @@ export default function TraceSegment({
                     hasChildren={row.hasChildren}
                     output={previews[row.span.spanId]}
                     showTreeContent={showTreeContent}
+                    cachingEnabled={traceHasCachedSpan}
                     isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
                     onSpanSelect={(s) => s && setSelectedSpan({ traceId, spanId: s.spanId })}
                     onToggleCollapse={(spanId) => toggleSpanCollapse(traceId, spanId)}
@@ -415,6 +421,7 @@ export default function TraceSegment({
                       output={previews[row.span.spanId]}
                       onSpanSelect={(s) => setSelectedSpan({ traceId, spanId: s.spanId })}
                       isSelected={!!selectedSpan && selectedSpan.spanId === row.span.spanId}
+                      cachingEnabled={traceHasCachedSpan}
                     />
                   </CopyFlag>
                 )}

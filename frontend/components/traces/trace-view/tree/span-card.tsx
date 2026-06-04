@@ -2,7 +2,6 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useRef } from "react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-store";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
@@ -32,6 +31,10 @@ interface SpanCardProps {
   hasChildren: boolean;
   isSelected: boolean;
   showTreeContent: boolean;
+  /** Reserve the replay-indicator (lock) column for alignment. Set by the parent
+   *  when the trace contains any CACHED span — the indicator itself only renders
+   *  on CACHED rows (see DebuggerCheckpoint). */
+  cachingEnabled?: boolean;
   onToggleCollapse: (spanId: string) => void;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
@@ -45,18 +48,13 @@ export function SpanCard({
   hasChildren,
   isSelected,
   showTreeContent,
+  cachingEnabled = false,
   onToggleCollapse,
 }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const {
-    enabled: cachingEnabled,
-    state: { isSpanCached },
-  } = useOptionalDebuggerStore((s) => ({
-    isSpanCached: s.isSpanCached,
-  }));
-
-  const isCached = cachingEnabled ? isSpanCached(span) : false;
+  // Replayed spans are tagged CACHED by the SDK (shared spec §9).
+  const isCached = span.spanType === "CACHED";
 
   const llmMetrics = getLLMMetrics(span);
 
