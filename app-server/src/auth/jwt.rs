@@ -72,3 +72,109 @@ pub async fn validate_jwt_as_project_api_key(
         is_ingest_only: false,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    use jsonwebtoken::{EncodingKey, Header, encode, jwk::JwkSet};
+    use rsa::{
+        RsaPrivateKey, RsaPublicKey,
+        pkcs8::{EncodePrivateKey, LineEnding},
+        traits::PublicKeyParts,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn looks_like_jwt_recognises_three_segments() {
+        assert!(!looks_like_jwt("not a jwt"));
+        assert!(!looks_like_jwt("only.two"));
+        assert!(!looks_like_jwt("four.parts.here.too"));
+        // Three segments but garbage header — `decode_header` fails so this
+        // is correctly rejected.
+        assert!(!looks_like_jwt("aaaa.bbbb.cccc"));
+    }
+
+    #[tokio::test]
+    async fn test_validate_minted_jwt_against_local_jwks() {
+        // Generate a fresh RSA-2048 keypair. `rsa 0.9` uses `rand_core 0.6`'s
+        // `OsRng` directly, which avoids pinning a `rand` major version here.
+        let mut rng = rsa::rand_core::OsRng;
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("gen rsa key");
+        let pub_key = RsaPublicKey::from(&priv_key);
+
+        // Encode the private key as PKCS#8 PEM for `EncodingKey::from_rsa_pem`.
+        let pem = priv_key
+            .to_pkcs8_pem(LineEnding::LF)
+            .expect("encode pkcs8");
+
+        // Build the public JWK (RSA: kty/n/e/kid/alg/use).
+        let n_b64 = URL_SAFE_NO_PAD.encode(pub_key.n().to_bytes_be());
+        let e_b64 = URL_SAFE_NO_PAD.encode(pub_key.e().to_bytes_be());
+        let kid = "test-kid-1";
+        let jwk_set: JwkSet = serde_json::from_value(json!({
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "n": n_b64,
+                    "e": e_b64,
+                    "kid": kid,
+                    "alg": "RS256",
+                    "use": "sig"
+                }
+            ]
+        }))
+        .expect("parse JwkSet");
+
+        // Seed the in-process JWKS cache so the validator doesn't try to
+        // fetch from the network.
+        jwks::_seed_cache_from_set(&jwk_set).await;
+
+        // Mint a JWT with the matching key.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize;
+        let issuer = issuer();
+        let iss = issuer.trim_end_matches('/').to_string();
+        let project_id = uuid::Uuid::new_v4();
+        let claims = DeviceFlowClaims {
+            iss: iss.clone(),
+            aud: AUDIENCE.to_string(),
+            sub: "11111111-1111-1111-1111-111111111111".to_string(),
+            email: "alice@example.com".to_string(),
+            project_id,
+            scope: "projects:rw".to_string(),
+            client_id: "lmnr-cli".to_string(),
+            jti: "ffffffff-ffff-ffff-ffff-ffffffffffff".to_string(),
+            exp: now + 3600,
+            iat: now,
+        };
+        let mut header = Header::new(jsonwebtoken::Algorithm::RS256);
+        header.kid = Some(kid.to_string());
+
+        let encoding_key =
+            EncodingKey::from_rsa_pem(pem.as_bytes()).expect("from_rsa_pem");
+        let token = encode(&header, &claims, &encoding_key).expect("encode JWT");
+
+        // `validate_jwt_as_project_api_key` should validate this token via
+        // the seeded cache (it will not hit the network because the cache is
+        // fresh and the kid resolves immediately).
+        let http = reqwest::Client::new();
+        let api_key = validate_jwt_as_project_api_key(&http, &token)
+            .await
+            .expect("validate JWT");
+
+        assert_eq!(api_key.project_id, project_id);
+        assert_eq!(
+            api_key.name,
+            Some("oauth:alice@example.com".to_string())
+        );
+        assert_eq!(
+            api_key.hash,
+            "jwt:ffffffff-ffff-ffff-ffff-ffffffffffff"
+        );
+        assert!(!api_key.is_ingest_only);
+    }
+
+}

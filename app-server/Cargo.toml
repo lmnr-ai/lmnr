@@ -81,3 +81,6 @@ uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnosti
 
 [build-dependencies]
 tonic-prost-build = "0.14"
+
+[dev-dependencies]
+rsa = {version = "0.9", features = ["sha2"]}
