@@ -1,5 +1,4 @@
 import { type Metadata } from "next";
-import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { OAuthDeviceClient } from "@/components/oauth-device";
@@ -23,13 +22,18 @@ export default async function OAuthDevicePage(props: OAuthDevicePageProps) {
   const rawCode = params?.user_code?.trim().toUpperCase();
   const userCode = rawCode ? normalizeUserCode(rawCode) : null;
 
-  // Unauthenticated users need the `user_code` preserved through sign-in.
-  // The `(auth)/layout.tsx` redirect would drop it; do an explicit redirect
-  // with the encoded callbackUrl here instead.
+  // Unauthenticated users are redirected to `/sign-in?callbackUrl=...` by
+  // `proxy.ts` (matcher includes `/oauth/device`) and `(auth)/layout.tsx`
+  // (defense-in-depth via `x-pathname` forwarded by proxy.ts). By the time the
+  // page runs, the session is guaranteed.
   const session = await getServerSession(authOptions);
   if (!session?.user) {
-    const callback = userCode ? `/oauth/device?user_code=${encodeURIComponent(userCode)}` : "/oauth/device";
-    redirect(`/sign-in?callbackUrl=${encodeURIComponent(callback)}`);
+    // Should be unreachable; render the unauthenticated panel as a safety net.
+    return (
+      <OAuthDevicePanel title="Authorize device">
+        <p className="text-sm text-secondary-foreground">Please sign in to continue.</p>
+      </OAuthDevicePanel>
+    );
   }
   const user = session.user;
 
