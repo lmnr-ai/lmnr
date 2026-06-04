@@ -13,7 +13,7 @@ export type DebuggerSession = {
   name: string | null;
   projectId: string;
   params: Record<string, any> | null;
-  // Last time a trace arrived for this session (max trace start_time, from
+  // Last time a trace finished for this session (max trace end_time, from
   // ClickHouse). Null when the session has no traces yet.
   lastActivity: string | null;
   // Number of traces grouped to this session (from ClickHouse).
@@ -61,7 +61,7 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
 type SessionStats = { lastActivity: string; traceCount: number };
 
 /**
- * Per-session trace stats from ClickHouse: max(start_time) and trace count,
+ * Per-session trace stats from ClickHouse: max(end_time) and trace count,
  * grouped by the `rollout.session_id` trace-metadata key, scoped to the given
  * session ids. Best-effort — a CH error returns an empty map so the sessions
  * list still renders (just without "last activity" / trace counts).
@@ -74,7 +74,7 @@ async function getStatsBySessionIds(projectId: string, sessionIds: string[]): Pr
       query: `
         SELECT
           simpleJSONExtractString(metadata, 'rollout.session_id') AS sessionId,
-          formatDateTime(max(start_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
+          formatDateTime(max(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
           count(DISTINCT id) AS traceCount
         FROM traces
         WHERE simpleJSONExtractString(metadata, 'rollout.session_id') IN ({sessionIds: Array(String)})
