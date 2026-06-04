@@ -238,8 +238,8 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 
 ## Trace Type Upsert
 
-- The `traces.type` column uses `GREATEST(EXCLUDED.type, traces.type, 0)` in the ON CONFLICT upsert (not `COALESCE`). This prevents a child-only batch with `type=0` (DEFAULT) from overwriting a `type=1` (EVALUATION) row written by an earlier batch that included the root span. `COALESCE` would silently reset the type back to 0 when a later batch has only child spans with no `trace_type` attribute.
-- Within a single batch, `TraceAggregation::from_spans` in `ch/traces.rs` also uses a `>` guard when accumulating `trace_type` so a child span processed later in the loop cannot lower a non-default type already set by an earlier span in the same batch.
+- The `traces.type` column uses a first-non-zero strategy in the ON CONFLICT upsert: `CASE WHEN traces.type = 0 THEN EXCLUDED.type ELSE traces.type END`. Once a trace is assigned a non-default type (e.g. EVALUATION=1), no subsequent batch can overwrite it. Do NOT revert to `COALESCE` (picks first non-null, lets `0` silently reset a previously set type) or `GREATEST` (picks highest numeric value, which conflates type ordering with type precedence).
+- `TraceAggregation::from_spans` in `ch/traces.rs` applies the same rule within a single batch: `trace_type` is only written when `entry.trace_type == 0`, so a child span processed later in the loop cannot overwrite a non-default type already set by an earlier span.
 
 ## Signal Triggers
 
