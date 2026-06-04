@@ -127,9 +127,9 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     <div className="flex flex-1 min-h-0 w-full">
       <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
         <div className="mx-auto flex w-full gap-16 px-6">
-          <div className="flex min-w-0 grow-1 justify-center shrink-0">
+          <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (
-              <div className="sticky top-0 hidden h-screen w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
+              <div className="sticky top-0 hidden h-[calc(100vh-80px)] w-[220px] flex-none shrink-0 self-start pb-16 pt-[180px] lg:flex">
                 <SessionOutline className="max-h-full w-full" />
               </div>
             )}
