@@ -170,6 +170,9 @@ export default function TraceSegment({
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
+  // True while hydrateTraceRow's one-shot fetch is in flight for this run — keeps
+  // a placeholder empty `[]` slot on the skeleton instead of "No spans found".
+  const hydrating = useDebuggerSessionViewStore((s) => !!s.traceHydrating[traceId]);
 
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];
@@ -334,14 +337,14 @@ export default function TraceSegment({
       {!expanded && <TraceCollapsedBody trace={trace} traceIO={traceIO} />}
 
       {expanded && error && <div className="py-4 px-2 text-sm text-destructive">{error}</div>}
-      {expanded && !error && !spans && (
+      {expanded && !error && (!spans || (spans.length === 0 && (loading || hydrating))) && (
         <div className="flex flex-col gap-2 py-2 px-2">
           <Skeleton className="h-5 w-full" />
           <Skeleton className="h-5 w-3/4" />
           <Skeleton className="h-5 w-2/3" />
         </div>
       )}
-      {expanded && !error && spans && spans.length === 0 && !loading && (
+      {expanded && !error && spans && spans.length === 0 && !loading && !hydrating && (
         <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
       )}
 

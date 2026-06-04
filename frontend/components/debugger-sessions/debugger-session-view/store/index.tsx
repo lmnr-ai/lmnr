@@ -131,9 +131,24 @@ interface DebuggerSessionViewState {
   // True when a run was added live via trace_update — drives the "New trace" pill
   // at the bottom of the view. Cleared on pill click / dismiss. Transient.
   newTraceNotice: boolean;
+
+  // Per-trace "hydration in flight" flag (set while hydrateTraceRow runs). Drives
+  // the segment skeleton so a placeholder empty `[]` slot doesn't flash "No spans
+  // found" before the one-shot hydrate fetch settles. Transient.
+  traceHydrating: Record<string, boolean>;
+
+  // Per-trace "a fetch returned 0 spans" flag. A genuinely-empty trace stays
+  // empty; without this the ensureTraceSpans override would treat its `[]` slot as
+  // not-loaded and refetch on every re-expand (a loop). Transient.
+  traceSpansConfirmedEmpty: Record<string, boolean>;
 }
 
 interface DebuggerSessionViewActions {
+  // Refetch override: a defined-but-empty `[]` slot is a placeholder (seeded from
+  // the realtime buffer by applyTraceUpdate), NOT a confirmed-empty result, so
+  // collapse→re-expand should retry it. Delegates to the base fetch otherwise.
+  ensureTraceSpans: (trace: TraceRow) => Promise<void>;
+
   // Fetch this session's runs (traces) via the `rollout.session_id` metadata
   // filter, oldest-first, into base `traces`. Reads projectId from base state.
   fetchSessionTraces: (sessionId: string) => Promise<void>;
@@ -185,6 +200,41 @@ const createDebuggerSessionViewStore = (options?: {
           sessionName: options?.initialSessionName ?? "Session",
           realtimeSpanBuffer: {},
           newTraceNotice: false,
+          traceHydrating: {},
+          traceSpansConfirmedEmpty: {},
+
+          ensureTraceSpans: async (trace) => {
+            const state = get();
+            const slot = state.traceSpans[trace.id];
+            // Skip when spans already exist, a load/hydrate is in flight, or a prior
+            // fetch confirmed the trace is genuinely empty (refetch-loop guard).
+            if (
+              (slot && slot.length > 0) ||
+              state.traceSpansLoading[trace.id] ||
+              state.traceHydrating[trace.id] ||
+              state.traceSpansConfirmedEmpty[trace.id]
+            ) {
+              return;
+            }
+            // Drop a placeholder empty `[]` slot so base ensureTraceSpans (which
+            // early-returns on ANY defined slot) actually fetches on re-expand.
+            if (slot && slot.length === 0) {
+              const next = { ...get().traceSpans };
+              delete next[trace.id];
+              set({ traceSpans: next } as Partial<DebuggerSessionViewStore>);
+            }
+            await baseSlice.ensureTraceSpans(trace);
+            // Mark genuinely-empty results so future re-expands don't refetch.
+            const after = get().traceSpans[trace.id];
+            if (after && after.length === 0) {
+              set(
+                (s) =>
+                  ({
+                    traceSpansConfirmedEmpty: { ...s.traceSpansConfirmedEmpty, [trace.id]: true },
+                  }) as Partial<DebuggerSessionViewStore>
+              );
+            }
+          },
 
           fetchSessionTraces: async (sessionId) => {
             const { projectId } = get();
@@ -319,6 +369,14 @@ const createDebuggerSessionViewStore = (options?: {
                 delete next[t.traceId];
                 return { realtimeSpanBuffer: next } as Partial<DebuggerSessionViewStore>;
               });
+              // Mark hydrating BEFORE expanding: setTraceExpanded triggers the
+              // ensureTraceSpans override, whose guard then short-circuits the doomed
+              // lazy fetch (placeholder "now" times + CH lag → []). hydrateTraceRow
+              // owns the real fetch and clears the flag in its finally.
+              set(
+                (s) =>
+                  ({ traceHydrating: { ...s.traceHydrating, [t.traceId]: true } }) as Partial<DebuggerSessionViewStore>
+              );
               get().setTraceExpanded(t.traceId, true);
               void get().hydrateTraceRow(t.traceId);
               // Surface the "New trace" pill so the user can jump to the new run.
@@ -341,6 +399,11 @@ const createDebuggerSessionViewStore = (options?: {
             const current = get().traces.find((t) => t.id === traceId);
             if (current && current.startTime !== current.endTime) return;
 
+            // Mark hydrating so the segment shows the skeleton (not "No spans found")
+            // for a placeholder empty `[]` slot while this fetch is in flight.
+            set(
+              (s) => ({ traceHydrating: { ...s.traceHydrating, [traceId]: true } }) as Partial<DebuggerSessionViewStore>
+            );
             try {
               const params = new URLSearchParams();
               params.set("pageNumber", "0");
@@ -395,6 +458,12 @@ const createDebuggerSessionViewStore = (options?: {
               }
             } catch {
               // Best-effort hydration — placeholder stats / realtime-fed spans remain on failure.
+            } finally {
+              set((s) => {
+                const next = { ...s.traceHydrating };
+                delete next[traceId];
+                return { traceHydrating: next } as Partial<DebuggerSessionViewStore>;
+              });
             }
           },
 
