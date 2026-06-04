@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import TraceCollapsedBody from "@/components/traces/session-view/session-panel/trace-collapsed-body";
 import TraceItem from "@/components/traces/session-view/session-panel/trace-item";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { computeTranscriptEntries } from "@/components/traces/session-view/utils";
@@ -23,7 +24,6 @@ import {
 import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
-import { cn } from "@/lib/utils";
 
 import CopyFlag from "./copy-flag";
 import RunComment from "./run-comment";
@@ -283,9 +283,12 @@ export default function TraceSegment({
         </div>
       )}
 
-      {/* Sticky only while expanded: CSS bounds it to THIS container, so it pins
-          at the top and is pushed out by the segment's bottom edge. */}
-      <div className={cn(expanded && "sticky top-0 z-10 bg-background")}>
+      {/* Always sticky (collapsed AND expanded): CSS bounds it to THIS container,
+          so it pins at the top and is pushed out by the segment's bottom edge.
+          When collapsed the body below it is the (non-sticky) TraceCollapsedBody
+          sibling, so the stuck header pins just the ~40px bar over its own body —
+          the same row-split the regular view does, without a flat-row builder. */}
+      <div className="sticky top-0 z-10 bg-background">
         <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
           <TraceItem
             trace={trace}
@@ -297,6 +300,12 @@ export default function TraceSegment({
           />
         </CopyFlag>
       </div>
+
+      {/* Collapsed body (input + last-span preview) in normal flow under the
+          sticky header — stitches the card across the two elements (TraceItem
+          provides rounded-t + side/top borders; TraceCollapsedBody the side/
+          bottom borders + rounded-b). Not virtualized: a single short block. */}
+      {!expanded && <TraceCollapsedBody trace={trace} traceIO={traceIO} />}
 
       {expanded && error && <div className="py-4 px-2 text-sm text-destructive">{error}</div>}
       {expanded && !error && !spans && (
