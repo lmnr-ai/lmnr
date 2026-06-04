@@ -281,7 +281,7 @@ pub async fn upsert_trace_statistics_batch(
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
-                type = COALESCE(EXCLUDED.type, traces.type, 0),
+                type = GREATEST(EXCLUDED.type, traces.type, 0),
                 top_span_id = COALESCE(EXCLUDED.top_span_id, traces.top_span_id),
                 top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
                 top_span_type = COALESCE(EXCLUDED.top_span_type, traces.top_span_type),
