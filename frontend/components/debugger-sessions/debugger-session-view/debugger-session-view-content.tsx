@@ -33,11 +33,8 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
   return { createdMs: min, lastActivityMs: max };
 };
 
-// Inner content: restores the user's hand-placed shell (page scroll container,
-// sticky LEFT outline, 720px article column, right spacer; span clicks open the
-// in-flow SessionSpanPanel) wired to the new composed store. The ONLY UI change
-// vs 0b1f5435c is the article column's trace cards (now the virtualized
-// session-view trace items in DebuggerTraceList).
+// Page scroll container with a sticky left outline, a 720px article column, and
+// a right spacer; span clicks open the in-flow SessionSpanPanel.
 export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();

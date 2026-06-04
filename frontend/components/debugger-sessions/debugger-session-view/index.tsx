@@ -1,9 +1,10 @@
 "use client";
 
-import { type ComponentProps } from "react";
+import { type ComponentProps, useEffect } from "react";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
+import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 
 import DebuggerSessionViewContent from "./debugger-session-view-content";
@@ -67,6 +68,11 @@ function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["
 }
 
 export default function DebuggerSessionView({ trace, headerPath, sessionId }: DebuggerSessionViewProps) {
+  // Multi-trace session view (not the /alpha single-trace harness) is a viewed session.
+  useEffect(() => {
+    if (sessionId) track("debugger_sessions", "session_viewed");
+  }, [sessionId]);
+
   const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
   const sessionTitle = titleFromPath(path);
   const initialTraceRow = trace ? traceToRow(trace) : undefined;

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import MultiTraceView from "@/components/debugger-sessions/multi-trace-view";
+import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
 import { getDebuggerSession } from "@/lib/actions/debugger-sessions";
 
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
@@ -10,5 +10,11 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
 
   if (!session) return notFound();
 
-  return <MultiTraceView projectId={projectId} sessionId={session.id} sessionName={session.name ?? session.id} />;
+  const sessionName = session.name ?? session.id;
+  const headerPath = [
+    { name: "debugger", href: `/project/${projectId}/debugger-sessions` },
+    { name: sessionName, copyValue: session.id },
+  ];
+
+  return <DebuggerSessionView headerPath={headerPath} sessionId={session.id} />;
 }
