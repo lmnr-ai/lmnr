@@ -12,6 +12,7 @@ import {
   InputItem,
   SpanItem,
 } from "@/components/traces/trace-view/transcript/item";
+import { SpanCard } from "@/components/traces/trace-view/tree/span-card";
 import {
   filterToViewport,
   useReportVisibleTimeRange,
@@ -44,10 +45,13 @@ export default function SessionList() {
     traceSpansError,
     expandedTraceIds,
     transcriptExpandedGroups,
+    traceViewModes,
+    traceShowTreeContent,
     selectedSpan,
     searchResults,
     toggleTraceExpanded,
     toggleTranscriptGroup,
+    toggleSpanCollapse,
     setSelectedSpan,
     setScrollTimeRange,
     scrollToGroup,
@@ -61,10 +65,13 @@ export default function SessionList() {
       traceSpansError: s.traceSpansError,
       expandedTraceIds: s.expandedTraceIds,
       transcriptExpandedGroups: s.transcriptExpandedGroups,
+      traceViewModes: s.traceViewModes,
+      traceShowTreeContent: s.traceShowTreeContent,
       selectedSpan: s.selectedSpan,
       searchResults: s.searchResults,
       toggleTraceExpanded: s.toggleTraceExpanded,
       toggleTranscriptGroup: s.toggleTranscriptGroup,
+      toggleSpanCollapse: s.toggleSpanCollapse,
       setSelectedSpan: s.setSelectedSpan,
       setScrollTimeRange: s.setScrollTimeRange,
       scrollToGroup: s.scrollToGroup,
@@ -83,8 +90,18 @@ export default function SessionList() {
         expandedTraceIds,
         transcriptExpandedGroups,
         searchResults,
+        traceViewModes,
       }),
-    [traces, traceSpans, traceSpansLoading, traceSpansError, expandedTraceIds, transcriptExpandedGroups, searchResults]
+    [
+      traces,
+      traceSpans,
+      traceSpansLoading,
+      traceSpansError,
+      expandedTraceIds,
+      transcriptExpandedGroups,
+      searchResults,
+      traceViewModes,
+    ]
   );
 
   const traceIndexById = useMemo(() => {
@@ -149,6 +166,8 @@ export default function SessionList() {
         return `gh::${row.traceId}::${row.group.groupId}`;
       case "group-span":
         return `gs::${row.traceId}::${row.span.spanId}`;
+      case "tree-span":
+        return `ts::${row.traceId}::${row.span.spanId}`;
       case "trace-collapsed-end":
         return `tcend::${row.traceId}`;
       case "trace-expanded-end":
@@ -167,6 +186,8 @@ export default function SessionList() {
       case "trace-header":
         return row.expanded ? 36 : 280;
       case "group-header":
+        return 36;
+      case "tree-span":
         return 36;
       case "trace-error":
       case "trace-empty":
@@ -213,7 +234,7 @@ export default function SessionList() {
       if (!row) continue;
       let startStr: string | undefined;
       let endStr: string | undefined;
-      if (row.type === "span" || row.type === "group-span") {
+      if (row.type === "span" || row.type === "group-span" || row.type === "tree-span") {
         startStr = row.span.startTime;
         endStr = row.span.endTime;
       } else if (row.type === "group-header") {
@@ -256,7 +277,7 @@ export default function SessionList() {
 
     const idx = flatRows.findIndex(
       (r) =>
-        (r.type === "span" || r.type === "group-span") &&
+        (r.type === "span" || r.type === "group-span" || r.type === "tree-span") &&
         r.traceId === selectedSpan.traceId &&
         r.span.spanId === selectedSpan.spanId
     );
@@ -323,7 +344,7 @@ export default function SessionList() {
       const row = flatRows[i];
       if (!row) continue;
 
-      if (row.type === "span" || row.type === "group-span") {
+      if (row.type === "span" || row.type === "group-span" || row.type === "tree-span") {
         pushUnique(visible, row.traceId, row.span.spanId);
       } else if (row.type === "group-header") {
         const group = row.group as TranscriptListGroup;
@@ -474,6 +495,20 @@ export default function SessionList() {
                     inGroup
                   />
                 </GroupChildWrapper>
+              ) : row.type === "tree-span" ? (
+                <SpanCard
+                  span={row.span}
+                  branchMask={row.branchMask}
+                  depth={row.depth}
+                  hasChildren={row.hasChildren}
+                  output={previews[row.span.spanId]}
+                  showTreeContent={traceShowTreeContent[row.traceId] ?? true}
+                  isSelected={
+                    !!selectedSpan && selectedSpan.traceId === row.traceId && selectedSpan.spanId === row.span.spanId
+                  }
+                  onSpanSelect={(s) => s && setSelectedSpan({ traceId: row.traceId, spanId: s.spanId })}
+                  onToggleCollapse={(spanId) => toggleSpanCollapse(row.traceId, spanId)}
+                />
               ) : (
                 <SpanItem
                   span={row.span}

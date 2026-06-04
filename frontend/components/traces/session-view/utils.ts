@@ -4,7 +4,12 @@ import {
   type TranscriptListEntry,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { buildTranscriptListEntries, toLightweight } from "@/components/traces/trace-view/store/utils";
+import {
+  buildTranscriptListEntries,
+  computePathInfoMap,
+  toLightweight,
+  transformSpansToTree,
+} from "@/components/traces/trace-view/store/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -28,6 +33,14 @@ export type SessionFlatRow =
   | { type: "span"; traceId: string; span: TraceViewListSpan }
   | { type: "group-header"; traceId: string; group: TranscriptListGroup; collapsed: boolean }
   | { type: "group-span"; traceId: string; span: TraceViewListSpan; isLast: boolean }
+  | {
+      type: "tree-span";
+      traceId: string;
+      span: TraceViewSpan;
+      depth: number;
+      branchMask: boolean[];
+      hasChildren: boolean;
+    }
   | { type: "trace-collapsed-end"; traceId: string; gapMs?: number }
   | { type: "trace-expanded-end"; traceId: string; gapMs?: number };
 
@@ -65,6 +78,8 @@ interface BuildFlatRowsOpts {
   /** When set, a search is active: only matched traces appear, always expanded,
    *  with only matching spans (flat, no transcript-mode groups). */
   searchResults?: Record<string, SessionSpansTraceResult>;
+  /** Per-trace view mode. Absent → "transcript". Tree mode emits tree-span rows. */
+  traceViewModes: Record<string, "tree" | "transcript">;
 }
 
 /** Build the hybrid (trace headers + spans) flat row list that drives the
@@ -78,6 +93,7 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     expandedTraceIds,
     transcriptExpandedGroups,
     searchResults,
+    traceViewModes,
   } = opts;
 
   // --- Search mode: only matched traces, always expanded, flat spans ---
@@ -121,7 +137,26 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
       continue;
     }
 
+    // Keep the user-input row above the tree (session context > duplication).
     rows.push({ type: "user-input", traceId: trace.id });
+
+    const mode = traceViewModes[trace.id] ?? "transcript";
+    if (mode === "tree") {
+      const pathInfoMap = computePathInfoMap(spans);
+      const treeSpans = transformSpansToTree(spans, pathInfoMap);
+      for (const ts of treeSpans) {
+        rows.push({
+          type: "tree-span",
+          traceId: trace.id,
+          span: ts.span,
+          depth: ts.depth,
+          branchMask: ts.branchMask,
+          hasChildren: ts.hasChildren,
+        });
+      }
+      rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
+      continue;
+    }
 
     const entries = computeTranscriptEntries(spans);
     for (const entry of entries) {
