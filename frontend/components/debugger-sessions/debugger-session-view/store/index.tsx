@@ -87,9 +87,22 @@ const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWi
   for (const s of base) byId.set(s.spanId, s);
   for (const s of incoming) {
     const prev = byId.get(s.spanId);
-    if (!prev) byId.set(s.spanId, s);
-    else if (incomingWins) byId.set(s.spanId, { ...s, collapsed: prev.collapsed });
-    // incomingWins=false: keep the base entry (it already won)
+    if (!prev) {
+      byId.set(s.spanId, s);
+      continue;
+    }
+    // Real spans always replace pending placeholders (whose endTime is synthesized
+    // from children and can run ahead); a placeholder never replaces a real span.
+    if (prev.pending !== s.pending) {
+      if (prev.pending) byId.set(s.spanId, { ...s, collapsed: prev.collapsed });
+      continue;
+    }
+    // Per-span recency: never let an older snapshot (e.g. a lagging CH hydrate)
+    // replace a fresher version of the same span. endTime tie → side precedence.
+    const prevEnd = new Date(prev.endTime).getTime();
+    const incEnd = new Date(s.endTime).getTime();
+    const incomingNewer = incEnd > prevEnd || (incEnd === prevEnd && incomingWins);
+    if (incomingNewer) byId.set(s.spanId, { ...s, collapsed: prev.collapsed });
   }
   const merged = [...byId.values()].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   return enrichSpansWithPending(merged);
@@ -242,6 +255,18 @@ const createDebuggerSessionViewStore = (options?: {
               set({ traceSpans: next } as Partial<DebuggerSessionViewStore>);
             }
             await baseSlice.ensureTraceSpans(trace);
+            // Flush realtime spans that buffered for this KNOWN run (its slot didn't
+            // exist when they streamed, so applyRealtimeSpan couldn't merge them and
+            // the new-run flush in applyTraceUpdate never ran). Recency-aware merge.
+            const buffered = get().realtimeSpanBuffer[trace.id];
+            if (buffered?.length) {
+              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], buffered));
+              set((s) => {
+                const next = { ...s.realtimeSpanBuffer };
+                delete next[trace.id];
+                return { realtimeSpanBuffer: next } as Partial<DebuggerSessionViewStore>;
+              });
+            }
             // Mark genuinely-empty results so future re-expands don't refetch.
             const after = get().traceSpans[trace.id];
             if (after && after.length === 0) {
