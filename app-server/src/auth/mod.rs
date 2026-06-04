@@ -17,6 +17,9 @@ use crate::cache::Cache;
 use crate::db::DB;
 use crate::db::project_api_keys::ProjectApiKey;
 
+pub mod jwks;
+pub mod jwt;
+
 impl FromRequest for ProjectApiKey {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -75,7 +78,11 @@ async fn validate_project_api_key(
     }
 }
 
-/// Standard project validator - blocks ingest-only keys
+/// Standard project validator - blocks ingest-only keys.
+/// Kept alongside `project_validator_with_jwt` for callers that want the
+/// API-key-only path (today none; both production wrappings switched to the
+/// JWT-aware variant in `main.rs`).
+#[allow(dead_code)]
 pub async fn project_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
@@ -83,7 +90,8 @@ pub async fn project_validator(
     validate_project_api_key(req, credentials, false).await
 }
 
-/// Ingestion validator - allows ingest-only keys for trace ingestion endpoints
+/// Ingestion validator - allows ingest-only keys for trace ingestion endpoints.
+#[allow(dead_code)]
 pub async fn project_ingestion_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
@@ -101,6 +109,74 @@ pub async fn authenticate_request(
 ) -> anyhow::Result<ProjectApiKey> {
     let token = extract_bearer_token(metadata)?;
     get_api_key_from_raw_value(pool, cache, token).await
+}
+
+/// JWT-aware variant of `authenticate_request` for gRPC ingestion. Bearer
+/// tokens that look like JWTs (3 segments + decodable header) are validated
+/// against the cached JWKS; everything else falls through to the existing
+/// API-key path.
+pub async fn authenticate_request_with_jwt(
+    metadata: &tonic::metadata::MetadataMap,
+    pool: &PgPool,
+    cache: Arc<Cache>,
+    http: &reqwest::Client,
+) -> anyhow::Result<ProjectApiKey> {
+    let token = extract_bearer_token(metadata)?;
+    if jwt::looks_like_jwt(&token) {
+        return jwt::validate_jwt_as_project_api_key(http, &token).await;
+    }
+    get_api_key_from_raw_value(pool, cache, token).await
+}
+
+async fn validate_via_jwt(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let config = req
+        .app_data::<Config>()
+        .cloned()
+        .unwrap_or_else(Default::default);
+
+    let http = match req.app_data::<web::Data<reqwest::Client>>().cloned() {
+        Some(h) => h.into_inner(),
+        None => {
+            log::error!("reqwest::Client not in app_data — JWT validation cannot proceed");
+            return Err((AuthenticationError::from(config).into(), req));
+        }
+    };
+
+    match jwt::validate_jwt_as_project_api_key(&http, credentials.token()).await {
+        Ok(api_key) => {
+            req.extensions_mut().insert(api_key);
+            Ok(req)
+        }
+        Err(e) => {
+            log::warn!("JWT validation failed: {}", e);
+            Err((AuthenticationError::from(config).into(), req))
+        }
+    }
+}
+
+/// Same as `project_validator` but accepts both API keys and OAuth JWTs.
+pub async fn project_validator_with_jwt(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    if jwt::looks_like_jwt(credentials.token()) {
+        return validate_via_jwt(req, credentials).await;
+    }
+    validate_project_api_key(req, credentials, false).await
+}
+
+/// Same as `project_ingestion_validator` but accepts both API keys and OAuth JWTs.
+pub async fn project_ingestion_validator_with_jwt(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    if jwt::looks_like_jwt(credentials.token()) {
+        return validate_via_jwt(req, credentials).await;
+    }
+    validate_project_api_key(req, credentials, true).await
 }
 
 fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {

@@ -36,6 +36,7 @@ half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
+jsonwebtoken = "9"
 lapin = "4.7"
 log = "0.4.29"
 moka = {version = "0.12", features = ["sync", "future"]}

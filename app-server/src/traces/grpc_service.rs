@@ -4,7 +4,7 @@ use actix_limitation::{Error as LimiterError, Limiter};
 use uuid::Uuid;
 
 use crate::{
-    auth::authenticate_request,
+    auth::authenticate_request_with_jwt,
     cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY},
     db::DB,
     features::{Feature, is_feature_enabled},
@@ -24,6 +24,7 @@ pub struct ProcessTracesService {
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     rate_limiter: Option<Limiter>,
+    http_client: reqwest::Client,
 }
 
 impl ProcessTracesService {
@@ -33,6 +34,7 @@ impl ProcessTracesService {
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
         rate_limiter: Option<Limiter>,
+        http_client: reqwest::Client,
     ) -> Self {
         Self {
             db,
@@ -40,6 +42,7 @@ impl ProcessTracesService {
             clickhouse,
             queue,
             rate_limiter,
+            http_client,
         }
     }
 }
@@ -50,9 +53,14 @@ impl TraceService for ProcessTracesService {
         &self,
         request: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
-        let api_key = authenticate_request(request.metadata(), &self.db.pool, self.cache.clone())
-            .await
-            .map_err(|_| Status::unauthenticated("Failed to authenticate request"))?;
+        let api_key = authenticate_request_with_jwt(
+            request.metadata(),
+            &self.db.pool,
+            self.cache.clone(),
+            &self.http_client,
+        )
+        .await
+        .map_err(|_| Status::unauthenticated("Failed to authenticate request"))?;
         let project_id = api_key.project_id;
         let request = request.into_inner();
 
