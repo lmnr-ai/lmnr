@@ -615,14 +615,7 @@
       "idx": 87,
       "version": "7",
       "when": 1779878869374,
-      "tag": "0087_rollout_sessions_params_optional",
-      "breakpoints": true
-    },
-    {
-      "idx": 88,
-      "version": "7",
-      "when": 1779878869375,
-      "tag": "0088_drop_rollout_sessions_status",
+      "tag": "0087_rename_rollout_sessions_to_debugger",
       "breakpoints": true
     }
   ]

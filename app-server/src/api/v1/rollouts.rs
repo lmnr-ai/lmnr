@@ -5,10 +5,11 @@ use uuid::Uuid;
 use crate::{
     db::{
         DB,
-        project_api_keys::ProjectApiKey,
-        rollout_sessions::{
-            create_or_update_rollout_session, delete_rollout_session, update_rollout_session_name,
+        debugger_sessions::{
+            create_or_update_debugger_session, delete_debugger_session,
+            update_debugger_session_name,
         },
+        project_api_keys::ProjectApiKey,
     },
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
@@ -45,7 +46,7 @@ pub async fn register_session(
     let name = body.into_inner().name;
 
     let session =
-        create_or_update_rollout_session(&db.pool, &session_id, &project_id, name).await?;
+        create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
 
     Ok(HttpResponse::Ok().json(session))
 }
@@ -66,7 +67,7 @@ pub async fn update_name(
     let project_id = project_api_key.project_id;
     let name = body.into_inner().name;
 
-    let updated = update_rollout_session_name(&db.pool, &session_id, &project_id, &name).await?;
+    let updated = update_debugger_session_name(&db.pool, &session_id, &project_id, &name).await?;
     if !updated {
         return Ok(HttpResponse::NotFound().json("Session not found"));
     }
@@ -99,7 +100,7 @@ pub async fn delete(
         Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
-    delete_rollout_session(&db.pool, &session_id, &project_id).await?;
+    delete_debugger_session(&db.pool, &session_id, &project_id).await?;
 
     // Send deletion event to frontend via SSE
     let message = SseMessage {

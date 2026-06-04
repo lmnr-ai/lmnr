@@ -1,1 +1,0 @@
-ALTER TABLE "rollout_sessions" DROP COLUMN "status";

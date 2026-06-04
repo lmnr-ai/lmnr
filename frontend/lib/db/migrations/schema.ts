@@ -36,20 +36,19 @@ export const tagSource = pgEnum("tag_source", ["MANUAL", "AUTO", "CODE"]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner", "admin"]);
 
-export const rolloutSessions = pgTable(
-  "rollout_sessions",
+export const debuggerSessions = pgTable(
+  "debugger_sessions",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     projectId: uuid("project_id").notNull(),
-    params: jsonb().default({}),
     name: text(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "rollout_sessions_project_id_fkey",
+      name: "debugger_sessions_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
