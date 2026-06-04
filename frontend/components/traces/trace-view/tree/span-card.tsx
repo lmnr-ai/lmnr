@@ -151,7 +151,7 @@ export function SpanCard({
             )}
             {isExpandable && (
               <button
-                className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+                className="p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleCollapse(span.spanId);

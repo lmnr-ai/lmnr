@@ -472,7 +472,11 @@ export default function SessionList() {
             : { position: "absolute", top: 0, transform: `translateY(${virtualRow.start}px)` };
 
           if (row.type === "trace-header") {
-            positionStyle.zIndex = virtualRow.index + 1;
+            // Lift the whole sticky-header band ABOVE any row-internal z-index
+            // (span-type icons / tree connectors carry up to z-30) so content
+            // scrolling under a stuck header can't paint over it. The +index
+            // preserves swap ordering between two adjacent stuck headers.
+            positionStyle.zIndex = 100 + virtualRow.index;
           }
 
           return (
