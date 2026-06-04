@@ -10,7 +10,9 @@ pub struct AgentVersion {
     pub project_id: Uuid,
     pub agent_id: Uuid,
     pub version: i32,
-    pub version_hash: Vec<u8>,
+    /// BLAKE3-256 hash, hex-encoded (64 chars). Stored as `text` rather than
+    /// `bytea` so the Drizzle schema needs no custom type.
+    pub version_hash: String,
     pub system_prompt: String,
     pub tool_definitions: String,
     pub model: String,
@@ -23,7 +25,7 @@ pub struct AgentVersion {
 pub async fn get_agent_by_version_hash(
     pool: &PgPool,
     project_id: Uuid,
-    version_hash: &[u8],
+    version_hash: &str,
 ) -> Result<Option<Uuid>> {
     let agent_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT agent_id
@@ -61,18 +63,21 @@ pub async fn list_latest_agent_versions(
 pub async fn create_agent(
     pool: &PgPool,
     project_id: Uuid,
-    version_hash: &[u8],
+    name: &str,
+    version_hash: &str,
     system_prompt: &str,
     tool_definitions: &str,
     model: &str,
 ) -> Result<Uuid> {
     let mut tx = pool.begin().await?;
 
-    let agent_id =
-        sqlx::query_scalar::<_, Uuid>("INSERT INTO agents (project_id) VALUES ($1) RETURNING id")
-            .bind(project_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let agent_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO agents (project_id, name) VALUES ($1, $2) RETURNING id",
+    )
+    .bind(project_id)
+    .bind(name)
+    .fetch_one(&mut *tx)
+    .await?;
 
     sqlx::query(
         "INSERT INTO agent_versions
@@ -99,7 +104,7 @@ pub async fn create_new_agent_version(
     pool: &PgPool,
     project_id: Uuid,
     agent_id: Uuid,
-    version_hash: &[u8],
+    version_hash: &str,
     system_prompt: &str,
     tool_definitions: &str,
     model: &str,

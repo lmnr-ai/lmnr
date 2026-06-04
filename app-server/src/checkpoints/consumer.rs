@@ -115,10 +115,11 @@ impl CheckpointsHandler {
 
         // Create the new agent, or bump the matched agent's version.
         let agent_id = match classification {
-            AgentClassification::NewAgent => {
+            AgentClassification::NewAgent { name } => {
                 agents::create_agent(
                     &self.db.pool,
                     message.project_id,
+                    &name,
                     &version_hash,
                     &stable_system_prompt,
                     &tool_definitions,

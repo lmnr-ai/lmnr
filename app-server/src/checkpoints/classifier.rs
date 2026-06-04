@@ -10,8 +10,9 @@ use crate::{db::agents::AgentVersion, llm::LlmClient};
 /// agent, or a modified version of an existing one?
 #[derive(Debug, Clone)]
 pub enum AgentClassification {
-    /// No existing agent matches — create a new one.
-    NewAgent,
+    /// No existing agent matches — create a new one. `name` is an
+    /// LLM-generated display name for the new agent.
+    NewAgent { name: String },
     /// A modified version of an existing agent.
     ExistingAgent { agent_id: Uuid },
 }
@@ -30,7 +31,9 @@ pub async fn classify_agent(
 
     let _ = (non_dynamic_system_prompt, existing_agents, llm_client);
     if existing_agents.is_empty() {
-        return Ok(AgentClassification::NewAgent);
+        return Ok(AgentClassification::NewAgent {
+            name: String::new(),
+        });
     }
 
     Ok(AgentClassification::ExistingAgent {
