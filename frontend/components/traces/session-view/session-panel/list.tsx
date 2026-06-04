@@ -146,6 +146,9 @@ export default function SessionList() {
   // expand/collapse shifts indices.
   const flatRowsRef = useRef(flatRows);
   flatRowsRef.current = flatRows;
+  // Read latest content-visibility in estimateSize without re-creating it.
+  const traceShowTreeContentRef = useRef(traceShowTreeContent);
+  traceShowTreeContentRef.current = traceShowTreeContent;
   const getItemKey = useCallback((index: number) => {
     const row = flatRowsRef.current[index];
     if (!row) return index;
@@ -188,7 +191,9 @@ export default function SessionList() {
       case "group-header":
         return 36;
       case "tree-span":
-        return 36;
+        // Content-visible trees show an LLM preview (~taller) — estimate higher
+        // so initial paint re-anchors less; collapsed-content rows stay 36.
+        return traceShowTreeContentRef.current[row.traceId] !== false ? 56 : 36;
       case "trace-error":
       case "trace-empty":
         return 42;

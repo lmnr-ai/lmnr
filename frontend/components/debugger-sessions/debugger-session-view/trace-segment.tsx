@@ -209,12 +209,18 @@ export default function TraceSegment({
     }
   }, []);
 
-  const estimateSize = useCallback((index: number) => {
-    const row = rowsRef.current[index];
-    if (!row) return 70;
-    if (row.type === "group-header" || row.type === "tree-span") return 36;
-    return 70;
-  }, []);
+  const estimateSize = useCallback(
+    (index: number) => {
+      const row = rowsRef.current[index];
+      if (!row) return 70;
+      if (row.type === "group-header") return 36;
+      // Content-visible trees show an LLM preview (~taller) — estimate higher so
+      // initial paint re-anchors less; collapsed-content rows stay 36.
+      if (row.type === "tree-span") return showTreeContent ? 56 : 36;
+      return 70;
+    },
+    [showTreeContent]
+  );
 
   const virtualizer = useVirtualizer({
     count: rows.length,
