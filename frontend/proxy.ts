@@ -15,13 +15,16 @@ export default withAuth(
     const token = req.nextauth.token;
 
     // CLI auth grant lifecycle is unauthenticated (the CLI mints the session id
-    // locally before any session exists). `/api/cli/me` is session-authed for
-    // the approval page; check token explicitly so unauthed requests get 401
-    // rather than reaching a server component.
-    if (req.nextUrl.pathname.startsWith("/api/cli/grants")) {
+    // locally before any session exists). Any other future /api/cli/* route
+    // falls through to the session-required branch below. Use exact-match +
+    // trailing-slash guards so a hypothetical future `/api/cli/grantsX` route
+    // can't slip through the unauthenticated branch on a bare
+    // `startsWith("/api/cli/grants")`.
+    const cliPath = req.nextUrl.pathname;
+    if (cliPath === "/api/cli/grants" || cliPath.startsWith("/api/cli/grants/")) {
       return NextResponse.next();
     }
-    if (req.nextUrl.pathname.startsWith("/api/cli/")) {
+    if (cliPath.startsWith("/api/cli/")) {
       if (!token) {
         return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
       }
