@@ -40,7 +40,7 @@ export default function ViewToggle({ tab, onTabChange, showContent, onToggleCont
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
+              "flex items-center h-6 px-1.5 text-xs border rounded-md focus-visible:outline-0",
               isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
             )}
           >
