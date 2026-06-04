@@ -133,7 +133,7 @@ export default function TraceItem({
   return (
     <div
       className={cn(
-        "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4%",
+        "transition-[padding] duration-200 ease-out bg-gradient-to-b from-transparent to-background to-4% group",
         className
       )}
     >
@@ -143,67 +143,84 @@ export default function TraceItem({
           expanded ? "bg-muted" : "bg-muted/75"
         )}
       >
-        <button
-          type="button"
-          onClick={handleToggle}
-          className={cn(
-            "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out",
-            expanded
-              ? "pl-1.5 pr-3 pt-[9px] pb-2 hover:bg-muted/80"
-              : "pl-1.5 pr-3 pt-2 pb-1 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"
-          )}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex items-center justify-center rounded-full border border-[rgba(232,232,232,0.1)] bg-[rgba(232,232,232,0.05)] px-2 py-0.5 text-[10px] font-medium leading-[17px] text-secondary-foreground whitespace-nowrap">
-              {traceIndex}/{totalTraces}
-            </span>
-            <span className="text-[13px] font-medium leading-[17px] text-primary-foreground whitespace-nowrap">
-              Trace
-            </span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
-                >
-                  <ChevronDown className="size-3.5 text-secondary-foreground" />
+        <div onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
+          <button
+            type="button"
+            className={cn(
+              "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px]",
+              expanded
+                ? "pl-1.5 pr-3 hover:bg-muted/80"
+                : "pl-1.5 pr-3 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"
+            )}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="inline-flex items-center justify-center rounded-full border border-[rgba(232,232,232,0.1)] bg-[rgba(232,232,232,0.05)] px-2 py-0.5 text-[10px] font-medium leading-[17px] text-secondary-foreground whitespace-nowrap">
+                {traceIndex}/{totalTraces}
+              </span>
+              <span className="text-[13px] font-medium leading-[17px] text-primary-foreground whitespace-nowrap">
+                Trace
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="inline-flex items-center justify-center rounded hover:bg-secondary cursor-pointer"
+                  >
+                    <ChevronDown className="size-3.5 text-secondary-foreground" />
+                  </span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={handleCopyTraceId}>
+                    <Copy size={14} />
+                    Copy trace ID
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleOpenInTraceView}>
+                    <ExternalLink size={14} />
+                    Open trace view
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <SpanStatsShield
+                variant="inline"
+                startTime={trace.startTime}
+                endTime={trace.endTime}
+                inputTokens={trace.inputTokens}
+                outputTokens={trace.outputTokens}
+                cost={trace.totalCost}
+                cacheReadInputTokens={trace.cacheReadInputTokens}
+              />
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[13px] leading-[17px] text-secondary-foreground whitespace-nowrap">
+                {relativeTime}
+              </span>
+              {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
+              <span
+                className={cn(
+                  "flex items-center justify-center rounded-full pl-2.5 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap gap-1",
+                  "group-hover:border border-[rgba(232,232,232,0.1)] group-hover:bg-[rgba(232,232,232,0.05)]"
+                )}
+              >
+                <span className="opacity-0 group-hover:opacity-100 overflow-hidden group-hover:w-[45px] w-0 trnasition-all duration-200">
+                  {expanded ? "Collapse" : "Expand"}
                 </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={handleCopyTraceId}>
-                  <Copy size={14} />
-                  Copy trace ID
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleOpenInTraceView}>
-                  <ExternalLink size={14} />
-                  Open trace view
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <SpanStatsShield
-              variant="inline"
-              startTime={trace.startTime}
-              endTime={trace.endTime}
-              inputTokens={trace.inputTokens}
-              outputTokens={trace.outputTokens}
-              cost={trace.totalCost}
-              cacheReadInputTokens={trace.cacheReadInputTokens}
-            />
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[13px] leading-[17px] text-secondary-foreground whitespace-nowrap">
-              {relativeTime}
-            </span>
-            {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
-            <ChevronDown
-              size={16}
-              className={cn("text-secondary-foreground transition-transform", !expanded && "-rotate-90")}
-            />
-          </div>
-        </button>
+                <ChevronDown
+                  size={16}
+                  className={cn("text-secondary-foreground transition-transform", !expanded && "-rotate-90")}
+                />
+              </span>
+            </div>
+          </button>
+          {expanded && (
+            <div className="bg-secondary/50 px-3 py-1 border-t">
+              {/* TODO: put tree transcript picker (please reuse component from trace view) also the metadata button in the trace view header should go here too*/}
+              Tree / Trasncript, Metadata
+            </div>
+          )}
+        </div>
 
         {!expanded && (
           <div className="flex flex-col">
