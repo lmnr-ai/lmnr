@@ -1,3 +1,4 @@
+pub mod classifier;
 pub mod consumer;
 pub mod subagent;
 pub mod system_prompt;

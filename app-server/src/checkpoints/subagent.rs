@@ -1,10 +1,23 @@
-//! Subagent detection for checkpoints.
+//! Subagent detection for checkpoints (step 7).
+
+use uuid::Uuid;
 
 use super::consumer::CheckpointsQueueMessage;
+use crate::db::DB;
 
-/// Step 3: Determine whether this checkpoint belongs to a subagent.
-pub fn is_subagent(message: &CheckpointsQueueMessage) -> bool {
-    // TODO: classify the checkpoint as a subagent vs. the main agent.
-    let _ = message;
-    false
+/// Step 7: resolve the parent agent(s) of `agent_id` when this checkpoint
+/// belongs to a subagent. Returns an empty vec when this is a main agent
+/// (caller then quits without bumping anything).
+///
+/// Parentage is inferred from `message.span_ids_path` (the span hierarchy)
+/// and resolved against the `agents` table.
+pub async fn get_parent_agent_ids(
+    db: &DB,
+    message: &CheckpointsQueueMessage,
+    agent_id: Uuid,
+) -> anyhow::Result<Vec<Uuid>> {
+    // TODO: walk span_ids_path up the hierarchy, map ancestor spans to agents,
+    // and return their ids (parent chain).
+    let _ = (db, message, agent_id);
+    Ok(Vec::new())
 }

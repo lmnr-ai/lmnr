@@ -116,6 +116,7 @@ async fn preprocess_for_queue(span: &mut Span, cache: Arc<Cache>) -> DedupVerdic
     // input-nulling carve-out) so the raw system prompt survives.
     let checkpoint = if is_llm && input_message_count == CHECKPOINT_INPUT_MESSAGE_COUNT {
         system_prompt.map(|system_prompt| CheckpointsQueueMessage {
+            project_id: span.project_id,
             system_prompt,
             tool_definitions_hash: tools
                 .as_ref()
