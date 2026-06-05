@@ -4,7 +4,12 @@ import {
   type TranscriptListEntry,
   type TranscriptListGroup,
 } from "@/components/traces/trace-view/store/base";
-import { buildTranscriptListEntries, toLightweight } from "@/components/traces/trace-view/store/utils";
+import {
+  buildTranscriptListEntries,
+  computePathInfoMap,
+  toLightweight,
+  transformSpansToTree,
+} from "@/components/traces/trace-view/store/utils";
 import { type SessionSpansTraceResult } from "@/lib/actions/sessions/search-spans";
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -28,31 +33,17 @@ export type SessionFlatRow =
   | { type: "span"; traceId: string; span: TraceViewListSpan }
   | { type: "group-header"; traceId: string; group: TranscriptListGroup; collapsed: boolean }
   | { type: "group-span"; traceId: string; span: TraceViewListSpan; isLast: boolean }
+  | {
+      type: "tree-span";
+      traceId: string;
+      span: TraceViewSpan;
+      depth: number;
+      branchMask: boolean[];
+      hasChildren: boolean;
+    }
+  | { type: "trace-collapsed-body"; traceId: string }
   | { type: "trace-collapsed-end"; traceId: string; gapMs?: number }
   | { type: "trace-expanded-end"; traceId: string; gapMs?: number };
-
-/** Format an inter-trace gap in ms as a short human-readable string.
- *  Returns null for zero/negative/invalid gaps — callers should render
- *  just a divider line in that case. */
-export function formatGap(ms: number | undefined): string | null {
-  if (ms === undefined || !Number.isFinite(ms) || ms <= 0) return null;
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 1) return "<1s";
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    const s = seconds % 60;
-    return s === 0 ? `${minutes}m` : `${minutes}m ${s}s`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    const m = minutes % 60;
-    return m === 0 ? `${hours}h` : `${hours}h ${m}m`;
-  }
-  const days = Math.floor(hours / 24);
-  const h = hours % 24;
-  return h === 0 ? `${days}d` : `${days}d ${h}h`;
-}
 
 interface BuildFlatRowsOpts {
   traces: TraceRow[];
@@ -65,6 +56,8 @@ interface BuildFlatRowsOpts {
   /** When set, a search is active: only matched traces appear, always expanded,
    *  with only matching spans (flat, no transcript-mode groups). */
   searchResults?: Record<string, SessionSpansTraceResult>;
+  /** Per-trace view mode. Absent → "transcript". Tree mode emits tree-span rows. */
+  traceViewModes: Record<string, "tree" | "transcript">;
 }
 
 /** Build the hybrid (trace headers + spans) flat row list that drives the
@@ -78,6 +71,7 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     expandedTraceIds,
     transcriptExpandedGroups,
     searchResults,
+    traceViewModes,
   } = opts;
 
   // --- Search mode: only matched traces, always expanded, flat spans ---
@@ -96,6 +90,9 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
     rows.push({ type: "trace-header", trace, expanded });
 
     if (!expanded) {
+      // The collapsed body (input + last-span preview) is its OWN row so the
+      // trace-header row stays a uniform ~40px and can be sticky in all states.
+      rows.push({ type: "trace-collapsed-body", traceId: trace.id });
       rows.push({ type: "trace-collapsed-end", traceId: trace.id, gapMs });
       continue;
     }
@@ -121,7 +118,26 @@ export function buildSessionFlatRows(opts: BuildFlatRowsOpts): SessionFlatRow[] 
       continue;
     }
 
+    // Keep the user-input row above the tree (session context > duplication).
     rows.push({ type: "user-input", traceId: trace.id });
+
+    const mode = traceViewModes[trace.id] ?? "transcript";
+    if (mode === "tree") {
+      const pathInfoMap = computePathInfoMap(spans);
+      const treeSpans = transformSpansToTree(spans, pathInfoMap);
+      for (const ts of treeSpans) {
+        rows.push({
+          type: "tree-span",
+          traceId: trace.id,
+          span: ts.span,
+          depth: ts.depth,
+          branchMask: ts.branchMask,
+          hasChildren: ts.hasChildren,
+        });
+      }
+      rows.push({ type: "trace-expanded-end", traceId: trace.id, gapMs });
+      continue;
+    }
 
     const entries = computeTranscriptEntries(spans);
     for (const entry of entries) {

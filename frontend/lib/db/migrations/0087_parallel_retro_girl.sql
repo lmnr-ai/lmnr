@@ -18,16 +18,6 @@ CREATE TABLE "agents" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "event_cluster_configs" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"event_name" text NOT NULL,
-	"value_template" text NOT NULL,
-	"project_id" uuid NOT NULL,
-	"event_source" text NOT NULL,
-	CONSTRAINT "event_cluster_configs_project_id_event_name_source_key" UNIQUE("event_name","project_id","event_source")
-);
---> statement-breakpoint
 ALTER TABLE "agent_versions" ADD CONSTRAINT "agent_versions_agent_id_fkey" FOREIGN KEY ("agent_id") REFERENCES "public"."agents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agent_versions" ADD CONSTRAINT "fk_agent_versions_project_id" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "agents" ADD CONSTRAINT "fk_agents_project_id" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;

@@ -1,22 +1,22 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
-import { fetcherJSON } from "@/lib/utils";
-
-export type DebuggerSessionStatus = "PENDING" | "RUNNING" | "FINISHED" | "STOPPED";
+import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
 
 export type DebuggerSession = {
   id: string;
   createdAt: string;
   name: string | null;
   projectId: string;
-  params: Record<string, any>;
-  status: DebuggerSessionStatus;
+  // Last time a trace finished for this session (max trace end_time, from
+  // ClickHouse). Null when the session has no traces yet.
+  lastActivity: string | null;
+  // Number of traces grouped to this session (from ClickHouse).
+  traceCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -34,22 +34,92 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const result = await db
+  const rows = await db
     .select()
-    .from(rolloutSessions)
-    .where(eq(rolloutSessions.projectId, projectId))
-    .orderBy(desc(rolloutSessions.createdAt))
+    .from(debuggerSessions)
+    .where(eq(debuggerSessions.projectId, projectId))
+    .orderBy(desc(debuggerSessions.createdAt))
     .limit(limit)
     .offset(offset);
 
-  return { items: result };
+  const statsById = await getStatsBySessionIds(
+    projectId,
+    rows.map((r) => r.id)
+  );
+
+  const items: DebuggerSession[] = rows.map((row) => ({
+    ...row,
+    lastActivity: statsById.get(row.id)?.lastActivity ?? null,
+    traceCount: statsById.get(row.id)?.traceCount ?? 0,
+  }));
+
+  return { items };
+};
+
+type SessionStats = { lastActivity: string; traceCount: number };
+
+/**
+ * Per-session trace stats from ClickHouse: max(end_time) and trace count,
+ * grouped by the `rollout.session_id` trace-metadata key, scoped to the given
+ * session ids. Best-effort — a CH error returns an empty map so the sessions
+ * list still renders (just without "last activity" / trace counts).
+ */
+async function getStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
+  if (sessionIds.length === 0) return new Map();
+
+  try {
+    const rows = await executeQuery<{ sessionId: string; lastActivity: string; traceCount: string }>({
+      query: `
+        SELECT
+          simpleJSONExtractString(metadata, 'rollout.session_id') AS sessionId,
+          formatDateTime(max(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
+          count(DISTINCT id) AS traceCount
+        FROM traces
+        WHERE simpleJSONExtractString(metadata, 'rollout.session_id') IN ({sessionIds: Array(String)})
+        GROUP BY sessionId
+      `,
+      projectId,
+      parameters: { sessionIds },
+    });
+    return new Map(rows.map((r) => [r.sessionId, { lastActivity: r.lastActivity, traceCount: Number(r.traceCount) }]));
+  } catch {
+    return new Map();
+  }
+}
+
+export const CreateDebuggerSessionSchema = z.object({
+  projectId: z.guid(),
+  id: z.guid().optional(),
+  name: z.string().optional(),
+});
+
+export const createDebuggerSession = async (input: z.infer<typeof CreateDebuggerSessionSchema>) => {
+  const { projectId, id, name } = CreateDebuggerSessionSchema.parse(input);
+
+  const [session] = await db
+    .insert(debuggerSessions)
+    .values({ ...(id ? { id } : {}), projectId, name })
+    .onConflictDoUpdate({
+      target: debuggerSessions.id,
+      set: { name: sql`coalesce(${name ?? null}, ${debuggerSessions.name})` },
+      // Scope the conflict update to the owning project so a caller supplying
+      // another project's session id can't overwrite its name.
+      setWhere: eq(debuggerSessions.projectId, projectId),
+    })
+    .returning();
+
+  if (!session) {
+    throw new Error("Session could not be created or updated");
+  }
+
+  return session;
 };
 
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {
   const { projectId, id } = GetDebuggerSessionSchema.parse(input);
 
-  const result = await db.query.rolloutSessions.findFirst({
-    where: and(eq(rolloutSessions.id, id), eq(rolloutSessions.projectId, projectId)),
+  const result = await db.query.debuggerSessions.findFirst({
+    where: and(eq(debuggerSessions.id, id), eq(debuggerSessions.projectId, projectId)),
   });
 
   return result;
@@ -105,63 +175,4 @@ export async function getLatestTraceBySessionId(
     ...trace,
     visibility: sharedTrace ? "public" : "private",
   };
-}
-
-const RunDebuggerSessionSchema = z.object({
-  projectId: z.guid(),
-  sessionId: z.guid(),
-  trace_id: z.guid().optional(),
-  path_to_count: z.record(z.string(), z.number()).optional(),
-  args: z.union([z.record(z.string(), z.any()), z.array(z.any())]).optional(),
-  overrides: z.record(z.string(), z.any()).optional(),
-});
-
-const UpdateDebuggerSessionStatusSchema = z.object({
-  projectId: z.guid(),
-  sessionId: z.guid(),
-  status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
-});
-
-export async function runDebuggerSession(input: z.infer<typeof RunDebuggerSessionSchema>) {
-  const { projectId, sessionId, trace_id, path_to_count, args, overrides } = RunDebuggerSessionSchema.parse(input);
-
-  const result = await fetcherJSON(`/projects/${projectId}/rollouts/${sessionId}/run`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      trace_id,
-      path_to_count,
-      args: args || {},
-      overrides: overrides || {},
-    }),
-  });
-
-  return result;
-}
-
-export async function updateDebuggerSessionStatus(input: z.infer<typeof UpdateDebuggerSessionStatusSchema>) {
-  const { projectId, sessionId, status } = UpdateDebuggerSessionStatusSchema.parse(input);
-
-  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${sessionId}/status`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      status,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Failed to update status");
-  }
-
-  // Handle empty response body from backend
-  const text = await res.text();
-  const result = text ? JSON.parse(text) : { success: true };
-
-  return result;
 }

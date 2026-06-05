@@ -1,6 +1,5 @@
 import { ArrowRight } from "lucide-react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { CollapsedTextWithMore } from "@/components/traces/trace-view/transcript/collapsed-text-with-more";
 import { cn } from "@/lib/utils.ts";
 
@@ -12,8 +11,6 @@ interface InputItemProps {
 }
 
 export function InputItem({ text, inGroup, className }: InputItemProps) {
-  const { enabled: isDebuggerMode } = useOptionalDebuggerStore(() => null);
-
   if (!text) return null;
 
   return (
@@ -24,7 +21,7 @@ export function InputItem({ text, inGroup, className }: InputItemProps) {
           {
             "bg-muted/60": inGroup,
           },
-          isDebuggerMode ? "pl-11" : "pl-1",
+          "pl-1",
           className
         )}
       >

@@ -22,13 +22,22 @@ use super::{
     subagent, system_prompt, version,
 };
 use crate::{
-    cache::{Cache, CacheTrait, keys::AGENT_VERSION_HASH_CACHE_KEY},
+    cache::{
+        Cache, CacheTrait,
+        keys::{AGENT_CLASSIFY_LOCK_CACHE_KEY, AGENT_VERSION_HASH_CACHE_KEY},
+    },
     ch::deduped_content,
     db::{DB, agents},
     llm::LlmClient,
     mq::MessageQueue,
     worker::{HandlerError, MessageHandler},
 };
+
+/// TTL on the per-project classify lock. Must comfortably exceed the worst-case
+/// classify-and-write latency (multiple LLM round-trips) so the lock doesn't
+/// expire mid-flight, but short enough that a crashed holder frees the project
+/// promptly.
+const AGENT_CLASSIFY_LOCK_TTL_SECONDS: u64 = 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointsQueueMessage {
@@ -108,10 +117,65 @@ impl CheckpointsHandler {
             &message.model,
         );
 
-        // An exact (project_id, version_hash) match means this shape has
-        // already been seen — nothing changed, quit.
+        // Fast path: an exact (project_id, version_hash) match means this shape
+        // has already been seen — nothing changed, quit.
         if self
             .is_known_version_hash(message.project_id, &version_hash)
+            .await?
+        {
+            return Ok(());
+        }
+
+        // A genuinely new shape. Classification compares against ALL of the
+        // project's existing agents, and stable-prompt extraction is itself an
+        // LLM call that can yield different hashes for the same real agent — so
+        // the read→classify→write critical section must be serialized PER
+        // PROJECT, otherwise two workers each miss the other's in-flight agent
+        // and mint duplicates. Acquire a per-project lock; if another worker
+        // holds it, drop this span. The shape isn't cached, so a later span of
+        // the same shape re-triggers once the lock frees — at worst a tiny delay.
+        let lock_key = Self::classify_lock_key(message.project_id);
+        let acquired = self
+            .cache
+            .try_acquire_lock(&lock_key, AGENT_CLASSIFY_LOCK_TTL_SECONDS)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("Failed to acquire agent classify lock {lock_key}: {e:?}");
+                false
+            });
+        if !acquired {
+            log::debug!(
+                "Agent classify lock held for project {}; dropping checkpoint (will re-trigger)",
+                message.project_id
+            );
+            return Ok(());
+        }
+
+        // Run the critical section, then ALWAYS release the lock — including on
+        // error — so a failed classify/write can't freeze the project until TTL.
+        let result = self
+            .process_new_version_locked(message, &stable_system_prompt, &version_hash)
+            .await;
+
+        if let Err(e) = self.cache.release_lock(&lock_key).await {
+            log::warn!("Failed to release agent classify lock {lock_key}: {e:?}");
+        }
+
+        result
+    }
+
+    /// Critical section, run under the per-project classify lock: re-check the
+    /// hash, classify against existing agents, and write the new agent/version.
+    async fn process_new_version_locked(
+        &self,
+        message: &CheckpointsQueueMessage,
+        stable_system_prompt: &str,
+        version_hash: &str,
+    ) -> anyhow::Result<()> {
+        // Re-check under the lock: another worker may have just written this
+        // exact shape between our fast-path miss and acquiring the lock.
+        if self
+            .is_known_version_hash(message.project_id, version_hash)
             .await?
         {
             return Ok(());
@@ -151,8 +215,8 @@ impl CheckpointsHandler {
                     &self.db.pool,
                     message.project_id,
                     &name,
-                    &version_hash,
-                    &stable_system_prompt,
+                    version_hash,
+                    stable_system_prompt,
                     &tool_definitions,
                     &message.model,
                 )
@@ -163,8 +227,8 @@ impl CheckpointsHandler {
                     &self.db.pool,
                     message.project_id,
                     agent_id,
-                    &version_hash,
-                    &stable_system_prompt,
+                    version_hash,
+                    stable_system_prompt,
                     &tool_definitions,
                     &message.model,
                 )
@@ -175,7 +239,7 @@ impl CheckpointsHandler {
 
         // Cache the freshly-written shape so the next identical checkpoint
         // short-circuits at the read-through above instead of hitting the DB.
-        self.cache_version_hash(message.project_id, &version_hash, agent_id)
+        self.cache_version_hash(message.project_id, version_hash, agent_id)
             .await;
 
         // If this checkpoint belongs to a subagent, bump every parent
@@ -242,5 +306,10 @@ impl CheckpointsHandler {
 
     fn version_hash_cache_key(project_id: Uuid, version_hash: &str) -> String {
         format!("{AGENT_VERSION_HASH_CACHE_KEY}:{project_id}:{version_hash}")
+    }
+
+    /// Per-project lock key serializing the classify-and-write critical section.
+    fn classify_lock_key(project_id: Uuid) -> String {
+        format!("{AGENT_CLASSIFY_LOCK_CACHE_KEY}:{project_id}")
     }
 }
