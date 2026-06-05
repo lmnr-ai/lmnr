@@ -133,32 +133,44 @@ struct WarmEntry {
     bytes: usize,
 }
 
+/// Why selection stopped. Distinguishes a terminating scan (needle reached or
+/// ceiling hit — the entry set is final) from an exhausted one (the list ran
+/// out before either, so paging must fetch more rows before the set is final).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectionOutcome {
+    /// The `cache_until` span was found; entries are complete through it.
+    NeedleFound,
+    /// The cache ceiling (`MAX_SPANS` / `MAX_BYTES`) was hit before the needle.
+    CeilingHit,
+    /// The whole list was scanned without hitting the needle or the ceiling.
+    Exhausted,
+}
+
 /// Pure selection over a `start_time` ASC ordered span list. Walks the rows,
 /// admitting one entry per span that has a parseable input and a resolvable
 /// response, deduping by input hash (earliest-by-start_time wins), and stopping
 /// at the first of: the `cache_until` span (inclusive), the cache ceiling
 /// (`MAX_SPANS` entries or `MAX_BYTES` total bytes), or the end of the list.
 ///
-/// Boundary semantics:
-/// - Needle found → keep entries up to and including it.
-/// - Needle truly absent (whole list scanned, no match, no ceiling) → empty
-///   (every lookup becomes MISS; the safe degrade per spec §4.4).
-/// - Ceiling hit before the needle → keep the bounded prefix. Every kept span
-///   precedes the needle, so caching it stays within the user's intent.
+/// Returns the admitted entries plus a [`SelectionOutcome`] describing why the
+/// scan stopped. The caller decides what an `Exhausted` outcome means: when the
+/// list is a complete trace it is the safe degrade (needle genuinely absent →
+/// the caller drops the entries so every lookup is a clean MISS); when the list
+/// is one page of a larger trace it means "keep paging". Keeping that policy out
+/// of this function is what lets the pager page by *admitted entries* rather than
+/// raw fetched rows — a trace full of input/output-less spans no longer trips the
+/// ceiling on row count and truncates before the needle.
 fn select_entries(
     rows: &[DebugCacheSpanRow],
     needle: &str,
     max_spans: usize,
     max_bytes: usize,
-) -> Vec<WarmEntry> {
+) -> (Vec<WarmEntry>, SelectionOutcome) {
     let mut entries: Vec<WarmEntry> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut total_bytes = 0usize;
 
-    let mut found = false;
-    let mut ceiling_hit = false;
-
-    'scan: for row in rows {
+    for row in rows {
         if let Ok(input) = serde_json::from_str::<Value>(&row.input)
             && let Some(response) = resolve_response(row)
         {
@@ -166,8 +178,7 @@ fn select_entries(
             if !seen.contains(&hash) {
                 let bytes = response.to_string().len();
                 if entries.len() >= max_spans || total_bytes + bytes > max_bytes {
-                    ceiling_hit = true;
-                    break 'scan;
+                    return (entries, SelectionOutcome::CeilingHit);
                 }
                 seen.insert(hash.clone());
                 total_bytes += bytes;
@@ -180,23 +191,27 @@ fn select_entries(
         }
 
         if span_matches_needle(needle, &row.span_id) {
-            found = true;
-            break 'scan;
+            return (entries, SelectionOutcome::NeedleFound);
         }
     }
 
-    // Reaching the end with neither the needle nor the ceiling means the needle
-    // is genuinely absent → cache nothing (every lookup is a clean MISS).
-    if !found && !ceiling_hit {
-        entries.clear();
-    }
-    entries
+    (entries, SelectionOutcome::Exhausted)
 }
 
-/// Page a trace's LLM/CACHED spans in `start_time` ASC order, then run the pure
-/// [`select_entries`] over them. Paging stops once the needle appears in a page,
-/// the accumulated row count passes the span ceiling (entries ≤ rows, so this is
-/// a safe over-fetch bound), or the trace is exhausted.
+/// Page a trace's LLM/CACHED spans in `start_time` ASC order, re-running the pure
+/// [`select_entries`] over the accumulated rows after each page until selection
+/// terminates or the trace is exhausted.
+///
+/// Paging is bounded by *admitted entries*, never by raw fetched rows: each pass
+/// stops only when `select_entries` reports `NeedleFound` or `CeilingHit`, or when
+/// the page is short (`< page`, the trace ran out). A trace with many LLM/CACHED
+/// spans that lack a usable input or output therefore keeps paging toward the
+/// needle instead of tripping a row-count ceiling and truncating before it. The
+/// re-scan cost is trivial (entries are capped at `MAX_SPANS`, so the worst case
+/// is a handful of pages over a few hundred rows).
+///
+/// An `Exhausted` outcome means the needle is genuinely absent from the whole
+/// trace → drop the entries so every lookup is a clean MISS (the safe degrade).
 async fn build_entries(
     project_id: Uuid,
     trace_id: Uuid,
@@ -209,32 +224,31 @@ async fn build_entries(
     let mut rows: Vec<DebugCacheSpanRow> = Vec::new();
     let mut offset = 0u32;
 
-    loop {
+    let (entries, outcome) = loop {
         let fetched =
             query_debug_cache_spans_page(clickhouse.clone(), project_id, trace_id, page, offset)
                 .await?;
-        if fetched.is_empty() {
-            break;
-        }
-        let count = fetched.len() as u32;
-        let needle_in_page = fetched
-            .iter()
-            .any(|r| span_matches_needle(&needle, &r.span_id));
+        let trace_exhausted = (fetched.len() as u32) < page;
         rows.extend(fetched);
 
-        if needle_in_page || rows.len() >= *MAX_SPANS || count < page {
-            break;
+        let (entries, outcome) = select_entries(&rows, &needle, *MAX_SPANS, *MAX_BYTES);
+        if outcome != SelectionOutcome::Exhausted || trace_exhausted {
+            break (entries, outcome);
         }
         offset += page;
+    };
+
+    // Needle absent from the whole trace → cache nothing (clean MISS everywhere).
+    if outcome == SelectionOutcome::Exhausted {
+        if !rows.is_empty() {
+            log::warn!(
+                "debug cache: cache_until needle '{cache_until}' matched no span in trace \
+                 {trace_id} (project {project_id}); warming with zero entries"
+            );
+        }
+        return Ok(Vec::new());
     }
 
-    let entries = select_entries(&rows, &needle, *MAX_SPANS, *MAX_BYTES);
-    if entries.is_empty() && !rows.is_empty() {
-        log::warn!(
-            "debug cache: cache_until needle '{cache_until}' matched no span in trace \
-             {trace_id} (project {project_id}); warming with zero entries"
-        );
-    }
     Ok(entries)
 }
 
@@ -444,15 +458,20 @@ mod tests {
             row("a3", "m3", "{}"),
         ];
         // needle matches the 2nd span → keep first two, drop the third
-        let entries = select_entries(&rows, &normalize_needle("a2"), BIG, BIG);
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a2"), BIG, BIG);
         assert_eq!(entries.len(), 2);
+        assert_eq!(outcome, SelectionOutcome::NeedleFound);
     }
 
     #[test]
-    fn select_empty_when_needle_absent() {
+    fn select_exhausted_when_needle_absent() {
         let rows = vec![row("a1", "m1", "{}"), row("a2", "m2", "{}")];
-        let entries = select_entries(&rows, &normalize_needle("ffff"), BIG, BIG);
-        assert!(entries.is_empty(), "absent needle → empty warm");
+        let (_, outcome) = select_entries(&rows, &normalize_needle("ffff"), BIG, BIG);
+        assert_eq!(
+            outcome,
+            SelectionOutcome::Exhausted,
+            "absent needle → exhausted (caller drops the entries)"
+        );
     }
 
     #[test]
@@ -464,13 +483,14 @@ mod tests {
             row("a2", "dup", r#"{"second":true}"#),
             row("a3", "other", "{}"),
         ];
-        let entries = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
         assert_eq!(
             entries.len(),
             2,
             "duplicate input hash collapses to one entry"
         );
         assert_eq!(entries[0].response["response"]["first"], true);
+        assert_eq!(outcome, SelectionOutcome::NeedleFound);
     }
 
     #[test]
@@ -480,8 +500,9 @@ mod tests {
             row("a2", "m2", "{}"),
             row("a3", "m3", "{}"),
         ];
-        let entries = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
         assert_eq!(entries.len(), 2, "output-less span is not admitted");
+        assert_eq!(outcome, SelectionOutcome::NeedleFound);
     }
 
     #[test]
@@ -493,8 +514,30 @@ mod tests {
             row("a4", "m4", "{}"),
         ];
         // ceiling of 2 spans, needle would otherwise keep all four
-        let entries = select_entries(&rows, &normalize_needle("a4"), 2, BIG);
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a4"), 2, BIG);
         assert_eq!(entries.len(), 2, "span ceiling caps the kept set");
+        assert_eq!(outcome, SelectionOutcome::CeilingHit);
+    }
+
+    /// Output-less spans before the needle don't consume the entry ceiling, so a
+    /// trace padded with them still reaches the needle. This is the pure-side of
+    /// the paging fix: the ceiling bounds *admitted entries*, not scanned rows.
+    #[test]
+    fn select_skips_output_less_spans_without_tripping_ceiling() {
+        let rows = vec![
+            row("a1", "m1", ""), // output-less, not admitted
+            row("a2", "m2", ""), // output-less, not admitted
+            row("a3", "m3", ""), // output-less, not admitted
+            row("a4", "m4", "{}"),
+        ];
+        // ceiling of 1 admitted entry; the needle is on the only span that admits.
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a4"), 1, BIG);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            outcome,
+            SelectionOutcome::NeedleFound,
+            "output-less spans must not trip the entry ceiling before the needle"
+        );
     }
 
     #[test]
@@ -505,11 +548,13 @@ mod tests {
             row("a3", "m3", r#"{"x":"cccccccccc"}"#),
         ];
         // Learn the real envelope sizes, then cap so only the first fits.
-        let full = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
+        let (full, full_outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, BIG);
         assert_eq!(full.len(), 3);
+        assert_eq!(full_outcome, SelectionOutcome::NeedleFound);
         let cap = full[0].bytes + 1;
-        let one = select_entries(&rows, &normalize_needle("a3"), BIG, cap);
+        let (one, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, cap);
         assert_eq!(one.len(), 1, "byte ceiling caps the kept set");
+        assert_eq!(outcome, SelectionOutcome::CeilingHit);
     }
 
     #[test]
