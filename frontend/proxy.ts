@@ -100,6 +100,7 @@ export const config = {
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
     "/api/oauth/device/decision",
+    "/api/oauth/device/init-workspace",
     "/api/cli/:path+",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to

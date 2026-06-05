@@ -1,12 +1,7 @@
 import { notFound } from "next/navigation";
 
-import DebuggerSession from "@/components/debugger-sessions";
-import {
-  type DebuggerSession as DebuggerSessionType,
-  type DebuggerSessionStatus,
-  getDebuggerSession,
-  getLatestTraceBySessionId,
-} from "@/lib/actions/debugger-sessions";
+import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
+import { getDebuggerSession } from "@/lib/actions/debugger-sessions";
 
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
@@ -15,15 +10,11 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
 
   if (!session) return notFound();
 
-  const trace = await getLatestTraceBySessionId({ projectId, sessionId: id });
+  const sessionName = session.name ?? session.id;
+  const headerPath = [
+    { name: "debugger", href: `/project/${projectId}/debugger-sessions` },
+    { name: sessionName, copyValue: session.id },
+  ];
 
-  return (
-    <DebuggerSession
-      projectId={projectId}
-      params={session.params as Array<any>}
-      session={session as DebuggerSessionType}
-      trace={trace}
-      initialStatus={session.status as DebuggerSessionStatus}
-    />
-  );
+  return <DebuggerSessionView headerPath={headerPath} sessionId={session.id} />;
 }

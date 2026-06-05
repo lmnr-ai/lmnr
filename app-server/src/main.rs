@@ -1834,9 +1834,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::rollouts::stream)
-                                    .service(api::v1::rollouts::update_status)
-                                    .service(api::v1::rollouts::send_span_update)
+                                    .service(api::v1::rollouts::register_session)
+                                    .service(api::v1::rollouts::update_name)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({
@@ -1849,8 +1848,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
-                                    .service(routes::rollouts::run)
-                                    .service(routes::rollouts::update_status)
                                     .service(routes::spans::get_skeleton_hashes);
                                 #[cfg(feature = "signals")]
                                 let scope = scope

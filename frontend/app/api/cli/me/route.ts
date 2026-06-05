@@ -1,36 +1,7 @@
 import { type NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
+import { resolveCaller } from "@/lib/oauth/resolve-caller";
 import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
-import { extractBearerToken, looksLikeJwt, verifyAccessToken } from "@/lib/oauth/verify";
-
-interface Caller {
-  userId: string;
-  email: string | null;
-  name: string | null;
-}
-
-async function resolveCaller(req: NextRequest): Promise<Caller | null> {
-  // The CLI sends a freshly minted OAuth JWT Bearer; browser callers send
-  // the NextAuth session cookie. Accept either.
-  const bearer = extractBearerToken(req.headers.get("authorization"));
-  if (bearer && looksLikeJwt(bearer)) {
-    try {
-      const claims = await verifyAccessToken(bearer);
-      return { userId: claims.sub, email: claims.email, name: null };
-    } catch {
-      return null;
-    }
-  }
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return null;
-  return {
-    userId: session.user.id,
-    email: session.user.email ?? null,
-    name: session.user.name ?? null,
-  };
-}
 
 export async function GET(req: NextRequest): Promise<Response> {
   const caller = await resolveCaller(req);

@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,
+    // Rewrites barrel imports from "recharts" into direct submodule imports at build
+    // time. Reshapes the chunk graph to avoid the Turbopack production interop split that
+    // left recharts' internal usePrefersReducedMotion unlinked ("(0, v.usePrefersReducedMotion) is not a function").
+    optimizePackageImports: ["recharts"],
   },
   reactStrictMode: false,
   logging: {
