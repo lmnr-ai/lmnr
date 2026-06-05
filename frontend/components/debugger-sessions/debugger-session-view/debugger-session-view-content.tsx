@@ -18,10 +18,11 @@ import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 
-// How close to the bottom counts as "pinned" for stick-to-bottom. Small enough
-// that a deliberate scroll-up unpins immediately; big enough that sub-pixel
-// rounding and momentum-scroll settle don't break the pin.
-const PIN_SLACK_PX = 40;
+// How close to the bottom counts as "pinned" for stick-to-bottom. Must exceed
+// the article column's 160px bottom padding — stopping where the last trace
+// ends still counts as "at the bottom" — while staying small enough that a
+// deliberate scroll-up unpins.
+const PIN_SLACK_PX = 200;
 
 // Earliest run start / latest run end across loaded traces (epoch ms).
 const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
@@ -84,7 +85,10 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     const observer = new ResizeObserver(() => {
       // Instant (not smooth) — growth can come every frame while streaming and
       // queued smooth scrolls would rubber-band.
-      if (pinned.current) scrollEl.scrollTop = scrollEl.scrollHeight;
+      // `behavior: "instant"` overrides the container's `scroll-smooth` CSS —
+      // a smooth snap animates through positions outside the slack, whose
+      // scroll events would unpin us mid-flight and kill the follow.
+      if (pinned.current) scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "instant" });
     });
     if (content) observer.observe(content);
     return () => {
