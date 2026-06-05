@@ -150,19 +150,32 @@ pub fn setup_tracing_and_logging(
             // The OTLP batch exporter needs a tokio runtime for its background
             // gRPC export; we run before main enters the runtime, so enter it.
             let _guard = runtime_handle.enter();
-            let exporter = opentelemetry_otlp::SpanExporter::builder()
+            match opentelemetry_otlp::SpanExporter::builder()
                 .with_tonic()
-                .with_endpoint(endpoint)
+                .with_endpoint(endpoint.as_str())
                 .build()
-                .expect("failed to build internal OTLP span exporter");
-            let provider = SdkTracerProvider::builder()
-                .with_batch_exporter(exporter)
-                .build();
-            let internal_tracer = provider.tracer("app-server-internal");
-            let layer = tracing_opentelemetry::layer()
-                .with_tracer(internal_tracer)
-                .with_filter(FilterFn::new(|md: &Metadata<'_>| is_internal(md)));
-            (Some(provider), Some(layer))
+            {
+                Ok(exporter) => {
+                    let provider = SdkTracerProvider::builder()
+                        .with_batch_exporter(exporter)
+                        .build();
+                    let internal_tracer = provider.tracer("app-server-internal");
+                    let layer = tracing_opentelemetry::layer()
+                        .with_tracer(internal_tracer)
+                        .with_filter(FilterFn::new(|md: &Metadata<'_>| is_internal(md)));
+                    (Some(provider), Some(layer))
+                }
+                // Internal self-tracing is opt-in observability; a misconfigured
+                // endpoint must not take down app-server. Disable it and carry on.
+                // The subscriber isn't initialised yet, so log to stderr directly.
+                Err(e) => {
+                    eprintln!(
+                        "Failed to build internal OTLP span exporter for endpoint {endpoint:?}: \
+                         {e}. Internal self-tracing disabled."
+                    );
+                    (None, None)
+                }
+            }
         }
     };
 
