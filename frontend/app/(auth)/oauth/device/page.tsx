@@ -59,14 +59,7 @@ export default async function OAuthDevicePage(props: OAuthDevicePageProps) {
   }
 
   if (row.status !== "pending") {
-    const message =
-      row.status === "approved"
-        ? "This code was already approved. Return to your terminal."
-        : row.status === "denied"
-          ? "This code was denied. Run the CLI command again to restart."
-          : row.status === "claimed"
-            ? "This code was already used. Run the CLI command again to restart."
-            : "This code is no longer valid. Run the CLI command again to restart.";
+    const message = messageForNonPendingStatus(row.status);
     return (
       <OAuthDevicePanel title="Code unavailable">
         <p className="text-sm text-secondary-foreground">{message}</p>
@@ -114,4 +107,17 @@ function normalizeUserCode(raw: string): string {
   const stripped = raw.replace(/[^A-Z0-9]/g, "");
   if (stripped.length !== 8) return raw;
   return `${stripped.slice(0, 4)}-${stripped.slice(4)}`;
+}
+
+function messageForNonPendingStatus(status: string): string {
+  switch (status) {
+    case "approved":
+      return "This code was already approved. Return to your terminal.";
+    case "denied":
+      return "This code was denied. Run the CLI command again to restart.";
+    case "claimed":
+      return "This code was already used. Run the CLI command again to restart.";
+    default:
+      return "This code is no longer valid. Run the CLI command again to restart.";
+  }
 }

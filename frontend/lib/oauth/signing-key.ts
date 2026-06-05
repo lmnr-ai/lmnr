@@ -17,7 +17,15 @@ export interface ActiveSigningKey {
 
 // Process-local cache. The signing key is immutable per row, so once we've
 // unwrapped the private PEM we don't need to hit Postgres or AES on every sign.
+// `inFlight` is the single-flight Promise that serialises concurrent first
+// callers within a process — without it, two concurrent requests could both
+// pass the `cachedActive === null` check, both query for an existing row,
+// both find none, and both insert independent rows. (Each generation uses a
+// fresh `randomUUID()` kid so the second insert wouldn't collide — but we'd
+// double up DB rows and one of the duplicate keys would be orphaned in this
+// process's view of cache state.)
 let cachedActive: ActiveSigningKey | null = null;
+let inFlight: Promise<ActiveSigningKey> | null = null;
 
 async function importActiveRow(row: typeof oauthSigningKeys.$inferSelect): Promise<ActiveSigningKey> {
   const pkcs8Pem = await decryptValue(AAD, row.privatePkcs8Nonce, row.privatePkcs8);
@@ -58,21 +66,30 @@ async function generateAndPersist(): Promise<ActiveSigningKey> {
  */
 export async function getOrCreateActiveSigningKey(): Promise<ActiveSigningKey> {
   if (cachedActive) return cachedActive;
+  if (inFlight) return inFlight;
 
-  const [existing] = await db
-    .select()
-    .from(oauthSigningKeys)
-    .where(isNull(oauthSigningKeys.rotatedAt))
-    .orderBy(desc(oauthSigningKeys.createdAt))
-    .limit(1);
+  inFlight = (async () => {
+    const [existing] = await db
+      .select()
+      .from(oauthSigningKeys)
+      .where(isNull(oauthSigningKeys.rotatedAt))
+      .orderBy(desc(oauthSigningKeys.createdAt))
+      .limit(1);
 
-  if (existing) {
-    cachedActive = await importActiveRow(existing);
-    return cachedActive;
+    const active = existing ? await importActiveRow(existing) : await generateAndPersist();
+    cachedActive = active;
+    return active;
+  })().catch((err) => {
+    // Clear inFlight so a retry isn't permanently stuck on a failed promise.
+    inFlight = null;
+    throw err;
+  });
+
+  try {
+    return await inFlight;
+  } finally {
+    inFlight = null;
   }
-
-  cachedActive = await generateAndPersist();
-  return cachedActive;
 }
 
 /**
