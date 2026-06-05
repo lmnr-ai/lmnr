@@ -1,12 +1,10 @@
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 
-import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
-import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
-import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
@@ -28,43 +26,39 @@ interface SpanCardProps {
   branchMask: boolean[];
   output: any | undefined;
   depth: number;
+  /** Structural children exist (precomputed by the flattener). */
+  hasChildren: boolean;
+  isSelected: boolean;
+  showTreeContent: boolean;
+  onToggleCollapse: (spanId: string) => void;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: SpanCardProps) {
+export function SpanCard({
+  span,
+  branchMask,
+  output,
+  onSpanSelect,
+  depth,
+  hasChildren,
+  isSelected,
+  showTreeContent,
+  onToggleCollapse,
+}: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
-    selectedSpan: state.selectedSpan,
-    spans: state.spans,
-    toggleCollapse: state.toggleCollapse,
-    showTreeContent: state.showTreeContent,
-  }));
-
-  const {
-    enabled: cachingEnabled,
-    state: { isSpanCached },
-  } = useOptionalDebuggerStore((s) => ({
-    isSpanCached: s.isSpanCached,
-  }));
-
-  const isCached = cachingEnabled ? isSpanCached(span) : false;
+  // Replayed spans are tagged CACHED by the SDK (shared spec §9).
+  const isCached = span.spanType === "CACHED";
 
   const llmMetrics = getLLMMetrics(span);
-  const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
   const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
 
-  const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
-    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet;
-
-  const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && showTreeContent) || hasSnippet;
 
   const showContent =
-    (showTreeContent ?? true) &&
-    !span.collapsed &&
-    (span.spanType === "LLM" || span.spanType === "CACHED" || hasSnippet);
+    showTreeContent && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED" || hasSnippet);
 
   const isLoadingOutput = output === undefined;
 
@@ -74,8 +68,6 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
     isSelected ? "bg-primary/15 hover:bg-primary/20 border-l-primary" : "border-l-transparent",
     { "opacity-60": isCached }
   );
-
-  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch");
 
   return (
     <div
@@ -87,13 +79,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
         }
       }}
     >
-      {cachingEnabled && (
-        <div className={lockColumnClasses}>
-          <DebuggerCheckpoint span={span} />
-        </div>
-      )}
-
-      <div className={cn("flex flex-row flex-1 min-w-0 text-md", !cachingEnabled && "pl-2")}>
+      <div className="flex flex-row flex-1 min-w-0 text-md pl-2">
         <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
         <div className="flex flex-col items-center shrink-0 pt-1.5 self-stretch">
@@ -149,10 +135,10 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
             )}
             {isExpandable && (
               <button
-                className="z-30 p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
+                className="p-1 hover:bg-muted transition-all text-muted-foreground rounded-sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  toggleCollapse(span.spanId);
+                  onToggleCollapse(span.spanId);
                 }}
               >
                 {span.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

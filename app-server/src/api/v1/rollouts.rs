@@ -1,160 +1,85 @@
 use actix_web::{HttpResponse, delete, patch, post, web};
-use chrono::{DateTime, Utc};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     db::{
         DB,
-        project_api_keys::ProjectApiKey,
-        rollout_sessions::{
-            RolloutSessionStatus, create_or_update_rollout_session, delete_rollout_session,
-            update_session_status,
+        debugger_sessions::{
+            create_or_update_debugger_session, delete_debugger_session,
+            update_debugger_session_name,
         },
-        spans::SpanType,
+        project_api_keys::ProjectApiKey,
     },
     pubsub::PubSub,
-    realtime::{SseConnectionMap, SseMessage, create_sse_response, send_to_key},
+    realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
 };
 
-fn default_true() -> bool {
-    true
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InputParam {
-    name: String,
-    #[serde(default, rename = "type")]
-    param_type: Option<String>,
-    #[serde(default = "default_true")]
-    required: bool,
-    #[serde(default)]
-    default: Option<serde_json::Value>,
-    #[serde(default)]
-    nested: Option<Vec<InputParam>>,
-}
-
 #[derive(serde::Deserialize)]
-pub struct UpdateStatusRequest {
-    pub status: RolloutSessionStatus,
+#[serde(rename_all = "camelCase")]
+struct UpdateNameRequest {
+    name: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct StreamRequest {
-    pub params: Vec<InputParam>,
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterSessionRequest {
+    #[serde(default)]
     pub name: Option<String>,
 }
 
+/// Register (idempotent upsert) a debug session. The SDK calls this on the
+/// first debug run with the session id it owns; the frontend may also call it
+/// to create/rename a session. Incoming traces do NOT implicitly create
+/// sessions — registration is explicit.
 #[post("rollouts/{session_id}")]
-pub async fn stream(
+pub async fn register_session(
     path: web::Path<Uuid>,
     project_api_key: ProjectApiKey,
-    body: web::Json<StreamRequest>,
+    body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
-    connections: web::Data<SseConnectionMap>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
+    let name = body.into_inner().name;
 
-    let request_body = body.into_inner();
-    let params = serde_json::to_value(&request_body.params)?;
-    let name = request_body.name;
-    create_or_update_rollout_session(&db.pool, &session_id, &project_id, params, name).await?;
+    let session =
+        create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
 
-    // Prepare handshake message
-    let handshake = SseMessage {
-        event_type: "handshake".to_string(),
-        data: serde_json::json!({
-            "session_id": session_id,
-            "project_id": project_id,
-        }),
-    };
-
-    // Start stream with initial handshake
-    let key = format!("rollout_sdk_{}", session_id);
-    let sse_response = create_sse_response(
-        project_id,
-        key.clone(),
-        connections.get_ref().clone(),
-        Some(handshake),
-    )
-    .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-    Ok(sse_response)
+    Ok(HttpResponse::Ok().json(session))
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SpanStartUpdate {
-    span_id: Uuid,
-    name: String,
-    start_time: DateTime<Utc>,
-    trace_id: Uuid,
-    parent_span_id: Option<Uuid>,
-    #[serde(default)]
-    span_type: SpanType,
-    #[serde(default)]
-    attributes: HashMap<String, serde_json::Value>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-enum SpanUpdateRequest {
-    SpanStart(SpanStartUpdate),
-}
-
-#[patch("rollouts/{session_id}/update")]
-pub async fn send_span_update(
+/// Rename an existing debug session. Update-only: 404 when the session id is
+/// unknown for this project (so a mistyped id is an error, not a ghost create).
+/// Registration/creation stays the SDK's job via `register_session`.
+#[patch("rollouts/{session_id}/name")]
+pub async fn update_name(
     path: web::Path<Uuid>,
-    body: web::Json<SpanUpdateRequest>,
+    body: web::Json<UpdateNameRequest>,
     project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
+    let db = db.into_inner();
     let session_id = path.into_inner();
     let project_id = project_api_key.project_id;
-    let payload = body.into_inner();
+    let name = body.into_inner().name;
 
-    match payload {
-        SpanUpdateRequest::SpanStart(span) => {
-            let message = SseMessage {
-                event_type: "span_start".to_string(),
-                data: serde_json::json!({
-                    "span": span,
-                }),
-            };
-            let key = format!("rollout_session_{}", session_id);
-            send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
-        }
+    let updated = update_debugger_session_name(&db.pool, &session_id, &project_id, &name).await?;
+    if !updated {
+        return Ok(HttpResponse::NotFound().json("Session not found"));
     }
 
-    Ok(HttpResponse::Ok().finish())
-}
-
-#[patch("rollouts/{session_id}/status")]
-pub async fn update_status(
-    path: web::Path<Uuid>,
-    body: web::Json<UpdateStatusRequest>,
-    project_api_key: ProjectApiKey,
-    db: web::Data<DB>,
-    pubsub: web::Data<Arc<PubSub>>,
-) -> ResponseResult {
-    let db = db.into_inner();
-    let session_id = path.into_inner();
-    let project_id = project_api_key.project_id;
-    let new_status = body.into_inner().status;
-
-    // Update status in database
-    update_session_status(&db.pool, &session_id, &project_id, new_status).await?;
-
-    // Send status update to frontend via SSE
+    // Notify the frontend live so an open debugger session view updates its title
+    // without a reload. Mirrors the `delete` handler's publish; fire-and-forget
+    // (`send_to_key` swallows errors) so a pubsub failure never fails the rename.
     let message = SseMessage {
-        event_type: "status_update".to_string(),
+        event_type: "session_update".to_string(),
         data: serde_json::json!({
-            "session_id": session_id,
-            "status": new_status,
+            "sessionId": session_id,
+            "name": name,
         }),
     };
     let key = format!("rollout_session_{}", session_id);
@@ -175,7 +100,7 @@ pub async fn delete(
         Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
     let project_id = project_api_key.project_id;
 
-    delete_rollout_session(&db.pool, &session_id, &project_id).await?;
+    delete_debugger_session(&db.pool, &session_id, &project_id).await?;
 
     // Send deletion event to frontend via SSE
     let message = SseMessage {

@@ -9,6 +9,7 @@ export interface TreeSpan {
   span: TraceViewSpan;
   depth: number;
   branchMask: boolean[]; // branchMask[d] = true if ancestor at depth d has more children below
+  hasChildren: boolean; // structural children exist (independent of collapse / content-expandability)
   pending: boolean;
   pathInfo: PathInfo;
   // Keep yOffset/parentY for backward compatibility (minimap uses them)
@@ -95,6 +96,7 @@ export const transformSpansToTree = (spans: TraceViewSpan[], pathInfoMap?: Map<s
       span,
       depth,
       branchMask,
+      hasChildren: (childSpans[span.spanId]?.length ?? 0) > 0,
       yOffset,
       parentY,
       pending: span.pending || false,
