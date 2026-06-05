@@ -270,14 +270,17 @@ async fn warm(
     Ok(())
 }
 
-/// Read a single entry after the cache is known warm.
+/// Read a single entry after the cache is known warm. A Redis read error
+/// degrades to `Live` (run live this call, retry next), NOT `Miss`: `Miss` is
+/// terminal ("run live forever, stop asking"), so mapping a transient cache
+/// outage to it would permanently disable replay even though the entry exists.
 async fn read_entry(cache: &Arc<Cache>, key: &str) -> CacheLookupResponse {
     match cache.get::<Value>(key).await {
         Ok(Some(response)) => CacheLookupResponse::Hit { response },
         Ok(None) => CacheLookupResponse::Miss {},
         Err(e) => {
             log::error!("debug cache: failed to read entry {key}: {e}");
-            CacheLookupResponse::Miss {}
+            CacheLookupResponse::Live {}
         }
     }
 }
