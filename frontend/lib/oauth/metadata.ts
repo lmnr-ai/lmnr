@@ -16,6 +16,8 @@ export interface OAuthAuthorizationServerMetadata {
   token_endpoint: string;
   jwks_uri: string;
   device_authorization_endpoint: string;
+  revocation_endpoint: string;
+  revocation_endpoint_auth_methods_supported: string[];
   grant_types_supported: string[];
   response_types_supported: string[];
   token_endpoint_auth_methods_supported: string[];
@@ -30,6 +32,8 @@ export function buildAuthorizationServerMetadata(): OAuthAuthorizationServerMeta
     token_endpoint: `${issuer}/oauth/token`,
     jwks_uri: `${issuer}/oauth/jwks`,
     device_authorization_endpoint: `${issuer}/oauth/device/authorize`,
+    revocation_endpoint: `${issuer}/oauth/revoke`,
+    revocation_endpoint_auth_methods_supported: ["none"],
     grant_types_supported: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
     response_types_supported: [],
     token_endpoint_auth_methods_supported: ["none"],
