@@ -1,5 +1,5 @@
 {
-  "description": "Cross-language parity vectors for the debugger-replay input hash (debug_input_hash / debugInputHash, LAM-1715). For each case the SDK and app-server must produce the same `expected_hash`: hex(blake3(canonical_json(messages_without_system))). The first `role == \"system\"` message is stripped (string, Anthropic block-array, and parts shapes all supported); the remaining array is canonicalized with object keys sorted recursively and array order preserved; no number canonicalization in v1. Object key order in `input` here is deliberately scrambled to prove canonicalization — the hash must not depend on it.",
+  "description": "Cross-language parity vectors for the debugger-replay input hash (debug_input_hash / debugInputHash, LAM-1715). For each case the SDK and app-server must produce the same `expected_hash`: hex(blake3(canonical_json(messages_without_system))). The first `role == \"system\"` message is stripped (string, Anthropic block-array, and parts shapes all supported) ONLY when extractable text is non-empty; a system message whose content yields no text (empty string, or a content array with no non-empty text blocks) is NOT stripped and stays in the hash, mirroring app-server's extract_system_message returning None. The remaining array is canonicalized with object keys sorted recursively and array order preserved; no number canonicalization in v1. Object key order in `input` here is deliberately scrambled to prove canonicalization — the hash must not depend on it.",
   "cases": [
     {
       "name": "openai-system-stripped",
@@ -66,6 +66,39 @@
         }
       ],
       "expected_hash": "9f5064a6709a9141606c05cca53895327671e6e99dca76e9b1b48c39f1658e41"
+    },
+    {
+      "name": "system-empty-string-content-not-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "expected_hash": "dfc7d451217ecae3891bea2e5903037305707ee292b9f182eae49f0304fcd65c"
+    },
+    {
+      "name": "system-no-text-block-not-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": [
+            {
+              "type": "image",
+              "url": "https://example.com/x.png"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "expected_hash": "63df0aff7b6192715305bf07e0c796db48a0d446a4135895a72cd0439f59cda8"
     }
   ]
 }
