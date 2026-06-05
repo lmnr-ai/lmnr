@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::jwks;
-use crate::db::project_api_keys::ProjectApiKey;
+use crate::db::project_api_keys::{CredentialKind, ProjectAuth};
 
 /// The shape Next.js mints. `aud`/`exp`/`iat`/`sub` are validated by
 /// `jsonwebtoken::Validation`; we keep them in the struct so deserialization
@@ -29,7 +29,7 @@ pub struct DeviceFlowClaims {
 pub const AUDIENCE: &str = "lmnr-app-server";
 
 /// Quick syntactic check — three base64url segments and a JSON header with
-/// `alg`. Real validation happens in `validate_jwt_as_project_api_key`.
+/// `alg`. Real validation happens in `validate_jwt`.
 pub fn looks_like_jwt(token: &str) -> bool {
     let segments = token.split('.').count();
     if segments != 3 {
@@ -38,14 +38,11 @@ pub fn looks_like_jwt(token: &str) -> bool {
     decode_header(token).is_ok()
 }
 
-/// Validate the JWT against the JWKS read from Postgres, build a synthetic
-/// `ProjectApiKey` so downstream routes see the same `ProjectApiKey` extension
-/// as the API-key path. The synthetic `hash` is namespaced `jwt:<jti>` so it
-/// cannot collide with a real `project_api_keys.hash`.
-pub async fn validate_jwt_as_project_api_key(
-    db: &PgPool,
-    token: &str,
-) -> Result<ProjectApiKey> {
+/// Validate the JWT against the JWKS read from Postgres and return a
+/// `ProjectAuth` whose `kind` is `CredentialKind::AccessToken { jti }`.
+/// Downstream handlers branch on `kind` if they need to (today nothing
+/// does — they only read `project_id` / `is_ingest_only`).
+pub async fn validate_jwt(db: &PgPool, token: &str) -> Result<ProjectAuth> {
     let header = decode_header(token).context("decoding JWT header")?;
     let kid = header.kid.ok_or_else(|| anyhow!("JWT missing kid"))?;
     let key = jwks::get_decoding_key(&kid, db).await?;
@@ -61,13 +58,14 @@ pub async fn validate_jwt_as_project_api_key(
         decode::<DeviceFlowClaims>(token, &key, &validation).context("validating JWT")?;
     let claims = data.claims;
 
+    let jti = Uuid::parse_str(&claims.jti).context("parsing JWT jti as UUID")?;
     let shorthand: String = claims.email.chars().take(8).collect();
-    Ok(ProjectApiKey {
+    Ok(ProjectAuth {
         project_id: claims.project_id,
-        name: Some(format!("oauth:{}", claims.email)),
-        hash: format!("jwt:{}", claims.jti),
+        name: Some(claims.email),
         shorthand,
         is_ingest_only: false,
+        kind: CredentialKind::AccessToken { jti },
     })
 }
 
@@ -153,27 +151,30 @@ mod tests {
             EncodingKey::from_rsa_pem(pem.as_bytes()).expect("from_rsa_pem");
         let token = encode(&header, &claims, &encoding_key).expect("encode JWT");
 
-        // `validate_jwt_as_project_api_key` should validate this token via
+        // `validate_jwt` should validate this token via
         // the seeded cache (it will not hit Postgres because the cache is
         // fresh and the kid resolves immediately). `connect_lazy` lets us
         // hand a `&PgPool` without opening a real connection.
         let pool = sqlx::postgres::PgPoolOptions::new()
             .connect_lazy("postgres://test:test@127.0.0.1:1/test")
             .expect("connect_lazy");
-        let api_key = validate_jwt_as_project_api_key(&pool, &token)
+        let auth = validate_jwt(&pool, &token)
             .await
             .expect("validate JWT");
 
-        assert_eq!(api_key.project_id, project_id);
-        assert_eq!(
-            api_key.name,
-            Some("oauth:alice@example.com".to_string())
-        );
-        assert_eq!(
-            api_key.hash,
-            "jwt:ffffffff-ffff-ffff-ffff-ffffffffffff"
-        );
-        assert!(!api_key.is_ingest_only);
+        assert_eq!(auth.project_id, project_id);
+        assert_eq!(auth.name, Some("alice@example.com".to_string()));
+        assert!(!auth.is_ingest_only);
+        match auth.kind {
+            CredentialKind::AccessToken { jti } => {
+                assert_eq!(
+                    jti,
+                    Uuid::parse_str("ffffffff-ffff-ffff-ffff-ffffffffffff")
+                        .unwrap()
+                );
+            }
+            _ => panic!("expected AccessToken kind"),
+        }
     }
 
 }

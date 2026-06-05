@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     cache::Cache,
     ch::spans::append_tags_to_span,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::{DB, project_api_keys::ProjectAuth},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -45,7 +45,7 @@ pub async fn tag_trace(
     clickhouse: web::Data<clickhouse::Client>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     http_client: web::Data<reqwest::Client>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,

@@ -10,7 +10,7 @@ use crate::{
     cache::Cache,
     db::{
         DB,
-        project_api_keys::ProjectApiKey,
+        project_api_keys::ProjectAuth,
         spans::{Span, SpanType},
     },
     features::{Feature, is_feature_enabled},
@@ -46,7 +46,7 @@ pub struct CreateSpanResponse {
 #[post("")]
 pub async fn create_spans(
     request: web::Json<Vec<CreateSpanRequest>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,

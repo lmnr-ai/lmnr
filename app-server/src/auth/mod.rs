@@ -15,12 +15,12 @@ use tonic::Status;
 use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
 use crate::db::DB;
-use crate::db::project_api_keys::ProjectApiKey;
+use crate::db::project_api_keys::ProjectAuth;
 
 pub mod jwks;
 pub mod jwt;
 
-impl FromRequest for ProjectApiKey {
+impl FromRequest for ProjectAuth {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -54,12 +54,12 @@ async fn validate_project_api_key(
         .into_inner();
 
     match get_api_key_from_raw_value(&db.pool, cache, credentials.token().to_string()).await {
-        Ok(api_key) => {
+        Ok(auth) => {
             // Check if ingest-only keys are allowed for this endpoint
-            if !allow_ingest_only && api_key.is_ingest_only {
+            if !allow_ingest_only && auth.is_ingest_only {
                 log::warn!(
                     "Ingest-only API key attempted to access restricted endpoint: project_id={}",
-                    api_key.project_id
+                    auth.project_id
                 );
                 // Return a blank 404 to match default actix web behavior
                 let response = actix_web::HttpResponse::NotFound().finish();
@@ -68,7 +68,7 @@ async fn validate_project_api_key(
                     req,
                 ));
             }
-            req.extensions_mut().insert(api_key);
+            req.extensions_mut().insert(auth);
             Ok(req)
         }
         Err(e) => {
@@ -106,7 +106,7 @@ pub async fn authenticate_request(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
     cache: Arc<Cache>,
-) -> anyhow::Result<ProjectApiKey> {
+) -> anyhow::Result<ProjectAuth> {
     let token = extract_bearer_token(metadata)?;
     get_api_key_from_raw_value(pool, cache, token).await
 }
@@ -119,10 +119,10 @@ pub async fn authenticate_request_with_jwt(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
     cache: Arc<Cache>,
-) -> anyhow::Result<ProjectApiKey> {
+) -> anyhow::Result<ProjectAuth> {
     let token = extract_bearer_token(metadata)?;
     if jwt::looks_like_jwt(&token) {
-        return jwt::validate_jwt_as_project_api_key(pool, &token).await;
+        return jwt::validate_jwt(pool, &token).await;
     }
     get_api_key_from_raw_value(pool, cache, token).await
 }
@@ -144,9 +144,9 @@ async fn validate_via_jwt(
         }
     };
 
-    match jwt::validate_jwt_as_project_api_key(&db.pool, credentials.token()).await {
-        Ok(api_key) => {
-            req.extensions_mut().insert(api_key);
+    match jwt::validate_jwt(&db.pool, credentials.token()).await {
+        Ok(auth) => {
+            req.extensions_mut().insert(auth);
             Ok(req)
         }
         Err(e) => {

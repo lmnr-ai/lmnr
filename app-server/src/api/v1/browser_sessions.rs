@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     browser_events::QueueBrowserEventMessage,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::{DB, project_api_keys::ProjectAuth},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     routes::types::ResponseResult,
@@ -64,7 +64,7 @@ pub struct EventBatch {
 #[post("events")]
 async fn create_session_event(
     batch: web::Json<EventBatch>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<crate::cache::Cache>,

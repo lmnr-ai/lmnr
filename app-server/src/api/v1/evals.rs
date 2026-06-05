@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     cache::Cache,
-    db::{self, DB, project_api_keys::ProjectApiKey},
+    db::{self, DB, project_api_keys::ProjectAuth},
     evaluations::{
         EvaluationDatapointResult, UpdatedDatapointStrings,
         insert_evaluation_datapoints,
@@ -37,7 +37,7 @@ pub async fn init_eval(
     req: Json<InitEvalRequest>,
     db: web::Data<DB>,
     name_generator: web::Data<Arc<NameGenerator>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
 ) -> ResponseResult {
     let req = req.into_inner();
     let group_name = req.group_name.unwrap_or("default".to_string());
@@ -71,7 +71,7 @@ pub async fn save_eval_datapoints(
     clickhouse: web::Data<clickhouse::Client>,
     cache: web::Data<Cache>,
     pubsub: web::Data<Arc<PubSub>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
 ) -> ResponseResult {
     let eval_id = eval_id.into_inner();
     let req = req.into_inner();
@@ -122,7 +122,7 @@ pub async fn update_eval_datapoint(
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     pubsub: web::Data<Arc<PubSub>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
 ) -> ResponseResult {
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();

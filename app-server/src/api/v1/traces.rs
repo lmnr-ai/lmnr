@@ -5,7 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::{DB, project_api_keys::ProjectApiKey, spans::Span},
+    db::{DB, project_api_keys::ProjectAuth, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -54,7 +54,7 @@ pub struct RabbitMqSpanMessage {
 pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,

@@ -11,7 +11,7 @@ use crate::{
     cache::Cache,
     ch::datapoints::{self as ch_datapoints},
     datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
-    db::{self, DB, project_api_keys::ProjectApiKey},
+    db::{self, DB, project_api_keys::ProjectAuth},
     query_engine::QueryEngine,
     routes::{PaginatedResponse, types::ResponseResult},
     sql::{self, ClickhouseReadonlyClient},
@@ -30,7 +30,7 @@ struct GetDatasetsRequest {
 #[get("/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
@@ -57,7 +57,7 @@ async fn get_datapoints(
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
@@ -217,7 +217,7 @@ async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
@@ -325,7 +325,7 @@ async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
     let dataset_id =

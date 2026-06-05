@@ -11,7 +11,7 @@ use crate::{
     cache::Cache,
     db::{
         DB,
-        project_api_keys::ProjectApiKey,
+        project_api_keys::ProjectAuth,
         spans::{Span, SpanType},
         trace::trace_exists,
     },
@@ -44,7 +44,7 @@ pub struct UpdateTraceMetadataRequest {
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,

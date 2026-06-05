@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::{DB, project_api_keys::ProjectAuth},
     llm::LlmClient,
     mq::MessageQueue,
     query_engine::QueryEngine,
@@ -320,7 +320,7 @@ pub async fn mcp_handler(
         // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
         ClientJsonRpcMessage::Request(mut request) => {
             // Inject project_id from auth middleware into rmcp extensions
-            if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
+            if let Some(api_key) = req.extensions().get::<ProjectAuth>() {
                 request
                     .request
                     .extensions_mut()

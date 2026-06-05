@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::{
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::{DB, project_api_keys::ProjectAuth},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -33,7 +33,7 @@ pub struct SqlQueryResponse {
 #[post("query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,

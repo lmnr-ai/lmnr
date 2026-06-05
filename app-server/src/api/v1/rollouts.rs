@@ -9,7 +9,7 @@ use crate::{
             create_or_update_debugger_session, delete_debugger_session,
             update_debugger_session_name,
         },
-        project_api_keys::ProjectApiKey,
+        project_api_keys::ProjectAuth,
     },
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
@@ -36,7 +36,7 @@ pub struct RegisterSessionRequest {
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
     path: web::Path<Uuid>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
 ) -> ResponseResult {
@@ -58,7 +58,7 @@ pub async fn register_session(
 pub async fn update_name(
     path: web::Path<Uuid>,
     body: web::Json<UpdateNameRequest>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
@@ -91,7 +91,7 @@ pub async fn update_name(
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
     path: web::Path<String>,
-    project_api_key: ProjectApiKey,
+    project_api_key: ProjectAuth,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {

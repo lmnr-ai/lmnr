@@ -1637,11 +1637,11 @@ fn main() -> anyhow::Result<()> {
             let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
             let http_period_secs: u64 =
                 env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
-            // project_auth middleware populates ProjectApiKey in request extensions
+            // project_auth middleware populates ProjectAuth in request extensions
             match Limiter::builder(&redis_url)
                 .key_by(|req: &dev::ServiceRequest| {
                     req.extensions()
-                        .get::<db::project_api_keys::ProjectApiKey>()
+                        .get::<db::project_api_keys::ProjectAuth>()
                         .map(|k| format!("ratelimit:{}", k.project_id))
                 })
                 .limit(http_limit)
