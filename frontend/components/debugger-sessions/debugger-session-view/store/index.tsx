@@ -128,34 +128,15 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 });
 
 interface DebuggerSessionViewState {
-  // Run note source-of-truth lives on each TraceRow's metadata; no extra state.
-  noteMetadataKey: string;
-
-  // Per-trace catch-up-fetch lifecycle — the single explicit source of truth for
-  // "have we loaded this trace's spans?" Replaces the old shape-inference (missing
-  // slot = not loaded; `[]` = placeholder-or-empty) plus the realtimeSpanBuffer /
-  // traceHydrating / traceSpansConfirmedEmpty machinery. Semantics:
-  //   absent  → idle / never fetched (a list-fetched row that's never been expanded)
-  //   loading → a catch-up fetch is in flight; UI shows the skeleton
-  //   loaded  → fetch settled (success OR failure); UI shows whatever spans streamed,
-  //             or "No spans found" when the map is empty
-  // Spans stream independently into `traceSpans` regardless of this state. Transient,
-  // NOT in persist partialize.
   traceFetchState: Record<string, "loading" | "loaded">;
-
-  // Displayed session name (the SessionHeader title). Seeded from the breadcrumb
-  // prop at store creation; updated live by the `session_update` realtime event so
-  // a rename reflects without reload.
   sessionName: string;
 
   // True when a run was added live via trace_update — drives the "New trace" pill
   // at the bottom of the view. Cleared on pill click / dismiss. Transient.
   newTraceNotice: boolean;
 
-  // True once the initial fetchSessionTraces has settled. Gates newTraceNotice so a
-  // trace_update that races ahead of the first fetch (for a run already in the
-  // initial set) can't flash the "New trace" pill on page load (finding #8).
-  tracesHydrated: boolean;
+  // Prevents "New trace" pill from being shown on page load
+  isInitialTracesLoaded: boolean;
 }
 
 interface DebuggerSessionViewActions {
@@ -223,11 +204,10 @@ export const createDebuggerSessionViewStore = (options?: {
           // Seed base `traces` with the single /alpha trace when provided.
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
 
-          noteMetadataKey: NOTE_METADATA_KEY,
           sessionName: options?.initialSessionName ?? "Session",
           traceFetchState: {},
           newTraceNotice: false,
-          tracesHydrated: false,
+          isInitialTracesLoaded: false,
 
           ensureTraceSpans: async (trace) => {
             // State-based idempotence (never shape-based): if a catch-up fetch is in
@@ -337,7 +317,7 @@ export const createDebuggerSessionViewStore = (options?: {
               get().setIsTracesLoading(false);
               // Mark hydrated even on error: a failed initial fetch shouldn't leave the
               // pill permanently suppressed — subsequent live runs are genuinely new.
-              set({ tracesHydrated: true } as Partial<DebuggerSessionViewStore>);
+              set({ isInitialTracesLoaded: true } as Partial<DebuggerSessionViewStore>);
             }
           },
 
@@ -388,7 +368,7 @@ export const createDebuggerSessionViewStore = (options?: {
               // Surface the "New trace" pill so the user can jump to the new run — but
               // only once the initial fetch has settled, so a trace_update that beat the
               // first fetch (for a run already in the initial set) can't flash it on load.
-              if (get().tracesHydrated) set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
+              if (get().isInitialTracesLoaded) set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
               return;
             }
 
