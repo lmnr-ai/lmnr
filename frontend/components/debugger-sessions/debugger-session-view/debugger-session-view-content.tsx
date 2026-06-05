@@ -18,10 +18,8 @@ import SessionHeader from "./session-header";
 import SessionOutline from "./session-outline";
 import { useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "./store";
 
-// How close to the bottom counts as "pinned" for stick-to-bottom. Must exceed
-// the article column's 160px bottom padding — stopping where the last trace
-// ends still counts as "at the bottom" — while staying small enough that a
-// deliberate scroll-up unpins.
+// "Pinned" slack for stick-to-bottom. Must exceed the article's 160px bottom
+// padding (stopping at the last trace counts) yet let a scroll-up unpin.
 const PIN_SLACK_PX = 200;
 
 // Earliest run start / latest run end across loaded traces (epoch ms).
@@ -65,17 +63,12 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
   }, [scrollEl]);
 
-  // iMessage-style pinning: while the user sits at (or near) the bottom, keep
-  // them there as streamed spans/traces grow the content. Pinned-ness is a ref
-  // updated on every user scroll; a ResizeObserver on the content column snaps
-  // the scroll back down whenever the content height changes while pinned.
-  // Scrolling up past the slack unpins, so reading history is never hijacked.
+  // iMessage-style pinning: while at the bottom, follow content growth
+  // (ResizeObserver snap); scrolling up past the slack unpins.
   useEffect(() => {
     if (!scrollEl) return;
-    // Starts unpinned and only a real scroll event can pin — there is no initial
-    // measure on purpose. On load the content is still short ("at the bottom" is
-    // trivially true), and an initial pin would drag the viewport down as traces
-    // stream in. Scrolling to the bottom (incl. the pill's smooth scroll) pins.
+    // No initial measure on purpose: short loading content is trivially "at the
+    // bottom", and an initial pin would drag the viewport down as traces load.
     const pinned = { current: false };
     const measure = () => {
       pinned.current = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - PIN_SLACK_PX;
@@ -83,11 +76,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     scrollEl.addEventListener("scroll", measure, { passive: true });
     const content = scrollEl.firstElementChild;
     const observer = new ResizeObserver(() => {
-      // Instant (not smooth) — growth can come every frame while streaming and
-      // queued smooth scrolls would rubber-band.
-      // `behavior: "instant"` overrides the container's `scroll-smooth` CSS —
-      // a smooth snap animates through positions outside the slack, whose
-      // scroll events would unpin us mid-flight and kill the follow.
+      // "instant" overrides the container's scroll-smooth — an animated snap
+      // fires scroll events outside the slack and unpins mid-flight.
       if (pinned.current) scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "instant" });
     });
     if (content) observer.observe(content);
@@ -129,9 +119,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           storeApi.getState().setSessionName(payload.name);
         }
       },
-      // Session deleted (DELETE /v1/.../rollouts/{id}) → toast + bounce to the list.
-      // Payload is `{session_id}` (snake_case, see app-server rollouts.rs::delete).
-      // The channel is per-session, so any session_deleted here is for THIS session.
+      // Session deleted → toast + bounce to the list. Payload `{session_id}`
+      // (snake_case, see rollouts.rs::delete); the channel is per-session.
       session_deleted: (event: MessageEvent) => {
         const payload = JSON.parse(event.data) as { session_id?: string };
         if (sessionId && payload.session_id && payload.session_id !== sessionId) return;

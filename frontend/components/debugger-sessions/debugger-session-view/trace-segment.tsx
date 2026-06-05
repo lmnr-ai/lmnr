@@ -30,9 +30,8 @@ import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
 
-// Paste-to-agent prompt for "cache and rerun from here": the SDK resolves
-// LMNR_DEBUG_CACHE_UNTIL from a span id (see lmnr-ts debug/config.ts
-// parseCacheUntil) — no need to compute an occurrence count here.
+// Paste-to-agent prompt for "cache and rerun from here"; the SDK resolves
+// LMNR_DEBUG_CACHE_UNTIL from a span id directly.
 const rerunPrompt = (traceId: string, spanId: string, sessionId?: string) =>
   [
     "Rerun the agent with these env vars:",
@@ -167,9 +166,8 @@ export default function TraceSegment({
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
-  // Fetch-in-flight → skeleton; settled + empty → "No spans found". Expanding
-  // always starts a fetch (synchronously, in the ensureTraceSpans override), so
-  // an expanded-but-empty segment is never mislabeled empty before its fetch.
+  // In-flight → skeleton; settled + empty → "No spans found". Expanding starts a
+  // fetch synchronously, so an empty segment is never mislabeled pre-fetch.
   const isLoading = useDebuggerSessionViewStore((s) => !!s.traceSpansFetching[traceId]);
 
   const rows = useMemo<TranscriptRow[]>(() => {
@@ -182,12 +180,8 @@ export default function TraceSegment({
   const headerRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
-  // R1: when THIS trace was just collapsed, bring its header into view — only if
-  // out of view (mirrors the regular view's scrollToIndex align:"auto"). The
-  // debugger has no flat-row virtualizer to scrollToIndex against; the header is
-  // plain DOM, so we bounds-check it against the page scroll container and scroll
-  // only when it's outside the viewport, then consume the one-shot request. Keyed
-  // on `expanded` too so it runs AFTER the collapse rebuilds this segment's height.
+  // On collapse, bring this trace's header into view only if it's out of view.
+  // Keyed on `expanded` so it runs after the collapse rebuilds segment height.
   useEffect(() => {
     if (scrollToTraceId !== traceId) return;
     const header = headerRef.current;
@@ -205,10 +199,8 @@ export default function TraceSegment({
     consumeScrollToTrace();
   }, [scrollToTraceId, traceId, expanded, scrollEl, consumeScrollToTrace]);
 
-  // Measure this viewport's offset within the scroll content (rect math instead
-  // of offsetTop — robust to positioned ancestors). Re-measured whenever the
-  // column's height changes (layoutVersion) since anything above us moving
-  // shifts the offset. The ±1px guard keeps re-measure→re-render convergent.
+  // Measure this viewport's offset in the scroll content; re-measured on column
+  // height changes (layoutVersion). The ±1px guard keeps it convergent.
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el || !scrollEl) return;
