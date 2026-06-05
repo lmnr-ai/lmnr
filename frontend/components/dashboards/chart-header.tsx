@@ -1,7 +1,7 @@
 import { Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
-import { useSWRConfig } from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { type DashboardChart, dragHandleKey } from "@/components/dashboards/types";
 import { Button } from "@/components/ui/button";
@@ -60,9 +60,9 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const { mutate, cache } = useSWRConfig();
-  const charts = (cache.get(`/api/projects/${projectId}/dashboard-charts`)?.data as DashboardChart[] | undefined) ?? [];
-  const chart = charts.find((c) => c.id === id);
+  const { mutate } = useSWRConfig();
+  const { data: charts } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`);
+  const chart = charts?.find((c) => c.id === id);
   const handleDeleteChart = useCallback(async () => {
     try {
       await mutate<DashboardChart[]>(
@@ -88,7 +88,10 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   }, [id, mutate, projectId, toast]);
 
   const handleDuplicateChart = useCallback(async () => {
-    if (!chart) return;
+    if (!chart) {
+      toast({ title: "Chart data not available. Please try again.", variant: "destructive" });
+      return;
+    }
     try {
       await mutate<DashboardChart[]>(
         `/api/projects/${projectId}/dashboard-charts`,
