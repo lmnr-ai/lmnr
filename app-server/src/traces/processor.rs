@@ -716,7 +716,6 @@ pub async fn process_span_messages(
         &recordable_indices,
         &input_batch,
         &tool_dedups,
-        cache.clone(),
         queue.clone(),
     )
     .await;

@@ -5,20 +5,16 @@
 //! rather than on the ingest producer: a checkpoint span is a conversation
 //! start (exactly two input messages), so its system message is trace-new and
 //! its content rides the wire in `span_trace_new_contents` even when storage-
-//! deduped. A cheap per-combo Redis check keeps repeated
-//! `(system prompt, tool definitions, model)` combinations from flooding the
-//! queue — only genuinely new combinations are published.
+//! deduped. Dedup is the consumer's job — it strips dynamic content from the
+//! system prompt and keys on the resulting `version_hash` — so the producer
+//! just publishes every qualifying conversation-start span.
 
-use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use serde_json::Value;
-use uuid::Uuid;
 
 use super::{CHECKPOINTS_EXCHANGE, CHECKPOINTS_ROUTING_KEY, consumer::CheckpointsQueueMessage};
 use crate::{
-    cache::{Cache, CacheTrait},
     db::spans::Span,
     mq::{MessageQueue, MessageQueueTrait},
     traces::{input_dedup::DedupBatch, prompt_hash::extract_system_message, tool_dedup::ToolDedup},
@@ -27,20 +23,6 @@ use crate::{
 /// Number of input messages a span must carry to qualify as a checkpoint:
 /// a system prompt + the first turn.
 const CHECKPOINT_INPUT_MESSAGE_COUNT: usize = 2;
-
-/// TTL for the per-combo dedup key — long enough to suppress repeats within a
-/// reasonable window, short enough that combos re-confirm periodically.
-const COMBO_SEEN_TTL_SECONDS: u64 = 24 * 3600;
-
-/// Upper bound on the best-effort publish so a slow broker can't stall the
-/// spans consumer.
-const PUBLISH_TIMEOUT: Duration = Duration::from_secs(2);
-
-fn combo_key(project_id: Uuid, system_prompt: &str, tool_def_hash: &str, model: &str) -> String {
-    let combo = format!("{system_prompt}|{tool_def_hash}|{model}");
-    let hash = blake3::hash(combo.as_bytes());
-    format!("ckpt:{}:{}", project_id.simple(), hash.to_hex())
-}
 
 /// Build and publish checkpoint messages for the qualifying LLM spans in a
 /// processed batch. Best-effort: any failure is logged and never propagated.
@@ -53,15 +35,9 @@ pub async fn publish_checkpoints_for_batch(
     recordable_indices: &[usize],
     input_batch: &DedupBatch,
     tool_dedups: &[Option<ToolDedup>],
-    cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
 ) {
     let mut checkpoints: Vec<CheckpointsQueueMessage> = Vec::new();
-    let mut combo_keys: Vec<String> = Vec::new();
-    // Collapse duplicate combos appearing twice within the same batch — the
-    // Redis key isn't stamped until after publish, so the per-combo `exists`
-    // check alone can't catch in-batch repeats.
-    let mut seen_in_batch: HashSet<String> = HashSet::new();
 
     for (dedup_idx, &span_idx) in recordable_indices.iter().enumerate() {
         let span = &spans[span_idx];
@@ -101,17 +77,6 @@ pub async fn publish_checkpoints_for_batch(
             .unwrap_or_default();
         let model = span.attributes.request_model().unwrap_or_default();
 
-        // Cheap dedup: skip combos seen recently (or already queued in this
-        // batch). Best-effort — a Redis miss/error just means we publish; the
-        // downstream consumer is idempotent on the combination.
-        let key = combo_key(span.project_id, &system_prompt, &tool_def_hash, &model);
-        if !seen_in_batch.insert(key.clone()) {
-            continue;
-        }
-        if cache.exists(&key).await.unwrap_or(false) {
-            continue;
-        }
-
         checkpoints.push(CheckpointsQueueMessage {
             project_id: span.project_id,
             system_prompt,
@@ -119,7 +84,6 @@ pub async fn publish_checkpoints_for_batch(
             model,
             span_ids_path: span.attributes.ids_path().unwrap_or_default(),
         });
-        combo_keys.push(key);
     }
 
     if checkpoints.is_empty() {
@@ -134,27 +98,10 @@ pub async fn publish_checkpoints_for_batch(
         }
     };
 
-    match tokio::time::timeout(
-        PUBLISH_TIMEOUT,
-        queue.publish(
-            &payload,
-            CHECKPOINTS_EXCHANGE,
-            CHECKPOINTS_ROUTING_KEY,
-            None,
-        ),
-    )
-    .await
+    if let Err(e) = queue
+        .publish(&payload, CHECKPOINTS_EXCHANGE, CHECKPOINTS_ROUTING_KEY, None)
+        .await
     {
-        Ok(Ok(())) => {
-            // Stamp combo keys only after a successful publish, so a failed
-            // publish doesn't suppress a later retry of the same combination.
-            for key in &combo_keys {
-                let _ = cache.insert_with_ttl(key, "1", COMBO_SEEN_TTL_SECONDS).await;
-            }
-        }
-        Ok(Err(e)) => {
-            log::error!("[CHECKPOINTS] Failed to publish checkpoint messages: {e:?}")
-        }
-        Err(_) => log::error!("[CHECKPOINTS] Publishing checkpoints timed out"),
+        log::error!("[CHECKPOINTS] Failed to publish checkpoint messages: {e:?}");
     }
 }
