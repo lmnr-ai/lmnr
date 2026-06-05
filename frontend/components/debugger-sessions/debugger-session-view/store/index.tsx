@@ -217,12 +217,11 @@ export const createDebuggerSessionViewStore = (options?: {
             const fetchState = get().traceFetchState[trace.id];
             if (fetchState === "loading" || fetchState === "loaded") return;
 
-            // BOUNDARY DECISION: the base slice keeps its own `traceSpansLoading` for
-            // the regular session view; the debugger segment UI reads ONLY
-            // `traceFetchState`. Set "loading" synchronously (before any await) so a
-            // span streaming in between this set and the fetch settling can never flash
-            // "No spans found" — this is the exact P1 race class. The base fetch's
-            // `traceSpansLoading` still runs underneath but the debugger UI ignores it.
+            // Set "loading" synchronously (before any await) so a span streaming in
+            // between this set and the fetch settling can never flash "No spans
+            // found" — this is the exact P1 race class. The debugger segment UI
+            // reads ONLY `traceFetchState`; the base slice's `traceSpansLoading`
+            // stays untouched for the regular session view.
             //
             // AbortController stance (decided): no abort plumbing. Per-trace fetches
             // fire once (state-guarded above), late responses are harmless through the
@@ -236,7 +235,29 @@ export const createDebuggerSessionViewStore = (options?: {
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
-              await baseSlice.ensureTraceSpans(trace);
+              // Fetch directly instead of delegating to baseSlice.ensureTraceSpans:
+              // the base guard is shape-based (`if (traceSpans[id])`) and spans now
+              // upsert unconditionally, so an active run that streamed even one SSE
+              // span before first expand would make the base skip the ClickHouse
+              // historical fetch entirely. Merge fetched-wins so duplicates resolve
+              // to the fuller CH span; streamed-only spans are preserved.
+              const { projectId } = get();
+              if (!projectId) return;
+              const spanParams = new URLSearchParams();
+              spanParams.append("searchIn", "input");
+              spanParams.append("searchIn", "output");
+              spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
+              spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
+              const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
+              if (res.ok) {
+                const fetchedSpans = (await res.json()) as TraceViewSpan[];
+                if (fetchedSpans.length > 0) {
+                  get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, true));
+                }
+              }
+            } catch {
+              // Best-effort, same semantics as hydrateTraceRow: failure still reaches
+              // "loaded"; the UI shows whatever streamed.
             } finally {
               set(
                 (s) =>
