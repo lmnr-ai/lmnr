@@ -44,6 +44,8 @@ import {
   tagClasses,
   traces,
   tableViews,
+  agents,
+  agentVersions,
 } from "./schema";
 
 export const debuggerSessionsRelations = relations(debuggerSessions, ({ one }) => ({
@@ -93,6 +95,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tableViews: many(tableViews),
   tagClasses: many(tagClasses),
   traces: many(traces),
+  agentVersions: many(agentVersions),
+  agents: many(agents),
 }));
 
 export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
@@ -421,4 +425,23 @@ export const tracesRelations = relations(traces, ({ one }) => ({
     fields: [traces.projectId],
     references: [projects.id],
   }),
+}));
+
+export const agentVersionsRelations = relations(agentVersions, ({ one }) => ({
+  agent: one(agents, {
+    fields: [agentVersions.agentId],
+    references: [agents.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const agentsRelations = relations(agents, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [agents.projectId],
+    references: [projects.id],
+  }),
+  agentVersions: many(agentVersions),
 }));
