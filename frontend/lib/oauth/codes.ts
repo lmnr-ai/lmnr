@@ -11,6 +11,13 @@ export function generateUserCode(): string {
   return `${s.slice(0, 4)}-${s.slice(4)}`;
 }
 
+/** Normalise a user-entered code to XXXX-XXXX. Returns the raw input if it isn't 8 alphanumerics. */
+export function normalizeUserCode(raw: string): string {
+  const stripped = raw.replace(/[^A-Z0-9]/g, "");
+  if (stripped.length !== 8) return raw;
+  return `${stripped.slice(0, 4)}-${stripped.slice(4)}`;
+}
+
 /** 64 random bytes, base64url-encoded. The device_code itself, never echoed back to the user. */
 export function generateDeviceCode(): string {
   return randomBytes(48).toString("base64url");

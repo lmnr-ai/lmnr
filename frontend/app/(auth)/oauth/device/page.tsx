@@ -4,10 +4,11 @@ import { getServerSession } from "next-auth";
 import { OAuthDeviceClient } from "@/components/oauth-device";
 import { OAuthDeviceCodeInput } from "@/components/oauth-device/code-input";
 import { OAuthDevicePanel } from "@/components/oauth-device/panel";
+import { listAccessibleWorkspaces } from "@/lib/actions/workspaces";
 import { authOptions } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
+import { normalizeUserCode } from "@/lib/oauth/codes";
 import { getDeviceCodeByUserCode } from "@/lib/oauth/device-codes";
-import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
 
 export const metadata: Metadata = {
   title: "Authorize device — Laminar",
@@ -67,8 +68,8 @@ export default async function OAuthDevicePage(props: OAuthDevicePageProps) {
     );
   }
 
-  const now = nowMs();
-  if (new Date(row.expiresAt).getTime() < now) {
+  // eslint-disable-next-line react-hooks/purity -- Server Component, single-shot render per request
+  if (new Date(row.expiresAt).getTime() < Date.now()) {
     return (
       <OAuthDevicePanel title="Code expired">
         <p className="text-sm text-secondary-foreground">
@@ -97,16 +98,6 @@ export default async function OAuthDevicePage(props: OAuthDevicePageProps) {
       userEmail={user.email ?? ""}
     />
   );
-}
-
-function nowMs(): number {
-  return Date.now();
-}
-
-function normalizeUserCode(raw: string): string {
-  const stripped = raw.replace(/[^A-Z0-9]/g, "");
-  if (stripped.length !== 8) return raw;
-  return `${stripped.slice(0, 4)}-${stripped.slice(4)}`;
 }
 
 function messageForNonPendingStatus(status: string): string {
