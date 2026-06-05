@@ -1,11 +1,13 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
@@ -39,8 +41,13 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   const { projectId } = useParams<{ projectId: string }>();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
-  const { traces, spanPanelOpen } = useSessionViewBaseStore(
-    (s) => ({ traces: s.traces, spanPanelOpen: s.spanPanelOpen }),
+  const { traces, spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
+    (s) => ({
+      traces: s.traces,
+      spanPanelOpen: s.spanPanelOpen,
+      isTracesLoading: s.isTracesLoading,
+      tracesError: s.tracesError,
+    }),
     shallow
   );
 
@@ -145,7 +152,23 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
               runCount={traces.length}
               sessionId={sessionId ?? ""}
             />
-            <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+            {/* Same error → loading → content branching as the regular session
+                view (session-panel/index.tsx); fetchSessionTraces owns the flags. */}
+            {tracesError ? (
+              <div className="flex flex-col items-center p-8 text-center">
+                <AlertTriangle className="mx-auto mb-4 h-12 w-12 text-destructive" />
+                <h3 className="mb-2 text-lg font-semibold text-destructive">Error Loading Session</h3>
+                <p className="text-sm text-muted-foreground">{tracesError}</p>
+              </div>
+            ) : isTracesLoading && traces.length === 0 ? (
+              <div className="flex flex-col gap-2 py-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+            )}
           </div>
           <div className="flex flex-1" />
         </div>
