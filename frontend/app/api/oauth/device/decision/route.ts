@@ -4,6 +4,7 @@ import { prettifyError, z, ZodError } from "zod/v4";
 
 import { authOptions } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
+import { requireSameOrigin } from "@/lib/oauth/csrf";
 import { approveDeviceCode, denyDeviceCode, getDeviceCodeByUserCode } from "@/lib/oauth/device-codes";
 
 const BodySchema = z.object({
@@ -13,6 +14,12 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // CSRF defense-in-depth: same-origin gate before any session lookup so a
+  // cross-origin POST is rejected even if the browser happens to attach the
+  // session cookie.
+  const originBlocked = requireSameOrigin(req);
+  if (originBlocked) return originBlocked;
+
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
