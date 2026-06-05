@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
+import { spanTagsToLinks } from "../note-markdown";
 import { type DebuggerSessionViewStore, useDebuggerSessionViewStore, useDebuggerSessionViewStoreRaw } from "../store";
 import { headingAnchorId, parseNoteHeadings } from "./utils";
 
@@ -16,7 +17,11 @@ type OutlineRow = { key: string; anchor: string; level: number; text: string };
 const buildRows = (state: DebuggerSessionViewStore): OutlineRow[] => {
   const rows: OutlineRow[] = [];
   state.traces.forEach((trace: TraceRow) => {
-    for (const h of parseNoteHeadings(state.noteForTrace(trace.id))) {
+    const note = state.noteForTrace(trace.id);
+    if (!note) return;
+    // Parse the SAME span-tag-transformed string RunComment renders, so heading
+    // order and slugs line up exactly with the ids it stamps.
+    for (const h of parseNoteHeadings(spanTagsToLinks(note, trace.id))) {
       const a = headingAnchorId(trace.id, h.slug);
       rows.push({ key: a, anchor: a, level: h.level, text: h.text });
     }
@@ -87,11 +92,10 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
 
   // Active-row detection. Root is the browser viewport (root: null) — works
   // regardless of WHICH element scrolls. Active = crossed into the top 15%.
+  // Setup is deferred one frame: heading ids are stamped by RunComment's
+  // post-render effect, which can flush after this one in the same commit.
   useEffect(() => {
     if (rows.length === 0) return;
-    const targets = rows.map((r) => document.getElementById(r.anchor)).filter((el): el is HTMLElement => el !== null);
-    if (targets.length === 0) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
         if (suppressRef.current) return;
@@ -101,8 +105,16 @@ export default function SessionOutline({ className }: SessionOutlineProps) {
       },
       { rootMargin: "0px 0px -85% 0px" }
     );
-    targets.forEach((t) => observer.observe(t));
-    return () => observer.disconnect();
+    const rafId = requestAnimationFrame(() => {
+      rows
+        .map((r) => document.getElementById(r.anchor))
+        .filter((el): el is HTMLElement => el !== null)
+        .forEach((t) => observer.observe(t));
+    });
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [rows]);
 
   // Re-derive the edge state when rows change (content height moved without a

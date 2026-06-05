@@ -1,11 +1,9 @@
 "use client";
 
-import { type ComponentProps, createElement, isValidElement, type JSX, type ReactNode } from "react";
+import { type ComponentProps, createElement, type JSX, type ReactNode } from "react";
 
 import { type Response } from "@/components/ai-elements/response";
 import { cn } from "@/lib/utils";
-
-import { headingAnchorId, slugify } from "./session-outline/utils";
 
 type Components = NonNullable<ComponentProps<typeof Response>["components"]>;
 
@@ -18,12 +16,14 @@ type Components = NonNullable<ComponentProps<typeof Response>["components"]>;
  */
 const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   // Heading scale: h1 20px / h2 18px / h3+ 16px, stepping down to the 14px body.
-  h1: "mt-3 mb-1 text-xl font-semibold text-foreground",
-  h2: "mt-3 mb-1 text-lg font-semibold text-foreground",
-  h3: "mt-2 mb-1 text-base font-semibold text-foreground",
-  h4: "mt-2 mb-1 text-base font-semibold text-foreground",
-  h5: "mt-2 mb-1 text-base font-semibold text-foreground",
-  h6: "mt-2 mb-1 text-base font-semibold text-foreground",
+  // `scroll-mt-4` keeps outline-anchored scrolls clear of the viewport edge
+  // (anchor ids are stamped post-render by RunComment).
+  h1: "mt-3 mb-1 text-xl font-semibold text-foreground scroll-mt-4",
+  h2: "mt-3 mb-1 text-lg font-semibold text-foreground scroll-mt-4",
+  h3: "mt-2 mb-1 text-base font-semibold text-foreground scroll-mt-4",
+  h4: "mt-2 mb-1 text-base font-semibold text-foreground scroll-mt-4",
+  h5: "mt-2 mb-1 text-base font-semibold text-foreground scroll-mt-4",
+  h6: "mt-2 mb-1 text-base font-semibold text-foreground scroll-mt-4",
   p: "my-1.5 text-sm leading-relaxed text-secondary-foreground",
   ul: "my-1.5 ml-1 list-disc space-y-0.5 pl-4 text-sm text-secondary-foreground",
   ol: "my-1.5 ml-1 list-decimal space-y-0.5 pl-4 text-sm text-secondary-foreground",
@@ -77,43 +77,6 @@ const components = {
 
 /** Per-element overrides for run-note markdown. Merge an `a` override on top. */
 export const noteMarkdownComponents: Components = components;
-
-const HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
-
-/**
- * Heading overrides that stamp each rendered heading with the same anchor id the
- * session outline derives (`headingAnchorId(traceId, sourceLine)`), so clicking
- * an outline row scrolls to it. The id is keyed on react-markdown's source-line
- * position, which is order- and text-collision-proof. Merge these on top of
- * `noteMarkdownComponents` (they reuse the same STYLES, plus an id + scroll
- * offset). Trace-scoped, so build them per RunComment.
- */
-// Recursively pull the visible text out of a heading's children (recurses into
-// elements like <strong>/<em>/<code> so inline markdown still contributes).
-const nodeText = (node: ReactNode): string => {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(nodeText).join("");
-  if (isValidElement(node)) return nodeText((node.props as { children?: ReactNode }).children);
-  return "";
-};
-
-export const buildHeadingComponents = (traceId: string): Components =>
-  Object.fromEntries(
-    HEADING_TAGS.map((tag) => [
-      tag,
-      ({ node: _node, className: _incoming, ...props }: ElProps) => {
-        // Stamp the id here, in the React override — this runs AFTER Streamdown's
-        // rehype-sanitize, which strips/clobbers ids added in the rehype pipeline
-        // (rehype-slug). Derived from the heading text so it matches the outline.
-        const slug = slugify(nodeText(props.children));
-        return createElement(tag, {
-          ...props,
-          id: slug ? headingAnchorId(traceId, slug) : undefined,
-          className: cn("scroll-mt-4", STYLES[tag]),
-        });
-      },
-    ])
-  ) as Components;
 
 /** Container className for the note's markdown — just the base body size now. */
 export const noteProseClassName = "text-sm text-secondary-foreground";
