@@ -1646,6 +1646,7 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client = llm_provider_client.clone();
+                        let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers as usize,
@@ -1654,6 +1655,7 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
                                 llm_client: llm_client.clone(),
+                                queue: queue.clone(),
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,

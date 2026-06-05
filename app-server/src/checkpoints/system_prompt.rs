@@ -9,22 +9,25 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_STABLE_PROMPT_REGEX_CACHE_KEY},
-    llm::{LlmClient, ModelSize, ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest},
+    checkpoints::observe::{CheckpointObserver, run_llm},
+    llm::{
+        LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
+        ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
+    },
     traces::prompt_hash::structural_skeleton_hash,
 };
 
 const DYNAMIC_REGEX_TTL_SECONDS: u64 = 30 * 24 * 3600;
 
+const REGEX_TOOL_NAME: &str = "extract_dynamic_regex";
+
 const STABLE_PROMPT_INSTRUCTION: &str =
-    "You analyze the system prompt of an AI agent. Some parts are dynamic — they \
-     change between runs (current date or time, user names, session/request IDs, \
-     injected runtime context, environment details, counters, file paths, etc.) — \
-     while the rest is the stable template. Produce a single regular expression in \
-     Rust `regex` crate syntax that matches every dynamic fragment, so that removing \
-     the matches leaves only the stable template. Match the general patterns (e.g. \
-     date formats), not the specific literal values. Respond with ONLY the regular \
-     expression on a single line: no explanation, no code fences. If there are no \
-     dynamic fragments, respond with an empty string.";
+    "You analyze an AI agent's system prompt. Some parts are dynamic — they change \
+     between runs (current date or time, user names, session/request IDs, injected \
+     runtime context, environment details, counters, file paths, etc.) — while the \
+     rest is the stable template. Call the extract_dynamic_regex tool with a single \
+     regular expression that matches every dynamic fragment, matching general \
+     patterns (e.g. date formats) rather than literal values.";
 
 /// Extract the non-dynamic (stable) portion of a system prompt. Best-effort:
 /// with no LLM provider, or on any LLM / regex failure, returns it unchanged.
@@ -33,12 +36,14 @@ pub async fn extract_stable_system_prompt(
     project_id: Uuid,
     cache: Arc<Cache>,
     llm_client: Option<Arc<LlmClient>>,
+    observer: Option<&CheckpointObserver>,
 ) -> String {
     let Some(llm_client) = llm_client else {
         return system_prompt.to_string();
     };
 
-    let Some(pattern) = resolve_dynamic_regex(&cache, &llm_client, project_id, system_prompt).await
+    let Some(pattern) =
+        resolve_dynamic_regex(&cache, &llm_client, project_id, system_prompt, observer).await
     else {
         return system_prompt.to_string();
     };
@@ -61,6 +66,7 @@ async fn resolve_dynamic_regex(
     llm_client: &LlmClient,
     project_id: Uuid,
     system_prompt: &str,
+    observer: Option<&CheckpointObserver>,
 ) -> Option<String> {
     let key = format!(
         "{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{}",
@@ -71,7 +77,7 @@ async fn resolve_dynamic_regex(
         return Some(cached);
     }
 
-    let pattern = generate_dynamic_regex(llm_client, system_prompt).await?;
+    let pattern = generate_dynamic_regex(llm_client, system_prompt, observer).await?;
 
     // Don't pin a broken regex for a month.
     if pattern.is_empty() || Regex::new(&pattern).is_ok() {
@@ -81,7 +87,11 @@ async fn resolve_dynamic_regex(
     Some(pattern)
 }
 
-async fn generate_dynamic_regex(llm_client: &LlmClient, system_prompt: &str) -> Option<String> {
+async fn generate_dynamic_regex(
+    llm_client: &LlmClient,
+    system_prompt: &str,
+    observer: Option<&CheckpointObserver>,
+) -> Option<String> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
             role: Some("user".to_string()),
@@ -97,7 +107,7 @@ async fn generate_dynamic_regex(llm_client: &LlmClient, system_prompt: &str) -> 
                 ..Default::default()
             }]),
         }),
-        tools: None,
+        tools: Some(vec![build_regex_tool()]),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(0.0),
             ..Default::default()
@@ -106,7 +116,8 @@ async fn generate_dynamic_regex(llm_client: &LlmClient, system_prompt: &str) -> 
         model_size: Some(ModelSize::Small),
     };
 
-    let response = match llm_client.generate_content(&request).await {
+    let response = match run_llm(observer, llm_client, "extract_stable_system_prompt", &request).await
+    {
         Ok(response) => response,
         Err(e) => {
             log::warn!("[CHECKPOINTS] Dynamic-regex generation failed: {e:?}");
@@ -114,15 +125,42 @@ async fn generate_dynamic_regex(llm_client: &LlmClient, system_prompt: &str) -> 
         }
     };
 
-    let text = response
+    let regex = response
         .candidates
         .and_then(|c| c.into_iter().next())
         .and_then(|c| c.content)
         .and_then(|content| content.parts)
-        .and_then(|parts| parts.into_iter().find_map(|p| p.text))
+        .and_then(|parts| {
+            parts
+                .into_iter()
+                .find_map(|p| p.function_call.filter(|fc| fc.name == REGEX_TOOL_NAME))
+        })
+        .and_then(|fc| fc.args)
+        .and_then(|args| args.get("regex").and_then(|v| v.as_str()).map(String::from))
         .unwrap_or_default();
 
-    Some(sanitize_regex(&text))
+    Some(sanitize_regex(&regex))
+}
+
+fn build_regex_tool() -> ProviderTool {
+    ProviderTool {
+        function_declarations: vec![ProviderFunctionDeclaration {
+            name: REGEX_TOOL_NAME.to_string(),
+            description: "REQUIRED: submit a single Rust `regex` crate pattern matching the system \
+                prompt's dynamic fragments. Always call this tool; never respond with plain text."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "regex": {
+                        "type": "string",
+                        "description": "A single regular expression (Rust regex syntax) matching every dynamic fragment (dates, times, ids, injected context, counters, file paths, etc.) so that removing the matches leaves the stable template. Match general patterns, not literal values. Empty string if there are no dynamic fragments."
+                    }
+                },
+                "required": ["regex"]
+            }),
+        }],
+    }
 }
 
 /// Strip code fences / surrounding backticks the model may wrap the regex in.

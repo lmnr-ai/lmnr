@@ -68,6 +68,10 @@ pub async fn publish_checkpoints_for_batch(
         if !span.is_llm_span() {
             continue;
         }
+        // Never checkpoint our own tracing spans.
+        if span.attributes.is_checkpoint_internal() {
+            continue;
+        }
 
         // Authoritative input-message count = number of dedup hashes. Non-array
         // / non-dedup'd input has no hashes → not a checkpoint candidate.

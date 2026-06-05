@@ -34,6 +34,8 @@ pub const SPAN_PROMPT_HASH: &str = "lmnr.span.prompt_hash";
 /// the row is not written to `spans`, doesn't index in Quickwit, and
 /// contributes nothing to trace stats (start/end/tokens/num_spans/top_span/etc.).
 pub const SPAN_METADATA_ONLY: &str = "lmnr.internal.metadata_only";
+/// Marker on the checkpoints pipeline's own tracing spans, skipped by its producer.
+pub const CHECKPOINT_INTERNAL_SPAN: &str = "lmnr.internal.checkpoint";
 
 // Legacy names (pre-spec). These remain the canonical internal keys our
 // normalization writes into — they are what `db/spans.rs` and the signals

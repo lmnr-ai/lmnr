@@ -18,6 +18,7 @@ use uuid::Uuid;
 
 use super::{
     classifier::{self, AgentClassification},
+    observe::CheckpointObserver,
     subagent, system_prompt, version,
 };
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
     ch::deduped_content,
     db::{DB, agents},
     llm::LlmClient,
+    mq::MessageQueue,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -42,6 +44,7 @@ pub struct CheckpointsHandler {
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
+    pub queue: Arc<MessageQueue>,
 }
 
 #[async_trait]
@@ -65,12 +68,35 @@ impl MessageHandler for CheckpointsHandler {
 
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
+        // Tracing is enabled only when an internal project is configured.
+        let internal_project_id: Option<Uuid> = std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok());
+        let observer =
+            internal_project_id.map(|project_id| CheckpointObserver::new(self.queue.clone(), project_id));
+
+        let result = self
+            .process_checkpoint_inner(message, observer.as_ref())
+            .await;
+
+        if let Some(observer) = observer {
+            observer.finish().await;
+        }
+        result
+    }
+
+    async fn process_checkpoint_inner(
+        &self,
+        message: &CheckpointsQueueMessage,
+        observer: Option<&CheckpointObserver>,
+    ) -> anyhow::Result<()> {
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
             &message.system_prompt,
             message.project_id,
             self.cache.clone(),
             self.llm_client.clone(),
+            observer,
         )
         .await;
 
@@ -110,9 +136,13 @@ impl CheckpointsHandler {
         // agent system prompts as context.
         let existing_agents =
             agents::list_latest_agent_versions(&self.db.pool, message.project_id).await?;
-        let classification =
-            classifier::classify_agent(&stable_system_prompt, &existing_agents, self.llm_client.clone())
-                .await?;
+        let classification = classifier::classify_agent(
+            &stable_system_prompt,
+            &existing_agents,
+            self.llm_client.clone(),
+            observer,
+        )
+        .await?;
 
         // Create the new agent, or bump the matched agent's version.
         let agent_id = match classification {

@@ -1,5 +1,6 @@
 pub mod classifier;
 pub mod consumer;
+pub mod observe;
 pub mod producer;
 pub mod subagent;
 pub mod system_prompt;
