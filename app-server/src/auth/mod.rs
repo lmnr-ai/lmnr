@@ -78,55 +78,6 @@ async fn validate_project_api_key(
     }
 }
 
-/// Standard project validator - blocks ingest-only keys.
-/// Kept alongside `project_validator_with_jwt` for callers that want the
-/// API-key-only path (today none; both production wrappings switched to the
-/// JWT-aware variant in `main.rs`).
-#[allow(dead_code)]
-pub async fn project_validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    validate_project_api_key(req, credentials, false).await
-}
-
-/// Ingestion validator - allows ingest-only keys for trace ingestion endpoints.
-#[allow(dead_code)]
-pub async fn project_ingestion_validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    validate_project_api_key(req, credentials, true).await
-}
-
-/// Authenticates gRPC trace ingestion requests.
-/// Note: This endpoint accepts both default and ingest-only API keys,
-/// as it's used for writing trace data to the project.
-pub async fn authenticate_request(
-    metadata: &tonic::metadata::MetadataMap,
-    pool: &PgPool,
-    cache: Arc<Cache>,
-) -> anyhow::Result<ProjectAuth> {
-    let token = extract_bearer_token(metadata)?;
-    get_api_key_from_raw_value(pool, cache, token).await
-}
-
-/// JWT-aware variant of `authenticate_request` for gRPC ingestion. Bearer
-/// tokens that look like JWTs (3 segments + decodable header) are validated
-/// against the JWKS read directly from Postgres; everything else falls
-/// through to the existing API-key path.
-pub async fn authenticate_request_with_jwt(
-    metadata: &tonic::metadata::MetadataMap,
-    pool: &PgPool,
-    cache: Arc<Cache>,
-) -> anyhow::Result<ProjectAuth> {
-    let token = extract_bearer_token(metadata)?;
-    if jwt::looks_like_jwt(&token) {
-        return jwt::validate_jwt(pool, &token).await;
-    }
-    get_api_key_from_raw_value(pool, cache, token).await
-}
-
 async fn validate_via_jwt(
     req: ServiceRequest,
     credentials: BearerAuth,
@@ -156,8 +107,10 @@ async fn validate_via_jwt(
     }
 }
 
-/// Same as `project_validator` but accepts both API keys and OAuth JWTs.
-pub async fn project_validator_with_jwt(
+/// Standard project validator - blocks ingest-only keys. Accepts API keys or
+/// OAuth JWTs: bearer tokens shaped like a JWT go through `auth::jwt`,
+/// everything else falls through to the API-key path.
+pub async fn project_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
@@ -167,8 +120,9 @@ pub async fn project_validator_with_jwt(
     validate_project_api_key(req, credentials, false).await
 }
 
-/// Same as `project_ingestion_validator` but accepts both API keys and OAuth JWTs.
-pub async fn project_ingestion_validator_with_jwt(
+/// Ingestion validator - allows ingest-only keys for trace ingestion endpoints.
+/// Accepts API keys or OAuth JWTs (same fall-through as `project_validator`).
+pub async fn project_ingestion_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
@@ -176,6 +130,23 @@ pub async fn project_ingestion_validator_with_jwt(
         return validate_via_jwt(req, credentials).await;
     }
     validate_project_api_key(req, credentials, true).await
+}
+
+/// Authenticates gRPC ingestion requests. Accepts API keys or OAuth JWTs:
+/// bearer tokens shaped like a JWT go through `auth::jwt`, everything else
+/// falls through to the API-key path. Note: this endpoint accepts both
+/// default and ingest-only API keys, as it's used for writing data to the
+/// project.
+pub async fn authenticate_request(
+    metadata: &tonic::metadata::MetadataMap,
+    pool: &PgPool,
+    cache: Arc<Cache>,
+) -> anyhow::Result<ProjectAuth> {
+    let token = extract_bearer_token(metadata)?;
+    if jwt::looks_like_jwt(&token) {
+        return jwt::validate_jwt(pool, &token).await;
+    }
+    get_api_key_from_raw_value(pool, cache, token).await
 }
 
 fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {

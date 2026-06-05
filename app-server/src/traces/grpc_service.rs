@@ -4,7 +4,7 @@ use actix_limitation::{Error as LimiterError, Limiter};
 use uuid::Uuid;
 
 use crate::{
-    auth::authenticate_request_with_jwt,
+    auth::authenticate_request,
     cache::{Cache, CacheTrait, keys::INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY},
     db::DB,
     features::{Feature, is_feature_enabled},
@@ -50,7 +50,7 @@ impl TraceService for ProcessTracesService {
         &self,
         request: Request<ExportTraceServiceRequest>,
     ) -> Result<Response<ExportTraceServiceResponse>, Status> {
-        let api_key = authenticate_request_with_jwt(
+        let api_key = authenticate_request(
             request.metadata(),
             &self.db.pool,
             self.cache.clone(),

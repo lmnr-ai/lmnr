@@ -1719,13 +1719,13 @@ fn main() -> anyhow::Result<()> {
 
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
-                        // JWT-aware validators: bearer tokens shaped like a
-                        // JWT go through `auth::jwt`, everything else stays
-                        // on the existing API-key path.
+                        // Validators accept API keys or OAuth JWTs — bearer
+                        // tokens shaped like a JWT go through `auth::jwt`,
+                        // everything else stays on the API-key path.
                         let project_auth =
-                            HttpAuthentication::bearer(auth::project_validator_with_jwt);
+                            HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
-                            HttpAuthentication::bearer(auth::project_ingestion_validator_with_jwt);
+                            HttpAuthentication::bearer(auth::project_ingestion_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
