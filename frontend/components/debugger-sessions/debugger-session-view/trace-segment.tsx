@@ -167,13 +167,10 @@ export default function TraceSegment({
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
-  // ONE source of truth for "have this trace's spans loaded?" (decided: read
-  // traceFetchState, NOT the base slice's traceSpansLoading). "loading" → skeleton;
-  // "loaded" + empty → "No spans found"; absent (a list row not yet expanded) is
-  // treated as still-loading once expanded, since expanding flips it to "loading"
-  // synchronously via the ensureTraceSpans override.
-  const fetchState = useDebuggerSessionViewStore((s) => s.traceFetchState[traceId]);
-  const isLoading = fetchState !== "loaded";
+  // Fetch-in-flight → skeleton; settled + empty → "No spans found". Expanding
+  // always starts a fetch (synchronously, in the ensureTraceSpans override), so
+  // an expanded-but-empty segment is never mislabeled empty before its fetch.
+  const isLoading = useDebuggerSessionViewStore((s) => !!s.traceSpansFetching[traceId]);
 
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];

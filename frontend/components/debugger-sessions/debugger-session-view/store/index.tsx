@@ -128,7 +128,10 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 });
 
 interface DebuggerSessionViewState {
-  traceFetchState: Record<string, "loading" | "loaded">;
+  // Per-trace span fetch in flight. Dedupes concurrent fetches and drives the
+  // skeleton; expand ALWAYS refetches (idempotent recency merge), so a failed
+  // fetch heals on the next expand. Transient, not persisted.
+  traceSpansFetching: Record<string, boolean>;
   sessionName: string;
 
   // True when a run was added live via trace_update — drives the "New trace" pill
@@ -140,10 +143,10 @@ interface DebuggerSessionViewState {
 }
 
 interface DebuggerSessionViewActions {
-  // Expand-path fetch override, gated on `traceFetchState` (NOT slot shape): if a
-  // catch-up fetch already ran (loading/loaded) do nothing; if idle (a list row
-  // never expanded) fetch once via the base slice, owning `traceFetchState` so the
-  // debugger UI reads ONE source. Idempotent.
+  // Expand-path fetch override: ALWAYS fetches (skipped only while another fetch
+  // for the same trace is in flight). Fetches directly — never via the base slice,
+  // whose guard is shape-based and would skip the historical fetch once any SSE
+  // span has upserted into the slot.
   ensureTraceSpans: (trace: TraceRow) => Promise<void>;
 
   // Fetch this session's runs (traces) via the `rollout.session_id` metadata
@@ -205,7 +208,7 @@ export const createDebuggerSessionViewStore = (options?: {
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
 
           sessionName: options?.initialSessionName ?? "Session",
-          traceFetchState: {},
+          traceSpansFetching: {},
           newTraceNotice: false,
           isInitialTracesLoaded: false,
 
@@ -214,13 +217,12 @@ export const createDebuggerSessionViewStore = (options?: {
             // flight or already settled, do nothing — spans stream in independently
             // and the recency merge keeps them correct. Only an idle (never-fetched)
             // list row reaches the fetch below.
-            const fetchState = get().traceFetchState[trace.id];
-            if (fetchState === "loading" || fetchState === "loaded") return;
+            if (get().traceSpansFetching[trace.id]) return;
 
             // Set "loading" synchronously (before any await) so a span streaming in
             // between this set and the fetch settling can never flash "No spans
             // found" — this is the exact P1 race class. The debugger segment UI
-            // reads ONLY `traceFetchState`; the base slice's `traceSpansLoading`
+            // reads ONLY `traceSpansFetching`; the base slice's `traceSpansLoading`
             // stays untouched for the regular session view.
             //
             // AbortController stance (decided): no abort plumbing. Per-trace fetches
@@ -231,7 +233,7 @@ export const createDebuggerSessionViewStore = (options?: {
             set(
               (s) =>
                 ({
-                  traceFetchState: { ...s.traceFetchState, [trace.id]: "loading" },
+                  traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: true },
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
@@ -262,7 +264,7 @@ export const createDebuggerSessionViewStore = (options?: {
               set(
                 (s) =>
                   ({
-                    traceFetchState: { ...s.traceFetchState, [trace.id]: "loaded" },
+                    traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: false },
                   }) as Partial<DebuggerSessionViewStore>
               );
             }
@@ -380,10 +382,10 @@ export const createDebuggerSessionViewStore = (options?: {
               // Any spans that raced ahead of this event are already in `traceSpans`
               // (applyRealtimeSpan upserts unconditionally) — nothing to seed or flush.
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
-              // Kick the catch-up fetch FIRST so it sets traceFetchState="loading"
+              // Kick the catch-up fetch FIRST so it marks the trace as fetching
               // synchronously; setTraceExpanded then triggers the ensureTraceSpans
               // override, which sees "loading" and short-circuits — one fetch, not two.
-              // hydrateTraceRow owns this trace's traceFetchState lifecycle.
+              // before the auto-expand fires — exactly one fetch per new run.
               void get().hydrateTraceRow(t.traceId);
               get().setTraceExpanded(t.traceId, true);
               // Surface the "New trace" pill so the user can jump to the new run — but
@@ -426,16 +428,16 @@ export const createDebuggerSessionViewStore = (options?: {
             // `startTime !== endTime` shape check that the P1 race defeated (a streamed
             // span bumped endTime past startTime before this ran, so the guard passed
             // and the flag-clear in finally was skipped → stuck skeleton).
-            if (get().traceFetchState[traceId]) return;
+            if (get().traceSpansFetching[traceId]) return;
 
-            // hydrateTraceRow is the sole owner of traceFetchState. Set "loading" in
+            // Mark fetching in
             // the SYNCHRONOUS prefix (before ANY await) — this is the exact P1 trap:
             // a span streaming in between this call and the fetch settling must never
             // flash "No spans found" before the skeleton is shown.
             set(
               (s) =>
                 ({
-                  traceFetchState: { ...s.traceFetchState, [traceId]: "loading" },
+                  traceSpansFetching: { ...s.traceSpansFetching, [traceId]: true },
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
@@ -504,7 +506,7 @@ export const createDebuggerSessionViewStore = (options?: {
               set(
                 (s) =>
                   ({
-                    traceFetchState: { ...s.traceFetchState, [traceId]: "loaded" },
+                    traceSpansFetching: { ...s.traceSpansFetching, [traceId]: false },
                   }) as Partial<DebuggerSessionViewStore>
               );
             }
