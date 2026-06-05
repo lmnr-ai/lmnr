@@ -154,7 +154,7 @@ impl CheckpointsHandler {
         // Run the critical section, then ALWAYS release the lock — including on
         // error — so a failed classify/write can't freeze the project until TTL.
         let result = self
-            .process_new_version_locked(message, &stable_system_prompt, &version_hash)
+            .process_new_version_locked(message, &stable_system_prompt, &version_hash, observer)
             .await;
 
         if let Err(e) = self.cache.release_lock(&lock_key).await {
@@ -171,6 +171,7 @@ impl CheckpointsHandler {
         message: &CheckpointsQueueMessage,
         stable_system_prompt: &str,
         version_hash: &str,
+        observer: Option<&CheckpointObserver>,
     ) -> anyhow::Result<()> {
         // Re-check under the lock: another worker may have just written this
         // exact shape between our fast-path miss and acquiring the lock.
