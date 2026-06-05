@@ -47,7 +47,6 @@ export async function POST(req: NextRequest): Promise<Response> {
       userEmail: session.user.email ?? null,
       name: body.workspaceName,
       projectName: body.projectName,
-      isFirstProject: true,
     });
 
     if (!result.projectId) {

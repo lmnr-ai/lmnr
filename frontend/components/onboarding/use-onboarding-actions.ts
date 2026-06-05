@@ -69,8 +69,6 @@ export function useOnboardingActions(): UseOnboardingActions {
             jsonRequest("POST", {
               name: workspaceName.trim(),
               projectName: projectName.trim(),
-              // Server-side: seed Failure Detector signal + email targets on default reports.
-              isFirstProject: isCloud,
             })
           );
           if (!res.ok) {

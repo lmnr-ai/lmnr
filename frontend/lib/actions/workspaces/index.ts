@@ -4,16 +4,13 @@ import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
-import { createSignal } from "@/lib/actions/signals";
 import { authOptions } from "@/lib/auth";
 import { defaultReports } from "@/lib/db/default-charts.ts";
-import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
   reports,
   reportTargets,
-  signalTriggers,
   subscriptionTiers,
   workspaceAddons,
   workspaces,
@@ -24,7 +21,6 @@ import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
   projectName: z.string().optional(),
-  isFirstProject: z.boolean().optional(),
 });
 
 type CreateWorkspaceResult = {
@@ -54,18 +50,25 @@ export interface CreateWorkspaceForUserInput {
   userEmail: string | null;
   name: string;
   projectName?: string;
-  isFirstProject?: boolean;
 }
 
 /**
- * Session-free workspace creation. Wraps the original `createWorkspace` body
- * so the CLI bootstrap path (`POST /api/cli/bootstrap`) and the onboarding
- * wizard share the same defaults: workspace + owner membership + default
- * reports, and when `projectName` + `isFirstProject` are set, the Failure
- * Detector signal + email targets are seeded too.
+ * Session-free workspace creation, shared by the CLI setup path
+ * (`POST /api/cli/setup`), the OAuth device-flow bootstrap, and the
+ * onboarding wizard. Every workspace gets:
+ * - owner membership for `userId`
+ * - default report rows (one per `defaultReports` entry)
+ * - EMAIL report targets for `userEmail` on those reports (when supplied)
+ * - if `projectName` is set, an initial project created via `createProject`,
+ *   which is where per-project defaults (Failure Detector signal, trigger,
+ *   alert + email target) live.
+ *
+ * Any "every workspace has X" default belongs here, NOT in caller code.
+ * Wizard-only side effects (welcome email, PostHog funnel events) stay in
+ * the wizard's caller — they are UX moments, not universal defaults.
  */
 export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput): Promise<CreateWorkspaceResult> => {
-  const { userId, userEmail, name, projectName, isFirstProject } = input;
+  const { userId, userEmail, name, projectName } = input;
 
   const [workspace] = await db
     .insert(workspaces)
@@ -100,45 +103,26 @@ export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput)
     )
     .returning({ id: reports.id });
 
+  if (userEmail && insertedReports.length > 0) {
+    await db.insert(reportTargets).values(
+      insertedReports.map((r) => ({
+        workspaceId: workspace.id,
+        reportId: r.id,
+        type: REPORT_TARGET_TYPE.EMAIL,
+        email: userEmail,
+      }))
+    );
+  }
+
   let projectId: string | undefined;
 
   if (projectName) {
     const project = await createProject({
       name: projectName,
       workspaceId: workspace.id,
+      subscriberEmail: userEmail ?? undefined,
     });
     projectId = project.id;
-
-    if (isFirstProject && projectId) {
-      // Route through createSignal so the default Failure Detector signal gets
-      // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
-      const signal = await createSignal({
-        projectId,
-        name: DEFAULT_SIGNAL.name,
-        prompt: DEFAULT_SIGNAL.prompt,
-        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
-        subscriberEmail: userEmail ?? undefined,
-      });
-
-      if (signal) {
-        await db.insert(signalTriggers).values({
-          projectId,
-          signalId: signal.id,
-          value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-        });
-      }
-
-      if (userEmail && insertedReports.length > 0) {
-        await db.insert(reportTargets).values(
-          insertedReports.map((r) => ({
-            workspaceId: workspace.id,
-            reportId: r.id,
-            type: REPORT_TARGET_TYPE.EMAIL,
-            email: userEmail,
-          }))
-        );
-      }
-    }
   }
 
   return {

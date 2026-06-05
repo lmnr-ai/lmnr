@@ -53,12 +53,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     } else {
       const accessible = await listAccessibleWorkspaces(caller.userId);
       if (accessible.length === 0) {
-        // Create a workspace. We pass isFirstProject:false because the project
-        // is created in the step below; the wizard's first-project signal
-        // seeding runs through the createWorkspaceForUser path only when both
-        // projectName and isFirstProject are set there. Here we let the
-        // workspace start empty and create the project separately so we can
-        // still reuse it when the agent re-runs setup.
+        // Create workspace without an initial project so the dedicated
+        // project-create step below stays idempotent on retry.
         const created = await createWorkspaceForUser({
           userId: caller.userId,
           userEmail: caller.email,
@@ -98,7 +94,11 @@ export async function POST(req: NextRequest): Promise<Response> {
       projectId = existing[0].id;
       projectName = existing[0].name;
     } else {
-      const project = await createProject({ name: body.projectName, workspaceId });
+      const project = await createProject({
+        name: body.projectName,
+        workspaceId,
+        subscriberEmail: caller.email ?? undefined,
+      });
       projectId = project.id;
       projectName = project.name;
       projectCreated = true;

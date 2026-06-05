@@ -18,6 +18,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     const project = await createProject({
       name: body.name,
       workspaceId: body.workspaceId,
+      subscriberEmail: user.email ?? undefined,
     });
 
     return Response.json(project);
