@@ -61,11 +61,14 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   // Scrolling up past the slack unpins, so reading history is never hijacked.
   useEffect(() => {
     if (!scrollEl) return;
+    // Starts unpinned and only a real scroll event can pin — there is no initial
+    // measure on purpose. On load the content is still short ("at the bottom" is
+    // trivially true), and an initial pin would drag the viewport down as traces
+    // stream in. Scrolling to the bottom (incl. the pill's smooth scroll) pins.
     const pinned = { current: false };
     const measure = () => {
       pinned.current = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - PIN_SLACK_PX;
     };
-    measure();
     scrollEl.addEventListener("scroll", measure, { passive: true });
     const content = scrollEl.firstElementChild;
     const observer = new ResizeObserver(() => {
