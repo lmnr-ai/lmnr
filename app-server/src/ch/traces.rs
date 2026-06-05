@@ -232,8 +232,10 @@ impl TraceAggregation {
                     }
                 }
             }
-            if let Some(trace_type) = span.attributes.trace_type() {
-                entry.trace_type = trace_type.clone().into();
+            if entry.trace_type == 0 {
+                if let Some(trace_type) = span.attributes.trace_type() {
+                    entry.trace_type = trace_type.clone().into();
+                }
             }
 
             if span.span_type == SpanType::Evaluation {

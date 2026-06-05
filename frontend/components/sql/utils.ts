@@ -319,6 +319,24 @@ export const tableSchemas: Record<string, TableSchema> = {
       },
     ],
   },
+  clusters: {
+    description: "Clusters of similar signal events, grouped into a hierarchy. Excludes L0 clusters",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the cluster" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal the cluster belongs to" },
+      { name: "name", type: "String", description: "Human-readable name of the cluster" },
+      {
+        name: "level",
+        type: "UInt8",
+        description: "Level of the cluster in the hierarchy. Higher levels are coarser groupings",
+      },
+      { name: "parent_id", type: "UUID", description: "ID of the parent cluster. Nil UUID for top-level clusters" },
+      { name: "num_signal_events", type: "UInt32", description: "Number of signal events in the cluster" },
+      { name: "num_children_clusters", type: "UInt16", description: "Number of immediate child clusters" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was created" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the cluster was last updated" },
+    ],
+  },
   logs: {
     description: "Log entries with severity, body, and trace correlation",
     columns: [

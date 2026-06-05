@@ -9,7 +9,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import SpanStatsShields from "@/components/traces/stats-shields";
 import { StructuredOutputSchema } from "@/components/traces/structured-output-schema";
-import { extractToolsFromAttributes, resolveTools, ToolList } from "@/components/traces/tool-list";
+import { resolveTools, ToolList } from "@/components/traces/tool-list";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";

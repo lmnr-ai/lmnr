@@ -11,7 +11,7 @@ pub mod private;
 mod public;
 
 #[cfg(feature = "signals")]
-pub use private::{check_and_push_signals, get_trace_structure_as_string};
+pub use private::check_and_push_signals;
 
 #[cfg(not(feature = "signals"))]
-pub use public::{check_and_push_signals, get_trace_structure_as_string};
+pub use public::check_and_push_signals;

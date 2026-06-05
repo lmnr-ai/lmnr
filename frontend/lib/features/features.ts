@@ -19,6 +19,7 @@ export enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  AGENT = "AGENT",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -122,6 +123,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.LAMINAR_CLOUD) {
     return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.AGENT) {
+    return process.env.AGENT_CHAT_ENABLED === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

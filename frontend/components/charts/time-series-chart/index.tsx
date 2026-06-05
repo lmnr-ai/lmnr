@@ -33,6 +33,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  hideZeroValues = false,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -128,6 +129,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               content={
                 <ChartTooltipContent
                   labelKey="timestamp"
+                  hideZeroValues={hideZeroValues}
                   labelFormatter={(_, payload) =>
                     payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
                   }

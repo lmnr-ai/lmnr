@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ManageSignalForm } from "@/components/signals/create-signal-drawer";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
@@ -43,6 +44,12 @@ export type FetchClusterStatsParams = {
   abortSignal?: AbortSignal;
 };
 
+export type FetchClustersParams = {
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+};
+
 export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
@@ -52,7 +59,7 @@ export type SignalActions = {
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
-  fetchClusters: () => Promise<void>;
+  fetchClusters: (params: FetchClustersParams) => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
@@ -220,11 +227,18 @@ export const createSignalStore = (initProps: EventsProps) =>
       }
     },
     // Cluster actions
-    fetchClusters: async () => {
+    fetchClusters: async ({ pastHours, startDate, endDate }: FetchClustersParams) => {
       const { signal } = get();
       set({ isClustersLoading: true });
       try {
-        const res = await fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters`);
+        const urlParams = new URLSearchParams();
+        if (pastHours) urlParams.set("pastHours", pastHours);
+        if (startDate) urlParams.set("startDate", startDate);
+        if (endDate) urlParams.set("endDate", endDate);
+
+        const res = await fetch(
+          `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters?${urlParams.toString()}`
+        );
         if (!res.ok) {
           const text = (await res.json()) as { error: string };
           throw new Error(text.error);
@@ -287,7 +301,7 @@ export const SignalContext = createContext<SignalStoreApi | null>(null);
 export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalityFn?: (a: T, b: T) => boolean): T => {
   const store = useContext(SignalContext);
   if (!store) throw new Error("Missing SignalContext.Provider in the tree");
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {

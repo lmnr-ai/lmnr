@@ -17,8 +17,8 @@ interface JsonTooltipProps {
 
 const breakStyle = { wordBreak: "break-all" as const, overflowWrap: "anywhere" as const };
 
-const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
-  <div className="text-xs font-mono text-secondary-foreground max-h-96 p-2" style={breakStyle}>
+export const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
+  <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96" style={breakStyle}>
     <div>{"{"}</div>
     <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
       {Object.entries(data).map(([key, value], index, array) => (

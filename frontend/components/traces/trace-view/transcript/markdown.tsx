@@ -2,6 +2,8 @@ import { isNil } from "lodash";
 import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
+import { MarkdownSpanBadge, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 import { cn } from "@/lib/utils.ts";
 
 const formatOutput = (output: any): string => {
@@ -14,9 +16,10 @@ interface MarkdownProps {
   output: any;
   className?: string;
   contentClassName?: string;
+  spanRefCallbacks?: SpanReferenceCallbacks;
 }
 
-const Markdown = ({ output, className, contentClassName }: MarkdownProps) => {
+const Markdown = ({ output, className, contentClassName, spanRefCallbacks }: MarkdownProps) => {
   const formattedOutput = useMemo(() => {
     if (!output) return "";
     return formatOutput(output);
@@ -62,6 +65,27 @@ const Markdown = ({ output, className, contentClassName }: MarkdownProps) => {
                 {children}
               </code>
             ),
+            a: ({ href, children, ...props }) => {
+              if (spanRefCallbacks && href) {
+                // Reuse the markdown-link parser by re-wrapping the bare href.
+                const [link] = parseSpanLinks(`[x](${href})`);
+                if (link) {
+                  return (
+                    <MarkdownSpanBadge
+                      label={typeof children === "string" ? children : link.label}
+                      traceId={link.traceId}
+                      spanUuid={link.spanId}
+                      callbacks={spanRefCallbacks}
+                    />
+                  );
+                }
+              }
+              return (
+                <a {...props} href={href} target="_blank" rel="noreferrer">
+                  {children}
+                </a>
+              );
+            },
           }}
         >
           {formattedOutput}

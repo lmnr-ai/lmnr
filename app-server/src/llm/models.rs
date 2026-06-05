@@ -143,6 +143,16 @@ pub struct ProviderInlineResponse {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// A single streamed delta from a provider's token stream. Providers emit these as tokens
+/// arrive; the agent forwards them to the SSE client so the UI renders text/thoughts
+/// incrementally. The fully assembled `ProviderResponse` is still returned when the stream
+/// completes (used for persistence + tracing), so deltas are purely additive UX.
+#[derive(Debug, Clone)]
+pub enum ProviderStreamChunk {
+    Text(String),
+    Thought(String),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderResponse {
