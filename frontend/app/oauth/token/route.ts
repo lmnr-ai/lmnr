@@ -6,7 +6,13 @@ import { db } from "@/lib/db/drizzle";
 import { users } from "@/lib/db/migrations/schema";
 import { claimDeviceCode, getDeviceCode, recordPoll } from "@/lib/oauth/device-codes";
 import { signAccessToken } from "@/lib/oauth/jwt";
-import { getRefreshTokenByHash, mintRefreshToken, revokeFamily, rotateRefreshToken } from "@/lib/oauth/refresh-tokens";
+import {
+  getRefreshTokenByHash,
+  isWithinRotationGrace,
+  mintRefreshToken,
+  revokeFamily,
+  rotateRefreshToken,
+} from "@/lib/oauth/refresh-tokens";
 import { oauthError, parseOAuthBody } from "@/lib/oauth/request";
 
 const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
@@ -97,8 +103,32 @@ async function handleRefreshTokenGrant(body: Record<string, string>): Promise<Re
   }
 
   // Reuse-detection: a token already rotated to a successor was just presented again.
-  // RFC 6749 §10.4 / OAuth 2.1: revoke the entire family.
+  // RFC 6749 §10.4 / OAuth 2.1: revoke the entire family — UNLESS the rotation
+  // happened within the grace window, in which case treat it as a CLI retry
+  // after a flaky network and mint a fresh successor on the same family.
   if (row.rotatedAt) {
+    if (row.revokedAt) {
+      return oauthError("invalid_grant", "Refresh token revoked");
+    }
+    if (isWithinRotationGrace(row.rotatedAt)) {
+      const minted = await mintRefreshToken({
+        userId: row.userId,
+        projectId: row.projectId,
+        scope: row.scope,
+        clientId: row.clientId,
+        familyId: row.familyId,
+      });
+      return mintTokensResponse({
+        userId: row.userId,
+        projectId: row.projectId,
+        scope: row.scope,
+        clientId: row.clientId,
+        refreshTokenOverride: {
+          refresh_token: minted.value,
+          refresh_token_expires_in: Math.floor((new Date(minted.expiresAt).getTime() - Date.now()) / 1000),
+        },
+      });
+    }
     await revokeFamily(row.familyId);
     console.warn(`OAuth refresh-token reuse detected, revoked family ${row.familyId}`);
     return oauthError("invalid_grant", "Refresh token reuse detected");
@@ -125,7 +155,28 @@ async function handleRefreshTokenGrant(body: Record<string, string>): Promise<Re
     });
   } catch (e) {
     if (e instanceof Error && e.message === "RotationRaceLost") {
-      // Someone rotated between our SELECT and UPDATE — treat as reuse.
+      // Someone rotated between our SELECT and UPDATE. If the rotation just
+      // happened (grace window) treat it as a retry; otherwise revoke.
+      const fresh = await getRefreshTokenByHash(hash);
+      if (fresh?.rotatedAt && isWithinRotationGrace(fresh.rotatedAt)) {
+        const minted = await mintRefreshToken({
+          userId: row.userId,
+          projectId: row.projectId,
+          scope: row.scope,
+          clientId: row.clientId,
+          familyId: row.familyId,
+        });
+        return mintTokensResponse({
+          userId: row.userId,
+          projectId: row.projectId,
+          scope: row.scope,
+          clientId: row.clientId,
+          refreshTokenOverride: {
+            refresh_token: minted.value,
+            refresh_token_expires_in: Math.floor((new Date(minted.expiresAt).getTime() - Date.now()) / 1000),
+          },
+        });
+      }
       await revokeFamily(row.familyId);
       return oauthError("invalid_grant", "Refresh token race");
     }

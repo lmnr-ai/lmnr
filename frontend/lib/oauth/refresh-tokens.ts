@@ -8,6 +8,24 @@ import { generateRefreshToken } from "@/lib/oauth/codes";
 
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+/**
+ * Window during which a re-presentation of a recently-rotated refresh token
+ * is treated as a retry of the prior rotation (mint a fresh successor) rather
+ * than reuse (revoke the family). Same posture as Auth0's default — the
+ * trade-off is that a malicious replayer who got hold of a token AND timed
+ * their replay within 10 s of the legitimate use could continue the chain.
+ * In exchange, CLI retries after a flaky network don't lock the user out.
+ */
+export const ROTATION_GRACE_SECONDS = 10;
+
+/** Pure helper for unit testing — true if `rotatedAt` is within the grace window of `now`. */
+export function isWithinRotationGrace(rotatedAt: Date | string | null, now: Date = new Date()): boolean {
+  if (!rotatedAt) return false;
+  const rotatedMs = typeof rotatedAt === "string" ? new Date(rotatedAt).getTime() : rotatedAt.getTime();
+  if (Number.isNaN(rotatedMs)) return false;
+  return now.getTime() - rotatedMs < ROTATION_GRACE_SECONDS * 1000;
+}
+
 export interface MintRefreshTokenInput {
   userId: string;
   projectId: string;
