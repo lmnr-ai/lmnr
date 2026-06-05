@@ -1651,7 +1651,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::rollouts::register_session)
-                                    .service(api::v1::rollouts::update_status)
+                                    .service(api::v1::rollouts::update_name)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({

@@ -1,5 +1,5 @@
 {
-  "id": "6f012cae-12b5-4aef-9496-c097083f7f4e",
+  "id": "a2f80e39-d2b4-4961-b5eb-0aa6a54d90a0",
   "prevId": "98420878-9e01-4e4e-aab5-8b653c7db2aa",
   "version": "7",
   "dialect": "postgresql",
@@ -1888,8 +1888,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.rollout_sessions": {
-      "name": "rollout_sessions",
+    "public.debugger_sessions": {
+      "name": "debugger_sessions",
       "schema": "",
       "columns": {
         "id": {
@@ -1912,20 +1912,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "params": {
-          "name": "params",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'{}'::jsonb"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'PENDING'"
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -1935,9 +1921,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "rollout_sessions_project_id_fkey": {
-          "name": "rollout_sessions_project_id_fkey",
-          "tableFrom": "rollout_sessions",
+        "debugger_sessions_project_id_fkey": {
+          "name": "debugger_sessions_project_id_fkey",
+          "tableFrom": "debugger_sessions",
           "tableTo": "projects",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],

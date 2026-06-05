@@ -5,17 +5,18 @@ import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
-import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
-
-export type DebuggerSessionStatus = "PENDING" | "RUNNING" | "FINISHED" | "STOPPED";
+import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
 
 export type DebuggerSession = {
   id: string;
   createdAt: string;
   name: string | null;
   projectId: string;
-  params: Record<string, any> | null;
-  status: DebuggerSessionStatus;
+  // Last time a trace finished for this session (max trace end_time, from
+  // ClickHouse). Null when the session has no traces yet.
+  lastActivity: string | null;
+  // Number of traces grouped to this session (from ClickHouse).
+  traceCount: number;
 };
 
 const GetDebuggerSessionSchema = z.object({
@@ -33,16 +34,58 @@ export const getDebuggerSessions = async (input: z.infer<typeof GetDebuggerSessi
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const result = await db
+  const rows = await db
     .select()
-    .from(rolloutSessions)
-    .where(eq(rolloutSessions.projectId, projectId))
-    .orderBy(desc(rolloutSessions.createdAt))
+    .from(debuggerSessions)
+    .where(eq(debuggerSessions.projectId, projectId))
+    .orderBy(desc(debuggerSessions.createdAt))
     .limit(limit)
     .offset(offset);
 
-  return { items: result };
+  const statsById = await getStatsBySessionIds(
+    projectId,
+    rows.map((r) => r.id)
+  );
+
+  const items: DebuggerSession[] = rows.map((row) => ({
+    ...row,
+    lastActivity: statsById.get(row.id)?.lastActivity ?? null,
+    traceCount: statsById.get(row.id)?.traceCount ?? 0,
+  }));
+
+  return { items };
 };
+
+type SessionStats = { lastActivity: string; traceCount: number };
+
+/**
+ * Per-session trace stats from ClickHouse: max(end_time) and trace count,
+ * grouped by the `rollout.session_id` trace-metadata key, scoped to the given
+ * session ids. Best-effort — a CH error returns an empty map so the sessions
+ * list still renders (just without "last activity" / trace counts).
+ */
+async function getStatsBySessionIds(projectId: string, sessionIds: string[]): Promise<Map<string, SessionStats>> {
+  if (sessionIds.length === 0) return new Map();
+
+  try {
+    const rows = await executeQuery<{ sessionId: string; lastActivity: string; traceCount: string }>({
+      query: `
+        SELECT
+          simpleJSONExtractString(metadata, 'rollout.session_id') AS sessionId,
+          formatDateTime(max(end_time), '%Y-%m-%dT%H:%i:%S.%fZ') AS lastActivity,
+          count(DISTINCT id) AS traceCount
+        FROM traces
+        WHERE simpleJSONExtractString(metadata, 'rollout.session_id') IN ({sessionIds: Array(String)})
+        GROUP BY sessionId
+      `,
+      projectId,
+      parameters: { sessionIds },
+    });
+    return new Map(rows.map((r) => [r.sessionId, { lastActivity: r.lastActivity, traceCount: Number(r.traceCount) }]));
+  } catch {
+    return new Map();
+  }
+}
 
 export const CreateDebuggerSessionSchema = z.object({
   projectId: z.guid(),
@@ -54,14 +97,14 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
   const { projectId, id, name } = CreateDebuggerSessionSchema.parse(input);
 
   const [session] = await db
-    .insert(rolloutSessions)
+    .insert(debuggerSessions)
     .values({ ...(id ? { id } : {}), projectId, name })
     .onConflictDoUpdate({
-      target: rolloutSessions.id,
-      set: { name: sql`coalesce(${name ?? null}, ${rolloutSessions.name})` },
+      target: debuggerSessions.id,
+      set: { name: sql`coalesce(${name ?? null}, ${debuggerSessions.name})` },
       // Scope the conflict update to the owning project so a caller supplying
       // another project's session id can't overwrite its name.
-      setWhere: eq(rolloutSessions.projectId, projectId),
+      setWhere: eq(debuggerSessions.projectId, projectId),
     })
     .returning();
 
@@ -75,8 +118,8 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {
   const { projectId, id } = GetDebuggerSessionSchema.parse(input);
 
-  const result = await db.query.rolloutSessions.findFirst({
-    where: and(eq(rolloutSessions.id, id), eq(rolloutSessions.projectId, projectId)),
+  const result = await db.query.debuggerSessions.findFirst({
+    where: and(eq(debuggerSessions.id, id), eq(debuggerSessions.projectId, projectId)),
   });
 
   return result;

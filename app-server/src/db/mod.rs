@@ -6,6 +6,7 @@ use sqlx::PgPool;
 pub mod alert_targets;
 pub mod custom_model_costs;
 pub mod datasets;
+pub mod debugger_sessions;
 pub mod evaluations;
 pub mod events;
 pub mod labeling_queues;
@@ -13,7 +14,6 @@ pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;
 pub mod reports;
-pub mod rollout_sessions;
 #[cfg(feature = "signals")]
 pub mod signals;
 pub mod slack_integrations;

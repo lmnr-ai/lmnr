@@ -1,65 +1,91 @@
 "use client";
 
-import React, { useCallback } from "react";
+import { type ComponentProps, useEffect } from "react";
 
-import DebuggerSessionContent from "@/components/debugger-sessions/debugger-session-view/debugger-session-content";
-import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
-import { MIN_SIDEBAR_WIDTH, useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { type TraceViewTrace } from "@/components/traces/trace-view/store";
+import Header from "@/components/ui/header";
+import { track } from "@/lib/posthog";
+import { type TraceRow } from "@/lib/traces/types";
+
+import DebuggerSessionViewContent from "./debugger-session-view-content";
+import DebuggerSessionViewStoreProvider, { useDebuggerSessionViewStore } from "./store";
 
 interface DebuggerSessionViewProps {
-  sessionId: string;
-  spanId?: string;
+  // Single-trace harness (/alpha) passes a hydrated trace; multi-trace sessions pass sessionId.
+  trace?: TraceViewTrace;
+  // Breadcrumb path; when omitted falls back to the first trace.
+  headerPath?: ComponentProps<typeof Header>["path"];
+  // Debugger session id — drives the trace fetch + realtime span streaming.
+  sessionId?: string;
 }
 
-const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps) => {
-  const { sidebarWidth, setSidebarWidth } = useDebuggerSessionStore((state) => ({
-    sidebarWidth: state.sidebarWidth,
-    setSidebarWidth: state.setSidebarWidth,
-  }));
-
-  const handleResizeSidebar = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = sidebarWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(MIN_SIDEBAR_WIDTH, startWidth + moveEvent.clientX - startX);
-        setSidebarWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [setSidebarWidth, sidebarWidth]
-  );
-
-  return (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex h-full w-full min-h-0">
-        <div className="flex-none border-r bg-background flex flex-col relative" style={{ width: sidebarWidth }}>
-          <DebuggerSidebar />
-          <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-            onMouseDown={handleResizeSidebar}
-          >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-          </div>
-        </div>
-
-        <div className="flex-1">
-          <DebuggerSessionContent sessionId={sessionId} spanId={spanId} />
-        </div>
-      </div>
-    </div>
-  );
+// Last breadcrumb segment is the session/trace title rendered in the header.
+const titleFromPath = (path: ComponentProps<typeof Header>["path"]): string => {
+  if (Array.isArray(path)) return path[path.length - 1]?.name ?? "Session";
+  return path.split("/").pop() ?? "Session";
 };
 
-export default function DebuggerSessionView(props: DebuggerSessionViewProps) {
-  return <PureDebuggerSessionView {...props} />;
+// Map the /alpha `TraceViewTrace` (metadata is a JSON string) onto a minimal
+// `TraceRow` (metadata is an object) so it can seed the store's base `traces`.
+const traceToRow = (trace: TraceViewTrace): TraceRow => {
+  let metadata: Record<string, string>;
+  try {
+    const parsed = JSON.parse(trace.metadata) as Record<string, unknown>;
+    metadata = Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, typeof v === "string" ? v : String(v)]));
+  } catch {
+    metadata = {};
+  }
+  return {
+    id: trace.id,
+    startTime: trace.startTime,
+    endTime: trace.endTime,
+    inputTokens: trace.inputTokens,
+    outputTokens: trace.outputTokens,
+    totalTokens: trace.totalTokens,
+    cacheReadInputTokens: trace.cacheReadInputTokens,
+    inputCost: trace.inputCost,
+    outputCost: trace.outputCost,
+    totalCost: trace.totalCost,
+    traceType: (trace.traceType as TraceRow["traceType"]) ?? "DEFAULT",
+    sessionId: trace.sessionId,
+    metadata,
+    userId: trace.userId,
+    status: trace.status,
+    spanTags: [],
+    traceTags: [],
+  };
+};
+
+// Breadcrumb that tracks live renames: the store's `sessionName` (updated by the
+// realtime `session_update` handler) replaces the last path segment's name. Must
+// render inside the store provider.
+function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["path"] }) {
+  const sessionName = useDebuggerSessionViewStore((s) => s.sessionName);
+  const livePath = Array.isArray(path)
+    ? path.map((segment, i) => (i === path.length - 1 ? { ...segment, name: sessionName } : segment))
+    : path;
+  return <Header path={livePath} />;
+}
+
+export default function DebuggerSessionView({ trace, headerPath, sessionId }: DebuggerSessionViewProps) {
+  // Multi-trace session view (not the /alpha single-trace harness) is a viewed session.
+  useEffect(() => {
+    if (sessionId) track("debugger_sessions", "session_viewed");
+  }, [sessionId]);
+
+  const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
+  const sessionTitle = titleFromPath(path);
+  const initialTraceRow = trace ? traceToRow(trace) : undefined;
+
+  return (
+    <DebuggerSessionViewStoreProvider
+      key={sessionId ?? trace?.id}
+      initialTraceRow={initialTraceRow}
+      initialSessionName={sessionTitle}
+    >
+      <LiveSessionBreadcrumb path={path} />
+      <div className="flex-none border-t" />
+      <DebuggerSessionViewContent sessionId={sessionId} />
+    </DebuggerSessionViewStoreProvider>
+  );
 }

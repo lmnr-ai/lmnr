@@ -1,12 +1,11 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
-import { CheckCircle2, Clock, Loader2, SquareArrowOutUpRight, StopCircle } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { Badge } from "@/components/ui/badge.tsx";
+import SessionsPlaceholder from "@/components/debugger-sessions/sessions-placeholder";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -14,36 +13,12 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import Mono from "@/components/ui/mono";
-import { TableCell, TableRow } from "@/components/ui/table.tsx";
-import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
+import { type DebuggerSession } from "@/lib/actions/debugger-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
 const FETCH_SIZE = 50;
 const RESOURCE = "debugger-sessions";
-
-const STATUS_CONFIG: Record<DebuggerSessionStatus, { label: string; icon: ReactNode; classes: string }> = {
-  PENDING: {
-    label: "Pending",
-    icon: <Clock className="w-3 h-3" />,
-    classes: "bg-muted text-muted-foreground border-muted",
-  },
-  RUNNING: {
-    label: "Running",
-    icon: <Loader2 className="w-3 h-3 animate-spin" />,
-    classes: "bg-primary/20 text-primary border-primary/30",
-  },
-  FINISHED: {
-    label: "Finished",
-    icon: <CheckCircle2 className="w-3 h-3" />,
-    classes: "bg-success/20 text-success-bright border-success/30",
-  },
-  STOPPED: {
-    label: "Stopped",
-    icon: <StopCircle className="w-3 h-3" />,
-    classes: "bg-destructive/20 text-destructive-bright border-destructive/30",
-  },
-};
 
 const columns: ColumnDef<DebuggerSession>[] = [
   {
@@ -62,19 +37,23 @@ const columns: ColumnDef<DebuggerSession>[] = [
     id: "name",
   },
   {
-    cell: ({ row }) => {
-      const config = STATUS_CONFIG[row.original.status];
-      if (!config) return "-";
-
-      return (
-        <Badge className={`rounded-3xl gap-1.5 ${config.classes}`} variant="outline">
-          {config.icon}
-          {config.label}
-        </Badge>
-      );
-    },
-    header: "Status",
-    id: "status",
+    header: "Traces",
+    accessorKey: "traceCount",
+    cell: ({ row }) => <Mono className="text-xs">{row.original.traceCount}</Mono>,
+    id: "traceCount",
+    size: 100,
+  },
+  {
+    header: "Last activity",
+    accessorKey: "lastActivity",
+    cell: ({ row }) =>
+      row.original.lastActivity ? (
+        <ClientTimestampFormatter timestamp={row.original.lastActivity} />
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
+    id: "lastActivity",
+    size: 180,
   },
   {
     header: "Created",
@@ -85,32 +64,7 @@ const columns: ColumnDef<DebuggerSession>[] = [
   },
 ];
 
-const defaultDebuggerSessionsColumnOrder = ["id", "name", "status", "createdAt"];
-
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No debugger sessions</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Sessions appear here when you run your instrumented program in debug mode with{" "}
-            <code className="text-xs bg-muted px-1 py-0.5 rounded">LMNR_DEBUG=true</code>.
-          </p>
-          <a
-            href="https://laminar.sh/docs/platform/debugger"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            Learn more
-            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
+const defaultDebuggerSessionsColumnOrder = ["id", "name", "traceCount", "lastActivity", "createdAt"];
 
 function DebuggerSessionsContent() {
   const { projectId } = useParams();
@@ -167,6 +121,15 @@ function DebuggerSessionsContent() {
     deps: [projectId],
   });
 
+  // Show the stylized startup page (not the table) once we know the project has
+  // no sessions.
+  const showPlaceholder = !isLoading && (debuggerSessions?.length ?? 0) === 0;
+
+  if (showPlaceholder) {
+    // SessionsPlaceholder renders its own Header.
+    return <SessionsPlaceholder />;
+  }
+
   return (
     <>
       <Header path="debugger sessions" />
@@ -186,7 +149,6 @@ function DebuggerSessionsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
-            emptyRow={EmptyRow}
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
               <ColumnsMenu
