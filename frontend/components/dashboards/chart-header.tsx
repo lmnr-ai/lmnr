@@ -1,4 +1,4 @@
-import { Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
+import { Copy, Edit, Ellipsis, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
@@ -23,25 +23,46 @@ interface ChartHeaderProps {
 }
 
 const deleteChart = async (id: string, projectId: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+  const res = await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
     method: "DELETE",
   });
+  if (!res.ok) throw new Error("Failed to delete chart");
 };
 
 const updateChart = async (id: string, projectId: string, name: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+  const res = await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       name,
     }),
   });
+  if (!res.ok) throw new Error("Failed to update chart");
+};
+
+const duplicateChart = async (chart: DashboardChart, projectId: string): Promise<DashboardChart> => {
+  const { name, query, settings } = chart;
+  const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: `${name} (copy)`,
+      query,
+      config: settings.config,
+      queryStructure: settings.queryStructure,
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to duplicate chart");
+  return res.json();
 };
 
 const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const { mutate } = useSWRConfig();
+  const { mutate, cache } = useSWRConfig();
+  const charts = (cache.get(`/api/projects/${projectId}/dashboard-charts`)?.data as DashboardChart[] | undefined) ?? [];
+  const chart = charts.find((c) => c.id === id);
   const handleDeleteChart = useCallback(async () => {
     try {
       await mutate<DashboardChart[]>(
@@ -65,6 +86,31 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
       });
     }
   }, [id, mutate, projectId, toast]);
+
+  const handleDuplicateChart = useCallback(async () => {
+    if (!chart) return;
+    try {
+      await mutate<DashboardChart[]>(
+        `/api/projects/${projectId}/dashboard-charts`,
+        async (currentData) => {
+          const newChart = await duplicateChart(chart, projectId);
+          return [...(currentData || []), newChart];
+        },
+        {
+          revalidate: false,
+          populateCache: true,
+          rollbackOnError: true,
+          optimisticData: (currentData) => currentData || [],
+        }
+      );
+      track("dashboards", "chart_duplicated");
+    } catch (e) {
+      toast({
+        title: "Failed to duplicate chart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [chart, mutate, projectId, toast]);
 
   const handleUpdateChart = useCallback(
     async (newName: string) => {
@@ -161,6 +207,16 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
                 Edit
               </DropdownMenuItem>
             </Link>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicateChart();
+              }}
+              className="cursor-pointer"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              Duplicate
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
