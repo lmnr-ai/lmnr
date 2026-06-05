@@ -8,17 +8,10 @@ import { generateRefreshToken } from "@/lib/oauth/codes";
 
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
-/**
- * Window during which a re-presentation of a recently-rotated refresh token
- * is treated as a retry of the prior rotation (mint a fresh successor) rather
- * than reuse (revoke the family). Same posture as Auth0's default — the
- * trade-off is that a malicious replayer who got hold of a token AND timed
- * their replay within 10 s of the legitimate use could continue the chain.
- * In exchange, CLI retries after a flaky network don't lock the user out.
- */
+// Grace window for treating a rotated-token replay as a retry (mint fresh
+// successor) rather than reuse (revoke family). Same posture as Auth0 default.
 export const ROTATION_GRACE_SECONDS = 10;
 
-/** Pure helper for unit testing — true if `rotatedAt` is within the grace window of `now`. */
 export function isWithinRotationGrace(rotatedAt: Date | string | null, now: Date = new Date()): boolean {
   if (!rotatedAt) return false;
   const rotatedMs = typeof rotatedAt === "string" ? new Date(rotatedAt).getTime() : rotatedAt.getTime();
@@ -65,7 +58,6 @@ export async function getRefreshTokenByHash(hash: string): Promise<RefreshTokenR
   return row ?? null;
 }
 
-/** Revokes every token in a family (issued from the same login or refresh chain). */
 export async function revokeFamily(familyId: string): Promise<void> {
   await db
     .update(oauthRefreshTokens)
@@ -73,11 +65,8 @@ export async function revokeFamily(familyId: string): Promise<void> {
     .where(eq(oauthRefreshTokens.familyId, familyId));
 }
 
-/**
- * Single-use rotation: marks `oldHash` rotated and inserts a new token under the
- * same family. Both ops in one transaction so reuse-detect can't double-mint.
- * Returns the new token row.
- */
+// Single-use rotation: marks `oldHash` rotated and inserts a new token under
+// the same family in one transaction so reuse-detect can't double-mint.
 export async function rotateRefreshToken(oldHash: string, next: MintRefreshTokenInput): Promise<MintedRefreshToken> {
   return await db.transaction(async (tx) => {
     const rotated = await tx

@@ -6,7 +6,7 @@ import { getOrCreateActiveSigningKey } from "@/lib/oauth/signing-key";
 export const AUDIENCE = "lmnr-app-server";
 
 export function getIssuer(): string {
-  return process.env.NEXTAUTH_URL ?? "http://localhost:3010";
+  return process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 }
 
 export interface SignAccessTokenInput {
