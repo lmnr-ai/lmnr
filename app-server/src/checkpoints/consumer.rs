@@ -68,6 +68,7 @@ impl CheckpointsHandler {
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
             &message.system_prompt,
+            message.project_id,
             self.cache.clone(),
             self.llm_client.clone(),
         )

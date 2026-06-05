@@ -35,3 +35,5 @@ pub const TRACE_INPUT_REGEX_CACHE_KEY: &str = "signals_trace_input_regex";
 
 pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limit_project_id";
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
+/// LLM-derived regex matching the dynamic fragments of an agent's system prompt.
+pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
