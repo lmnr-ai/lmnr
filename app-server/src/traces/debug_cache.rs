@@ -152,6 +152,12 @@ enum SelectionOutcome {
 /// at the first of: the `cache_until` span (inclusive), the cache ceiling
 /// (`MAX_SPANS` entries or `MAX_BYTES` total bytes), or the end of the list.
 ///
+/// A single span whose response alone exceeds `MAX_BYTES` can never be admitted,
+/// so it is skipped (like an output-less span) and scanning continues toward the
+/// needle, rather than aborting the whole warmup on one oversized span. The byte
+/// ceiling only fires when an admissible span would push the *cumulative* total
+/// over `MAX_BYTES`.
+///
 /// Returns the admitted entries plus a [`SelectionOutcome`] describing why the
 /// scan stopped. The caller decides what an `Exhausted` outcome means: when the
 /// list is a complete trace it is the safe degrade (needle genuinely absent →
@@ -177,16 +183,26 @@ fn select_entries(
             let hash = debug_input_hash(&input);
             if !seen.contains(&hash) {
                 let bytes = response.to_string().len();
-                if entries.len() >= max_spans || total_bytes + bytes > max_bytes {
+                // Span ceiling is a hard stop.
+                if entries.len() >= max_spans {
                     return (entries, SelectionOutcome::CeilingHit);
                 }
-                seen.insert(hash.clone());
-                total_bytes += bytes;
-                entries.push(WarmEntry {
-                    input_hash: hash,
-                    response,
-                    bytes,
-                });
+                // A response larger than the whole byte budget can never be
+                // admitted — skip it (like an output-less span) and keep
+                // scanning so smaller spans up to the needle still warm, rather
+                // than aborting the entire warmup on one oversized span.
+                if bytes <= max_bytes {
+                    if total_bytes + bytes > max_bytes {
+                        return (entries, SelectionOutcome::CeilingHit);
+                    }
+                    seen.insert(hash.clone());
+                    total_bytes += bytes;
+                    entries.push(WarmEntry {
+                        input_hash: hash,
+                        response,
+                        bytes,
+                    });
+                }
             }
         }
 
@@ -555,6 +571,32 @@ mod tests {
         let (one, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, cap);
         assert_eq!(one.len(), 1, "byte ceiling caps the kept set");
         assert_eq!(outcome, SelectionOutcome::CeilingHit);
+    }
+
+    /// A span whose response alone exceeds the byte budget can never be admitted,
+    /// so it must be skipped (like an output-less span) and the scan must keep
+    /// going toward the needle — not abort the whole warmup with zero entries.
+    #[test]
+    fn select_skips_oversized_span_and_keeps_later_spans() {
+        let oversized = format!(r#"{{"x":"{}"}}"#, "z".repeat(1000));
+        let rows = vec![
+            row("a1", "m1", &oversized), // response alone exceeds the byte cap
+            row("a2", "m2", "{}"),
+            row("a3", "m3", "{}"),
+        ];
+        // Cap admits the two small spans but is far below the oversized response.
+        let small_bytes = {
+            let (e, _) = select_entries(&rows[1..2], &normalize_needle("zzzz"), BIG, BIG);
+            e[0].bytes
+        };
+        let cap = small_bytes * 2 + 1;
+        let (entries, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, cap);
+        assert_eq!(
+            entries.len(),
+            2,
+            "oversized span is skipped; smaller later spans up to the needle still warm"
+        );
+        assert_eq!(outcome, SelectionOutcome::NeedleFound);
     }
 
     #[test]
