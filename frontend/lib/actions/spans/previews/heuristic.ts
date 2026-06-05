@@ -49,8 +49,13 @@ const findByKey = (value: unknown, target: string): string | null => {
   const obj = value as Record<string, unknown>;
   const direct = obj[target];
   if (isLeaf(direct)) {
-    const formatted = formatLeaf(direct);
-    if (formatted !== null) return formatted;
+    // Skip content from thinking/reasoning blocks; prefer the text part instead.
+    if (target === "content" && obj["type"] === "thinking") {
+      // fall through to search children
+    } else {
+      const formatted = formatLeaf(direct);
+      if (formatted !== null) return formatted;
+    }
   }
   for (const k of Object.keys(obj)) {
     if (METADATA_KEYS.has(k)) continue;
