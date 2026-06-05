@@ -202,6 +202,7 @@ export const createDebuggerSessionViewStore = (options?: {
               (s) =>
                 ({
                   traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: true },
+                  traceSpansError: { ...s.traceSpansError, [trace.id]: undefined },
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
@@ -213,11 +214,17 @@ export const createDebuggerSessionViewStore = (options?: {
               const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
               if (!res.ok) throw new Error("Failed to load spans");
               const fetchedSpans = (await res.json()) as TraceViewSpan[];
-              if (fetchedSpans.length > 0) {
-                get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, true));
-              }
+              // Always write the slot (even empty) — TraceItem's two-phase expand
+              // waits for spans/traceSpansError to become defined before opening.
+              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, true));
             } catch {
               // The UI keeps whatever streamed; re-expand retries.
+              set(
+                (s) =>
+                  ({
+                    traceSpansError: { ...s.traceSpansError, [trace.id]: "Failed to load spans" },
+                  }) as Partial<DebuggerSessionViewStore>
+              );
               toast({
                 variant: "destructive",
                 title: "Failed to load spans",
