@@ -96,10 +96,6 @@ async fn check_and_enqueue(
         now
     );
 
-    let _ = cache
-        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
-        .await;
-
     let hours_to_check = hour_boundaries_between(last_check, now);
     if hours_to_check.is_empty() {
         return Ok(());
@@ -131,6 +127,13 @@ async fn check_and_enqueue(
                 );
             }
         }
+    }
+
+    if let Err(e) = cache
+        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+        .await
+    {
+        log::warn!("[Reports Scheduler] Failed to write checkpoint: {:?}", e);
     }
 
     Ok(())
