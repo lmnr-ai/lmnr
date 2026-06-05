@@ -147,10 +147,9 @@ export default function TraceSegment({
   const traceId = trace.id;
 
   // Narrow per-trace store selections: streamed spans re-render only this segment.
-  const { spans, loading, error, expanded, selectedSpan } = useSessionViewBaseStore(
+  const { spans, error, expanded, selectedSpan } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[traceId],
-      loading: s.traceSpansLoading[traceId],
       error: s.traceSpansError[traceId],
       expanded: s.expandedTraceIds.has(traceId),
       selectedSpan: s.selectedSpan,
@@ -168,9 +167,13 @@ export default function TraceSegment({
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
-  // True while hydrateTraceRow's one-shot fetch is in flight for this run — keeps
-  // a placeholder empty `[]` slot on the skeleton instead of "No spans found".
-  const hydrating = useDebuggerSessionViewStore((s) => !!s.traceHydrating[traceId]);
+  // ONE source of truth for "have this trace's spans loaded?" (decided: read
+  // traceFetchState, NOT the base slice's traceSpansLoading). "loading" → skeleton;
+  // "loaded" + empty → "No spans found"; absent (a list row not yet expanded) is
+  // treated as still-loading once expanded, since expanding flips it to "loading"
+  // synchronously via the ensureTraceSpans override.
+  const fetchState = useDebuggerSessionViewStore((s) => s.traceFetchState[traceId]);
+  const isLoading = fetchState !== "loaded";
 
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];
@@ -335,14 +338,14 @@ export default function TraceSegment({
       {!expanded && <TraceCollapsedBody trace={trace} traceIO={traceIO} />}
 
       {expanded && error && <div className="py-4 px-2 text-sm text-destructive">{error}</div>}
-      {expanded && !error && (!spans || (spans.length === 0 && (loading || hydrating))) && (
+      {expanded && !error && (!spans || spans.length === 0) && isLoading && (
         <div className="flex flex-col gap-2 py-2 px-2">
           <Skeleton className="h-5 w-full" />
           <Skeleton className="h-5 w-3/4" />
           <Skeleton className="h-5 w-2/3" />
         </div>
       )}
-      {expanded && !error && spans && spans.length === 0 && !loading && !hydrating && (
+      {expanded && !error && (!spans || spans.length === 0) && !isLoading && (
         <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
       )}
 
