@@ -289,6 +289,35 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 - The redactor is best-effort: gRPC failures, response-length mismatches, and parse errors all log and return without mutating the batch. Redaction failures must NEVER block trace ingestion.
 - After redaction mutates `dedup.messages[k].content` in place, the `redact_spans_in_place` write-back loop also patches `dedup.span_content_bytes[dedup_idx]` so the post-dedup input-bytes loop bills the redacted size, matching the "size reflects redacted content" invariant on `estimate_size_bytes`.
 
+## CLI authentication (OAuth Device Flow)
+
+- The Next.js frontend doubles as an OAuth 2.0 Authorization Server (RFC 8628). Three endpoints live outside the API tree (`frontend/app/oauth/...`) so they sit clear of `proxy.ts`'s membership middleware and remain reachable without a session: `POST /oauth/device/authorize` mints `(device_code, user_code)`, `POST /oauth/token` swaps a `device_code` or `refresh_token` for an RS256-signed JWT plus a rotated refresh token, and `GET /oauth/jwks` publishes the active public JWK set. The matching approval page is a Server Component inside `(auth)` at `frontend/app/(auth)/oauth/device/page.tsx` so the `(auth)` layout's `getServerSession` gate redirects unauthenticated requests to `/sign-in?callbackUrl=...` automatically.
+- Decision flow: the approval page POSTs to `/api/oauth/device/decision` (session-authed via `getServerSession` inside the route — NOT via the proxy matcher; the proxy is intentionally scoped to `/api/projects`, `/api/workspaces`, and `/api/shared/traces` so adding the OAuth decision route there would force an unnecessary middleware hop). The handler verifies the signed-in user is a member of `project_id` via `isUserMemberOfProject` before flipping the device-code row to `approved`/`denied`.
+- Three Postgres tables, one migration (`0087_oauth_device_flow.sql`):
+  - `oauth_signing_keys` — RS256 keypair per row. `public_jwk` is plain JSONB; the PKCS#8 PEM is xchacha20-poly1305 encrypted with `AEAD_SECRET_KEY` (libsodium, same scheme as project API keys, with `private_pkcs8_nonce` for the nonce). The active row is the most recent with `rotated_at IS NULL`. Rotation is out of scope for v1; schema supports it.
+  - `oauth_device_codes` — pending/approved/denied/claimed/expired state for each in-flight CLI login. `device_code` is 64 base64url bytes (unguessable), `user_code` is 8-char Crockford base32 formatted `XXXX-XXXX`. `last_polled_at` enforces the `slow_down` interval.
+  - `oauth_refresh_tokens` — SHA3-256 hashed token + `family_id` for reuse-detection. **Single-use rotation in a transaction**: refresh marks the old row `rotated_at = now()` and inserts the successor under the same `family_id` atomically; a second refresh against an already-rotated token revokes the entire family (`UPDATE … SET revoked_at = now() WHERE family_id = $1`) and returns 400. Same scheme RFC 6749 §10.4 / OAuth 2.1 mandate.
+- Signing key bootstrap runs in `frontend/instrumentation.ts` after migrations: `getOrCreateActiveSigningKey()` (`frontend/lib/oauth/signing-key.ts`) memoises the unwrapped key in module scope so signs don't hit Postgres + libsodium every time. `jose.generateKeyPair('RS256', { extractable: true })` is the only place we mint a keypair; do NOT call `crypto.generateKeyPair` directly here — `jose.importPKCS8` expects the result.
+- JWT claims shape (what Next signs, what Rust expects):
+  ```json
+  {
+    "iss": "<NEXTAUTH_URL>",          // http://localhost:3010 in worktree-01
+    "aud": "lmnr-app-server",         // hard-coded both sides
+    "sub": "<user uuid>",
+    "email": "alice@example.com",
+    "project_id": "<uuid>",
+    "scope": "projects:rw",
+    "client_id": "lmnr-cli",
+    "jti": "<random uuid>",
+    "iat": 1717459200,
+    "exp": 1717462800
+  }
+  ```
+  Header carries `kid` so Rust picks the right JWK on validate. Access tokens are 1 h, refresh tokens 30 d.
+- Rust app-server treats API keys and JWTs as the same in-request primitive. `auth::project_validator_with_jwt` / `auth::project_ingestion_validator_with_jwt` (in `app-server/src/auth/mod.rs`) branch on `auth::jwt::looks_like_jwt` (3 base64url segments + decodable JSON header) and either run the existing `validate_project_api_key` path or call `auth::jwt::validate_jwt_as_project_api_key`. The synthetic `ProjectApiKey` carries `hash: format!("jwt:{}", claims.jti)` so the namespacing makes the hash unforgeable against the real `project_api_keys.hash`. JWKS cache (`app-server/src/auth/jwks.rs`) is `tokio::sync::RwLock<Option<JwksCache>>` with a 10-minute fresh TTL, 24-hour stale-fallback TTL, and a per-kid force-refresh on cache miss throttled to once per minute. Bearer tokens shaped like JWTs that fail validation return 401; the legacy API-key path is never tried as fallback (the auth axes are orthogonal).
+- The CLI side (`lmnr-ts/packages/lmnr-cli/`) drives the flow with `openid-client` v6: `discovery` against `/.well-known/openid-configuration` (use `client.allowInsecureRequests` on `http://localhost:*` issuers — required for the worktree dev loop), `initiateDeviceAuthorization`, `pollDeviceAuthorizationGrant`, `refreshTokenGrant`. Stored tokens live at `~/.config/lmnr/credentials.json` (mode 0600, parent 0700, XDG-aware). Token refresh is automatic via `refreshIfNeeded` in `src/auth/resolve.ts` when the access token is within 30 s of expiry. **Auth precedence** for every existing command (`dataset`, `sql`, `dev`): `--project-api-key` flag > `LMNR_PROJECT_API_KEY` env > stored OAuth credentials. The `dev` command also propagates the resolved bearer into the worker subprocess via `WorkerConfig.projectApiKey` so SDK ingestion uses the same credential.
+- All existing OTLP / `/v1/*` ingestion routes work unchanged with either auth axis because the `ProjectApiKey` extension is identical. No route handler needs updating to "accept JWT" — the auth wrapper does it.
+
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)

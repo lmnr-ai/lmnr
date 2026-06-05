@@ -12,6 +12,13 @@ export default withAuth(
       return NextResponse.rewrite(destination);
     }
 
+    // Forward the current pathname+search so Server Component layouts can read it
+    // (Next.js does not expose the request URL to layouts otherwise). The
+    // `(auth)/layout.tsx` reads this to preserve `callbackUrl` on its sign-in
+    // redirect for deep links like `/oauth/device?user_code=...`.
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-pathname", req.nextUrl.pathname + req.nextUrl.search);
+
     const token = req.nextauth.token;
 
     const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
@@ -64,7 +71,7 @@ export default withAuth(
       }
     }
 
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   },
   {
     callbacks: {
@@ -92,6 +99,8 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
+    "/api/oauth/device/decision",
+    "/api/cli/:path+",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to
     // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links
@@ -104,5 +113,6 @@ export const config = {
     "/invitations",
     "/onboarding",
     "/checkout",
+    "/oauth/device",
   ],
 };

@@ -939,6 +939,97 @@ export const projectApiKeys = pgTable(
   ]
 );
 
+// OAuth 2.0 Device Authorization Grant (RFC 8628) — see CLAUDE.md
+// "CLI authentication (OAuth Device Flow)".
+export const oauthSigningKeys = pgTable(
+  "oauth_signing_keys",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    kid: text().notNull(),
+    algorithm: text().default("RS256").notNull(),
+    publicJwk: jsonb("public_jwk").notNull(),
+    // PKCS#8 PEM, xchacha20-poly1305 encrypted with AEAD_SECRET_KEY (see lib/crypto.ts).
+    privatePkcs8: text("private_pkcs8").notNull(),
+    privatePkcs8Nonce: text("private_pkcs8_nonce").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "string" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    unique("oauth_signing_keys_kid_unique").on(table.kid),
+    index("oauth_signing_keys_active_idx")
+      .using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops"))
+      .where(sql`"rotated_at" IS NULL`),
+  ]
+);
+
+export const oauthDeviceCodes = pgTable(
+  "oauth_device_codes",
+  {
+    deviceCode: text("device_code").primaryKey().notNull(),
+    userCode: text("user_code").notNull(),
+    clientId: text("client_id").notNull(),
+    scope: text().default("projects:rw").notNull(),
+    status: text().default("pending").notNull(),
+    approvedUserId: uuid("approved_user_id"),
+    approvedProjectId: uuid("approved_project_id"),
+    requestedProjectId: uuid("requested_project_id"),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    unique("oauth_device_codes_user_code_unique").on(table.userCode),
+    index("oauth_device_codes_user_code_idx").using("btree", table.userCode.asc().nullsLast().op("text_ops")),
+    index("oauth_device_codes_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamptz_ops")),
+    foreignKey({
+      columns: [table.approvedUserId],
+      foreignColumns: [users.id],
+      name: "oauth_device_codes_approved_user_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.approvedProjectId],
+      foreignColumns: [projects.id],
+      name: "oauth_device_codes_approved_project_id_fkey",
+    }).onDelete("set null"),
+  ]
+);
+
+export const oauthRefreshTokens = pgTable(
+  "oauth_refresh_tokens",
+  {
+    hash: text().primaryKey().notNull(),
+    familyId: uuid("family_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    scope: text().notNull(),
+    clientId: text("client_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+    rotatedAt: timestamp("rotated_at", { withTimezone: true, mode: "string" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    index("oauth_refresh_tokens_family_idx").using("btree", table.familyId.asc().nullsLast().op("uuid_ops")),
+    index("oauth_refresh_tokens_user_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    index("oauth_refresh_tokens_expires_at_idx").using(
+      "btree",
+      table.expiresAt.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "oauth_refresh_tokens_user_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "oauth_refresh_tokens_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const slackIntegrations = pgTable(
   "slack_integrations",
   {
