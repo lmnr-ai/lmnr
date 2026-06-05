@@ -36,7 +36,7 @@ export default function SessionViewContent({ sessionId }: SessionViewContentProp
     );
 
   // Push projectId into the store so store-owned async actions
-  // (e.g. ensureTraceSpans) can issue requests without prop-drilling.
+  // (e.g. fetchTraceSpans) can issue requests without prop-drilling.
   useEffect(() => {
     setProjectId(projectId);
   }, [projectId, setProjectId]);

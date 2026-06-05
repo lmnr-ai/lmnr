@@ -49,11 +49,11 @@ export default function TraceItem({
   // Only the data the header chrome needs: `spans` gates the pending-expand
   // spinner; `spansError` lets a failed lazy-load still flip out of pending.
   // The collapsed body (input + last-span preview) is its own row now.
-  const { spans, spansError, ensureTraceSpans } = useSessionViewBaseStore(
+  const { spans, spansError, fetchTraceSpans } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
-      ensureTraceSpans: s.ensureTraceSpans,
+      fetchTraceSpans: s.fetchTraceSpans,
     }),
     shallow
   );
@@ -84,8 +84,8 @@ export default function TraceItem({
     }
     pendingExpandRef.current = true;
     setIsPendingExpand(true);
-    ensureTraceSpans(trace);
-  }, [expanded, spans, onToggle, ensureTraceSpans, trace]);
+    fetchTraceSpans(trace);
+  }, [expanded, spans, onToggle, fetchTraceSpans, trace]);
 
   const handleCopyTraceId = useCallback(async () => {
     await navigator.clipboard.writeText(trace.id);

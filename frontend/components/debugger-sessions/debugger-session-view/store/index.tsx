@@ -135,7 +135,7 @@ interface DebuggerSessionViewState {
 interface DebuggerSessionViewActions {
   // Expand-path fetch: always fetches (deduped while in flight), directly — the
   // base slice's shape-based guard would skip the fetch once any SSE span landed.
-  ensureTraceSpans: (trace: TraceRow) => Promise<void>;
+  fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
   // Fetch the session's runs via the `rollout.session_id` metadata filter.
   fetchSessionTraces: (sessionId: string) => Promise<void>;
@@ -195,7 +195,7 @@ export const createDebuggerSessionViewStore = (options?: {
           newTraceNotice: false,
           isInitialTracesLoaded: false,
 
-          ensureTraceSpans: async (trace) => {
+          fetchTraceSpans: async (trace) => {
             if (get().traceSpansFetching[trace.id]) return;
 
             set(
@@ -208,8 +208,6 @@ export const createDebuggerSessionViewStore = (options?: {
               const { projectId } = get();
               if (!projectId) return;
               const spanParams = new URLSearchParams();
-              spanParams.append("searchIn", "input");
-              spanParams.append("searchIn", "output");
               spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
               spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
               const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
@@ -330,7 +328,7 @@ export const createDebuggerSessionViewStore = (options?: {
               // already in `traceSpans`.
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
               // Hydrate FIRST: its sync prefix marks fetching, so the auto-expand's
-              // ensureTraceSpans dedupes — one fetch per new run.
+              // fetchTraceSpans dedupes — one fetch per new run.
               void get().hydrateTraceRow(t.traceId);
               get().setTraceExpanded(t.traceId, true);
               // Pill only after the initial fetch settles, so it can't flash on load.
@@ -403,8 +401,6 @@ export const createDebuggerSessionViewStore = (options?: {
               const startDate = new Date(new Date(fetched.startTime).getTime() - 1000).toISOString();
               const endDate = new Date(new Date(fetched.endTime).getTime() + 1000).toISOString();
               const spanParams = new URLSearchParams();
-              spanParams.append("searchIn", "input");
-              spanParams.append("searchIn", "output");
               spanParams.set("startDate", startDate);
               spanParams.set("endDate", endDate);
               const spansRes = await fetch(

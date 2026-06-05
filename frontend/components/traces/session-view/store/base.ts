@@ -81,7 +81,7 @@ export interface BaseSessionViewActions {
 
   /** Fetch spans for a trace if not already loaded or currently loading.
    *  Idempotent: safe to call repeatedly on mount of TraceItem. */
-  ensureTraceSpans: (trace: TraceRow) => Promise<void>;
+  fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
   toggleTraceExpanded: (traceId: string) => void;
   setTraceExpanded: (traceId: string, expanded: boolean) => void;
@@ -225,7 +225,7 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     setIsTracesLoading: (isTracesLoading) => set({ isTracesLoading } as Partial<T>),
     setTracesError: (tracesError) => set({ tracesError } as Partial<T>),
 
-    ensureTraceSpans: async (trace) => {
+    fetchTraceSpans: async (trace) => {
       const state = get();
       const { projectId } = state;
       if (!projectId) return;
@@ -238,8 +238,6 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
 
       try {
         const params = new URLSearchParams();
-        params.append("searchIn", "input");
-        params.append("searchIn", "output");
         const startDate = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
         const endDate = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
         params.set("startDate", startDate);
@@ -273,9 +271,9 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       }
     },
 
-    // open recursion: delegates to get().ensureTraceSpans — a derived store's override wins.
+    // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
     // Any transition to `expanded=true` also kicks off span loading (idempotent
-    // via `ensureTraceSpans`'s internal dedupe).
+    // via `fetchTraceSpans`'s internal dedupe).
     toggleTraceExpanded: (traceId) => {
       const state = get();
       const prev = state.expandedTraceIds;
@@ -289,10 +287,10 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
 
       if (willExpand) {
         const trace = state.traces.find((t) => t.id === traceId);
-        if (trace) void get().ensureTraceSpans(trace);
+        if (trace) void get().fetchTraceSpans(trace);
       }
     },
-    // open recursion: delegates to get().ensureTraceSpans — a derived store's override wins.
+    // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
     setTraceExpanded: (traceId, expanded) => {
       const state = get();
       const prev = state.expandedTraceIds;
@@ -304,16 +302,16 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
 
       if (expanded) {
         const trace = state.traces.find((t) => t.id === traceId);
-        if (trace) void get().ensureTraceSpans(trace);
+        if (trace) void get().fetchTraceSpans(trace);
       }
     },
-    // open recursion: delegates to get().ensureTraceSpans — a derived store's override wins.
+    // open recursion: delegates to get().fetchTraceSpans — a derived store's override wins.
     expandAllTraces: () => {
       const state = get();
       const all = new Set(state.traces.map((t) => t.id));
       set({ expandedTraceIds: all } as Partial<T>);
       for (const trace of state.traces) {
-        void get().ensureTraceSpans(trace);
+        void get().fetchTraceSpans(trace);
       }
     },
 
