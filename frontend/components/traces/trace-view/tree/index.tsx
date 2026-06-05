@@ -31,6 +31,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     setScrollTimeRange,
     scrollToGroupId,
     consumeScrollToGroup,
+    showTreeContent,
+    toggleCollapse,
   } = useTraceViewBaseStore((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
@@ -41,6 +43,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     setScrollTimeRange: state.setScrollTimeRange,
     scrollToGroupId: state.scrollToGroupId,
     consumeScrollToGroup: state.consumeScrollToGroup,
+    showTreeContent: state.showTreeContent,
+    toggleCollapse: state.toggleCollapse,
   }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
@@ -180,6 +184,10 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                     branchMask={spanItem.branchMask}
                     output={previews[spanItem.span.spanId]}
                     depth={spanItem.depth}
+                    hasChildren={spanItem.hasChildren}
+                    isSelected={spanItem.span.spanId === selectedSpan?.spanId}
+                    showTreeContent={showTreeContent ?? true}
+                    onToggleCollapse={toggleCollapse}
                     onSpanSelect={onSpanSelect}
                   />
                 </div>

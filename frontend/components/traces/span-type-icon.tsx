@@ -1,9 +1,11 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import {
   Activity,
   ArrowRight,
   Bolt,
   Braces,
   CircleAlert,
+  DatabaseZap,
   FlagTriangleRight,
   Gauge,
   MessageCircle,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType } from "@/lib/traces/types";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -35,8 +38,10 @@ export const createSpanTypeIcon = (type: SpanType, iconClassName: string = "w-4 
     case SpanType.DEFAULT:
       return <Braces {...iconProps} />;
     case SpanType.LLM:
-    case SpanType.CACHED:
       return <MessageCircle {...iconProps} />;
+    case SpanType.CACHED:
+      // Replayed-from-source-trace LLM call — same purple container, cache icon.
+      return <DatabaseZap {...iconProps} />;
     case SpanType.EXECUTOR:
       return <Activity {...iconProps} />;
     case SpanType.EVALUATOR:
@@ -70,7 +75,7 @@ export default function SpanTypeIcon({
     return createSpanTypeIcon(spanType, iconClassName, size);
   };
 
-  return (
+  const icon = (
     <div
       className={cn("flex items-center justify-center z-10 rounded", className)}
       style={{
@@ -86,5 +91,18 @@ export default function SpanTypeIcon({
     >
       {renderIcon()}
     </div>
+  );
+
+  if (spanType !== SpanType.CACHED) return icon;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{icon}</TooltipTrigger>
+      <TooltipPortal>
+        <TooltipContent side="left" className="text-xs">
+          Replayed from source trace
+        </TooltipContent>
+      </TooltipPortal>
+    </Tooltip>
   );
 }

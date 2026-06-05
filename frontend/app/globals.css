@@ -15,6 +15,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Session-view collapsed card: header and its body are SEPARATE siblings (R3
+   split), so `group-hover` on the header can't see a hover over the body. This
+   variant fires the header's hover styles when the adjacent collapsed-body
+   sibling is hovered — re-using the same utility values via an OR with the
+   existing `group-hover:`. Two shapes: the regular view nests the body inside
+   the next virtual-row wrapper (`+ [data-vrow] [data-collapsed-body]`); the
+   debugger renders the body as the header's direct next sibling
+   (`+ [data-collapsed-body]`). Both mark the header wrapper `data-vrow`. */
+@custom-variant sibling-body-hover (
+  [data-vrow]:has(+ [data-vrow] [data-collapsed-body]:hover) &,
+  [data-vrow]:has(+ [data-collapsed-body]:hover) &
+);
+
 @utility container {
   margin-inline: auto;
   padding-inline: 2rem;

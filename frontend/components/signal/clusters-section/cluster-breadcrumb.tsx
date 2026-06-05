@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Transition } from "framer-motion";
 
 import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -21,21 +21,29 @@ interface ClusterBreadcrumbProps {
 
 const slideIn = {
   initial: { opacity: 0.3, x: -45 },
-  animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 } },
+  animate: {
+    opacity: 1,
+    x: 0,
+    transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 } as Transition,
+  },
   exit: {
     opacity: 0.3,
     x: -20,
-    transition: { duration: 0.1, ease: "easeOut" },
+    transition: { duration: 0.1, ease: "easeOut" } as Transition,
   },
 };
 
 const slashSlideIn = {
   initial: { opacity: 0.3, x: -12 },
-  animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.8 } },
+  animate: {
+    opacity: 1,
+    x: 0,
+    transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.8 } as Transition,
+  },
   exit: {
     opacity: 0.3,
     x: -8,
-    transition: { duration: 0.1, ease: "easeOut" },
+    transition: { duration: 0.1, ease: "easeOut" } as Transition,
   },
 };
 
@@ -43,7 +51,7 @@ const levelTransition = {
   initial: { opacity: 0, width: 0 },
   animate: { opacity: 1, width: "auto" },
   exit: { opacity: 0, width: 0 },
-  transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 },
+  transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 } as Transition,
 };
 
 // Slash width (~6px at text-sm) + gap to match parent's gap-2 (8px) on each side
