@@ -3,15 +3,12 @@ use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-/// A single agent version row. `list_last_agent_versions` returns one per
-/// agent (its latest, highest-version row) as context for the LLM classifier.
+/// A single agent version row, identified by `(project_id, version_hash)`.
 #[derive(Debug, Clone, FromRow)]
 pub struct AgentVersion {
     pub project_id: Uuid,
     pub agent_id: Uuid,
-    pub version: i32,
-    /// BLAKE3-256 hash, hex-encoded (64 chars). Stored as `text` rather than
-    /// `bytea` so the Drizzle schema needs no custom type.
+    /// BLAKE3-256 hash, hex-encoded (64 chars).
     pub version_hash: String,
     pub system_prompt: String,
     pub tool_definitions: String,
@@ -40,17 +37,17 @@ pub async fn get_agent_by_version_hash(
     Ok(agent_id)
 }
 
-/// List the project's agents, each with its latest version's system prompt.
+/// List the project's agents, each with its most recently created version.
 pub async fn list_latest_agent_versions(
     pool: &PgPool,
     project_id: Uuid,
 ) -> Result<Vec<AgentVersion>> {
     let agents = sqlx::query_as::<_, AgentVersion>(
         "SELECT DISTINCT ON (agent_id)
-            project_id, agent_id, version, version_hash, system_prompt, tool_definitions, model, created_at
+            project_id, agent_id, version_hash, system_prompt, tool_definitions, model, created_at
          FROM agent_versions
          WHERE project_id = $1
-         ORDER BY agent_id, version DESC",
+         ORDER BY agent_id, created_at DESC, version_hash DESC",
     )
     .bind(project_id)
     .fetch_all(pool)
@@ -58,8 +55,7 @@ pub async fn list_latest_agent_versions(
     Ok(agents)
 }
 
-/// Create a brand-new agent and its first version (version = 1). Returns the
-/// new agent id.
+/// Create a brand-new agent and its first version. Returns the new agent id.
 pub async fn create_agent(
     pool: &PgPool,
     project_id: Uuid,
@@ -81,8 +77,8 @@ pub async fn create_agent(
 
     sqlx::query(
         "INSERT INTO agent_versions
-            (project_id, agent_id, version, version_hash, system_prompt, tool_definitions, model)
-         VALUES ($1, $2, 1, $3, $4, $5, $6)",
+            (project_id, agent_id, version_hash, system_prompt, tool_definitions, model)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(project_id)
     .bind(agent_id)
@@ -97,9 +93,7 @@ pub async fn create_agent(
     Ok(agent_id)
 }
 
-/// Append a new version for an existing agent whose shape changed. The new
-/// version number is `max(version) + 1` for that agent. Returns the new
-/// version number.
+/// Append a new version for an existing agent whose shape changed.
 pub async fn create_new_agent_version(
     pool: &PgPool,
     project_id: Uuid,
@@ -108,19 +102,11 @@ pub async fn create_new_agent_version(
     system_prompt: &str,
     tool_definitions: &str,
     model: &str,
-) -> Result<i32> {
-    let version = sqlx::query_scalar::<_, i32>(
+) -> Result<()> {
+    sqlx::query(
         "INSERT INTO agent_versions
-            (project_id, agent_id, version, version_hash, system_prompt, tool_definitions, model)
-         VALUES (
-            $1, $2,
-            COALESCE(
-                (SELECT MAX(version) FROM agent_versions WHERE project_id = $1 AND agent_id = $2),
-                0
-            ) + 1,
-            $3, $4, $5, $6
-         )
-         RETURNING version",
+            (project_id, agent_id, version_hash, system_prompt, tool_definitions, model)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(project_id)
     .bind(agent_id)
@@ -128,9 +114,9 @@ pub async fn create_new_agent_version(
     .bind(system_prompt)
     .bind(tool_definitions)
     .bind(model)
-    .fetch_one(pool)
+    .execute(pool)
     .await?;
-    Ok(version)
+    Ok(())
 }
 
 /// Bump a parent agent's version because one of its subagents changed.
