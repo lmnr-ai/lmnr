@@ -10,6 +10,19 @@ import { projects } from "@/lib/db/migrations/schema";
 import { resolveCaller } from "@/lib/oauth/resolve-caller";
 import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
 
+// TODO(wizard-vs-setup): the wizard's caller currently owns several side
+// effects that this route deliberately skips. Decide per-item whether each
+// should be unified (move into the shared creation path or trigger from
+// inside this route) or stay wizard-only as a UX moment:
+//   - Welcome email (today fires from onboarding-completion DELETE)
+//   - PostHog `onboarding:*` funnel events (UI tracking, but a CLI funnel
+//     could be valuable for activation metrics)
+//   - Resume-cookie persistence (definitely wizard-only — there is no
+//     interactive resume for a CLI flow)
+//   - Default Slack integration prompt (currently wizard-only)
+// Any item promoted to "universal" must move into createWorkspaceForUser or
+// createProject, NOT be re-implemented in this route.
+
 const BodySchema = z.object({
   workspaceId: z.string().uuid().optional(),
   workspaceName: z.string().min(1).max(255).optional(),

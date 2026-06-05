@@ -66,6 +66,17 @@ export interface CreateWorkspaceForUserInput {
  * Any "every workspace has X" default belongs here, NOT in caller code.
  * Wizard-only side effects (welcome email, PostHog funnel events) stay in
  * the wizard's caller — they are UX moments, not universal defaults.
+ *
+ * TODO(wizard-vs-setup): revisit the wizard-only list and decide which
+ * items should move into the shared creation path. Current wizard-only
+ * side effects (in `components/onboarding/use-onboarding-actions.ts` and
+ * `app/api/projects/[projectId]/onboarding/state/route.ts`):
+ *   - Welcome email send (DELETE on onboarding completion)
+ *   - PostHog `onboarding:*` funnel events
+ *   - Resume-cookie persistence (wizard-specific — CLI has no resume state)
+ *   - Slack integration prompt
+ * Anything promoted to "every workspace has X" moves here; do NOT add a
+ * second call site in the CLI setup route.
  */
 export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput): Promise<CreateWorkspaceResult> => {
   const { userId, userEmail, name, projectName } = input;
