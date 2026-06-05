@@ -41,9 +41,31 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     throw new Error("Unauthorized");
   }
 
-  const { name, projectName, isFirstProject } = CreateWorkspaceSchema.parse(input);
-  const userId = session.user.id;
-  const userEmail = session.user.email;
+  const parsed = CreateWorkspaceSchema.parse(input);
+  return createWorkspaceForUser({
+    userId: session.user.id,
+    userEmail: session.user.email ?? null,
+    ...parsed,
+  });
+};
+
+export interface CreateWorkspaceForUserInput {
+  userId: string;
+  userEmail: string | null;
+  name: string;
+  projectName?: string;
+  isFirstProject?: boolean;
+}
+
+/**
+ * Session-free workspace creation. Wraps the original `createWorkspace` body
+ * so the CLI bootstrap path (`POST /api/cli/bootstrap`) and the onboarding
+ * wizard share the same defaults: workspace + owner membership + default
+ * reports, and when `projectName` + `isFirstProject` are set, the Failure
+ * Detector signal + email targets are seeded too.
+ */
+export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput): Promise<CreateWorkspaceResult> => {
+  const { userId, userEmail, name, projectName, isFirstProject } = input;
 
   const [workspace] = await db
     .insert(workspaces)

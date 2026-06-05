@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 
 import { OAuthDevicePanel } from "@/components/oauth-device/panel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type AccessibleWorkspace } from "@/lib/oauth/user-access";
 
@@ -20,8 +22,13 @@ interface OAuthDeviceClientProps {
 type Stage = "review" | "approved" | "denied";
 
 export function OAuthDeviceClient(props: OAuthDeviceClientProps) {
-  const { workspaces, requestedProjectId, requestedProjectAccessible } = props;
+  const { requestedProjectId, requestedProjectAccessible } = props;
   const { toast } = useToast();
+
+  // `workspaces` is initially the server-rendered list; if the user
+  // bootstraps a workspace inline below, we replace the local copy so the
+  // picker renders without a page reload.
+  const [workspaces, setWorkspaces] = useState<AccessibleWorkspace[]>(props.workspaces);
 
   const flatProjects = useMemo(
     () => workspaces.flatMap((w) => w.projects.map((p) => ({ ...p, workspaceName: w.name, workspaceId: w.id }))),
@@ -34,6 +41,40 @@ export function OAuthDeviceClient(props: OAuthDeviceClientProps) {
   const [stage, setStage] = useState<Stage>("review");
   const [submitting, setSubmitting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId);
+  const [bootstrapWorkspaceName, setBootstrapWorkspaceName] = useState("My Workspace");
+  const [bootstrapProjectName, setBootstrapProjectName] = useState("my-project");
+  const [bootstrapping, setBootstrapping] = useState(false);
+
+  async function bootstrapWorkspace() {
+    setBootstrapping(true);
+    try {
+      const res = await fetch("/api/oauth/device/init-workspace", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workspaceName: bootstrapWorkspaceName,
+          projectName: bootstrapProjectName,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        toast({ variant: "destructive", title: err?.error ?? "Failed to create workspace" });
+        return;
+      }
+      const body = (await res.json()) as { workspaceId: string; workspaceName: string; projectId: string };
+      const newWorkspace: AccessibleWorkspace = {
+        id: body.workspaceId,
+        name: body.workspaceName,
+        projects: [{ id: body.projectId, name: bootstrapProjectName }],
+      };
+      setWorkspaces([newWorkspace]);
+      setSelectedProjectId(body.projectId);
+    } catch {
+      toast({ variant: "destructive", title: "Network error" });
+    } finally {
+      setBootstrapping(false);
+    }
+  }
 
   async function submitDecision(decision: "approve" | "deny") {
     setSubmitting(true);
@@ -83,10 +124,36 @@ export function OAuthDeviceClient(props: OAuthDeviceClientProps) {
 
   if (flatProjects.length === 0) {
     return (
-      <OAuthDevicePanel title="No projects available">
+      <OAuthDevicePanel title="Create your first workspace">
         <p className="text-sm text-secondary-foreground">
-          Your account is not a member of any project yet. Create one first, then run the CLI command again.
+          Signed in as <span className="font-medium text-foreground">{props.userEmail}</span>. The CLI needs a project
+          to authorize against. Create one below to continue.
         </p>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="bootstrap-workspace-name">Workspace name</Label>
+          <Input
+            id="bootstrap-workspace-name"
+            value={bootstrapWorkspaceName}
+            onChange={(e) => setBootstrapWorkspaceName(e.target.value)}
+            disabled={bootstrapping}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="bootstrap-project-name">Project name</Label>
+          <Input
+            id="bootstrap-project-name"
+            value={bootstrapProjectName}
+            onChange={(e) => setBootstrapProjectName(e.target.value)}
+            disabled={bootstrapping}
+          />
+        </div>
+        <Button
+          type="button"
+          disabled={bootstrapping || !bootstrapWorkspaceName.trim() || !bootstrapProjectName.trim()}
+          onClick={bootstrapWorkspace}
+        >
+          {bootstrapping ? "Creating..." : "Create and continue"}
+        </Button>
       </OAuthDevicePanel>
     );
   }
