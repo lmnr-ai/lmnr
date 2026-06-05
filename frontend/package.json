@@ -101,7 +101,7 @@
     "date-fns": "^3.6.0",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.2",
-    "framer-motion": "^11.18.2",
+    "framer-motion": "^12.40.0",
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "ioredis": "^5.9.3",
