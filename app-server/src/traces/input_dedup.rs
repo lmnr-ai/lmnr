@@ -99,6 +99,26 @@ pub fn canonical_json(value: &Value) -> String {
     }
 }
 
+/// Debugger-replay-cache (LAM-1715) input hash for a whole LLM-call message
+/// array. Distinct from the per-message dedup hashing above: it hashes the
+/// **entire** non-system message array as one blob so the same key can be
+/// reproduced byte-for-byte by the SDK before each live call.
+///
+/// `input` is the full reconstructed message array for the span. The system
+/// message (if any) is stripped first (the coding agent may edit its own
+/// system prompt between iterations), then the remaining array is canonicalized
+/// (object keys sorted recursively, array order preserved) and blake3-hashed.
+/// Returns the 64-char lowercase hex digest. No number canonicalization in v1.
+pub fn debug_input_hash(input: &Value) -> String {
+    let messages = match crate::traces::prompt_hash::extract_system_message(input) {
+        Some((_system, remaining)) => remaining,
+        None => input.clone(),
+    };
+    let canonical = canonical_json(&messages);
+    let hash = blake3::hash(canonical.as_bytes());
+    hex::encode(hash.as_bytes())
+}
+
 /// Producer's hash + Redis-status verdict for one LLM span's message array
 /// (input or output). Both axes are independent:
 ///
@@ -390,9 +410,8 @@ mod tests {
     #[test]
     fn deserializes_old_wire_shape_with_legacy_field_names() {
         let zero_hash = format!("[{}]", vec!["0"; 32].join(","));
-        let json_str = format!(
-            r#"{{"hashes":[{zero_hash}],"new_indices":[0],"new_contents":["{{}}"]}}"#
-        );
+        let json_str =
+            format!(r#"{{"hashes":[{zero_hash}],"new_indices":[0],"new_contents":["{{}}"]}}"#);
         let dedup: MessageDedup = serde_json::from_str(&json_str).unwrap();
         assert_eq!(dedup.trace_new_indices, vec![0]);
         assert_eq!(dedup.trace_new_contents, vec!["{}".to_string()]);
@@ -590,7 +609,11 @@ mod tests {
         let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
         // Stamp storage as if a prior trace already inserted this hash.
         cache
-            .insert_with_ttl(&storage_seen_key(project_id, &hash), "1", MESSAGE_SEEN_TTL_SECONDS)
+            .insert_with_ttl(
+                &storage_seen_key(project_id, &hash),
+                "1",
+                MESSAGE_SEEN_TTL_SECONDS,
+            )
             .await
             .unwrap();
 
@@ -608,12 +631,7 @@ mod tests {
         let mut shared_content: Vec<CHDedupedContent> = Vec::new();
         let mut seen: std::collections::HashSet<(Uuid, [u8; 32])> =
             std::collections::HashSet::new();
-        let batch = build_dedup_batch(
-            &[&span],
-            &[Some(dedup)],
-            &mut seen,
-            &mut shared_content,
-        );
+        let batch = build_dedup_batch(&[&span], &[Some(dedup)], &mut seen, &mut shared_content);
 
         assert!(
             shared_content.is_empty(),

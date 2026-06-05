@@ -3,6 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{
         DB,
         debugger_sessions::{
@@ -14,6 +15,7 @@ use crate::{
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
+    traces::debug_cache,
 };
 
 #[derive(serde::Deserialize)]
@@ -86,6 +88,48 @@ pub async fn update_name(
     send_to_key(pubsub.get_ref().as_ref(), &project_id, &key, message).await;
 
     Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CacheLookupRequest {
+    pub replay_trace_id: Uuid,
+    /// Span-id needle (hyphen-stripped suffix match); inclusive boundary.
+    pub cache_until: String,
+    /// Hex blake3 of the canonicalized non-system input array, computed by the SDK.
+    pub input_hash: String,
+}
+
+/// Look up a recorded LLM response for a debug replay, warming the server-side
+/// cache on the first cold call. The cache identity is
+/// `(project_id, replay_trace_id)`; `session_id` stays in the path for routing
+/// consistency with the sibling rollout routes but is not part of the cache key.
+///
+/// Returns one of three outcomes (HTTP 200, discriminated by `outcome`):
+/// `hit` (replay this response), `miss` (run live forever), `live` (warmup still
+/// running — run live this call, retry next).
+#[post("rollouts/{session_id}/cache")]
+pub async fn lookup_cache(
+    _path: web::Path<Uuid>,
+    project_api_key: ProjectApiKey,
+    body: web::Json<CacheLookupRequest>,
+    cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
+    let project_id = project_api_key.project_id;
+    let body = body.into_inner();
+
+    let outcome = debug_cache::lookup(
+        project_id,
+        body.replay_trace_id,
+        body.cache_until,
+        body.input_hash,
+        cache.into_inner(),
+        clickhouse.as_ref().clone(),
+    )
+    .await;
+
+    Ok(HttpResponse::Ok().json(outcome))
 }
 
 #[delete("rollouts/{session_id}")]
