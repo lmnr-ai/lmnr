@@ -11,6 +11,16 @@ const BodySchema = z.object({
   project_id: z.string().uuid().optional(),
 });
 
+// TODO(rate-limit): this endpoint is publicly accessible and writes one
+// `oauth_device_codes` row per call with no per-IP or per-client_id rate
+// limiting. Combined with the deferred janitor for expired rows, an
+// unauthenticated caller can accumulate rows freely (cheap, but unbounded).
+// Defer to a follow-up that adds rate-limiting infrastructure to the
+// frontend (no shared primitive exists today — app-server's
+// `actix_limitation::Limiter` is on a different process). The same
+// infrastructure will want to apply to /oauth/token polling and
+// /api/oauth/device/decision once it exists. Track alongside the janitor
+// TODO in CLAUDE.md.
 export async function POST(req: NextRequest): Promise<Response> {
   try {
     const raw = await parseOAuthBody(req);
