@@ -3,12 +3,11 @@ import { type NextRequest } from "next/server";
 import { prettifyError, z, ZodError } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
-import { createWorkspaceForUser } from "@/lib/actions/workspaces";
+import { createWorkspaceForUser, listAccessibleWorkspaces } from "@/lib/actions/workspaces";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { projects } from "@/lib/db/migrations/schema";
 import { resolveCaller } from "@/lib/oauth/resolve-caller";
-import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
 
 // TODO(wizard-vs-setup): the wizard's caller currently owns several side
 // effects that this route deliberately skips. Decide per-item whether each

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 
+import { listAccessibleWorkspaces } from "@/lib/actions/workspaces";
 import { resolveCaller } from "@/lib/oauth/resolve-caller";
-import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
 
 export async function GET(req: NextRequest): Promise<Response> {
   const caller = await resolveCaller(req);

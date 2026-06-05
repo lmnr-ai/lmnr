@@ -2,9 +2,9 @@ import { type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { prettifyError, z, ZodError } from "zod/v4";
 
-import { createWorkspaceForUser } from "@/lib/actions/workspaces";
+import { createWorkspaceForUser, ExistingWorkspaceConflict, listAccessibleWorkspaces } from "@/lib/actions/workspaces";
 import { authOptions } from "@/lib/auth";
-import { listAccessibleWorkspaces } from "@/lib/oauth/user-access";
+import { requireSameOrigin } from "@/lib/oauth/csrf";
 
 const BodySchema = z.object({
   workspaceName: z.string().min(1).max(255),
@@ -19,6 +19,10 @@ const BodySchema = z.object({
  * Session-authed (the user is on the approval page in a browser).
  */
 export async function POST(req: NextRequest): Promise<Response> {
+  // CSRF defense-in-depth: same-origin gate before session + DB work.
+  const originBlocked = requireSameOrigin(req);
+  if (originBlocked) return originBlocked;
+
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return Response.json({ error: "unauthenticated" }, { status: 401 });
@@ -35,8 +39,11 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   try {
-    // Guard against re-creating workspaces for users who already have one.
-    // Existing users follow the picker UI; this endpoint is the empty-account path.
+    // Cheap pre-check first so the happy path can short-circuit without
+    // taking the advisory lock. The authoritative recheck-under-lock lives
+    // inside createWorkspaceForUser(requireFirstWorkspace: true) and is what
+    // actually blocks the parallel-POSTs race; this lookup just avoids the
+    // lock + tx round trip for users who already have a workspace.
     const existing = await listAccessibleWorkspaces(session.user.id);
     if (existing.length > 0) {
       return Response.json({ error: "user_has_workspace" }, { status: 409 });
@@ -47,6 +54,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       userEmail: session.user.email ?? null,
       name: body.workspaceName,
       projectName: body.projectName,
+      requireFirstWorkspace: true,
     });
 
     if (!result.projectId) {
@@ -58,6 +66,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       projectId: result.projectId,
     });
   } catch (error) {
+    if (error instanceof ExistingWorkspaceConflict) {
+      return Response.json({ error: "user_has_workspace" }, { status: 409 });
+    }
     return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }

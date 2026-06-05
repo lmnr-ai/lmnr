@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type AccessibleWorkspace } from "@/lib/oauth/user-access";
+import { type AccessibleWorkspace } from "@/lib/workspaces/types";
 
 interface OAuthDeviceClientProps {
   userCode: string;

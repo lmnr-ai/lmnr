@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
@@ -9,6 +9,7 @@ import { defaultReports } from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
+  projects,
   reports,
   reportTargets,
   subscriptionTiers,
@@ -16,7 +17,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
+import { type AccessibleWorkspace, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -50,6 +51,24 @@ export interface CreateWorkspaceForUserInput {
   userEmail: string | null;
   name: string;
   projectName?: string;
+  /**
+   * When true, take a Postgres advisory lock keyed by `hashtext(userId)` at
+   * the start of the workspace transaction and recheck inside the lock that
+   * the user still has zero memberships. Used by the OAuth device-flow
+   * bootstrap path where parallel POSTs from a 0-workspace user must not
+   * both succeed. Wizard / generic callers leave this false.
+   *
+   * Returns `existingWorkspaceConflict` (instead of inserting a duplicate)
+   * when the lock revealed the user now has memberships.
+   */
+  requireFirstWorkspace?: boolean;
+}
+
+export class ExistingWorkspaceConflict extends Error {
+  constructor() {
+    super("user_has_workspace");
+    this.name = "ExistingWorkspaceConflict";
+  }
 }
 
 /**
@@ -79,54 +98,81 @@ export interface CreateWorkspaceForUserInput {
  * second call site in the CLI setup route.
  */
 export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput): Promise<CreateWorkspaceResult> => {
-  const { userId, userEmail, name, projectName } = input;
+  const { userId, userEmail, name, projectName, requireFirstWorkspace } = input;
 
-  const [workspace] = await db
-    .insert(workspaces)
-    .values({
-      name,
-      tierId: 1,
-    })
-    .returning({
-      id: workspaces.id,
-      name: workspaces.name,
+  // workspace + owner membership + default reports + report targets must
+  // succeed or fail as a unit. Otherwise a failure between the workspace
+  // insert and the membership insert leaves an orphan workspace row that
+  // no user can see or delete.
+  const workspace = await db.transaction(async (tx) => {
+    // Advisory lock serializes any two callers that pass the same userId,
+    // so the recheck below sees committed state from a racing first call.
+    // `pg_advisory_xact_lock` releases automatically at transaction end.
+    if (requireFirstWorkspace) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${userId}))`);
+      const [existing] = await tx
+        .select({ workspaceId: membersOfWorkspaces.workspaceId })
+        .from(membersOfWorkspaces)
+        .where(eq(membersOfWorkspaces.userId, userId))
+        .limit(1);
+      if (existing) {
+        throw new ExistingWorkspaceConflict();
+      }
+    }
+
+    const [row] = await tx
+      .insert(workspaces)
+      .values({
+        name,
+        tierId: 1,
+      })
+      .returning({
+        id: workspaces.id,
+        name: workspaces.name,
+      });
+
+    if (!row) {
+      throw new Error("Failed to create workspace");
+    }
+
+    await tx.insert(membersOfWorkspaces).values({
+      userId,
+      workspaceId: row.id,
+      memberRole: "owner",
     });
 
-  if (!workspace) {
-    throw new Error("Failed to create workspace");
-  }
+    const insertedReports = await tx
+      .insert(reports)
+      .values(
+        defaultReports.map((r) => ({
+          workspaceId: row.id,
+          type: r.type,
+          weekdays: r.weekdays,
+          hour: r.hour,
+        }))
+      )
+      .returning({ id: reports.id });
 
-  await db.insert(membersOfWorkspaces).values({
-    userId,
-    workspaceId: workspace.id,
-    memberRole: "owner",
+    if (userEmail && insertedReports.length > 0) {
+      await tx.insert(reportTargets).values(
+        insertedReports.map((r) => ({
+          workspaceId: row.id,
+          reportId: r.id,
+          type: REPORT_TARGET_TYPE.EMAIL,
+          email: userEmail,
+        }))
+      );
+    }
+
+    return row;
   });
-
-  const insertedReports = await db
-    .insert(reports)
-    .values(
-      defaultReports.map((r) => ({
-        workspaceId: workspace.id,
-        type: r.type,
-        weekdays: r.weekdays,
-        hour: r.hour,
-      }))
-    )
-    .returning({ id: reports.id });
-
-  if (userEmail && insertedReports.length > 0) {
-    await db.insert(reportTargets).values(
-      insertedReports.map((r) => ({
-        workspaceId: workspace.id,
-        reportId: r.id,
-        type: REPORT_TARGET_TYPE.EMAIL,
-        email: userEmail,
-      }))
-    );
-  }
 
   let projectId: string | undefined;
 
+  // createProject opens its own transaction (default-charts + Failure
+  // Detector signal seed are its concern). Kept outside the workspace
+  // transaction so a project-creation failure does not roll back the
+  // workspace; the user can retry project creation from the UI.
   if (projectName) {
     const project = await createProject({
       name: projectName,
@@ -142,6 +188,42 @@ export const createWorkspaceForUser = async (input: CreateWorkspaceForUserInput)
     tierName: WorkspaceTier.FREE,
     projectId,
   };
+};
+
+/**
+ * Session-free workspace + project listing keyed by userId. Used by the
+ * OAuth/CLI surfaces (`/api/cli/*`, device approval page) where the caller
+ * is authenticated via JWT bearer, not a NextAuth session. The session-authed
+ * UI listing is `getWorkspaces` below — they share the membership join; keep
+ * the `membersOfWorkspaces` predicates in sync when membership semantics
+ * change.
+ */
+export const listAccessibleWorkspaces = async (userId: string): Promise<AccessibleWorkspace[]> => {
+  const rows = await db
+    .select({
+      workspaceId: workspaces.id,
+      workspaceName: workspaces.name,
+      projectId: projects.id,
+      projectName: projects.name,
+    })
+    .from(workspaces)
+    .innerJoin(membersOfWorkspaces, eq(workspaces.id, membersOfWorkspaces.workspaceId))
+    .leftJoin(projects, eq(projects.workspaceId, workspaces.id))
+    .where(eq(membersOfWorkspaces.userId, userId))
+    .orderBy(asc(workspaces.name), asc(projects.name));
+
+  const byWorkspace = new Map<string, AccessibleWorkspace>();
+  for (const r of rows) {
+    let ws = byWorkspace.get(r.workspaceId);
+    if (!ws) {
+      ws = { id: r.workspaceId, name: r.workspaceName, projects: [] };
+      byWorkspace.set(r.workspaceId, ws);
+    }
+    if (r.projectId && r.projectName) {
+      ws.projects.push({ id: r.projectId, name: r.projectName });
+    }
+  }
+  return Array.from(byWorkspace.values());
 };
 
 export const getWorkspaces = async (): Promise<Workspace[]> => {

@@ -45,6 +45,17 @@ export interface WorkspaceWithProjects extends Workspace {
   projects: Project[];
 }
 
+export interface AccessibleProject {
+  id: string;
+  name: string;
+}
+
+export interface AccessibleWorkspace {
+  id: string;
+  name: string;
+  projects: AccessibleProject[];
+}
+
 export interface WorkspaceWithUsers extends Workspace {
   users: WorkspaceUser[];
 }
