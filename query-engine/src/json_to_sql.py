@@ -40,7 +40,7 @@ class JsonToSqlConverter:
         if isinstance(value, bool):
             return str(value).upper()
 
-        return f"'{value}'"
+        return sqlglot.exp.Literal.string(str(value)).sql(dialect="clickhouse")
 
     def _get_interval_expr(self, time_range: dict[str, Any]) -> str:
         if 'interval_value' in time_range and 'interval_unit' in time_range:
@@ -188,43 +188,62 @@ class JsonToSqlConverter:
         return f"`{alias.replace('`', '``')}`"
 
     @staticmethod
+    def _validated_select_expression(
+        expr: str,
+        *,
+        empty_error: str,
+        invalid_prefix: str,
+        single_error: str,
+        comments_error: str,
+        subqueries_error: str,
+        blocked_function_error: str,
+    ) -> str:
+        if not expr or not expr.strip():
+            raise QueryBuilderError(empty_error)
+
+        try:
+            statements = sqlglot.parse(f"SELECT {expr} FROM t", read="clickhouse")
+        except sqlglot.errors.ParseError as e:
+            raise QueryBuilderError(f"{invalid_prefix}: {e}")
+
+        if len(statements) != 1:
+            raise QueryBuilderError(single_error)
+
+        parsed = statements[0]
+        select_exprs = parsed.args.get("expressions", [])
+        if len(select_exprs) != 1:
+            raise QueryBuilderError(single_error)
+
+        for node in parsed.find_all(sqlglot.exp.Expression):
+            if node.comments:
+                raise QueryBuilderError(comments_error)
+
+        for node in parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select):
+            if node is not parsed:
+                raise QueryBuilderError(subqueries_error)
+
+        blocked = QueryValidator.check_for_blocked_functions(parsed)
+        if blocked:
+            raise QueryBuilderError(blocked_function_error.format(function=blocked))
+
+        return select_exprs[0].sql(dialect="clickhouse")
+
+    @staticmethod
     def _validate_raw_expression(expr: str) -> str:
         """Validate a raw SQL expression to prevent injection.
 
         Returns the expression regenerated from the parsed AST so that the
         interpolated SQL always matches what was actually validated.
         """
-        if not expr or not expr.strip():
-            raise QueryBuilderError("Raw SQL expression cannot be empty")
-
-        # Parse the expression as part of a SELECT to check it's a valid expression
-        try:
-            parsed = sqlglot.parse_one(f"SELECT {expr} FROM t", read="clickhouse")
-        except sqlglot.errors.ParseError as e:
-            raise QueryBuilderError(f"Invalid SQL expression: {e}")
-
-        # Block SQL comments (AST-aware: ignores -- or /* inside string literals)
-        for node in parsed.find_all(sqlglot.exp.Expression):
-            if node.comments:
-                raise QueryBuilderError("SQL comments are not allowed in raw SQL expressions")
-
-        # Enforce exactly one select expression (reject multi-column like "count(*), name")
-        select_exprs = parsed.args.get("expressions", [])
-        if len(select_exprs) != 1:
-            raise QueryBuilderError("Raw SQL must be a single expression")
-
-        # Block subqueries inside the expression
-        for node in parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select):
-            if node is not parsed:
-                raise QueryBuilderError("Subqueries are not allowed in raw SQL expressions")
-
-        # Block dangerous functions using the shared helper from the query validator
-        blocked = QueryValidator.check_for_blocked_functions(parsed)
-        if blocked:
-            raise QueryBuilderError(f"Function '{blocked}' is not allowed in raw SQL expressions")
-
-        # Regenerate from the validated AST to close any parse/interpret gap
-        return select_exprs[0].sql(dialect="clickhouse")
+        return JsonToSqlConverter._validated_select_expression(
+            expr,
+            empty_error="Raw SQL expression cannot be empty",
+            invalid_prefix="Invalid SQL expression",
+            single_error="Raw SQL must be a single expression",
+            comments_error="SQL comments are not allowed in raw SQL expressions",
+            subqueries_error="Subqueries are not allowed in raw SQL expressions",
+            blocked_function_error="Function '{function}' is not allowed in raw SQL expressions",
+        )
 
     @staticmethod
     def _safe_column_expr(col: str) -> str:
@@ -236,16 +255,15 @@ class JsonToSqlConverter:
         """
         if col == '*':
             return col
-        try:
-            parsed = sqlglot.parse_one(f"SELECT {col} FROM t", read="clickhouse")
-        except sqlglot.errors.ParseError as e:
-            raise QueryBuilderError(f"Invalid column expression: {e}")
-
-        select_exprs = parsed.args.get("expressions", [])
-        if len(select_exprs) != 1:
-            raise QueryBuilderError("Column must be a single expression")
-
-        return select_exprs[0].sql(dialect="clickhouse")
+        return JsonToSqlConverter._validated_select_expression(
+            col,
+            empty_error="Column expression cannot be empty",
+            invalid_prefix="Invalid column expression",
+            single_error="Column must be a single expression",
+            comments_error="SQL comments are not allowed in column expressions",
+            subqueries_error="Subqueries are not allowed in column expressions",
+            blocked_function_error="Function '{function}' is not allowed in column expressions",
+        )
 
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
@@ -272,7 +290,7 @@ class JsonToSqlConverter:
         return f"{fn}({safe_col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
-        field = filter_spec['field']
+        field = self._safe_column_expr(filter_spec['field'])
         op = filter_spec['op']
 
         if 'string_value' in filter_spec:
