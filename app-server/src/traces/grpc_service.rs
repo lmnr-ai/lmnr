@@ -24,7 +24,6 @@ pub struct ProcessTracesService {
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     rate_limiter: Option<Limiter>,
-    http_client: reqwest::Client,
 }
 
 impl ProcessTracesService {
@@ -34,7 +33,6 @@ impl ProcessTracesService {
         clickhouse: clickhouse::Client,
         queue: Arc<MessageQueue>,
         rate_limiter: Option<Limiter>,
-        http_client: reqwest::Client,
     ) -> Self {
         Self {
             db,
@@ -42,7 +40,6 @@ impl ProcessTracesService {
             clickhouse,
             queue,
             rate_limiter,
-            http_client,
         }
     }
 }
@@ -57,7 +54,6 @@ impl TraceService for ProcessTracesService {
             request.metadata(),
             &self.db.pool,
             self.cache.clone(),
-            &self.http_client,
         )
         .await
         .map_err(|_| Status::unauthenticated("Failed to authenticate request"))?;

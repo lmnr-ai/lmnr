@@ -1,14 +1,16 @@
 use anyhow::{Context, Result, anyhow};
 use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::auth::jwks;
 use crate::db::project_api_keys::ProjectApiKey;
 
-/// The shape Next.js mints. `iss`/`aud`/`exp`/`iat`/`sub` are validated by
+/// The shape Next.js mints. `aud`/`exp`/`iat`/`sub` are validated by
 /// `jsonwebtoken::Validation`; we keep them in the struct so deserialization
-/// requires their presence.
+/// requires their presence. `iss` is captured but not validated — we trust
+/// the signing key (which lives in our Postgres) rather than the `iss` claim.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeviceFlowClaims {
     pub iss: String,
@@ -36,28 +38,24 @@ pub fn looks_like_jwt(token: &str) -> bool {
     decode_header(token).is_ok()
 }
 
-fn issuer() -> String {
-    std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3010".to_string())
-}
-
-/// Validate the JWT against the cached JWKS, build a synthetic `ProjectApiKey`
-/// so downstream routes see the same `ProjectApiKey` extension as the
-/// API-key path. The synthetic `hash` is namespaced `jwt:<jti>` so it cannot
-/// collide with a real `project_api_keys.hash`.
+/// Validate the JWT against the JWKS read from Postgres, build a synthetic
+/// `ProjectApiKey` so downstream routes see the same `ProjectApiKey` extension
+/// as the API-key path. The synthetic `hash` is namespaced `jwt:<jti>` so it
+/// cannot collide with a real `project_api_keys.hash`.
 pub async fn validate_jwt_as_project_api_key(
-    http: &reqwest::Client,
+    db: &PgPool,
     token: &str,
 ) -> Result<ProjectApiKey> {
     let header = decode_header(token).context("decoding JWT header")?;
     let kid = header.kid.ok_or_else(|| anyhow!("JWT missing kid"))?;
-    let key = jwks::get_decoding_key(http, &kid).await?;
+    let key = jwks::get_decoding_key(&kid, db).await?;
 
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_audience(&[AUDIENCE]);
-    let iss = issuer();
-    let iss_trimmed = iss.trim_end_matches('/');
-    validation.set_issuer(&[iss_trimmed]);
-    validation.set_required_spec_claims(&["exp", "iat", "iss", "aud", "sub"]);
+    // Issuer is intentionally NOT validated: we trust the signing key (loaded
+    // from our DB), and `iss` would only matter in a federation scenario where
+    // multiple issuers share a JWKS — not our case.
+    validation.set_required_spec_claims(&["exp", "iat", "aud", "sub"]);
 
     let data =
         decode::<DeviceFlowClaims>(token, &key, &validation).context("validating JWT")?;
@@ -135,11 +133,9 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as usize;
-        let issuer = issuer();
-        let iss = issuer.trim_end_matches('/').to_string();
         let project_id = uuid::Uuid::new_v4();
         let claims = DeviceFlowClaims {
-            iss: iss.clone(),
+            iss: "http://example.invalid".to_string(),
             aud: AUDIENCE.to_string(),
             sub: "11111111-1111-1111-1111-111111111111".to_string(),
             email: "alice@example.com".to_string(),
@@ -158,10 +154,13 @@ mod tests {
         let token = encode(&header, &claims, &encoding_key).expect("encode JWT");
 
         // `validate_jwt_as_project_api_key` should validate this token via
-        // the seeded cache (it will not hit the network because the cache is
-        // fresh and the kid resolves immediately).
-        let http = reqwest::Client::new();
-        let api_key = validate_jwt_as_project_api_key(&http, &token)
+        // the seeded cache (it will not hit Postgres because the cache is
+        // fresh and the kid resolves immediately). `connect_lazy` lets us
+        // hand a `&PgPool` without opening a real connection.
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://test:test@127.0.0.1:1/test")
+            .expect("connect_lazy");
+        let api_key = validate_jwt_as_project_api_key(&pool, &token)
             .await
             .expect("validate JWT");
 

@@ -113,17 +113,16 @@ pub async fn authenticate_request(
 
 /// JWT-aware variant of `authenticate_request` for gRPC ingestion. Bearer
 /// tokens that look like JWTs (3 segments + decodable header) are validated
-/// against the cached JWKS; everything else falls through to the existing
-/// API-key path.
+/// against the JWKS read directly from Postgres; everything else falls
+/// through to the existing API-key path.
 pub async fn authenticate_request_with_jwt(
     metadata: &tonic::metadata::MetadataMap,
     pool: &PgPool,
     cache: Arc<Cache>,
-    http: &reqwest::Client,
 ) -> anyhow::Result<ProjectApiKey> {
     let token = extract_bearer_token(metadata)?;
     if jwt::looks_like_jwt(&token) {
-        return jwt::validate_jwt_as_project_api_key(http, &token).await;
+        return jwt::validate_jwt_as_project_api_key(pool, &token).await;
     }
     get_api_key_from_raw_value(pool, cache, token).await
 }
@@ -137,15 +136,15 @@ async fn validate_via_jwt(
         .cloned()
         .unwrap_or_else(Default::default);
 
-    let http = match req.app_data::<web::Data<reqwest::Client>>().cloned() {
-        Some(h) => h.into_inner(),
+    let db = match req.app_data::<web::Data<DB>>().cloned() {
+        Some(d) => d.into_inner(),
         None => {
-            log::error!("reqwest::Client not in app_data — JWT validation cannot proceed");
+            log::error!("DB not in app_data — JWT validation cannot proceed");
             return Err((AuthenticationError::from(config).into(), req));
         }
     };
 
-    match jwt::validate_jwt_as_project_api_key(&http, credentials.token()).await {
+    match jwt::validate_jwt_as_project_api_key(&db.pool, credentials.token()).await {
         Ok(api_key) => {
             req.extensions_mut().insert(api_key);
             Ok(req)

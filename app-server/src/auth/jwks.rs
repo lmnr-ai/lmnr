@@ -5,41 +5,20 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use jsonwebtoken::{DecodingKey, jwk::JwkSet};
+use jsonwebtoken::{DecodingKey, jwk::Jwk};
+use sqlx::PgPool;
 use tokio::sync::RwLock;
 
-const FRESH_TTL: Duration = Duration::from_secs(10 * 60);
-const STALE_FALLBACK_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const FRESH_TTL: Duration = Duration::from_secs(5 * 60);
 
 pub struct JwksCache {
     keys: HashMap<String, DecodingKey>,
     fetched_at: Instant,
-    last_force_refresh: Option<Instant>,
 }
 
 impl JwksCache {
-    fn from_set(set: &JwkSet) -> Self {
-        let mut keys = HashMap::new();
-        for jwk in &set.keys {
-            if let Some(kid) = jwk.common.key_id.clone() {
-                if let Ok(key) = DecodingKey::from_jwk(jwk) {
-                    keys.insert(kid, key);
-                }
-            }
-        }
-        Self {
-            keys,
-            fetched_at: Instant::now(),
-            last_force_refresh: None,
-        }
-    }
-
     fn is_fresh(&self) -> bool {
         self.fetched_at.elapsed() < FRESH_TTL
-    }
-
-    fn is_too_stale(&self) -> bool {
-        self.fetched_at.elapsed() > STALE_FALLBACK_TTL
     }
 }
 
@@ -48,48 +27,43 @@ fn cache_handle() -> &'static RwLock<Option<JwksCache>> {
     HANDLE.get_or_init(|| RwLock::new(None))
 }
 
-pub fn jwks_url() -> String {
-    if let Ok(explicit) = std::env::var("JWKS_URL") {
-        return explicit;
+fn decoding_key_from_jwk_value(value: &serde_json::Value) -> Result<DecodingKey> {
+    let jwk: Jwk = serde_json::from_value(value.clone()).context("parsing JWK")?;
+    DecodingKey::from_jwk(&jwk).context("building DecodingKey from JWK")
+}
+
+/// Refresh the cache by reading every currently-valid signing key from Postgres.
+async fn refresh_cache(db: &PgPool) -> Result<JwksCache> {
+    let rows: Vec<(String, serde_json::Value)> = sqlx::query_as(
+        "SELECT kid, public_jwk FROM oauth_signing_keys WHERE expires_at IS NULL OR expires_at > now()",
+    )
+    .fetch_all(db)
+    .await
+    .context("loading oauth_signing_keys")?;
+
+    let mut keys = HashMap::new();
+    for (kid, jwk_value) in rows {
+        match decoding_key_from_jwk_value(&jwk_value) {
+            Ok(k) => {
+                keys.insert(kid, k);
+            }
+            Err(e) => {
+                log::warn!("skipping malformed oauth_signing_keys row kid={kid}: {e:#}");
+            }
+        }
     }
-    let base =
-        std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3010".to_string());
-    let trimmed = base.trim_end_matches('/');
-    format!("{trimmed}/oauth/jwks")
+    Ok(JwksCache {
+        keys,
+        fetched_at: Instant::now(),
+    })
 }
 
-async fn fetch_jwks(http: &reqwest::Client, url: &str) -> Result<JwkSet> {
-    let resp = http
-        .get(url)
-        .timeout(Duration::from_secs(5))
-        .send()
-        .await
-        .with_context(|| format!("fetching JWKS from {url}"))?;
-    if !resp.status().is_success() {
-        return Err(anyhow!(
-            "JWKS endpoint {} returned status {}",
-            url,
-            resp.status()
-        ));
-    }
-    let set: JwkSet = resp.json().await.context("decoding JWKS")?;
-    Ok(set)
-}
-
-async fn refresh_cache(http: &reqwest::Client, url: &str) -> Result<()> {
-    let set = fetch_jwks(http, url).await?;
-    let new_cache = JwksCache::from_set(&set);
-    let mut guard = cache_handle().write().await;
-    *guard = Some(new_cache);
-    Ok(())
-}
-
-/// Resolve a `kid` to a `DecodingKey`, fetching / refreshing the cache as
-/// needed. Best-effort: on a fetch failure with a still-stale-but-recent
-/// cache we return the cached key (fail-open up to 24h).
-pub async fn get_decoding_key(http: &reqwest::Client, kid: &str) -> Result<DecodingKey> {
-    let url = jwks_url();
-
+/// Resolve a `kid` to a `DecodingKey`. Reads directly from Postgres
+/// (`oauth_signing_keys`) — the table the frontend writes to when it mints a
+/// key — and memoises the map in-process for `FRESH_TTL`. On a fresh-cache
+/// miss we always reload from the DB once, in case the key was just rotated
+/// in.
+pub async fn get_decoding_key(kid: &str, db: &PgPool) -> Result<DecodingKey> {
     // Fast path: fresh cache hit.
     {
         let guard = cache_handle().read().await;
@@ -102,58 +76,34 @@ pub async fn get_decoding_key(http: &reqwest::Client, kid: &str) -> Result<Decod
         }
     }
 
-    // Refresh attempt. If anyone else just refreshed (race), we may end up
-    // refreshing twice — harmless.
-    let refresh_result = refresh_cache(http, &url).await;
-
+    // Either stale or kid-miss — reload the full active key set. The DB is the
+    // source of truth so we don't need a stale-fallback window.
+    let new_cache = refresh_cache(db).await?;
+    let result = new_cache.keys.get(kid).cloned();
     {
-        let guard = cache_handle().read().await;
-        if let Some(cache) = guard.as_ref() {
-            if let Some(k) = cache.keys.get(kid) {
-                return Ok(k.clone());
-            }
-            // kid missing — one more forced refresh (rotation race window),
-            // throttled to once per minute per kid-miss to avoid pummeling
-            // the issuer.
-            let should_force = cache
-                .last_force_refresh
-                .map(|t| t.elapsed() > Duration::from_secs(60))
-                .unwrap_or(true);
-            drop(guard);
-            if should_force {
-                let _ = refresh_cache(http, &url).await;
-                if let Some(cache) = cache_handle().write().await.as_mut() {
-                    cache.last_force_refresh = Some(Instant::now());
-                }
-                let guard = cache_handle().read().await;
-                if let Some(cache) = guard.as_ref() {
-                    if let Some(k) = cache.keys.get(kid) {
-                        return Ok(k.clone());
-                    }
-                }
-            }
-        }
+        let mut guard = cache_handle().write().await;
+        *guard = Some(new_cache);
     }
 
-    // No cache available and refresh failed.
-    if let Err(e) = refresh_result {
-        let guard = cache_handle().read().await;
-        if let Some(cache) = guard.as_ref() {
-            if !cache.is_too_stale() {
-                if let Some(k) = cache.keys.get(kid) {
-                    return Ok(k.clone());
-                }
-            }
-        }
-        return Err(e);
-    }
-
-    Err(anyhow!("kid {kid} not found in JWKS"))
+    result.ok_or_else(|| anyhow!("kid {kid} not found in oauth_signing_keys"))
 }
 
-/// Test-only helper to seed the cache (e.g. for unit tests against a wiremock).
+/// Test-only helper to seed the cache without touching Postgres. Used by the
+/// JWT validator unit test in `auth::jwt::tests`.
 #[cfg(test)]
-pub async fn _seed_cache_from_set(set: &JwkSet) {
+pub async fn _seed_cache_from_set(set: &jsonwebtoken::jwk::JwkSet) {
+    let mut keys = HashMap::new();
+    for jwk in &set.keys {
+        if let Some(kid) = jwk.common.key_id.clone() {
+            if let Ok(key) = DecodingKey::from_jwk(jwk) {
+                keys.insert(kid, key);
+            }
+        }
+    }
     let mut guard = cache_handle().write().await;
-    *guard = Some(JwksCache::from_set(set));
+    *guard = Some(JwksCache {
+        keys,
+        fetched_at: Instant::now(),
+    });
 }
+

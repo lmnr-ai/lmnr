@@ -981,7 +981,6 @@ fn main() -> anyhow::Result<()> {
     let sse_connections_for_http = sse_connections.clone();
     let http_client_for_http = http_client.clone();
     let http_client_for_consumer = http_client.clone();
-    let http_client_for_grpc = http_client.clone();
 
     // == Resend client for email notifications ==
     let resend_client = std::env::var("RESEND_API_KEY")
@@ -1879,7 +1878,6 @@ fn main() -> anyhow::Result<()> {
                         clickhouse.clone(),
                         queue.clone(),
                         grpc_rate_limiter,
-                        http_client_for_grpc.clone(),
                     );
 
                     let process_logs_service = ProcessLogsService::new(
