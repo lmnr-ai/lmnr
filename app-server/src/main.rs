@@ -185,7 +185,10 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    instrumentation::setup_tracing_and_logging(is_feature_enabled(Feature::Tracing));
+    let _internal_tracer_provider = instrumentation::setup_tracing_and_logging(
+        is_feature_enabled(Feature::Tracing),
+        &runtime_handle,
+    );
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
