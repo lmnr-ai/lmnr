@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -9,6 +9,7 @@ import SessionSpanPanel from "@/components/traces/session-view/session-span-pane
 import { useSessionViewBaseStore } from "@/components/traces/session-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { useToast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan } from "@/lib/traces/types";
 
 import DebuggerTraceList from "./debugger-trace-list";
@@ -39,6 +40,8 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 // a right spacer; span clicks open the in-flow SessionSpanPanel.
 export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
   const { projectId } = useParams<{ projectId: string }>();
+  const router = useRouter();
+  const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
 
   const { traces, spanPanelOpen, isTracesLoading, tracesError } = useSessionViewBaseStore(
@@ -122,8 +125,17 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
           storeApi.getState().setSessionName(payload.name);
         }
       },
+      // Session deleted (DELETE /v1/.../rollouts/{id}) → toast + bounce to the list.
+      // Payload is `{session_id}` (snake_case, see app-server rollouts.rs::delete).
+      // The channel is per-session, so any session_deleted here is for THIS session.
+      session_deleted: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data) as { session_id?: string };
+        if (sessionId && payload.session_id && payload.session_id !== sessionId) return;
+        toast({ variant: "destructive", title: "Session deleted" });
+        router.push(`/project/${projectId}/debugger-sessions`);
+      },
     }),
-    [storeApi, sessionId]
+    [storeApi, sessionId, projectId, router, toast]
   );
 
   useRealtime({
