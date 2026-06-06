@@ -100,10 +100,9 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           return [...(currentData || []), newChart];
         },
         {
-          revalidate: false,
+          revalidate: true,
           populateCache: true,
           rollbackOnError: true,
-          optimisticData: (currentData) => currentData || [],
         }
       );
       track("dashboards", "chart_duplicated");
