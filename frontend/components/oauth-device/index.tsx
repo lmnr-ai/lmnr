@@ -1,11 +1,22 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { AddProjectDialog, type CreatedProject } from "@/components/oauth-device/add-project-dialog";
 import { OAuthDevicePanel } from "@/components/oauth-device/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type AccessibleWorkspace } from "@/lib/workspaces/types";
 
@@ -44,6 +55,24 @@ export function OAuthDeviceClient(props: OAuthDeviceClientProps) {
   const [bootstrapWorkspaceName, setBootstrapWorkspaceName] = useState("My Workspace");
   const [bootstrapProjectName, setBootstrapProjectName] = useState("my-project");
   const [bootstrapping, setBootstrapping] = useState(false);
+
+  // Add-project targets the workspace of the currently selected project, or
+  // the first workspace if nothing is selected yet. The "no workspaces at all"
+  // case is handled by the bootstrap branch below so the empty-string fallback
+  // is unreachable when the Select is rendered.
+  const addProjectWorkspaceId =
+    flatProjects.find((p) => p.id === selectedProjectId)?.workspaceId ?? workspaces[0]?.id ?? "";
+
+  function handleProjectCreated(project: CreatedProject) {
+    setWorkspaces((current) =>
+      current.map((ws) =>
+        ws.id === project.workspaceId
+          ? { ...ws, projects: [...ws.projects, { id: project.id, name: project.name }] }
+          : ws
+      )
+    );
+    setSelectedProjectId(project.id);
+  }
 
   async function bootstrapWorkspace() {
     setBootstrapping(true);
@@ -179,25 +208,30 @@ export function OAuthDeviceClient(props: OAuthDeviceClientProps) {
       )}
 
       <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium" htmlFor="oauth-device-project">
-          Project
-        </label>
-        <select
-          id="oauth-device-project"
-          value={selectedProjectId}
-          onChange={(e) => setSelectedProjectId(e.target.value)}
-          className="h-9 rounded-md border bg-background px-3 text-sm"
-        >
-          {workspaces.map((ws) => (
-            <optgroup key={ws.id} label={ws.name}>
-              {ws.projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <Label htmlFor="oauth-device-project">Project</Label>
+        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+          <SelectTrigger id="oauth-device-project">
+            <SelectValue placeholder="Select a project" />
+          </SelectTrigger>
+          <SelectContent>
+            {workspaces.map((ws) => (
+              <SelectGroup key={ws.id}>
+                <SelectLabel>{ws.name}</SelectLabel>
+                {ws.projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+            <AddProjectDialog workspaceId={addProjectWorkspaceId} onCreated={handleProjectCreated}>
+              <div className="relative mt-1 flex w-full cursor-pointer items-center rounded-sm py-1.5 pl-2 pr-8 text-sm hover:bg-secondary">
+                <Plus className="mr-2 h-3 w-3" />
+                <span className="text-xs">Add project</span>
+              </div>
+            </AddProjectDialog>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex gap-3">
