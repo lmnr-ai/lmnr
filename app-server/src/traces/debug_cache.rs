@@ -423,26 +423,44 @@ mod tests {
         assert_eq!(debug_input_hash(&a), debug_input_hash(&b));
     }
 
-    /// Stripping the system message must change the hash, and two inputs that
-    /// differ only in their system message must hash identically.
+    /// EVERY `role == "system"` message is dropped before hashing — regardless
+    /// of content or position — so inputs that differ only in their system
+    /// message(s) hash identically to one with no system message at all.
     #[test]
     fn hash_ignores_system_message() {
-        let with_sys_a = serde_json::json!([
-            { "role": "system", "content": "prompt A" },
-            { "role": "user", "content": "hi" }
-        ]);
-        let with_sys_b = serde_json::json!([
-            { "role": "system", "content": "totally different prompt B" },
-            { "role": "user", "content": "hi" }
-        ]);
         let without_sys = serde_json::json!([
             { "role": "user", "content": "hi" }
         ]);
-        assert_eq!(debug_input_hash(&with_sys_a), debug_input_hash(&with_sys_b));
-        assert_eq!(
-            debug_input_hash(&with_sys_a),
-            debug_input_hash(&without_sys)
-        );
+        // single leading system message
+        let leading = serde_json::json!([
+            { "role": "system", "content": "prompt A" },
+            { "role": "user", "content": "hi" }
+        ]);
+        // a different leading system message
+        let leading_other = serde_json::json!([
+            { "role": "system", "content": "totally different prompt B" },
+            { "role": "user", "content": "hi" }
+        ]);
+        // empty-content system message (the v1 contract used to KEEP this)
+        let empty_sys = serde_json::json!([
+            { "role": "system", "content": "" },
+            { "role": "user", "content": "hi" }
+        ]);
+        // multiple system messages, including a non-leading / trailing one
+        let multi_sys = serde_json::json!([
+            { "role": "system", "content": "one" },
+            { "role": "user", "content": "hi" },
+            { "role": "system", "content": [{ "type": "image", "url": "https://x/y.png" }] }
+        ]);
+
+        let expected = debug_input_hash(&without_sys);
+        for input in [&leading, &leading_other, &empty_sys, &multi_sys] {
+            assert_eq!(
+                debug_input_hash(input),
+                expected,
+                "all system messages must be stripped before hashing"
+            );
+        }
     }
 
     fn uuid_with_suffix(suffix_hex: &str) -> Uuid {
