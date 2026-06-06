@@ -67,6 +67,15 @@ function TracesContent() {
     [setSpanId, setTraceId]
   );
 
+  const handleCloseTrace = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("traceId");
+    params.delete("spanId");
+    params.delete("chat");
+    router.push(`${pathName}?${params.toString()}`);
+    setTraceId(null);
+  }, [searchParams, router, pathName, setTraceId]);
+
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <Tabs
@@ -98,17 +107,11 @@ function TracesContent() {
       {traceId && (
         <TraceViewSidePanel
           spanId={spanId || undefined}
-          onClose={() => {
-            const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
-            params.delete("spanId");
-            params.delete("chat");
-            router.push(`${pathName}?${params.toString()}`);
-            setTraceId(null);
-          }}
+          onClose={handleCloseTrace}
           traceId={traceId}
           showChatInitial={showChatInitial}
           initialSearch={searchParams.get("search") ?? undefined}
+          closeOnEsc
         />
       )}
     </TraceViewNavigationProvider>

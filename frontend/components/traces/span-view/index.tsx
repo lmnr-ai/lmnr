@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
@@ -28,6 +28,11 @@ interface SpanViewProps {
   initialTab?: SpanViewTab;
   onClose?: () => void;
   isAlwaysSelectSpan?: boolean;
+  /**
+   * Reports whether the in-span search bar is open so an ancestor (the trace
+   * side panel) can let Esc close the search before closing the whole panel.
+   */
+  onSearchOpenChange?: (open: boolean) => void;
 }
 
 const swrFetcher = async (url: string) => {
@@ -133,9 +138,15 @@ export function SpanView({
   initialTab,
   onClose,
   isAlwaysSelectSpan,
+  onSearchOpenChange,
 }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
+
+  useEffect(() => {
+    onSearchOpenChange?.(searchOpen);
+    return () => onSearchOpenChange?.(false);
+  }, [searchOpen, onSearchOpenChange]);
   const {
     data: span,
     isLoading,
