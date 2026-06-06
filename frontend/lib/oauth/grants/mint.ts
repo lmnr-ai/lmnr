@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 
+import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { users } from "@/lib/db/migrations/schema";
 import { signAccessToken } from "@/lib/oauth/jwt";
 import { mintRefreshToken, type MintRefreshTokenInput, type RefreshTokenRow } from "@/lib/oauth/refresh-tokens";
+import { oauthError } from "@/lib/oauth/request";
 
 /**
  * Inputs to the token-endpoint response builder. `refreshTokenOverride` is
@@ -26,6 +28,13 @@ export interface MintInput {
  * cache the response.
  */
 export async function mintTokensResponse(input: MintInput): Promise<Response> {
+  // De-provisioning gate: every mint (device exchange AND hourly refresh)
+  // re-checks membership, so removing a user from a project cuts CLI access
+  // within one access-token lifetime instead of the 30-day refresh window.
+  if (!(await isUserMemberOfProject(input.projectId, input.userId))) {
+    return oauthError("invalid_grant", "User is no longer a member of this project");
+  }
+
   // Email goes into the JWT for log lines + future per-user scopes. If the
   // user row is gone we fall back to "" rather than failing the mint.
   const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1);
