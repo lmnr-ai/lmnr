@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 
@@ -77,8 +76,6 @@ function TracesContent() {
     setTraceId(null);
   }, [searchParams, router, pathName, setTraceId]);
 
-  useHotkeys("esc", handleCloseTrace, { enabled: !!traceId }, [handleCloseTrace, traceId]);
-
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
       <Tabs
@@ -114,6 +111,7 @@ function TracesContent() {
           traceId={traceId}
           showChatInitial={showChatInitial}
           initialSearch={searchParams.get("search") ?? undefined}
+          closeOnEsc
         />
       )}
     </TraceViewNavigationProvider>

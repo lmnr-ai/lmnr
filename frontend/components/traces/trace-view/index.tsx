@@ -23,6 +23,7 @@ interface TraceViewProps {
   initialSignalId?: string;
   showChatInitial?: boolean;
   initialSearch?: string;
+  closeOnEsc?: boolean;
 }
 
 export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
