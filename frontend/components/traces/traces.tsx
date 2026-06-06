@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
 
@@ -52,6 +53,17 @@ function TracesContent() {
     router.push(`${pathName}?${params.toString()}`);
   };
 
+  const handleCloseTrace = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("traceId");
+    params.delete("spanId");
+    params.delete("chat");
+    router.push(`${pathName}?${params.toString()}`);
+    setTraceId(null);
+  }, [searchParams, pathName, router, setTraceId]);
+
+  useHotkeys("escape", handleCloseTrace, { enabled: !!traceId }, [handleCloseTrace, traceId]);
+
   const handleNavigate = useCallback(
     (item: NavigationItem | null) => {
       if (item) {
@@ -98,14 +110,7 @@ function TracesContent() {
       {traceId && (
         <TraceViewSidePanel
           spanId={spanId || undefined}
-          onClose={() => {
-            const params = new URLSearchParams(searchParams);
-            params.delete("traceId");
-            params.delete("spanId");
-            params.delete("chat");
-            router.push(`${pathName}?${params.toString()}`);
-            setTraceId(null);
-          }}
+          onClose={handleCloseTrace}
           traceId={traceId}
           showChatInitial={showChatInitial}
           initialSearch={searchParams.get("search") ?? undefined}
