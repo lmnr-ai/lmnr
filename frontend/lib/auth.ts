@@ -90,12 +90,20 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
     providers.github = {
       clientId: process.env.AUTH_GITHUB_ID!,
       clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      // Re-sync name/avatar from the IdP on every sign-in. The IdP is the sole
+      // source of truth (no in-app profile editing), so this is safe and also
+      // backfills avatars for users created before they had a picture (parity
+      // with the legacy NextAuth `updateUserAvatar` backfill). Fields the IdP
+      // omits are left untouched by the drizzle adapter, so an absent picture
+      // won't clear an existing avatar.
+      overrideUserInfoOnSignIn: true,
     };
   }
   if (isFeatureEnabled(Feature.GOOGLE_AUTH)) {
     providers.google = {
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      overrideUserInfoOnSignIn: true,
     };
   }
   return providers;
@@ -109,6 +117,9 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
         clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
         tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
+        // Re-sync name/avatar from the IdP on every sign-in (parity with the
+        // legacy `updateUserAvatar` backfill). See getSocialProviders above.
+        overrideUserInfo: true,
       })
     );
   }
@@ -118,6 +129,7 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_OKTA_CLIENT_ID!,
         clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
         issuer: process.env.AUTH_OKTA_ISSUER!,
+        overrideUserInfo: true,
       })
     );
   }
@@ -127,6 +139,7 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_KEYCLOAK_ID!,
         clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
         issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+        overrideUserInfo: true,
       })
     );
   }
