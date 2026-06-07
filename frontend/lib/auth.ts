@@ -55,23 +55,16 @@ const processPendingInvitations = async (userId: string, email: string): Promise
 // Every user needs a personal API key row. This runs in `user.create.after`,
 // which Better Auth fires AFTER the user row is committed (not in the same
 // transaction), so a failed insert here would otherwise leave a user without a
-// key forever — later sign-ins only run `session` hooks. We make it idempotent
-// (existence check, since `api_keys.api_key` is the PK so onConflict can't
-// dedupe per-user) and also call it from `session.create.after` to self-heal
+// key forever — later sign-ins only run `session` hooks. The insert is an
+// atomic upsert on the `api_keys_user_id_idx` UNIQUE index (one personal key
+// per user), so concurrent sign-ins / overlapping create+session hooks can't
+// race two rows in; we also call it from `session.create.after` to self-heal
 // any user who slipped through without a key.
 const ensurePersonalApiKey = async (userId: string): Promise<void> => {
-  const [existing] = await db
-    .select({ apiKey: apiKeys.apiKey })
-    .from(apiKeys)
-    .where(eq(apiKeys.userId, userId))
-    .limit(1);
-  if (existing) {
-    return;
-  }
   await db
     .insert(apiKeys)
     .values({ userId, apiKey: generateRandomKey(64) })
-    .onConflictDoNothing();
+    .onConflictDoNothing({ target: apiKeys.userId });
 };
 
 const trackUserCreated = (email: string, provider: string): void => {
