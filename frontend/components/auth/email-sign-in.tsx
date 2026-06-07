@@ -25,12 +25,16 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted" }:
 
   const handleSignIn = async () => {
     track("auth", action, { provider: "email" }, { sendInstantly: true });
-    const { error } = await signInLocalEmail({ email, name: email, callbackURL: callbackUrl });
-    if (error) {
-      toast({ variant: "destructive", title: error.message || "Failed to sign in. Please try again." });
-      return;
+    try {
+      const { error } = await signInLocalEmail({ email, name: email, callbackURL: callbackUrl });
+      if (error) {
+        toast({ variant: "destructive", title: error.message || "Failed to sign in. Please try again." });
+        return;
+      }
+      router.push(callbackUrl);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to sign in. Please try again." });
     }
-    router.push(callbackUrl);
   };
 
   return (
