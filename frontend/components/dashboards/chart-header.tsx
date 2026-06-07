@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-import { cn } from "@/lib/utils";
+import { cn, swrFetcher } from "@/lib/utils";
 
 interface ChartHeaderProps {
   name: string;
@@ -61,7 +61,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();
-  const { data: charts } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`);
+  const { data: charts } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
   const chart = charts?.find((c) => c.id === id);
   const handleDeleteChart = useCallback(async () => {
     try {
@@ -96,7 +96,8 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
       await mutate<DashboardChart[]>(
         `/api/projects/${projectId}/dashboard-charts`,
         async (currentData) => {
-          const newChart = await duplicateChart(chart, projectId);
+          const target = currentData?.find((c) => c.id === id) ?? chart;
+          const newChart = await duplicateChart(target, projectId);
           return [...(currentData || []), newChart];
         },
         {
@@ -112,7 +113,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
         variant: "destructive",
       });
     }
-  }, [chart, mutate, projectId, toast]);
+  }, [chart, id, mutate, projectId, toast]);
 
   const handleUpdateChart = useCallback(
     async (newName: string) => {
