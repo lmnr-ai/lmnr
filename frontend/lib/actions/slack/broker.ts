@@ -35,6 +35,12 @@ interface ClaimPayload {
   teamId: string;
   teamName: string | null;
   instanceId: string;
+  // The workspace the flow was started for, bound here at /cb from the signed
+  // state. instanceId alone can't separate workspaces on a self-hosted instance
+  // (one instance key for all of them), so /redeem echoes this back and the
+  // instance verifies it against its URL workspaceId — otherwise a member of
+  // workspace B could redeem a claim minted for workspace A into B.
+  workspaceId: string;
 }
 
 // Slack's registered redirect_uri. Must match exactly between the authorize

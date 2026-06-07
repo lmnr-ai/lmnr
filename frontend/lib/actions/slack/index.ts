@@ -140,6 +140,7 @@ const BrokerRedeemResponseSchema = z.object({
   token: z.string(),
   teamId: z.string(),
   teamName: z.string().nullable(),
+  workspaceId: z.guid(),
 });
 
 // Brokered (self-hosted) connect: redeem the one-time claim from the broker for
@@ -167,10 +168,19 @@ export async function redeemBrokeredSlackToken(input: { claim: string; workspace
     throw new Error(`Broker redeem failed with status ${response.status}`);
   }
 
-  const { token, teamId, teamName } = BrokerRedeemResponseSchema.parse(await response.json());
+  const { token, teamId, teamName, workspaceId } = BrokerRedeemResponseSchema.parse(await response.json());
+
+  // The claim is bound at /cb to the workspace the flow was started for. The
+  // caller's URL workspaceId is attacker-controllable (it rides the public
+  // callback as a query param), so reject any claim whose bound workspace
+  // doesn't match — otherwise a member of workspace B could redeem a claim
+  // minted for workspace A by rewriting the workspaceId in the callback URL.
+  if (workspaceId !== input.workspaceId) {
+    throw new Error("Broker claim workspace mismatch.");
+  }
 
   await persistSlackIntegration({
-    workspaceId: input.workspaceId,
+    workspaceId,
     teamId,
     teamName,
     token,
