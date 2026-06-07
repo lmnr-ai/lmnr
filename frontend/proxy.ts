@@ -14,6 +14,14 @@ export default withAuth(
 
     const token = req.nextauth.token;
 
+    // CLI-login routes are NOT membership-gated here: approve / init-workspace
+    // do their own session + same-origin + membership checks in-handler, and
+    // token is intentionally unauthenticated (the CLI is a non-browser caller
+    // proving possession of the jose code + PKCE verifier).
+    if (req.nextUrl.pathname.startsWith("/api/cli-login/")) {
+      return NextResponse.next();
+    }
+
     const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
     if (projectIdMatch) {
       if (!token) {
@@ -92,6 +100,7 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
+    "/api/cli-login/:path*",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to
     // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links
@@ -104,5 +113,6 @@ export const config = {
     "/invitations",
     "/onboarding",
     "/checkout",
+    "/cli-login",
   ],
 };

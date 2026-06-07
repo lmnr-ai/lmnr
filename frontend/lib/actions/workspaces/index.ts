@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
@@ -11,6 +11,7 @@ import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-s
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
+  projects,
   reports,
   reportTargets,
   signalTriggers,
@@ -19,7 +20,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
+import { type AccessibleWorkspace, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -125,6 +126,38 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     tierName: WorkspaceTier.FREE,
     projectId,
   };
+};
+
+// Flat list of workspaces (with their projects) the user is a member of.
+// Pure read used by the CLI-login approval page picker. Shares the
+// membersOfWorkspaces join with getWorkspaces below — keep them in sync if
+// membership semantics change.
+export const listAccessibleWorkspaces = async (userId: string): Promise<AccessibleWorkspace[]> => {
+  const rows = await db
+    .select({
+      workspaceId: workspaces.id,
+      workspaceName: workspaces.name,
+      projectId: projects.id,
+      projectName: projects.name,
+    })
+    .from(workspaces)
+    .innerJoin(membersOfWorkspaces, eq(workspaces.id, membersOfWorkspaces.workspaceId))
+    .leftJoin(projects, eq(projects.workspaceId, workspaces.id))
+    .where(eq(membersOfWorkspaces.userId, userId))
+    .orderBy(asc(workspaces.name), asc(projects.name));
+
+  const byWorkspace = new Map<string, AccessibleWorkspace>();
+  for (const r of rows) {
+    let ws = byWorkspace.get(r.workspaceId);
+    if (!ws) {
+      ws = { id: r.workspaceId, name: r.workspaceName, projects: [] };
+      byWorkspace.set(r.workspaceId, ws);
+    }
+    if (r.projectId && r.projectName) {
+      ws.projects.push({ id: r.projectId, name: r.projectName });
+    }
+  }
+  return Array.from(byWorkspace.values());
 };
 
 export const getWorkspaces = async (): Promise<Workspace[]> => {
