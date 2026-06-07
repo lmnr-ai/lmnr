@@ -54,6 +54,20 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const { authorizeUrl } = (await response.json()) as { authorizeUrl: string };
+    // The broker always returns a slack.com authorize URL; validate the host
+    // before forwarding it as a browser redirect so a misconfigured
+    // SLACK_BROKER_URL or a compromised broker can't turn this into an open
+    // redirect to an arbitrary target.
+    let authorizeHost: string;
+    try {
+      authorizeHost = new URL(authorizeUrl).host;
+    } catch {
+      authorizeHost = "";
+    }
+    if (authorizeHost !== "slack.com") {
+      console.error(`Slack broker returned unexpected authorizeUrl host: ${authorizeHost}`);
+      return NextResponse.redirect(errorRedirect);
+    }
     return NextResponse.redirect(authorizeUrl);
   } catch (e) {
     console.error("Slack broker /start error:", e);
