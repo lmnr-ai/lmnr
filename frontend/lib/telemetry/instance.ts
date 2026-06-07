@@ -39,22 +39,46 @@ export const getInstanceId = async (): Promise<string> => {
   return rows[0].instance_id;
 };
 
+export interface ReportingWindowClaim {
+  claimed: boolean;
+  // The `last_reported_at` value before this claim overwrote it, so a failed
+  // report can restore it and let the next tick retry instead of burning the
+  // whole window. Null when the row had never reported.
+  previousReportedAt: string | null;
+}
+
 // Atomically claims the reporting window: only the first replica to find that
 // `last_reported_at` is older than `intervalMs` (or null) wins the UPDATE and
 // gets a row back. Everyone else gets zero rows and skips this cycle. This is
 // the cross-replica dedup — without it every frontend pod would emit its own
 // heartbeat.
-export const claimReportingWindow = async (intervalMs: number): Promise<boolean> => {
+export const claimReportingWindow = async (intervalMs: number): Promise<ReportingWindowClaim> => {
   const intervalSeconds = Math.floor(intervalMs / 1000);
-  const rows = await db.execute(
+  const rows = await db.execute<{ previous_reported_at: string | null }>(
     sql.raw(`
-      UPDATE ${SCHEMA}.instance
+      UPDATE ${SCHEMA}.instance AS i
       SET last_reported_at = now()
-      WHERE id = true
-        AND (last_reported_at IS NULL
-             OR last_reported_at < now() - interval '${intervalSeconds} seconds')
-      RETURNING instance_id
+      FROM (SELECT last_reported_at FROM ${SCHEMA}.instance WHERE id = true) AS prev
+      WHERE i.id = true
+        AND (i.last_reported_at IS NULL
+             OR i.last_reported_at < now() - interval '${intervalSeconds} seconds')
+      RETURNING prev.last_reported_at AS previous_reported_at
     `)
   );
-  return rows.length > 0;
+  if (rows.length === 0) {
+    return { claimed: false, previousReportedAt: null };
+  }
+  return { claimed: true, previousReportedAt: rows[0].previous_reported_at };
+};
+
+// Restores `last_reported_at` to the value captured at claim time. Called when
+// a claimed report fails, so the window is freed and the next tick retries.
+export const releaseReportingWindow = async (previousReportedAt: string | null): Promise<void> => {
+  if (previousReportedAt === null) {
+    await db.execute(sql.raw(`UPDATE ${SCHEMA}.instance SET last_reported_at = NULL WHERE id = true`));
+    return;
+  }
+  await db.execute(
+    sql`UPDATE ${sql.raw(SCHEMA)}.instance SET last_reported_at = ${previousReportedAt} WHERE id = true`
+  );
 };

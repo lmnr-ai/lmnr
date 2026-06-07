@@ -3,7 +3,7 @@ import { PostHog } from "posthog-node";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { POSTHOG_HOST, POSTHOG_KEY } from "@/lib/posthog/constants";
 
-import { claimReportingWindow, ensureTelemetrySchema, getInstanceId } from "./instance";
+import { claimReportingWindow, ensureTelemetrySchema, getInstanceId, releaseReportingWindow } from "./instance";
 import { collectSnapshot } from "./stats";
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -17,14 +17,18 @@ const sendHeartbeat = async (): Promise<void> => {
 
   // Cross-replica gate: only the pod that wins the window claim emits, so a
   // multi-replica deployment still produces a single heartbeat per period.
-  const claimed = await claimReportingWindow(SIX_HOURS_MS);
+  const { claimed, previousReportedAt } = await claimReportingWindow(SIX_HOURS_MS);
   if (!claimed) {
     return;
   }
-  const snapshot = await collectSnapshot();
 
-  const client = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 1, flushInterval: 0 });
+  // From here on we hold the window. If anything fails (ClickHouse, Postgres,
+  // PostHog), release it so the next hourly tick retries instead of waiting out
+  // the full 6h period on a transient error.
   try {
+    const snapshot = await collectSnapshot();
+
+    const client = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 1, flushInterval: 0 });
     client.capture({
       distinctId: instanceId,
       event: EVENT,
@@ -40,6 +44,9 @@ const sendHeartbeat = async (): Promise<void> => {
     await client.shutdown();
   } catch (error) {
     console.error("Failed to send telemetry heartbeat:", error);
+    await releaseReportingWindow(previousReportedAt).catch((releaseError) =>
+      console.error("Failed to release telemetry reporting window:", releaseError)
+    );
   }
 };
 
