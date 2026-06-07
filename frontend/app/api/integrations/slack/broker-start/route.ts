@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
+
+import { authOptions } from "@/lib/auth";
+import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
 // browser here; this route calls the Laminar Cloud broker's /start with the
@@ -33,6 +37,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   // z.guid()) so a malformed id fails fast here instead of embedding garbage in
   // the broker returnUrl and bouncing off the broker's own z.guid() with a 400.
   if (workspaceId === null || !z.guid().safeParse(workspaceId).success) {
+    return NextResponse.redirect(errorRedirect);
+  }
+
+  // This route is browser-facing (the connect button links the browser here), so
+  // the session cookie is present. Require a signed-in user who belongs to the
+  // workspace before driving broker state creation and Slack authorization —
+  // otherwise anyone who can hit this URL could complete a Slack install for a
+  // workspace they don't belong to, mirroring the gate the callback enforces
+  // before redeeming the resulting claim.
+  const session = await getServerSession(authOptions);
+  if (!session || !(await isUserMemberOfWorkspace(workspaceId, session.user.id))) {
     return NextResponse.redirect(errorRedirect);
   }
 
