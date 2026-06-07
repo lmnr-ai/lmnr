@@ -45,7 +45,10 @@ export function getBrokerRedirectUri(): string {
   if (!base) {
     throw new Error("NEXT_PUBLIC_URL is not configured.");
   }
-  return `${base}/api/broker/slack/cb`;
+  // Strip a trailing slash so a NEXT_PUBLIC_URL like "https://lmnr.ai/" can't
+  // produce "//api/broker/slack/cb". Slack requires the redirect_uri to match
+  // the registered value byte-for-byte, so a stray "//" yields bad_redirect_uri.
+  return `${base.replace(/\/+$/, "")}/api/broker/slack/cb`;
 }
 
 // `codeChallenge` is the public half of a PKCE pair (S256). It binds the
