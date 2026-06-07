@@ -21,11 +21,17 @@ const OAUTH2_PROVIDER_IDS: Record<Exclude<AuthProvider, "github" | "google">, st
 // Unified sign-in across social + genericOAuth providers. Better Auth's client
 // auto-redirects when the response carries `{ url, redirect: true }`, matching
 // the legacy NextAuth `signIn(provider, { callbackUrl })` behaviour.
+//
+// `errorCallbackURL` routes IdP / callback failures (e.g. account-linking gate,
+// allow-list rejection) back to `/sign-in?error=<code>` instead of Better Auth's
+// default `/api/auth/error` page, so the sign-in page's `error` UI runs. The
+// original `callbackUrl` is preserved so a successful retry still deep-links.
 export const signInWithProvider = (provider: AuthProvider, callbackURL: string) => {
+  const errorCallbackURL = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
   if (provider === "github" || provider === "google") {
-    return authClient.signIn.social({ provider, callbackURL });
+    return authClient.signIn.social({ provider, callbackURL, errorCallbackURL });
   }
-  return authClient.signIn.oauth2({ providerId: OAUTH2_PROVIDER_IDS[provider], callbackURL });
+  return authClient.signIn.oauth2({ providerId: OAUTH2_PROVIDER_IDS[provider], callbackURL, errorCallbackURL });
 };
 
 // Sign in with our passwordless local-email endpoint (self-hosted convenience).
