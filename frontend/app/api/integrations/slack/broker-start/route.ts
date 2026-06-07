@@ -16,7 +16,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   const workspaceId = request.nextUrl.searchParams.get("workspaceId");
   const returnPath = request.nextUrl.searchParams.get("returnPath");
 
-  const errorRedirect = `${baseUrl}/workspace/${workspaceId ?? ""}?tab=integrations&slack=error`;
+  // Fall back to the request origin so a missing NEXT_PUBLIC_URL still yields a
+  // valid absolute redirect target (NextResponse.redirect rejects a malformed
+  // `undefined/...` URL) rather than throwing from the misconfiguration path.
+  const errorBase = baseUrl ?? request.nextUrl.origin;
+  const errorRedirect = `${errorBase}/workspace/${workspaceId ?? ""}?tab=integrations&slack=error`;
 
   if (!brokerUrl || !instanceKey || !baseUrl) {
     console.error(
