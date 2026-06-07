@@ -140,8 +140,8 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
     if (process.env.LAMINAR_CLOUD === "true") {
       return false;
     }
-    const environment = process.env.ENVIRONMENT;
-    return !!environment && ["FULL", "PRODUCTION"].includes(environment);
+
+    return true;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
