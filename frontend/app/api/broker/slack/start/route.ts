@@ -19,8 +19,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
 
     const { workspaceId, returnUrl } = StartRequestSchema.parse(await req.json());
-    const state = await mintState({ instanceId, workspaceId, returnUrl });
-    const authorizeUrl = buildSlackAuthorizeUrl(state);
+    const { state, codeChallenge } = await mintState({ instanceId, workspaceId, returnUrl });
+    const authorizeUrl = buildSlackAuthorizeUrl(state, codeChallenge);
 
     return NextResponse.json({ authorizeUrl });
   } catch (error) {

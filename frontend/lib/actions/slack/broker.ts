@@ -48,7 +48,12 @@ export function getBrokerRedirectUri(): string {
   return `${base}/api/broker/slack/cb`;
 }
 
-export function buildSlackAuthorizeUrl(state: string): string {
+// `codeChallenge` is the public half of a PKCE pair (S256). It binds the
+// authorization to the secret `codeVerifier` minted alongside the state and
+// kept server-side. Without it, a leaked state could be paired with an
+// attacker's Slack code at /cb (OAuth token injection); PKCE makes Slack reject
+// any code not issued for this challenge.
+export function buildSlackAuthorizeUrl(state: string, codeChallenge: string): string {
   const clientId = process.env.SLACK_CLIENT_ID;
   if (!clientId) {
     throw new Error("SLACK_CLIENT_ID is not configured.");
@@ -58,6 +63,8 @@ export function buildSlackAuthorizeUrl(state: string): string {
     client_id: clientId,
     state,
     redirect_uri: getBrokerRedirectUri(),
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   });
   return `https://slack.com/oauth/v2/authorize?${sp}`;
 }
@@ -83,6 +90,15 @@ function assertSharedStore(): void {
 
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
+}
+
+// PKCE (RFC 7636, S256). The verifier is the secret; the challenge is its
+// SHA-256 sent in the authorize URL. The verifier MUST be kept server-side
+// (never in the state), so a leaked state cannot complete the code exchange.
+function generatePkcePair(): { verifier: string; challenge: string } {
+  const verifier = crypto.randomBytes(32).toString("base64url");
+  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
 }
 
 function signState(payloadJson: string): string {
@@ -121,8 +137,9 @@ export async function mintState(input: {
   instanceId: string;
   workspaceId: string;
   returnUrl: string;
-}): Promise<string> {
+}): Promise<{ state: string; codeChallenge: string }> {
   assertSharedStore();
+  const { verifier, challenge } = generatePkcePair();
   const payload: StatePayload = {
     instanceId: input.instanceId,
     workspaceId: input.workspaceId,
@@ -130,13 +147,15 @@ export async function mintState(input: {
     nonce: crypto.randomBytes(16).toString("hex"),
     exp: Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS,
   };
+  // The PKCE verifier is stored here, server-side, alongside the single-use
+  // nonce — never in the state itself. /cb reads it back at consume time.
   await cache.set(
     `${STATE_PREFIX}:${payload.nonce}`,
-    { instanceId: payload.instanceId },
+    { instanceId: payload.instanceId, codeVerifier: verifier },
     { expireAfterSeconds: STATE_TTL_SECONDS }
   );
   const payloadJson = JSON.stringify(payload);
-  return `${base64url(payloadJson)}.${signState(payloadJson)}`;
+  return { state: `${base64url(payloadJson)}.${signState(payloadJson)}`, codeChallenge: challenge };
 }
 
 export function verifyState(state: string): StatePayload | null {
@@ -176,28 +195,32 @@ export function verifyState(state: string): StatePayload | null {
 }
 
 // Atomically consumes the server-side record minted alongside this state,
-// enforcing single use. Returns true exactly once per minted state; any replay
-// (or a state whose record never existed/already expired) returns false. The
-// instanceId match ties consumption to the instance that minted the state.
-export async function consumeState(payload: StatePayload): Promise<boolean> {
-  const consumed = await cache.getAndRemoveIfMatch<{ instanceId: string }>(
+// enforcing single use. Returns the stored PKCE verifier exactly once per
+// minted state; any replay (or a state whose record never existed/already
+// expired) returns null. The instanceId match ties consumption to the instance
+// that minted the state.
+export async function consumeState(payload: StatePayload): Promise<{ codeVerifier: string } | null> {
+  const consumed = await cache.getAndRemoveIfMatch<{ instanceId: string; codeVerifier: string }>(
     `${STATE_PREFIX}:${payload.nonce}`,
     "instanceId",
     payload.instanceId
   );
-  return consumed !== null;
+  return consumed ? { codeVerifier: consumed.codeVerifier } : null;
 }
 
 const SlackTokenExchangeSchema = z.object({
   code: z.string(),
   redirectUri: z.string(),
+  codeVerifier: z.string(),
 });
 
 // Exchanges the OAuth code for a bot token using the broker's app credentials.
+// The PKCE verifier proves this exchange belongs to the authorize leg that
+// minted the state; Slack rejects a code issued for a different challenge.
 export async function exchangeSlackCode(input: z.infer<typeof SlackTokenExchangeSchema>) {
-  const { code, redirectUri } = SlackTokenExchangeSchema.parse(input);
+  const { code, redirectUri, codeVerifier } = SlackTokenExchangeSchema.parse(input);
 
-  const data = await exchangeSlackOauthCode(code, redirectUri);
+  const data = await exchangeSlackOauthCode(code, redirectUri, codeVerifier);
 
   return {
     token: data.access_token,

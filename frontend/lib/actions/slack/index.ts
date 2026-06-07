@@ -50,7 +50,7 @@ export async function getSlackIntegration(workspaceId: string): Promise<SlackInt
 // Exchanges an OAuth code for a bot token via Slack's oauth.v2.access endpoint
 // using HTTP Basic auth with the app credentials. The redirect_uri must match
 // the one used in the authorize leg or Slack returns bad_redirect_uri.
-export async function exchangeSlackOauthCode(code: string, redirectUri: string) {
+export async function exchangeSlackOauthCode(code: string, redirectUri: string, codeVerifier?: string) {
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
@@ -59,16 +59,21 @@ export async function exchangeSlackOauthCode(code: string, redirectUri: string) 
 
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
+  const body = new URLSearchParams({
+    code,
+    redirect_uri: redirectUri,
+  });
+  if (codeVerifier) {
+    body.set("code_verifier", codeVerifier);
+  }
+
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Basic ${basicAuth}`,
     },
-    body: new URLSearchParams({
-      code,
-      redirect_uri: redirectUri,
-    }),
+    body,
   });
 
   const json = await tokenResponse.json();

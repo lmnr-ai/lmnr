@@ -35,8 +35,10 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Single-use: consume the server-side record minted with this state. A replay
   // (e.g. a leaked state paired with an attacker's OAuth code) finds the record
-  // already gone and is rejected before any code exchange or claim mint.
-  if (!(await consumeState(state))) {
+  // already gone and is rejected before any code exchange or claim mint. The
+  // record also carries the PKCE verifier needed to redeem the code below.
+  const consumed = await consumeState(state);
+  if (!consumed) {
     return NextResponse.json({ error: "Invalid or expired state" }, { status: 400 });
   }
 
@@ -45,7 +47,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const { token, teamId, teamName } = await exchangeSlackCode({ code, redirectUri: getBrokerRedirectUri() });
+    const { token, teamId, teamName } = await exchangeSlackCode({
+      code,
+      redirectUri: getBrokerRedirectUri(),
+      codeVerifier: consumed.codeVerifier,
+    });
 
     const claim = await mintClaim({ token, teamId, teamName, instanceId: state.instanceId });
 
