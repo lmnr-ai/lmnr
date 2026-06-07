@@ -10,7 +10,12 @@ const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const EVENT = "self_hosted_heartbeat";
 
 const sendHeartbeat = async (): Promise<void> => {
-  // Ensure the singleton row exists first — getInstanceId is the only writer
+  // Idempotent (CREATE ... IF NOT EXISTS); run every tick rather than once at
+  // boot so a transient Postgres outage during startup doesn't permanently
+  // disable telemetry — the next tick just retries.
+  await ensureTelemetrySchema();
+
+  // Ensure the singleton row exists next — getInstanceId is the only writer
   // that inserts it. claimReportingWindow is a bare UPDATE, so on a fresh
   // deployment it would match zero rows and the heartbeat would never start.
   const instanceId = await getInstanceId();
@@ -75,13 +80,8 @@ export const startTelemetry = async (): Promise<void> => {
   }
   started = true;
 
-  try {
-    await ensureTelemetrySchema();
-  } catch (error) {
-    console.error("Failed to initialize telemetry schema, telemetry disabled:", error);
-    return;
-  }
-
+  // Schema setup happens inside sendHeartbeat (idempotent, retried per tick),
+  // so a transient DB outage at boot can't permanently disable telemetry.
   const tick = () => {
     sendHeartbeat().catch((error) => console.error("Telemetry heartbeat error:", error));
   };
