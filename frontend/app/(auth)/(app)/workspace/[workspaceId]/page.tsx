@@ -1,6 +1,5 @@
 import { and, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -10,7 +9,7 @@ import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provide
 import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
 import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
 import { getWorkspace } from "@/lib/actions/workspace";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -18,7 +17,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     return redirect("/sign-in");
   }

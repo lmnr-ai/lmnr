@@ -1,9 +1,8 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import SignUp from "@/components/auth/sign-up";
-import { authOptions } from "@/lib/auth.ts";
+import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
   title: "Sign Up - Laminar",
@@ -14,7 +13,7 @@ export default async function SignUpPage(props: {
   params: Promise<Record<string, never>>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (session) {
     redirect("/projects");
   }

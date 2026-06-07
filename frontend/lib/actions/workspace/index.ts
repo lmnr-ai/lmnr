@@ -1,13 +1,12 @@
 import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import {
   cache,
   PROJECT_MEMBER_CACHE_KEY,
@@ -366,7 +365,7 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user?.id) {
     throw new Error("Unauthorized: User not authenticated");
   }

@@ -1,12 +1,11 @@
 import { type NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function POST(req: NextRequest): Promise<Response> {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const user = session!.user;
 
   if (!user) {

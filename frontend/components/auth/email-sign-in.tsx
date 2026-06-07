@@ -1,8 +1,9 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { signInLocalEmail } from "@/lib/auth-client";
 import { track } from "@/lib/posthog";
 
 import { Button } from "../ui/button";
@@ -18,6 +19,13 @@ const validateEmailAddress = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s
 
 export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted" }: EmailSignInProps) {
   const [email, setEmail] = useState("");
+  const router = useRouter();
+
+  const handleSignIn = async () => {
+    track("auth", action, { provider: "email" }, { sendInstantly: true });
+    await signInLocalEmail({ email, name: email, callbackURL: callbackUrl });
+    router.push(callbackUrl);
+  };
 
   return (
     <div className="h-full flex flex-col space-y-2 mb-2 w-[350px]">
@@ -36,14 +44,7 @@ export function EmailSignInButton({ callbackUrl, action = "sign_in_attempted" }:
         disabled={!email || !validateEmailAddress(email)}
         className="p-4"
         variant={"light"}
-        onClick={() => {
-          track("auth", action, { provider: "email" }, { sendInstantly: true });
-          signIn("email", {
-            callbackUrl,
-            email,
-            name: email,
-          });
-        }}
+        onClick={handleSignIn}
         handleEnter
       >
         Sign in

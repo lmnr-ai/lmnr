@@ -1,11 +1,10 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import Settings from "@/components/settings/settings";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
 export default async function ApiKeysPage(props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     redirect("/sign-in");
   }

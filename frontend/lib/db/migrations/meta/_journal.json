@@ -617,6 +617,13 @@
       "when": 1779878869374,
       "tag": "0087_rename_rollout_sessions_to_debugger",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1779878869375,
+      "tag": "0088_lam_1720_better_auth",
+      "breakpoints": true
     }
   ]
 }

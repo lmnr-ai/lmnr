@@ -1,19 +1,23 @@
+import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
+import { jwt } from "better-auth/plugins/jwt";
+import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
-import type { NextAuthOptions, User } from "next-auth";
-import AzureADProvider from "next-auth/providers/azure-ad";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GithubProvider from "next-auth/providers/github";
-import GoogleProvider from "next-auth/providers/google";
-import KeycloakProvider from "next-auth/providers/keycloak";
-import OktaProvider from "next-auth/providers/okta";
 
-import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
+import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import * as schema from "@/lib/db/migrations/schema";
+import { apiKeys, membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
 import PostHogClient from "@/lib/posthog/server";
 import { getEmailsConfig } from "@/lib/server-utils";
+import { generateRandomKey } from "@/lib/utils";
 
 import { Feature, isFeatureEnabled } from "./features/features";
+
+const AUTH_SECRET = process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 
 /**
  * Process any pending workspace invitations for the given user.
@@ -48,7 +52,7 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 };
 
-const trackUserCreated = async (email: string, provider: string): Promise<void> => {
+const trackUserCreated = (email: string, provider: string): void => {
   try {
     const client = PostHogClient();
     if (!client) return;
@@ -70,144 +74,186 @@ const trackUserCreated = async (email: string, provider: string): Promise<void> 
   }
 };
 
-const getProviders = () => {
-  const providerConfigs = [
-    {
-      feature: Feature.GITHUB_AUTH,
-      provider: () =>
-        GithubProvider({
-          clientId: process.env.AUTH_GITHUB_ID!,
-          clientSecret: process.env.AUTH_GITHUB_SECRET!,
-        }),
-    },
-    {
-      feature: Feature.GOOGLE_AUTH,
-      provider: () =>
-        GoogleProvider({
-          clientId: process.env.AUTH_GOOGLE_ID!,
-          clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-        }),
-    },
-    {
-      feature: Feature.AZURE_AUTH,
-      provider: () =>
-        AzureADProvider({
-          clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
-          clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
-          tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
-        }),
-    },
-    {
-      feature: Feature.OKTA_AUTH,
-      provider: () =>
-        OktaProvider({
-          clientId: process.env.AUTH_OKTA_CLIENT_ID!,
-          clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
-          issuer: process.env.AUTH_OKTA_ISSUER!,
-        }),
-    },
-    {
-      feature: Feature.KEYCLOAK_AUTH,
-      provider: () =>
-        KeycloakProvider({
-          clientId: process.env.AUTH_KEYCLOAK_ID!,
-          clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
-          issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
-        }),
-    },
-    {
-      feature: Feature.EMAIL_AUTH,
-      provider: () =>
-        CredentialsProvider({
-          id: "email",
-          name: "Email",
-          credentials: {
-            email: {
-              label: "Email",
-              type: "email",
-              placeholder: "username@example.com",
-            },
-            name: { label: "Name", type: "text", placeholder: "username" },
-          },
-          async authorize(credentials, req) {
-            if (!credentials?.email) {
-              return null;
-            }
-            return {
-              id: credentials.email,
-              name: credentials.name,
-              email: credentials.email,
-            } as User;
-          },
-        }),
-    },
-  ];
-
-  return providerConfigs.filter(({ feature }) => isFeatureEnabled(feature)).map(({ provider }) => provider());
+// Derive the provider id from the in-flight endpoint path (e.g.
+// `/callback/github` or `/oauth2/callback/keycloak`). Used to scope the GitHub
+// allow-list gate the way the legacy NextAuth `signIn` callback did.
+const providerFromContext = (context: { path?: string; params?: Record<string, string> } | null): string => {
+  if (!context) return "unknown";
+  if (context.params?.id) return context.params.id;
+  const match = context.path?.match(/\/(?:oauth2\/)?callback\/([^/?]+)/);
+  return match?.[1] ?? "unknown";
 };
 
-export const authOptions: NextAuthOptions = {
-  providers: getProviders(),
-  session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    async signIn({ user, account }) {
-      const list = await getEmailsConfig();
-      if (account?.provider === "github" && user?.email && !!list) {
-        return list.includes(user.email);
-      }
-      return true;
+const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]> => {
+  const providers: NonNullable<BetterAuthOptions["socialProviders"]> = {};
+  if (isFeatureEnabled(Feature.GITHUB_AUTH)) {
+    providers.github = {
+      clientId: process.env.AUTH_GITHUB_ID!,
+      clientSecret: process.env.AUTH_GITHUB_SECRET!,
+    };
+  }
+  if (isFeatureEnabled(Feature.GOOGLE_AUTH)) {
+    providers.google = {
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+    };
+  }
+  return providers;
+};
+
+const getGenericOAuthConfig = () => {
+  const config = [];
+  if (isFeatureEnabled(Feature.AZURE_AUTH)) {
+    config.push(
+      microsoftEntraId({
+        clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
+        clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
+        tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
+      })
+    );
+  }
+  if (isFeatureEnabled(Feature.OKTA_AUTH)) {
+    config.push(
+      okta({
+        clientId: process.env.AUTH_OKTA_CLIENT_ID!,
+        clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
+        issuer: process.env.AUTH_OKTA_ISSUER!,
+      })
+    );
+  }
+  if (isFeatureEnabled(Feature.KEYCLOAK_AUTH)) {
+    config.push(
+      keycloak({
+        clientId: process.env.AUTH_KEYCLOAK_ID!,
+        clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
+        issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+      })
+    );
+  }
+  return config;
+};
+
+export const auth = betterAuth({
+  secret: AUTH_SECRET,
+  baseURL: AUTH_URL,
+  // Reuse the existing `users` row id (uuid, DB default). Generating a uuid here
+  // keeps every Better-Auth-managed id (session/account/verification/jwks, all
+  // `text`) valid for the `uuid` users.id column and its FKs across the schema.
+  advanced: {
+    database: {
+      generateId: () => randomUUID(),
     },
-    async jwt({ token, account, trigger }) {
-      if (trigger === "signIn") {
-        if (!token.name || !token.email) {
-          throw new Error("Name and email are required");
-        }
-
-        try {
-          const existingUser = await getUserByEmail(token.email);
-          let isNewUser = false;
-          if (existingUser) {
-            token.userId = existingUser.id;
-            if (!existingUser?.avatarUrl && token?.picture) {
-              await updateUserAvatar(existingUser.id, token.picture);
+  },
+  database: drizzleAdapter(db, {
+    provider: "pg",
+    schema,
+    usePlural: true,
+  }),
+  user: {
+    // Our column is `avatar_url`; Better Auth's user model field is `image`.
+    fields: {
+      image: "avatarUrl",
+    },
+  },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["github", "google", "microsoft-entra-id", "okta", "keycloak"],
+    },
+  },
+  socialProviders: getSocialProviders(),
+  plugins: [
+    genericOAuth({ config: getGenericOAuthConfig() }),
+    // Preserve a verifiable JWT for any consumer that expects one (parity with
+    // the legacy NextAuth JWT session). Exposes /api/auth/token + /api/auth/jwks.
+    jwt({
+      // `usePlural: true` on the drizzle adapter appends "s" to each model name.
+      // The jwt plugin's model is already plural (`jwks`), so it becomes `jwkss`
+      // (no such table). Set the singular base so pluralization yields `jwks`.
+      schema: {
+        jwks: {
+          modelName: "jwk",
+        },
+      },
+      jwt: {
+        definePayload: ({ user }) => ({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+        }),
+      },
+    }),
+    // Passwordless local-email sign-in (self-hosted convenience); only mounted
+    // when no real IdP is configured, matching the legacy Credentials provider.
+    ...(isFeatureEnabled(Feature.EMAIL_AUTH) ? [localEmail()] : []),
+    // Keep Set-Cookie working from Next.js server actions / route handlers.
+    nextCookies(),
+  ],
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user, context) => {
+          // GitHub allow-list gate (legacy NextAuth `signIn` callback parity):
+          // block account creation for emails outside allowed-emails.json.
+          const provider = providerFromContext(context);
+          if (provider === "github" && user.email) {
+            const list = await getEmailsConfig();
+            if (list && !list.includes(user.email)) {
+              return false;
             }
-          } else {
-            const user = await createUser(token.name, token.email, token.picture);
-            token.userId = user.id;
-            isNewUser = true;
           }
+          return;
+        },
+        after: async (user, context) => {
+          // Every user needs a personal API key row (legacy createUser did this
+          // in the same transaction as the user insert).
+          await db
+            .insert(apiKeys)
+            .values({ userId: user.id, apiKey: generateRandomKey(64) })
+            .onConflictDoNothing();
 
-          // In self-hosted mode (no email sending), process any pending
-          // workspace invitations for this user. When SEND_EMAIL is enabled
-          // (cloud), invitations go through the explicit email accept/decline
-          // flow instead, so we must not auto-accept them here.
+          trackUserCreated(user.email, providerFromContext(context));
+        },
+      },
+    },
+    session: {
+      create: {
+        before: async (session, context) => {
+          // Re-gate returning GitHub users against the allow-list on every login.
+          const provider = providerFromContext(context ?? null);
+          if (provider === "github") {
+            const list = await getEmailsConfig();
+            if (list) {
+              const [user] = await db
+                .select({ email: users.email })
+                .from(users)
+                .where(eq(users.id, session.userId))
+                .limit(1);
+              if (user && !list.includes(user.email)) {
+                return false;
+              }
+            }
+          }
+          return;
+        },
+        after: async (session) => {
+          // In self-hosted mode (no email sending) auto-accept pending workspace
+          // invitations on every sign-in. With SEND_EMAIL (cloud), invitations
+          // go through the explicit email accept/decline flow instead.
           if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
-            await processPendingInvitations(token.userId as string, token.email);
+            const [user] = await db
+              .select({ email: users.email })
+              .from(users)
+              .where(eq(users.id, session.userId))
+              .limit(1);
+            if (user) {
+              await processPendingInvitations(session.userId, user.email);
+            }
           }
-
-          if (isNewUser) {
-            await trackUserCreated(token.email, account?.provider ?? "unknown");
-          }
-        } catch (e) {
-          throw new Error("Failed to authenticate user.", {
-            cause: e,
-          });
-        }
-      }
-
-      return token;
-    },
-    session({ session, token }) {
-      session.user.email = token.email;
-      session.user.name = token.name;
-      session.user.id = token.userId;
-
-      return session;
+        },
+      },
     },
   },
-  pages: {
-    signIn: "/sign-in", // overrides the next-auth default signin page https://authjs.dev/guides/basics/pages
-  },
-};
+});
+
+export type Session = typeof auth.$Infer.Session;

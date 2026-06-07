@@ -1,15 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const userEmail = session?.user?.email ?? undefined;
     const result = await getReports(workspaceId, userEmail);
     return NextResponse.json(result);
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -56,7 +55,7 @@ export async function PUT(request: NextRequest, props: { params: Promise<{ works
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -80,7 +79,7 @@ export async function DELETE(request: NextRequest, props: { params: Promise<{ wo
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const email = session?.user?.email;
     if (!email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
