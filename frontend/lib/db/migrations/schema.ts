@@ -1104,3 +1104,14 @@ export const traces = pgTable(
     unique("traces_project_id_id_unique").on(table.id, table.projectId),
   ]
 );
+
+export const slackBrokerInstances = pgTable(
+  "slack_broker_instances",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    keyHash: text("key_hash").notNull(),
+    label: text(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [unique("slack_broker_instances_key_hash_key").on(table.keyHash)]
+);

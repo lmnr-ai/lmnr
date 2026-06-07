@@ -92,7 +92,13 @@ class CacheManager {
         throw e;
       }
     } else {
-      this.memoryCache.set(key, { value, expiresAt: null });
+      let expiresAt: number | null = null;
+      if (options.expireAfterSeconds) {
+        expiresAt = Date.now() + options.expireAfterSeconds * 1000;
+      } else if (options.expireAt) {
+        expiresAt = options.expireAt.getTime();
+      }
+      this.memoryCache.set(key, { value, expiresAt });
     }
   }
 
@@ -107,6 +113,50 @@ class CacheManager {
       }
     } else {
       this.memoryCache.delete(key);
+    }
+  }
+
+  // Atomically reads a JSON entry and deletes it only when its `field` equals
+  // `value`. Returns the parsed value on a match (entry consumed), or null when
+  // the key is missing/expired OR the field does not match. A non-matching
+  // caller never consumes the entry, so a single-use token survives for its
+  // rightful owner while concurrent matching callers cannot both read it.
+  async getAndRemoveIfMatch<T>(key: string, field: string, value: string): Promise<T | null> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      // Lua runs server-side, so the GET + conditional DEL is one atomic step.
+      const script = `
+        local v = redis.call('GET', KEYS[1])
+        if not v then return nil end
+        local ok, payload = pcall(cjson.decode, v)
+        if ok and payload[ARGV[1]] == ARGV[2] then
+          redis.call('DEL', KEYS[1])
+          return v
+        end
+        return nil
+      `;
+      try {
+        const raw = (await client.eval(script, 1, key, field, value)) as string | null;
+        return raw ? (JSON.parse(raw) as T) : null;
+      } catch (e) {
+        console.error("Error in getAndRemoveIfMatch", e);
+        throw e;
+      }
+    } else {
+      // Single-process memory cache: get/check/delete is already atomic.
+      const entry = this.memoryCache.get(key);
+      if (!entry) {
+        return null;
+      }
+      if (entry.expiresAt && entry.expiresAt < Date.now()) {
+        this.memoryCache.delete(key);
+        return null;
+      }
+      if (entry.value && entry.value[field] === value) {
+        this.memoryCache.delete(key);
+        return entry.value;
+      }
+      return null;
     }
   }
 

@@ -12,10 +12,9 @@ import { type OnboardingFormValues } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
-
-const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 
 interface SlackStepProps {
   stepIndex: number;
