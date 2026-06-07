@@ -11,7 +11,10 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.rewrite(destination);
   }
 
-  const session = await auth.api.getSession({ headers: req.headers });
+  // Degrade gracefully to unauthenticated on a transient DB failure: getSession
+  // does a Postgres round-trip, and an unhandled rejection here would 500 every
+  // matched request instead of falling back to the 401 / sign-in-redirect paths.
+  const session = await auth.api.getSession({ headers: req.headers }).catch(() => null);
   const userId = session?.user?.id;
 
   const projectIdMatch = req.nextUrl.pathname.match(/^\/api\/projects(?:\/([^/]+))?/);
