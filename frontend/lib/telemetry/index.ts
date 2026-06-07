@@ -10,14 +10,17 @@ const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const EVENT = "self_hosted_heartbeat";
 
 const sendHeartbeat = async (): Promise<void> => {
+  // Ensure the singleton row exists first — getInstanceId is the only writer
+  // that inserts it. claimReportingWindow is a bare UPDATE, so on a fresh
+  // deployment it would match zero rows and the heartbeat would never start.
+  const instanceId = await getInstanceId();
+
   // Cross-replica gate: only the pod that wins the window claim emits, so a
   // multi-replica deployment still produces a single heartbeat per period.
   const claimed = await claimReportingWindow(SIX_HOURS_MS);
   if (!claimed) {
     return;
   }
-
-  const instanceId = await getInstanceId();
   const snapshot = await collectSnapshot();
 
   const client = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 1, flushInterval: 0 });
