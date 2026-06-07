@@ -33,19 +33,24 @@ export async function GET(request: NextRequest): Promise<Response> {
     return NextResponse.json({ error: "Invalid or expired state" }, { status: 400 });
   }
 
+  // Bail on a callback that carries no usable code BEFORE consuming the nonce.
+  // Consuming first would let anyone who learns the state (e.g. from the
+  // authorize URL) fire a code-less /cb to burn the single-use record, so the
+  // victim's real code+state callback then fails. The state is verified here,
+  // so we have a trusted returnUrl to send the error back to.
+  if (slackError || !code) {
+    return NextResponse.redirect(buildInstanceRedirect(state.returnUrl, { slack: "error" }));
+  }
+
   // Single-use: consume the server-side record minted with this state. A replay
   // (e.g. a leaked state paired with an attacker's OAuth code) finds the record
   // already gone and is rejected before any code exchange or claim mint. The
   // record also carries the PKCE verifier needed to redeem the code below.
-  // The state is verified at this point, so we have a trusted returnUrl: send a
-  // benign double-callback back to the instance with slack=error rather than
-  // stranding the user on a raw broker JSON page. No token/claim is minted.
+  // A benign double-callback (back/refresh) lands here too: redirect to the
+  // instance with slack=error rather than stranding the user on a raw broker
+  // JSON page. No token/claim is minted.
   const consumed = await consumeState(state);
   if (!consumed) {
-    return NextResponse.redirect(buildInstanceRedirect(state.returnUrl, { slack: "error" }));
-  }
-
-  if (slackError || !code) {
     return NextResponse.redirect(buildInstanceRedirect(state.returnUrl, { slack: "error" }));
   }
 
