@@ -32,7 +32,11 @@ export const localEmail = () => ({
           (await ctx.context.internalAdapter.createUser({
             email,
             name: name || email,
-            emailVerified: false,
+            // Verified so a later OAuth sign-in with the same address can link
+            // (Better Auth's account-linking gate requires a verified local
+            // email — see `requireLocalEmailVerified`). Local-email is a
+            // no-password convenience, so there's no verification state to protect.
+            emailVerified: true,
           }));
 
         if (!user) {
