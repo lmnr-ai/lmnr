@@ -1,217 +1,156 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { AddProjectDialog, type CreatedProject } from "@/components/cli-login/add-project-dialog";
+import { BootstrapForm } from "@/components/cli-login/bootstrap-form";
+import { ManualKeyPanel } from "@/components/cli-login/manual-key-panel";
+import { CliLoginPanel } from "@/components/cli-login/panel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
-
-interface ProjectOption {
-  id: string;
-  name: string;
-}
-
-interface WorkspaceOption {
-  id: string;
-  name: string;
-  projects: ProjectOption[];
-}
+import { type AccessibleWorkspace } from "@/lib/workspaces/types";
 
 interface CliLoginClientProps {
-  sessionId: string;
-  publicKey: string;
-  user: { id: string; email: string; name: string };
-  workspaces: WorkspaceOption[];
+  userEmail: string;
+  workspaces: AccessibleWorkspace[];
+  port: string | null;
+  state: string | null;
+  codeChallenge: string | null;
+  manual: boolean;
 }
 
-interface SuccessInfo {
-  projectName: string;
-  workspaceName: string;
-  shorthand: string;
-}
-
-export default function CliLoginClient({ sessionId, publicKey, user, workspaces }: CliLoginClientProps) {
-  const router = useRouter();
+export default function CliLoginClient(props: CliLoginClientProps) {
   const { toast } = useToast();
+  const [workspaces, setWorkspaces] = useState<AccessibleWorkspace[]>(props.workspaces);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [manualKey, setManualKey] = useState<{ apiKey: string; projectName: string } | null>(null);
 
-  // Initial defaults: first workspace + its first project (covers the
-  // single-workspace single-project autoselect case for free).
-  const [workspaceId, setWorkspaceId] = useState<string | null>(workspaces[0]?.id ?? null);
-  const [rawProjectId, setRawProjectId] = useState<string | null>(workspaces[0]?.projects[0]?.id ?? null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [success, setSuccess] = useState<SuccessInfo | null>(null);
-
-  const selectedWorkspace = useMemo(
-    () => workspaces.find((w) => w.id === workspaceId) ?? null,
-    [workspaces, workspaceId]
+  const flatProjects = useMemo(
+    () => workspaces.flatMap((w) => w.projects.map((p) => ({ ...p, workspaceId: w.id }))),
+    [workspaces]
   );
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(flatProjects[0]?.id ?? "");
 
-  // Derive effective projectId on every render so changing the workspace
-  // does not require a useEffect to reconcile. If the explicitly-selected
-  // project no longer belongs to the current workspace, fall back to that
-  // workspace's first project.
-  const projectId = useMemo(() => {
-    if (!selectedWorkspace) return null;
-    if (rawProjectId && selectedWorkspace.projects.some((p) => p.id === rawProjectId)) {
-      return rawProjectId;
-    }
-    return selectedWorkspace.projects[0]?.id ?? null;
-  }, [selectedWorkspace, rawProjectId]);
+  const addProjectWorkspaceId =
+    flatProjects.find((p) => p.id === selectedProjectId)?.workspaceId ?? workspaces[0]?.id ?? "";
 
-  const handleWorkspaceChange = (next: string) => {
-    setWorkspaceId(next);
-    // Reset explicit selection so the derivation above picks the new
-    // workspace's first project until the user picks something else.
-    setRawProjectId(null);
-  };
+  function handleProjectCreated(project: CreatedProject) {
+    setWorkspaces((current) =>
+      current.map((ws) =>
+        ws.id === project.workspaceId
+          ? { ...ws, projects: [...ws.projects, { id: project.id, name: project.name }] }
+          : ws
+      )
+    );
+    setSelectedProjectId(project.id);
+  }
 
-  const handleApprove = async () => {
-    if (!projectId || !workspaceId) return;
-    setIsSubmitting(true);
+  async function approve() {
+    if (!selectedProjectId) return;
+    setSubmitting(true);
     try {
-      track("auth", "cli_approve_clicked", { projectId });
-      const res = await fetch(`/api/projects/${projectId}/cli-grants/${sessionId}/approve`, {
+      track("auth", "cli_approve_clicked", { projectId: selectedProjectId });
+      const res = await fetch("/api/cli-login/approve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(
+          props.manual
+            ? { projectId: selectedProjectId, manual: true }
+            : { projectId: selectedProjectId, codeChallenge: props.codeChallenge }
+        ),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const message = data?.error ?? "Approval failed";
-        toast({ variant: "destructive", title: message });
-        setIsSubmitting(false);
+        const err = await res.json().catch(() => null);
+        toast({ variant: "destructive", title: err?.error ?? "Authorization failed" });
         return;
       }
-      const data = (await res.json()) as { projectName: string; workspaceName: string; shorthand: string };
-      track("auth", "cli_approved", { projectId });
-      setSuccess({ projectName: data.projectName, workspaceName: data.workspaceName, shorthand: data.shorthand });
+      const data = (await res.json()) as { code?: string; apiKey?: string; projectName: string };
+      track("auth", "cli_approved", { projectId: selectedProjectId });
+      if (props.manual) {
+        setManualKey({ apiKey: data.apiKey ?? "", projectName: data.projectName });
+        return;
+      }
+      // PKCE: hand the code back to the CLI's loopback server via top-level
+      // navigation (CORS / secure-context forbid fetch to 127.0.0.1).
+      setDone(true);
+      window.location.replace(
+        `http://127.0.0.1:${props.port}/callback?code=${encodeURIComponent(data.code ?? "")}&state=${encodeURIComponent(
+          props.state ?? ""
+        )}`
+      );
     } catch {
-      toast({ variant: "destructive", title: "Network error. Please try again." });
-      setIsSubmitting(false);
+      toast({ variant: "destructive", title: "Network error" });
+    } finally {
+      setSubmitting(false);
     }
-  };
+  }
 
-  const handleCancel = () => {
-    router.push("/projects");
-  };
+  if (manualKey) {
+    return <ManualKeyPanel apiKey={manualKey.apiKey} projectName={manualKey.projectName} />;
+  }
 
-  if (success) {
+  if (done) {
     return (
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle>You're all set</CardTitle>
-          <CardDescription>
-            Return to your terminal — the CLI should pick this up within a couple of seconds.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div>
-            <span className="text-muted-foreground">Project: </span>
-            <span className="font-medium">{success.projectName}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">Workspace: </span>
-            <span className="font-medium">{success.workspaceName}</span>
-          </div>
-          <div>
-            <span className="text-muted-foreground">API key prefix: </span>
-            <span className="font-mono">{success.shorthand}</span>
-          </div>
-          <p className="text-xs text-muted-foreground pt-2">
-            You can revoke this key any time from project settings &rarr; API keys.
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button variant="outline" onClick={() => router.push("/projects")}>
-            Close
-          </Button>
-        </CardFooter>
-      </Card>
+      <CliLoginPanel title="All set">
+        <p className="text-sm text-secondary-foreground">
+          You can return to your terminal — the CLI will finish setup.
+        </p>
+      </CliLoginPanel>
     );
   }
 
-  const hasNoWorkspace = workspaces.length === 0;
-  const hasNoProject = selectedWorkspace && selectedWorkspace.projects.length === 0;
+  if (flatProjects.length === 0) {
+    return <BootstrapForm userEmail={props.userEmail} onCreated={(ws) => setWorkspaces([ws])} />;
+  }
 
   return (
-    <Card className="max-w-md w-full">
-      <CardHeader>
-        <CardTitle>Authorize Laminar CLI</CardTitle>
-        <CardDescription>
-          Signed in as <span className="font-medium">{user.email}</span>. Choose the project the CLI should access.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {hasNoWorkspace ? (
-          <div className="space-y-3 text-sm">
-            <p className="text-muted-foreground">You don't belong to any workspaces yet.</p>
-            <Link href="/onboarding">
-              <Button variant="outline">Create a workspace</Button>
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Workspace</label>
-              <Select value={workspaceId ?? undefined} onValueChange={handleWorkspaceChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a workspace" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Project</label>
-              <Select value={projectId ?? undefined} onValueChange={(v) => setRawProjectId(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(selectedWorkspace?.projects ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {hasNoProject ? (
-                <p className="pt-2 text-xs text-muted-foreground">
-                  This workspace has no projects.{" "}
-                  <Link href="/projects" className="underline">
-                    Create one
-                  </Link>{" "}
-                  first.
-                </p>
-              ) : null}
-            </div>
-          </>
-        )}
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Show CLI session details</summary>
-          <div className="pt-2 space-y-1 font-mono break-all">
-            <div>session_id: {sessionId}</div>
-            <div>public_key: {publicKey.slice(0, 24)}...</div>
-          </div>
-        </details>
-      </CardContent>
-      <CardFooter className="gap-2">
-        <Button variant="outline" onClick={handleCancel} disabled={isSubmitting}>
-          Cancel
-        </Button>
-        <Button onClick={handleApprove} disabled={!projectId || isSubmitting || hasNoWorkspace || !!hasNoProject}>
-          {isSubmitting ? "Authorizing..." : "Authorize"}
-        </Button>
-      </CardFooter>
-    </Card>
+    <CliLoginPanel title="Authorize Laminar CLI">
+      <p className="text-sm text-secondary-foreground">
+        Signed in as <span className="font-medium text-foreground">{props.userEmail}</span>. Choose the project the CLI
+        should access.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="cli-login-project">Project</Label>
+        <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+          <SelectTrigger id="cli-login-project">
+            <SelectValue placeholder="Select a project" />
+          </SelectTrigger>
+          <SelectContent>
+            {workspaces.map((ws) => (
+              <SelectGroup key={ws.id}>
+                <SelectLabel>{ws.name}</SelectLabel>
+                {ws.projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+            <AddProjectDialog workspaceId={addProjectWorkspaceId} onCreated={handleProjectCreated}>
+              <div className="relative mt-1 flex w-full cursor-pointer items-center rounded-sm py-1.5 pl-2 pr-8 text-sm hover:bg-secondary">
+                <Plus className="mr-2 h-3 w-3" />
+                <span className="text-xs">Add project</span>
+              </div>
+            </AddProjectDialog>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button type="button" disabled={submitting || !selectedProjectId} onClick={approve}>
+        {submitting ? "Working..." : "Authorize"}
+      </Button>
+    </CliLoginPanel>
   );
 }

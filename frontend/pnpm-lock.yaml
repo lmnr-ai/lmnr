@@ -233,6 +233,9 @@ importers:
       ioredis:
         specifier: ^5.9.3
         version: 5.9.3
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       json-2-csv:
         specifier: ^5.5.11
         version: 5.5.11
@@ -347,9 +350,6 @@ importers:
       tw-shimmer:
         specifier: ^0.4.2
         version: 0.4.2(tailwindcss@4.3.0)
-      tweetnacl:
-        specifier: ^1.0.3
-        version: 1.0.3
       use-stick-to-bottom:
         specifier: ^1.1.1
         version: 1.1.1(react@19.2.3)
@@ -5019,6 +5019,9 @@ packages:
   jose@4.15.9:
     resolution: {integrity: sha512-1vUQX+IdDMVPj4k8kOxgUqlcK518yluMuGZwqlr44FS1ppZB/5GWh4rZG89erpOBOJjU/OBsnCVFfapsRz6nEA==}
 
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
+
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
@@ -6420,9 +6423,6 @@ packages:
     resolution: {integrity: sha512-z55WnYpscs9Ih4O6M7LA2NVUsfBo2ZVjbyRrOCN/RyNKqMQfOk6ANzBW3RCeHXDJZXua7oFOGXHjUjxZG6S7Dg==}
     peerDependencies:
       tailwindcss: '>=4.0.0-0'
-
-  tweetnacl@1.0.3:
-    resolution: {integrity: sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==}
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -11406,6 +11406,8 @@ snapshots:
 
   jose@4.15.9: {}
 
+  jose@6.2.3: {}
+
   joycon@3.1.1: {}
 
   js-tiktoken@1.0.21:
@@ -13151,8 +13153,6 @@ snapshots:
   tw-shimmer@0.4.2(tailwindcss@4.3.0):
     dependencies:
       tailwindcss: 4.3.0
-
-  tweetnacl@1.0.3: {}
 
   type-check@0.4.0:
     dependencies:

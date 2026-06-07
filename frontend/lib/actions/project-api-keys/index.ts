@@ -28,15 +28,13 @@ export interface ProjectApiKeyResponse {
   shorthand: string;
   isIngestOnly: boolean;
   // SHA3-256 hex digest of `value`. Exposed so tx callers can populate the
-  // cache post-commit via `cacheProjectApiKey` (see CLI grant approval).
+  // cache post-commit via `cacheProjectApiKey`.
   hash: string;
 }
 
 // Accept an optional drizzle transaction handle so callers can compose the
-// insert with other writes that must roll back together (e.g. CLI auth grant
-// approval, where minting the key and updating the grant row need to be
-// atomic — see `approveGrant` in lib/actions/cli-login/index.ts). When no tx
-// is passed we fall back to the singleton `db`.
+// insert with other writes that must roll back together. When no tx is passed
+// we fall back to the singleton `db`.
 type DrizzleExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export async function createApiKey(

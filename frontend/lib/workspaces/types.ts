@@ -4,6 +4,17 @@ export type Project = {
   workspaceId: string;
 };
 
+export interface AccessibleProject {
+  id: string;
+  name: string;
+}
+
+export interface AccessibleWorkspace {
+  id: string;
+  name: string;
+  projects: AccessibleProject[];
+}
+
 export type WorkspaceRole = "member" | "admin" | "owner";
 
 export interface WorkspaceUser {

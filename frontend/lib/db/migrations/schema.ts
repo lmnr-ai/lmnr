@@ -447,39 +447,6 @@ export const apiKeys = pgTable(
   ]
 );
 
-export const cliLoginGrants = pgTable(
-  "cli_login_grants",
-  {
-    sessionId: text("session_id").primaryKey().notNull(),
-    publicKey: text("public_key").notNull(),
-    clientInfo: jsonb("client_info").default({}).notNull(),
-    status: text().default("pending").notNull(),
-    approvedUserId: uuid("approved_user_id"),
-    approvedProjectId: uuid("approved_project_id"),
-    approvedWorkspaceId: uuid("approved_workspace_id"),
-    encryptedPayload: text("encrypted_payload"),
-    encryptedNonce: text("encrypted_nonce"),
-    ephemeralPublicKey: text("ephemeral_public_key"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "string" }),
-    claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "string" }),
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
-  },
-  (table) => [
-    index("cli_login_grants_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamptz_ops")),
-    foreignKey({
-      columns: [table.approvedUserId],
-      foreignColumns: [users.id],
-      name: "cli_login_grants_approved_user_id_fkey",
-    }).onDelete("set null"),
-    foreignKey({
-      columns: [table.approvedProjectId],
-      foreignColumns: [projects.id],
-      name: "cli_login_grants_approved_project_id_fkey",
-    }).onDelete("set null"),
-  ]
-);
-
 export const renderTemplates = pgTable(
   "render_templates",
   {

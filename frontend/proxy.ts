@@ -14,20 +14,11 @@ export default withAuth(
 
     const token = req.nextauth.token;
 
-    // CLI auth grant lifecycle is unauthenticated (the CLI mints the session id
-    // locally before any session exists). Any other future /api/cli/* route
-    // falls through to the session-required branch below. Use exact-match +
-    // trailing-slash guards so a hypothetical future `/api/cli/grantsX` route
-    // can't slip through the unauthenticated branch on a bare
-    // `startsWith("/api/cli/grants")`.
-    const cliPath = req.nextUrl.pathname;
-    if (cliPath === "/api/cli/grants" || cliPath.startsWith("/api/cli/grants/")) {
-      return NextResponse.next();
-    }
-    if (cliPath.startsWith("/api/cli/")) {
-      if (!token) {
-        return NextResponse.json({ error: "Authentication required", code: "UNAUTHENTICATED" }, { status: 401 });
-      }
+    // CLI-login routes are NOT membership-gated here: approve / init-workspace
+    // do their own session + same-origin + membership checks in-handler, and
+    // token is intentionally unauthenticated (the CLI is a non-browser caller
+    // proving possession of the jose code + PKCE verifier).
+    if (req.nextUrl.pathname.startsWith("/api/cli-login/")) {
       return NextResponse.next();
     }
 
@@ -109,7 +100,7 @@ export const config = {
     "/api/projects/:path+",
     "/api/workspaces/:path+",
     "/api/shared/traces/:path+",
-    "/api/cli/:path+",
+    "/api/cli-login/:path*",
     "/uploads/:path+",
     // Authenticated app routes: withAuth redirects unauthenticated requests to
     // `/sign-in?callbackUrl=<original URL with query>`, preserving deep links

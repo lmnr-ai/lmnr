@@ -610,13 +610,6 @@
       "when": 1779878869373,
       "tag": "0086_bouncy_the_initiative",
       "breakpoints": true
-    },
-    {
-      "idx": 87,
-      "version": "7",
-      "when": 1780000000000,
-      "tag": "0087_cli_login_grants",
-      "breakpoints": true
     }
   ]
 }

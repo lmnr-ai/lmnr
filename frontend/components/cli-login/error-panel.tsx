@@ -4,29 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface CliLoginErrorProps {
-  reason: "missing-params" | "invalid-session" | "expired-session" | "claimed-session";
+  reason: "missing-params";
 }
 
 const COPY: Record<CliLoginErrorProps["reason"], { title: string; description: string }> = {
   "missing-params": {
     title: "CLI session info missing",
     description:
-      "This page expects a session_id and public_key from the CLI. Re-run `lmnr-cli auth login` to generate a fresh link.",
-  },
-  "invalid-session": {
-    title: "CLI session not found",
-    description:
-      "This session_id doesn't match any pending CLI grant. The link may have been mistyped or generated against a different deployment. Re-run `lmnr-cli auth login` to generate a fresh link.",
-  },
-  "expired-session": {
-    title: "CLI session expired",
-    description:
-      "This CLI grant expired before you authorized it. CLI sessions are valid for 10 minutes. Re-run `lmnr-cli auth login` to generate a fresh link.",
-  },
-  "claimed-session": {
-    title: "CLI session already used",
-    description:
-      "This CLI grant has already been approved or claimed. Re-run `lmnr-cli auth login` if you need a new session.",
+      "This page expects loopback parameters from the CLI. Re-run `lmnr-cli setup` to generate a fresh link, or use `lmnr-cli setup --no-browser` for the manual flow.",
   },
 };
 
