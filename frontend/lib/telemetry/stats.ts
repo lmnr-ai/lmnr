@@ -24,20 +24,6 @@ const VIEW_BACKING_TABLES: Record<string, string> = {
   event_clusters_all_v0: "events_to_clusters",
 };
 
-// Bucket raw counts to coarse magnitudes so telemetry can't be used to
-// fingerprint a deployment by exact row counts while still conveying scale.
-const bucket = (n: number): string => {
-  if (n <= 0) return "0";
-  if (n < 100) return "<100";
-  if (n < 1_000) return "100-1k";
-  if (n < 10_000) return "1k-10k";
-  if (n < 100_000) return "10k-100k";
-  if (n < 1_000_000) return "100k-1M";
-  if (n < 10_000_000) return "1M-10M";
-  if (n < 100_000_000) return "10M-100M";
-  return "100M+";
-};
-
 interface TableRow {
   name: string;
   total_rows: string | number | null;
@@ -96,7 +82,7 @@ export interface TelemetrySnapshot {
 
 export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
   const counts = await collectViewCounts();
-  const bucketed = Object.fromEntries(Object.entries(counts).map(([view, n]) => [`count_${view}`, bucket(n)]));
+  const countProps = Object.fromEntries(Object.entries(counts).map(([view, n]) => [`count_${view}`, n]));
 
   const features = collectFeatureFlags();
   const featureProps = Object.fromEntries(Object.entries(features).map(([f, on]) => [`feature_${f}`, on]));
@@ -110,7 +96,7 @@ export const collectSnapshot = async (): Promise<TelemetrySnapshot> => {
   const common = {
     version,
     environment,
-    ...bucketed,
+    ...countProps,
     ...featureProps,
     ...(label ? { label } : {}),
   };

@@ -45,10 +45,12 @@ const sendHeartbeat = async (): Promise<void> => {
       properties: {
         ...snapshot.properties,
         $set: snapshot.setProperties,
+        // Setting $ip to null tells PostHog to drop the source IP entirely
+        // (not just skip geoip enrichment), so no IP is ever stored against
+        // the deployment. Keeps the heartbeat anonymous beyond the opaque id.
+        $ip: null,
       },
-      // First-party proxy still sees the source IP; disabling geoip stops it
-      // being turned into location person-properties, keeping the deployment
-      // anonymous beyond the opaque instance id.
+      // Belt-and-suspenders: also skip geoip enrichment on ingest.
       disableGeoip: true,
     });
   } catch (error) {
