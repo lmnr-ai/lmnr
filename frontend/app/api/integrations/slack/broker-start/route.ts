@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod/v4";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
 // browser here; this route calls the Laminar Cloud broker's /start with the
@@ -28,7 +29,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
     return NextResponse.redirect(errorRedirect);
   }
-  if (!workspaceId) {
+  // Validate workspaceId as a UUID up front (matching the direct OAuth path's
+  // z.guid()) so a malformed id fails fast here instead of embedding garbage in
+  // the broker returnUrl and bouncing off the broker's own z.guid() with a 400.
+  if (workspaceId === null || !z.guid().safeParse(workspaceId).success) {
     return NextResponse.redirect(errorRedirect);
   }
 
