@@ -37,9 +37,12 @@ export async function GET(request: NextRequest): Promise<Response> {
   // (e.g. a leaked state paired with an attacker's OAuth code) finds the record
   // already gone and is rejected before any code exchange or claim mint. The
   // record also carries the PKCE verifier needed to redeem the code below.
+  // The state is verified at this point, so we have a trusted returnUrl: send a
+  // benign double-callback back to the instance with slack=error rather than
+  // stranding the user on a raw broker JSON page. No token/claim is minted.
   const consumed = await consumeState(state);
   if (!consumed) {
-    return NextResponse.json({ error: "Invalid or expired state" }, { status: 400 });
+    return NextResponse.redirect(buildInstanceRedirect(state.returnUrl, { slack: "error" }));
   }
 
   if (slackError || !code) {
