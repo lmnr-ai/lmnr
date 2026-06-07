@@ -22,13 +22,18 @@ const sendHeartbeat = async (): Promise<void> => {
     return;
   }
 
-  // From here on we hold the window. If anything fails (ClickHouse, Postgres,
-  // PostHog), release it so the next hourly tick retries instead of waiting out
-  // the full 6h period on a transient error.
+  // From here on we hold the window. If gathering or sending the event fails
+  // (ClickHouse, Postgres, PostHog), release the window so the next hourly tick
+  // retries instead of waiting out the full 6h period on a transient error.
+  const client = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 1, flushInterval: 0 });
   try {
     const snapshot = await collectSnapshot();
 
-    const client = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST, flushAt: 1, flushInterval: 0 });
+    // flushAt:1 means capture enqueues and flushes the event immediately, so
+    // once this returns the event is on its way. shutdown() below is just
+    // cleanup and must NOT gate the window — a shutdown error after a
+    // successful send would otherwise free the window and let a later tick
+    // emit a duplicate heartbeat for the same period.
     client.capture({
       distinctId: instanceId,
       event: EVENT,
@@ -41,13 +46,15 @@ const sendHeartbeat = async (): Promise<void> => {
       // anonymous beyond the opaque instance id.
       disableGeoip: true,
     });
-    await client.shutdown();
   } catch (error) {
     console.error("Failed to send telemetry heartbeat:", error);
     await releaseReportingWindow(previousReportedAt).catch((releaseError) =>
       console.error("Failed to release telemetry reporting window:", releaseError)
     );
   }
+
+  // Best-effort cleanup, outside the window-release path.
+  await client.shutdown().catch((error) => console.error("Failed to shut down telemetry client:", error));
 };
 
 // Fire-and-forget anonymous usage telemetry for self-hosted deployments. Polls
