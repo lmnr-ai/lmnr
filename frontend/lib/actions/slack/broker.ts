@@ -70,6 +70,17 @@ function getBrokerSigningKey(): string {
   return key;
 }
 
+// The single-use state/claim records MUST live in a store shared across all
+// broker workers. Without REDIS_URL the cache falls back to per-process memory,
+// so on a horizontally scaled broker /cb and /redeem would hit a different
+// worker than /start and never find the record — failing valid OAuth flows.
+// Fail loudly at the front door (mintState) rather than silently mid-handshake.
+function assertSharedStore(): void {
+  if (!process.env.REDIS_URL) {
+    throw new Error("REDIS_URL is not configured. The Slack broker requires a shared cache (Redis).");
+  }
+}
+
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
 }
@@ -111,6 +122,7 @@ export async function mintState(input: {
   workspaceId: string;
   returnUrl: string;
 }): Promise<string> {
+  assertSharedStore();
   const payload: StatePayload = {
     instanceId: input.instanceId,
     workspaceId: input.workspaceId,
