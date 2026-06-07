@@ -52,6 +52,28 @@ const processPendingInvitations = async (userId: string, email: string): Promise
   });
 };
 
+// Every user needs a personal API key row. This runs in `user.create.after`,
+// which Better Auth fires AFTER the user row is committed (not in the same
+// transaction), so a failed insert here would otherwise leave a user without a
+// key forever — later sign-ins only run `session` hooks. We make it idempotent
+// (existence check, since `api_keys.api_key` is the PK so onConflict can't
+// dedupe per-user) and also call it from `session.create.after` to self-heal
+// any user who slipped through without a key.
+const ensurePersonalApiKey = async (userId: string): Promise<void> => {
+  const [existing] = await db
+    .select({ apiKey: apiKeys.apiKey })
+    .from(apiKeys)
+    .where(eq(apiKeys.userId, userId))
+    .limit(1);
+  if (existing) {
+    return;
+  }
+  await db
+    .insert(apiKeys)
+    .values({ userId, apiKey: generateRandomKey(64) })
+    .onConflictDoNothing();
+};
+
 const trackUserCreated = (email: string, provider: string): void => {
   try {
     const client = PostHogClient();
@@ -218,12 +240,7 @@ export const auth = betterAuth({
           return;
         },
         after: async (user, context) => {
-          // Every user needs a personal API key row (legacy createUser did this
-          // in the same transaction as the user insert).
-          await db
-            .insert(apiKeys)
-            .values({ userId: user.id, apiKey: generateRandomKey(64) })
-            .onConflictDoNothing();
+          await ensurePersonalApiKey(user.id);
 
           trackUserCreated(user.email, providerFromContext(context));
         },
@@ -250,6 +267,11 @@ export const auth = betterAuth({
           return;
         },
         after: async (session) => {
+          // Self-heal: backfill the personal API key for any user whose
+          // `user.create.after` insert failed (that hook runs post-commit, so a
+          // failure there is otherwise never retried).
+          await ensurePersonalApiKey(session.userId);
+
           // In self-hosted mode (no email sending) auto-accept pending workspace
           // invitations on every sign-in. With SEND_EMAIL (cloud), invitations
           // go through the explicit email accept/decline flow instead.
