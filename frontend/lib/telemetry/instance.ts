@@ -55,15 +55,15 @@ export interface ReportingWindowClaim {
 export const claimReportingWindow = async (intervalMs: number): Promise<ReportingWindowClaim> => {
   const intervalSeconds = Math.floor(intervalMs / 1000);
   const rows = await db.execute<{ previous_reported_at: string | null }>(
-    sql.raw(`
-      UPDATE ${SCHEMA}.instance AS i
+    sql`
+      UPDATE ${sql.raw(SCHEMA)}.instance AS i
       SET last_reported_at = now()
-      FROM (SELECT last_reported_at FROM ${SCHEMA}.instance WHERE id = true) AS prev
+      FROM (SELECT last_reported_at FROM ${sql.raw(SCHEMA)}.instance WHERE id = true) AS prev
       WHERE i.id = true
         AND (i.last_reported_at IS NULL
-             OR i.last_reported_at < now() - interval '${intervalSeconds} seconds')
+             OR i.last_reported_at < now() - make_interval(secs => ${intervalSeconds}))
       RETURNING prev.last_reported_at AS previous_reported_at
-    `)
+    `
   );
   if (rows.length === 0) {
     return { claimed: false, previousReportedAt: null };

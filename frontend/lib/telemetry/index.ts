@@ -57,6 +57,8 @@ const sendHeartbeat = async (): Promise<void> => {
   await client.shutdown().catch((error) => console.error("Failed to shut down telemetry client:", error));
 };
 
+let started = false;
+
 // Fire-and-forget anonymous usage telemetry for self-hosted deployments. Polls
 // hourly; the 6h cadence is enforced by the DB window claim, not the timer, so
 // restarts and multiple replicas can't over-report. Never throws into boot.
@@ -64,6 +66,14 @@ export const startTelemetry = async (): Promise<void> => {
   if (!isFeatureEnabled(Feature.TELEMETRY)) {
     return;
   }
+
+  // Guard against repeated calls (e.g. Next.js hot-reload re-running the boot
+  // hook) stacking multiple setInterval timers. The DB claim already prevents
+  // duplicate emits, but stacked timers would still leak.
+  if (started) {
+    return;
+  }
+  started = true;
 
   try {
     await ensureTelemetrySchema();
