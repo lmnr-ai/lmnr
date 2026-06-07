@@ -11,6 +11,10 @@ interface SlackConnectButtonProps {
   slackClientId?: string;
   slackRedirectUri?: string;
   returnPath?: string;
+  // When true (self-hosted brokered mode), the button links to this instance's
+  // broker-start route instead of building a direct Slack authorize URL. Cloud
+  // mode (slackClientId/slackRedirectUri) takes precedence when both are set.
+  brokerEnabled?: boolean;
 }
 
 export default function SlackConnectButton({
@@ -18,20 +22,30 @@ export default function SlackConnectButton({
   slackClientId,
   slackRedirectUri,
   returnPath,
+  brokerEnabled,
 }: SlackConnectButtonProps) {
   const slackURL = useMemo(() => {
-    if (!slackClientId || !slackRedirectUri) return;
+    if (slackClientId && slackRedirectUri) {
+      const state = returnPath ? `${workspaceId}:${returnPath}` : workspaceId;
+      const sp = new URLSearchParams({
+        scope: SLACK_SCOPES.join(","),
+        client_id: slackClientId,
+        state,
+        redirect_uri: slackRedirectUri,
+      });
+      return `https://slack.com/oauth/v2/authorize?${sp}`;
+    }
 
-    const state = returnPath ? `${workspaceId}:${returnPath}` : workspaceId;
+    if (brokerEnabled) {
+      const sp = new URLSearchParams({ workspaceId });
+      if (returnPath) {
+        sp.set("returnPath", returnPath);
+      }
+      return `/api/integrations/slack/broker-start?${sp}`;
+    }
 
-    const sp = new URLSearchParams({
-      scope: SLACK_SCOPES.join(","),
-      client_id: slackClientId,
-      state,
-      redirect_uri: slackRedirectUri,
-    });
-    return `https://slack.com/oauth/v2/authorize?${sp}`;
-  }, [workspaceId, slackClientId, slackRedirectUri, returnPath]);
+    return undefined;
+  }, [workspaceId, slackClientId, slackRedirectUri, returnPath, brokerEnabled]);
 
   if (!slackURL) return null;
 

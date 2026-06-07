@@ -31,15 +31,21 @@ pub fn decode_slack_token(
     nonce_hex: &str,
     encrypted_value: &str,
 ) -> anyhow::Result<String> {
+    // Brokered (self-hosted) instances don't set a dedicated SLACK_ENCRYPTION_KEY;
+    // fall back to AEAD_SECRET_KEY so a self-hoster only configures one key. The
+    // frontend's getSlackKeyFromEnv mirrors this fallback so both sides agree.
     let key_hex = std::env::var("SLACK_ENCRYPTION_KEY")
-        .map_err(|_| anyhow::anyhow!("SLACK_ENCRYPTION_KEY environment variable is not set"))?;
+        .or_else(|_| std::env::var("AEAD_SECRET_KEY"))
+        .map_err(|_| {
+            anyhow::anyhow!("Neither SLACK_ENCRYPTION_KEY nor AEAD_SECRET_KEY environment variable is set")
+        })?;
 
     let key = Key::from_slice(
         hex::decode(key_hex)
-            .map_err(|e| anyhow::anyhow!("Failed to decode SLACK_ENCRYPTION_KEY hex: {:?}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to decode Slack encryption key hex: {:?}", e))?
             .as_slice(),
     )
-    .ok_or_else(|| anyhow::anyhow!("Invalid SLACK_ENCRYPTION_KEY"))?;
+    .ok_or_else(|| anyhow::anyhow!("Invalid Slack encryption key"))?;
 
     let nonce_bytes = hex::decode(nonce_hex)
         .map_err(|e| anyhow::anyhow!("Failed to decode nonce hex: {:?}", e))?;

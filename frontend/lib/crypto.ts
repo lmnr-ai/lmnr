@@ -11,9 +11,13 @@ async function getKeyFromEnv(): Promise<Uint8Array> {
 
 async function getSlackKeyFromEnv(): Promise<Uint8Array> {
   await _sodium.ready;
-  const keyHex = process.env.SLACK_ENCRYPTION_KEY;
+  // Brokered (self-hosted) instances don't set a dedicated SLACK_ENCRYPTION_KEY;
+  // fall back to AEAD_SECRET_KEY so a self-hoster only configures one key. Cloud
+  // keeps SLACK_ENCRYPTION_KEY set explicitly. app-server's decode_slack_token
+  // mirrors this fallback so both sides agree on the key.
+  const keyHex = process.env.SLACK_ENCRYPTION_KEY ?? process.env.AEAD_SECRET_KEY;
   if (!keyHex) {
-    throw new Error("SLACK_ENCRYPTION_KEY environment variable is not set");
+    throw new Error("Neither SLACK_ENCRYPTION_KEY nor AEAD_SECRET_KEY environment variable is set");
   }
   return Buffer.from(keyHex, "hex");
 }

@@ -86,6 +86,38 @@ export async function exchangeSlackOauthCode(code: string, redirectUri: string, 
   return data;
 }
 
+// Encrypts the bot token and upserts the workspace's Slack integration. Shared
+// by the direct-connect (cloud) path and the brokered (self-hosted) path so the
+// stored row is identical regardless of how the token was obtained.
+async function persistSlackIntegration(input: {
+  workspaceId: string;
+  teamId: string;
+  teamName: string | null;
+  token: string;
+}) {
+  const { workspaceId, teamId, teamName, token } = input;
+  const { value: encryptedToken, nonce } = await encodeSlackToken(teamId, token);
+
+  await db
+    .insert(slackIntegrations)
+    .values({
+      workspaceId,
+      teamId,
+      teamName,
+      token: encryptedToken,
+      nonceHex: nonce,
+    })
+    .onConflictDoUpdate({
+      target: slackIntegrations.workspaceId,
+      set: {
+        teamId,
+        teamName,
+        token: encryptedToken,
+        nonceHex: nonce,
+      },
+    });
+}
+
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
   const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
 
@@ -96,26 +128,53 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
 
   const data = await exchangeSlackOauthCode(code, redirectUri);
 
-  const { value: encryptedToken, nonce } = await encodeSlackToken(data.team.id, data.access_token);
+  await persistSlackIntegration({
+    workspaceId,
+    teamId: data.team.id,
+    teamName: data.team.name || null,
+    token: data.access_token,
+  });
+}
 
-  await db
-    .insert(slackIntegrations)
-    .values({
-      workspaceId,
-      teamId: data.team.id,
-      teamName: data.team.name || null,
-      token: encryptedToken,
-      nonceHex: nonce,
-    })
-    .onConflictDoUpdate({
-      target: slackIntegrations.workspaceId,
-      set: {
-        teamId: data.team.id,
-        teamName: data.team.name || null,
-        token: encryptedToken,
-        nonceHex: nonce,
-      },
-    });
+const BrokerRedeemResponseSchema = z.object({
+  token: z.string(),
+  teamId: z.string(),
+  teamName: z.string().nullable(),
+});
+
+// Brokered (self-hosted) connect: redeem the one-time claim from the broker for
+// the bot token, server-to-server, authenticated by this instance's issued key,
+// then persist exactly as the direct path does. The token transits over TLS
+// only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL and
+// SLACK_BROKER_INSTANCE_KEY are configured.
+export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string }) {
+  const brokerUrl = process.env.SLACK_BROKER_URL;
+  const instanceKey = process.env.SLACK_BROKER_INSTANCE_KEY;
+  if (!brokerUrl || !instanceKey) {
+    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / SLACK_BROKER_INSTANCE_KEY).");
+  }
+
+  const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/redeem`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${instanceKey}`,
+    },
+    body: JSON.stringify({ claim: input.claim }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Broker redeem failed with status ${response.status}`);
+  }
+
+  const { token, teamId, teamName } = BrokerRedeemResponseSchema.parse(await response.json());
+
+  await persistSlackIntegration({
+    workspaceId: input.workspaceId,
+    teamId,
+    teamName,
+    token,
+  });
 }
 
 export async function deleteSlackIntegration(
