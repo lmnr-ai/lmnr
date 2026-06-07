@@ -3,9 +3,8 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { SLACK_SCOPES } from "@/lib/actions/slack/types";
 import { track } from "@/lib/posthog";
-
-const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 
 interface SlackConnectButtonProps {
   workspaceId: string;

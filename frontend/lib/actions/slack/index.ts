@@ -47,20 +47,17 @@ export async function getSlackIntegration(workspaceId: string): Promise<SlackInt
   return result || null;
 }
 
-export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
-  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+// Exchanges an OAuth code for a bot token via Slack's oauth.v2.access endpoint
+// using HTTP Basic auth with the app credentials. The redirect_uri must match
+// the one used in the authorize leg or Slack returns bad_redirect_uri.
+export async function exchangeSlackOauthCode(code: string, redirectUri: string) {
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
-
   if (!clientId || !clientSecret) {
     throw new Error("No client id/secret provided.");
   }
-  const redirectUri = process.env.SLACK_REDIRECT_URL;
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  if (!redirectUri) {
-    throw new Error("No redirect uri set.");
-  }
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   const tokenResponse = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",
@@ -80,6 +77,19 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
   if (!data.ok) {
     throw new Error(data.error);
   }
+
+  return data;
+}
+
+export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
+  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
+
+  const redirectUri = process.env.SLACK_REDIRECT_URL;
+  if (!redirectUri) {
+    throw new Error("No redirect uri set.");
+  }
+
+  const data = await exchangeSlackOauthCode(code, redirectUri);
 
   const { value: encryptedToken, nonce } = await encodeSlackToken(data.team.id, data.access_token);
 
