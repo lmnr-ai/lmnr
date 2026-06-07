@@ -299,6 +299,12 @@ export async function register() {
       console.log("Initializing Laminar");
       Laminar.initialize();
     }
+
+    // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
+    // operators opt out (see Feature.TELEMETRY). Fire-and-forget — never blocks
+    // or fails boot.
+    const { startTelemetry } = await import("@/lib/telemetry/index.ts");
+    startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
   }
 }
 
