@@ -35,23 +35,27 @@ export async function GET(request: NextRequest) {
   const stateParam = searchParams.get("state");
   const error = searchParams.get("error");
 
-  // Brokered (self-hosted) path: the broker's /cb redirected here with a
-  // one-time claim plus the workspaceId/returnPath this instance embedded in the
-  // returnUrl at /start. Redeem the claim server-to-server for the bot token.
-  const claim = searchParams.get("claim");
-  if (claim) {
-    const workspaceId = searchParams.get("workspaceId") ?? "";
+  // Brokered (self-hosted) path: the broker's /cb redirected here with the
+  // workspaceId/returnPath this instance embedded in the returnUrl at /start,
+  // plus either a one-time claim (success) or slack=error (failed/replayed
+  // OAuth — no claim). The direct-OAuth path carries its context in `state` and
+  // never sets a workspaceId query param, so its presence reliably marks the
+  // brokered callback and ensures the error case also lands on the workspace
+  // integrations page rather than falling through to the /projects fallback.
+  const brokeredWorkspaceId = searchParams.get("workspaceId");
+  if (brokeredWorkspaceId !== null) {
     const returnPath = searchParams.get("returnPath") ?? undefined;
+    const claim = searchParams.get("claim");
     const slackStatus = searchParams.get("slack");
-    if (slackStatus === "error" || !workspaceId) {
-      return NextResponse.redirect(buildRedirectUrl(workspaceId, returnPath, true));
+    if (slackStatus === "error" || !brokeredWorkspaceId || !claim) {
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
     try {
-      await redeemBrokeredSlackToken({ claim, workspaceId });
-      return NextResponse.redirect(buildRedirectUrl(workspaceId, returnPath));
+      await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId });
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath));
     } catch (e) {
       console.error(e);
-      return NextResponse.redirect(buildRedirectUrl(workspaceId, returnPath, true));
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
   }
 
