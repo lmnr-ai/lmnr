@@ -17,7 +17,10 @@ use super::{CHECKPOINTS_EXCHANGE, CHECKPOINTS_ROUTING_KEY, consumer::Checkpoints
 use crate::{
     db::spans::Span,
     mq::{MessageQueue, MessageQueueTrait},
-    traces::{input_dedup::DedupBatch, prompt_hash::extract_system_message, tool_dedup::ToolDedup},
+    traces::{
+        input_dedup::DedupBatch, prompt_hash::extract_system_message,
+        span_attributes::SPAN_PROMPT_HASH, tool_dedup::ToolDedup,
+    },
 };
 
 /// Number of input messages a span must carry to qualify as a checkpoint:
@@ -81,12 +84,17 @@ pub async fn publish_checkpoints_for_batch(
             .unwrap_or_default();
         let model = span.attributes.request_model().unwrap_or_default();
 
+        // Reuse the ingest-time skeleton hash so the consumer doesn't recompute it.
+        let prompt_hash = span.attributes.string_attr(SPAN_PROMPT_HASH).unwrap_or_default();
+
         checkpoints.push(CheckpointsQueueMessage {
             project_id: span.project_id,
+            trace_id: span.trace_id,
             system_prompt,
             tool_definitions_hash: tool_def_hash,
             model,
             span_ids_path: span.attributes.ids_path().unwrap_or_default(),
+            prompt_hash,
         });
     }
 

@@ -14,7 +14,6 @@ use crate::{
         LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
     },
-    traces::prompt_hash::structural_skeleton_hash,
 };
 
 const DYNAMIC_REGEX_TTL_SECONDS: u64 = 30 * 24 * 3600;
@@ -31,8 +30,10 @@ const STABLE_PROMPT_INSTRUCTION: &str =
 
 /// Extract the non-dynamic (stable) portion of a system prompt. Best-effort:
 /// with no LLM provider, or on any LLM / regex failure, returns it unchanged.
+/// `prompt_hash` is the ingest-time skeleton hash keying the dynamic-regex cache.
 pub async fn extract_stable_system_prompt(
     system_prompt: &str,
+    prompt_hash: &str,
     project_id: Uuid,
     cache: Arc<Cache>,
     llm_client: Option<Arc<LlmClient>>,
@@ -42,8 +43,15 @@ pub async fn extract_stable_system_prompt(
         return system_prompt.to_string();
     };
 
-    let Some(pattern) =
-        resolve_dynamic_regex(&cache, &llm_client, project_id, system_prompt, observer).await
+    let Some(pattern) = resolve_dynamic_regex(
+        &cache,
+        &llm_client,
+        project_id,
+        system_prompt,
+        prompt_hash,
+        observer,
+    )
+    .await
     else {
         return system_prompt.to_string();
     };
@@ -66,12 +74,10 @@ async fn resolve_dynamic_regex(
     llm_client: &LlmClient,
     project_id: Uuid,
     system_prompt: &str,
+    prompt_hash: &str,
     observer: Option<&CheckpointObserver>,
 ) -> Option<String> {
-    let key = format!(
-        "{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{}",
-        structural_skeleton_hash(system_prompt)
-    );
+    let key = format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}");
 
     if let Ok(Some(cached)) = cache.get::<String>(&key).await {
         return Some(cached);
