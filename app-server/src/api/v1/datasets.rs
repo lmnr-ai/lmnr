@@ -8,6 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    auth::ProjectContext,
     cache::Cache,
     ch::datapoints::{self as ch_datapoints},
     datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
@@ -30,10 +31,10 @@ struct GetDatasetsRequest {
 #[get("/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectContext,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
     let db = db.into_inner();
     let request = req.into_inner();
     let datasets =
@@ -57,11 +58,11 @@ async fn get_datapoints(
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectContext,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
     let db = db.into_inner();
     let clickhouse_ro = if let Some(clickhouse_ro) = clickhouse_ro.as_ref() {
         clickhouse_ro.clone()
@@ -217,9 +218,9 @@ async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectContext,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
     let db = db.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let request = req.into_inner();

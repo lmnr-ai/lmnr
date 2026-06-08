@@ -2,6 +2,7 @@ use anyhow::Result;
 use sqlx::PgPool;
 use std::future::{Ready, ready};
 use std::sync::Arc;
+use uuid::Uuid;
 
 use actix_web::Error;
 use actix_web::dev::Payload;
@@ -17,6 +18,8 @@ use crate::cache::Cache;
 use crate::db::DB;
 use crate::db::project_api_keys::ProjectApiKey;
 
+pub mod cli_user;
+
 impl FromRequest for ProjectApiKey {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
@@ -26,6 +29,39 @@ impl FromRequest for ProjectApiKey {
             Some(key) => return ready(Ok(key)),
             None => return ready(Err(actix_web::error::ParseError::Incomplete.into())),
         };
+    }
+}
+
+/// The authenticated principal behind a `ProjectContext`. Either a project API
+/// key (the existing `/v1/*` surface) or a BetterAuth user (the `/v1/cli/*`
+/// surface). Carried so future handlers can branch if needed; today's shared
+/// handlers only read `ProjectContext::project_id`.
+#[derive(Clone)]
+#[allow(dead_code)]
+pub enum AuthPrincipal {
+    ApiKey(ProjectApiKey),
+    User { user_id: Uuid },
+}
+
+/// Unified principal consumed by the shared handlers (sql/datasets/rollouts).
+/// `project_id` is resolved by the auth middleware — from the API key for the
+/// key path, or from the `x-lmnr-project-id` header for the CLI user path.
+#[derive(Clone)]
+pub struct ProjectContext {
+    pub project_id: Uuid,
+    #[allow(dead_code)]
+    pub principal: AuthPrincipal,
+}
+
+impl FromRequest for ProjectContext {
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        match req.extensions().get::<Self>().cloned() {
+            Some(ctx) => ready(Ok(ctx)),
+            None => ready(Err(actix_web::error::ParseError::Incomplete.into())),
+        }
     }
 }
 
@@ -65,7 +101,15 @@ async fn validate_project_api_key(
                     req,
                 ));
             }
+            // Additive: also insert the unified ProjectContext so the shared
+            // handlers (sql/datasets/rollouts) can extract it. ProjectApiKey is
+            // still inserted unchanged so every existing handler is unaffected.
+            let project_context = ProjectContext {
+                project_id: api_key.project_id,
+                principal: AuthPrincipal::ApiKey(api_key.clone()),
+            };
             req.extensions_mut().insert(api_key);
+            req.extensions_mut().insert(project_context);
             Ok(req)
         }
         Err(e) => {

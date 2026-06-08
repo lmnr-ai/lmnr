@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
+    auth::ProjectContext,
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::DB,
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -33,14 +34,14 @@ pub struct SqlQueryResponse {
 #[post("query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectContext,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
     let SqlQueryRequest { query, parameters } = req.into_inner();
 
     let tracer = global::tracer("tracer");
