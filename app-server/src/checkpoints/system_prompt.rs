@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_STABLE_PROMPT_REGEX_CACHE_KEY},
-    checkpoints::observe::{CheckpointObserver, run_llm},
+    checkpoints::observe::{CheckpointScope, run_llm},
     llm::{
         LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
@@ -37,7 +37,7 @@ pub async fn extract_stable_system_prompt(
     project_id: Uuid,
     cache: Arc<Cache>,
     llm_client: Option<Arc<LlmClient>>,
-    observer: Option<&CheckpointObserver>,
+    scope: Option<&CheckpointScope>,
 ) -> String {
     let Some(llm_client) = llm_client else {
         return system_prompt.to_string();
@@ -49,7 +49,7 @@ pub async fn extract_stable_system_prompt(
         project_id,
         system_prompt,
         prompt_hash,
-        observer,
+        scope,
     )
     .await
     else {
@@ -75,10 +75,10 @@ async fn resolve_dynamic_regex(
     project_id: Uuid,
     system_prompt: &str,
     prompt_hash: &str,
-    observer: Option<&CheckpointObserver>,
+    scope: Option<&CheckpointScope>,
 ) -> Option<String> {
     if prompt_hash.is_empty() {
-        return generate_dynamic_regex(llm_client, system_prompt, observer).await;
+        return generate_dynamic_regex(llm_client, system_prompt, scope).await;
     }
 
     let key = format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}");
@@ -87,7 +87,7 @@ async fn resolve_dynamic_regex(
         return Some(cached);
     }
 
-    let pattern = generate_dynamic_regex(llm_client, system_prompt, observer).await?;
+    let pattern = generate_dynamic_regex(llm_client, system_prompt, scope).await?;
 
     // Don't pin a broken regex for a month.
     if pattern.is_empty() || Regex::new(&pattern).is_ok() {
@@ -100,7 +100,7 @@ async fn resolve_dynamic_regex(
 async fn generate_dynamic_regex(
     llm_client: &LlmClient,
     system_prompt: &str,
-    observer: Option<&CheckpointObserver>,
+    scope: Option<&CheckpointScope>,
 ) -> Option<String> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
@@ -126,7 +126,7 @@ async fn generate_dynamic_regex(
         model_size: Some(ModelSize::Small),
     };
 
-    let response = match run_llm(observer, llm_client, "extract_stable_system_prompt", &request).await
+    let response = match run_llm(scope, llm_client, "extract_stable_system_prompt", &request).await
     {
         Ok(response) => response,
         Err(e) => {

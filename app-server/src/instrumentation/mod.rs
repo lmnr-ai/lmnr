@@ -18,7 +18,9 @@
 //! ```
 
 pub mod internal_exporter;
-// Shared internal-span builder. `allow(dead_code)`: today's only consumer is `signals`-gated.
+// Shared internal-span builder. `allow(dead_code)`: the checkpoints pipeline consumes most of it,
+// but a few helpers (`event_name` / `run_id` / `set_metadata_i64`) are only used by the
+// `signals`-gated consumer that lives in the private fork.
 #[allow(dead_code)]
 pub mod spans;
 

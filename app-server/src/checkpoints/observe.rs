@@ -1,248 +1,119 @@
-//! Traces the checkpointing pipeline's LLM calls as a single trace in an
-//! internal project (`CHECKPOINTS_INTERNAL_PROJECT_ID`).
+//! Self-traces the checkpointing pipeline's LLM calls as nested OTEL spans
+//! (`checkpoint` → `classify_agent` / `extract_stable_system_prompt`) on the
+//! `lmnr::internal` target. Those spans flow through the internal OTEL provider
+//! (see `crate::instrumentation`) and are no-ops when no internal project is
+//! configured (`CHECKPOINTS_INTERNAL_PROJECT_ID` unset).
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
-use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
+use tracing::{Instrument, info_span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use uuid::Uuid;
 
-use crate::{
-    api::v1::traces::RabbitMqSpanMessage,
-    db::spans::{Span, SpanType},
-    llm::{LlmClient, ProviderContent, ProviderRequest, ProviderResponse, ProviderResult},
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    traces::{
-        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY,
-        span_attributes::{
-            CHECKPOINT_INTERNAL_SPAN, GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_TOKENS,
-            GEN_AI_REQUEST_MODEL, GEN_AI_SYSTEM,
-        },
-        spans::SpanAttributes,
-    },
+use crate::instrumentation::spans::{InternalSpan, SpanType, record_error, set_output, set_usage};
+use crate::llm::{
+    LlmClient, ProviderRequest, ProviderResponse, ProviderResult, ProviderUsageMetadata,
+    request_to_span_input, request_to_tools_attr,
 };
+use crate::traces::span_attributes::CHECKPOINT_INTERNAL_SPAN;
 
-pub struct CheckpointObserver {
-    queue: Arc<MessageQueue>,
-    project_id: Uuid,
-    trace_id: Uuid,
-    root_span_id: Uuid,
-    start_time: DateTime<Utc>,
-    spans: Mutex<Vec<Span>>,
+// `info_span!` needs a literal target; mirrors `crate::instrumentation::INTERNAL_TRACING_TARGET`.
+const INTERNAL_TRACING_TARGET: &str = "lmnr::internal";
+
+/// Routing + association context shared by every span in one checkpoint run.
+#[derive(Clone, Copy)]
+pub struct CheckpointScope {
+    /// Destination project for the internal spans. `None` → not stamped (tracing disabled).
+    pub project_id: Option<Uuid>,
+    /// The client trace being analyzed; surfaced as the internal trace's session id + metadata.
+    pub trace_id: Uuid,
 }
 
-impl CheckpointObserver {
-    pub fn new(queue: Arc<MessageQueue>, project_id: Uuid) -> Self {
-        Self {
-            queue,
-            project_id,
-            trace_id: Uuid::new_v4(),
-            root_span_id: Uuid::new_v4(),
-            start_time: Utc::now(),
-            spans: Mutex::new(Vec::new()),
-        }
+/// The checkpoint pipeline's two span shapes, each pre-applying the per-run association attributes
+/// and the `CHECKPOINT_INTERNAL_SPAN` flag so the producer never re-checkpoints our own spans.
+pub struct SpanBuilder;
+
+impl SpanBuilder {
+    fn base(span: tracing::Span, span_type: SpanType, scope: &CheckpointScope) -> InternalSpan {
+        // The producer's self-ingestion guard (`is_checkpoint_internal`) reads this raw bool attr.
+        span.set_attribute(CHECKPOINT_INTERNAL_SPAN, true);
+        InternalSpan::wrap(span, span_type)
+            .project(scope.project_id)
+            .session_id(&scope.trace_id.to_string())
+            .metadata_str("trace_id", &scope.trace_id.to_string())
     }
 
-    pub async fn run_llm_call(
-        &self,
-        llm_client: &LlmClient,
-        name: &str,
-        request: &ProviderRequest,
-    ) -> ProviderResult<ProviderResponse> {
-        let (model, provider) = llm_client.resolve_model_provider(request);
-        let start = Utc::now();
-        let result = llm_client.generate_content(request).await;
-        let end = Utc::now();
-
-        let (output, status) = match &result {
-            Ok(response) => (response_to_output(response), None),
-            Err(e) => (json!({ "error": e.to_string() }), Some("error".to_string())),
-        };
-        let usage = result.as_ref().ok().and_then(|r| r.usage_metadata.as_ref()).map(|u| {
-            (
-                u.prompt_token_count.unwrap_or(0),
-                u.candidates_token_count.unwrap_or(0),
-            )
-        });
-
-        self.push_span(name, request, &model, &provider, output, status, usage, start, end);
-        result
+    /// Root span for one checkpoint; `parent: None` roots a fresh internal trace.
+    pub fn checkpoint_root(scope: &CheckpointScope) -> tracing::Span {
+        let span = info_span!(target: INTERNAL_TRACING_TARGET, parent: None, "checkpoint");
+        Self::base(span, SpanType::Default, scope).build()
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn push_span(
-        &self,
-        name: &str,
-        request: &ProviderRequest,
-        model: &str,
-        provider: &str,
-        output: Value,
-        status: Option<String>,
-        usage: Option<(i32, i32)>,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-    ) {
-        let mut attributes = HashMap::from([
-            (CHECKPOINT_INTERNAL_SPAN.to_string(), json!(true)),
-            (GEN_AI_REQUEST_MODEL.to_string(), json!(model)),
-            (GEN_AI_SYSTEM.to_string(), json!(provider)),
-        ]);
-        if let Some((input_tokens, output_tokens)) = usage {
-            attributes.insert(GEN_AI_INPUT_TOKENS.to_string(), json!(input_tokens));
-            attributes.insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(output_tokens));
-        }
-
-        let span = Span {
-            span_id: Uuid::new_v4(),
-            trace_id: self.trace_id,
-            project_id: self.project_id,
-            parent_span_id: Some(self.root_span_id),
-            name: name.to_string(),
-            attributes: SpanAttributes::new(attributes),
-            input: Some(request_to_input(request)),
-            output: Some(output),
-            span_type: SpanType::LLM,
-            start_time,
-            end_time,
-            status,
-            events: vec![],
-            tags: None,
-            input_url: None,
-            output_url: None,
-            size_bytes: 0,
-        };
-
-        if let Ok(mut spans) = self.spans.lock() {
-            spans.push(span);
-        }
-    }
-
-    pub async fn finish(self) {
-        let mut spans = self.spans.into_inner().unwrap_or_else(|e| e.into_inner());
-        if spans.is_empty() {
-            return;
-        }
-
-        spans.push(Span {
-            span_id: self.root_span_id,
-            trace_id: self.trace_id,
-            project_id: self.project_id,
-            parent_span_id: None,
-            name: "checkpoint".to_string(),
-            attributes: SpanAttributes::new(HashMap::from([(
-                CHECKPOINT_INTERNAL_SPAN.to_string(),
-                json!(true),
-            )])),
-            input: None,
-            output: None,
-            span_type: SpanType::Default,
-            start_time: self.start_time,
-            end_time: Utc::now(),
-            status: None,
-            events: vec![],
-            tags: None,
-            input_url: None,
-            output_url: None,
-            size_bytes: 0,
-        });
-
-        let messages: Vec<RabbitMqSpanMessage> = spans
-            .into_iter()
-            .map(|span| RabbitMqSpanMessage {
-                span,
-                pre_processed: true,
-                input_dedup: None,
-                output_dedup: None,
-                tool_dedup: None,
-            })
-            .collect();
-
-        let payload = match serde_json::to_vec(&messages) {
-            Ok(payload) => payload,
-            Err(e) => {
-                log::error!("[CHECKPOINTS] Failed to serialize tracing spans: {e:?}");
-                return;
+    fn llm(scope: &CheckpointScope, name: &str) -> InternalSpan {
+        // Literal names so `otel.name` is reliable rather than relying on a runtime field.
+        let span = match name {
+            "classify_agent" => info_span!(target: INTERNAL_TRACING_TARGET, "classify_agent"),
+            "extract_stable_system_prompt" => {
+                info_span!(target: INTERNAL_TRACING_TARGET, "extract_stable_system_prompt")
             }
+            _ => info_span!(target: INTERNAL_TRACING_TARGET, "llm_call"),
         };
-        if payload.len() >= mq_max_payload() {
-            log::warn!("[CHECKPOINTS] Tracing span payload too large, skipping");
-            return;
-        }
-
-        if let Err(e) = self
-            .queue
-            .publish(&payload, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, None)
-            .await
-        {
-            log::warn!("[CHECKPOINTS] Failed to publish tracing spans: {e:?}");
-        }
+        Self::base(span, SpanType::LLM, scope)
     }
 }
 
+/// Run an LLM call, tracing it as a child `LLM` span when `scope` is set. Without a scope the call
+/// runs untraced. The span attaches to the ambient `checkpoint` root via the tracing context.
 pub async fn run_llm(
-    observer: Option<&CheckpointObserver>,
+    scope: Option<&CheckpointScope>,
     llm_client: &LlmClient,
     name: &str,
     request: &ProviderRequest,
 ) -> ProviderResult<ProviderResponse> {
-    match observer {
-        Some(observer) => observer.run_llm_call(llm_client, name, request).await,
-        None => llm_client.generate_content(request).await,
+    let Some(scope) = scope else {
+        return llm_client.generate_content(request).await;
+    };
+
+    let (model, provider) = llm_client.resolve_model_provider(request);
+    let span = SpanBuilder::llm(scope, name)
+        .input(&request_to_span_input(request))
+        .model(&provider, &model)
+        .tools(request_to_tools_attr(request).as_ref())
+        .build();
+
+    let result = llm_client
+        .generate_content(request)
+        .instrument(span.clone())
+        .await;
+
+    match &result {
+        Ok(response) => {
+            set_output(&span, &response_to_output(response));
+            if let Some(usage) = response.usage_metadata.as_ref() {
+                set_llm_usage(&span, usage);
+            }
+        }
+        Err(e) => record_error(&span, format!("{e:?}")),
     }
+    result
 }
 
-fn content_text(content: &ProviderContent) -> String {
-    content
-        .parts
-        .as_ref()
-        .map(|parts| parts.iter().filter_map(|p| p.text.clone()).collect::<Vec<_>>().join(""))
-        .unwrap_or_default()
+fn set_llm_usage(span: &tracing::Span, usage: &ProviderUsageMetadata) {
+    set_usage(
+        span,
+        usage.prompt_token_count,
+        usage.cache_read_input_tokens,
+        usage.candidates_token_count,
+    );
 }
 
-/// OpenAI chat-completions shape, matching `response_to_output` so the span
-/// renderer parses input and output the same way.
-fn request_to_input(request: &ProviderRequest) -> Value {
-    let mut messages: Vec<Value> = Vec::new();
-    if let Some(system) = &request.system_instruction {
-        messages.push(json!({ "role": "system", "content": content_text(system) }));
-    }
-    for content in &request.contents {
-        messages.push(json!({
-            "role": content.role.clone().unwrap_or_else(|| "user".to_string()),
-            "content": content_text(content),
-        }));
-    }
-    json!(messages)
-}
-
+/// Serialize the response's first candidate content as the span output — a `ProviderContent`
+/// (`{role, parts}`), matching `request_to_span_input` so the trace UI parses both identically.
 fn response_to_output(response: &ProviderResponse) -> Value {
-    let parts = response
+    response
         .candidates
         .as_ref()
         .and_then(|c| c.first())
         .and_then(|c| c.content.as_ref())
-        .and_then(|content| content.parts.as_ref());
-
-    let mut text = String::new();
-    let mut tool_calls: Vec<Value> = Vec::new();
-    if let Some(parts) = parts {
-        for part in parts {
-            if let Some(t) = &part.text {
-                text.push_str(t);
-            }
-            if let Some(fc) = &part.function_call {
-                tool_calls.push(json!({ "name": fc.name, "arguments": fc.args }));
-            }
-        }
-    }
-
-    let mut message = json!({ "role": "assistant" });
-    if !text.is_empty() {
-        message["content"] = json!(text);
-    }
-    if !tool_calls.is_empty() {
-        message["tool_calls"] = json!(tool_calls);
-    }
-    json!([message])
+        .and_then(|content| serde_json::to_value(content).ok())
+        .unwrap_or_else(|| json!({ "role": "model", "parts": [] }))
 }
