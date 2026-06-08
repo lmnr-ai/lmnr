@@ -123,10 +123,8 @@ impl JwksCache {
         {
             let state = self.inner.read().await;
             let fresh = state.fetched_at.elapsed() < self.ttl;
-            if fresh {
-                if let Some(key) = state.keys.get(kid) {
-                    return Ok(key.clone());
-                }
+            if fresh && let Some(key) = state.keys.get(kid) {
+                return Ok(key.clone());
             }
         }
         // Stale or unknown kid → refetch.
@@ -171,19 +169,22 @@ impl JwksCache {
 }
 
 /// Verify a BetterAuth access JWT against the JWKS and return its `userId`.
-/// Validates the EdDSA signature + `exp`. Issuer/audience are intentionally
-/// NOT validated (better-auth derives them from the base URL; pinning a literal
-/// risks false rejects across environments). The signature already binds the
-/// token to our JWKS, so this is secure.
+/// Validate EdDSA signature + exp only. `aud`/`iss` are not checked —
+/// better-auth derives them from its baseURL which app-server can't
+/// authoritatively know; project membership (checked per-request below) is the
+/// real authz gate. The signature already binds the token to our JWKS.
 pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyError> {
     let header = decode_header(token)?;
     let kid = header.kid.ok_or(VerifyError::MissingKid)?;
     let key = jwks.decoding_key_for_kid(&kid).await?;
 
     let mut validation = Validation::new(Algorithm::EdDSA);
-    // better-auth's `userId` is non-standard; `sub` is present but we read
-    // `userId`. Only require `exp` from the standard claim set.
+    // Validate EdDSA signature + exp only. `aud`/`iss` are not checked —
+    // better-auth derives them from its baseURL which app-server can't
+    // authoritatively know; project membership (checked per-request below) is
+    // the real authz gate.
     validation.set_required_spec_claims(&["exp"]);
+    validation.validate_aud = false;
 
     let data = decode::<Claims>(token, &key, &validation)?;
     Ok(data.claims.user_id)
@@ -213,10 +214,7 @@ pub async fn cli_user_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let config = req
-        .app_data::<Config>()
-        .map(|data| data.clone())
-        .unwrap_or_else(Default::default);
+    let config = req.app_data::<Config>().cloned().unwrap_or_default();
 
     let db = req
         .app_data::<web::Data<DB>>()
@@ -371,6 +369,30 @@ mod tests {
             &encoding,
             kid,
             serde_json::json!({ "userId": user_id.to_string(), "exp": future_exp() }),
+        );
+        let got = verify_jwt(&token, &jwks).await.expect("verify ok");
+        assert_eq!(got, user_id);
+    }
+
+    /// Regression for the `aud` reject bug: real better-auth tokens carry
+    /// `aud` (= baseURL) and `iss` claims. jsonwebtoken defaults
+    /// `validate_aud = true`, so without disabling it these are rejected with
+    /// `InvalidAudience` even though the signature + exp are valid.
+    #[tokio::test]
+    async fn token_with_aud_and_iss_is_accepted() {
+        let kid = "k1";
+        let (_signing, encoding, decoding) = make_key(kid);
+        let jwks = cache_with(kid, decoding);
+        let user_id = Uuid::new_v4();
+        let token = sign_token(
+            &encoding,
+            kid,
+            serde_json::json!({
+                "userId": user_id.to_string(),
+                "exp": future_exp(),
+                "aud": "https://lmnr.ai",
+                "iss": "https://lmnr.ai"
+            }),
         );
         let got = verify_jwt(&token, &jwks).await.expect("verify ok");
         assert_eq!(got, user_id);
