@@ -31,6 +31,10 @@ export const ensureTelemetrySchema = async (): Promise<void> => {
     await db.execute(
       sql.raw(`
         CREATE TABLE IF NOT EXISTS ${SCHEMA}.instance (
+          -- Singleton-row enforcement: a boolean PK that can only ever be true
+          -- (CHECK (id)) means at most one row can exist. This is the deployment
+          -- identity, so there must be exactly one; getInstanceId's
+          -- ON CONFLICT (id) always targets that single row across racing pods.
           id boolean PRIMARY KEY DEFAULT true,
           instance_id uuid NOT NULL DEFAULT gen_random_uuid(),
           created_at timestamptz NOT NULL DEFAULT now(),

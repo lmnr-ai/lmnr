@@ -79,6 +79,23 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 ```
 
+## Anonymous usage telemetry
+
+Self-hosted deployments send an anonymous usage heartbeat (~every 6 hours) so we
+can understand which versions are running, which features are enabled, and rough
+scale. This helps us prioritize fixes and improvements for self-hosters.
+
+It is **anonymous and contains no PII or customer data**: the payload is keyed by
+an opaque per-deployment UUID (not your email), drops the source IP (`$ip: null`),
+and includes only the app version, a few boolean feature flags, and aggregate row
+counts. It never runs on Laminar Cloud.
+
+To opt out, set in your `.env`:
+
+```sh
+LAMINAR_TELEMETRY_DISABLED=true
+```
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
