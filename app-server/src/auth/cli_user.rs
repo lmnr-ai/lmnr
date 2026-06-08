@@ -8,8 +8,16 @@ use std::time::{Duration, Instant};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
+use sqlx::PgPool;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+
+use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBERSHIP_CACHE_KEY};
+
+/// Membership-cache TTL. Short by design: this is the revocation window —
+/// removing a user from a workspace takes effect within this many seconds,
+/// NOT bounded by the 15m JWT lifetime.
+const PROJECT_MEMBERSHIP_TTL_SECONDS: u64 = 60;
 
 /// JWKS cache TTL. Keys are refetched after this interval, and also eagerly on
 /// an unknown `kid` (handles rotation between scheduled refreshes).
@@ -170,6 +178,30 @@ pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyErr
     Ok(data.claims.user_id)
 }
 
+/// Cached membership check for the CLI user surface. Mirrors the
+/// `get_api_key_from_raw_value` cache pattern: cache hit → return; miss → query
+/// DB → cache the result (both true and false) with a short TTL. Caching the
+/// negative result is acceptable: a non-member who is later added waits at most
+/// `PROJECT_MEMBERSHIP_TTL_SECONDS`, the same window the positive cache gives a
+/// removed member before access is revoked.
+pub async fn is_user_member_of_project(
+    pool: &PgPool,
+    cache: &Cache,
+    user_id: Uuid,
+    project_id: Uuid,
+) -> anyhow::Result<bool> {
+    let cache_key = format!("{PROJECT_MEMBERSHIP_CACHE_KEY}:{user_id}:{project_id}");
+    if let Ok(Some(is_member)) = cache.get::<bool>(&cache_key).await {
+        return Ok(is_member);
+    }
+    let is_member =
+        crate::db::projects::project_has_member(pool, &user_id, &project_id).await?;
+    let _ = cache
+        .insert_with_ttl::<bool>(&cache_key, is_member, PROJECT_MEMBERSHIP_TTL_SECONDS)
+        .await;
+    Ok(is_member)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,6 +323,17 @@ mod tests {
             serde_json::json!({ "exp": future_exp() }),
         );
         assert!(verify_jwt(&token, &jwks).await.is_err());
+    }
+
+    #[test]
+    fn membership_cache_key_shape() {
+        let user = Uuid::nil();
+        let project = Uuid::nil();
+        let key = format!("{PROJECT_MEMBERSHIP_CACHE_KEY}:{user}:{project}");
+        assert_eq!(
+            key,
+            "project_membership:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000"
+        );
     }
 
     #[tokio::test]

@@ -169,6 +169,29 @@ pub async fn get_projects_for_workspace(
     Ok(projects)
 }
 
+/// Returns true if `user_id` is a member of the workspace that owns `project_id`.
+/// Any membership grants access (no role filter) — this is the per-request
+/// authorization for the CLI user-token surface (`/v1/cli/*`).
+pub async fn project_has_member(
+    pool: &PgPool,
+    user_id: &Uuid,
+    project_id: &Uuid,
+) -> anyhow::Result<bool> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+            SELECT 1 FROM projects p
+            JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+            WHERE p.id = $1 AND m.user_id = $2
+        )",
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(exists)
+}
+
 pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,
