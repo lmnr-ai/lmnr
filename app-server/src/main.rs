@@ -1796,11 +1796,19 @@ fn main() -> anyhow::Result<()> {
                         mq_for_http.clone(),
                     ));
 
+                    // Shared in-process JWKS cache for the CLI user-token surface.
+                    // Built once outside the HttpServer closure so all workers share it.
+                    let jwks_cache = web::Data::new(Arc::new(
+                        auth::cli_user::JwksCache::from_env(http_client_for_http.clone()),
+                    ));
+
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
+                        let cli_user_auth =
+                            HttpAuthentication::bearer(auth::cli_user::cli_user_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1831,7 +1839,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
                             .app_data(web::Data::new(http_client_for_http.clone()))
-                            .app_data(web::Data::new(llm_provider_client_for_http.clone()));
+                            .app_data(web::Data::new(llm_provider_client_for_http.clone()))
+                            .app_data(jwks_cache.clone());
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(web::Data::new(limiter.clone()));
@@ -1897,6 +1906,23 @@ fn main() -> anyhow::Result<()> {
                                     ))
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
+                            )
+                            // CLI user-token surface: same handlers as their /v1
+                            // counterparts, behind the BetterAuth JWT validator.
+                            // Project comes from the x-lmnr-project-id header.
+                            .service(
+                                web::scope("/v1/cli")
+                                    .wrap(cli_user_auth.clone())
+                                    .service(
+                                        web::scope("/sql")
+                                            .service(api::v1::sql::execute_sql_query),
+                                    )
+                                    .service(api::v1::datasets::get_datasets)
+                                    .service(api::v1::datasets::get_datapoints)
+                                    .service(api::v1::datasets::create_datapoints)
+                                    .service(api::v1::rollouts::register_session)
+                                    .service(api::v1::rollouts::update_name)
+                                    .service(api::v1::rollouts::delete),
                             )
                             .service(
                                 web::scope("/v1")

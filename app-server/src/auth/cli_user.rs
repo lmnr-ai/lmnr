@@ -3,8 +3,13 @@
 //! membership, and inserts a `ProjectContext` for the `/v1/cli/*` surface.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use actix_web::dev::ServiceRequest;
+use actix_web::{Error, HttpMessage, HttpResponse, web};
+use actix_web_httpauth::extractors::AuthenticationError;
+use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
@@ -12,7 +17,13 @@ use sqlx::PgPool;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+use super::{AuthPrincipal, ProjectContext};
 use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBERSHIP_CACHE_KEY};
+use crate::db::DB;
+
+/// Header carrying the target project id for the CLI user surface. The project
+/// is never in the path; the user picks it per request.
+const PROJECT_ID_HEADER: &str = "x-lmnr-project-id";
 
 /// Membership-cache TTL. Short by design: this is the revocation window —
 /// removing a user from a workspace takes effect within this many seconds,
@@ -178,6 +189,93 @@ pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyErr
     Ok(data.claims.user_id)
 }
 
+fn bad_request(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
+    let response = HttpResponse::BadRequest().json(serde_json::json!({ "error": msg }));
+    (
+        actix_web::error::InternalError::from_response("", response).into(),
+        req,
+    )
+}
+
+fn forbidden(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
+    let response = HttpResponse::Forbidden().json(serde_json::json!({ "error": msg }));
+    (
+        actix_web::error::InternalError::from_response("", response).into(),
+        req,
+    )
+}
+
+/// Bearer middleware for the `/v1/cli/*` scope. Verifies the BetterAuth EdDSA
+/// JWT (401 on bad/expired/unknown-kid), reads `x-lmnr-project-id` (400 on
+/// missing/invalid), authorizes workspace membership (403 on non-member), and
+/// inserts a `ProjectContext { principal: User }` into request extensions.
+pub async fn cli_user_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let config = req
+        .app_data::<Config>()
+        .map(|data| data.clone())
+        .unwrap_or_else(Default::default);
+
+    let db = req
+        .app_data::<web::Data<DB>>()
+        .cloned()
+        .unwrap()
+        .into_inner();
+    let cache = req
+        .app_data::<web::Data<Cache>>()
+        .cloned()
+        .unwrap()
+        .into_inner();
+    let jwks = req
+        .app_data::<web::Data<Arc<JwksCache>>>()
+        .cloned()
+        .unwrap()
+        .into_inner();
+
+    // 1. Verify the JWT → user_id. Any failure → 401.
+    let user_id = match verify_jwt(credentials.token(), &jwks).await {
+        Ok(uid) => uid,
+        Err(e) => {
+            log::warn!("CLI user JWT verification failed: {e}");
+            return Err((AuthenticationError::from(config).into(), req));
+        }
+    };
+
+    // 2. Read + parse the project id header. Missing/invalid → 400.
+    let project_id = match req.headers().get(PROJECT_ID_HEADER) {
+        Some(value) => match value.to_str().ok().and_then(|s| Uuid::parse_str(s).ok()) {
+            Some(id) => id,
+            None => {
+                return Err(bad_request(req, "Invalid x-lmnr-project-id header"));
+            }
+        },
+        None => {
+            return Err(bad_request(req, "Missing x-lmnr-project-id header"));
+        }
+    };
+
+    // 3. Authorize membership (short-TTL cached). Non-member → 403.
+    match is_user_member_of_project(&db.pool, &cache, user_id, project_id).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(forbidden(req, "User is not a member of this project"));
+        }
+        Err(e) => {
+            log::error!("CLI membership check failed: {e}");
+            return Err((AuthenticationError::from(config).into(), req));
+        }
+    }
+
+    // 4. Insert the unified principal.
+    req.extensions_mut().insert(ProjectContext {
+        project_id,
+        principal: AuthPrincipal::User { user_id },
+    });
+    Ok(req)
+}
+
 /// Cached membership check for the CLI user surface. Mirrors the
 /// `get_api_key_from_raw_value` cache pattern: cache hit → return; miss → query
 /// DB → cache the result (both true and false) with a short TTL. Caching the
@@ -323,6 +421,64 @@ mod tests {
             serde_json::json!({ "exp": future_exp() }),
         );
         assert!(verify_jwt(&token, &jwks).await.is_err());
+    }
+
+    /// Exercise the header parse + 400 status mapping without touching DB/JWKS.
+    /// Builds a bare `ServiceRequest` and asserts `bad_request` maps to a 400
+    /// JSON response with the given message.
+    #[actix_web::test]
+    async fn bad_request_maps_to_400() {
+        use actix_web::ResponseError;
+        use actix_web::test::TestRequest;
+        let req = TestRequest::default().to_srv_request();
+        let (err, _req) = bad_request(req, "Missing x-lmnr-project-id header");
+        let resp = err.error_response();
+        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[actix_web::test]
+    async fn forbidden_maps_to_403() {
+        use actix_web::ResponseError;
+        use actix_web::test::TestRequest;
+        let req = TestRequest::default().to_srv_request();
+        let (err, _req) = forbidden(req, "not a member");
+        let resp = err.error_response();
+        assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
+    }
+
+    /// Header parse mirror of the validator's step 2. A valid UUID parses; a
+    /// garbage value and an absent header both fail.
+    #[test]
+    fn project_id_header_parse() {
+        let id = Uuid::new_v4();
+        assert_eq!(Uuid::parse_str(&id.to_string()).ok(), Some(id));
+        assert!(Uuid::parse_str("not-a-uuid").is_err());
+    }
+
+    /// Routing-level: the bearer middleware short-circuits to 401 when no
+    /// credentials are present, BEFORE the validator body runs (so no DB/JWKS
+    /// data is needed). Confirms the `/v1/cli` scope is bearer-protected.
+    #[actix_web::test]
+    async fn missing_bearer_returns_401() {
+        use actix_web::{App, HttpResponse, test, web};
+        use actix_web_httpauth::middleware::HttpAuthentication;
+
+        async fn ok_handler() -> HttpResponse {
+            HttpResponse::Ok().finish()
+        }
+
+        let app = test::init_service(
+            App::new().service(
+                web::scope("/v1/cli")
+                    .wrap(HttpAuthentication::bearer(cli_user_validator))
+                    .route("/datasets", web::get().to(ok_handler)),
+            ),
+        )
+        .await;
+
+        let req = test::TestRequest::get().uri("/v1/cli/datasets").to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
     }
 
     #[test]
