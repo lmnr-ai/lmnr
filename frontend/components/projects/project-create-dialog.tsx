@@ -39,11 +39,10 @@ export default function ProjectCreateDialog({
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true);
     try {
-      const res = await fetch("/api/projects", {
+      const res = await fetch(`/api/workspaces/${workspaceId}/projects`, {
         method: "POST",
         body: JSON.stringify({
           name: newProjectName,
-          workspaceId: workspaceId,
         }),
       });
 
