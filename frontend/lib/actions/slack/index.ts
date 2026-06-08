@@ -144,22 +144,22 @@ const BrokerRedeemResponseSchema = z.object({
 });
 
 // Brokered (self-hosted) connect: redeem the one-time claim from the broker for
-// the bot token, server-to-server, authenticated by this instance's issued key,
-// then persist exactly as the direct path does. The token transits over TLS
-// only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL and
-// SLACK_BROKER_INSTANCE_KEY are configured.
+// the bot token, server-to-server, authenticated by this instance's license
+// key, then persist exactly as the direct path does. The token transits over
+// TLS only — it never appears in a browser URL. Inert unless SLACK_BROKER_URL
+// and LMNR_LICENSE_KEY are configured.
 export async function redeemBrokeredSlackToken(input: { claim: string; workspaceId: string }) {
   const brokerUrl = process.env.SLACK_BROKER_URL;
-  const instanceKey = process.env.SLACK_BROKER_INSTANCE_KEY;
-  if (!brokerUrl || !instanceKey) {
-    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / SLACK_BROKER_INSTANCE_KEY).");
+  const licenseKey = process.env.LMNR_LICENSE_KEY;
+  if (!brokerUrl || !licenseKey) {
+    throw new Error("Slack broker is not configured (SLACK_BROKER_URL / LMNR_LICENSE_KEY).");
   }
 
   const response = await fetch(`${brokerUrl.replace(/\/+$/, "")}/api/broker/slack/redeem`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${instanceKey}`,
+      Authorization: `Bearer ${licenseKey}`,
     },
     body: JSON.stringify({ claim: input.claim }),
   });

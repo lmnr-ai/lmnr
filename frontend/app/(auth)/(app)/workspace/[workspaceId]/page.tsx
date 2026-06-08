@@ -91,7 +91,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               canManageBilling={canManageBilling}
               slackClientId={process.env.SLACK_CLIENT_ID}
               slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-              slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.SLACK_BROKER_INSTANCE_KEY}
+              slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
             />
           </SidebarInset>
         </SidebarProvider>

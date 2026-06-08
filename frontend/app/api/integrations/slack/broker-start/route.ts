@@ -7,7 +7,7 @@ import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
 // browser here; this route calls the Laminar Cloud broker's /start with the
-// instance's issued key (server-to-server, key never enters the browser), then
+// instance's license key (server-to-server, key never enters the browser), then
 // 302s the browser to the Slack authorize URL the broker returns.
 //
 // The returnUrl we hand the broker points back at this instance's callback with
@@ -15,7 +15,7 @@ import { isUserMemberOfWorkspace } from "@/lib/authorization";
 // the way back — the instance must carry its own workspace context.
 export async function GET(request: NextRequest): Promise<Response> {
   const brokerUrl = process.env.SLACK_BROKER_URL;
-  const instanceKey = process.env.SLACK_BROKER_INSTANCE_KEY;
+  const licenseKey = process.env.LMNR_LICENSE_KEY;
   const baseUrl = process.env.NEXT_PUBLIC_URL;
 
   const workspaceId = request.nextUrl.searchParams.get("workspaceId");
@@ -27,10 +27,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   const errorBase = baseUrl ?? request.nextUrl.origin;
   const errorRedirect = `${errorBase}/workspace/${workspaceId ?? ""}?tab=integrations&slack=error`;
 
-  if (!brokerUrl || !instanceKey || !baseUrl) {
-    console.error(
-      "Slack broker connect attempted without SLACK_BROKER_URL / SLACK_BROKER_INSTANCE_KEY / NEXT_PUBLIC_URL"
-    );
+  if (!brokerUrl || !licenseKey || !baseUrl) {
+    console.error("Slack broker connect attempted without SLACK_BROKER_URL / LMNR_LICENSE_KEY / NEXT_PUBLIC_URL");
     return NextResponse.redirect(errorRedirect);
   }
   // Validate workspaceId as a UUID up front (matching the direct OAuth path's
@@ -62,7 +60,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${instanceKey}`,
+        Authorization: `Bearer ${licenseKey}`,
       },
       body: JSON.stringify({ workspaceId, returnUrl: callback.toString() }),
     });
