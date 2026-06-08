@@ -77,6 +77,10 @@ async fn resolve_dynamic_regex(
     prompt_hash: &str,
     observer: Option<&CheckpointObserver>,
 ) -> Option<String> {
+    if prompt_hash.is_empty() {
+        return generate_dynamic_regex(llm_client, system_prompt, observer).await;
+    }
+
     let key = format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}");
 
     if let Ok(Some(cached)) = cache.get::<String>(&key).await {

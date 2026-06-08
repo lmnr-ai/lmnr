@@ -143,9 +143,11 @@ fn parse_classification(args: &Value, existing_agents: &[AgentVersion]) -> Agent
 }
 
 /// No LLM (or it failed): an empty project is a new agent, otherwise attribute
-/// to the most recent existing agent.
+/// to the most recent existing agent. `list_latest_agent_versions` orders rows
+/// by `agent_id` (a `DISTINCT ON` requirement), not by recency, so pick by the
+/// latest-version `created_at` rather than relying on list order.
 fn fallback_classification(existing_agents: &[AgentVersion]) -> AgentClassification {
-    match existing_agents.first() {
+    match existing_agents.iter().max_by_key(|a| a.created_at) {
         None => AgentClassification::NewAgent {
             name: String::new(),
         },

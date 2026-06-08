@@ -60,6 +60,7 @@ pub struct CheckpointsHandler {
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
     pub queue: Arc<MessageQueue>,
+    pub internal_project_id: Option<Uuid>,
 }
 
 #[async_trait]
@@ -84,11 +85,9 @@ impl MessageHandler for CheckpointsHandler {
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
         // Tracing is enabled only when an internal project is configured.
-        let internal_project_id: Option<Uuid> = std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
-            .ok()
-            .and_then(|s| s.parse().ok());
-        let observer =
-            internal_project_id.map(|project_id| CheckpointObserver::new(self.queue.clone(), project_id));
+        let observer = self
+            .internal_project_id
+            .map(|project_id| CheckpointObserver::new(self.queue.clone(), project_id));
 
         let result = self
             .process_checkpoint_inner(message, observer.as_ref())
