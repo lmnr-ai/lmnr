@@ -24,7 +24,6 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import SignalEventsPanel from "../signal-events-panel";
-import AgentVersionPill, { parseAgentVersion } from "./agent-version-pill";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
@@ -163,8 +162,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const hasUser = userId && userId !== "<null>" && userId !== "";
 
   const { tags: traceTags } = useTraceTags(traceId);
-  const agentVersion = useMemo(() => parseAgentVersion(trace?.metadata), [trace?.metadata]);
-  const hasRow2 = hasSession || hasUser || traceTags.length > 0 || !!agentVersion;
+  const hasRow2 = hasSession || hasUser || traceTags.length > 0;
 
   const handleOpenUserTraces = useCallback(() => {
     if (!hasUser) return;
@@ -282,7 +280,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </TooltipProvider>
             </span>
           )}
-          <AgentVersionPill agent={agentVersion} projectId={projectId} />
           <TraceTagsPills traceId={traceId} />
         </div>
       )}
