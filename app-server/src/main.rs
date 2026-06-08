@@ -121,6 +121,7 @@ mod clustering;
 mod data_plane;
 mod datasets;
 mod db;
+mod debugger;
 mod evaluations;
 mod features;
 mod instrumentation;

@@ -302,12 +302,18 @@ pub struct DebugCacheSpanRow {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
     pub input: String,
+    /// output column
+    pub output: String,
     /// `lmnr.sdk.raw.response` attribute (preferred output source). Empty if absent.
     pub raw_response: String,
     /// `gen_ai.output.messages` attribute (fallback output source). Empty if absent.
     pub gen_ai_output: String,
-    /// `gen_ai.response.finish_reason` attribute. Empty if absent.
+    /// `gen_ai.response.finish_reason` attribute (single string). Empty if absent.
     pub finish_reason: String,
+    /// `gen_ai.response.finish_reasons` attribute (JSON array). Empty if absent.
+    pub finish_reasons: String,
+    /// `gen_ai.response.model` attribute. Empty if absent.
+    pub model: String,
 }
 
 /// Fetch one page of a trace's LLM + CACHED spans in `start_time` ASC order,
@@ -327,10 +333,13 @@ pub async fn query_debug_cache_spans_page(
             "SELECT
                 span_id,
                 input,
+                output,
                 JSONExtractRaw(attributes, 'lmnr.sdk.raw.response') AS raw_response,
                 JSONExtractRaw(attributes, 'gen_ai.output.messages') AS gen_ai_output,
-                JSONExtractRaw(attributes, 'gen_ai.response.finish_reason') AS finish_reason
-            FROM spans_v0
+                JSONExtractRaw(attributes, 'gen_ai.response.finish_reason') AS finish_reason,
+                JSONExtractRaw(attributes, 'gen_ai.response.finish_reasons') AS finish_reasons,
+                JSONExtractString(attributes, 'gen_ai.response.model') AS model
+            FROM spans_v0(project_id={project_id:UUID})
             WHERE trace_id = {trace_id:UUID}
               AND span_type IN ('LLM', 'CACHED')
             ORDER BY start_time ASC

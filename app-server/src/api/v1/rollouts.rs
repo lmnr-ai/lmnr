@@ -12,10 +12,10 @@ use crate::{
         },
         project_api_keys::ProjectApiKey,
     },
+    debugger,
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
-    traces::debug_cache,
 };
 
 #[derive(serde::Deserialize)]
@@ -119,7 +119,7 @@ pub async fn lookup_cache(
     let project_id = project_api_key.project_id;
     let body = body.into_inner();
 
-    let outcome = debug_cache::lookup(
+    let outcome = debugger::lookup(
         project_id,
         body.replay_trace_id,
         body.cache_until,
