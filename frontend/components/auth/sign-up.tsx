@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
@@ -33,7 +34,8 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
   const enableAzure = featureFlags[Feature.AZURE_AUTH];
   const enableOkta = featureFlags[Feature.OKTA_AUTH];
   const enableKeycloak = featureFlags[Feature.KEYCLOAK_AUTH];
-  const [error, setError] = useState("");
+  const searchParams = useSearchParams();
+  const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
 
   useEffect(() => {
@@ -47,7 +49,9 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
       // a window.location redirect almost immediately, which would otherwise
       // drop the queued event.
       track("auth", "sign_up_attempted", { provider }, { sendInstantly: true });
-      const { error: signInError } = await signInWithProvider(provider, callbackUrl);
+      // Route OAuth callback failures back to /sign-up (not /sign-in) so the
+      // error surfaces on the page the user actually started from.
+      const { error: signInError } = await signInWithProvider(provider, callbackUrl, "/sign-up");
 
       if (signInError) {
         setError(signInError.message || defaultErrorMessage);

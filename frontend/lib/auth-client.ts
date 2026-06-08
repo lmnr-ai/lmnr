@@ -16,11 +16,13 @@ export type AuthProvider = "github" | "google" | "microsoft-entra-id" | "okta" |
 // the legacy NextAuth `signIn(provider, { callbackUrl })` behaviour.
 //
 // `errorCallbackURL` routes IdP / callback failures (e.g. account-linking gate,
-// missing-email rejection) back to `/sign-in?error=<code>` instead of Better Auth's
-// default `/api/auth/error` page, so the sign-in page's `error` UI runs. The
+// missing-email rejection) back to `<errorPath>?error=<code>` instead of Better
+// Auth's default `/api/auth/error` page, so the originating page's `error` UI
+// runs. `errorPath` defaults to `/sign-in` but callers on `/sign-up` pass their
+// own path so a failed sign-up attempt lands back on sign-up, not sign-in. The
 // original `callbackUrl` is preserved so a successful retry still deep-links.
-export const signInWithProvider = (provider: AuthProvider, callbackURL: string) => {
-  const errorCallbackURL = `/sign-in?callbackUrl=${encodeURIComponent(callbackURL)}`;
+export const signInWithProvider = (provider: AuthProvider, callbackURL: string, errorPath = "/sign-in") => {
+  const errorCallbackURL = `${errorPath}?callbackUrl=${encodeURIComponent(callbackURL)}`;
   if (provider === "github" || provider === "google") {
     return authClient.signIn.social({ provider, callbackURL, errorCallbackURL });
   }
