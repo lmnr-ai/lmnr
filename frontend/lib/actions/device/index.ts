@@ -1,16 +1,9 @@
-import { and, asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
-
-export interface DeviceProject {
-  id: string;
-  name: string;
-  workspaceId: string;
-  workspaceName: string;
-}
+import { deviceCodes } from "@/lib/db/migrations/schema";
 
 export interface DeviceApprovalContext {
   userCode: string;
@@ -18,8 +11,6 @@ export interface DeviceApprovalContext {
   clientId: string | null;
   scope: string | null;
   expiresAt: string;
-  // null after the GET /api/auth/device claim returns; the user must hit that
-  // endpoint before approve will succeed.
   userId: string | null;
 }
 
@@ -64,56 +55,4 @@ export const claimUserCodeForCurrentSession = async (rawUserCode: string): Promi
     // Claim is best-effort — invalid / expired codes surface as banner errors
     // via loadDeviceContext.
   }
-};
-
-export const listUserProjects = async (userId: string): Promise<DeviceProject[]> => {
-  const rows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      workspaceId: projects.workspaceId,
-      workspaceName: workspaces.name,
-    })
-    .from(projects)
-    .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
-    .innerJoin(membersOfWorkspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
-    .where(eq(membersOfWorkspaces.userId, userId))
-    .orderBy(asc(workspaces.name), asc(projects.name));
-  return rows;
-};
-
-// Persist the picked project on the deviceCodes row by appending `project:<id>`
-// to scope. The exchange endpoint parses this back out and mints a project-scoped
-// API key. Guarded by user_id to prevent cross-user takeover.
-export const setDeviceProjectSelection = async (input: {
-  userCode: string;
-  projectId: string;
-  userId: string;
-  baseScope: string | null;
-}): Promise<boolean> => {
-  const userCode = normalizeUserCode(input.userCode);
-  const cleanedBase = (input.baseScope ?? "")
-    .split(/\s+/)
-    .filter((t) => t.length > 0 && !t.startsWith("project:"))
-    .join(" ");
-  const newScope = cleanedBase.length > 0 ? `${cleanedBase} project:${input.projectId}` : `project:${input.projectId}`;
-  const result = await db
-    .update(deviceCodes)
-    .set({ scope: newScope, updatedAt: new Date() })
-    .where(
-      and(eq(deviceCodes.userCode, userCode), eq(deviceCodes.userId, input.userId), eq(deviceCodes.status, "pending"))
-    )
-    .returning({ id: deviceCodes.id });
-  return result.length > 0;
-};
-
-export const extractProjectIdFromScope = (scope: string | null | undefined): string | null => {
-  if (!scope) return null;
-  for (const token of scope.split(/\s+/)) {
-    if (token.startsWith("project:")) {
-      const id = token.slice("project:".length);
-      if (id.length > 0) return id;
-    }
-  }
-  return null;
 };

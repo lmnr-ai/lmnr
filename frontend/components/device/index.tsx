@@ -6,8 +6,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type DeviceApprovalContext, type DeviceProject } from "@/lib/actions/device";
+import { type DeviceApprovalContext } from "@/lib/actions/device";
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -16,16 +15,13 @@ interface Props {
   mode: "enter-code" | "approve";
   rawUserCode?: string;
   context?: DeviceApprovalContext | null;
-  projects?: DeviceProject[];
 }
 
-export default function DeviceApproval({ userEmail, mode, rawUserCode, context, projects = [] }: Props) {
+export default function DeviceApproval({ userEmail, mode, rawUserCode, context }: Props) {
   if (mode === "enter-code") {
     return <CodeEntryForm userEmail={userEmail} />;
   }
-  return (
-    <ApprovalForm userEmail={userEmail} rawUserCode={rawUserCode ?? ""} context={context ?? null} projects={projects} />
-  );
+  return <ApprovalForm userEmail={userEmail} rawUserCode={rawUserCode ?? ""} context={context ?? null} />;
 }
 
 function CodeEntryForm({ userEmail }: { userEmail: string }) {
@@ -69,27 +65,19 @@ function ApprovalForm({
   userEmail,
   rawUserCode,
   context,
-  projects,
 }: {
   userEmail: string;
   rawUserCode: string;
   context: DeviceApprovalContext | null;
-  projects: DeviceProject[];
 }) {
   const { toast } = useToast();
-  const [projectId, setProjectId] = useState<string>(projects[0]?.id ?? "");
   const [submitting, setSubmitting] = useState<null | "approve" | "deny">(null);
   const [completed, setCompleted] = useState<null | "approved" | "denied">(null);
 
   const clientId = context?.clientId ?? "lmnr-cli";
   const scope = useMemo(() => {
     if (!context?.scope) return "projects:rw";
-    return (
-      context.scope
-        .split(/\s+/)
-        .filter((t) => t.length > 0 && !t.startsWith("project:"))
-        .join(" ") || "projects:rw"
-    );
+    return context.scope;
   }, [context?.scope]);
 
   // Invalid / expired / wrong-status banners.
@@ -104,47 +92,11 @@ function ApprovalForm({
     return <CompletionScreen result={completed} />;
   }
 
-  if (projects.length === 0 && !banner) {
-    return (
-      <Centered>
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>No projects yet</CardTitle>
-            <CardDescription>
-              You need at least one project to authorize the CLI. Create one first, then re-run{" "}
-              <code className="font-mono">lmnr-cli login</code>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <a href="/onboarding">Create a project</a>
-            </Button>
-          </CardContent>
-        </Card>
-      </Centered>
-    );
-  }
-
   const submit = async (kind: "approve" | "deny") => {
     if (!context) return;
     setSubmitting(kind);
     try {
       if (kind === "approve") {
-        // Persist the picked project on the device-code row first; the exchange
-        // endpoint reads it after BetterAuth flips status → approved.
-        const selectRes = await fetch("/api/cli/device/select-project", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ userCode: context.userCode, projectId }),
-        });
-        if (!selectRes.ok) {
-          const msg = await selectRes
-            .json()
-            .then((d) => d?.error)
-            .catch(() => null);
-          toast({ variant: "destructive", title: msg ?? "Failed to record project selection" });
-          return;
-        }
         const { error } = await authClient.device.approve({ userCode: context.userCode });
         if (error) {
           toast({ variant: "destructive", title: error.error_description ?? "Failed to approve device" });
@@ -189,20 +141,6 @@ function ApprovalForm({
               <Field label="Scope">
                 <span className="font-mono text-sm">{scope}</span>
               </Field>
-              <Field label="Project">
-                <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Pick a project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.workspaceName} / {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
               <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
@@ -216,7 +154,7 @@ function ApprovalForm({
                 <Button
                   type="button"
                   onClick={() => submit("approve")}
-                  disabled={submitting !== null || !projectId}
+                  disabled={submitting !== null}
                   className="flex-1"
                 >
                   {submitting === "approve" ? "Approving…" : "Approve"}
