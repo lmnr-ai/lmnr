@@ -291,6 +291,21 @@ export async function register() {
         }
       };
       await initializeQuickwit();
+
+      // Prune expired device-flow codes once per hour. BetterAuth's plugin
+      // only deletes rows opportunistically (on poll / approve / deny); a
+      // user who walks away leaves the row indefinitely. Keep ~24 hours of
+      // history so the verification page can still surface "expired" banners
+      // instead of "unknown code".
+      const pruneStaleDeviceCodes = async () => {
+        try {
+          await db.execute("DELETE FROM device_codes WHERE expires_at < now() - INTERVAL '24 hours'");
+        } catch (err) {
+          console.warn("device_codes prune failed:", err instanceof Error ? err.message : String(err));
+        }
+      };
+      await pruneStaleDeviceCodes();
+      setInterval(pruneStaleDeviceCodes, 60 * 60 * 1000).unref();
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
