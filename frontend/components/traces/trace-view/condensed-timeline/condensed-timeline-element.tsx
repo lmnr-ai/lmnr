@@ -1,7 +1,6 @@
 import React, { memo, useMemo } from "react";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
-import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -13,6 +12,7 @@ interface CondensedTimelineElementProps {
   selectedSpan?: TraceViewSpan;
   isIncludedInGroupSelection: boolean | null;
   maxSpanCost: number;
+  isCostHeatmapVisible: boolean;
   onClick: (span: TraceViewSpan) => void;
 }
 
@@ -21,11 +21,10 @@ const CondensedTimelineElement = ({
   selectedSpan,
   isIncludedInGroupSelection,
   maxSpanCost,
+  isCostHeatmapVisible,
   onClick,
 }: CondensedTimelineElementProps) => {
   const { span, left, width, row } = condensedSpan;
-
-  const isCostHeatmapVisible = useTraceViewBaseStore((state) => state.isCostHeatmapVisible);
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [span.spanId, selectedSpan?.spanId]);
   const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";

@@ -47,6 +47,16 @@ export interface BaseSessionViewState {
   /** Per-trace LLM-content visibility in tree mode. Absent → true (default). Not persisted. */
   traceShowTreeContent: Record<string, boolean>;
 
+  /** Per-trace condensed-timeline open/closed state. Toggled by the control-bar
+   *  button and the in-timeline X. Debugger-only at the render layer. Not persisted. */
+  timelineOpenTraceIds: Set<string>;
+  /** Per-trace condensed-timeline zoom. Absent → MIN_ZOOM. Not persisted. */
+  condensedTimelineZoomByTrace: Record<string, number>;
+  /** Per-trace drag-selected visible span ids (with ancestors). Absent → empty. Not persisted. */
+  condensedTimelineVisibleSpanIdsByTrace: Record<string, Set<string>>;
+  /** Shared cost-heatmap toggle across all cards' timelines. Not persisted. */
+  isCostHeatmapVisible: boolean;
+
   /** One-shot scroll request: timeline click → panel list scrolls to group header. */
   scrollToGroup: { traceId: string; groupId: string } | null;
   /** One-shot scroll request: a trace was collapsed → scroll its header into view. */
@@ -99,6 +109,13 @@ export interface BaseSessionViewActions {
 
   setTraceViewMode: (traceId: string, mode: "tree" | "transcript") => void;
   toggleTraceShowTreeContent: (traceId: string) => void;
+
+  toggleTimelineOpen: (traceId: string) => void;
+  setTimelineOpen: (traceId: string, open: boolean) => void;
+  setCondensedTimelineZoom: (traceId: string, zoom: number) => void;
+  setCondensedTimelineVisibleSpanIds: (traceId: string, ids: Set<string>) => void;
+  clearCondensedTimelineSelection: (traceId: string) => void;
+  setIsCostHeatmapVisible: (visible: boolean) => void;
   /** Flip `collapsed` on one span inside a trace's span array. Writes a NEW
    *  array identity so flat-row useMemos keyed on traceSpans recompute. */
   toggleSpanCollapse: (traceId: string, spanId: string) => void;
@@ -197,6 +214,10 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
     transcriptExpandedGroups: new Set<string>(),
     traceViewModes: {},
     traceShowTreeContent: {},
+    timelineOpenTraceIds: new Set<string>(),
+    condensedTimelineZoomByTrace: {},
+    condensedTimelineVisibleSpanIdsByTrace: {},
+    isCostHeatmapVisible: false,
     scrollToGroup: null,
     scrollToTraceId: null,
 
@@ -352,6 +373,43 @@ export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
       const current = get().traceShowTreeContent[traceId] ?? true;
       set({ traceShowTreeContent: { ...get().traceShowTreeContent, [traceId]: !current } } as Partial<T>);
     },
+
+    toggleTimelineOpen: (traceId) => {
+      const next = new Set(get().timelineOpenTraceIds);
+      if (next.has(traceId)) next.delete(traceId);
+      else next.add(traceId);
+      set({ timelineOpenTraceIds: next } as Partial<T>);
+    },
+    setTimelineOpen: (traceId, open) => {
+      const prev = get().timelineOpenTraceIds;
+      if (open === prev.has(traceId)) return;
+      const next = new Set(prev);
+      if (open) next.add(traceId);
+      else next.delete(traceId);
+      set({ timelineOpenTraceIds: next } as Partial<T>);
+    },
+    setCondensedTimelineZoom: (traceId, zoom) =>
+      set({
+        condensedTimelineZoomByTrace: {
+          ...get().condensedTimelineZoomByTrace,
+          [traceId]: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)),
+        },
+      } as Partial<T>),
+    setCondensedTimelineVisibleSpanIds: (traceId, ids) =>
+      set({
+        condensedTimelineVisibleSpanIdsByTrace: {
+          ...get().condensedTimelineVisibleSpanIdsByTrace,
+          [traceId]: ids,
+        },
+      } as Partial<T>),
+    clearCondensedTimelineSelection: (traceId) =>
+      set({
+        condensedTimelineVisibleSpanIdsByTrace: {
+          ...get().condensedTimelineVisibleSpanIdsByTrace,
+          [traceId]: new Set(),
+        },
+      } as Partial<T>),
+    setIsCostHeatmapVisible: (visible) => set({ isCostHeatmapVisible: visible } as Partial<T>),
     toggleSpanCollapse: (traceId, spanId) => {
       const spans = get().traceSpans[traceId];
       if (!spans) return;

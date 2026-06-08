@@ -18,6 +18,7 @@ import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
+import SessionCondensedTimeline from "../session-condensed-timeline";
 import { useSessionViewBaseStore } from "../store";
 import TraceControlBar from "./trace-control-bar";
 
@@ -49,14 +50,19 @@ export default function TraceItem({
   // Only the data the header chrome needs: `spans` gates the pending-expand
   // spinner; `spansError` lets a failed lazy-load still flip out of pending.
   // The collapsed body (input + last-span preview) is its own row now.
-  const { spans, spansError, ensureTraceSpans } = useSessionViewBaseStore(
+  const { spans, spansError, ensureTraceSpans, isTimelineOpen } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
       ensureTraceSpans: s.ensureTraceSpans,
+      isTimelineOpen: s.timelineOpenTraceIds.has(trace.id),
     }),
     shallow
   );
+
+  // Debugger-only: the toggle lives in the expanded control bar, so the timeline
+  // must never orphan-render under a collapsed card.
+  const showTimeline = analyticsFeature === "debugger_sessions" && expanded && isTimelineOpen;
 
   const pendingExpandRef = useRef(false);
   const [isPendingExpand, setIsPendingExpand] = useState(false);
@@ -197,6 +203,7 @@ export default function TraceItem({
               </span>
             </div>
           </button>
+          {showTimeline && <SessionCondensedTimeline trace={trace} />}
           {expanded && (
             <div className="bg-secondary/75 px-3 py-2 border-t">
               <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />
