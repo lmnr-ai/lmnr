@@ -1,6 +1,8 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { bearer } from "better-auth/plugins/bearer";
+import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
 import { jwt } from "better-auth/plugins/jwt";
 import { randomUUID } from "crypto";
@@ -196,6 +198,23 @@ export const auth = betterAuth({
           name: user.name,
           email: user.email,
         }),
+      },
+    }),
+    // Accept Authorization: Bearer <session-token> so the device-flow access
+    // token (which IS a session token) round-trips through getSession().
+    bearer(),
+    // RFC 8628 device authorization for the CLI. /api/auth/device/{code,token}
+    // run the protocol; /api/auth/device + /api/auth/device/{approve,deny} drive
+    // the browser approval page at /device.
+    deviceAuthorization({
+      verificationUri: "/device",
+      expiresIn: "15m",
+      interval: "5s",
+      userCodeLength: 8,
+      deviceCodeLength: 40,
+      validateClient: async (clientId: string) => clientId === "lmnr-cli",
+      schema: {
+        deviceCode: { modelName: "deviceCode" },
       },
     }),
     // Passwordless local-email sign-in (self-hosted convenience); only mounted
