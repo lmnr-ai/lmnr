@@ -476,3 +476,46 @@ fn outcome_serialization_is_tagged_camel_case() {
     let live = serde_json::to_value(CacheLookupResponse::Live {}).unwrap();
     assert_eq!(live["outcome"], "live");
 }
+
+/// All three keys are scoped by the normalized `cache_until` needle. Two windows
+/// over the same `(project, trace)` must map to distinct entry / ready / lock
+/// namespaces so a wider re-run warms cold instead of reading the narrower
+/// window's entries (and so its lock can't block an unrelated window).
+#[test]
+fn keys_are_scoped_by_cache_until_window() {
+    let project = uuid_with_suffix("aaaa");
+    let trace = uuid_with_suffix("bbbb");
+    let hash = "deadbeef";
+    let w8 = normalize_needle("0000-000000000008");
+    let w10 = normalize_needle("0000-000000000010");
+
+    assert_ne!(
+        entry_key(&project, &trace, &w8, hash),
+        entry_key(&project, &trace, &w10, hash),
+        "same input hash in different windows must not collide"
+    );
+    assert_ne!(
+        ready_key(&project, &trace, &w8),
+        ready_key(&project, &trace, &w10),
+        "one window's ready marker must not satisfy another's lookup"
+    );
+    assert_ne!(
+        lock_key(&project, &trace, &w8),
+        lock_key(&project, &trace, &w10),
+        "one window's warmup lock must not block another window"
+    );
+}
+
+/// The needle in the key is the *normalized* form, so two `cache_until` spellings
+/// of the same span (hyphenation / case) share one namespace and reuse the warm.
+#[test]
+fn keys_collapse_equivalent_cache_until_spellings() {
+    let project = uuid_with_suffix("aaaa");
+    let trace = uuid_with_suffix("bbbb");
+    let a = normalize_needle("9E0F-112233445566");
+    let b = normalize_needle("9e0f112233445566");
+    assert_eq!(
+        ready_key(&project, &trace, &a),
+        ready_key(&project, &trace, &b)
+    );
+}

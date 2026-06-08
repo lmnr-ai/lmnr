@@ -2,8 +2,12 @@
 //!
 //! On the first LLM call of a replay, the SDK asks app-server whether a recorded
 //! response exists for a given input hash. The cache is keyed by
-//! `(project_id, replay_trace_id)` and warmed lazily from the original trace's
-//! LLM/CACHED spans (read through `spans_v0`, which reconstructs dedup'd input).
+//! `(project_id, replay_trace_id, cache_until)` and warmed lazily from the
+//! original trace's LLM/CACHED spans (read through `spans_v0`, which
+//! reconstructs dedup'd input). Scoping by the `cache_until` window lets the
+//! same trace be replayed at different cache points within or across sessions:
+//! a wider/narrower window is a distinct namespace that warms cold instead of
+//! reusing a stale window's entries.
 //!
 //! Three outcomes go on the wire (see [`CacheLookupResponse`]):
 //! - **Hit** — warm cache, recorded response found for this input hash.
@@ -95,16 +99,26 @@ pub enum CacheLookupResponse {
     Live {},
 }
 
-fn entry_key(project_id: &Uuid, trace_id: &Uuid, input_hash: &str) -> String {
-    format!("{DEBUGGER_CACHE_KEY}:{project_id}:{trace_id}:{input_hash}")
+/// All three keys are scoped by the normalized `cache_until` needle, not just
+/// `(project, trace)`. The warmed entry set is a pure function of the trace AND
+/// the window it was warmed up to, so a re-run with a wider (or narrower) window
+/// is a distinct namespace that warms cold instead of reading a stale window's
+/// entries — and a warm-but-absent hash stays a true terminal MISS *for that
+/// window*. Scoping the lock and ready marker by the needle too keeps lock
+/// granularity matched to the content: two sessions on the same trace+window
+/// share one warmup, while different windows warm independently without
+/// contending. `session_id` is deliberately NOT in the key — the content is
+/// session-independent, so cross-session sharing is always safe.
+fn entry_key(project_id: &Uuid, trace_id: &Uuid, needle: &str, input_hash: &str) -> String {
+    format!("{DEBUGGER_CACHE_KEY}:{project_id}:{trace_id}:{needle}:{input_hash}")
 }
 
-fn ready_key(project_id: &Uuid, trace_id: &Uuid) -> String {
-    format!("{DEBUGGER_CACHE_READY_KEY}:{project_id}:{trace_id}")
+fn ready_key(project_id: &Uuid, trace_id: &Uuid, needle: &str) -> String {
+    format!("{DEBUGGER_CACHE_READY_KEY}:{project_id}:{trace_id}:{needle}")
 }
 
-fn lock_key(project_id: &Uuid, trace_id: &Uuid) -> String {
-    format!("{DEBUGGER_CACHE_LOCK_KEY}:{project_id}:{trace_id}")
+fn lock_key(project_id: &Uuid, trace_id: &Uuid, needle: &str) -> String {
+    format!("{DEBUGGER_CACHE_LOCK_KEY}:{project_id}:{trace_id}:{needle}")
 }
 
 /// Normalize a `cache_until` needle: strip hyphens, lowercase. Matching is a
@@ -345,23 +359,24 @@ async fn warm(
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
 ) -> anyhow::Result<()> {
+    let needle = normalize_needle(&cache_until);
     let entries = build_entries(project_id, trace_id, &cache_until, clickhouse).await?;
 
     for entry in &entries {
-        let key = entry_key(&project_id, &trace_id, &entry.input_hash);
+        let key = entry_key(&project_id, &trace_id, &needle, &entry.input_hash);
         cache
             .insert_with_ttl(&key, entry.response.clone(), *TTL_SECONDS)
             .await?;
     }
 
     let kept = entries.len();
-    let hashes = entries
-        .iter()
-        .map(|e| e.input_hash.clone())
-        .collect::<Vec<_>>();
     let bytes: usize = entries.iter().map(|e| e.bytes).sum();
     cache
-        .insert_with_ttl(&ready_key(&project_id, &trace_id), true, *TTL_SECONDS)
+        .insert_with_ttl(
+            &ready_key(&project_id, &trace_id, &needle),
+            true,
+            *TTL_SECONDS,
+        )
         .await?;
 
     log::debug!(
@@ -401,7 +416,7 @@ async fn wait_for_ready(cache: &Arc<Cache>, ready: &str, timeout: Duration) -> b
 
 /// Look up a recorded response for one replay LLM call, warming the cache on the
 /// first cold lookup. `session_id` is intentionally NOT part of the cache key —
-/// the identity is `(project_id, replay_trace_id)`.
+/// the identity is `(project_id, replay_trace_id, cache_until)`.
 pub async fn lookup(
     project_id: Uuid,
     replay_trace_id: Uuid,
@@ -410,8 +425,9 @@ pub async fn lookup(
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
 ) -> CacheLookupResponse {
-    let ready = ready_key(&project_id, &replay_trace_id);
-    let entry = entry_key(&project_id, &replay_trace_id, &input_hash);
+    let needle = normalize_needle(&cache_until);
+    let ready = ready_key(&project_id, &replay_trace_id, &needle);
+    let entry = entry_key(&project_id, &replay_trace_id, &needle, &input_hash);
 
     if cache.exists(&ready).await.unwrap_or(false) {
         return read_entry(&cache, &entry).await;
@@ -419,7 +435,7 @@ pub async fn lookup(
 
     // COLD: a single winner warms; everyone (winner and waiters) then waits on
     // the ready marker so the whole request is bounded by the warmup timeout.
-    let lock = lock_key(&project_id, &replay_trace_id);
+    let lock = lock_key(&project_id, &replay_trace_id, &needle);
     if cache
         .try_acquire_lock(&lock, *LOCK_TTL_SECONDS)
         .await
