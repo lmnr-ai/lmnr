@@ -1,8 +1,8 @@
-import { genericOAuthClient, jwtClient } from "better-auth/client/plugins";
+import { deviceAuthorizationClient, genericOAuthClient, jwtClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-  plugins: [genericOAuthClient(), jwtClient()],
+  plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient()],
 });
 
 export const { signIn, signOut, useSession, getSession } = authClient;

@@ -624,6 +624,13 @@
       "when": 1779878869375,
       "tag": "0088_lam_1720_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1780012800000,
+      "tag": "0089_lam_1720_device_code",
+      "breakpoints": true
     }
   ]
 }
