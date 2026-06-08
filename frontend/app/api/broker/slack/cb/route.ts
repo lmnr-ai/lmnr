@@ -61,7 +61,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       codeVerifier: consumed.codeVerifier,
     });
 
-    const claim = await mintClaim({ token, teamId, teamName, instanceId: state.instanceId });
+    const claim = await mintClaim({
+      token,
+      teamId,
+      teamName,
+      instanceId: state.instanceId,
+      workspaceId: state.workspaceId,
+    });
 
     return NextResponse.redirect(
       buildInstanceRedirect(state.returnUrl, {

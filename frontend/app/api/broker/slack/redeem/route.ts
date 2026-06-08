@@ -27,6 +27,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       token: payload.token,
       teamId: payload.teamId,
       teamName: payload.teamName,
+      workspaceId: payload.workspaceId,
     });
   } catch (error) {
     console.error("Slack broker /redeem error:", error);

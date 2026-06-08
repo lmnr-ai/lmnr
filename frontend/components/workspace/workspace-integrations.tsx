@@ -10,12 +10,14 @@ interface WorkspaceIntegrationsProps {
   workspaceId: string;
   slackClientId?: string;
   slackRedirectUri?: string;
+  slackBrokerEnabled?: boolean;
 }
 
 export default function WorkspaceIntegrations({
   workspaceId,
   slackClientId,
   slackRedirectUri,
+  slackBrokerEnabled,
 }: WorkspaceIntegrationsProps) {
   useEffect(() => {
     track("integrations", "page_viewed");
@@ -29,6 +31,7 @@ export default function WorkspaceIntegrations({
           workspaceId={workspaceId}
           slackClientId={slackClientId}
           slackRedirectUri={slackRedirectUri}
+          brokerEnabled={slackBrokerEnabled}
         />
       </div>
     </>
