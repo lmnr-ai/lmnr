@@ -102,6 +102,20 @@ pub trait MessageQueueTrait {
         ttl_ms: Option<u64>,
     ) -> anyhow::Result<()>;
 
+    /// Publish with a tight retry envelope for reproducible / non-essential
+    /// payloads (e.g. Quickwit indexer, signals queue). Callers MUST treat the
+    /// returned error as drop-and-continue — under broker memory pressure the
+    /// long retry envelope on `publish` is what blocks the consumer pipeline
+    /// and feeds the cascade. Only the Rabbit backend tightens the budget;
+    /// other backends fall through to `publish`.
+    async fn publish_best_effort(
+        &self,
+        message: &[u8],
+        exchange: &str,
+        routing_key: &str,
+        ttl_ms: Option<u64>,
+    ) -> anyhow::Result<()>;
+
     async fn get_receiver(
         &self,
         queue_name: &str,

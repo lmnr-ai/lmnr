@@ -29,8 +29,11 @@ pub async fn publish_for_indexing(
         ));
     }
 
+    // Indexer payloads are derivable from ClickHouse, so a tight-budget
+    // publish that fails fast under broker memory pressure is safer than the
+    // long primary-publish retry that would block the consumer pipeline.
     queue
-        .publish(
+        .publish_best_effort(
             &serialized_payload,
             SPANS_INDEXER_EXCHANGE,
             SPANS_INDEXER_ROUTING_KEY,
