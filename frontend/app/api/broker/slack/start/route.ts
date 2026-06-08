@@ -5,7 +5,7 @@ import { authenticateInstance, buildSlackAuthorizeUrl, getBearerToken, mintState
 
 const StartRequestSchema = z.object({
   workspaceId: z.guid(),
-  returnUrl: z.url({ protocol: /^https$/ }),
+  returnUrl: z.url(),
 });
 
 // Server-to-server: the calling instance authenticates with its issued key and
