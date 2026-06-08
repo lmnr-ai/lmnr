@@ -9,10 +9,9 @@ import { eq } from "drizzle-orm";
 import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
-import { apiKeys, membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
 import PostHogClient from "@/lib/posthog/server";
 import { getEmailsConfig } from "@/lib/server-utils";
-import { generateRandomKey } from "@/lib/utils";
 
 import { Feature, isFeatureEnabled } from "./features/features";
 
@@ -50,21 +49,6 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
     }
   });
-};
-
-// Every user needs a personal API key row. This runs in `user.create.after`,
-// which Better Auth fires AFTER the user row is committed (not in the same
-// transaction), so a failed insert here would otherwise leave a user without a
-// key forever — later sign-ins only run `session` hooks. The insert is an
-// atomic upsert on the `api_keys_user_id_idx` UNIQUE index (one personal key
-// per user), so concurrent sign-ins / overlapping create+session hooks can't
-// race two rows in; we also call it from `session.create.after` to self-heal
-// any user who slipped through without a key.
-const ensurePersonalApiKey = async (userId: string): Promise<void> => {
-  await db
-    .insert(apiKeys)
-    .values({ userId, apiKey: generateRandomKey(64) })
-    .onConflictDoNothing({ target: apiKeys.userId });
 };
 
 const trackUserCreated = (email: string, provider: string): void => {
@@ -233,8 +217,6 @@ export const auth = betterAuth({
           return;
         },
         after: async (user, context) => {
-          await ensurePersonalApiKey(user.id);
-
           trackUserCreated(user.email, providerFromContext(context));
         },
       },
@@ -260,11 +242,6 @@ export const auth = betterAuth({
           return;
         },
         after: async (session) => {
-          // Self-heal: backfill the personal API key for any user whose
-          // `user.create.after` insert failed (that hook runs post-commit, so a
-          // failure there is otherwise never retried).
-          await ensurePersonalApiKey(session.userId);
-
           // In self-hosted mode (no email sending) auto-accept pending workspace
           // invitations on every sign-in. With SEND_EMAIL (cloud), invitations
           // go through the explicit email accept/decline flow instead.

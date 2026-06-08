@@ -434,7 +434,7 @@ export const apiKeys = pgTable(
     name: text().default("default").notNull(),
   },
   (table) => [
-    uniqueIndex("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
       columns: [table.userId],
       foreignColumns: [users.id],
