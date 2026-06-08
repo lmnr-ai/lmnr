@@ -151,6 +151,24 @@ const Footer = ({ className }: Props) => (
                 ))}
               </div>
             </div>
+            <div className={cn("flex flex-col items-start md:gap-2 lg:gap-3", "flex-1 basis-0 gap-3")}>
+              <Link href="https://www.linkedin.com/company/lmnr-ai/" target="_blank">
+                <LandingButton
+                  variant="minimal"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
+                >
+                  LinkedIn
+                </LandingButton>
+              </Link>
+              <Link href="https://x.com/lmnrai" target="_blank">
+                <LandingButton
+                  variant="minimal"
+                  className="text-xs md:text-sm text-landing-text-100 hover:text-landing-text-200"
+                >
+                  Twitter
+                </LandingButton>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
