@@ -20,6 +20,7 @@ export enum Feature {
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
   AGENT = "AGENT",
+  TELEMETRY = "TELEMETRY",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -131,6 +132,20 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.AGENT) {
     return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.TELEMETRY) {
+    // Anonymous self-hosted usage telemetry. Never runs on Laminar Cloud
+    // (we have first-party analytics there), only on real self-hosted
+    // deployments, and operators can always opt out.
+    if (process.env.LAMINAR_TELEMETRY_DISABLED === "true") {
+      return false;
+    }
+    if (process.env.LAMINAR_CLOUD === "true") {
+      return false;
+    }
+
+    return true;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
