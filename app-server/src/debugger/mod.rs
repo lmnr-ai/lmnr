@@ -52,7 +52,9 @@ static MAX_BYTES: LazyLock<usize> =
     LazyLock::new(|| env_parse("DEBUGGER_CACHE_MAX_BYTES", 67_108_864));
 /// TTL on entry keys + ready marker.
 static TTL_SECONDS: LazyLock<u64> = LazyLock::new(|| env_parse("DEBUGGER_CACHE_TTL_SECONDS", 3600));
-/// Warmup lock TTL (covers the entire synchronous warm).
+/// Warmup lock TTL. The warmup task heartbeats (renews) the lock at ~TTL/3
+/// while it runs, so a warm that paginates a large trace can safely outlive a
+/// single TTL without a second lookup acquiring the lock and double-warming.
 static LOCK_TTL_SECONDS: LazyLock<u64> =
     LazyLock::new(|| env_parse("DEBUGGER_CACHE_LOCK_TTL_SECONDS", 60));
 /// Max wait before a blocked caller degrades to `Live`.
@@ -426,6 +428,31 @@ pub async fn lookup(
         let cache_bg = cache.clone();
         let cache_until_bg = cache_until.clone();
         tokio::spawn(async move {
+            // Warmup paginates the whole trace and can outlive a single
+            // `LOCK_TTL_SECONDS`. Heartbeat the lock at a fraction of its TTL so
+            // it never silently expires mid-warm and lets a second lookup spawn
+            // a duplicate warmup for the same `(project, trace)`.
+            let heartbeat = {
+                let cache_hb = cache_bg.clone();
+                let lock_hb = lock.clone();
+                let ttl = *LOCK_TTL_SECONDS;
+                let interval = Duration::from_secs((ttl / 3).max(1));
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(interval).await;
+                        match cache_hb.renew_lock(&lock_hb, ttl).await {
+                            Ok(true) => {}
+                            // Lock already gone (expired or released) — stop;
+                            // nothing left for us to keep alive.
+                            Ok(false) => break,
+                            Err(e) => {
+                                log::error!("debug cache: failed to renew warmup lock: {e}");
+                            }
+                        }
+                    }
+                })
+            };
+
             if let Err(e) = warm(
                 project_id,
                 replay_trace_id,
@@ -439,6 +466,7 @@ pub async fn lookup(
                     "debug cache warmup failed for project {project_id} trace {replay_trace_id}: {e}"
                 );
             }
+            heartbeat.abort();
             if let Err(e) = cache_bg.release_lock(&lock).await {
                 log::error!("debug cache: failed to release warmup lock: {e}");
             }

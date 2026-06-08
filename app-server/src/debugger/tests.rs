@@ -426,6 +426,38 @@ async fn wait_for_ready_times_out_then_succeeds() {
     assert!(wait_for_ready(&cache, ready, Duration::from_millis(50)).await);
 }
 
+/// The warmup heartbeat keeps the lock alive past its original TTL: an
+/// expired lock can be re-acquired (so a renew must report it's gone), and a
+/// live lock renewed before expiry stays held so no second warmup can start.
+#[tokio::test]
+async fn renew_lock_extends_held_lock_and_reports_expiry() {
+    let cache = in_memory_cache();
+    let lock = "k:warmlock";
+
+    // Acquire with a 1s TTL.
+    assert!(cache.try_acquire_lock(lock, 1).await.unwrap());
+    // A second acquire fails while it's held.
+    assert!(!cache.try_acquire_lock(lock, 1).await.unwrap());
+
+    // Renew to a long TTL before it expires → still held, renew succeeds.
+    assert!(cache.renew_lock(lock, 60).await.unwrap());
+    // Sleep past the *original* 1s TTL; the renewal must have kept it alive.
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    assert!(
+        !cache.try_acquire_lock(lock, 1).await.unwrap(),
+        "renewed lock must still be held past its original TTL"
+    );
+
+    // Release, then a renew on the now-absent lock must report it's gone.
+    cache.release_lock(lock).await.unwrap();
+    assert!(
+        !cache.renew_lock(lock, 60).await.unwrap(),
+        "renewing a released/expired lock must return false"
+    );
+    // And it's freely re-acquirable.
+    assert!(cache.try_acquire_lock(lock, 1).await.unwrap());
+}
+
 #[test]
 fn outcome_serialization_is_tagged_camel_case() {
     let hit = CacheLookupResponse::Hit {
