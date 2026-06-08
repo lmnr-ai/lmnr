@@ -10,19 +10,36 @@ import { db } from "@/lib/db/drizzle";
 // free of telemetry concerns.
 const SCHEMA = "telemetry";
 
+// Postgres' `CREATE ... IF NOT EXISTS` emits a 42P06/42P07 NOTICE on every call
+// once the object exists, which spams the logs on every boot (the steady state).
+// Probe the catalog first and only issue the DDL when the object is actually
+// absent — i.e. real first boot. `IF NOT EXISTS` stays as a backstop for the
+// rare concurrent-first-boot race between replicas; it just won't fire (and so
+// won't log) on the common path.
 export const ensureTelemetrySchema = async (): Promise<void> => {
-  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`));
-  await db.execute(
-    sql.raw(`
-      CREATE TABLE IF NOT EXISTS ${SCHEMA}.instance (
-        id boolean PRIMARY KEY DEFAULT true,
-        instance_id uuid NOT NULL DEFAULT gen_random_uuid(),
-        created_at timestamptz NOT NULL DEFAULT now(),
-        last_reported_at timestamptz,
-        CONSTRAINT instance_singleton CHECK (id)
-      )
-    `)
+  const schemaRows = await db.execute<{ exists: boolean }>(
+    sql`SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = ${SCHEMA}) AS exists`
   );
+  if (!schemaRows[0]?.exists) {
+    await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`));
+  }
+
+  const tableRows = await db.execute<{ exists: boolean }>(
+    sql`SELECT to_regclass(${`${SCHEMA}.instance`}) IS NOT NULL AS exists`
+  );
+  if (!tableRows[0]?.exists) {
+    await db.execute(
+      sql.raw(`
+        CREATE TABLE IF NOT EXISTS ${SCHEMA}.instance (
+          id boolean PRIMARY KEY DEFAULT true,
+          instance_id uuid NOT NULL DEFAULT gen_random_uuid(),
+          created_at timestamptz NOT NULL DEFAULT now(),
+          last_reported_at timestamptz,
+          CONSTRAINT instance_singleton CHECK (id)
+        )
+      `)
+    );
+  }
 };
 
 // Returns the stable anonymous id for this deployment, creating it on first
