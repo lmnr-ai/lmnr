@@ -1,9 +1,8 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import Landing from "@/components/landing";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LandingPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!isFeatureEnabled(Feature.LANDING)) {
     if (!session) {

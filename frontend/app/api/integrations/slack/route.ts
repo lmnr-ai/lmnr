@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 function parseState(state: string): { workspaceId: string; returnPath?: string } {
@@ -58,7 +57,7 @@ export async function GET(request: NextRequest) {
     // public OAuth redirect target, and without the check a user who completed
     // their own broker flow could rewrite workspaceId to any UUID and store their
     // bot token into a workspace they don't belong to.
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session || !(await isUserMemberOfWorkspace(brokeredWorkspaceId, session.user.id))) {
       return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }

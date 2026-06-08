@@ -3,12 +3,11 @@ import { and, eq } from "drizzle-orm";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import InvitationActions from "@/components/invitations/invitation-actions";
 import { LaminarLogo } from "@/components/ui/icons";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
@@ -16,7 +15,7 @@ const INVITATION_EXPIRY_MINUTES = 2880;
 
 const verifyToken = (token: string): JwtPayload => {
   try {
-    return jwt.verify(token, process.env.NEXTAUTH_SECRET!) as JwtPayload;
+    return jwt.verify(token, (process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)!) as JwtPayload;
   } catch (error) {
     console.error("Token verification failed:", token);
     notFound();
@@ -68,7 +67,7 @@ export default async function InvitationsPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const user = session?.user;
 
   if (!user) {

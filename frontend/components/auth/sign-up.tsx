@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import React, { useEffect, useState } from "react";
 
 import logo from "@/assets/logo/logo.svg";
@@ -13,6 +12,7 @@ import { GoogleButton } from "@/components/auth/google-button";
 import { KeycloakButton } from "@/components/auth/keycloak-button";
 import { OktaButton } from "@/components/auth/okta-button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { type AuthProvider, signInWithProvider } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ interface SignUpProps {
   callbackUrl: string;
 }
 
-type Provider = "github" | "google" | "azure-ad" | "okta" | "keycloak";
+type Provider = AuthProvider;
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
@@ -47,10 +47,10 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
       // a window.location redirect almost immediately, which would otherwise
       // drop the queued event.
       track("auth", "sign_up_attempted", { provider }, { sendInstantly: true });
-      const result = await signIn(provider, { callbackUrl });
+      const { error: signInError } = await signInWithProvider(provider, callbackUrl);
 
-      if (result && !result.ok) {
-        setError(result?.error || defaultErrorMessage);
+      if (signInError) {
+        setError(signInError.message || defaultErrorMessage);
       }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : defaultErrorMessage;
@@ -88,8 +88,8 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
           )}
           {enableAzure && (
             <AzureButton
-              onClick={() => handleSignUp("azure-ad")}
-              isLoading={isLoading === "azure-ad"}
+              onClick={() => handleSignUp("microsoft-entra-id")}
+              isLoading={isLoading === "microsoft-entra-id"}
               isDisabled={!!isLoading}
               className={cn({
                 "w-full": enableCredentials,
