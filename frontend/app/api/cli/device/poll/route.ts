@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
         id: deviceCodes.id,
         userId: deviceCodes.userId,
         status: deviceCodes.status,
-        scope: deviceCodes.scope,
         clientId: deviceCodes.clientId,
         expiresAt: deviceCodes.expiresAt,
         lastPolledAt: deviceCodes.lastPolledAt,
@@ -78,7 +77,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const projectId = extractProjectIdFromScope(row.scope);
+    // Claim-then-mint: delete the device_code row FIRST and use the deleted
+    // row's scope/userId for everything downstream. Only one concurrent poll
+    // can win the single-PK delete, so the mint that follows can run at most
+    // once per device_code — closing the double-mint window. A delete failure
+    // aborts before any mint; a mint failure after the delete just makes the
+    // CLI re-run `login` (no orphan key, since the row is already gone).
+    const [claimed] = await db.delete(deviceCodes).where(eq(deviceCodes.id, row.id)).returning({
+      userId: deviceCodes.userId,
+      scope: deviceCodes.scope,
+    });
+    if (!claimed || !claimed.userId) {
+      // Lost the race (another poll already consumed it) or row vanished.
+      return NextResponse.json(
+        { error: "invalid_grant", error_description: "Device code already consumed" },
+        { status: 400 }
+      );
+    }
+
+    const projectId = extractProjectIdFromScope(claimed.scope);
     if (!projectId) {
       return NextResponse.json(
         { error: "invalid_grant", error_description: "Approved device code is missing a project selection" },
@@ -86,10 +103,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isMember = await isUserMemberOfProject(projectId, row.userId);
+    const isMember = await isUserMemberOfProject(projectId, claimed.userId);
     if (!isMember) {
-      // Cleanup so a retry doesn't loop forever on a permission-revoked row.
-      await db.delete(deviceCodes).where(eq(deviceCodes.id, row.id));
       return NextResponse.json(
         { error: "access_denied", error_description: "User is no longer a member of the selected project" },
         { status: 403 }
@@ -108,7 +123,6 @@ export async function POST(req: NextRequest) {
       .where(eq(projects.id, projectId))
       .limit(1);
     if (!projectRow) {
-      await db.delete(deviceCodes).where(eq(deviceCodes.id, row.id));
       return NextResponse.json(
         { error: "invalid_grant", error_description: "Selected project no longer exists" },
         { status: 400 }
@@ -118,7 +132,7 @@ export async function POST(req: NextRequest) {
     const [userRow] = await db
       .select({ email: users.email, id: users.id })
       .from(users)
-      .where(eq(users.id, row.userId))
+      .where(eq(users.id, claimed.userId))
       .limit(1);
 
     const keyName = `lmnr-cli login (${body.device_name?.trim() || "unnamed device"})`.slice(0, 200);
@@ -128,12 +142,6 @@ export async function POST(req: NextRequest) {
       isIngestOnly: false,
     });
 
-    // Single-use: delete the device_code row after a successful mint so a
-    // retry with the same device_code returns invalid_grant rather than
-    // minting a second key. Idempotency from the caller's side is handled by
-    // saving the key locally on first success.
-    await db.delete(deviceCodes).where(eq(deviceCodes.id, row.id));
-
     return NextResponse.json({
       apiKey: key.value,
       apiKeyId: key.id,
@@ -142,7 +150,7 @@ export async function POST(req: NextRequest) {
       projectName: projectRow.name,
       workspaceId: projectRow.workspaceId,
       workspaceName: projectRow.workspaceName,
-      userId: userRow?.id ?? row.userId,
+      userId: userRow?.id ?? claimed.userId,
       userEmail: userRow?.email ?? null,
     });
   } catch (error) {

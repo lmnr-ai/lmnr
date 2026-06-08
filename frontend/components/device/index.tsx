@@ -250,7 +250,7 @@ function CompletionScreen({ result }: { result: "approved" | "denied" }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs uppercase text-muted-foreground">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       {children}
     </div>
   );
