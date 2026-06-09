@@ -1,11 +1,10 @@
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { clearOnboardingState, getOnboardingState, setOnboardingState } from "@/lib/actions/onboarding";
 import { ONBOARDING_COOKIE_VERSION } from "@/lib/actions/onboarding/types";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { projects } from "@/lib/db/migrations/schema";
 import { sendWelcomeEmail } from "@/lib/emails/utils";
@@ -16,7 +15,7 @@ const StateSchema = z.object({
 });
 
 export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -54,7 +53,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
 }
 
 export async function DELETE() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
