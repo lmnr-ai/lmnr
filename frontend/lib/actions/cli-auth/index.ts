@@ -7,8 +7,6 @@ import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
 
-import { buildProjectScope } from "./scope";
-
 export interface SessionProject {
   id: string;
   name: string;
@@ -133,25 +131,34 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
   if (!context) return { error: "We couldn't find that code." };
   if (context.status !== "pending") return { error: "This code has already been processed." };
   // The UI blocks expired codes, but the action is callable directly — reject an
-  // expired code before writing scope so a stale code can't be approved.
+  // expired code before writing metadata so a stale code can't be approved.
   if (new Date(context.expiresAt).getTime() < Date.now()) return { error: "This code has expired." };
 
-  // Authorize project membership BEFORE the scope write — the picker is
+  // The approver MUST be the user who claimed the code. Native deviceApprove
+  // enforces this too (userId !== session → access_denied), but checking here
+  // first prevents writing metadata onto a row this session can't approve.
+  // Un-guarded on purpose: a null userId (never claimed) is rejected as well.
+  if (context.userId !== session.user.id) return { error: "Unauthorized" };
+
+  // Authorize project membership BEFORE the metadata write — the picker is
   // session-scoped but the projectId rides in from the client, so verify the
-  // user actually belongs to it before smuggling it into the device scope.
-  // Fresh check (no cache): a since-removed user must not poison the scope on a
+  // user actually belongs to it before storing it on the device row.
+  // Fresh check (no cache): a since-removed user must not poison the row on a
   // stale 30-day cached `true`.
   const isMember = await isUserMemberOfProject(projectId, session.user.id, { skipCache: true });
   if (!isMember) return { error: "You do not have access to this project" };
 
-  // 1) Write the chosen project into `scope` WHILE the row is pending. deviceApprove
-  //    only writes { status, userId } so this survives the approve.
+  // 1) Write the chosen project into `metadata` WHILE the row is pending.
+  //    deviceApprove only writes { status, userId }, so this survives approve;
+  //    the /device/token before-hook (lib/auth.ts) forwards it to the polling
+  //    CLI as the x-lmnr-metadata response header. `scope` stays the real OAuth
+  //    scope — no more smuggling the projectId through it.
   await db
     .update(deviceCodes)
-    .set({ scope: buildProjectScope(projectId) })
+    .set({ metadata: JSON.stringify({ projectId }) })
     .where(eq(deviceCodes.userCode, userCode));
 
-  // 2) Now approve. The token poll echoes the scope written above.
+  // 2) Now approve.
   try {
     await auth.api.deviceApprove({ body: { userCode }, headers: await headers() });
   } catch (e) {

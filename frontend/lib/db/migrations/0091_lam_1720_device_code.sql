@@ -5,6 +5,7 @@ CREATE TABLE "device_codes" (
 	"user_id" uuid,
 	"client_id" text,
 	"scope" text,
+	"metadata" text,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"last_polled_at" timestamp with time zone,

@@ -1249,6 +1249,10 @@ export const deviceCodes = pgTable(
     userId: uuid("user_id"),
     clientId: text("client_id"),
     scope: text(),
+    // Opaque CLI round-trip metadata (e.g. browser-selected projectId). Delivered
+    // to the polling CLI via an x-lmnr-* response header by a /device/token hook,
+    // NOT echoed by BetterAuth's native token response (which only returns scope).
+    metadata: text(),
     status: text().default("pending").notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
     lastPolledAt: timestamp("last_polled_at", { withTimezone: true, mode: "date" }),
