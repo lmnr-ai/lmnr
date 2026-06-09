@@ -58,7 +58,6 @@ pub struct CheckpointsHandler {
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
     pub queue: Arc<MessageQueue>,
-    pub internal_project_id: Option<Uuid>,
 }
 
 #[async_trait]
@@ -81,10 +80,16 @@ impl MessageHandler for CheckpointsHandler {
 }
 
 impl CheckpointsHandler {
+    fn internal_project_id() -> Option<Uuid> {
+        std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok())
+    }
+
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
         // Lazy root: emits a `checkpoint` trace only if some LLM call runs.
         let root = llm::CheckpointRoot::new(
-            self.internal_project_id,
+            Self::internal_project_id(),
             message.project_id,
             message.trace_id,
             message.span_id,

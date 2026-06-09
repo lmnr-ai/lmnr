@@ -1663,11 +1663,6 @@ fn main() -> anyhow::Result<()> {
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client = llm_provider_client.clone();
                         let queue = mq_for_consumer.clone();
-                        // Process-constant: read once at startup, not per checkpoint.
-                        let internal_project_id: Option<uuid::Uuid> =
-                            std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
-                                .ok()
-                                .and_then(|s| s.parse().ok());
                         worker_pool_clone.spawn(
                             WorkerType::Checkpoints,
                             num_checkpoints_workers as usize,
@@ -1677,7 +1672,6 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 llm_client: llm_client.clone(),
                                 queue: queue.clone(),
-                                internal_project_id,
                             },
                             QueueConfig::new(
                                 CHECKPOINTS_QUEUE,
