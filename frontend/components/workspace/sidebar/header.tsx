@@ -3,7 +3,6 @@
 import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
 import { ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
 import React, { useEffect } from "react";
 import useSWR from "swr";
 
@@ -27,6 +26,7 @@ import {
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
+import { signOut } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Workspace, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types.ts";
@@ -52,8 +52,9 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
     try {
       await deleteLastWorkspaceIdCookie();
       await deleteLastProjectIdCookie();
-      await signOut({ callbackUrl: "/" });
+      await signOut();
       broadcastLogout();
+      window.location.href = "/";
     } catch (e) {
       console.error(e);
     }

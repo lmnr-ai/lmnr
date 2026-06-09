@@ -106,11 +106,11 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
       id,
       workspaceId,
     },
-    process.env.NEXTAUTH_SECRET!,
+    (process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET)!,
     { expiresIn: "48h" }
   );
 
-  const link = `${process.env.NEXTAUTH_URL}/invitations?token=${token}`;
+  const link = `${process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL}/invitations?token=${token}`;
 
   await sendInvitationEmail(email, workspace.name, link);
 

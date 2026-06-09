@@ -1,15 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { updateAlert } from "@/lib/actions/alerts";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function PATCH(request: NextRequest, props: { params: Promise<{ projectId: string; alertId: string }> }) {
   const { projectId, alertId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const userEmail = session?.user?.email ?? undefined;
     const body = await request.json();
     if (userEmail) {

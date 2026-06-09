@@ -1,15 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { type NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const id = params.id;
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const user = session?.user;
 
   if (!user) {

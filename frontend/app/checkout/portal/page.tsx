@@ -1,9 +1,8 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import { getPaymentMethodPortalUrl } from "@/lib/actions/checkout";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
   title: "Billing portal - Laminar",
@@ -24,7 +23,7 @@ export default async function CheckoutPortalPage(props: {
     redirect("/projects");
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     const callback = `/checkout/portal?workspaceId=${encodeURIComponent(workspaceId)}`;
     redirect(`/sign-in?callbackUrl=${encodeURIComponent(callback)}`);

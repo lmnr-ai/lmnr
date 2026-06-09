@@ -1,12 +1,11 @@
 import { eq } from "drizzle-orm";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 
@@ -28,7 +27,7 @@ export default async function CheckoutPage(props: {
   const returnTo = searchParams?.returnTo as string | undefined;
 
   // Session enforced by the (auth) layout; non-null here.
-  const userSession = (await getServerSession(authOptions))!;
+  const userSession = (await getServerSession())!;
 
   const existingStripeCustomer = await getUserSubscriptionInfo(userSession.user.email!);
 
