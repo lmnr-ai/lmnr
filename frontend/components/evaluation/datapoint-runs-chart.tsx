@@ -166,7 +166,6 @@ export default function DatapointRunsChart({
                   tickLine={false}
                   axisLine={false}
                   tickMargin={4}
-                  width="auto"
                   domain={[0, "auto"]}
                   tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 />

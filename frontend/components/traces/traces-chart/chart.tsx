@@ -6,12 +6,33 @@ import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recha
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
+import {
+  chartConfig,
+  getTickCountForWidth,
+  isValidZoomRange,
+  normalizeTimeRange,
+} from "@/components/traces/traces-chart/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { cn } from "@/lib/utils";
+import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
 
 import RoundedBar from "./bar";
-import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
-import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
+
+interface ChartProps {
+  data: TracesStatsDataPoint[];
+  containerWidth?: number | null;
+}
+
+const countNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 3,
+});
+
+const createDateRangeParams = (searchParams: URLSearchParams, startDate: string, endDate: string) => {
+  const params = new URLSearchParams(searchParams.toString());
+  params.delete("pastHours");
+  params.set("startDate", startDate);
+  params.set("endDate", endDate);
+  return params;
+};
 
 const formatter = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -21,22 +42,7 @@ const formatter = new Intl.DateTimeFormat("en-US", {
   minute: "numeric",
 });
 
-const countNumberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 3,
-});
-
-export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
-  data,
-  chartConfig,
-  fields,
-  containerWidth,
-  onZoom,
-  formatValue = numberFormatter.format,
-  showTotal = true,
-  showTooltip = true,
-  hideZeroValues = false,
-  className,
-}: Omit<TimeSeriesChartProps<T>, "isLoading">) {
+const Chart = ({ data, containerWidth }: ChartProps) => {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -44,26 +50,20 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
 
   const targetTickCount = useMemo(() => {
     if (!containerWidth) return 8;
+
     return getTickCountForWidth(containerWidth);
   }, [containerWidth]);
 
   const smartTicksResult = useMemo(() => {
     if (!data || data.length === 0) return null;
+
     const timestamps = data.map((d) => d.timestamp);
     return selectNiceTicksFromData(timestamps, targetTickCount);
   }, [data, targetTickCount]);
 
   const totalCount = useMemo(() => {
     if (!data || data.length === 0) return 0;
-    return data.reduce(
-      (sum, dataPoint) =>
-        sum +
-        Object.entries(dataPoint).reduce((rowSum, [key, value]) => {
-          if (key === "timestamp") return rowSum;
-          return rowSum + (typeof value === "number" ? value : 0);
-        }, 0),
-      0
-    );
+    return data.reduce((sum, d) => sum + d.successCount + d.errorCount, 0);
   }, [data]);
 
   const zoom = useCallback(() => {
@@ -73,19 +73,11 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     }
 
     const normalized = normalizeTimeRange(refArea.left!, refArea.right!);
+    const params = createDateRangeParams(searchParams, normalized.start, normalized.end);
 
-    if (onZoom) {
-      onZoom(normalized.start, normalized.end);
-    } else {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("pastHours");
-      params.set("startDate", normalized.start);
-      params.set("endDate", normalized.end);
-      router.push(`${pathName}?${params.toString()}`);
-    }
-
+    router.push(`${pathName}?${params.toString()}`);
     setRefArea({});
-  }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
+  }, [refArea.left, refArea.right, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
     if (e && e.activeLabel) {
@@ -102,14 +94,9 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
-  const BarShapeWithConfig = useCallback(
-    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
-    [chartConfig, fields]
-  );
-
   return (
-    <div className="flex flex-col items-start h-full">
-      <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
+    <div className="flex flex-col items-start">
+      <ChartContainer config={chartConfig} className="h-48 w-full">
         <BarChart
           data={data}
           margin={{ left: -8, top: 8 }}
@@ -128,34 +115,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
-          {showTooltip && (
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelKey="timestamp"
-                  hideZeroValues={hideZeroValues}
-                  labelFormatter={(_, payload) =>
-                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                  }
-                />
-              }
-            />
-          )}
-          {fields.map((fieldKey) => {
-            const config = chartConfig[fieldKey];
-            if (!config) return null;
-
-            return (
-              <Bar
-                key={fieldKey}
-                dataKey={fieldKey}
-                fill={config.color}
-                stackId={config.stackId}
-                shape={BarShapeWithConfig}
+          <YAxis tickLine={false} axisLine={false} tickFormatter={numberFormatter.format} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelKey="timestamp"
+                labelFormatter={(_, payload) =>
+                  payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
+                }
               />
-            );
-          })}
+            }
+          />
+          <Bar dataKey="successCount" fill={chartConfig.successCount.color} stackId="stack" shape={RoundedBar} />
+          <Bar dataKey="errorCount" fill={chartConfig.errorCount.color} stackId="stack" shape={RoundedBar} />
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}
@@ -169,11 +141,11 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
           )}
         </BarChart>
       </ChartContainer>
-      {showTotal && (
-        <div className="text-xs text-muted-foreground text-center" title={String(totalCount)}>
-          Total: {countNumberFormatter.format(totalCount)}
-        </div>
-      )}
+      <div className="text-xs text-muted-foreground text-center" title={String(totalCount)}>
+        Total: {countNumberFormatter.format(totalCount)}
+      </div>
     </div>
   );
-}
+};
+
+export default Chart;

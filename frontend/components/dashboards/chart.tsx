@@ -1,10 +1,11 @@
 import { debounce } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 import { useSWRConfig } from "swr";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { type CategoricalChartFunc, type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
+import { type ChartDragHandlers } from "@/components/chart-builder/charts/line-chart";
 import { ChartType, type TableColumnConfig } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboards/chart-header";
@@ -194,8 +195,8 @@ const Chart = ({ chart }: ChartProps) => {
 
   const onMouseDown: CategoricalChartFunc = useCallback(
     (e) => {
-      if (e?.activeLabel != null) {
-        startDrag(id, String(e.activeLabel));
+      if (e?.activeLabel) {
+        startDrag(id, e.activeLabel);
       }
     },
     [id, startDrag]
@@ -203,8 +204,8 @@ const Chart = ({ chart }: ChartProps) => {
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (isDragging && e?.activeLabel != null) {
-        updateDrag(String(e.activeLabel));
+      if (isDragging && e?.activeLabel) {
+        updateDrag(e.activeLabel);
       }
     },
     [isDragging, updateDrag]
