@@ -477,14 +477,10 @@ The frontend uses Husky with lint-staged. Before commits:
 
 - `app/api/projects/[projectId]/dashboard-charts/route.ts` exposes `GET` (list), `POST` (create), and `PATCH` (bulk layout update). There is NO `PUT`. Creating a chart from the chart-builder/sql-editor must use `POST`, not `PUT` (which would silently 405 and never reach `createChart`).
 
-## Recharts v3
+## Recharts
 
-- On recharts v3.x the internal path `recharts/types/chart/generateCategoricalChart` no longer exists — `CategoricalChartFunc` is not re-exported from the public API. We define it locally in `frontend/components/chart-builder/charts/line-chart.tsx` from the now-exported `MouseHandlerDataParam` and import it from that module in all consumers (`traces-chart`, `time-series-chart`, `dashboards/chart`).
-- `MouseHandlerDataParam.activeLabel` is typed `string | number | undefined` in v3 (was `string`). Any state setter or store that stores it as `string` must wrap with `String(e.activeLabel)` AND use `!= null` checks (not truthy) so the numeric 0 is not dropped.
-- The `ChartTooltipContent` in `components/ui/chart.tsx` must intersect `Omit<RechartsPrimitive.DefaultTooltipContentProps<TooltipValueType, TooltipNameType>, 'accessibilityLayer'>` to get the `payload`/`label`/etc props typed. Same pattern for `ChartLegendContent` using `Pick<DefaultLegendContentProps, 'payload' | 'verticalAlign'>`. Filter payload arrays with `item.type !== 'none'` before rendering.
-- Custom `shape={...}` render props on `<Bar>` receive several new recharts-internal props (`stackedBarStart`, `stackedBarEnd`, `parentViewBox`, `originalDataIndex`, `isActive`, `background`, `index`, `tooltipPayload`, `tooltipPosition`). If you spread `...props` onto a DOM element (e.g. `<rect>`), React warns `does not recognize the X prop on a DOM element`. Destructure and drop them explicitly — see `horizontal-bar-chart.tsx` shape prop.
-- Rounded stacked bars use the native `<BarStack radius={[4,4,4,4]}>` wrapper (recharts v3), NOT a custom `shape`. Wrapping the `<Bar>`s in `BarStack` makes recharts round only the outer corners of the whole stack (top corners on the top segment, bottom corners on the bottom, middle segments squared) automatically. `frontend/components/charts/time-series-chart/index.tsx` previously hand-rolled this with a `RoundedBar` (`./bar.tsx`) `shape` render prop that recomputed each segment's stack position (`top`/`bottom`/`middle`/`solo`) and emitted a hand-drawn rounded `<path>` — that file was deleted in favor of `BarStack`. Do NOT reintroduce a custom shape just to round stacked-bar corners; reach for `BarStack` first.
-- `hsl(var(--chart-N))` color references still work in v3 — the `--chart-N` CSS vars in `globals.css` store raw HSL triplets, not full `hsl(...)` values. No migration needed there.
+- Pinned at v2 (`^2.15.4`). The v3 upgrade (PR #1706) was reverted (LAM-1734) due to a runtime bug; do NOT bump to v3 without revalidating that bug. Use only v2 APIs.
+- `<YAxis width="auto">` is v3-only — on v2 `width` must be a number (omit it for the default). `recharts/types/chart/generateCategoricalChart` exists in v2 and is the import path for `CategoricalChartFunc` (the v3 work removed it; the revert restored it).
 
 ## Trace View Store
 

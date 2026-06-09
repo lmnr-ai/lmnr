@@ -1,21 +1,12 @@
 import React, { useMemo } from "react";
-import {
-  CartesianGrid,
-  Line,
-  LineChart as RechartsLineChart,
-  type MouseHandlerDataParam,
-  ReferenceArea,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { CartesianGrid, Line, LineChart as RechartsLineChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
 import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter } from "./utils";
-
-export type CategoricalChartFunc = (nextState: MouseHandlerDataParam, event: React.SyntheticEvent) => void;
+import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
 
 export interface ChartDragHandlers {
   onMouseDown: CategoricalChartFunc;
@@ -52,6 +43,11 @@ const LineChart = ({
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
+  const chartMargins = useMemo(() => {
+    const yValues = data.flatMap((row) => keys.map((key) => row[key])).filter((value) => value != null);
+    return getChartMargins(yValues, yAxisFormatter);
+  }, [data, keys, yAxisFormatter]);
+
   const { displayValue, totalMax } = useMemo(
     () => calculateDisplayValue(data, keys, displayMode),
     [data, keys, displayMode]
@@ -60,13 +56,14 @@ const LineChart = ({
   return (
     <div className="flex flex-col overflow-hidden h-full">
       {displayValue !== null && (
-        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
+        <span className="font-medium text-2xl mb-2 truncate min-h-fit" style={{ marginLeft: chartMargins.left }}>
           {formatMetricValue(displayValue, metricColumn)}
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">
         <RechartsLineChart
           data={data}
+          margin={chartMargins}
           syncId={syncId}
           onMouseDown={drag?.onMouseDown}
           onMouseMove={drag?.onMouseMove}
@@ -86,9 +83,10 @@ const LineChart = ({
           <YAxis
             tickLine={false}
             axisLine={false}
+            tickMargin={8}
             tickCount={5}
             domain={["auto", totalMax]}
-            width="auto"
+            width={32}
             style={{ fill: "hsl(var(--muted-foreground))" }}
             tickFormatter={yAxisFormatter}
           />
