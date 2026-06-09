@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 
-import { connectSlackIntegration } from "@/lib/actions/slack";
+import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
+import { authOptions } from "@/lib/auth";
+import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 function parseState(state: string): { workspaceId: string; returnPath?: string } {
   const colonIdx = state.indexOf(":");
@@ -34,6 +37,39 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const stateParam = searchParams.get("state");
   const error = searchParams.get("error");
+
+  // Brokered (self-hosted) path: the broker's /cb redirected here with the
+  // workspaceId/returnPath this instance embedded in the returnUrl at /start,
+  // plus either a one-time claim (success) or slack=error (failed/replayed
+  // OAuth — no claim). The direct-OAuth path carries its context in `state` and
+  // never sets a workspaceId query param, so its presence reliably marks the
+  // brokered callback and ensures the error case also lands on the workspace
+  // integrations page rather than falling through to the /projects fallback.
+  const brokeredWorkspaceId = searchParams.get("workspaceId");
+  if (brokeredWorkspaceId !== null) {
+    const returnPath = searchParams.get("returnPath") ?? undefined;
+    const claim = searchParams.get("claim");
+    const slackStatus = searchParams.get("slack");
+    if (slackStatus === "error" || !brokeredWorkspaceId || !claim) {
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+    }
+    // workspaceId rides in the URL (the broker echoes only claim + team), so bind
+    // the claim to the authenticated caller's membership here: this callback is a
+    // public OAuth redirect target, and without the check a user who completed
+    // their own broker flow could rewrite workspaceId to any UUID and store their
+    // bot token into a workspace they don't belong to.
+    const session = await getServerSession(authOptions);
+    if (!session || !(await isUserMemberOfWorkspace(brokeredWorkspaceId, session.user.id))) {
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+    }
+    try {
+      await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId });
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath));
+    } catch (e) {
+      console.error(e);
+      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+    }
+  }
 
   if (error || !code || !stateParam) {
     const parsed = stateParam ? parseState(stateParam) : null;

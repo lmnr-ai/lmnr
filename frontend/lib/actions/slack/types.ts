@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 
+// Scopes requested for every Slack OAuth flow (direct-connect and broker).
+// Defined here (no server-only imports) so client components can import it too.
+export const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
+
 const SlackOauthSuccessResponseSchema = z.looseObject({
   ok: z.literal(true),
   app_id: z.string(),

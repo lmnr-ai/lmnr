@@ -189,7 +189,11 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    instrumentation::setup_tracing_and_logging(is_feature_enabled(Feature::Tracing));
+    // Both OTEL trees (Sentry + internal self-tracing) are gated on `Feature::Tracing`.
+    // `internal_ingest_deps` is filled once the queue/DB/cache exist.
+    let internal_tracing_enabled = is_feature_enabled(Feature::Tracing);
+    let (_internal_tracer_provider, internal_ingest_deps) =
+        instrumentation::setup_tracing_and_logging(internal_tracing_enabled, &runtime_handle);
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
@@ -849,6 +853,17 @@ fn main() -> anyhow::Result<()> {
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
+
+    // Now that the queue/DB/cache exist, hand them to the internal self-tracing
+    // exporter. Until this runs the exporter drops spans; nothing emits internal
+    // spans this early on a normal boot (the agent only runs once serving starts).
+    if internal_tracing_enabled {
+        let _ = internal_ingest_deps.set(instrumentation::internal_exporter::IngestDeps {
+            queue: queue.clone(),
+            db: db.clone(),
+            cache: cache.clone(),
+        });
+    }
 
     // ==== 3.5 SSE connections map ====
     let sse_connections: SseConnectionMap = Arc::new(dashmap::DashMap::new());
