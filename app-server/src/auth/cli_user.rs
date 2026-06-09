@@ -2,20 +2,20 @@
 //! frontend's JWKS, authorizes the user against the target project's workspace
 //! membership, and inserts a `ProjectContext` for the `/v1/cli/*` surface.
 
-use std::collections::HashMap;
 use std::future::{Ready, ready};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use actix_web::dev::{Payload, ServiceRequest};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, web};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
-use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
+use jwks_client_rs::source::WebSource;
+use jwks_client_rs::{JsonWebKey, JwksClient};
 use serde::Deserialize;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
+use url::Url;
 use uuid::Uuid;
 
 use super::{AuthPrincipal, ProjectContext};
@@ -31,14 +31,14 @@ const PROJECT_ID_HEADER: &str = "x-lmnr-project-id";
 /// NOT bounded by the 15m JWT lifetime.
 const PROJECT_MEMBERSHIP_TTL_SECONDS: u64 = 60;
 
-/// JWKS cache TTL. Keys are refetched after this interval, and also eagerly on
-/// an unknown `kid` (handles rotation between scheduled refreshes).
+/// JWKS cache TTL. `jwks_client_rs` refetches the key set after this interval,
+/// and also on a cache miss (handles rotation between scheduled refreshes).
 const JWKS_TTL: Duration = Duration::from_secs(3600);
 
 /// Claims we read off the BetterAuth access JWT. `userId` carries the DB
 /// `users.id` UUID (see frontend `lib/auth.ts` `definePayload`). `exp` is
 /// validated by `jsonwebtoken` automatically; we keep `iss`/`aud` flexible —
-/// validation is signature + `exp` only (see module wiring) because the
+/// validation is signature + `exp` only (see `verify_jwt`) because the
 /// better-auth issuer is base-URL-derived and not a hard-coded literal.
 #[derive(Debug, Deserialize)]
 struct Claims {
@@ -53,38 +53,29 @@ struct Claims {
 pub enum VerifyError {
     #[error("missing kid in token header")]
     MissingKid,
-    #[error("no JWKS key matches kid")]
-    UnknownKid,
-    #[error("failed to fetch JWKS: {0}")]
-    Fetch(String),
+    #[error("unexpected key type for kid (expected OKP/Ed25519)")]
+    UnexpectedKeyType,
+    #[error("failed to resolve JWKS key: {0}")]
+    Jwks(#[from] jwks_client_rs::JwksClientError),
     #[error("invalid token: {0}")]
     Invalid(#[from] jsonwebtoken::errors::Error),
 }
 
-struct JwksState {
-    keys: HashMap<String, DecodingKey>,
-    fetched_at: Instant,
-}
-
-/// In-process JWKS cache shared across all workers/requests (holds non-Serialize
-/// `DecodingKey`s, so it can't live in the `Cache` layer). Wrapped in an `Arc`
-/// and registered via `web::Data` in `main.rs`.
+/// JWKS client for the CLI user-token surface. Thin wrapper over
+/// `jwks_client_rs::JwksClient` (internal cache + timed refresh) so the public
+/// `from_env` / `verify_jwt` surface and `main.rs` wiring stay unchanged. Holds
+/// non-`Serialize` decoding state, so it lives in `web::Data` (registered in
+/// `main.rs`), not the `Cache` layer.
 pub struct JwksCache {
-    inner: RwLock<JwksState>,
-    // Single-flight guard: only one task fetches the JWKS at a time, so a
-    // traffic spike (e.g. after a key rotation) can't fan out into N parallel
-    // HTTP GETs to the JWKS endpoint.
-    refresh_lock: Mutex<()>,
-    http: reqwest::Client,
-    jwks_url: String,
-    ttl: Duration,
+    client: JwksClient<WebSource>,
 }
 
 impl JwksCache {
     /// Build from `NEXT_PUBLIC_URL` (same var notifications use), deriving the
     /// JWKS endpoint `{base}/api/auth/jwks`. Falls back to `https://lmnr.ai`
-    /// with a warning so self-hosters notice an unset var.
-    pub fn from_env(http: reqwest::Client) -> Self {
+    /// with a warning so self-hosters notice an unset var. The `http` arg is
+    /// retained for call-site compatibility; `WebSource` manages its own client.
+    pub fn from_env(_http: reqwest::Client) -> Self {
         let base = match std::env::var("NEXT_PUBLIC_URL") {
             Ok(v) => v.trim_end_matches('/').to_string(),
             Err(_) => {
@@ -95,93 +86,34 @@ impl JwksCache {
             }
         };
         let jwks_url = format!("{base}/api/auth/jwks");
-        Self {
-            inner: RwLock::new(JwksState {
-                keys: HashMap::new(),
-                fetched_at: Instant::now()
-                    .checked_sub(JWKS_TTL)
-                    .unwrap_or_else(Instant::now),
-            }),
-            refresh_lock: Mutex::new(()),
-            http,
-            jwks_url,
-            ttl: JWKS_TTL,
-        }
+        Self::from_url(&jwks_url)
     }
 
-    /// Test-only constructor: pre-seed the key map so no network is hit.
-    #[cfg(test)]
-    fn new_for_test(keys: HashMap<String, DecodingKey>) -> Self {
-        Self {
-            inner: RwLock::new(JwksState {
-                keys,
-                fetched_at: Instant::now(),
-            }),
-            refresh_lock: Mutex::new(()),
-            http: reqwest::Client::new(),
-            jwks_url: String::new(),
-            ttl: JWKS_TTL,
-        }
+    /// Build a client pointing at an explicit JWKS URL with the standard TTL.
+    fn from_url(jwks_url: &str) -> Self {
+        // A malformed URL here is a misconfiguration; fall back to the default
+        // so the process still boots (verification just won't resolve keys).
+        let url = Url::parse(jwks_url).unwrap_or_else(|e| {
+            log::error!("invalid JWKS URL {jwks_url:?}: {e}; CLI auth will not resolve keys");
+            Url::parse("https://lmnr.ai/api/auth/jwks").expect("static fallback URL parses")
+        });
+        let source = WebSource::builder()
+            .build(url)
+            .expect("WebSource build from parsed URL");
+        let client = JwksClient::builder().time_to_live(JWKS_TTL).build(source);
+        Self { client }
     }
 
-    /// Resolve a decoding key for `kid`. Returns from cache when fresh and the
-    /// kid is present; otherwise refetches the JWKS once and retries.
+    /// Resolve a decoding key for `kid` from the (cached) JWKS. Errors map to
+    /// `VerifyError` (missing/unknown kid → 401 at the call sites).
     async fn decoding_key_for_kid(&self, kid: &str) -> Result<DecodingKey, VerifyError> {
-        {
-            let state = self.inner.read().await;
-            let fresh = state.fetched_at.elapsed() < self.ttl;
-            if fresh && let Some(key) = state.keys.get(kid) {
-                return Ok(key.clone());
+        let key = self.client.get(kid).await?;
+        match key {
+            JsonWebKey::Okp(okp) => {
+                Ok(DecodingKey::from_ed_components(okp.x())?)
             }
+            _ => Err(VerifyError::UnexpectedKeyType),
         }
-        // Stale or unknown kid → refetch, single-flighted. Hold the refresh lock
-        // so concurrent callers don't all hit the JWKS endpoint; once we have
-        // it, re-check the cache since a prior holder may have just refreshed.
-        let _refresh = self.refresh_lock.lock().await;
-        {
-            let state = self.inner.read().await;
-            let fresh = state.fetched_at.elapsed() < self.ttl;
-            if fresh && let Some(key) = state.keys.get(kid) {
-                return Ok(key.clone());
-            }
-        }
-        self.refresh().await?;
-        let state = self.inner.read().await;
-        state
-            .keys
-            .get(kid)
-            .cloned()
-            .ok_or(VerifyError::UnknownKid)
-    }
-
-    async fn refresh(&self) -> Result<(), VerifyError> {
-        let resp = self
-            .http
-            .get(&self.jwks_url)
-            .send()
-            .await
-            .map_err(|e| VerifyError::Fetch(e.to_string()))?;
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| VerifyError::Fetch(e.to_string()))?;
-        let set: JwkSet =
-            serde_json::from_str(&body).map_err(|e| VerifyError::Fetch(e.to_string()))?;
-        let mut keys = HashMap::new();
-        for jwk in &set.keys {
-            if let Some(kid) = jwk.common.key_id.clone() {
-                match DecodingKey::from_jwk(jwk) {
-                    Ok(key) => {
-                        keys.insert(kid, key);
-                    }
-                    Err(e) => log::warn!("skipping unparseable JWK kid={kid}: {e}"),
-                }
-            }
-        }
-        let mut state = self.inner.write().await;
-        state.keys = keys;
-        state.fetched_at = Instant::now();
-        Ok(())
     }
 }
 
@@ -190,6 +122,13 @@ impl JwksCache {
 /// better-auth derives them from its baseURL which app-server can't
 /// authoritatively know; project membership (checked per-request below) is the
 /// real authz gate. The signature already binds the token to our JWKS.
+///
+/// NOTE: we resolve the key via `jwks_client_rs` (for its cache + timed
+/// refresh) but decode with our OWN `Validation` rather than the lib's
+/// `JwksClient::decode`, because that path leaves `validate_aud = true` and
+/// would reject real better-auth tokens (which carry `aud`) with
+/// `InvalidAudience`. Doing the decode here keeps the intentional
+/// aud-disabled stance.
 pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyError> {
     let header = decode_header(token)?;
     let kid = header.kid.ok_or(VerifyError::MissingKid)?;
@@ -377,10 +316,12 @@ mod tests {
     use ed25519_dalek::pkcs8::EncodePrivateKey;
     use jsonwebtoken::{EncodingKey, Header, encode};
     use rand::RngCore;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    /// Build a JWKS key map + an `EncodingKey` from a fresh Ed25519 keypair.
-    /// Returns (kid, JwksCache with that key seeded, EncodingKey).
-    fn make_key(kid: &str) -> (SigningKey, EncodingKey, DecodingKey) {
+    /// Build an `EncodingKey` + the OKP JWK JSON from a fresh Ed25519 keypair.
+    /// Returns (EncodingKey, jwk_json) for the given kid.
+    fn make_key(kid: &str) -> (EncodingKey, serde_json::Value) {
         // Generate the 32-byte seed via the app's rand (0.9) to avoid the
         // rand_core trait-version mismatch with ed25519-dalek's `generate`.
         let mut seed = [0u8; 32];
@@ -397,13 +338,15 @@ mod tests {
         // Build the OKP JWK from the public key's raw 32-byte x coordinate.
         let verifying = signing.verifying_key();
         let x = base64_url(verifying.as_bytes());
-        let jwk_json = format!(
-            r#"{{"kty":"OKP","crv":"Ed25519","x":"{x}","kid":"{kid}","alg":"EdDSA"}}"#
-        );
-        let jwk: jsonwebtoken::jwk::Jwk =
-            serde_json::from_str(&jwk_json).expect("parse jwk");
-        let decoding = DecodingKey::from_jwk(&jwk).expect("decoding key from jwk");
-        (signing, encoding, decoding)
+        let jwk = serde_json::json!({
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": x,
+            "kid": kid,
+            "alg": "EdDSA",
+            "use": "sig"
+        });
+        (encoding, jwk)
     }
 
     fn base64_url(bytes: &[u8]) -> String {
@@ -417,10 +360,20 @@ mod tests {
         encode(&header, &claims, encoding).expect("sign")
     }
 
-    fn cache_with(kid: &str, decoding: DecodingKey) -> JwksCache {
-        let mut keys = HashMap::new();
-        keys.insert(kid.to_string(), decoding);
-        JwksCache::new_for_test(keys)
+    /// Spin up a mock JWKS HTTP server serving the given JWKs and return a
+    /// `JwksCache` pointed at it. The server is returned too so the caller
+    /// keeps it alive for the duration of the test.
+    async fn cache_serving(jwks: Vec<serde_json::Value>) -> (MockServer, JwksCache) {
+        let server = MockServer::start().await;
+        let body = serde_json::json!({ "keys": jwks });
+        Mock::given(method("GET"))
+            .and(path("/api/auth/jwks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        let url = format!("{}/api/auth/jwks", server.uri());
+        let cache = JwksCache::from_url(&url);
+        (server, cache)
     }
 
     fn future_exp() -> usize {
@@ -434,8 +387,8 @@ mod tests {
     #[tokio::test]
     async fn valid_token_returns_user_id() {
         let kid = "k1";
-        let (_signing, encoding, decoding) = make_key(kid);
-        let jwks = cache_with(kid, decoding);
+        let (encoding, jwk) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
         let user_id = Uuid::new_v4();
         let token = sign_token(
             &encoding,
@@ -453,8 +406,8 @@ mod tests {
     #[tokio::test]
     async fn token_with_aud_and_iss_is_accepted() {
         let kid = "k1";
-        let (_signing, encoding, decoding) = make_key(kid);
-        let jwks = cache_with(kid, decoding);
+        let (encoding, jwk) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
         let user_id = Uuid::new_v4();
         let token = sign_token(
             &encoding,
@@ -473,11 +426,11 @@ mod tests {
     #[tokio::test]
     async fn token_signed_by_other_key_is_rejected() {
         let kid = "k1";
-        let (_s1, encoding_a, _d1) = make_key(kid);
+        let (encoding_a, _jwk_a) = make_key(kid);
         // Different keypair, but advertise the SAME kid so lookup succeeds and
         // only the signature check fails.
-        let (_s2, _encoding_b, decoding_b) = make_key(kid);
-        let jwks = cache_with(kid, decoding_b);
+        let (_encoding_b, jwk_b) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk_b]).await;
         let token = sign_token(
             &encoding_a,
             kid,
@@ -489,8 +442,8 @@ mod tests {
     #[tokio::test]
     async fn expired_token_is_rejected() {
         let kid = "k1";
-        let (_signing, encoding, decoding) = make_key(kid);
-        let jwks = cache_with(kid, decoding);
+        let (encoding, jwk) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
         let past = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -507,8 +460,8 @@ mod tests {
     #[tokio::test]
     async fn token_missing_user_id_is_rejected() {
         let kid = "k1";
-        let (_signing, encoding, decoding) = make_key(kid);
-        let jwks = cache_with(kid, decoding);
+        let (encoding, jwk) = make_key(kid);
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
         let token = sign_token(
             &encoding,
             kid,
@@ -587,11 +540,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unknown_kid_is_rejected_offline() {
-        // Cache seeded with k1, token advertises k2. With an empty jwks_url the
-        // refetch fails, so we get a Fetch/UnknownKid error rather than a panic.
-        let (_signing, encoding, decoding) = make_key("k1");
-        let jwks = cache_with("k1", decoding);
+    async fn unknown_kid_is_rejected() {
+        // JWKS serves k1, token advertises k2. The lib's cache miss → refetch
+        // → still-missing kid surfaces as an error rather than a panic.
+        let (encoding, jwk) = make_key("k1");
+        let (_server, jwks) = cache_serving(vec![jwk]).await;
         let token = sign_token(
             &encoding,
             "k2",
