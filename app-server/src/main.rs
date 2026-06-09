@@ -1916,6 +1916,15 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(cli_user_jwt_auth.clone())
                                     .service(api::v1::cli::list_projects),
                             )
+                            // GET /v1/cli/whoami — project-API-key authed (NOT the
+                            // CLI user JWT), so it must live outside the /v1/cli
+                            // JWT scope. Registered before /v1/cli so its prefix
+                            // resolves under project_auth.
+                            .service(
+                                web::scope("/v1")
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::cli::whoami),
+                            )
                             // CLI user-token surface: same handlers as their /v1
                             // counterparts, behind the BetterAuth JWT validator.
                             // Project comes from the x-lmnr-project-id header.
