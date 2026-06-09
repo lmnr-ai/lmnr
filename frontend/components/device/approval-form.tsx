@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { type DeviceApprovalContext, type SessionProject } from "@/lib/actions/device";
+import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/device";
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -16,9 +16,10 @@ interface Props {
   rawUserCode: string;
   context: DeviceApprovalContext | null;
   projects: SessionProject[];
+  workspaces: SessionWorkspace[];
 }
 
-export function ApprovalForm({ userEmail, rawUserCode, context, projects }: Props) {
+export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces }: Props) {
   const { toast } = useToast();
   const [denying, setDenying] = useState(false);
   const [step, setStep] = useState<"approve" | "pick-project">("approve");
@@ -44,8 +45,8 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects }: Prop
     return (
       <ProjectPicker
         userCode={context.userCode}
-        rawUserCode={rawUserCode}
         projects={projects}
+        workspaces={workspaces}
         onApproved={() => setCompleted("approved")}
       />
     );

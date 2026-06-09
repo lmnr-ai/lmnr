@@ -6,6 +6,7 @@ import {
   claimUserCodeForCurrentSession,
   type DeviceApprovalContext,
   listProjectsForCurrentSession,
+  listWorkspacesForCurrentSession,
   loadDeviceContext,
 } from "@/lib/actions/device";
 import { getServerSession } from "@/lib/auth-session";
@@ -40,9 +41,10 @@ export default async function DevicePage(props: DevicePageProps) {
   await claimUserCodeForCurrentSession(rawUserCode);
 
   // Fetch the picker data server-side so Step 2 has it without a client round-trip.
-  const [context, sessionProjects] = await Promise.all([
+  const [context, sessionProjects, sessionWorkspaces] = await Promise.all([
     loadDeviceContext(rawUserCode) as Promise<DeviceApprovalContext | null>,
     listProjectsForCurrentSession(),
+    listWorkspacesForCurrentSession(),
   ]);
 
   return (
@@ -52,6 +54,7 @@ export default async function DevicePage(props: DevicePageProps) {
       rawUserCode={rawUserCode}
       context={context}
       projects={sessionProjects}
+      workspaces={sessionWorkspaces}
     />
   );
 }

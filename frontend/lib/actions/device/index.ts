@@ -15,6 +15,11 @@ export interface SessionProject {
   workspaceName: string;
 }
 
+export interface SessionWorkspace {
+  id: string;
+  name: string;
+}
+
 export interface DeviceApprovalContext {
   userCode: string;
   status: "pending" | "approved" | "denied";
@@ -85,6 +90,23 @@ export const listProjectsForCurrentSession = async (): Promise<SessionProject[]>
     .innerJoin(membersOfWorkspaces, and(eq(membersOfWorkspaces.workspaceId, workspaces.id)))
     .where(eq(membersOfWorkspaces.userId, session.user.id))
     .orderBy(asc(workspaces.name), asc(projects.name));
+};
+
+// Workspaces the current session's user belongs to. Used by the /device picker's
+// create-project modal (workspace selector + the 0-workspace brand-new-user case),
+// which can't be derived from projects when the user has none. Session-scoped.
+export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspace[]> => {
+  const session = await getServerSession();
+  if (!session?.user) return [];
+  return db
+    .select({
+      id: workspaces.id,
+      name: workspaces.name,
+    })
+    .from(workspaces)
+    .innerJoin(membersOfWorkspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
+    .where(eq(membersOfWorkspaces.userId, session.user.id))
+    .orderBy(asc(workspaces.name));
 };
 
 // Approves the device code AND smuggles the chosen projectId back to the CLI.

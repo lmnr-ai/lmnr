@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type DeviceApprovalContext, type SessionProject } from "@/lib/actions/device";
+import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/device";
 
 import { ApprovalForm } from "./approval-form";
 
@@ -16,9 +16,10 @@ interface Props {
   rawUserCode?: string;
   context?: DeviceApprovalContext | null;
   projects?: SessionProject[];
+  workspaces?: SessionWorkspace[];
 }
 
-export default function DeviceApproval({ userEmail, mode, rawUserCode, context, projects }: Props) {
+export default function DeviceApproval({ userEmail, mode, rawUserCode, context, projects, workspaces }: Props) {
   if (mode === "enter-code") {
     return <CodeEntryForm userEmail={userEmail} />;
   }
@@ -28,6 +29,7 @@ export default function DeviceApproval({ userEmail, mode, rawUserCode, context, 
       rawUserCode={rawUserCode ?? ""}
       context={context ?? null}
       projects={projects ?? []}
+      workspaces={workspaces ?? []}
     />
   );
 }
