@@ -267,15 +267,21 @@ fn select_entries(
                 if entries.len() >= max_spans {
                     return (entries, SelectionOutcome::CeilingHit);
                 }
-                // A response larger than the whole byte budget can never be
-                // admitted — skip it (like an output-less span) and keep
-                // scanning so smaller spans up to the needle still warm, rather
-                // than aborting the entire warmup on one oversized span.
+                // This span is the earliest occurrence of its input hash, so it
+                // claims the hash for dedupe whether or not its response is
+                // actually stored. A response larger than the whole byte budget
+                // can never be admitted — skip storing it (like an output-less
+                // span) and keep scanning so smaller spans up to the needle still
+                // warm, but STILL mark the hash seen: otherwise a later span with
+                // the same input could be cached with a different response,
+                // replaying a later call's output for an input that first
+                // appeared here. The uncacheable earliest occurrence degrades its
+                // lookup to a clean MISS instead.
+                seen.insert(hash.clone());
                 if bytes <= max_bytes {
                     if total_bytes + bytes > max_bytes {
                         return (entries, SelectionOutcome::CeilingHit);
                     }
-                    seen.insert(hash.clone());
                     total_bytes += bytes;
                     entries.push(WarmEntry {
                         input_hash: hash,

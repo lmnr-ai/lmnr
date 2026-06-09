@@ -234,6 +234,47 @@ fn select_skips_oversized_span_and_keeps_later_spans() {
     assert_eq!(outcome, SelectionOutcome::NeedleFound);
 }
 
+/// The earliest occurrence of an input hash claims that hash for dedupe even
+/// when its response is too big to store. A later span with the SAME input must
+/// NOT be cached — otherwise a lookup for that input would replay the later
+/// call's output instead of degrading to a clean MISS (earliest-wins violated).
+#[test]
+fn select_oversized_earliest_span_blocks_later_duplicate() {
+    let oversized = format!(r#"{{"x":"{}"}}"#, "z".repeat(1000));
+    let rows = vec![
+        row("a1", "dup", &oversized),         // earliest "dup", uncacheable
+        row("a2", "dup", r#"{"late":true}"#), // same input hash, small response
+        row("a3", "other", r#"{"only":true}"#),
+    ];
+    let small_bytes = {
+        let (e, _) = select_entries(&rows[2..3], &normalize_needle("zzzz"), BIG, BIG);
+        e[0].bytes
+    };
+    // Cap admits a small response but is far below the oversized one.
+    let cap = small_bytes * 2 + 1;
+    let (entries, outcome) = select_entries(&rows, &normalize_needle("a3"), BIG, cap);
+    assert_eq!(
+        entries.len(),
+        1,
+        "the 'dup' hash is claimed by the oversized earliest span so the later \
+         duplicate is not admitted; only the distinct 'other' input is cached"
+    );
+    match &entries[0].response {
+        DebugCacheResponse::Raw { response, .. } => {
+            assert_eq!(
+                response["only"], true,
+                "admitted entry must be the 'other' span"
+            );
+            assert!(
+                response.get("late").is_none(),
+                "the later 'dup' span must not be cached"
+            );
+        }
+        other => panic!("expected Raw, got {other:?}"),
+    }
+    assert_eq!(outcome, SelectionOutcome::NeedleFound);
+}
+
 #[test]
 fn needle_suffix_matches_simple_id() {
     let span = Uuid::parse_str("0190d3f2-6a4b-7c8d-9e0f-112233445566").unwrap();
