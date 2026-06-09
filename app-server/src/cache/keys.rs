@@ -37,3 +37,9 @@ pub const INGESTION_RATE_LIMIT_PROJECT_ID_CACHE_KEY: &str = "ingestion_rate_limi
 pub const AGENT_VERSION_HASH_CACHE_KEY: &str = "agent_version_hash";
 pub const AGENT_STABLE_PROMPT_REGEX_CACHE_KEY: &str = "agent_stable_prompt_regex";
 pub const AGENT_CLASSIFY_LOCK_CACHE_KEY: &str = "agent_classify_lock";
+
+// Debugger replay cache (LAM-1715). Concrete Redis keys are namespaced by
+// `(project_id, replay_trace_id)` — see `traces/debug_cache.rs`.
+pub const DEBUGGER_CACHE_KEY: &str = "debugger_replay_cache";
+pub const DEBUGGER_CACHE_READY_KEY: &str = "debugger_replay_ready";
+pub const DEBUGGER_CACHE_LOCK_KEY: &str = "debugger_replay_lock";
