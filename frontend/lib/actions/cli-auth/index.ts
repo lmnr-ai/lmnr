@@ -75,7 +75,7 @@ export const claimUserCodeForCurrentSession = async (rawUserCode: string): Promi
 
 // Projects the current session's user can access. Used by the /device picker
 // step. Session-scoped (cookie), NOT the CLI JWT — do not call /v1/cli/projects
-// from the browser. Mirrors the no-projectId query in /api/cli/setup-key.
+// from the browser. Mirrors the no-projectId query in /api/cli/api-key.
 export const listProjectsForCurrentSession = async (): Promise<SessionProject[]> => {
   const session = await getServerSession();
   if (!session?.user) return [];

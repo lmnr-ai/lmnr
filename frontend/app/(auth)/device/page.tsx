@@ -1,14 +1,14 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import DeviceApproval from "@/components/device";
+import DeviceApproval from "@/components/cli-auth";
 import {
   claimUserCodeForCurrentSession,
   type DeviceApprovalContext,
   listProjectsForCurrentSession,
   listWorkspacesForCurrentSession,
   loadDeviceContext,
-} from "@/lib/actions/device";
+} from "@/lib/actions/cli-auth";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {

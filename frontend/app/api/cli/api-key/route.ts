@@ -16,9 +16,10 @@ const Body = z
   })
   .strict();
 
-// Mints a project API key for the session-bearer user. `lmnr-cli setup` calls
-// this after login to write LMNR_PROJECT_API_KEY into ./.env. Auth comes from a
-// BetterAuth session token via the bearer() plugin.
+// Mints a project API key for the session-bearer user. `lmnr-cli setup` is the
+// caller today (it writes LMNR_PROJECT_API_KEY into ./.env after login), but the
+// endpoint is intentionally generic — not bound to the setup flow. Auth comes
+// from a BetterAuth session token via the bearer() plugin.
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     }
     // Don't leak internal error details (DB errors can carry schema/connection
     // info) to API clients — log server-side, return a generic message.
-    console.error("setup-key error:", error);
+    console.error("cli api-key error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

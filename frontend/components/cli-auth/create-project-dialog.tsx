@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type SessionProject, type SessionWorkspace } from "@/lib/actions/device";
+import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { Field } from "./index";

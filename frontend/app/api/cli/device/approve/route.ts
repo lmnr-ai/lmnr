@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z, ZodError } from "zod/v4";
 
-import { approveDeviceWithProject } from "@/lib/actions/device";
+import { approveDeviceWithProject } from "@/lib/actions/cli-auth";
 
 // Approves a pending device code and writes the chosen projectId into the
 // device code `scope` first (ordering enforced inside approveDeviceWithProject).

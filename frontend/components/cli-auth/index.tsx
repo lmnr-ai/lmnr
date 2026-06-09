@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/device";
+import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 
 import { ApprovalForm } from "./approval-form";
 

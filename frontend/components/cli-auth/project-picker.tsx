@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type SessionProject, type SessionWorkspace } from "@/lib/actions/device";
+import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateProjectDialog } from "./create-project-dialog";
