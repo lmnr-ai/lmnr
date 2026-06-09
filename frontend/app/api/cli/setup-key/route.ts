@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
     const keyName = `lmnr-cli setup (${deviceName?.trim() || "cli"})`.slice(0, 200);
 
     if (projectId) {
-      const member = await isUserMemberOfProject(projectId, userId);
+      // Fresh membership check (no cache) — minting a key is security-sensitive
+      // and a since-removed user must not pass on a stale 30-day cached `true`.
+      const member = await isUserMemberOfProject(projectId, userId, { skipCache: true });
       if (!member) {
         return NextResponse.json({ error: "You do not have access to this project" }, { status: 403 });
       }
