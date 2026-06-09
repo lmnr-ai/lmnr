@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::{
     classifier::{self, AgentClassification},
-    observe::{CheckpointScope, SpanBuilder},
+    observe::CheckpointObserver,
     subagent, system_prompt, version,
 };
 use crate::{
@@ -84,25 +84,25 @@ impl MessageHandler for CheckpointsHandler {
 
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
-        use tracing::Instrument;
+        // Tracing is enabled only when an internal project is configured.
+        let observer = self
+            .internal_project_id
+            .map(|project_id| CheckpointObserver::new(self.queue.clone(), project_id));
 
-        // Self-tracing is active only when an internal project is configured; otherwise the root
-        // span isn't stamped with a project id and the internal exporter drops it.
-        let scope = CheckpointScope {
-            project_id: self.internal_project_id,
-            trace_id: message.trace_id,
-        };
-        let root_span = SpanBuilder::checkpoint_root(&scope);
+        let result = self
+            .process_checkpoint_inner(message, observer.as_ref())
+            .await;
 
-        self.process_checkpoint_inner(message, &scope)
-            .instrument(root_span)
-            .await
+        if let Some(observer) = observer {
+            observer.finish().await;
+        }
+        result
     }
 
     async fn process_checkpoint_inner(
         &self,
         message: &CheckpointsQueueMessage,
-        scope: &CheckpointScope,
+        observer: Option<&CheckpointObserver>,
     ) -> anyhow::Result<()> {
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
@@ -111,7 +111,7 @@ impl CheckpointsHandler {
             message.project_id,
             self.cache.clone(),
             self.llm_client.clone(),
-            Some(scope),
+            observer,
         )
         .await;
 
@@ -159,7 +159,7 @@ impl CheckpointsHandler {
             // on error — so a failed classify/write can't freeze the project
             // until TTL.
             let result = self
-                .process_new_version_locked(message, &stable_system_prompt, &version_hash, scope)
+                .process_new_version_locked(message, &stable_system_prompt, &version_hash, observer)
                 .await;
 
             if let Err(e) = self.cache.release_lock(&lock_key).await {
@@ -184,7 +184,7 @@ impl CheckpointsHandler {
         message: &CheckpointsQueueMessage,
         stable_system_prompt: &str,
         version_hash: &str,
-        scope: &CheckpointScope,
+        observer: Option<&CheckpointObserver>,
     ) -> anyhow::Result<Option<Uuid>> {
         // Re-check under the lock: another worker may have just written this
         // exact shape between our fast-path miss and acquiring the lock.
@@ -218,7 +218,7 @@ impl CheckpointsHandler {
             &stable_system_prompt,
             &existing_agents,
             self.llm_client.clone(),
-            Some(scope),
+            observer,
         )
         .await?;
 
