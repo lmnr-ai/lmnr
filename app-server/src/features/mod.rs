@@ -16,7 +16,11 @@ pub enum Feature {
     RabbitMQ,
     SqlQueryEngine,
     ClickhouseReadOnly,
+    /// Sentry self-tracing tree. Requires a Sentry DSN.
     Tracing,
+    /// Laminar internal self-tracing tree. Independent of Sentry — gated only
+    /// on `ENABLE_TRACING` so it works without a Sentry DSN.
+    InternalTracing,
     Signals,
     Reports,
     RateLimiter,
@@ -47,6 +51,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Tracing => {
             env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
         }
+        Feature::InternalTracing => env::var("ENABLE_TRACING").is_ok_and(|s| s == "true"),
         Feature::Signals => {
             // Mirrors the credential checks in `LlmClient::new` so this flag
             // is true exactly when the signal worker would actually start.

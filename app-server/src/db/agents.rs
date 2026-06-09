@@ -118,20 +118,3 @@ pub async fn create_new_agent_version(
     .await?;
     Ok(())
 }
-
-/// Bump a parent agent's version because one of its subagents changed.
-///
-/// Unimplemented — the parent's own shape is unchanged, so this needs a
-/// design decision on how to represent a "child changed" bump under the
-/// `UNIQUE (project_id, version_hash)` constraint.
-pub async fn bump_parent_agent_version(
-    pool: &PgPool,
-    project_id: Uuid,
-    parent_id: Uuid,
-    changed_child_id: Uuid,
-) -> Result<()> {
-    // TODO: implement
-
-    let _ = (pool, project_id, parent_id, changed_child_id);
-    Ok(())
-}

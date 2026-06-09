@@ -647,6 +647,12 @@ impl SpanAttributes {
             .is_some_and(|v| *v == Value::Bool(true))
     }
 
+    pub fn is_checkpoint_internal(&self) -> bool {
+        self.raw_attributes
+            .get(super::span_attributes::CHECKPOINT_INTERNAL_SPAN)
+            .is_some_and(|v| *v == Value::Bool(true))
+    }
+
     fn get_flattened_association_properties(&self, entity: &str) -> HashMap<String, Value> {
         self.get_flattened_properties(ASSOCIATION_PROPERTIES_PREFIX, entity)
     }

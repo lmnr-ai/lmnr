@@ -7,6 +7,7 @@
 use regex::Regex;
 use serde_json::Value;
 use sha3::{Digest, Sha3_256};
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 static XML_TAG_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
@@ -17,13 +18,17 @@ static CLAUDE_CODE_BILLING_HEADER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"x-anthropic-billing-header:(?:\s*[A-Za-z_][A-Za-z0-9_]*=[^\s;]*;)+").unwrap()
 });
 
+pub fn strip_claude_code_billing_header(text: &str) -> Cow<'_, str> {
+    CLAUDE_CODE_BILLING_HEADER_REGEX.replace_all(text, "")
+}
+
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
 /// Volatile client/SDK version headers (e.g. Claude Code's `x-anthropic-billing-header`)
 /// are stripped first so the hash is stable across SDK versions.
 pub fn structural_skeleton_hash(text: &str) -> String {
-    let text = CLAUDE_CODE_BILLING_HEADER_REGEX.replace_all(text, "");
+    let text = strip_claude_code_billing_header(text);
     let text = text.as_ref();
     // Extract first sentence from original text (before whitespace normalization
     // destroys newline boundaries). Cut at the first real sentence boundary after

@@ -1,27 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
-use chrono::Utc;
 use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
-    db::{
-        DB,
-        project_api_keys::ProjectApiKey,
-        spans::{Span, SpanType},
-        trace::trace_exists,
-    },
+    db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
     mq::MessageQueue,
     routes::types::ResponseResult,
-    traces::{
-        producer::publish_span_messages,
-        span_attributes::{ASSOCIATION_PROPERTIES_PREFIX, SPAN_METADATA_ONLY},
-        spans::SpanAttributes,
-    },
+    traces::metadata::publish_trace_metadata_patch,
 };
 
 #[derive(Deserialize)]
@@ -63,47 +52,10 @@ pub async fn update_trace_metadata(
         return Ok(HttpResponse::NotFound().json("Trace not found"));
     }
 
-    let mut attributes: HashMap<String, Value> = HashMap::with_capacity(req.metadata.len() + 1);
-    attributes.insert(SPAN_METADATA_ONLY.to_string(), Value::Bool(true));
-    for (key, value) in req.metadata {
-        attributes.insert(
-            format!("{ASSOCIATION_PROPERTIES_PREFIX}.metadata.{key}"),
-            value,
-        );
-    }
-
-    let now = Utc::now();
-    let span = Span {
-        span_id: Uuid::new_v4(),
-        trace_id: req.trace_id,
+    publish_trace_metadata_patch(
+        req.trace_id,
         project_id,
-        parent_span_id: None,
-        name: "lmnr.trace.metadata".to_string(),
-        attributes: SpanAttributes::new(attributes),
-        input: None,
-        output: None,
-        span_type: SpanType::Default,
-        start_time: now,
-        end_time: now,
-        status: None,
-        events: vec![],
-        tags: None,
-        input_url: None,
-        output_url: None,
-        size_bytes: 0,
-    };
-
-    let messages = vec![RabbitMqSpanMessage {
-        span,
-        pre_processed: false,
-        input_dedup: None,
-        output_dedup: None,
-        tool_dedup: None,
-    }];
-
-    publish_span_messages(
-        messages,
-        project_id,
+        req.metadata,
         spans_message_queue.as_ref().clone(),
         db,
         cache,

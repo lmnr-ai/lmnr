@@ -1,7 +1,7 @@
 pub mod classifier;
 pub mod consumer;
+pub mod llm;
 pub mod producer;
-pub mod subagent;
 pub mod system_prompt;
 pub mod version;
 

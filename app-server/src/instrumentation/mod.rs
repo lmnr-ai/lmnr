@@ -47,13 +47,15 @@ fn is_internal(metadata: &Metadata<'_>) -> bool {
 
 /// Sets up logging and the two OTEL trace trees (Sentry + internal).
 ///
-/// Both trees are gated on `enable_otel` (`Feature::Tracing`); the returned provider is `None` when
-/// it's `false`. Caller must keep the provider alive (batch exporter) and fill the returned
-/// [`SharedIngestDeps`] once the queue/DB/cache exist. `runtime_handle` is the runtime the in-process
-/// exporter drives ingest on.
+/// The trees are gated independently: `enable_sentry_tracing` (`Feature::Tracing`, requires a Sentry
+/// DSN) drives the Sentry tree, `enable_internal_tracing` (`Feature::InternalTracing`, no DSN needed)
+/// drives the internal tree. The returned provider is `None` when internal tracing is off. Caller must
+/// keep the provider alive (batch exporter) and fill the returned [`SharedIngestDeps`] once the
+/// queue/DB/cache exist. `runtime_handle` is the runtime the in-process exporter drives ingest on.
 #[must_use = "keep the returned provider alive and populate the ingest deps so internal spans are flushed"]
 pub fn setup_tracing_and_logging(
-    enable_otel: bool,
+    enable_sentry_tracing: bool,
+    enable_internal_tracing: bool,
     runtime_handle: &tokio::runtime::Handle,
 ) -> (Option<SdkTracerProvider>, SharedIngestDeps) {
     // Built fresh per layer (`EnvFilter` isn't `Clone`); applied to both the fmt logger and the
@@ -70,7 +72,7 @@ pub fn setup_tracing_and_logging(
 
     // Sentry's tracing layer only forwards ERROR-level events, and never any
     // internal ones.
-    let sentry_layer = (enable_otel && sentry_dsn_set).then(|| {
+    let sentry_layer = (enable_sentry_tracing && sentry_dsn_set).then(|| {
         sentry::integrations::tracing::layer()
             .event_filter(|md| match *md.level() {
                 tracing::Level::ERROR => EventFilter::Event,
@@ -95,8 +97,8 @@ pub fn setup_tracing_and_logging(
         .with(sentry_layer);
 
     // == Provider A: Sentry == receives non-internal spans, stays the global provider. Gated on
-    // `enable_otel` (`Feature::Tracing`); the internal tree below does NOT depend on it.
-    let otel_sentry_layer = enable_otel.then(|| {
+    // `enable_sentry_tracing` (`Feature::Tracing`); the internal tree below does NOT depend on it.
+    let otel_sentry_layer = enable_sentry_tracing.then(|| {
         let mut sentry_provider_builder = SdkTracerProvider::builder();
         if sentry_dsn_set {
             sentry_provider_builder = sentry_provider_builder.with_span_processor(
@@ -115,11 +117,12 @@ pub fn setup_tracing_and_logging(
             .with_filter(FilterFn::new(|md: &Metadata<'_>| !is_internal(md)))
     });
 
-    // == Provider B: internal self-tracing == gated on `enable_otel`, never the global provider.
-    // The exporter needs the queue/DB/cache, so it holds a `SharedIngestDeps` slot `main` fills later.
+    // == Provider B: internal self-tracing == gated on `enable_internal_tracing` (no Sentry DSN
+    // required), never the global provider. The exporter needs the queue/DB/cache, so it holds a
+    // `SharedIngestDeps` slot `main` fills later.
     let ingest_deps: SharedIngestDeps = std::sync::Arc::new(std::sync::OnceLock::new());
 
-    let (internal_provider, otel_internal_layer) = if enable_otel {
+    let (internal_provider, otel_internal_layer) = if enable_internal_tracing {
         let exporter = InProcessInternalExporter::new(ingest_deps.clone(), runtime_handle.clone());
         let provider = SdkTracerProvider::builder()
             .with_batch_exporter(exporter)

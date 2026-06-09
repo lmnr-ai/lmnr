@@ -7,18 +7,19 @@
 //!
 //! The consumer turns each checkpoint into agent-versioning state: it detects
 //! whether an agent's prompt/tools/model "shape" is new, modified, or
-//! unchanged, persists the result to the `agents` / `agent_versions` tables,
-//! and propagates version bumps up the subagent → parent chain.
+//! unchanged, and persists the result to the `agents` / `agent_versions` tables.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use super::{
     classifier::{self, AgentClassification},
-    subagent, system_prompt, version,
+    llm, system_prompt, version,
 };
 use crate::{
     cache::{
@@ -28,6 +29,8 @@ use crate::{
     ch::deduped_content,
     db::{DB, agents},
     llm::LlmClient,
+    mq::MessageQueue,
+    traces::metadata::publish_trace_metadata_patch,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -40,10 +43,13 @@ const AGENT_CLASSIFY_LOCK_TTL_SECONDS: u64 = 60;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointsQueueMessage {
     pub project_id: Uuid,
+    pub trace_id: Uuid,
+    pub span_id: Uuid,
     pub system_prompt: String,
     pub tool_definitions_hash: String,
     pub model: String,
-    pub span_ids_path: Vec<String>,
+    /// Skeleton hash precomputed on ingest (`lmnr.span.prompt_hash`).
+    pub prompt_hash: String,
 }
 
 pub struct CheckpointsHandler {
@@ -51,6 +57,7 @@ pub struct CheckpointsHandler {
     pub cache: Arc<Cache>,
     pub clickhouse: clickhouse::Client,
     pub llm_client: Option<Arc<LlmClient>>,
+    pub queue: Arc<MessageQueue>,
 }
 
 #[async_trait]
@@ -73,12 +80,39 @@ impl MessageHandler for CheckpointsHandler {
 }
 
 impl CheckpointsHandler {
+    fn internal_project_id() -> Option<Uuid> {
+        std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
+            .ok()
+            .and_then(|s| s.parse().ok())
+    }
+
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
+        // Lazy root: emits a `checkpoint` trace only if some LLM call runs.
+        let root = llm::CheckpointRoot::new(
+            Self::internal_project_id(),
+            message.project_id,
+            message.trace_id,
+            message.span_id,
+        );
+        self.process_checkpoint_inner(message, &root).await
+    }
+
+    async fn process_checkpoint_inner(
+        &self,
+        message: &CheckpointsQueueMessage,
+        root: &llm::CheckpointRoot,
+    ) -> anyhow::Result<()> {
+        let system_prompt_text =
+            crate::traces::prompt_hash::strip_claude_code_billing_header(&message.system_prompt);
+
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
-            &message.system_prompt,
+            &system_prompt_text,
+            &message.prompt_hash,
+            message.project_id,
             self.cache.clone(),
             self.llm_client.clone(),
+            root,
         )
         .await;
 
@@ -90,51 +124,58 @@ impl CheckpointsHandler {
             &message.model,
         );
 
-        // Fast path: an exact (project_id, version_hash) match means this shape
-        // has already been seen — nothing changed, quit.
-        if self
-            .is_known_version_hash(message.project_id, &version_hash)
+        // Known shape: skip minting, but still tag the trace below.
+        let agent_id = if let Some(agent_id) = self
+            .get_known_agent_id(message.project_id, &version_hash)
             .await?
         {
-            return Ok(());
+            Some(agent_id)
+        } else {
+            // A genuinely new shape. Classification compares against ALL of the
+            // project's existing agents, and stable-prompt extraction is itself an
+            // LLM call that can yield different hashes for the same real agent — so
+            // the read→classify→write critical section must be serialized PER
+            // PROJECT, otherwise two workers each miss the other's in-flight agent
+            // and mint duplicates. Acquire a per-project lock; if another worker
+            // holds it, drop this span. The shape isn't cached, so a later span of
+            // the same shape re-triggers once the lock frees — at worst a tiny delay.
+            let lock_key = Self::classify_lock_key(message.project_id);
+            let acquired = self
+                .cache
+                .try_acquire_lock(&lock_key, AGENT_CLASSIFY_LOCK_TTL_SECONDS)
+                .await
+                .unwrap_or_else(|e| {
+                    log::warn!("Failed to acquire agent classify lock {lock_key}: {e:?}");
+                    false
+                });
+            if !acquired {
+                log::debug!(
+                    "Agent classify lock held for project {}; dropping checkpoint (will re-trigger)",
+                    message.project_id
+                );
+                return Ok(());
+            }
+
+            // Run the critical section, then ALWAYS release the lock — including
+            // on error — so a failed classify/write can't freeze the project
+            // until TTL.
+            let result = self
+                .process_new_version_locked(message, &stable_system_prompt, &version_hash, root)
+                .await;
+
+            if let Err(e) = self.cache.release_lock(&lock_key).await {
+                log::warn!("Failed to release agent classify lock {lock_key}: {e:?}");
+            }
+
+            result?
+        };
+
+        if let Some(agent_id) = agent_id {
+            self.tag_trace_with_agent(message, agent_id, &version_hash)
+                .await;
         }
 
-        // A genuinely new shape. Classification compares against ALL of the
-        // project's existing agents, and stable-prompt extraction is itself an
-        // LLM call that can yield different hashes for the same real agent — so
-        // the read→classify→write critical section must be serialized PER
-        // PROJECT, otherwise two workers each miss the other's in-flight agent
-        // and mint duplicates. Acquire a per-project lock; if another worker
-        // holds it, drop this span. The shape isn't cached, so a later span of
-        // the same shape re-triggers once the lock frees — at worst a tiny delay.
-        let lock_key = Self::classify_lock_key(message.project_id);
-        let acquired = self
-            .cache
-            .try_acquire_lock(&lock_key, AGENT_CLASSIFY_LOCK_TTL_SECONDS)
-            .await
-            .unwrap_or_else(|e| {
-                log::warn!("Failed to acquire agent classify lock {lock_key}: {e:?}");
-                false
-            });
-        if !acquired {
-            log::debug!(
-                "Agent classify lock held for project {}; dropping checkpoint (will re-trigger)",
-                message.project_id
-            );
-            return Ok(());
-        }
-
-        // Run the critical section, then ALWAYS release the lock — including on
-        // error — so a failed classify/write can't freeze the project until TTL.
-        let result = self
-            .process_new_version_locked(message, &stable_system_prompt, &version_hash)
-            .await;
-
-        if let Err(e) = self.cache.release_lock(&lock_key).await {
-            log::warn!("Failed to release agent classify lock {lock_key}: {e:?}");
-        }
-
-        result
+        Ok(())
     }
 
     /// Critical section, run under the per-project classify lock: re-check the
@@ -144,14 +185,15 @@ impl CheckpointsHandler {
         message: &CheckpointsQueueMessage,
         stable_system_prompt: &str,
         version_hash: &str,
-    ) -> anyhow::Result<()> {
+        root: &llm::CheckpointRoot,
+    ) -> anyhow::Result<Option<Uuid>> {
         // Re-check under the lock: another worker may have just written this
         // exact shape between our fast-path miss and acquiring the lock.
-        if self
-            .is_known_version_hash(message.project_id, version_hash)
+        if let Some(agent_id) = self
+            .get_known_agent_id(message.project_id, version_hash)
             .await?
         {
-            return Ok(());
+            return Ok(Some(agent_id));
         }
 
         // A new version is being recorded — resolve the original tool
@@ -174,9 +216,10 @@ impl CheckpointsHandler {
         let existing_agents =
             agents::list_latest_agent_versions(&self.db.pool, message.project_id).await?;
         let classification = classifier::classify_agent(
-            stable_system_prompt,
+            &stable_system_prompt,
             &existing_agents,
             self.llm_client.clone(),
+            root,
         )
         .await?;
 
@@ -214,45 +257,53 @@ impl CheckpointsHandler {
         self.cache_version_hash(message.project_id, version_hash, agent_id)
             .await;
 
-        // If this checkpoint belongs to a subagent, bump every parent
-        // agent's version too. Empty parent set == main agent == quit.
-        // TODO: implement later, currently no op
-        let parent_agent_ids = subagent::get_parent_agent_ids(&self.db, message, agent_id).await?;
-        for parent_id in parent_agent_ids {
-            agents::bump_parent_agent_version(
-                &self.db.pool,
-                message.project_id,
-                parent_id,
-                agent_id,
-            )
-            .await?;
-        }
-
-        Ok(())
+        Ok(Some(agent_id))
     }
 
-    /// Whether this `(project_id, version_hash)` shape already exists. Reads
-    /// through the cache first — most checkpoints repeat a known shape, so only
-    /// genuinely new version hashes should ever reach Postgres. The mapping is
-    /// immutable, so a cache hit is authoritative; a DB hit back-fills the
-    /// cache so subsequent identical checkpoints skip the DB.
-    async fn is_known_version_hash(
+    /// Best-effort: write `agent_id` + `version_hash` to the trace's metadata.
+    async fn tag_trace_with_agent(
+        &self,
+        message: &CheckpointsQueueMessage,
+        agent_id: Uuid,
+        version_hash: &str,
+    ) {
+        let metadata = HashMap::from([
+            ("agent_id".to_string(), Value::String(agent_id.to_string())),
+            (
+                "version_hash".to_string(),
+                Value::String(version_hash.to_string()),
+            ),
+        ]);
+        if let Err(e) = publish_trace_metadata_patch(
+            message.trace_id,
+            message.project_id,
+            metadata,
+            self.queue.clone(),
+            self.db.clone(),
+            self.cache.clone(),
+        )
+        .await
+        {
+            log::error!(
+                "[CHECKPOINTS] Failed to tag trace {} with agent metadata: {e:?}",
+                message.trace_id
+            );
+        }
+    }
+
+    /// `agent_id` for a known `(project_id, version_hash)` shape, else `None`.
+    /// Reads through the cache; a DB hit back-fills it (the mapping is immutable).
+    async fn get_known_agent_id(
         &self,
         project_id: Uuid,
         version_hash: &str,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<Option<Uuid>> {
         let cache_key = Self::version_hash_cache_key(project_id, version_hash);
-        if self
-            .cache
-            .get::<Uuid>(&cache_key)
-            .await
-            .unwrap_or_else(|e| {
-                log::warn!("Failed to read agent version-hash cache {cache_key}: {e:?}");
-                None
-            })
-            .is_some()
-        {
-            return Ok(true);
+        if let Some(agent_id) = self.cache.get::<Uuid>(&cache_key).await.unwrap_or_else(|e| {
+            log::warn!("Failed to read agent version-hash cache {cache_key}: {e:?}");
+            None
+        }) {
+            return Ok(Some(agent_id));
         }
 
         if let Some(agent_id) =
@@ -260,10 +311,10 @@ impl CheckpointsHandler {
         {
             self.cache_version_hash(project_id, version_hash, agent_id)
                 .await;
-            return Ok(true);
+            return Ok(Some(agent_id));
         }
 
-        Ok(false)
+        Ok(None)
     }
 
     /// Best-effort write of the `(project_id, version_hash) → agent_id`
