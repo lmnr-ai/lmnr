@@ -90,6 +90,7 @@ pub async fn publish_checkpoints_for_batch(
         checkpoints.push(CheckpointsQueueMessage {
             project_id: span.project_id,
             trace_id: span.trace_id,
+            span_id: span.span_id,
             system_prompt,
             tool_definitions_hash: tool_def_hash,
             model,

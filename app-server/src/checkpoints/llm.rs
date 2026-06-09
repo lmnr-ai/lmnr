@@ -21,13 +21,24 @@ use crate::{
 /// checkpoint that does no LLM work emits nothing.
 pub struct CheckpointRoot {
     project_id: Option<Uuid>,
+    origin_project_id: Uuid,
+    origin_trace_id: Uuid,
+    origin_span_id: Uuid,
     span: OnceLock<Option<tracing::Span>>,
 }
 
 impl CheckpointRoot {
-    pub fn new(project_id: Option<Uuid>) -> Self {
+    pub fn new(
+        project_id: Option<Uuid>,
+        origin_project_id: Uuid,
+        origin_trace_id: Uuid,
+        origin_span_id: Uuid,
+    ) -> Self {
         Self {
             project_id,
+            origin_project_id,
+            origin_trace_id,
+            origin_span_id,
             span: OnceLock::new(),
         }
     }
@@ -41,6 +52,9 @@ impl CheckpointRoot {
                     SpanType::Default,
                 )
                 .project(Some(project_id))
+                .metadata_str("project_id", &self.origin_project_id.to_string())
+                .metadata_str("trace_id", &self.origin_trace_id.to_string())
+                .metadata_str("span_id", &self.origin_span_id.to_string())
                 .build();
                 span.set_attribute(CHECKPOINT_INTERNAL_SPAN, true);
                 Some(span)

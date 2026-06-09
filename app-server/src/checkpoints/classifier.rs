@@ -30,10 +30,20 @@ const CLASSIFY_TOOL_NAME: &str = "classify_agent";
 const CLASSIFY_INSTRUCTION: &str =
     "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
      existing agents (each with an id and its system prompt), decide whether the incoming prompt is \
-     a completely new agent or a modified version of one of the existing agents. Treat two prompts \
-     as the SAME agent when they share the same role and purpose, even if instructions, tools, or \
-     wording differ; treat them as DIFFERENT agents when the role or purpose is unrelated. Respond \
-     ONLY by calling the classify_agent tool.";
+     a completely new agent or a modified version of one of the existing agents.\n\n\
+     Base your decision ONLY on the agent's specific ROLE and PURPOSE — the sentence(s) describing \
+     who the agent is and what job it does (e.g. 'senior research analyst gathering data' vs \
+     'portfolio manager orchestrating subagents'). IGNORE shared boilerplate that appears in most \
+     prompts and carries no role information: billing/header lines, 'You are a Claude agent built \
+     on Anthropic's Claude Agent SDK', environment/<env> blocks, git status, OS/shell/model/version \
+     details, and generic formatting or tool-use conventions. Two prompts that differ ONLY in such \
+     boilerplate are the SAME agent; two prompts with the same boilerplate but a different role are \
+     DIFFERENT agents.\n\n\
+     Do not be misled by surface word overlap or shared domain vocabulary. An agent that PERFORMS a \
+     task is a DIFFERENT agent from one that ORCHESTRATES or DELEGATES that task, even if both \
+     mention the same domain (e.g. a 'research analyst' that does the research is not the same as a \
+     'portfolio manager' that delegates research to subagents). When the core role or purpose is \
+     unrelated, classify as a new agent. Respond ONLY by calling the classify_agent tool.";
 
 const INCOMING_PROMPT_LIMIT: usize = 4000;
 const EXISTING_PROMPT_LIMIT: usize = 1000;

@@ -24,6 +24,8 @@ const STABLE_PROMPT_INSTRUCTION: &str = r#"You separate an AI agent's system pro
 Dynamic values are run-specific tokens such as: current date/time and timestamps, user names, session/request/run IDs, hashes, counters, hostnames, OS names, language/SDK version numbers, file paths, and environment names (development/staging/production).
 
 Strict rules — follow them exactly so the output is identical on every run of the same template:
+- MOST IMPORTANT — HARD BAN, no exceptions: every alternative in the regex MUST contain at least one literal anchor character that is NOT a letter, digit, or `_` — i.e. a literal substring of the surrounding text (a label like `cch=`, `=`, `:`, `/`, `-`, `.`, or a tag like `<id>`), OR a `\b` word boundary at each end. A pattern made only of character classes and quantifiers (e.g. `[a-z0-9]{5}`, `[a-f0-9]+`, `\w{6}`, `[a-z0-9]+` as a trailing segment) is FORBIDDEN — it matches inside ordinary words such as `needed`, `added`, `decade`, `tokens`, corrupting stable text. To strip a bare token/hash/id, anchor it to its label and put the variable part in a group, e.g. `cch=([a-f0-9]+)` or `\brun_[a-f0-9]+\b` — never the unanchored class alone. If a value has no stable neighboring literal you can anchor to, LEAVE IT IN rather than emit an unanchored class.
+- Do NOT decompose a dotted/structured value into a fixed prefix plus a bare `[a-z0-9]+` tail (e.g. `\d+\.\d+\.\d+\.[a-z0-9]+`): the trailing unanchored class still matches inside words. Match the whole value with a single anchored pattern, or leave it.
 - Match ONLY the variable value itself. NEVER include surrounding structure in the match: leave XML/HTML tags, attribute names, JSON keys, field labels (e.g. `Model:`, `os=`), punctuation, quotes, and ALL whitespace and newlines untouched.
 - For `<tag>VALUE</tag>` match only `VALUE`, so the result is `<tag></tag>`. For `key: VALUE` match only `VALUE`, so the result is `key: `.
 - NEVER match an entire line, element, or block, and never delete a tag, key, or its indentation — strip only the value sitting between them. Emptying a tag is correct; collapsing or removing the whole element is wrong.
@@ -36,17 +38,17 @@ Example input:
   <run_id>4f8c2a1b4d6e0f3a</run_id>
   <date>2026-06-09T10:26:50Z</date>
 </runtime>
-os=Darwin version=3.13.9
+os=Darwin version=3.13.9 cch=785c4; entrypoint=sdk-py
 
-Correct regex:
-[a-f0-9]{16}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|Darwin|Linux|Windows|\d+\.\d+\.\d+
+Correct regex (every alternative is anchored to a literal or a word boundary):
+\brun_id>[a-f0-9]{16}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|\bos=Darwin|\bos=Linux|\bos=Windows|version=\d+\.\d+\.\d+|cch=[a-f0-9]+|entrypoint=sdk-py
 
-Deleting its matches yields (tags, keys, and indentation preserved — only the values are gone):
-<runtime>
-  <run_id></run_id>
-  <date></date>
-</runtime>
-os= version="#;
+Counter-examples (NEVER do any of these — each matches inside ordinary words):
+- `[a-z0-9]{5}` → matches `eeded` in `needed`, `dable` in `findable`.
+- `[a-f0-9]+` (bare) → matches `added`, `deed`, `face`.
+- `\d+\.\d+\.\d+\.[a-z0-9]+` → the trailing `[a-z0-9]+` matches inside words.
+- `sdk-py` is fine (it contains the literal `-`); `[a-z0-9]{5}` next to it is not.
+Anchor the hash/id/token to its label instead (`cch=[a-f0-9]+`, `entrypoint=sdk-py`), or leave it in."#;
 
 /// Stable portion of a system prompt; returns it unchanged on any LLM/regex failure.
 pub async fn extract_stable_system_prompt(

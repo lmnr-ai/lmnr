@@ -44,6 +44,7 @@ const AGENT_CLASSIFY_LOCK_TTL_SECONDS: u64 = 60;
 pub struct CheckpointsQueueMessage {
     pub project_id: Uuid,
     pub trace_id: Uuid,
+    pub span_id: Uuid,
     pub system_prompt: String,
     pub tool_definitions_hash: String,
     pub model: String,
@@ -82,7 +83,12 @@ impl MessageHandler for CheckpointsHandler {
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
         // Lazy root: emits a `checkpoint` trace only if some LLM call runs.
-        let root = llm::CheckpointRoot::new(self.internal_project_id);
+        let root = llm::CheckpointRoot::new(
+            self.internal_project_id,
+            message.project_id,
+            message.trace_id,
+            message.span_id,
+        );
         self.process_checkpoint_inner(message, &root).await
     }
 
@@ -91,9 +97,12 @@ impl CheckpointsHandler {
         message: &CheckpointsQueueMessage,
         root: &llm::CheckpointRoot,
     ) -> anyhow::Result<()> {
+        let system_prompt_text =
+            crate::traces::prompt_hash::strip_claude_code_billing_header(&message.system_prompt);
+
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
-            &message.system_prompt,
+            &system_prompt_text,
             &message.prompt_hash,
             message.project_id,
             self.cache.clone(),
