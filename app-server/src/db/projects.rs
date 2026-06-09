@@ -192,6 +192,36 @@ pub async fn project_has_member(
     Ok(exists)
 }
 
+/// A project the user can access, with its owning workspace. Backs the CLI
+/// `GET /v1/cli/projects` discovery endpoint.
+#[derive(Serialize, FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CliProject {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
+    pub workspace_name: String,
+}
+
+/// All projects in workspaces the user is a member of (any role), ordered by
+/// workspace then project name. Used by the CLI to let the user discover and
+/// select a project after `login`.
+pub async fn get_projects_for_user(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<CliProject>> {
+    let projects = sqlx::query_as::<_, CliProject>(
+        "SELECT p.id, p.name, w.id AS workspace_id, w.name AS workspace_name
+         FROM projects p
+         JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+         JOIN workspaces w ON w.id = p.workspace_id
+         WHERE m.user_id = $1
+         ORDER BY w.name, p.name",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(projects)
+}
+
 pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,

@@ -3,11 +3,12 @@
 //! membership, and inserts a `ProjectContext` for the `/v1/cli/*` surface.
 
 use std::collections::HashMap;
+use std::future::{Ready, ready};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actix_web::dev::ServiceRequest;
-use actix_web::{Error, HttpMessage, HttpResponse, web};
+use actix_web::dev::{Payload, ServiceRequest};
+use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, web};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use jsonwebtoken::jwk::JwkSet;
@@ -271,6 +272,51 @@ pub async fn cli_user_validator(
         project_id,
         principal: AuthPrincipal::User { user_id },
     });
+    Ok(req)
+}
+
+/// A verified CLI user with no project bound. Inserted by
+/// `cli_user_jwt_validator` for user-scoped endpoints (e.g. listing projects).
+#[derive(Clone)]
+pub struct CliUser {
+    pub user_id: Uuid,
+}
+
+impl FromRequest for CliUser {
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        match req.extensions().get::<Self>().cloned() {
+            Some(u) => ready(Ok(u)),
+            None => ready(Err(actix_web::error::ParseError::Incomplete.into())),
+        }
+    }
+}
+
+/// Bearer middleware for user-scoped CLI endpoints that do NOT target a project
+/// (e.g. `GET /v1/cli/projects`). Verifies the BetterAuth JWT (401 on failure)
+/// and inserts a `CliUser`. No `x-lmnr-project-id` / membership check — those
+/// belong to `cli_user_validator` on the project-scoped routes.
+pub async fn cli_user_jwt_validator(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let config = req.app_data::<Config>().cloned().unwrap_or_default();
+    let jwks = req
+        .app_data::<web::Data<Arc<JwksCache>>>()
+        .cloned()
+        .unwrap()
+        .into_inner();
+
+    let user_id = match verify_jwt(credentials.token(), &jwks).await {
+        Ok(uid) => uid,
+        Err(e) => {
+            log::warn!("CLI user JWT verification failed: {e}");
+            return Err((AuthenticationError::from(config).into(), req));
+        }
+    };
+    req.extensions_mut().insert(CliUser { user_id });
     Ok(req)
 }
 

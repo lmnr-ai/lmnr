@@ -1809,6 +1809,8 @@ fn main() -> anyhow::Result<()> {
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
                         let cli_user_auth =
                             HttpAuthentication::bearer(auth::cli_user::cli_user_validator);
+                        let cli_user_jwt_auth =
+                            HttpAuthentication::bearer(auth::cli_user::cli_user_jwt_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1906,6 +1908,13 @@ fn main() -> anyhow::Result<()> {
                                     ))
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
+                            )
+                            // User-scoped CLI discovery (no project header) — must
+                            // be registered BEFORE /v1/cli so its prefix wins.
+                            .service(
+                                web::scope("/v1/cli/projects")
+                                    .wrap(cli_user_jwt_auth.clone())
+                                    .service(api::v1::cli::list_projects),
                             )
                             // CLI user-token surface: same handlers as their /v1
                             // counterparts, behind the BetterAuth JWT validator.
