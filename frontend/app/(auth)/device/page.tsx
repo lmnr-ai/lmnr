@@ -21,16 +21,18 @@ interface DevicePageProps {
 }
 
 export default async function DevicePage(props: DevicePageProps) {
-  const session = await getServerSession();
-  // proxy.ts gates this route, but guard explicitly so a middleware lapse
-  // redirects cleanly instead of throwing a TypeError.
-  if (!session?.user) {
-    redirect("/sign-in?callbackUrl=/device");
-  }
-  const user = session.user;
-
   const searchParams = await props.searchParams;
   const rawUserCode = typeof searchParams?.user_code === "string" ? searchParams.user_code : null;
+
+  const session = await getServerSession();
+  // proxy.ts gates this route, but guard explicitly so a middleware lapse
+  // redirects cleanly instead of throwing a TypeError. Preserve user_code in
+  // the callback so the deep link survives the sign-in round trip.
+  if (!session?.user) {
+    const callbackUrl = rawUserCode ? `/device?user_code=${encodeURIComponent(rawUserCode)}` : "/device";
+    redirect(`/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+  }
+  const user = session.user;
 
   if (!rawUserCode) {
     return <DeviceApproval userEmail={user.email} mode="enter-code" />;
