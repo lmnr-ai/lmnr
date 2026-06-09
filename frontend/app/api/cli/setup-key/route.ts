@@ -100,9 +100,9 @@ export async function POST(req: NextRequest) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    // Don't leak internal error details (DB errors can carry schema/connection
+    // info) to API clients — log server-side, return a generic message.
+    console.error("setup-key error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

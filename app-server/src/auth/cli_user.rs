@@ -15,7 +15,7 @@ use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 use sqlx::PgPool;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 use super::{AuthPrincipal, ProjectContext};
@@ -71,6 +71,10 @@ struct JwksState {
 /// and registered via `web::Data` in `main.rs`.
 pub struct JwksCache {
     inner: RwLock<JwksState>,
+    // Single-flight guard: only one task fetches the JWKS at a time, so a
+    // traffic spike (e.g. after a key rotation) can't fan out into N parallel
+    // HTTP GETs to the JWKS endpoint.
+    refresh_lock: Mutex<()>,
     http: reqwest::Client,
     jwks_url: String,
     ttl: Duration,
@@ -98,6 +102,7 @@ impl JwksCache {
                     .checked_sub(JWKS_TTL)
                     .unwrap_or_else(Instant::now),
             }),
+            refresh_lock: Mutex::new(()),
             http,
             jwks_url,
             ttl: JWKS_TTL,
@@ -112,6 +117,7 @@ impl JwksCache {
                 keys,
                 fetched_at: Instant::now(),
             }),
+            refresh_lock: Mutex::new(()),
             http: reqwest::Client::new(),
             jwks_url: String::new(),
             ttl: JWKS_TTL,
@@ -128,7 +134,17 @@ impl JwksCache {
                 return Ok(key.clone());
             }
         }
-        // Stale or unknown kid → refetch.
+        // Stale or unknown kid → refetch, single-flighted. Hold the refresh lock
+        // so concurrent callers don't all hit the JWKS endpoint; once we have
+        // it, re-check the cache since a prior holder may have just refreshed.
+        let _refresh = self.refresh_lock.lock().await;
+        {
+            let state = self.inner.read().await;
+            let fresh = state.fetched_at.elapsed() < self.ttl;
+            if fresh && let Some(key) = state.keys.get(kid) {
+                return Ok(key.clone());
+            }
+        }
         self.refresh().await?;
         let state = self.inner.read().await;
         state
@@ -207,6 +223,14 @@ fn forbidden(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
     )
 }
 
+fn internal_error(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
+    let response = HttpResponse::InternalServerError().json(serde_json::json!({ "error": msg }));
+    (
+        actix_web::error::InternalError::from_response("", response).into(),
+        req,
+    )
+}
+
 /// Bearer middleware for the `/v1/cli/*` scope. Verifies the BetterAuth EdDSA
 /// JWT (401 on bad/expired/unknown-kid), reads `x-lmnr-project-id` (400 on
 /// missing/invalid), authorizes workspace membership (403 on non-member), and
@@ -262,8 +286,10 @@ pub async fn cli_user_validator(
             return Err(forbidden(req, "User is not a member of this project"));
         }
         Err(e) => {
+            // Infra failure (DB/cache), not bad credentials → 500 so the CLI
+            // retries instead of treating a healthy token as expired.
             log::error!("CLI membership check failed: {e}");
-            return Err((AuthenticationError::from(config).into(), req));
+            return Err(internal_error(req, "Failed to verify project membership"));
         }
     }
 

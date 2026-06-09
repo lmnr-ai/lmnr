@@ -208,12 +208,15 @@ pub struct CliProject {
 /// select a project after `login`.
 pub async fn get_projects_for_user(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<CliProject>> {
     let projects = sqlx::query_as::<_, CliProject>(
+        // LIMIT bounds the response for users in large multi-workspace orgs;
+        // the CLI only needs enough rows to pick a project from.
         "SELECT p.id, p.name, w.id AS workspace_id, w.name AS workspace_name
          FROM projects p
          JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
          JOIN workspaces w ON w.id = p.workspace_id
          WHERE m.user_id = $1
-         ORDER BY w.name, p.name",
+         ORDER BY w.name, p.name
+         LIMIT 1000",
     )
     .bind(user_id)
     .fetch_all(pool)

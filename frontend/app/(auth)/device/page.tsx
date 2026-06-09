@@ -1,4 +1,5 @@
 import { type Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import DeviceApproval from "@/components/device";
 import { claimUserCodeForCurrentSession, type DeviceApprovalContext, loadDeviceContext } from "@/lib/actions/device";
@@ -15,7 +16,12 @@ interface DevicePageProps {
 
 export default async function DevicePage(props: DevicePageProps) {
   const session = await getServerSession();
-  const user = session!.user;
+  // proxy.ts gates this route, but guard explicitly so a middleware lapse
+  // redirects cleanly instead of throwing a TypeError.
+  if (!session?.user) {
+    redirect("/sign-in?callbackUrl=/device");
+  }
+  const user = session.user;
 
   const searchParams = await props.searchParams;
   const rawUserCode = typeof searchParams?.user_code === "string" ? searchParams.user_code : null;
