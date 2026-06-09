@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/lib/auth-session";
+import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
 
@@ -131,6 +132,12 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
   const context = await loadDeviceContext(userCode);
   if (!context) return { error: "We couldn't find that code." };
   if (context.status !== "pending") return { error: "This code has already been processed." };
+
+  // Authorize project membership BEFORE the scope write — the picker is
+  // session-scoped but the projectId rides in from the client, so verify the
+  // user actually belongs to it before smuggling it into the device scope.
+  const isMember = await isUserMemberOfProject(projectId, session.user.id);
+  if (!isMember) return { error: "You do not have access to this project" };
 
   // 1) Write the chosen project into `scope` WHILE the row is pending. deviceApprove
   //    only writes { status, userId } so this survives the approve.
