@@ -79,6 +79,10 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 ```
 
+## Anonymous usage telemetry
+
+Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,

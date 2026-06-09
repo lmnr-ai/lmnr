@@ -27,6 +27,7 @@ interface WorkspaceProps {
   canManageBilling: boolean;
   slackClientId?: string;
   slackRedirectUri?: string;
+  slackBrokerEnabled?: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -40,6 +41,7 @@ export default function WorkspaceComponent({
   canManageBilling,
   slackClientId,
   slackRedirectUri,
+  slackBrokerEnabled,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
   const featureFlags = useFeatureFlags();
@@ -71,6 +73,7 @@ export default function WorkspaceComponent({
             workspaceId={workspace.id}
             slackClientId={slackClientId}
             slackRedirectUri={slackRedirectUri}
+            slackBrokerEnabled={slackBrokerEnabled}
           />
         )}
         {menu === "reports" && (
