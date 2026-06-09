@@ -88,15 +88,15 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
-    if (e && e.activeLabel) {
-      setRefArea({ left: e.activeLabel });
+    if (e?.activeLabel != null) {
+      setRefArea({ left: String(e.activeLabel) });
     }
   }, []);
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (refArea.left && e && e.activeLabel) {
-        setRefArea({ left: refArea.left, right: e.activeLabel });
+      if (refArea.left && e?.activeLabel != null) {
+        setRefArea({ left: refArea.left, right: String(e.activeLabel) });
       }
     },
     [refArea.left]

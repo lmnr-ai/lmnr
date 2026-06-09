@@ -195,8 +195,8 @@ const Chart = ({ chart }: ChartProps) => {
 
   const onMouseDown: CategoricalChartFunc = useCallback(
     (e) => {
-      if (e?.activeLabel) {
-        startDrag(id, e.activeLabel);
+      if (e?.activeLabel != null) {
+        startDrag(id, String(e.activeLabel));
       }
     },
     [id, startDrag]
@@ -204,8 +204,8 @@ const Chart = ({ chart }: ChartProps) => {
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (isDragging && e?.activeLabel) {
-        updateDrag(e.activeLabel);
+      if (isDragging && e?.activeLabel != null) {
+        updateDrag(String(e.activeLabel));
       }
     },
     [isDragging, updateDrag]
