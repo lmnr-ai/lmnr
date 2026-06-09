@@ -95,6 +95,13 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
   return providers;
 };
 
+// Pin redirect_uri to the LEGACY NextAuth path (`/api/auth/callback/<id>`), not
+// Better Auth's default (`/oauth2/callback/<id>`): self-hosters already registered
+// the legacy path with their IdP, and sending the new one fails the IdP's
+// redirect_uri match. The next.config.ts rewrite forwards the inbound hit to
+// Better Auth's handler. Azure's legacy id was `azure-ad`.
+const legacyCallbackUri = (legacyProviderId: string) => `${AUTH_URL}/api/auth/callback/${legacyProviderId}`;
+
 const getGenericOAuthConfig = () => {
   const config = [];
   if (isFeatureEnabled(Feature.AZURE_AUTH)) {
@@ -103,6 +110,11 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
         clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
         tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
+        redirectURI: legacyCallbackUri("azure-ad"),
+        // PKCE on (NextAuth parity + OAuth 2.1): genericOAuth always sends a
+        // code_verifier at token exchange, so without a code_challenge at
+        // authorize the IdP rejects with invalid_grant. Required for OIDC here.
+        pkce: true,
         // Re-sync name/avatar from the IdP on every sign-in (parity with the
         // legacy `updateUserAvatar` backfill). See getSocialProviders above.
         overrideUserInfo: true,
@@ -115,6 +127,8 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_OKTA_CLIENT_ID!,
         clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
         issuer: process.env.AUTH_OKTA_ISSUER!,
+        redirectURI: legacyCallbackUri("okta"),
+        pkce: true,
         overrideUserInfo: true,
       })
     );
@@ -125,6 +139,8 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_KEYCLOAK_ID!,
         clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
         issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
+        redirectURI: legacyCallbackUri("keycloak"),
+        pkce: true,
         overrideUserInfo: true,
       })
     );
