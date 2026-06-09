@@ -26,11 +26,18 @@ export async function POST(req: NextRequest): Promise<Response> {
     const body = (await req.clone().json()) as { device_code?: string };
     if (body?.device_code) {
       const [row] = await db
-        .select({ metadata: deviceCodes.metadata, status: deviceCodes.status })
+        .select({ metadata: deviceCodes.metadata })
         .from(deviceCodes)
         .where(eq(deviceCodes.deviceCode, body.device_code))
         .limit(1);
-      if (row?.status === "approved") metadata = row.metadata;
+      // Capture metadata whenever present — do NOT gate on status here. Approve
+      // writes metadata WHILE the row is still pending, then flips status. If we
+      // required "approved" and this read saw "pending" but BetterAuth's own
+      // (slightly later) read in the same request saw "approved", it would issue
+      // the token AND delete the row — dropping the header with no way to recover
+      // it on a retry. The real gate is `res.ok` below: emit only once a token
+      // was actually issued (which means approved).
+      metadata = row?.metadata ?? null;
     }
   } catch {
     // Best-effort — never block token issuance on the metadata lookup.
