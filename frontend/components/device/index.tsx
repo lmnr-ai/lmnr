@@ -124,11 +124,12 @@ function ApprovalForm({
         <CardHeader>
           <CardTitle>Authorize the Laminar CLI</CardTitle>
           <CardDescription>
-            Code <span className="font-mono tracking-widest">{rawUserCode}</span>
+            Confirm this code matches the one shown in your terminal.
             <span className="block text-xs mt-1 text-muted-foreground/80">Signed in as {userEmail}</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
+          {rawUserCode ? <UserCodeDisplay code={rawUserCode} /> : null}
           {banner ? (
             <p className="text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md p-3">
               {banner}
@@ -182,6 +183,15 @@ function CompletionScreen({ result }: { result: "approved" | "denied" }) {
         </CardHeader>
       </Card>
     </Centered>
+  );
+}
+
+// Subtle single-box code display.
+function UserCodeDisplay({ code }: { code: string }) {
+  return (
+    <div className="w-full select-all rounded-md border bg-muted px-4 py-2 text-center font-mono text-lg tracking-[0.2em] text-foreground">
+      {code}
+    </div>
   );
 }
 
