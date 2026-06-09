@@ -38,11 +38,11 @@ pub async fn init_eval(
     req: Json<InitEvalRequest>,
     db: web::Data<DB>,
     name_generator: web::Data<Arc<NameGenerator>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let req = req.into_inner();
     let group_name = req.group_name.unwrap_or("default".to_string());
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let metadata = req.metadata;
     let name = if let Some(name) = req.name {
         name
@@ -72,11 +72,11 @@ pub async fn save_eval_datapoints(
     clickhouse: web::Data<clickhouse::Client>,
     cache: web::Data<Cache>,
     pubsub: web::Data<Arc<PubSub>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let eval_id = eval_id.into_inner();
     let req = req.into_inner();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let points = req.points;
     let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
@@ -123,12 +123,12 @@ pub async fn update_eval_datapoint(
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
     pubsub: web::Data<Arc<PubSub>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
 
     let group_id = db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_id).await?;
 

@@ -31,10 +31,10 @@ struct GetDatasetsRequest {
 #[get("/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let db = db.into_inner();
     let request = req.into_inner();
     let datasets =
@@ -58,11 +58,11 @@ async fn get_datapoints(
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let db = db.into_inner();
     let clickhouse_ro = if let Some(clickhouse_ro) = clickhouse_ro.as_ref() {
         clickhouse_ro.clone()
@@ -218,9 +218,9 @@ async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let db = db.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let request = req.into_inner();
@@ -326,13 +326,13 @@ async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
     let dataset_id =
         Uuid::parse_str(&dataset_id_str).map_err(|_| anyhow::anyhow!("Invalid dataset ID"))?;
 
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let db = db.into_inner();
 
     let parquet_path =

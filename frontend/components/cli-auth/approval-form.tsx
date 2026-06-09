@@ -8,7 +8,7 @@ import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace 
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { Centered, CompletionScreen, Field, UserCodeDisplay } from "./index";
+import { Centered, CompletionScreen, UserCodeDisplay } from "./index";
 import { ProjectPicker } from "./project-picker";
 
 interface Props {
@@ -24,8 +24,6 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
   const [denying, setDenying] = useState(false);
   const [step, setStep] = useState<"approve" | "pick-project">("approve");
   const [completed, setCompleted] = useState<null | "approved" | "denied">(null);
-
-  const clientId = context?.clientId ?? "lmnr-cli";
 
   // Invalid / expired / wrong-status banners.
   let banner: string | null = null;
@@ -88,9 +86,6 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
             </p>
           ) : (
             <>
-              <Field label="Client">
-                <span className="font-mono text-sm">{clientId}</span>
-              </Field>
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={onDeny} disabled={denying} className="flex-1">
                   {denying ? "Denying…" : "Deny"}

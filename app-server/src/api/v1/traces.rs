@@ -55,7 +55,7 @@ pub struct RabbitMqSpanMessage {
 pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
@@ -77,7 +77,7 @@ pub async fn process_traces(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
-            ctx.project_id,
+            project_auth_ctx.project_id,
         )
         .await
         .map_err(|e| {
@@ -91,7 +91,7 @@ pub async fn process_traces(
 
     let response = push_spans_to_queue(
         request,
-        ctx.project_id,
+        project_auth_ctx.project_id,
         spans_message_queue,
         db,
         cache,

@@ -46,7 +46,7 @@ pub async fn tag_trace(
     clickhouse: web::Data<clickhouse::Client>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     http_client: web::Data<reqwest::Client>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
@@ -71,7 +71,7 @@ pub async fn tag_trace(
                 clickhouse_ro,
                 query_engine,
                 req.trace_id,
-                ctx.project_id,
+                project_auth_ctx.project_id,
                 http_client,
                 db.into_inner(),
                 cache,
@@ -82,7 +82,7 @@ pub async fn tag_trace(
             let exists = crate::ch::spans::is_span_in_project(
                 clickhouse.clone(),
                 req.span_id,
-                ctx.project_id,
+                project_auth_ctx.project_id,
             )
             .await?;
             if !exists {
@@ -99,7 +99,7 @@ pub async fn tag_trace(
     append_tags_to_span(
         clickhouse.clone(),
         span_id,
-        ctx.project_id,
+        project_auth_ctx.project_id,
         names.clone(),
     )
     .await?;

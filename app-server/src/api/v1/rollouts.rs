@@ -38,13 +38,13 @@ pub struct RegisterSessionRequest {
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
     path: web::Path<Uuid>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let name = body.into_inner().name;
 
     let session =
@@ -60,13 +60,13 @@ pub async fn register_session(
 pub async fn update_name(
     path: web::Path<Uuid>,
     body: web::Json<UpdateNameRequest>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let name = body.into_inner().name;
 
     let updated = update_debugger_session_name(&db.pool, &session_id, &project_id, &name).await?;
@@ -111,12 +111,12 @@ pub struct CacheLookupRequest {
 #[post("rollouts/{session_id}/cache")]
 pub async fn lookup_cache(
     _path: web::Path<Uuid>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     body: web::Json<CacheLookupRequest>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let body = body.into_inner();
 
     let outcome = debugger::lookup(
@@ -135,14 +135,14 @@ pub async fn lookup_cache(
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
     path: web::Path<String>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id =
         Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
 
     delete_debugger_session(&db.pool, &session_id, &project_id).await?;
 

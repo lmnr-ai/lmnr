@@ -4,7 +4,16 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -21,6 +30,26 @@ interface Props {
 // Sentinel value for the "+ Create project" dropdown item — opens the modal
 // instead of selecting a project.
 const CREATE_VALUE = "__create__";
+
+// Group projects under a per-workspace section header (like macOS native
+// dropdowns), workspaces sorted A→Z and projects sorted A→Z within each.
+function groupByWorkspace(
+  projects: SessionProject[],
+): { workspaceId: string; workspaceName: string; projects: SessionProject[] }[] {
+  const byWorkspace = new Map<string, { workspaceName: string; projects: SessionProject[] }>();
+  for (const p of projects) {
+    const group = byWorkspace.get(p.workspaceId);
+    if (group) group.projects.push(p);
+    else byWorkspace.set(p.workspaceId, { workspaceName: p.workspaceName, projects: [p] });
+  }
+  return [...byWorkspace.entries()]
+    .map(([workspaceId, g]) => ({
+      workspaceId,
+      workspaceName: g.workspaceName,
+      projects: [...g.projects].sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => a.workspaceName.localeCompare(b.workspaceName));
+}
 
 export function ProjectPicker({ userCode, projects, workspaces, onApproved }: Props) {
   const { toast } = useToast();
@@ -84,10 +113,17 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved }: Pr
               <SelectValue placeholder="Select a project" />
             </SelectTrigger>
             <SelectContent>
-              {options.map((p) => (
-                <SelectItem key={p.id} value={p.id} description={p.workspaceName}>
-                  {p.name}
-                </SelectItem>
+              {groupByWorkspace(options).map((g) => (
+                <SelectGroup key={g.workspaceId}>
+                  <SelectLabel className="text-xs font-normal text-muted-foreground">
+                    {g.workspaceName}
+                  </SelectLabel>
+                  {g.projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
               {options.length > 0 ? <SelectSeparator /> : null}
               <SelectItem value={CREATE_VALUE}>+ Create project</SelectItem>

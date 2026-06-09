@@ -34,13 +34,13 @@ pub struct UpdateTraceMetadataRequest {
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
 
     if req.metadata.is_empty() {
         return Ok(HttpResponse::BadRequest().json("metadata cannot be empty"));

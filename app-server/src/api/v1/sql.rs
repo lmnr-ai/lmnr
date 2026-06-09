@@ -34,14 +34,14 @@ pub struct SqlQueryResponse {
 #[post("query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
     let SqlQueryRequest { query, parameters } = req.into_inner();
 
     let tracer = global::tracer("tracer");

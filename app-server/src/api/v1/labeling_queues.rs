@@ -42,13 +42,13 @@ pub async fn create_labeling_queues_items(
     body: web::Json<CreateLabelingQueueItemsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    ctx: ProjectAuthContext,
+    project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let queue_id = path.into_inner();
     let request = body.into_inner();
     let db = db.into_inner();
     let clickhouse = clickhouse.as_ref().clone();
-    let project_id = ctx.project_id;
+    let project_id = project_auth_ctx.project_id;
 
     if !db::labeling_queues::queue_exists(&db.pool, queue_id, project_id).await? {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({
