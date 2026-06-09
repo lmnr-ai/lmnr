@@ -1194,3 +1194,46 @@ export const slackBrokerInstances = pgTable(
   },
   (table) => [unique("slack_broker_instances_key_hash_key").on(table.keyHash)]
 );
+
+export const agents = pgTable(
+  "agents",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_agents_project_id",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentVersions = pgTable(
+  "agent_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    versionHash: text("version_hash").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    toolDefinitions: text("tool_definitions").notNull(),
+    model: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentId],
+      foreignColumns: [agents.id],
+      name: "agent_versions_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_agent_versions_project_id",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.versionHash], name: "agent_versions_pkey" }),
+  ]
+);

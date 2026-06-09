@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Code2, DollarSign, Key, Settings2, ShieldCheck, Sparkles } from "lucide-react";
+import { Bell, Code2, DollarSign, GitBranch, Key, Settings2, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { track } from "@/lib/posthog";
 
 import Header from "../ui/header";
+import { ScrollArea } from "../ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +19,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "../ui/sidebar";
+import AgentVersions from "./agent-versions";
 import AlertsSettings from "./alerts";
 import CustomModelCosts from "./custom-model-costs";
 import DeleteProject from "./delete-project";
@@ -43,6 +45,7 @@ type SettingsTab =
   | "alerts"
   | "model-costs"
   | "render-templates"
+  | "agent-versions"
   | "security";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
@@ -51,6 +54,7 @@ const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
   { id: "model-costs", label: "Model Costs", icon: <DollarSign /> },
   { id: "render-templates", label: "Render Templates", icon: <Code2 /> },
+  { id: "agent-versions", label: "Agent versions", icon: <GitBranch /> },
   { id: "security", label: "Security", icon: <ShieldCheck /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
@@ -95,6 +99,8 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
         return <CustomModelCosts />;
       case "render-templates":
         return <RenderTemplates />;
+      case "agent-versions":
+        return <AgentVersions />;
       case "alerts":
         return (
           <AlertsSettings
@@ -136,9 +142,9 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <div className="flex-1 overflow-y-auto pb-24">
-            <div className="flex flex-col gap-8 max-w-6xl mx-auto px-4">{renderContent()}</div>
-          </div>
+          <ScrollArea className="flex-1">
+            <div className="flex flex-col gap-8 max-w-6xl mx-auto px-4 pb-24">{renderContent()}</div>
+          </ScrollArea>
         </div>
       </SidebarProvider>
     </div>

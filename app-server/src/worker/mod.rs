@@ -129,6 +129,7 @@ pub enum WorkerType {
     SignalJobRealtime,
     Logs,
     Reports,
+    Checkpoints,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -144,6 +145,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
             WorkerType::Logs => write!(f, "logs"),
             WorkerType::Reports => write!(f, "reports"),
+            WorkerType::Checkpoints => write!(f, "checkpoints"),
         }
     }
 }

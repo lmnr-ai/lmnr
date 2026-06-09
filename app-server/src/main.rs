@@ -78,6 +78,9 @@ use traces::{
 use cache::{
     Cache, connection::ResilientRedisConnection, in_memory::InMemoryCache, redis::RedisCache,
 };
+use checkpoints::{
+    CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE, CHECKPOINTS_ROUTING_KEY, consumer::CheckpointsHandler,
+};
 use pubsub::{PubSub, in_memory::InMemoryPubSub, redis::RedisPubSub};
 use quickwit::{
     SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE, SPANS_INDEXER_ROUTING_KEY,
@@ -113,6 +116,7 @@ mod batch_worker;
 mod browser_events;
 mod cache;
 mod ch;
+mod checkpoints;
 mod clustering;
 mod data_plane;
 mod datasets;
@@ -185,11 +189,12 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    // Both OTEL trees (Sentry + internal self-tracing) are gated on `Feature::Tracing`.
-    // `internal_ingest_deps` is filled once the queue/DB/cache exist.
-    let internal_tracing_enabled = is_feature_enabled(Feature::Tracing);
-    let (_internal_tracer_provider, internal_ingest_deps) =
-        instrumentation::setup_tracing_and_logging(internal_tracing_enabled, &runtime_handle);
+    let internal_tracing_enabled = is_feature_enabled(Feature::InternalTracing);
+    let (_internal_tracer_provider, internal_ingest_deps) = instrumentation::setup_tracing_and_logging(
+        is_feature_enabled(Feature::Tracing),
+        internal_tracing_enabled,
+        &runtime_handle,
+    );
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
@@ -749,6 +754,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.13 Checkpoints message queue ====
+            channel
+                .exchange_declare(
+                    CHECKPOINTS_EXCHANGE.into(),
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    CHECKPOINTS_QUEUE.into(),
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -818,6 +849,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         // ==== 3.12 Reports message queue ====
         queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
+        // ==== 3.13 Checkpoints message queue ====
+        queue.register_queue(CHECKPOINTS_EXCHANGE, CHECKPOINTS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1113,6 +1146,11 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(4);
 
         let num_reports_workers = env::var("NUM_REPORTS_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
+        let num_checkpoints_workers = env::var("NUM_CHECKPOINTS_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
             .unwrap_or(2);
@@ -1614,6 +1652,31 @@ fn main() -> anyhow::Result<()> {
                                 REPORT_TRIGGERS_QUEUE,
                                 REPORT_TRIGGERS_EXCHANGE,
                                 REPORT_TRIGGERS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn checkpoints workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let llm_client = llm_provider_client.clone();
+                        let queue = mq_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::Checkpoints,
+                            num_checkpoints_workers as usize,
+                            move || CheckpointsHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                clickhouse: clickhouse.clone(),
+                                llm_client: llm_client.clone(),
+                                queue: queue.clone(),
+                            },
+                            QueueConfig::new(
+                                CHECKPOINTS_QUEUE,
+                                CHECKPOINTS_EXCHANGE,
+                                CHECKPOINTS_ROUTING_KEY,
                             ),
                         );
                     }
