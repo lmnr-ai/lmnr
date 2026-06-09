@@ -93,7 +93,6 @@ pub async fn publish_checkpoints_for_batch(
             system_prompt,
             tool_definitions_hash: tool_def_hash,
             model,
-            span_ids_path: span.attributes.ids_path().unwrap_or_default(),
             prompt_hash,
         });
     }

@@ -6,7 +6,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    checkpoints::observe::{CheckpointObserver, run_llm},
+    checkpoints::llm::{CheckpointRoot, run_llm},
     db::agents::AgentVersion,
     llm::{
         LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
@@ -45,13 +45,20 @@ pub async fn classify_agent(
     non_dynamic_system_prompt: &str,
     existing_agents: &[AgentVersion],
     llm_client: Option<Arc<LlmClient>>,
-    observer: Option<&CheckpointObserver>,
+    root: &CheckpointRoot,
 ) -> anyhow::Result<AgentClassification> {
     let Some(llm_client) = llm_client else {
         return Ok(fallback_classification(existing_agents));
     };
 
-    match classify_with_llm(&llm_client, non_dynamic_system_prompt, existing_agents, observer).await {
+    match classify_with_llm(
+        &llm_client,
+        non_dynamic_system_prompt,
+        existing_agents,
+        root,
+    )
+    .await
+    {
         Ok(classification) => Ok(classification),
         Err(e) => {
             log::warn!("[CHECKPOINTS] Agent classification failed, falling back: {e:?}");
@@ -64,7 +71,7 @@ async fn classify_with_llm(
     llm_client: &LlmClient,
     system_prompt: &str,
     existing_agents: &[AgentVersion],
-    observer: Option<&CheckpointObserver>,
+    root: &CheckpointRoot,
 ) -> anyhow::Result<AgentClassification> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
@@ -90,9 +97,11 @@ async fn classify_with_llm(
         model_size: Some(ModelSize::Small),
     };
 
-    let response = run_llm(observer, llm_client, "classify_agent", &request)
-        .await
-        .map_err(|e| anyhow::anyhow!("classify_agent LLM call failed: {e:?}"))?;
+    let response = run_llm(root, llm_client, &request, || {
+        tracing::info_span!(target: "lmnr::internal", "classify_agent")
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("classify_agent LLM call failed: {e:?}"))?;
 
     let args = response
         .candidates

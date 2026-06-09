@@ -1,6 +1,5 @@
-//! System-prompt processing for checkpoints: strip dynamic fragments via an
-//! LLM-derived regex (cached per template) so the remainder is a stable
-//! fingerprint of the agent's prompt.
+//! Strip a system prompt's dynamic values via an LLM-derived regex (cached per
+//! template) so the remainder is a stable fingerprint of the agent's prompt.
 
 use std::sync::Arc;
 
@@ -9,35 +8,54 @@ use uuid::Uuid;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::AGENT_STABLE_PROMPT_REGEX_CACHE_KEY},
-    checkpoints::observe::{CheckpointObserver, run_llm},
+    checkpoints::llm::{CheckpointRoot, run_llm},
     llm::{
         LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
     },
 };
 
-const DYNAMIC_REGEX_TTL_SECONDS: u64 = 30 * 24 * 3600;
+const DYNAMIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
 
 const REGEX_TOOL_NAME: &str = "extract_dynamic_regex";
 
-const STABLE_PROMPT_INSTRUCTION: &str =
-    "You analyze an AI agent's system prompt. Some parts are dynamic — they change \
-     between runs (current date or time, user names, session/request IDs, injected \
-     runtime context, environment details, counters, file paths, etc.) — while the \
-     rest is the stable template. Call the extract_dynamic_regex tool with a single \
-     regular expression that matches every dynamic fragment, matching general \
-     patterns (e.g. date formats) rather than literal values.";
+const STABLE_PROMPT_INSTRUCTION: &str = r#"You separate an AI agent's system prompt into its STABLE template and the DYNAMIC values that change between runs. Call the extract_dynamic_regex tool with ONE regular expression (Rust `regex` crate syntax) that matches every dynamic value — and nothing else — so that deleting the matches leaves the rest of the prompt byte-for-byte identical.
 
-/// Extract the non-dynamic (stable) portion of a system prompt. Best-effort:
-/// with no LLM provider, or on any LLM / regex failure, returns it unchanged.
-/// `prompt_hash` is the ingest-time skeleton hash keying the dynamic-regex cache.
+Dynamic values are run-specific tokens such as: current date/time and timestamps, user names, session/request/run IDs, hashes, counters, hostnames, OS names, language/SDK version numbers, file paths, and environment names (development/staging/production).
+
+Strict rules — follow them exactly so the output is identical on every run of the same template:
+- Match ONLY the variable value itself. NEVER include surrounding structure in the match: leave XML/HTML tags, attribute names, JSON keys, field labels (e.g. `Model:`, `os=`), punctuation, quotes, and ALL whitespace and newlines untouched.
+- For `<tag>VALUE</tag>` match only `VALUE`, so the result is `<tag></tag>`. For `key: VALUE` match only `VALUE`, so the result is `key: `.
+- NEVER match an entire line, element, or block, and never delete a tag, key, or its indentation — strip only the value sitting between them. Emptying a tag is correct; collapsing or removing the whole element is wrong.
+- Describe each value by its general FORMAT (e.g. an ISO-8601 timestamp pattern, or a hex string of a given length), not by its literal text, so it generalizes across runs.
+- Use only features the Rust `regex` crate supports: NO look-around ((?=...), (?<=...)) and NO backreferences. An invalid pattern is discarded, leaving the dynamic values in place.
+- Return an empty string only if the prompt contains no dynamic values at all.
+
+Example input:
+<runtime>
+  <run_id>4f8c2a1b4d6e0f3a</run_id>
+  <date>2026-06-09T10:26:50Z</date>
+</runtime>
+os=Darwin version=3.13.9
+
+Correct regex:
+[a-f0-9]{16}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|Darwin|Linux|Windows|\d+\.\d+\.\d+
+
+Deleting its matches yields (tags, keys, and indentation preserved — only the values are gone):
+<runtime>
+  <run_id></run_id>
+  <date></date>
+</runtime>
+os= version="#;
+
+/// Stable portion of a system prompt; returns it unchanged on any LLM/regex failure.
 pub async fn extract_stable_system_prompt(
     system_prompt: &str,
     prompt_hash: &str,
     project_id: Uuid,
     cache: Arc<Cache>,
     llm_client: Option<Arc<LlmClient>>,
-    observer: Option<&CheckpointObserver>,
+    root: &CheckpointRoot,
 ) -> String {
     let Some(llm_client) = llm_client else {
         return system_prompt.to_string();
@@ -49,14 +67,13 @@ pub async fn extract_stable_system_prompt(
         project_id,
         system_prompt,
         prompt_hash,
-        observer,
+        root,
     )
     .await
     else {
         return system_prompt.to_string();
     };
 
-    // Empty pattern == no dynamic fragments.
     if pattern.is_empty() {
         return system_prompt.to_string();
     }
@@ -67,18 +84,17 @@ pub async fn extract_stable_system_prompt(
     apply_dynamic_regex(&re, system_prompt)
 }
 
-/// Cached regex keyed by the template-stable skeleton hash, derived once via
-/// the LLM on a miss.
+/// Cached regex keyed by the skeleton hash, derived via the LLM on a miss.
 async fn resolve_dynamic_regex(
     cache: &Cache,
     llm_client: &LlmClient,
     project_id: Uuid,
     system_prompt: &str,
     prompt_hash: &str,
-    observer: Option<&CheckpointObserver>,
+    root: &CheckpointRoot,
 ) -> Option<String> {
     if prompt_hash.is_empty() {
-        return generate_dynamic_regex(llm_client, system_prompt, observer).await;
+        return generate_dynamic_regex(llm_client, system_prompt, root).await;
     }
 
     let key = format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}");
@@ -87,9 +103,9 @@ async fn resolve_dynamic_regex(
         return Some(cached);
     }
 
-    let pattern = generate_dynamic_regex(llm_client, system_prompt, observer).await?;
+    let pattern = generate_dynamic_regex(llm_client, system_prompt, root).await?;
 
-    // Don't pin a broken regex for a month.
+    // Don't pin a broken regex for a week.
     if pattern.is_empty() || Regex::new(&pattern).is_ok() {
         let _ = cache.insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS).await;
     }
@@ -100,7 +116,7 @@ async fn resolve_dynamic_regex(
 async fn generate_dynamic_regex(
     llm_client: &LlmClient,
     system_prompt: &str,
-    observer: Option<&CheckpointObserver>,
+    root: &CheckpointRoot,
 ) -> Option<String> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
@@ -126,7 +142,10 @@ async fn generate_dynamic_regex(
         model_size: Some(ModelSize::Small),
     };
 
-    let response = match run_llm(observer, llm_client, "extract_stable_system_prompt", &request).await
+    let response = match run_llm(root, llm_client, &request, || {
+        tracing::info_span!(target: "lmnr::internal", "extract_stable_system_prompt")
+    })
+    .await
     {
         Ok(response) => response,
         Err(e) => {
@@ -157,14 +176,14 @@ fn build_regex_tool() -> ProviderTool {
         function_declarations: vec![ProviderFunctionDeclaration {
             name: REGEX_TOOL_NAME.to_string(),
             description: "REQUIRED: submit a single Rust `regex` crate pattern matching the system \
-                prompt's dynamic fragments. Always call this tool; never respond with plain text."
+                prompt's dynamic values. Always call this tool; never respond with plain text."
                 .to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "regex": {
                         "type": "string",
-                        "description": "A single regular expression (Rust regex syntax) matching every dynamic fragment (dates, times, ids, injected context, counters, file paths, etc.) so that removing the matches leaves the stable template. Match general patterns, not literal values. Empty string if there are no dynamic fragments."
+                        "description": "A single Rust `regex` crate pattern matching every dynamic VALUE (dates, times, ids, hashes, version numbers, hostnames, file paths, environment names, etc.) and NOTHING else. Match only the value, never the surrounding tags/keys/labels/punctuation/whitespace, so `<tag>VALUE</tag>` becomes `<tag></tag>` and `key: VALUE` becomes `key: `. Never match a whole line, element, or block. Describe values by general format, not literal text. No look-around or backreferences. Empty string only if there are no dynamic values."
                     }
                 },
                 "required": ["regex"]
@@ -217,5 +236,33 @@ mod tests {
         let re = Regex::new(r".*").unwrap();
         let prompt = "You are a helpful assistant.";
         assert_eq!(apply_dynamic_regex(&re, prompt), prompt);
+    }
+
+    /// A value-only regex empties each tag but leaves scaffolding/indentation intact.
+    #[test]
+    fn value_only_regex_preserves_scaffolding() {
+        let re = Regex::new(
+            r"[a-f0-9]{32}|[a-f0-9]{16}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|development|production|staging|[a-zA-Z0-9.-]+\.local|Darwin|Linux|Windows|\d+\.\d+\.\d+",
+        )
+        .unwrap();
+        let prompt = concat!(
+            "  <runtime_context>\n",
+            "    <run_id>793bd57841817dc3aaa2c60cf6af39cc</run_id>\n",
+            "    <timestamp_utc>2026-06-09T10:26:50Z</timestamp_utc>\n",
+            "    <weekday>Tuesday</weekday>\n",
+            "    <environment>development</environment>\n",
+            "    <python>3.13.9</python>\n",
+            "  </runtime_context>",
+        );
+        let expected = concat!(
+            "  <runtime_context>\n",
+            "    <run_id></run_id>\n",
+            "    <timestamp_utc></timestamp_utc>\n",
+            "    <weekday></weekday>\n",
+            "    <environment></environment>\n",
+            "    <python></python>\n",
+            "  </runtime_context>",
+        );
+        assert_eq!(apply_dynamic_regex(&re, prompt), expected);
     }
 }

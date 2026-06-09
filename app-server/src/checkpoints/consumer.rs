@@ -7,8 +7,7 @@
 //!
 //! The consumer turns each checkpoint into agent-versioning state: it detects
 //! whether an agent's prompt/tools/model "shape" is new, modified, or
-//! unchanged, persists the result to the `agents` / `agent_versions` tables,
-//! and propagates version bumps up the subagent → parent chain.
+//! unchanged, and persists the result to the `agents` / `agent_versions` tables.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,8 +19,7 @@ use uuid::Uuid;
 
 use super::{
     classifier::{self, AgentClassification},
-    observe::CheckpointObserver,
-    subagent, system_prompt, version,
+    llm, system_prompt, version,
 };
 use crate::{
     cache::{
@@ -49,7 +47,6 @@ pub struct CheckpointsQueueMessage {
     pub system_prompt: String,
     pub tool_definitions_hash: String,
     pub model: String,
-    pub span_ids_path: Vec<String>,
     /// Skeleton hash precomputed on ingest (`lmnr.span.prompt_hash`).
     pub prompt_hash: String,
 }
@@ -84,25 +81,15 @@ impl MessageHandler for CheckpointsHandler {
 
 impl CheckpointsHandler {
     async fn process_checkpoint(&self, message: &CheckpointsQueueMessage) -> anyhow::Result<()> {
-        // Tracing is enabled only when an internal project is configured.
-        let observer = self
-            .internal_project_id
-            .map(|project_id| CheckpointObserver::new(self.queue.clone(), project_id));
-
-        let result = self
-            .process_checkpoint_inner(message, observer.as_ref())
-            .await;
-
-        if let Some(observer) = observer {
-            observer.finish().await;
-        }
-        result
+        // Lazy root: emits a `checkpoint` trace only if some LLM call runs.
+        let root = llm::CheckpointRoot::new(self.internal_project_id);
+        self.process_checkpoint_inner(message, &root).await
     }
 
     async fn process_checkpoint_inner(
         &self,
         message: &CheckpointsQueueMessage,
-        observer: Option<&CheckpointObserver>,
+        root: &llm::CheckpointRoot,
     ) -> anyhow::Result<()> {
         // Extract the stable part of the system prompt (no dynamic content).
         let stable_system_prompt = system_prompt::extract_stable_system_prompt(
@@ -111,7 +98,7 @@ impl CheckpointsHandler {
             message.project_id,
             self.cache.clone(),
             self.llm_client.clone(),
-            observer,
+            root,
         )
         .await;
 
@@ -159,7 +146,7 @@ impl CheckpointsHandler {
             // on error — so a failed classify/write can't freeze the project
             // until TTL.
             let result = self
-                .process_new_version_locked(message, &stable_system_prompt, &version_hash, observer)
+                .process_new_version_locked(message, &stable_system_prompt, &version_hash, root)
                 .await;
 
             if let Err(e) = self.cache.release_lock(&lock_key).await {
@@ -184,7 +171,7 @@ impl CheckpointsHandler {
         message: &CheckpointsQueueMessage,
         stable_system_prompt: &str,
         version_hash: &str,
-        observer: Option<&CheckpointObserver>,
+        root: &llm::CheckpointRoot,
     ) -> anyhow::Result<Option<Uuid>> {
         // Re-check under the lock: another worker may have just written this
         // exact shape between our fast-path miss and acquiring the lock.
@@ -218,7 +205,7 @@ impl CheckpointsHandler {
             &stable_system_prompt,
             &existing_agents,
             self.llm_client.clone(),
-            observer,
+            root,
         )
         .await?;
 
@@ -255,20 +242,6 @@ impl CheckpointsHandler {
         // short-circuits at the read-through above instead of hitting the DB.
         self.cache_version_hash(message.project_id, version_hash, agent_id)
             .await;
-
-        // If this checkpoint belongs to a subagent, bump every parent
-        // agent's version too. Empty parent set == main agent == quit.
-        // TODO: implement later, currently no op
-        let parent_agent_ids = subagent::get_parent_agent_ids(&self.db, message, agent_id).await?;
-        for parent_id in parent_agent_ids {
-            agents::bump_parent_agent_version(
-                &self.db.pool,
-                message.project_id,
-                parent_id,
-                agent_id,
-            )
-            .await?;
-        }
 
         Ok(Some(agent_id))
     }

@@ -189,11 +189,12 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    // Both OTEL trees (Sentry + internal self-tracing) are gated on `Feature::Tracing`.
-    // `internal_ingest_deps` is filled once the queue/DB/cache exist.
-    let internal_tracing_enabled = is_feature_enabled(Feature::Tracing);
-    let (_internal_tracer_provider, internal_ingest_deps) =
-        instrumentation::setup_tracing_and_logging(internal_tracing_enabled, &runtime_handle);
+    let internal_tracing_enabled = is_feature_enabled(Feature::InternalTracing);
+    let (_internal_tracer_provider, internal_ingest_deps) = instrumentation::setup_tracing_and_logging(
+        is_feature_enabled(Feature::Tracing),
+        internal_tracing_enabled,
+        &runtime_handle,
+    );
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
