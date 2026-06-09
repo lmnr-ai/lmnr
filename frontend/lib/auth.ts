@@ -1,5 +1,4 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { bearer } from "better-auth/plugins/bearer";
@@ -12,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
-import { deviceCodes, membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
 import PostHogClient from "@/lib/posthog/server";
 
 import { Feature, isFeatureEnabled } from "./features/features";
@@ -224,27 +223,6 @@ export const auth = betterAuth({
     // Keep Set-Cookie working from Next.js server actions / route handlers.
     nextCookies(),
   ],
-  hooks: {
-    // Deliver the CLI's browser-selected metadata (e.g. the chosen projectId) to
-    // the polling CLI. Native /device/token returns only {access_token, scope}
-    // and DELETES the device row before any after-hook runs, so we read the
-    // `metadata` column here — while the row is still alive — and forward the
-    // whole JSON blob as a response header. The CLI reads x-lmnr-metadata off the
-    // successful token poll. This replaces the old scope-smuggling channel.
-    before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== "/device/token") return;
-      const deviceCode = (ctx.body as { device_code?: string } | undefined)?.device_code;
-      if (!deviceCode) return;
-      const [row] = await db
-        .select({ metadata: deviceCodes.metadata, status: deviceCodes.status })
-        .from(deviceCodes)
-        .where(eq(deviceCodes.deviceCode, deviceCode))
-        .limit(1);
-      if (row?.status === "approved" && row.metadata) {
-        ctx.setHeader("x-lmnr-metadata", row.metadata);
-      }
-    }),
-  },
   databaseHooks: {
     user: {
       create: {
