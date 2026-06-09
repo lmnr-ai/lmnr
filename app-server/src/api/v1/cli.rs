@@ -1,7 +1,6 @@
 use actix_web::{HttpResponse, get, web};
 use serde_json::json;
 
-use crate::auth::ProjectAuthContext;
 use crate::auth::cli_user::CliUser;
 use crate::db::{self, DB};
 
@@ -12,10 +11,4 @@ pub async fn list_projects(user: CliUser, db: web::Data<DB>) -> actix_web::Resul
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(HttpResponse::Ok().json(json!({ "projects": projects })))
-}
-
-/// `GET /v1/cli/whoami` — returns the project id behind the supplied project API key (project-key authed).
-#[get("/cli/whoami")]
-pub async fn whoami(ctx: ProjectAuthContext) -> actix_web::Result<HttpResponse> {
-    Ok(HttpResponse::Ok().json(json!({ "projectId": ctx.project_id })))
 }

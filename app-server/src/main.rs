@@ -1917,15 +1917,6 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(cli_user_auth.clone())
                                     .service(api::v1::cli::list_projects),
                             )
-                            // GET /v1/cli/whoami — project-API-key authed (NOT the
-                            // CLI user JWT), so it must live outside the /v1/cli
-                            // JWT scope. Registered before /v1/cli so its prefix
-                            // resolves under project_auth.
-                            .service(
-                                web::scope("/v1")
-                                    .wrap(project_auth.clone())
-                                    .service(api::v1::cli::whoami),
-                            )
                             // CLI user-token surface: same handlers as their /v1
                             // counterparts, behind the BetterAuth JWT validator.
                             // Project comes from the x-lmnr-project-id header.
@@ -1949,12 +1940,14 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
                                     .service(api::v1::rollouts::register_session)
+                                    .service(api::v1::rollouts::lookup_cache)
                                     .service(api::v1::rollouts::update_name)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
+                                    .service(api::v1::projects::get_current_project)
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
