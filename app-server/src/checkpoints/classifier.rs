@@ -50,7 +50,9 @@ const EXISTING_PROMPT_LIMIT: usize = 1000;
 
 /// Decide whether `non_dynamic_system_prompt` is a new agent or a variant of an
 /// existing one. Best-effort: with no LLM provider, or on any failure, falls
-/// back to a heuristic.
+/// back to a heuristic that can only attribute to an EXISTING agent — minting a
+/// new agent requires an LLM-generated name, so the fallback errors rather than
+/// store a nameless one (see `fallback_classification`).
 pub async fn classify_agent(
     non_dynamic_system_prompt: &str,
     existing_agents: &[AgentVersion],
@@ -58,7 +60,7 @@ pub async fn classify_agent(
     root: &CheckpointRoot,
 ) -> anyhow::Result<AgentClassification> {
     let Some(llm_client) = llm_client else {
-        return Ok(fallback_classification(existing_agents));
+        return fallback_classification(existing_agents);
     };
 
     match classify_with_llm(
@@ -72,7 +74,7 @@ pub async fn classify_agent(
         Ok(classification) => Ok(classification),
         Err(e) => {
             log::warn!("[CHECKPOINTS] Agent classification failed, falling back: {e:?}");
-            Ok(fallback_classification(existing_agents))
+            fallback_classification(existing_agents)
         }
     }
 }
@@ -126,15 +128,20 @@ async fn classify_with_llm(
             })
         });
 
-    Ok(match args {
+    match args {
         Some(args) => parse_classification(&args, existing_agents),
         None => fallback_classification(existing_agents),
-    })
+    }
 }
 
 /// Map the tool-call arguments to a classification. An "existing" verdict only
-/// holds when the model returns a known agent id; otherwise treat it as new.
-fn parse_classification(args: &Value, existing_agents: &[AgentVersion]) -> AgentClassification {
+/// holds when the model returns a known agent id; a "new" verdict requires a
+/// non-empty name — an omitted/blank name is an error rather than a nameless
+/// agent, so the checkpoint is dropped (and re-triggered later) instead.
+fn parse_classification(
+    args: &Value,
+    existing_agents: &[AgentVersion],
+) -> anyhow::Result<AgentClassification> {
     let is_new = args
         .get("is_new_agent")
         .and_then(|v| v.as_bool())
@@ -147,7 +154,7 @@ fn parse_classification(args: &Value, existing_agents: &[AgentVersion]) -> Agent
             .and_then(|s| Uuid::parse_str(s).ok())
         {
             if existing_agents.iter().any(|a| a.agent_id == agent_id) {
-                return AgentClassification::ExistingAgent { agent_id };
+                return Ok(AgentClassification::ExistingAgent { agent_id });
             }
         }
     }
@@ -158,21 +165,22 @@ fn parse_classification(args: &Value, existing_agents: &[AgentVersion]) -> Agent
         .unwrap_or_default()
         .trim()
         .to_string();
-    AgentClassification::NewAgent { name }
+    if name.is_empty() {
+        anyhow::bail!("classify_agent returned a new agent with no name");
+    }
+    Ok(AgentClassification::NewAgent { name })
 }
 
-/// No LLM (or it failed): an empty project is a new agent, otherwise attribute
-/// to the most recent existing agent. `list_latest_agent_versions` orders rows
-/// by `agent_id` (a `DISTINCT ON` requirement), not by recency, so pick by the
-/// latest-version `created_at` rather than relying on list order.
-fn fallback_classification(existing_agents: &[AgentVersion]) -> AgentClassification {
+fn fallback_classification(
+    existing_agents: &[AgentVersion],
+) -> anyhow::Result<AgentClassification> {
     match existing_agents.iter().max_by_key(|a| a.created_at) {
-        None => AgentClassification::NewAgent {
-            name: String::new(),
-        },
-        Some(agent) => AgentClassification::ExistingAgent {
+        None => anyhow::bail!(
+            "cannot classify a new agent without an LLM provider (no existing agents to attribute to)"
+        ),
+        Some(agent) => Ok(AgentClassification::ExistingAgent {
             agent_id: agent.agent_id,
-        },
+        }),
     }
 }
 
@@ -228,5 +236,36 @@ fn truncate_chars(s: &str, max: usize) -> String {
     match s.char_indices().nth(max) {
         Some((idx, _)) => format!("{}…", &s[..idx]),
         None => s.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_project_no_llm_errors_instead_of_blank_agent() {
+        assert!(fallback_classification(&[]).is_err());
+    }
+
+    #[test]
+    fn new_agent_with_blank_name_is_error() {
+        let args = serde_json::json!({ "is_new_agent": true, "name": "  " });
+        assert!(parse_classification(&args, &[]).is_err());
+    }
+
+    #[test]
+    fn new_agent_with_missing_name_is_error() {
+        let args = serde_json::json!({ "is_new_agent": true });
+        assert!(parse_classification(&args, &[]).is_err());
+    }
+
+    #[test]
+    fn new_agent_with_valid_name_is_ok() {
+        let args = serde_json::json!({ "is_new_agent": true, "name": "Portfolio Manager" });
+        match parse_classification(&args, &[]).unwrap() {
+            AgentClassification::NewAgent { name } => assert_eq!(name, "Portfolio Manager"),
+            _ => panic!("expected NewAgent"),
+        }
     }
 }
