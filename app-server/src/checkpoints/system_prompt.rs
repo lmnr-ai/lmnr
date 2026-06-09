@@ -105,12 +105,12 @@ async fn resolve_dynamic_regex(
         return Some(cached);
     }
 
-    let pattern = generate_dynamic_regex(llm_client, system_prompt, root).await?;
+    let mut pattern = generate_dynamic_regex(llm_client, system_prompt, root).await?;
 
-    // Don't pin a broken regex for a week.
-    if pattern.is_empty() || Regex::new(&pattern).is_ok() {
-        let _ = cache.insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS).await;
+    if !pattern.is_empty() && Regex::new(&pattern).is_err() {
+        pattern = String::new();
     }
+    let _ = cache.insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS).await;
 
     Some(pattern)
 }
