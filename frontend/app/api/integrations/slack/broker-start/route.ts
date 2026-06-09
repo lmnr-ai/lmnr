@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 // Brokered (self-hosted) Slack connect entrypoint. The connect button links the
@@ -44,7 +43,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // otherwise anyone who can hit this URL could complete a Slack install for a
   // workspace they don't belong to, mirroring the gate the callback enforces
   // before redeeming the resulting claim.
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session || !(await isUserMemberOfWorkspace(workspaceId, session.user.id))) {
     return NextResponse.redirect(errorRedirect);
   }

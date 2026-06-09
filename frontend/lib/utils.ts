@@ -11,6 +11,30 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Constrain a post-auth `callbackUrl` (read from the query string) to a
+// same-origin relative path before it reaches `router.push`, preventing an
+// open redirect to an attacker-controlled site. Anything that resolves off our
+// origin falls back to `defaultUrl`.
+export function sanitizeCallbackUrl(raw: string | string[] | undefined, defaultUrl = "/onboarding"): string {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return defaultUrl;
+  try {
+    // Parse against a placeholder base (works server-side — no `window`). A
+    // relative path keeps this origin; absolute / protocol-relative (`//host`)
+    // / backslash (`/\host`) targets resolve to a different origin and are
+    // rejected. The URL parser also strips tab/newline/CR per the WHATWG spec,
+    // so no manual sanitising is needed. https base => backslashes normalise to
+    // slashes, matching browser behaviour.
+    const base = "https://placeholder.invalid";
+    const url = new URL(value, base);
+    if (url.origin !== base) return defaultUrl;
+    const path = url.pathname + url.search + url.hash;
+    return path === "/" ? defaultUrl : path;
+  } catch {
+    return defaultUrl;
+  }
+}
+
 export async function fetcherRealTime(url: string, init: any): Promise<Response> {
   const res = await fetch(`${process.env.BACKEND_RT_URL}/api/v1${url}`, {
     ...init,

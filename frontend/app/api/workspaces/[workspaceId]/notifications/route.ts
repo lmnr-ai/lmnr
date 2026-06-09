@@ -1,15 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 
 import { getWebNotifications, markNotificationsAsRead } from "@/lib/actions/notifications";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { isProjectInWorkspace } from "@/lib/authorization";
 
 export async function GET(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

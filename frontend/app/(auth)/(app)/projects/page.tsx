@@ -2,11 +2,10 @@ import { desc, eq } from "drizzle-orm";
 import { get, head } from "lodash";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import { getLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
 
@@ -19,7 +18,7 @@ export const metadata: Metadata = {
 export default async function ProjectsPage() {
   let session;
   try {
-    session = await getServerSession(authOptions);
+    session = await getServerSession();
   } catch (e) {
     console.error(e);
     return redirect("/sign-in?callbackUrl=/projects");

@@ -1,15 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { isNil } from "lodash";
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { cache, PROJECT_MEMBER_CACHE_KEY, WORKSPACE_MEMBER_CACHE_KEY } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { membersOfWorkspaces, projects } from "@/lib/db/migrations/schema.ts";
 
 export async function requireWorkspaceAccess(workspaceId: string) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     return redirect("/sign-in");
   }
@@ -48,7 +47,7 @@ export async function requireWorkspaceAccess(workspaceId: string) {
 }
 
 export async function requireProjectAccess(projectId: string) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session) {
     return redirect("/sign-in");
   }
