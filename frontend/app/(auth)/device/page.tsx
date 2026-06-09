@@ -38,8 +38,8 @@ export default async function DevicePage(props: DevicePageProps) {
     return <DeviceApproval userEmail={user.email} mode="enter-code" />;
   }
 
-  // Bind the code to the current session before reading status so the form's
-  // state reflects the just-completed claim.
+  // Verify-on-arrival: bind the code to this session before reading status, so
+  // the consent screen reflects a verified code (the protocol's verify step).
   await claimUserCodeForCurrentSession(rawUserCode);
 
   // Fetch the picker data server-side so Step 2 has it without a client round-trip.
@@ -49,6 +49,11 @@ export default async function DevicePage(props: DevicePageProps) {
     listWorkspacesForCurrentSession(),
   ]);
 
+  // The claim didn't bind to this user (verify failed, or another session
+  // already claimed the code). Surface it here rather than letting the user pick
+  // a project and only fail at approve.
+  const claimFailed = !!context && context.status === "pending" && context.userId !== user.id;
+
   return (
     <DeviceApproval
       userEmail={user.email}
@@ -57,6 +62,7 @@ export default async function DevicePage(props: DevicePageProps) {
       context={context}
       projects={sessionProjects}
       workspaces={sessionWorkspaces}
+      claimFailed={claimFailed}
     />
   );
 }

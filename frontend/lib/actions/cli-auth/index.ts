@@ -57,17 +57,20 @@ export const loadDeviceContext = async (rawUserCode: string): Promise<DeviceAppr
   };
 };
 
-// Claim the user code for the current session. BetterAuth's GET /api/auth/device
-// does this server-side; we call it via the SDK so the session cookie / Origin
-// rules are handled identically to the browser flow.
+// Claim the user code for the current session (deviceVerify) — the protocol's
+// verify-on-arrival step, run on /device page load. Binds the code to the
+// signed-in user so consent is shown for a verified code. Best-effort here; the
+// page gates the approve UI on whether the claim actually bound THIS user
+// (context.userId === session user), so a failed/foreign claim surfaces on the
+// page rather than as a dead-end at approve time.
 export const claimUserCodeForCurrentSession = async (rawUserCode: string): Promise<void> => {
   const userCode = normalizeUserCode(rawUserCode);
   if (userCode.length === 0) return;
   try {
     await auth.api.deviceVerify({ query: { user_code: userCode }, headers: await headers() });
   } catch {
-    // Claim is best-effort — invalid / expired codes surface as banner errors
-    // via loadDeviceContext.
+    // Invalid / expired codes surface via loadDeviceContext; an unbound claim
+    // surfaces via the page's userId check.
   }
 };
 
@@ -134,10 +137,10 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
   // expired code before writing metadata so a stale code can't be approved.
   if (new Date(context.expiresAt).getTime() < Date.now()) return { error: "This code has expired." };
 
-  // The approver MUST be the user who claimed the code. Native deviceApprove
-  // enforces this too (userId !== session → access_denied), but checking here
-  // first prevents writing metadata onto a row this session can't approve.
-  // Un-guarded on purpose: a null userId (never claimed) is rejected as well.
+  // The approver MUST be the user the code was claimed for on page load
+  // (deviceVerify). Native deviceApprove enforces this too, but checking here
+  // first avoids writing metadata onto a row this session can't approve. A null
+  // userId (claim never bound) is rejected as well.
   if (context.userId !== session.user.id) return { error: "Unauthorized" };
 
   // Authorize project membership BEFORE the metadata write — the picker is

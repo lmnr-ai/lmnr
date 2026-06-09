@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
+import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { CreateProjectDialog } from "./create-project-dialog";
@@ -25,6 +26,7 @@ interface Props {
   projects: SessionProject[];
   workspaces: SessionWorkspace[];
   onApproved: () => void;
+  onDenied: () => void;
 }
 
 // Sentinel value for the "+ Create project" dropdown item — opens the modal
@@ -51,12 +53,31 @@ function groupByWorkspace(
     .sort((a, b) => a.workspaceName.localeCompare(b.workspaceName));
 }
 
-export function ProjectPicker({ userCode, projects, workspaces, onApproved }: Props) {
+export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDenied }: Props) {
   const { toast } = useToast();
   const [options, setOptions] = useState<SessionProject[]>(projects);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [denying, setDenying] = useState(false);
+
+  // Cancel denies the device authorization — a terminal state — so a claimed
+  // code never dangles undecided when the user backs out of the picker.
+  const onCancel = async () => {
+    setDenying(true);
+    try {
+      const { error } = await authClient.device.deny({ userCode });
+      if (error) {
+        toast({ variant: "destructive", title: error.error_description ?? "Failed to cancel" });
+        return;
+      }
+      onDenied();
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong" });
+    } finally {
+      setDenying(false);
+    }
+  };
 
   // Writes the chosen projectId into the pending device row's scope, then approves.
   const onConfirm = async () => {
@@ -129,9 +150,25 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved }: Pr
               <SelectItem value={CREATE_VALUE}>+ Create project</SelectItem>
             </SelectContent>
           </Select>
-          <Button type="button" onClick={onConfirm} disabled={!selectedId || submitting}>
-            {submitting ? "Authorizing…" : "Continue"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={submitting || denying}
+              className="flex-1"
+            >
+              {denying ? "Cancelling…" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              onClick={onConfirm}
+              disabled={!selectedId || submitting || denying}
+              className="flex-1"
+            >
+              {submitting ? "Authorizing…" : "Continue"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
       <CreateProjectDialog

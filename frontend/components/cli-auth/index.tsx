@@ -17,9 +17,18 @@ interface Props {
   context?: DeviceApprovalContext | null;
   projects?: SessionProject[];
   workspaces?: SessionWorkspace[];
+  claimFailed?: boolean;
 }
 
-export default function DeviceApproval({ userEmail, mode, rawUserCode, context, projects, workspaces }: Props) {
+export default function DeviceApproval({
+  userEmail,
+  mode,
+  rawUserCode,
+  context,
+  projects,
+  workspaces,
+  claimFailed,
+}: Props) {
   if (mode === "enter-code") {
     return <CodeEntryForm userEmail={userEmail} />;
   }
@@ -30,6 +39,7 @@ export default function DeviceApproval({ userEmail, mode, rawUserCode, context, 
       context={context ?? null}
       projects={projects ?? []}
       workspaces={workspaces ?? []}
+      claimFailed={claimFailed ?? false}
     />
   );
 }

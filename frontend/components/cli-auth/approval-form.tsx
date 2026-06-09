@@ -17,9 +17,10 @@ interface Props {
   context: DeviceApprovalContext | null;
   projects: SessionProject[];
   workspaces: SessionWorkspace[];
+  claimFailed?: boolean;
 }
 
-export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces }: Props) {
+export function ApprovalForm({ userEmail, rawUserCode, context, projects, workspaces, claimFailed }: Props) {
   const { toast } = useToast();
   const [denying, setDenying] = useState(false);
   const [step, setStep] = useState<"approve" | "pick-project">("approve");
@@ -32,6 +33,8 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
     banner = "This code has expired. Re-run `lmnr-cli login`.";
   else if (context.status === "approved") banner = "This code has already been approved. Return to your terminal.";
   else if (context.status === "denied") banner = "This code has already been denied. Re-run `lmnr-cli login`.";
+  else if (claimFailed)
+    banner = "We couldn't verify this code for your account. Re-run `lmnr-cli login` and try again.";
 
   if (completed) {
     return <CompletionScreen result={completed} />;
@@ -46,6 +49,7 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
         projects={projects}
         workspaces={workspaces}
         onApproved={() => setCompleted("approved")}
+        onDenied={() => setCompleted("denied")}
       />
     );
   }
