@@ -132,11 +132,16 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
   const context = await loadDeviceContext(userCode);
   if (!context) return { error: "We couldn't find that code." };
   if (context.status !== "pending") return { error: "This code has already been processed." };
+  // The UI blocks expired codes, but the action is callable directly — reject an
+  // expired code before writing scope so a stale code can't be approved.
+  if (new Date(context.expiresAt).getTime() < Date.now()) return { error: "This code has expired." };
 
   // Authorize project membership BEFORE the scope write — the picker is
   // session-scoped but the projectId rides in from the client, so verify the
   // user actually belongs to it before smuggling it into the device scope.
-  const isMember = await isUserMemberOfProject(projectId, session.user.id);
+  // Fresh check (no cache): a since-removed user must not poison the scope on a
+  // stale 30-day cached `true`.
+  const isMember = await isUserMemberOfProject(projectId, session.user.id, { skipCache: true });
   if (!isMember) return { error: "You do not have access to this project" };
 
   // 1) Write the chosen project into `scope` WHILE the row is pending. deviceApprove
