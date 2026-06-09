@@ -15,8 +15,9 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    auth::ProjectAuthContext,
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey},
+    db::DB,
     llm::LlmClient,
     mq::MessageQueue,
     query_engine::QueryEngine,
@@ -320,11 +321,11 @@ pub async fn mcp_handler(
         // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
         ClientJsonRpcMessage::Request(mut request) => {
             // Inject project_id from auth middleware into rmcp extensions
-            if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
+            if let Some(ctx) = req.extensions().get::<ProjectAuthContext>() {
                 request
                     .request
                     .extensions_mut()
-                    .insert(ProjectId(api_key.project_id));
+                    .insert(ProjectId(ctx.project_id));
             }
 
             // Use rmcp's OneshotTransport + serve_directly (same pattern as the

@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
+    auth::ProjectAuthContext,
+    db::{DB, trace::trace_exists},
     mq::MessageQueue,
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
@@ -33,13 +34,13 @@ pub struct UpdateTraceMetadataRequest {
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectAuthContext,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
 
     if req.metadata.is_empty() {
         return Ok(HttpResponse::BadRequest().json("metadata cannot be empty"));

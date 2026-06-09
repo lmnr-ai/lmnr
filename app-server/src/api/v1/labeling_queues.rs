@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::{
     ch::labeling_queue_items::{CHLabelingQueueItem, insert_labeling_queue_items},
-    db::{self, DB, project_api_keys::ProjectApiKey},
+    auth::ProjectAuthContext,
+    db::{self, DB},
     routes::types::ResponseResult,
 };
 
@@ -41,13 +42,13 @@ pub async fn create_labeling_queues_items(
     body: web::Json<CreateLabelingQueueItemsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let queue_id = path.into_inner();
     let request = body.into_inner();
     let db = db.into_inner();
     let clickhouse = clickhouse.as_ref().clone();
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
 
     if !db::labeling_queues::queue_exists(&db.pool, queue_id, project_id).await? {
         return Ok(HttpResponse::NotFound().json(serde_json::json!({

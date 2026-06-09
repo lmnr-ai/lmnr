@@ -1716,12 +1716,13 @@ fn main() -> anyhow::Result<()> {
             let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
             let http_period_secs: u64 =
                 env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
-            // project_auth middleware populates ProjectApiKey in request extensions
+            // The auth middleware (project_auth / cli_project_auth) populates
+            // ProjectAuthContext in request extensions before the limiter runs.
             match Limiter::builder(&redis_url)
                 .key_by(|req: &dev::ServiceRequest| {
                     req.extensions()
-                        .get::<db::project_api_keys::ProjectApiKey>()
-                        .map(|k| format!("ratelimit:{}", k.project_id))
+                        .get::<auth::ProjectAuthContext>()
+                        .map(|ctx| format!("ratelimit:{}", ctx.project_id))
                 })
                 .limit(http_limit)
                 .period(Duration::from_secs(http_period_secs))
@@ -1807,10 +1808,10 @@ fn main() -> anyhow::Result<()> {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
+                        let cli_project_auth =
+                            HttpAuthentication::bearer(auth::cli_user::cli_project_validator);
                         let cli_user_auth =
                             HttpAuthentication::bearer(auth::cli_user::cli_user_validator);
-                        let cli_user_jwt_auth =
-                            HttpAuthentication::bearer(auth::cli_user::cli_user_jwt_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1913,7 +1914,7 @@ fn main() -> anyhow::Result<()> {
                             // be registered BEFORE /v1/cli so its prefix wins.
                             .service(
                                 web::scope("/v1/cli/projects")
-                                    .wrap(cli_user_jwt_auth.clone())
+                                    .wrap(cli_user_auth.clone())
                                     .service(api::v1::cli::list_projects),
                             )
                             // GET /v1/cli/whoami — project-API-key authed (NOT the
@@ -1930,9 +1931,18 @@ fn main() -> anyhow::Result<()> {
                             // Project comes from the x-lmnr-project-id header.
                             .service(
                                 web::scope("/v1/cli")
-                                    .wrap(cli_user_auth.clone())
+                                    .wrap(cli_project_auth.clone())
                                     .service(
                                         web::scope("/sql")
+                                            // Same per-project rate limit as /v1/sql;
+                                            // shares the ratelimit:<project_id> key so
+                                            // the CLI path can't bypass the quota. The
+                                            // outer cli_project_auth runs first and
+                                            // populates ProjectAuthContext before key_by.
+                                            .wrap(Condition::new(
+                                                rate_limiter.is_some(),
+                                                RateLimiter::default(),
+                                            ))
                                             .service(api::v1::sql::execute_sql_query),
                                     )
                                     .service(api::v1::datasets::get_datasets)

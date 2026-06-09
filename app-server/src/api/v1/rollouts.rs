@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    auth::ProjectContext,
+    auth::ProjectAuthContext,
     cache::Cache,
     db::{
         DB,
@@ -38,7 +38,7 @@ pub struct RegisterSessionRequest {
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
     path: web::Path<Uuid>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
 ) -> ResponseResult {
@@ -60,7 +60,7 @@ pub async fn register_session(
 pub async fn update_name(
     path: web::Path<Uuid>,
     body: web::Json<UpdateNameRequest>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
@@ -111,7 +111,7 @@ pub struct CacheLookupRequest {
 #[post("rollouts/{session_id}/cache")]
 pub async fn lookup_cache(
     _path: web::Path<Uuid>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     body: web::Json<CacheLookupRequest>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
@@ -135,7 +135,7 @@ pub async fn lookup_cache(
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
     path: web::Path<String>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {

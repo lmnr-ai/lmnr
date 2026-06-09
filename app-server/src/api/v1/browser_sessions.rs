@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::{
     browser_events::QueueBrowserEventMessage,
-    db::{DB, project_api_keys::ProjectApiKey},
+    auth::ProjectAuthContext,
+    db::DB,
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     routes::types::ResponseResult,
@@ -64,7 +65,7 @@ pub struct EventBatch {
 #[post("events")]
 async fn create_session_event(
     batch: web::Json<EventBatch>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectAuthContext,
     queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<crate::cache::Cache>,
@@ -84,7 +85,7 @@ async fn create_session_event(
             db.into_inner(),
             clickhouse.into_inner().as_ref().clone(),
             cache.into_inner(),
-            project_api_key.project_id,
+            ctx.project_id,
         )
         .await
         .map_err(|e| {
@@ -100,7 +101,7 @@ async fn create_session_event(
 
     let message = QueueBrowserEventMessage {
         batch: filtered_batch,
-        project_id: project_api_key.project_id,
+        project_id: ctx.project_id,
     };
 
     let mq_message = serde_json::to_vec(&message).unwrap();
@@ -108,7 +109,7 @@ async fn create_session_event(
     if mq_message.len() >= mq_max_payload() {
         log::warn!(
             "[BROWSER SESSIONS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]. Event count: [{}]",
-            project_api_key.project_id,
+            ctx.project_id,
             mq_message.len(),
             events_count
         );

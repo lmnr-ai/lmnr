@@ -8,11 +8,11 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    auth::ProjectContext,
+    auth::ProjectAuthContext,
     cache::Cache,
     ch::datapoints::{self as ch_datapoints},
     datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
-    db::{self, DB, project_api_keys::ProjectApiKey},
+    db::{self, DB},
     query_engine::QueryEngine,
     routes::{PaginatedResponse, types::ResponseResult},
     sql::{self, ClickhouseReadonlyClient},
@@ -31,7 +31,7 @@ struct GetDatasetsRequest {
 #[get("/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
     let project_id = ctx.project_id;
@@ -58,7 +58,7 @@ async fn get_datapoints(
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
@@ -218,7 +218,7 @@ async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    ctx: ProjectContext,
+    ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let project_id = ctx.project_id;
     let db = db.into_inner();
@@ -326,13 +326,13 @@ async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectAuthContext,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
     let dataset_id =
         Uuid::parse_str(&dataset_id_str).map_err(|_| anyhow::anyhow!("Invalid dataset ID"))?;
 
-    let project_id = project_api_key.project_id;
+    let project_id = ctx.project_id;
     let db = db.into_inner();
 
     let parquet_path =

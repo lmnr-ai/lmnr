@@ -5,7 +5,8 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::{DB, project_api_keys::ProjectApiKey, spans::Span},
+    auth::ProjectAuthContext,
+    db::{DB, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -54,7 +55,7 @@ pub struct RabbitMqSpanMessage {
 pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
-    project_api_key: ProjectApiKey,
+    ctx: ProjectAuthContext,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
@@ -76,7 +77,7 @@ pub async fn process_traces(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
-            project_api_key.project_id,
+            ctx.project_id,
         )
         .await
         .map_err(|e| {
@@ -90,7 +91,7 @@ pub async fn process_traces(
 
     let response = push_spans_to_queue(
         request,
-        project_api_key.project_id,
+        ctx.project_id,
         spans_message_queue,
         db,
         cache,

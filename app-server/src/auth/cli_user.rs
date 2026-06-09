@@ -1,6 +1,6 @@
 //! CLI user-token auth: verifies a BetterAuth EdDSA access JWT against the
 //! frontend's JWKS, authorizes the user against the target project's workspace
-//! membership, and inserts a `ProjectContext` for the `/v1/cli/*` surface.
+//! membership, and inserts a `ProjectAuthContext` for the `/v1/cli/*` surface.
 
 use std::future::{Ready, ready};
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use sqlx::PgPool;
 use url::Url;
 use uuid::Uuid;
 
-use super::{AuthPrincipal, ProjectContext};
+use super::{AuthCredential, ProjectAuthContext};
 use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBERSHIP_CACHE_KEY};
 use crate::db::DB;
 
@@ -170,11 +170,12 @@ fn internal_error(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
     )
 }
 
-/// Bearer middleware for the `/v1/cli/*` scope. Verifies the BetterAuth EdDSA
-/// JWT (401 on bad/expired/unknown-kid), reads `x-lmnr-project-id` (400 on
-/// missing/invalid), authorizes workspace membership (403 on non-member), and
-/// inserts a `ProjectContext { principal: User }` into request extensions.
-pub async fn cli_user_validator(
+/// Bearer middleware for the project-scoped `/v1/cli/*` routes. Verifies the
+/// BetterAuth EdDSA JWT (401 on bad/expired/unknown-kid), reads
+/// `x-lmnr-project-id` (400 on missing/invalid), authorizes workspace
+/// membership (403 on non-member), and inserts a
+/// `ProjectAuthContext { credential: UserToken }` into request extensions.
+pub async fn cli_project_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
@@ -232,16 +233,16 @@ pub async fn cli_user_validator(
         }
     }
 
-    // 4. Insert the unified principal.
-    req.extensions_mut().insert(ProjectContext {
+    // 4. Insert the unified auth context.
+    req.extensions_mut().insert(ProjectAuthContext {
         project_id,
-        principal: AuthPrincipal::User { user_id },
+        credential: AuthCredential::UserToken { user_id },
     });
     Ok(req)
 }
 
 /// A verified CLI user with no project bound. Inserted by
-/// `cli_user_jwt_validator` for user-scoped endpoints (e.g. listing projects).
+/// `cli_user_validator` for user-scoped endpoints (e.g. listing projects).
 #[derive(Clone)]
 pub struct CliUser {
     pub user_id: Uuid,
@@ -262,8 +263,8 @@ impl FromRequest for CliUser {
 /// Bearer middleware for user-scoped CLI endpoints that do NOT target a project
 /// (e.g. `GET /v1/cli/projects`). Verifies the BetterAuth JWT (401 on failure)
 /// and inserts a `CliUser`. No `x-lmnr-project-id` / membership check — those
-/// belong to `cli_user_validator` on the project-scoped routes.
-pub async fn cli_user_jwt_validator(
+/// belong to `cli_project_validator` on the project-scoped routes.
+pub async fn cli_user_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
@@ -517,7 +518,7 @@ mod tests {
         let app = test::init_service(
             App::new().service(
                 web::scope("/v1/cli")
-                    .wrap(HttpAuthentication::bearer(cli_user_validator))
+                    .wrap(HttpAuthentication::bearer(cli_project_validator))
                     .route("/datasets", web::get().to(ok_handler)),
             ),
         )
