@@ -2,7 +2,12 @@ import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import DeviceApproval from "@/components/device";
-import { claimUserCodeForCurrentSession, type DeviceApprovalContext, loadDeviceContext } from "@/lib/actions/device";
+import {
+  claimUserCodeForCurrentSession,
+  type DeviceApprovalContext,
+  listProjectsForCurrentSession,
+  loadDeviceContext,
+} from "@/lib/actions/device";
 import { getServerSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
@@ -34,7 +39,19 @@ export default async function DevicePage(props: DevicePageProps) {
   // state reflects the just-completed claim.
   await claimUserCodeForCurrentSession(rawUserCode);
 
-  const context: DeviceApprovalContext | null = await loadDeviceContext(rawUserCode);
+  // Fetch the picker data server-side so Step 2 has it without a client round-trip.
+  const [context, sessionProjects] = await Promise.all([
+    loadDeviceContext(rawUserCode) as Promise<DeviceApprovalContext | null>,
+    listProjectsForCurrentSession(),
+  ]);
 
-  return <DeviceApproval userEmail={user.email} mode="approve" rawUserCode={rawUserCode} context={context} />;
+  return (
+    <DeviceApproval
+      userEmail={user.email}
+      mode="approve"
+      rawUserCode={rawUserCode}
+      context={context}
+      projects={sessionProjects}
+    />
+  );
 }

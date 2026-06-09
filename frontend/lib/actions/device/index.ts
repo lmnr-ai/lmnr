@@ -1,9 +1,19 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { auth } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
-import { deviceCodes } from "@/lib/db/migrations/schema";
+import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
+
+import { buildProjectScope } from "./scope";
+
+export interface SessionProject {
+  id: string;
+  name: string;
+  workspaceId: string;
+  workspaceName: string;
+}
 
 export interface DeviceApprovalContext {
   userCode: string;
@@ -55,4 +65,63 @@ export const claimUserCodeForCurrentSession = async (rawUserCode: string): Promi
     // Claim is best-effort — invalid / expired codes surface as banner errors
     // via loadDeviceContext.
   }
+};
+
+// Projects the current session's user can access. Used by the /device picker
+// step. Session-scoped (cookie), NOT the CLI JWT — do not call /v1/cli/projects
+// from the browser. Mirrors the no-projectId query in /api/cli/setup-key.
+export const listProjectsForCurrentSession = async (): Promise<SessionProject[]> => {
+  const session = await getServerSession();
+  if (!session?.user) return [];
+  return db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      workspaceId: projects.workspaceId,
+      workspaceName: workspaces.name,
+    })
+    .from(projects)
+    .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
+    .innerJoin(membersOfWorkspaces, and(eq(membersOfWorkspaces.workspaceId, workspaces.id)))
+    .where(eq(membersOfWorkspaces.userId, session.user.id))
+    .orderBy(asc(workspaces.name), asc(projects.name));
+};
+
+// Approves the device code AND smuggles the chosen projectId back to the CLI.
+//
+// `lmnr_project=<uuid>` is NOT a permission scope — it's metadata riding the
+// `scope` field because that is the ONLY field BetterAuth's device-token poll
+// echoes verbatim back to the CLI (routes.mjs deviceToken handler). The CLI
+// parser tolerates token order and ignores the real `projects:rw`.
+//
+// ORDERING INVARIANT (fails silently if reversed): the scope write MUST happen
+// while the row is still status:"pending", BEFORE device.approve. If we wrote
+// scope after approve, the CLI poll could win the race in between, receive a
+// scope with no project, and the row is then deleted at token issuance — the
+// projectId is lost permanently. Sequence: update scope (pending) -> approve.
+export const approveDeviceWithProject = async (rawUserCode: string, projectId: string): Promise<{ error?: string }> => {
+  const session = await getServerSession();
+  if (!session?.user) return { error: "Unauthorized" };
+
+  const userCode = normalizeUserCode(rawUserCode);
+  if (userCode.length === 0) return { error: "Invalid code" };
+
+  const context = await loadDeviceContext(userCode);
+  if (!context) return { error: "We couldn't find that code." };
+  if (context.status !== "pending") return { error: "This code has already been processed." };
+
+  // 1) Write the chosen project into `scope` WHILE the row is pending. deviceApprove
+  //    only writes { status, userId } so this survives the approve.
+  await db
+    .update(deviceCodes)
+    .set({ scope: buildProjectScope(projectId) })
+    .where(eq(deviceCodes.userCode, userCode));
+
+  // 2) Now approve. The token poll echoes the scope written above.
+  try {
+    await auth.api.deviceApprove({ body: { userCode }, headers: await headers() });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to approve device" };
+  }
+  return {};
 };

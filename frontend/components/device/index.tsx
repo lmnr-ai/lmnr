@@ -1,27 +1,35 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { type DeviceApprovalContext } from "@/lib/actions/device";
-import { authClient } from "@/lib/auth-client";
-import { useToast } from "@/lib/hooks/use-toast";
+import { type DeviceApprovalContext, type SessionProject } from "@/lib/actions/device";
+
+import { ApprovalForm } from "./approval-form";
 
 interface Props {
   userEmail: string;
   mode: "enter-code" | "approve";
   rawUserCode?: string;
   context?: DeviceApprovalContext | null;
+  projects?: SessionProject[];
 }
 
-export default function DeviceApproval({ userEmail, mode, rawUserCode, context }: Props) {
+export default function DeviceApproval({ userEmail, mode, rawUserCode, context, projects }: Props) {
   if (mode === "enter-code") {
     return <CodeEntryForm userEmail={userEmail} />;
   }
-  return <ApprovalForm userEmail={userEmail} rawUserCode={rawUserCode ?? ""} context={context ?? null} />;
+  return (
+    <ApprovalForm
+      userEmail={userEmail}
+      rawUserCode={rawUserCode ?? ""}
+      context={context ?? null}
+      projects={projects ?? []}
+    />
+  );
 }
 
 function CodeEntryForm({ userEmail }: { userEmail: string }) {
@@ -61,115 +69,7 @@ function CodeEntryForm({ userEmail }: { userEmail: string }) {
   );
 }
 
-function ApprovalForm({
-  userEmail,
-  rawUserCode,
-  context,
-}: {
-  userEmail: string;
-  rawUserCode: string;
-  context: DeviceApprovalContext | null;
-}) {
-  const { toast } = useToast();
-  const [submitting, setSubmitting] = useState<null | "approve" | "deny">(null);
-  const [completed, setCompleted] = useState<null | "approved" | "denied">(null);
-
-  const clientId = context?.clientId ?? "lmnr-cli";
-  const scope = useMemo(() => {
-    if (!context?.scope) return "projects:rw";
-    return context.scope;
-  }, [context?.scope]);
-
-  // Invalid / expired / wrong-status banners.
-  let banner: string | null = null;
-  if (!context) banner = "We couldn't find that code. Double-check the value in your terminal and try again.";
-  else if (new Date(context.expiresAt).getTime() < Date.now())
-    banner = "This code has expired. Re-run `lmnr-cli login`.";
-  else if (context.status === "approved") banner = "This code has already been approved. Return to your terminal.";
-  else if (context.status === "denied") banner = "This code has already been denied. Re-run `lmnr-cli login`.";
-
-  if (completed) {
-    return <CompletionScreen result={completed} />;
-  }
-
-  const submit = async (kind: "approve" | "deny") => {
-    if (!context) return;
-    setSubmitting(kind);
-    try {
-      if (kind === "approve") {
-        const { error } = await authClient.device.approve({ userCode: context.userCode });
-        if (error) {
-          toast({ variant: "destructive", title: error.error_description ?? "Failed to approve device" });
-          return;
-        }
-        setCompleted("approved");
-      } else {
-        const { error } = await authClient.device.deny({ userCode: context.userCode });
-        if (error) {
-          toast({ variant: "destructive", title: error.error_description ?? "Failed to deny device" });
-          return;
-        }
-        setCompleted("denied");
-      }
-    } catch {
-      toast({ variant: "destructive", title: "Something went wrong" });
-    } finally {
-      setSubmitting(null);
-    }
-  };
-
-  return (
-    <Centered>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Authorize the Laminar CLI</CardTitle>
-          <CardDescription>
-            Confirm this code matches the one shown in your terminal.
-            <span className="block text-xs mt-1 text-muted-foreground/80">Signed in as {userEmail}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {rawUserCode ? <UserCodeDisplay code={rawUserCode} /> : null}
-          {banner ? (
-            <p className="text-sm text-destructive border border-destructive/30 bg-destructive/10 rounded-md p-3">
-              {banner}
-            </p>
-          ) : (
-            <>
-              <Field label="Client">
-                <span className="font-mono text-sm">{clientId}</span>
-              </Field>
-              <Field label="Scope">
-                <span className="font-mono text-sm">{scope}</span>
-              </Field>
-              <div className="flex gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => submit("deny")}
-                  disabled={submitting !== null}
-                  className="flex-1"
-                >
-                  {submitting === "deny" ? "Denying…" : "Deny"}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => submit("approve")}
-                  disabled={submitting !== null}
-                  className="flex-1"
-                >
-                  {submitting === "approve" ? "Approving…" : "Approve"}
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </Centered>
-  );
-}
-
-function CompletionScreen({ result }: { result: "approved" | "denied" }) {
+export function CompletionScreen({ result }: { result: "approved" | "denied" }) {
   return (
     <Centered>
       <Card className="w-full max-w-md">
@@ -187,7 +87,7 @@ function CompletionScreen({ result }: { result: "approved" | "denied" }) {
 }
 
 // Subtle single-box code display.
-function UserCodeDisplay({ code }: { code: string }) {
+export function UserCodeDisplay({ code }: { code: string }) {
   return (
     <div className="w-full select-all rounded-md border bg-muted px-4 py-2 text-center font-mono text-lg tracking-[0.2em] text-foreground">
       {code}
@@ -195,7 +95,7 @@ function UserCodeDisplay({ code }: { code: string }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="text-xs text-muted-foreground">{label}</span>
@@ -204,6 +104,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Centered({ children }: { children: React.ReactNode }) {
+export function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">{children}</div>;
 }
