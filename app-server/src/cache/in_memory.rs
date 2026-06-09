@@ -7,7 +7,15 @@ use tokio::sync::RwLock;
 
 use super::{CacheError, CacheTrait};
 
-const DEFAULT_CACHE_SIZE: u64 = 100;
+// moka caps the store at this entry count (default weigher = 1 per entry). It
+// must stay well above any single feature's working set, or that feature's
+// entries get silently evicted while it still believes they're cached — e.g.
+// the debugger replay cache warms up to DEBUGGER_CACHE_MAX_SPANS (256) entry
+// keys plus a ready marker, and a 100-entry cap would evict most of them yet
+// still report a warm cache, turning every evicted-hash lookup into a terminal
+// MISS instead of a replay. This only bites the Redis-less (LITE/dev/self-hosted)
+// fallback; production uses Redis.
+const DEFAULT_CACHE_SIZE: u64 = 100_000;
 pub struct InMemoryCache {
     cache: moka::future::Cache<String, Vec<u8>>,
     locks: Arc<RwLock<HashMap<String, tokio::time::Instant>>>,
