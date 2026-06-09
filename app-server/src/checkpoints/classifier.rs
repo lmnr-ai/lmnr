@@ -27,6 +27,14 @@ pub enum AgentClassification {
 
 const CLASSIFY_TOOL_NAME: &str = "classify_agent";
 
+#[derive(Debug, thiserror::Error)]
+enum ClassifyError {
+    #[error("classify_agent transport failure: {0}")]
+    Transport(anyhow::Error),
+    #[error("classify_agent rejected: {0}")]
+    Rejected(anyhow::Error),
+}
+
 const CLASSIFY_INSTRUCTION: &str =
     "You classify AI agent system prompts. Given an incoming agent's system prompt and a list of \
      existing agents (each with an id and its system prompt), decide whether the incoming prompt is \
@@ -49,10 +57,10 @@ const INCOMING_PROMPT_LIMIT: usize = 4000;
 const EXISTING_PROMPT_LIMIT: usize = 1000;
 
 /// Decide whether `non_dynamic_system_prompt` is a new agent or a variant of an
-/// existing one. Best-effort: with no LLM provider, or on any failure, falls
-/// back to a heuristic that can only attribute to an EXISTING agent — minting a
-/// new agent requires an LLM-generated name, so the fallback errors rather than
-/// store a nameless one (see `fallback_classification`).
+/// existing one. With no LLM provider, or on a transport failure, falls back to
+/// the latest existing agent (`fallback_classification`, which errors rather
+/// than mint a nameless agent). A rejected verdict (e.g. new agent with no name)
+/// is NOT eligible for fallback and propagates so the checkpoint is dropped.
 pub async fn classify_agent(
     non_dynamic_system_prompt: &str,
     existing_agents: &[AgentVersion],
@@ -72,9 +80,13 @@ pub async fn classify_agent(
     .await
     {
         Ok(classification) => Ok(classification),
-        Err(e) => {
+        Err(ClassifyError::Transport(e)) => {
             log::warn!("[CHECKPOINTS] Agent classification failed, falling back: {e:?}");
             fallback_classification(existing_agents)
+        }
+        Err(ClassifyError::Rejected(e)) => {
+            log::warn!("[CHECKPOINTS] Agent classification rejected, dropping checkpoint: {e:?}");
+            Err(e)
         }
     }
 }
@@ -84,7 +96,7 @@ async fn classify_with_llm(
     system_prompt: &str,
     existing_agents: &[AgentVersion],
     root: &CheckpointRoot,
-) -> anyhow::Result<AgentClassification> {
+) -> Result<AgentClassification, ClassifyError> {
     let request = ProviderRequest {
         contents: vec![ProviderContent {
             role: Some("user".to_string()),
@@ -113,7 +125,7 @@ async fn classify_with_llm(
         tracing::info_span!(target: "lmnr::internal", "classify_agent")
     })
     .await
-    .map_err(|e| anyhow::anyhow!("classify_agent LLM call failed: {e:?}"))?;
+    .map_err(|e| ClassifyError::Transport(anyhow::anyhow!("classify_agent LLM call failed: {e:?}")))?;
 
     let args = response
         .candidates
@@ -129,8 +141,12 @@ async fn classify_with_llm(
         });
 
     match args {
-        Some(args) => parse_classification(&args, existing_agents),
-        None => fallback_classification(existing_agents),
+        // An invalid verdict is a rejection (drop), not a transport failure.
+        Some(args) => parse_classification(&args, existing_agents).map_err(ClassifyError::Rejected),
+        // No tool call: nothing usable, let the caller fall back.
+        None => Err(ClassifyError::Transport(anyhow::anyhow!(
+            "classify_agent returned no tool call"
+        ))),
     }
 }
 

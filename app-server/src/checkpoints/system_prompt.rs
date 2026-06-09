@@ -13,6 +13,7 @@ use crate::{
         LlmClient, ModelSize, ProviderContent, ProviderFunctionDeclaration,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderTool,
     },
+    traces::prompt_hash::structural_skeleton_hash,
 };
 
 const DYNAMIC_REGEX_TTL_SECONDS: u64 = 7 * 24 * 3600;
@@ -95,11 +96,7 @@ async fn resolve_dynamic_regex(
     prompt_hash: &str,
     root: &CheckpointRoot,
 ) -> Option<String> {
-    if prompt_hash.is_empty() {
-        return generate_dynamic_regex(llm_client, system_prompt, root).await;
-    }
-
-    let key = format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}");
+    let key = dynamic_regex_cache_key(project_id, system_prompt, prompt_hash);
 
     if let Ok(Some(cached)) = cache.get::<String>(&key).await {
         return Some(cached);
@@ -113,6 +110,15 @@ async fn resolve_dynamic_regex(
     let _ = cache.insert_with_ttl(&key, &pattern, DYNAMIC_REGEX_TTL_SECONDS).await;
 
     Some(pattern)
+}
+
+fn dynamic_regex_cache_key(project_id: Uuid, system_prompt: &str, prompt_hash: &str) -> String {
+    let prompt_hash = if prompt_hash.is_empty() {
+        structural_skeleton_hash(system_prompt)
+    } else {
+        prompt_hash.to_string()
+    };
+    format!("{AGENT_STABLE_PROMPT_REGEX_CACHE_KEY}:{project_id}:{prompt_hash}")
 }
 
 async fn generate_dynamic_regex(
