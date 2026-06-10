@@ -101,7 +101,15 @@ pub async fn fetch_datapoints_page(
                 None => return Ok(None),
             }
         }
-        DatasetIdentifier::Id(id) => id.dataset_id,
+        DatasetIdentifier::Id(id) => {
+            // Object-level authZ: a body-supplied dataset id must belong to the
+            // authorized project, else a project-A member could read project-B
+            // data. Mirror the write path; `None` → 404 (don't leak existence).
+            if !db::datasets::dataset_exists(&db.pool, id.dataset_id, project_id).await? {
+                return Ok(None);
+            }
+            id.dataset_id
+        }
     };
 
     let select_query = "
