@@ -1939,6 +1939,16 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
+                                    .service(
+                                        // CLI twin of /v1/traces/metadata. Same
+                                        // handler; project comes from the
+                                        // x-lmnr-project-id header via
+                                        // cli_project_auth (full member), not an
+                                        // ingest-only key. Not rate-limited: note
+                                        // appends are low-frequency.
+                                        web::scope("/traces")
+                                            .service(api::v1::traces_metadata::update_trace_metadata),
+                                    )
                                     .service(api::v1::rollouts::register_session)
                                     .service(api::v1::rollouts::lookup_cache)
                                     .service(api::v1::rollouts::update_name)
