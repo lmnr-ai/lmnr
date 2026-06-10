@@ -7,8 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::Cache,
-    auth::ProjectAuthContext,
-    db::{DB, trace::trace_exists},
+    db::{DB, project_api_keys::ProjectApiKey, trace::trace_exists},
     mq::MessageQueue,
     routes::types::ResponseResult,
     traces::metadata::publish_trace_metadata_patch,
@@ -20,8 +19,6 @@ pub struct UpdateTraceMetadataRequest {
     pub trace_id: Uuid,
     pub metadata: HashMap<String, Value>,
 }
-
-
 
 /// `POST /v1/traces/metadata` — merge a metadata patch onto an existing trace.
 ///
@@ -36,31 +33,14 @@ pub struct UpdateTraceMetadataRequest {
 #[post("metadata")]
 pub async fn update_trace_metadata(
     req: web::Json<UpdateTraceMetadataRequest>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    run_update_trace_metadata(
-        project_auth_ctx.project_id,
-        req.into_inner(),
-        spans_message_queue,
-        db,
-        cache,
-    )
-    .await
-}
+    let project_id = project_api_key.project_id;
+    let req = req.into_inner();
 
-/// Shared by the project-API-key handler (above, used by SDKs/customers) and
-/// the CLI user-token handler (`api::v1::cli::traces`). Auth is resolved by the
-/// caller.
-pub(crate) async fn run_update_trace_metadata(
-    project_id: Uuid,
-    req: UpdateTraceMetadataRequest,
-    spans_message_queue: web::Data<Arc<MessageQueue>>,
-    db: web::Data<DB>,
-    cache: web::Data<Cache>,
-) -> ResponseResult {
     if req.metadata.is_empty() {
         return Ok(HttpResponse::BadRequest().json("metadata cannot be empty"));
     }

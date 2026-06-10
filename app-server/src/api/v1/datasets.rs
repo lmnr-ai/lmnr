@@ -1,50 +1,42 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use actix_web::{HttpResponse, get, post, web};
-use chrono::Utc;
 use futures_util::StreamExt;
 use serde::Deserialize;
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    auth::ProjectAuthContext,
     cache::Cache,
-    ch::datapoints::{self as ch_datapoints},
-    datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
-    db::{self, DB},
+    datasets::service::{self, CreateDatapointsOutcome, DatasetIdentifier, NewDatapoint},
+    db::{self, DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::{PaginatedResponse, types::ResponseResult},
-    sql::{self, ClickhouseReadonlyClient},
+    sql::ClickhouseReadonlyClient,
     storage::{Storage, StorageTrait},
 };
+
+// Request wrappers are `pub(crate)` so the CLI user-token handlers
+// (`api::v1::cli::datasets`) deserialize the same shapes and call the same
+// `datasets::service` functions; only the auth extractor differs.
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GetDatasetsRequest {
     #[serde(default)]
-    id: Option<Uuid>,
+    pub id: Option<Uuid>,
     #[serde(default)]
-    name: Option<String>,
+    pub name: Option<String>,
 }
 
 #[get("/datasets")]
 async fn get_datasets(
     db: web::Data<DB>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
-    run_get_datasets(project_auth_ctx.project_id, req.into_inner(), db).await
-}
-
-/// Shared by the project-API-key handler (above) and the CLI user-token handler
-/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
-pub(crate) async fn run_get_datasets(
-    project_id: Uuid,
-    request: GetDatasetsRequest,
-    db: web::Data<DB>,
-) -> ResponseResult {
+    let project_id = project_api_key.project_id;
     let db = db.into_inner();
+    let request = req.into_inner();
     let datasets =
         db::datasets::get_datasets(&db.pool, project_id, request.id, request.name).await?;
 
@@ -55,9 +47,9 @@ pub(crate) async fn run_get_datasets(
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GetDatapointsRequestParams {
     #[serde(flatten)]
-    dataset: DatasetIdentifier,
-    limit: i64,
-    offset: i64,
+    pub dataset: DatasetIdentifier,
+    pub limit: i64,
+    pub offset: i64,
 }
 
 #[get("/datasets/datapoints")]
@@ -66,179 +58,53 @@ async fn get_datapoints(
     db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    run_get_datapoints(
-        project_auth_ctx.project_id,
-        params.into_inner(),
-        db,
-        clickhouse_ro,
-        query_engine,
-        http_client,
-        cache,
-    )
-    .await
-}
-
-/// Shared by the project-API-key handler (above) and the CLI user-token handler
-/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
-pub(crate) async fn run_get_datapoints(
-    project_id: Uuid,
-    query: GetDatapointsRequestParams,
-    db: web::Data<DB>,
-    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
-    query_engine: web::Data<Arc<QueryEngine>>,
-    http_client: web::Data<reqwest::Client>,
-    cache: web::Data<Cache>,
-) -> ResponseResult {
-    let db = db.into_inner();
-    let clickhouse_ro = if let Some(clickhouse_ro) = clickhouse_ro.as_ref() {
-        clickhouse_ro.clone()
-    } else {
-        return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": "ClickHouse read-only client is not configured"
-        })));
-    };
-    let query_engine = query_engine.into_inner().as_ref().clone();
-    let http_client = http_client.into_inner();
-    let cache = cache.into_inner();
-
-    let dataset_id = match query.dataset {
-        DatasetIdentifier::Name(name) => {
-            let Some(dataset_id) =
-                db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
-                    .await?
-            else {
-                return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                    "error": "Dataset not found"
-                })));
-            };
-            dataset_id
+    let project_id = project_api_key.project_id;
+    let clickhouse_ro = match clickhouse_ro.as_ref() {
+        Some(client) => client.clone(),
+        None => {
+            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "ClickHouse read-only client is not configured"
+            })));
         }
-        DatasetIdentifier::Id(id) => id.dataset_id,
     };
+    let query = params.into_inner();
 
-    let select_query = "
-        SELECT
-            id,
-            dataset_id,
-            created_at,
-            data,
-            target,
-            metadata
-        FROM dataset_datapoints
-        WHERE dataset_id = {dataset_id:UUID}
-        ORDER BY toUInt128(id) ASC
-        LIMIT {limit:Int64}
-        OFFSET {offset:Int64}
-    ";
-    let parameters = HashMap::from([
-        (
-            "dataset_id".to_string(),
-            Value::String(dataset_id.to_string()),
-        ),
-        ("limit".to_string(), Value::Number(query.limit.into())),
-        ("offset".to_string(), Value::Number(query.offset.into())),
-    ]);
-
-    let select_query_result = sql::execute_sql_query(
-        select_query.to_string(),
+    match service::fetch_datapoints_page(
         project_id,
-        parameters.clone(),
-        clickhouse_ro.clone(),
-        query_engine.clone(),
-        http_client.clone(),
-        db.clone(),
-        cache.clone(),
-    )
-    .await?;
-
-    let total_count_query = "
-        SELECT COUNT(*) as count FROM dataset_datapoints
-        WHERE dataset_id = {dataset_id:UUID}
-    ";
-
-    let total_count_result = sql::execute_sql_query(
-        total_count_query.to_string(),
-        project_id,
-        HashMap::from([(
-            "dataset_id".to_string(),
-            Value::String(dataset_id.to_string()),
-        )]),
+        query.dataset,
+        query.limit,
+        query.offset,
         clickhouse_ro,
-        query_engine,
-        http_client.clone(),
-        db.clone(),
-        cache.clone(),
+        query_engine.into_inner().as_ref().clone(),
+        http_client.into_inner(),
+        db.into_inner(),
+        cache.into_inner(),
     )
-    .await?;
-
-    let total_count = total_count_result
-        .first()
-        .and_then(|v| v.get("count").and_then(|v| v.as_i64()).map(|v| v as u64))
-        .unwrap_or_default();
-
-    let datapoints: Vec<Datapoint> = select_query_result
-        .into_iter()
-        .map(|ch_dp| {
-            serde_json::from_value::<CHQueryEngineDatapoint>(ch_dp)
-                .map_err(anyhow::Error::from)
-                .and_then(|ch_dp| ch_dp.try_into())
-        })
-        .collect::<Result<Vec<Datapoint>, anyhow::Error>>()?;
-
-    let response = PaginatedResponse {
-        total_count,
-        items: datapoints,
-        any_in_project: total_count > 0,
-    };
-
-    Ok(HttpResponse::Ok().json(response))
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DatasetName {
-    #[serde(alias = "dataset_name", alias = "name")]
-    pub dataset_name: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DatasetId {
-    #[serde(alias = "dataset_id")]
-    pub dataset_id: Uuid,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(untagged)]
-pub(crate) enum DatasetIdentifier {
-    Name(DatasetName),
-    Id(DatasetId),
+    .await?
+    {
+        Some((items, total_count)) => Ok(HttpResponse::Ok().json(PaginatedResponse {
+            total_count,
+            items,
+            any_in_project: total_count > 0,
+        })),
+        None => Ok(HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Dataset not found"
+        }))),
+    }
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CreateDatapointsRequest {
     #[serde(flatten)]
-    dataset: DatasetIdentifier,
-    datapoints: Vec<RequestDatapoint>,
+    pub dataset: DatasetIdentifier,
+    pub datapoints: Vec<NewDatapoint>,
     #[serde(default)]
-    create_dataset: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct RequestDatapoint {
-    #[serde(default)]
-    id: Option<Uuid>,
-    data: serde_json::Value,
-    target: Option<serde_json::Value>,
-    #[serde(default)]
-    metadata: std::collections::HashMap<String, serde_json::Value>,
+    pub create_dataset: bool,
 }
 
 /// Create datapoints in a dataset
@@ -247,116 +113,71 @@ async fn create_datapoints(
     req: web::Json<CreateDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
 ) -> ResponseResult {
-    run_create_datapoints(project_auth_ctx.project_id, req.into_inner(), db, clickhouse).await
+    let project_id = project_api_key.project_id;
+    let request = req.into_inner();
+
+    let outcome = service::create_datapoints(
+        project_id,
+        request.dataset,
+        request.datapoints,
+        request.create_dataset,
+        db.into_inner(),
+        clickhouse.into_inner().as_ref().clone(),
+    )
+    .await?;
+
+    Ok(create_datapoints_response(outcome))
 }
 
-/// Shared by the project-API-key handler (above) and the CLI user-token handler
-/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
-pub(crate) async fn run_create_datapoints(
-    project_id: Uuid,
-    request: CreateDatapointsRequest,
-    db: web::Data<DB>,
-    clickhouse: web::Data<clickhouse::Client>,
-) -> ResponseResult {
-    let db = db.into_inner();
-    let clickhouse = clickhouse.into_inner().as_ref().clone();
-    let mut created = false;
-
-    // Validate that we have datapoints to insert
-    if request.datapoints.is_empty() {
-        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "No datapoints provided"
-        })));
-    }
-
-    let dataset_id = match request.dataset {
-        DatasetIdentifier::Name(name) => {
-            match db::datasets::get_dataset_id_by_name(&db.pool, &name.dataset_name, project_id)
-                .await?
-            {
-                Some(dataset_id) => {
-                    if request.create_dataset {
-                        return Ok(HttpResponse::Conflict().json(serde_json::json!({
-                            "error": "Dataset with this name already exists"
-                        })));
-                    }
-                    dataset_id
-                }
-                None => {
-                    if request.create_dataset {
-                        let dataset =
-                            db::datasets::create_dataset(&db.pool, &name.dataset_name, project_id)
-                                .await?;
-                        created = true;
-                        dataset.id
-                    } else {
-                        return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                            "error": "Dataset not found"
-                        })));
-                    }
-                }
-            }
-        }
-        DatasetIdentifier::Id(id) => {
-            if request.create_dataset {
-                return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "When creating a new dataset, the name must be provided"
-                })));
-            }
-            if !db::datasets::dataset_exists(&db.pool, id.dataset_id, project_id).await? {
-                return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                    "error": "Dataset not found"
-                })));
-            }
-            id.dataset_id
-        }
-    };
-
-    // Convert request datapoints to Datapoint structs
-    let datapoints: Vec<Datapoint> = request
-        .datapoints
-        .into_iter()
-        .map(|dp_req| Datapoint {
-            // `now_v7` is guaranteed to be sorted by creation time
-            id: dp_req.id.unwrap_or(Uuid::now_v7()),
-            created_at: Utc::now(),
+/// Map a [`CreateDatapointsOutcome`] to its HTTP response. Shared with the CLI
+/// handler so both surfaces shape identical responses.
+pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> HttpResponse {
+    match outcome {
+        CreateDatapointsOutcome::Created {
             dataset_id,
-            data: dp_req.data,
-            target: dp_req.target,
-            metadata: dp_req.metadata,
-        })
-        .collect();
-
-    let ch_datapoints: Vec<ch_datapoints::CHDatapoint> = datapoints
-        .iter()
-        .map(|dp| ch_datapoints::CHDatapoint::from_datapoint(dp, project_id))
-        .collect();
-
-    ch_datapoints::insert_datapoints(clickhouse, ch_datapoints).await?;
-
-    let datapoint_info = datapoints
-        .iter()
-        .map(|dp| {
-            serde_json::json!({
-                "id": dp.id,
-                "createdAt": dp.created_at,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let mut response = if created {
-        HttpResponse::Created()
-    } else {
-        HttpResponse::Ok()
-    };
-    Ok(response.json(serde_json::json!({
-        "message": "Datapoints created successfully",
-        "datasetId": dataset_id,
-        "count": datapoints.len(),
-        "datapointInfo": datapoint_info,
-    })))
+            datapoints,
+            dataset_was_created,
+        } => {
+            let datapoint_info = datapoints
+                .iter()
+                .map(|dp| {
+                    serde_json::json!({
+                        "id": dp.id,
+                        "createdAt": dp.created_at,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let mut response = if dataset_was_created {
+                HttpResponse::Created()
+            } else {
+                HttpResponse::Ok()
+            };
+            response.json(serde_json::json!({
+                "message": "Datapoints created successfully",
+                "datasetId": dataset_id,
+                "count": datapoints.len(),
+                "datapointInfo": datapoint_info,
+            }))
+        }
+        CreateDatapointsOutcome::NoDatapoints => HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "No datapoints provided"
+        })),
+        CreateDatapointsOutcome::DatasetNameConflict => {
+            HttpResponse::Conflict().json(serde_json::json!({
+                "error": "Dataset with this name already exists"
+            }))
+        }
+        CreateDatapointsOutcome::NameRequiredForCreate => {
+            HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "When creating a new dataset, the name must be provided"
+            }))
+        }
+        CreateDatapointsOutcome::DatasetNotFound => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Dataset not found"
+        })),
+    }
 }
 
 #[get("/datasets/{dataset_id}/parquets/{idx}")]
@@ -364,13 +185,13 @@ async fn get_parquet(
     path: web::Path<(String, String)>,
     db: web::Data<DB>,
     storage: web::Data<Arc<Storage>>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let (dataset_id_str, name) = path.into_inner();
     let dataset_id =
         Uuid::parse_str(&dataset_id_str).map_err(|_| anyhow::anyhow!("Invalid dataset ID"))?;
 
-    let project_id = project_auth_ctx.project_id;
+    let project_id = project_api_key.project_id;
     let db = db.into_inner();
 
     let parquet_path =

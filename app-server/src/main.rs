@@ -1716,13 +1716,16 @@ fn main() -> anyhow::Result<()> {
             let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
             let http_period_secs: u64 =
                 env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
-            // The auth middleware (project_auth / cli_project_auth) populates
-            // ProjectAuthContext in request extensions before the limiter runs.
+            // This middleware-based limiter is used by the project-API-key
+            // /v1/sql scope; project_validator populates ProjectApiKey in
+            // request extensions before the limiter runs. (The CLI /v1/cli/sql
+            // path counts inline in its handler instead — its project id is
+            // resolved by an extractor, after middleware.)
             match Limiter::builder(&redis_url)
                 .key_by(|req: &dev::ServiceRequest| {
                     req.extensions()
-                        .get::<auth::ProjectAuthContext>()
-                        .map(|ctx| format!("ratelimit:{}", ctx.project_id))
+                        .get::<crate::db::project_api_keys::ProjectApiKey>()
+                        .map(|key| format!("ratelimit:{}", key.project_id))
                 })
                 .limit(http_limit)
                 .period(Duration::from_secs(http_period_secs))

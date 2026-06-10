@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    auth::ProjectAuthContext,
+    db::project_api_keys::ProjectApiKey,
     cache::Cache,
     db::{
         DB,
@@ -29,13 +29,13 @@ pub struct RegisterSessionRequest {
 #[post("rollouts/{session_id}")]
 pub async fn register_session(
     path: web::Path<Uuid>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id = path.into_inner();
-    let project_id = project_auth_ctx.project_id;
+    let project_id = project_api_key.project_id;
     let name = body.into_inner().name;
 
     let session =
@@ -65,12 +65,12 @@ pub struct CacheLookupRequest {
 #[post("rollouts/{session_id}/cache")]
 pub async fn lookup_cache(
     _path: web::Path<Uuid>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     body: web::Json<CacheLookupRequest>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
+    let project_id = project_api_key.project_id;
     let body = body.into_inner();
 
     let outcome = debugger::lookup(
@@ -89,14 +89,14 @@ pub async fn lookup_cache(
 #[delete("rollouts/{session_id}")]
 pub async fn delete(
     path: web::Path<String>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     db: web::Data<DB>,
     pubsub: web::Data<Arc<PubSub>>,
 ) -> ResponseResult {
     let db = db.into_inner();
     let session_id =
         Uuid::parse_str(&path.into_inner()).map_err(|_| anyhow::anyhow!("Invalid session ID"))?;
-    let project_id = project_auth_ctx.project_id;
+    let project_id = project_api_key.project_id;
 
     delete_debugger_session(&db.pool, &session_id, &project_id).await?;
 

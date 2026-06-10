@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    auth::ProjectAuthContext,
+    db::project_api_keys::ProjectApiKey,
     cache::Cache,
     db::{
         DB,
@@ -46,13 +46,13 @@ pub struct CreateSpanResponse {
 #[post("")]
 pub async fn create_spans(
     request: web::Json<Vec<CreateSpanRequest>>,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
+    let project_id = project_api_key.project_id;
     let db = db.into_inner();
     let cache = cache.into_inner();
 

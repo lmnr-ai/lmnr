@@ -5,7 +5,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use crate::{
-    auth::ProjectAuthContext,
+    db::project_api_keys::ProjectApiKey,
     db::DB,
     features::{Feature, is_feature_enabled},
     logs::producer::push_logs_to_queue,
@@ -20,7 +20,7 @@ use crate::{
 pub async fn process_logs(
     req: HttpRequest,
     body: Bytes,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     logs_message_queue: web::Data<Arc<MessageQueue>>,
     cache: web::Data<crate::cache::Cache>,
     db: web::Data<DB>,
@@ -38,7 +38,7 @@ pub async fn process_logs(
             db,
             clickhouse.as_ref().clone(),
             cache,
-            project_auth_ctx.project_id,
+            project_api_key.project_id,
         )
         .await
         .map_err(|e| {
@@ -51,7 +51,7 @@ pub async fn process_logs(
     }
 
     let response =
-        push_logs_to_queue(request, project_auth_ctx.project_id, logs_message_queue).await?;
+        push_logs_to_queue(request, project_api_key.project_id, logs_message_queue).await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during logs processing.").into());
     }

@@ -5,7 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    auth::ProjectAuthContext,
+    db::project_api_keys::ProjectApiKey,
     db::{DB, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
@@ -55,7 +55,7 @@ pub struct RabbitMqSpanMessage {
 pub async fn process_traces(
     req: HttpRequest,
     body: Bytes,
-    project_auth_ctx: ProjectAuthContext,
+    project_api_key: ProjectApiKey,
     cache: web::Data<crate::cache::Cache>,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
@@ -77,7 +77,7 @@ pub async fn process_traces(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
-            project_auth_ctx.project_id,
+            project_api_key.project_id,
         )
         .await
         .map_err(|e| {
@@ -91,7 +91,7 @@ pub async fn process_traces(
 
     let response = push_spans_to_queue(
         request,
-        project_auth_ctx.project_id,
+        project_api_key.project_id,
         spans_message_queue,
         db,
         cache,

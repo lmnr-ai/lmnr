@@ -2,7 +2,6 @@ use anyhow::Result;
 use sqlx::PgPool;
 use std::future::{Ready, ready};
 use std::sync::Arc;
-use uuid::Uuid;
 
 use actix_web::Error;
 use actix_web::dev::Payload;
@@ -20,34 +19,15 @@ use crate::db::project_api_keys::ProjectApiKey;
 
 pub mod cli_user;
 
-/// The authenticated credential behind a `ProjectAuthContext`. Only the project
-/// API key path produces one today; the CLI user-token path uses
-/// `cli_user::CliProjectAuth` instead. Carried so future handlers can branch if
-/// needed — today's handlers only read `ProjectAuthContext::project_id`.
-#[derive(Clone)]
-#[allow(dead_code)]
-pub enum AuthCredential {
-    ApiKey(ProjectApiKey),
-}
-
-/// Auth context for project-API-key handlers (`/v1/*`). `project_id` is
-/// resolved from the API key by the project auth middleware.
-#[derive(Clone)]
-pub struct ProjectAuthContext {
-    pub project_id: Uuid,
-    #[allow(dead_code)]
-    pub credential: AuthCredential,
-}
-
-impl FromRequest for ProjectAuthContext {
+impl FromRequest for ProjectApiKey {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         match req.extensions().get::<Self>().cloned() {
-            Some(ctx) => ready(Ok(ctx)),
-            None => ready(Err(actix_web::error::ParseError::Incomplete.into())),
-        }
+            Some(key) => return ready(Ok(key)),
+            None => return ready(Err(actix_web::error::ParseError::Incomplete.into())),
+        };
     }
 }
 
@@ -87,11 +67,7 @@ async fn validate_project_api_key(
                     req,
                 ));
             }
-            let project_context = ProjectAuthContext {
-                project_id: api_key.project_id,
-                credential: AuthCredential::ApiKey(api_key),
-            };
-            req.extensions_mut().insert(project_context);
+            req.extensions_mut().insert(api_key);
             Ok(req)
         }
         Err(e) => {
