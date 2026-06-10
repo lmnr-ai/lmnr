@@ -1808,10 +1808,11 @@ fn main() -> anyhow::Result<()> {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
-                        let cli_project_auth =
-                            HttpAuthentication::bearer(auth::cli_user::cli_project_validator);
-                        let cli_user_auth =
-                            HttpAuthentication::bearer(auth::cli_user::cli_user_validator);
+                        // Single authN middleware for the whole /v1/cli scope:
+                        // verifies the JWT → CliUserAuth. Project authorization
+                        // is the CliProjectAuth extractor's job per-handler.
+                        let cli_auth =
+                            HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1910,49 +1911,31 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
                             )
-                            // User-scoped CLI discovery (no project header) — must
-                            // be registered BEFORE /v1/cli so its prefix wins.
-                            .service(
-                                web::scope("/v1/cli/projects")
-                                    .wrap(cli_user_auth.clone())
-                                    .service(api::v1::cli::list_projects),
-                            )
-                            // CLI user-token surface: same handlers as their /v1
-                            // counterparts, behind the BetterAuth JWT validator.
-                            // Project comes from the x-lmnr-project-id header.
+                            // CLI user-token surface. ONE scope, ONE authN
+                            // middleware (cli_auth → CliUserAuth). Project authz
+                            // is per-handler via the CliProjectAuth extractor;
+                            // `list_projects` takes CliUserAuth (no project), so
+                            // discovery and project-scoped routes share the scope
+                            // — no split / prefix-overshadowing needed. SQL rate
+                            // limiting is inline in the handler (the extractor
+                            // resolves project_id after middleware, so a scope
+                            // RateLimiter can't see it).
                             .service(
                                 web::scope("/v1/cli")
-                                    .wrap(cli_project_auth.clone())
+                                    .wrap(cli_auth.clone())
+                                    .service(api::v1::cli::list_projects)
                                     .service(
                                         web::scope("/sql")
-                                            // Same per-project rate limit as /v1/sql;
-                                            // shares the ratelimit:<project_id> key so
-                                            // the CLI path can't bypass the quota. The
-                                            // outer cli_project_auth runs first and
-                                            // populates ProjectAuthContext before key_by.
-                                            .wrap(Condition::new(
-                                                rate_limiter.is_some(),
-                                                RateLimiter::default(),
-                                            ))
-                                            .service(api::v1::sql::execute_sql_query),
+                                            .service(api::v1::cli::sql::execute_sql_query),
                                     )
-                                    .service(api::v1::datasets::get_datasets)
-                                    .service(api::v1::datasets::get_datapoints)
-                                    .service(api::v1::datasets::create_datapoints)
+                                    .service(api::v1::cli::datasets::get_datasets)
+                                    .service(api::v1::cli::datasets::get_datapoints)
+                                    .service(api::v1::cli::datasets::create_datapoints)
                                     .service(
-                                        // CLI twin of /v1/traces/metadata. Same
-                                        // handler; project comes from the
-                                        // x-lmnr-project-id header via
-                                        // cli_project_auth (full member), not an
-                                        // ingest-only key. Not rate-limited: note
-                                        // appends are low-frequency.
                                         web::scope("/traces")
-                                            .service(api::v1::traces_metadata::update_trace_metadata),
+                                            .service(api::v1::cli::traces::update_trace_metadata),
                                     )
-                                    .service(api::v1::rollouts::register_session)
-                                    .service(api::v1::rollouts::lookup_cache)
-                                    .service(api::v1::rollouts::update_name)
-                                    .service(api::v1::rollouts::delete),
+                                    .service(api::v1::cli::rollouts::update_name),
                             )
                             .service(
                                 web::scope("/v1")
@@ -1965,9 +1948,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
+                                    // Debugger session lifecycle — SDK-driven
+                                    // (project API key). update_name is CLI-only,
+                                    // so it lives under /v1/cli, not here.
                                     .service(api::v1::rollouts::register_session)
                                     .service(api::v1::rollouts::lookup_cache)
-                                    .service(api::v1::rollouts::update_name)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({

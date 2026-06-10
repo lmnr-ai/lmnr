@@ -7,6 +7,7 @@ use opentelemetry::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::{
     auth::ProjectAuthContext,
@@ -41,8 +42,31 @@ pub async fn execute_sql_query(
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
-    let SqlQueryRequest { query, parameters } = req.into_inner();
+    run_sql_query(
+        project_auth_ctx.project_id,
+        req.into_inner(),
+        db,
+        clickhouse_ro,
+        query_engine,
+        http_client,
+        cache,
+    )
+    .await
+}
+
+/// Shared SQL execution for both the project-API-key handler (above) and the
+/// CLI user-token handler (`api::v1::cli::sql`). Auth is resolved by the caller
+/// (each path has its own extractor); this owns the query work + response shape.
+pub(crate) async fn run_sql_query(
+    project_id: Uuid,
+    req: SqlQueryRequest,
+    db: web::Data<DB>,
+    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
+    query_engine: web::Data<Arc<QueryEngine>>,
+    http_client: web::Data<reqwest::Client>,
+    cache: web::Data<Cache>,
+) -> ResponseResult {
+    let SqlQueryRequest { query, parameters } = req;
 
     let tracer = global::tracer("tracer");
     let span = tracer.start("api_sql_query");

@@ -21,7 +21,7 @@ use crate::{
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetDatasetsRequest {
+pub(crate) struct GetDatasetsRequest {
     #[serde(default)]
     id: Option<Uuid>,
     #[serde(default)]
@@ -34,9 +34,17 @@ async fn get_datasets(
     project_auth_ctx: ProjectAuthContext,
     req: web::Query<GetDatasetsRequest>,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
+    run_get_datasets(project_auth_ctx.project_id, req.into_inner(), db).await
+}
+
+/// Shared by the project-API-key handler (above) and the CLI user-token handler
+/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
+pub(crate) async fn run_get_datasets(
+    project_id: Uuid,
+    request: GetDatasetsRequest,
+    db: web::Data<DB>,
+) -> ResponseResult {
     let db = db.into_inner();
-    let request = req.into_inner();
     let datasets =
         db::datasets::get_datasets(&db.pool, project_id, request.id, request.name).await?;
 
@@ -45,7 +53,7 @@ async fn get_datasets(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetDatapointsRequestParams {
+pub(crate) struct GetDatapointsRequestParams {
     #[serde(flatten)]
     dataset: DatasetIdentifier,
     limit: i64,
@@ -62,7 +70,29 @@ async fn get_datapoints(
     http_client: web::Data<reqwest::Client>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
+    run_get_datapoints(
+        project_auth_ctx.project_id,
+        params.into_inner(),
+        db,
+        clickhouse_ro,
+        query_engine,
+        http_client,
+        cache,
+    )
+    .await
+}
+
+/// Shared by the project-API-key handler (above) and the CLI user-token handler
+/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
+pub(crate) async fn run_get_datapoints(
+    project_id: Uuid,
+    query: GetDatapointsRequestParams,
+    db: web::Data<DB>,
+    clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
+    query_engine: web::Data<Arc<QueryEngine>>,
+    http_client: web::Data<reqwest::Client>,
+    cache: web::Data<Cache>,
+) -> ResponseResult {
     let db = db.into_inner();
     let clickhouse_ro = if let Some(clickhouse_ro) = clickhouse_ro.as_ref() {
         clickhouse_ro.clone()
@@ -72,7 +102,6 @@ async fn get_datapoints(
         })));
     };
     let query_engine = query_engine.into_inner().as_ref().clone();
-    let query = params.into_inner();
     let http_client = http_client.into_inner();
     let cache = cache.into_inner();
 
@@ -186,14 +215,14 @@ pub struct DatasetId {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]
-enum DatasetIdentifier {
+pub(crate) enum DatasetIdentifier {
     Name(DatasetName),
     Id(DatasetId),
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CreateDatapointsRequest {
+pub(crate) struct CreateDatapointsRequest {
     #[serde(flatten)]
     dataset: DatasetIdentifier,
     datapoints: Vec<RequestDatapoint>,
@@ -203,7 +232,7 @@ struct CreateDatapointsRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RequestDatapoint {
+pub(crate) struct RequestDatapoint {
     #[serde(default)]
     id: Option<Uuid>,
     data: serde_json::Value,
@@ -220,10 +249,19 @@ async fn create_datapoints(
     clickhouse: web::Data<clickhouse::Client>,
     project_auth_ctx: ProjectAuthContext,
 ) -> ResponseResult {
-    let project_id = project_auth_ctx.project_id;
+    run_create_datapoints(project_auth_ctx.project_id, req.into_inner(), db, clickhouse).await
+}
+
+/// Shared by the project-API-key handler (above) and the CLI user-token handler
+/// (`api::v1::cli::datasets`). Auth is resolved by the caller.
+pub(crate) async fn run_create_datapoints(
+    project_id: Uuid,
+    request: CreateDatapointsRequest,
+    db: web::Data<DB>,
+    clickhouse: web::Data<clickhouse::Client>,
+) -> ResponseResult {
     let db = db.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
-    let request = req.into_inner();
     let mut created = false;
 
     // Validate that we have datapoints to insert

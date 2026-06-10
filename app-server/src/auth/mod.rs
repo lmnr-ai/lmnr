@@ -20,20 +20,18 @@ use crate::db::project_api_keys::ProjectApiKey;
 
 pub mod cli_user;
 
-/// The authenticated credential behind a `ProjectAuthContext`. Either a project
-/// API key (the existing `/v1/*` surface) or a BetterAuth user token (the
-/// `/v1/cli/*` surface). Carried so future handlers can branch if needed;
-/// today's shared handlers only read `ProjectAuthContext::project_id`.
+/// The authenticated credential behind a `ProjectAuthContext`. Only the project
+/// API key path produces one today; the CLI user-token path uses
+/// `cli_user::CliProjectAuth` instead. Carried so future handlers can branch if
+/// needed — today's handlers only read `ProjectAuthContext::project_id`.
 #[derive(Clone)]
 #[allow(dead_code)]
 pub enum AuthCredential {
     ApiKey(ProjectApiKey),
-    UserToken { user_id: Uuid },
 }
 
-/// Unified auth context consumed by every project-scoped handler.
-/// `project_id` is resolved by the auth middleware — from the API key for the
-/// key path, or from the `x-lmnr-project-id` header for the CLI user path.
+/// Auth context for project-API-key handlers (`/v1/*`). `project_id` is
+/// resolved from the API key by the project auth middleware.
 #[derive(Clone)]
 pub struct ProjectAuthContext {
     pub project_id: Uuid,

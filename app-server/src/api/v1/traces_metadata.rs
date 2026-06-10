@@ -21,6 +21,8 @@ pub struct UpdateTraceMetadataRequest {
     pub metadata: HashMap<String, Value>,
 }
 
+
+
 /// `POST /v1/traces/metadata` — merge a metadata patch onto an existing trace.
 ///
 /// The patch is delivered as a virtual span carrying
@@ -39,9 +41,26 @@ pub async fn update_trace_metadata(
     db: web::Data<DB>,
     cache: web::Data<Cache>,
 ) -> ResponseResult {
-    let req = req.into_inner();
-    let project_id = project_auth_ctx.project_id;
+    run_update_trace_metadata(
+        project_auth_ctx.project_id,
+        req.into_inner(),
+        spans_message_queue,
+        db,
+        cache,
+    )
+    .await
+}
 
+/// Shared by the project-API-key handler (above, used by SDKs/customers) and
+/// the CLI user-token handler (`api::v1::cli::traces`). Auth is resolved by the
+/// caller.
+pub(crate) async fn run_update_trace_metadata(
+    project_id: Uuid,
+    req: UpdateTraceMetadataRequest,
+    spans_message_queue: web::Data<Arc<MessageQueue>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
+) -> ResponseResult {
     if req.metadata.is_empty() {
         return Ok(HttpResponse::BadRequest().json("metadata cannot be empty"));
     }

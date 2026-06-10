@@ -1,13 +1,24 @@
-//! CLI user-token auth: verifies a BetterAuth EdDSA access JWT against the
-//! frontend's JWKS, authorizes the user against the target project's workspace
-//! membership, and inserts a `ProjectAuthContext` for the `/v1/cli/*` surface.
+//! CLI user-token auth for the `/v1/cli/*` surface.
+//!
+//! Split into authN (middleware) and authZ (extractor):
+//!   - `cli_auth_validator` (bearer middleware) verifies the BetterAuth EdDSA
+//!     access JWT against the frontend's JWKS and inserts a `CliUserAuth` into
+//!     request extensions. This is the single auth middleware for the whole
+//!     `/v1/cli` scope — it proves *identity* only.
+//!   - `CliUserAuth` (extractor) surfaces that identity to discovery handlers
+//!     (e.g. `GET /v1/cli/projects`) that have no project to authorize against.
+//!   - `CliProjectAuth` (extractor) reads `CliUserAuth` back out of extensions,
+//!     reads the `x-lmnr-project-id` header, and authorizes workspace
+//!     membership. Handlers that take it are guaranteed a project the user can
+//!     access — the authZ check can't be forgotten because it's the type.
 
-use std::future::{Ready, ready};
+use std::future::{Future, Ready, ready};
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use actix_web::dev::{Payload, ServiceRequest};
-use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, HttpResponse, web};
+use actix_web::{Error, FromRequest, HttpMessage, HttpRequest, web};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
@@ -18,7 +29,6 @@ use sqlx::PgPool;
 use url::Url;
 use uuid::Uuid;
 
-use super::{AuthCredential, ProjectAuthContext};
 use crate::cache::{Cache, CacheTrait, keys::PROJECT_MEMBERSHIP_CACHE_KEY};
 use crate::db::DB;
 
@@ -109,9 +119,7 @@ impl JwksCache {
     async fn decoding_key_for_kid(&self, kid: &str) -> Result<DecodingKey, VerifyError> {
         let key = self.client.get(kid).await?;
         match key {
-            JsonWebKey::Okp(okp) => {
-                Ok(DecodingKey::from_ed_components(okp.x())?)
-            }
+            JsonWebKey::Okp(okp) => Ok(DecodingKey::from_ed_components(okp.x())?),
             _ => Err(VerifyError::UnexpectedKeyType),
         }
     }
@@ -120,8 +128,9 @@ impl JwksCache {
 /// Verify a BetterAuth access JWT against the JWKS and return its `userId`.
 /// Validate EdDSA signature + exp only. `aud`/`iss` are not checked —
 /// better-auth derives them from its baseURL which app-server can't
-/// authoritatively know; project membership (checked per-request below) is the
-/// real authz gate. The signature already binds the token to our JWKS.
+/// authoritatively know; project membership (checked per-request by
+/// `CliProjectAuth`) is the real authz gate. The signature already binds the
+/// token to our JWKS.
 ///
 /// NOTE: we resolve the key via `jwks_client_rs` (for its cache + timed
 /// refresh) but decode with our OWN `Validation` rather than the lib's
@@ -137,8 +146,7 @@ pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyErr
     let mut validation = Validation::new(Algorithm::EdDSA);
     // Validate EdDSA signature + exp only. `aud`/`iss` are not checked —
     // better-auth derives them from its baseURL which app-server can't
-    // authoritatively know; project membership (checked per-request below) is
-    // the real authz gate.
+    // authoritatively know; project membership is the real authz gate.
     validation.set_required_spec_claims(&["exp"]);
     validation.validate_aud = false;
 
@@ -146,125 +154,33 @@ pub async fn verify_jwt(token: &str, jwks: &JwksCache) -> Result<Uuid, VerifyErr
     Ok(data.claims.user_id)
 }
 
-fn bad_request(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
-    let response = HttpResponse::BadRequest().json(serde_json::json!({ "error": msg }));
-    (
-        actix_web::error::InternalError::from_response("", response).into(),
-        req,
-    )
-}
-
-fn forbidden(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
-    let response = HttpResponse::Forbidden().json(serde_json::json!({ "error": msg }));
-    (
-        actix_web::error::InternalError::from_response("", response).into(),
-        req,
-    )
-}
-
-fn internal_error(req: ServiceRequest, msg: &str) -> (Error, ServiceRequest) {
-    let response = HttpResponse::InternalServerError().json(serde_json::json!({ "error": msg }));
-    (
-        actix_web::error::InternalError::from_response("", response).into(),
-        req,
-    )
-}
-
-/// Bearer middleware for the project-scoped `/v1/cli/*` routes. Verifies the
-/// BetterAuth EdDSA JWT (401 on bad/expired/unknown-kid), reads
-/// `x-lmnr-project-id` (400 on missing/invalid), authorizes workspace
-/// membership (403 on non-member), and inserts a
-/// `ProjectAuthContext { credential: UserToken }` into request extensions.
-pub async fn cli_project_validator(
-    req: ServiceRequest,
-    credentials: BearerAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let config = req.app_data::<Config>().cloned().unwrap_or_default();
-
-    let db = req
-        .app_data::<web::Data<DB>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
-    let cache = req
-        .app_data::<web::Data<Cache>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
-    let jwks = req
-        .app_data::<web::Data<Arc<JwksCache>>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
-
-    // 1. Verify the JWT → user_id. Any failure → 401.
-    let user_id = match verify_jwt(credentials.token(), &jwks).await {
-        Ok(uid) => uid,
-        Err(e) => {
-            log::warn!("CLI user JWT verification failed: {e}");
-            return Err((AuthenticationError::from(config).into(), req));
-        }
-    };
-
-    // 2. Read + parse the project id header. Missing/invalid → 400.
-    let project_id = match req.headers().get(PROJECT_ID_HEADER) {
-        Some(value) => match value.to_str().ok().and_then(|s| Uuid::parse_str(s).ok()) {
-            Some(id) => id,
-            None => {
-                return Err(bad_request(req, "Invalid x-lmnr-project-id header"));
-            }
-        },
-        None => {
-            return Err(bad_request(req, "Missing x-lmnr-project-id header"));
-        }
-    };
-
-    // 3. Authorize membership (short-TTL cached). Non-member → 403.
-    match is_user_member_of_project(&db.pool, &cache, user_id, project_id).await {
-        Ok(true) => {}
-        Ok(false) => {
-            return Err(forbidden(req, "User is not a member of this project"));
-        }
-        Err(e) => {
-            // Infra failure (DB/cache), not bad credentials → 500 so the CLI
-            // retries instead of treating a healthy token as expired.
-            log::error!("CLI membership check failed: {e}");
-            return Err(internal_error(req, "Failed to verify project membership"));
-        }
-    }
-
-    // 4. Insert the unified auth context.
-    req.extensions_mut().insert(ProjectAuthContext {
-        project_id,
-        credential: AuthCredential::UserToken { user_id },
-    });
-    Ok(req)
-}
-
-/// A verified CLI user with no project bound. Inserted by
-/// `cli_user_validator` for user-scoped endpoints (e.g. listing projects).
+/// A verified CLI user, inserted into request extensions by
+/// `cli_auth_validator`. This is the authN result — identity only, no project.
 #[derive(Clone)]
-pub struct CliUser {
+pub struct CliUserAuth {
     pub user_id: Uuid,
 }
 
-impl FromRequest for CliUser {
+impl FromRequest for CliUserAuth {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         match req.extensions().get::<Self>().cloned() {
             Some(u) => ready(Ok(u)),
-            None => ready(Err(actix_web::error::ParseError::Incomplete.into())),
+            // The `/v1/cli` middleware inserts this; absence means the
+            // middleware didn't run (misconfigured route) → treat as unauthed.
+            None => ready(Err(actix_web::error::ErrorUnauthorized("Not authenticated"))),
         }
     }
 }
 
-/// Bearer middleware for user-scoped CLI endpoints that do NOT target a project
-/// (e.g. `GET /v1/cli/projects`). Verifies the BetterAuth JWT (401 on failure)
-/// and inserts a `CliUser`. No `x-lmnr-project-id` / membership check — those
-/// belong to `cli_project_validator` on the project-scoped routes.
-pub async fn cli_user_validator(
+/// Single bearer middleware for the whole `/v1/cli` scope. Verifies the
+/// BetterAuth EdDSA JWT (401 on bad/expired/unknown-kid) and inserts a
+/// `CliUserAuth`. AuthN only — project authorization is the
+/// `CliProjectAuth` extractor's job, so discovery routes (no project) and
+/// project-scoped routes can share this one middleware.
+pub async fn cli_auth_validator(
     req: ServiceRequest,
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
@@ -282,8 +198,83 @@ pub async fn cli_user_validator(
             return Err((AuthenticationError::from(config).into(), req));
         }
     };
-    req.extensions_mut().insert(CliUser { user_id });
+    req.extensions_mut().insert(CliUserAuth { user_id });
     Ok(req)
+}
+
+/// A verified CLI user authorized for a specific project. Produced by reading
+/// the `CliUserAuth` (from the auth middleware), the `x-lmnr-project-id`
+/// header, and the workspace-membership check. Any handler that takes this is
+/// guaranteed a project the user can access — the authZ gate is the type, so
+/// it can't be skipped.
+#[derive(Clone)]
+pub struct CliProjectAuth {
+    #[allow(dead_code)]
+    pub user_id: Uuid,
+    pub project_id: Uuid,
+}
+
+impl FromRequest for CliProjectAuth {
+    type Error = Error;
+    // Async: the membership check hits the DB (cache-backed). Capture the
+    // request-derived inputs synchronously, then resolve in the boxed future.
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let user = req.extensions().get::<CliUserAuth>().cloned();
+        let header = req
+            .headers()
+            .get(PROJECT_ID_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let db = req.app_data::<web::Data<DB>>().cloned();
+        let cache = req.app_data::<web::Data<Cache>>().cloned();
+
+        Box::pin(async move {
+            // AuthN result must be present (middleware ran). 401 → CLI re-logs in.
+            let user =
+                user.ok_or_else(|| actix_web::error::ErrorUnauthorized("Not authenticated"))?;
+
+            // Project header. Missing/invalid → 400 (distinct from 401 so the
+            // CLI doesn't mistake it for an expired session).
+            let project_id = match header {
+                Some(h) => Uuid::parse_str(&h).map_err(|_| {
+                    actix_web::error::ErrorBadRequest("Invalid x-lmnr-project-id header")
+                })?,
+                None => {
+                    return Err(actix_web::error::ErrorBadRequest(
+                        "Missing x-lmnr-project-id header",
+                    ));
+                }
+            };
+
+            let db = db
+                .ok_or_else(|| actix_web::error::ErrorInternalServerError("db unavailable"))?
+                .into_inner();
+            let cache = cache
+                .ok_or_else(|| actix_web::error::ErrorInternalServerError("cache unavailable"))?
+                .into_inner();
+
+            // AuthZ: workspace membership. Non-member → 403 (NOT 401: a valid
+            // user without access must not be told to re-login). Infra failure
+            // → 500 so the CLI retries rather than treating it as expired.
+            match is_user_member_of_project(&db.pool, &cache, user.user_id, project_id).await {
+                Ok(true) => Ok(CliProjectAuth {
+                    user_id: user.user_id,
+                    project_id,
+                }),
+                Ok(false) => Err(actix_web::error::ErrorForbidden(
+                    "User is not a member of this project",
+                )),
+                Err(e) => {
+                    log::error!("CLI membership check failed: {e}");
+                    Err(actix_web::error::ErrorInternalServerError(
+                        "Failed to verify project membership",
+                    ))
+                }
+            }
+        })
+    }
 }
 
 /// Cached membership check for the CLI user surface. Mirrors the
@@ -302,8 +293,7 @@ pub async fn is_user_member_of_project(
     if let Ok(Some(is_member)) = cache.get::<bool>(&cache_key).await {
         return Ok(is_member);
     }
-    let is_member =
-        crate::db::projects::project_has_member(pool, &user_id, &project_id).await?;
+    let is_member = crate::db::projects::project_has_member(pool, &user_id, &project_id).await?;
     let _ = cache
         .insert_with_ttl::<bool>(&cache_key, is_member, PROJECT_MEMBERSHIP_TTL_SECONDS)
         .await;
@@ -463,39 +453,12 @@ mod tests {
         let kid = "k1";
         let (encoding, jwk) = make_key(kid);
         let (_server, jwks) = cache_serving(vec![jwk]).await;
-        let token = sign_token(
-            &encoding,
-            kid,
-            serde_json::json!({ "exp": future_exp() }),
-        );
+        let token = sign_token(&encoding, kid, serde_json::json!({ "exp": future_exp() }));
         assert!(verify_jwt(&token, &jwks).await.is_err());
     }
 
-    /// Exercise the header parse + 400 status mapping without touching DB/JWKS.
-    /// Builds a bare `ServiceRequest` and asserts `bad_request` maps to a 400
-    /// JSON response with the given message.
-    #[actix_web::test]
-    async fn bad_request_maps_to_400() {
-        use actix_web::ResponseError;
-        use actix_web::test::TestRequest;
-        let req = TestRequest::default().to_srv_request();
-        let (err, _req) = bad_request(req, "Missing x-lmnr-project-id header");
-        let resp = err.error_response();
-        assert_eq!(resp.status(), actix_web::http::StatusCode::BAD_REQUEST);
-    }
-
-    #[actix_web::test]
-    async fn forbidden_maps_to_403() {
-        use actix_web::ResponseError;
-        use actix_web::test::TestRequest;
-        let req = TestRequest::default().to_srv_request();
-        let (err, _req) = forbidden(req, "not a member");
-        let resp = err.error_response();
-        assert_eq!(resp.status(), actix_web::http::StatusCode::FORBIDDEN);
-    }
-
-    /// Header parse mirror of the validator's step 2. A valid UUID parses; a
-    /// garbage value and an absent header both fail.
+    /// Header parse mirror of the `CliProjectAuth` extractor: a valid UUID
+    /// parses; a garbage value fails.
     #[test]
     fn project_id_header_parse() {
         let id = Uuid::new_v4();
@@ -518,7 +481,7 @@ mod tests {
         let app = test::init_service(
             App::new().service(
                 web::scope("/v1/cli")
-                    .wrap(HttpAuthentication::bearer(cli_project_validator))
+                    .wrap(HttpAuthentication::bearer(cli_auth_validator))
                     .route("/datasets", web::get().to(ok_handler)),
             ),
         )
