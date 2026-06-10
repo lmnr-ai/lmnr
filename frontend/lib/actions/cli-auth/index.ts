@@ -22,8 +22,6 @@ export interface SessionWorkspace {
 export interface DeviceApprovalContext {
   userCode: string;
   status: "pending" | "approved" | "denied";
-  clientId: string | null;
-  scope: string | null;
   expiresAt: string;
   userId: string | null;
 }
@@ -38,8 +36,6 @@ export const loadDeviceContext = async (rawUserCode: string): Promise<DeviceAppr
     .select({
       userCode: deviceCodes.userCode,
       status: deviceCodes.status,
-      clientId: deviceCodes.clientId,
-      scope: deviceCodes.scope,
       expiresAt: deviceCodes.expiresAt,
       userId: deviceCodes.userId,
     })
@@ -50,8 +46,6 @@ export const loadDeviceContext = async (rawUserCode: string): Promise<DeviceAppr
   return {
     userCode: row.userCode,
     status: row.status as DeviceApprovalContext["status"],
-    clientId: row.clientId,
-    scope: row.scope,
     expiresAt: row.expiresAt.toISOString(),
     userId: row.userId,
   };
@@ -111,18 +105,18 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
     .orderBy(asc(workspaces.name));
 };
 
-// Approves the device code AND smuggles the chosen projectId back to the CLI.
+// Approves the device code AND hands the chosen projectId back to the CLI.
 //
-// `lmnr_project=<uuid>` is NOT a permission scope — it's metadata riding the
-// `scope` field because that is the ONLY field BetterAuth's device-token poll
-// echoes verbatim back to the CLI (routes.mjs deviceToken handler). The CLI
-// parser tolerates token order and ignores the real `projects:rw`.
+// The projectId rides in the deviceCode `metadata` column; the /device/token
+// route wrapper (app/api/auth/[...all]/route.ts) reads it just before BetterAuth
+// deletes the row and forwards it to the polling CLI as the `x-lmnr-metadata`
+// response header.
 //
-// ORDERING INVARIANT (fails silently if reversed): the scope write MUST happen
-// while the row is still status:"pending", BEFORE device.approve. If we wrote
-// scope after approve, the CLI poll could win the race in between, receive a
-// scope with no project, and the row is then deleted at token issuance — the
-// projectId is lost permanently. Sequence: update scope (pending) -> approve.
+// ORDERING INVARIANT (fails silently if reversed): the metadata write MUST
+// happen while the row is still status:"pending", BEFORE device.approve. If we
+// wrote metadata after approve, the CLI poll could win the race in between,
+// receive no metadata, and the row is then deleted at token issuance — the
+// projectId is lost permanently. Sequence: update metadata (pending) -> approve.
 export const approveDeviceWithProject = async (rawUserCode: string, projectId: string): Promise<{ error?: string }> => {
   const session = await getServerSession();
   if (!session?.user) return { error: "Unauthorized" };
@@ -153,9 +147,8 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
 
   // 1) Write the chosen project into `metadata` WHILE the row is pending.
   //    deviceApprove only writes { status, userId }, so this survives approve;
-  //    the /device/token before-hook (lib/auth.ts) forwards it to the polling
-  //    CLI as the x-lmnr-metadata response header. `scope` stays the real OAuth
-  //    scope — no more smuggling the projectId through it.
+  //    the /device/token route wrapper (app/api/auth/[...all]/route.ts) forwards
+  //    it to the polling CLI as the x-lmnr-metadata response header.
   await db
     .update(deviceCodes)
     .set({ metadata: JSON.stringify({ projectId }) })

@@ -41,7 +41,7 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
   }
 
   // Step 2 — project picker. The row is approved (with the chosen project written
-  // into its scope) only once a project is selected/created inside the picker.
+  // into its metadata) only once a project is selected/created inside the picker.
   if (step === "pick-project" && context) {
     return (
       <ProjectPicker

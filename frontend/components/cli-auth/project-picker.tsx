@@ -79,7 +79,7 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
     }
   };
 
-  // Writes the chosen projectId into the pending device row's scope, then approves.
+  // Writes the chosen projectId into the pending device row's metadata, then approves.
   const onConfirm = async () => {
     if (!selectedId) return;
     setSubmitting(true);

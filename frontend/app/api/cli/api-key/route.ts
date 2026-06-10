@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       if (!project) {
         return NextResponse.json({ error: "Project not found" }, { status: 404 });
       }
-      const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: false });
+      const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: true });
       return NextResponse.json({
         apiKey: key.value,
         apiKeyId: key.id,
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const project = userProjects[0];
-    const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: false });
+    const key = await createApiKey({ projectId: project.id, name: keyName, isIngestOnly: true });
     return NextResponse.json({
       apiKey: key.value,
       apiKeyId: key.id,
