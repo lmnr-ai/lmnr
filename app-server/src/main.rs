@@ -9,7 +9,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use actix_limitation::Limiter;
 use actix_web::{
-    App, HttpMessage, HttpServer, dev,
+    App, HttpServer, dev,
     http::StatusCode,
     middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
@@ -1716,17 +1716,11 @@ fn main() -> anyhow::Result<()> {
             let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
             let http_period_secs: u64 =
                 env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
-            // This middleware-based limiter is used by the project-API-key
-            // /v1/sql scope; project_validator populates ProjectApiKey in
-            // request extensions before the limiter runs. (The CLI /v1/cli/sql
-            // path counts inline in its handler instead — its project id is
-            // resolved by an extractor, after middleware.)
+            // Per-project SQL rate limiter, counted inline in `handle_sql_query`
+            // (shared by both /v1/sql and /v1/cli/sql) with an explicit
+            // `ratelimit:<project_id>` key — no middleware key extractor needed
+            // since project_id is only known after the auth extractor runs.
             match Limiter::builder(&redis_url)
-                .key_by(|req: &dev::ServiceRequest| {
-                    req.extensions()
-                        .get::<crate::db::project_api_keys::ProjectApiKey>()
-                        .map(|key| format!("ratelimit:{}", key.project_id))
-                })
                 .limit(http_limit)
                 .period(Duration::from_secs(http_period_secs))
                 .build()
@@ -1906,9 +1900,6 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service(
                                 web::scope("/v1/sql")
-                                    // Rate limiting is inline in `handle_sql_query`
-                                    // (shared with the CLI twin), not scope
-                                    // middleware — project_id is known only after auth.
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
                             )

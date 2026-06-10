@@ -83,7 +83,7 @@ pub struct JwksCache {
 impl JwksCache {
     /// Build from `NEXT_INTERNAL_URL`, else `NEXT_PUBLIC_URL`, deriving the
     /// JWKS endpoint `{base}/api/auth/jwks`. Falls back to
-    /// `https://www.laminar.sh` with a warning so self-hosters notice an unset
+    /// `https://laminar.sh` with a warning so self-hosters notice an unset
     /// var. The `http` arg is retained for call-site compatibility; `WebSource`
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
@@ -92,9 +92,9 @@ impl JwksCache {
             .map(|v| v.trim_end_matches('/').to_string())
             .unwrap_or_else(|_| {
                 log::warn!(
-                    "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://www.laminar.sh"
+                    "NEXT_INTERNAL_URL/NEXT_PUBLIC_URL unset; CLI-auth JWKS defaults to https://laminar.sh"
                 );
-                "https://www.laminar.sh".to_string()
+                "https://laminar.sh".to_string()
             });
         let jwks_url = format!("{base}/api/auth/jwks");
         Self::from_url(&jwks_url)
@@ -106,7 +106,7 @@ impl JwksCache {
         // so the process still boots (verification just won't resolve keys).
         let url = Url::parse(jwks_url).unwrap_or_else(|e| {
             log::error!("invalid JWKS URL {jwks_url:?}: {e}; CLI auth will not resolve keys");
-            Url::parse("https://www.laminar.sh/api/auth/jwks").expect("static fallback URL parses")
+            Url::parse("https://laminar.sh/api/auth/jwks").expect("static fallback URL parses")
         });
         let source = WebSource::builder()
             .build(url)
