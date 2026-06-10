@@ -7,11 +7,11 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-use actix_limitation::{Limiter, RateLimiter};
+use actix_limitation::Limiter;
 use actix_web::{
     App, HttpMessage, HttpServer, dev,
     http::StatusCode,
-    middleware::{Condition, ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
+    middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -1906,10 +1906,9 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service(
                                 web::scope("/v1/sql")
-                                    .wrap(Condition::new(
-                                        rate_limiter.is_some(),
-                                        RateLimiter::default(),
-                                    ))
+                                    // Rate limiting is inline in `handle_sql_query`
+                                    // (shared with the CLI twin), not scope
+                                    // middleware — project_id is known only after auth.
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
                             )
