@@ -7,10 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::project_api_keys::ProjectApiKey,
     cache::Cache,
     db::{
         DB,
+        project_api_keys::ProjectApiKey,
         spans::{Span, SpanType},
     },
     features::{Feature, is_feature_enabled},

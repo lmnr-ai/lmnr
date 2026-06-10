@@ -6,8 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     browser_events::QueueBrowserEventMessage,
-    db::project_api_keys::ProjectApiKey,
-    db::DB,
+    db::{DB, project_api_keys::ProjectApiKey},
     features::{Feature, is_feature_enabled},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     routes::types::ResponseResult,

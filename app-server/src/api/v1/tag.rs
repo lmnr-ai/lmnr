@@ -3,8 +3,7 @@ use std::sync::Arc;
 use crate::{
     cache::Cache,
     ch::spans::append_tags_to_span,
-    db::project_api_keys::ProjectApiKey,
-    db::DB,
+    db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},

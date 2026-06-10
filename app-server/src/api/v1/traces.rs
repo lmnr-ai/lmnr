@@ -5,8 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
-    db::{DB, spans::Span},
+    db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,

@@ -2,8 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     cache::Cache,
-    db::project_api_keys::ProjectApiKey,
-    db::{self, DB},
+    db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
         EvaluationDatapointResult, UpdatedDatapointStrings,
         insert_evaluation_datapoints,

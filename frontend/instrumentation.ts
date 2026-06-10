@@ -294,23 +294,6 @@ export async function register() {
     } else {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
-
-    // Prune expired device-flow codes once per hour — runs in prod AND local.
-    // BetterAuth's plugin only deletes rows opportunistically (on poll / approve
-    // / deny); a user who walks away leaves the row indefinitely. Keep ~24 hours
-    // of history so the verification page can still surface "expired" banners
-    // instead of "unknown code". Dynamic-import db here since the LOCAL_DB block
-    // above scopes its own import.
-    const { db: prodDb } = await import("@/lib/db/drizzle.ts");
-    const pruneStaleDeviceCodes = async () => {
-      try {
-        await prodDb.execute("DELETE FROM device_codes WHERE expires_at < now() - INTERVAL '24 hours'");
-      } catch (err) {
-        console.warn("device_codes prune failed:", err instanceof Error ? err.message : String(err));
-      }
-    };
-    await pruneStaleDeviceCodes();
-    setInterval(pruneStaleDeviceCodes, 60 * 60 * 1000).unref();
     if (process.env.LMNR_PROJECT_API_KEY) {
       const { Laminar } = await import("@lmnr-ai/lmnr");
       console.log("Initializing Laminar");

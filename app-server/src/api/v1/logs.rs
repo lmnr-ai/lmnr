@@ -5,8 +5,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
-    db::DB,
+    db::{DB, project_api_keys::ProjectApiKey},
     features::{Feature, is_feature_enabled},
     logs::producer::push_logs_to_queue,
     mq::MessageQueue,

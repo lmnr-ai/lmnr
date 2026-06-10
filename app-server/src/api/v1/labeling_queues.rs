@@ -6,8 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::labeling_queue_items::{CHLabelingQueueItem, insert_labeling_queue_items},
-    db::project_api_keys::ProjectApiKey,
-    db::{self, DB},
+    db::{self, DB, project_api_keys::ProjectApiKey},
     routes::types::ResponseResult,
 };
 
