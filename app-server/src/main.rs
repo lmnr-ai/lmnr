@@ -1811,9 +1811,8 @@ fn main() -> anyhow::Result<()> {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
-                        // Single authN middleware for the whole /v1/cli scope:
-                        // verifies the JWT → CliUserAuth. Project authorization
-                        // is the CliProjectAuth extractor's job per-handler.
+                        // AuthN-only middleware for the /v1/cli scope; project
+                        // authz is the CliProjectAuth extractor's job per-handler.
                         let cli_auth =
                             HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
@@ -1914,15 +1913,8 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
                             )
-                            // CLI user-token surface. ONE scope, ONE authN
-                            // middleware (cli_auth → CliUserAuth). Project authz
-                            // is per-handler via the CliProjectAuth extractor;
-                            // `list_projects` takes CliUserAuth (no project), so
-                            // discovery and project-scoped routes share the scope
-                            // — no split / prefix-overshadowing needed. SQL rate
-                            // limiting is inline in the handler (the extractor
-                            // resolves project_id after middleware, so a scope
-                            // RateLimiter can't see it).
+                            // CLI user-token surface: list_projects takes
+                            // CliUserAuth, the rest take CliProjectAuth.
                             .service(
                                 web::scope("/v1/cli")
                                     .wrap(cli_auth.clone())

@@ -17,11 +17,8 @@ struct UpdateNameRequest {
     name: String,
 }
 
-/// `PATCH /v1/cli/rollouts/{session_id}/name` — rename a debug session.
-/// CLI user-token ONLY: the SDK names sessions at register time, so there is no
-/// project-API-key twin (verified — only the CLI calls this). Update-only: 404
-/// when the session id is unknown for this project (a mistyped id is an error,
-/// not a ghost create).
+/// `PATCH /v1/cli/rollouts/{session_id}/name` — rename a debug session (CLI-only;
+/// the SDK names at register time). Update-only: unknown session id → 404.
 #[patch("rollouts/{session_id}/name")]
 pub async fn update_name(
     path: web::Path<Uuid>,

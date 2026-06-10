@@ -203,9 +203,7 @@ pub struct CliProject {
     pub workspace_name: String,
 }
 
-/// All projects in workspaces the user is a member of (any role), ordered by
-/// workspace then project name. Used by the CLI to let the user discover and
-/// select a project after `login`.
+/// All projects in workspaces the user belongs to, for the CLI project picker.
 pub async fn get_projects_for_user(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<CliProject>> {
     let projects = sqlx::query_as::<_, CliProject>(
         // LIMIT bounds the response for users in large multi-workspace orgs;

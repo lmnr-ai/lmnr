@@ -17,16 +17,9 @@ use crate::{
     sql::{self, ClickhouseReadonlyClient},
 };
 
-/// `POST /v1/cli/sql/query` — CLI twin of `/v1/sql/query`. Same query work
-/// (shared `crate::sql::execute_sql_query` helper); differs only in auth
-/// (`CliProjectAuth` user token) and the inline rate limit.
-///
-/// Rate limiting is applied INLINE here, not as scope middleware: the project
-/// id is resolved by the `CliProjectAuth` extractor, which runs AFTER all
-/// middleware, so a `RateLimiter` middleware's `key_by` would find no project
-/// id and silently stop limiting. We count manually after auth — same pattern
-/// as gRPC ingestion. Shares the `ratelimit:<project_id>` key with `/v1/sql`
-/// so the CLI can't bypass the per-project quota. Fail-open on Redis errors.
+/// `POST /v1/cli/sql/query` — CLI twin of `/v1/sql/query`. Rate limiting is
+/// inline (not scope middleware) because the extractor resolves project_id after
+/// middleware; shares the `ratelimit:<project_id>` key with `/v1/sql`. Fail-open.
 #[post("query")]
 pub async fn execute_sql_query(
     auth: CliProjectAuth,

@@ -51,10 +51,6 @@ rand = "0.9.4"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
 regex = "1.12.3"
-# reqwest 0.13 made rustls the default TLS backend (was native-tls in 0.12) and its default `rustls`
-# feature pins the aws-lc-rs crypto provider. We use `rustls-no-provider` instead so reqwest uses the
-# process-default CryptoProvider (the ring provider installed in main.rs), matching the rest of the
-# rustls/ring stack rather than coupling TLS to a second, aws-lc-rs-specific provider.
 reqwest = {version = "0.13", default-features = false, features = ["json", "stream", "rustls-no-provider", "charset", "http2", "system-proxy"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
