@@ -10,12 +10,16 @@ import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
 import { ManualTab } from "./manual-tab";
+import { OneCommandSetup } from "./one-command-setup";
 
 export default function TracesPagePlaceholder() {
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
   const searchParams = useSearchParams();
   const [isConnected, setIsConnected] = useState(false);
+  // Below the "Listening for incoming traces" banner the page shows either the
+  // one-command setup (default) or the full manual onboarding ("Set up manually").
+  const [manualSetup, setManualSetup] = useState(false);
   const isFromOnboarding = searchParams.get("onboarding") === "true";
 
   useEffect(() => {
@@ -50,55 +54,33 @@ export default function TracesPagePlaceholder() {
     eventHandlers,
   });
 
+  const onSetupManually = () => {
+    track("onboarding", "manual_setup_selected", { from_onboarding: isFromOnboarding });
+    setManualSetup(true);
+  };
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <Header path={"traces"} />
       <ScrollArea>
         <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-16">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold">Get started with Tracing</h1>
-              <p className="text-sm text-muted-foreground">
-                You don{"'"}t have any traces yet. Choose how you{"'"}d like to set up.
-              </p>
+          <h1 className="text-2xl font-medium">Get started with Tracing</h1>
+          {isConnected && (
+            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 p-4">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+              </span>
+              <span className="text-xs text-primary-foreground">Listening for incoming traces</span>
             </div>
-            {isConnected && (
-              <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                </span>
-                <span className="text-sm">Listening for incoming traces&hellip;</span>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/*  TODO: Temporary hide automatic setup*/}
-          {/*<Tabs*/}
-          {/*  defaultValue="manual"*/}
-          {/*  className="gap-7"*/}
-          {/*  onValueChange={(value) => {*/}
-          {/*    track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });*/}
-          {/*  }}*/}
-          {/*>*/}
-          {/*  <TabsList className="border-none">*/}
-          {/*    <TabsTrigger value="automatic" className="gap-1.5">*/}
-          {/*      <Sparkles className="w-3.5 h-3.5" />*/}
-          {/*      Set up with AI*/}
-          {/*    </TabsTrigger>*/}
-          {/*    <TabsTrigger value="manual" className="gap-1.5">*/}
-          {/*      <Terminal className="w-3.5 h-3.5" />*/}
-          {/*      Manual*/}
-          {/*    </TabsTrigger>*/}
-          {/*  </TabsList>*/}
-          {/*  <TabsContent value="automatic">*/}
-          {/*    <AutomaticTab isFromOnboarding={isFromOnboarding} />*/}
-          {/*  </TabsContent>*/}
-          {/*  <TabsContent value="manual">*/}
-          {/*  </TabsContent>*/}
-          {/*</Tabs>*/}
+          {manualSetup ? (
+            <ManualTab onClose={() => setManualSetup(false)} />
+          ) : (
+            <OneCommandSetup onSetupManually={onSetupManually} />
+          )}
 
-          <ManualTab />
           <div className="flex items-center gap-6 text-sm">
             <a
               href="https://docs.lmnr.ai/tracing/introduction"
