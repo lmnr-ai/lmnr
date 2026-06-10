@@ -186,11 +186,21 @@ pub async fn cli_auth_validator(
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     let config = req.app_data::<Config>().cloned().unwrap_or_default();
-    let jwks = req
-        .app_data::<web::Data<Arc<JwksCache>>>()
-        .cloned()
-        .unwrap()
-        .into_inner();
+    // Missing JwksCache is a server misconfiguration (it's registered in
+    // main.rs when the /v1/cli scope is wired), NOT a client auth failure — so
+    // return 500, not 401: a 401 would send the CLI into a re-login loop against
+    // a server that can never verify tokens. And never `.unwrap()` here: a panic
+    // in auth middleware crashes the worker and drops its in-flight requests.
+    let jwks = match req.app_data::<web::Data<Arc<JwksCache>>>().cloned() {
+        Some(j) => j.into_inner(),
+        None => {
+            log::error!("JwksCache not registered in app_data; CLI auth cannot verify tokens");
+            return Err((
+                actix_web::error::ErrorInternalServerError("CLI auth unavailable"),
+                req,
+            ));
+        }
+    };
 
     let user_id = match verify_jwt(credentials.token(), &jwks).await {
         Ok(uid) => uid,
