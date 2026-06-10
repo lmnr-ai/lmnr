@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type SessionProject, type SessionWorkspace } from "@/lib/actions/cli-auth";
 import { useToast } from "@/lib/hooks/use-toast";
 
+import { createProjectInWorkspace, createWorkspaceWithProject } from "./create-project";
 import { Field } from "./index";
 
 interface Props {
@@ -53,7 +54,7 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
       // Branch A — has ≥1 workspace: create a project inside the chosen workspace.
       // Branch B — 0 workspaces (brand-new user): create workspace + first project.
       const created = hasWorkspace
-        ? await createInWorkspace(project, workspaceId, selectedWorkspace?.name ?? "")
+        ? await createProjectInWorkspace(project, workspaceId, selectedWorkspace?.name ?? "")
         : await createWorkspaceWithProject(project, workspaceName.trim());
 
       if (!created) {
@@ -77,7 +78,7 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
         <DialogHeader>
           <DialogTitle>{hasWorkspace ? "Create project" : "Create your first project"}</DialogTitle>
           <DialogDescription>
-            {hasWorkspace ? "Name a project for the CLI to use." : "Name a workspace and project for the CLI to use."}
+            {hasWorkspace ? "Name a project." : "Name a workspace and project."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -126,46 +127,4 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
       </DialogContent>
     </Dialog>
   );
-}
-
-// Branch A: existing workspace → POST /api/workspaces/:workspaceId/projects.
-async function createInWorkspace(
-  name: string,
-  workspaceId: string,
-  workspaceName: string
-): Promise<SessionProject | null> {
-  const res = await fetch(`/api/workspaces/${workspaceId}/projects`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  if (!res.ok) {
-    const errMessage = await res
-      .json()
-      .then((d) => d?.error)
-      .catch(() => null);
-    throw new Error(errMessage ?? "Failed to create project");
-  }
-  const project = await res.json();
-  if (!project?.id) return null;
-  return { id: project.id, name, workspaceId, workspaceName };
-}
-
-// Branch B: brand-new user → POST /api/workspaces { isFirstProject: true }.
-async function createWorkspaceWithProject(name: string, workspaceName: string): Promise<SessionProject | null> {
-  const res = await fetch("/api/workspaces", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: workspaceName, projectName: name, isFirstProject: true }),
-  });
-  if (!res.ok) {
-    const errMessage = await res
-      .json()
-      .then((d) => d?.error)
-      .catch(() => null);
-    throw new Error(errMessage ?? "Failed to create project");
-  }
-  const data = await res.json();
-  if (!data?.projectId) return null;
-  return { id: data.projectId, name, workspaceId: data.id ?? "", workspaceName };
 }

@@ -8,6 +8,7 @@ import { type DeviceApprovalContext, type SessionProject, type SessionWorkspace 
 import { authClient } from "@/lib/auth-client";
 import { useToast } from "@/lib/hooks/use-toast";
 
+import { CreateFirstProject } from "./create-first-project";
 import { Centered, CompletionScreen, UserCodeDisplay } from "./index";
 import { ProjectPicker } from "./project-picker";
 
@@ -40,9 +41,21 @@ export function ApprovalForm({ userEmail, rawUserCode, context, projects, worksp
     return <CompletionScreen result={completed} />;
   }
 
-  // Step 2 — project picker. The row is approved (with the chosen project written
-  // into its metadata) only once a project is selected/created inside the picker.
+  // Step 2 — project selection. The device row is approved (with the chosen
+  // project written into its metadata) only after a project is selected/created.
+  // A user with no projects skips the (empty) picker and creates their first
+  // project directly; everyone else picks from / creates within the picker.
   if (step === "pick-project" && context) {
+    if (projects.length === 0) {
+      return (
+        <CreateFirstProject
+          userCode={context.userCode}
+          workspaces={workspaces}
+          onApproved={() => setCompleted("approved")}
+          onDenied={() => setCompleted("denied")}
+        />
+      );
+    }
     return (
       <ProjectPicker
         userCode={context.userCode}
