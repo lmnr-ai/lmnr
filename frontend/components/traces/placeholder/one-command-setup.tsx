@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
 // The prompt copied for the user to run themselves or paste into a coding agent.
 // Backticks are kept so the agent reads `npx lmnr-cli setup` as a command.
@@ -42,21 +43,24 @@ export function OneCommandSetup({ onSetupManually }: Props) {
       <button
         type="button"
         onClick={handleCopy}
-        className="relative flex items-center justify-center gap-2.5 rounded-md border bg-secondary px-10 py-14 text-base text-secondary-foreground group hover:border-secondary-foreground/25"
+        className="relative flex items-center justify-center gap-2.5 rounded-md border bg-secondary px-10 py-14 text-base text-secondary-foreground group hover:border-secondary-foreground/25 active:border-secondary-foreground/35 active:bg-muted/50"
       >
         <span>Run</span>
         <code className="rounded bg-muted px-3 font-mono">npx lmnr-cli setup</code>
         <span>in your project directory</span>
         <div
           aria-label={copied ? "Copied" : "Copy prompt"}
-          className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className={cn(
+            "absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground",
+            { "bg-primary/20": copied }
+          )}
         >
-          {copied && <Check className="h-3 w-3" />}
+          {copied && <Check className="h-3 w-3 text-primary" />}
           {copied ? (
-            "Copied"
+            <span className="text-primary">Copied</span>
           ) : (
             <>
-              <span className="hidden group-hover:block">Click to copy</span>
+              <span className="hidden group-hover:block text-secondary-foreground">Click to copy</span>
               <span className="block group-hover:hidden">Copy prompt</span>
             </>
           )}

@@ -70,8 +70,8 @@ export default function SignalsStep({ stepIndex, totalSteps, onAdvance }: Signal
                     onClick={() => toggle(template.name)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex items-start gap-3 text-left rounded-lg border p-3 transition-colors h-full pb-4 xl:pb-8 pt-4",
-                      isSelected ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
+                      "flex items-start gap-3 text-left rounded-md p-3 transition-colors h-full pb-4 xl:pb-8 pt-4",
+                      isSelected ? "border border-primary/50 bg-primary/5" : "bg-landing-surface-800"
                     )}
                   >
                     <div className="mt-0.5 flex items-center gap-2 shrink-0">

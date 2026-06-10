@@ -84,7 +84,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   return (
     <UserContextProvider user={user}>
-      <div className="flex flex-col min-h-screen w-full bg-background">
+      <div className="flex flex-col min-h-screen w-full bg-landing-surface-700">
         <OnboardingWizard
           initial={initial}
           slackClientId={process.env.SLACK_CLIENT_ID}
