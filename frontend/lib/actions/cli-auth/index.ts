@@ -6,6 +6,8 @@ import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 import { db } from "@/lib/db/drizzle";
 import { deviceCodes, membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
+import { sendWelcomeEmail } from "@/lib/emails/utils";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export interface SessionProject {
   id: string;
@@ -117,7 +119,13 @@ export const listWorkspacesForCurrentSession = async (): Promise<SessionWorkspac
 // wrote metadata after approve, the CLI poll could win the race in between,
 // receive no metadata, and the row is then deleted at token issuance — the
 // projectId is lost permanently. Sequence: update metadata (pending) -> approve.
-export const approveDeviceWithProject = async (rawUserCode: string, projectId: string): Promise<{ error?: string }> => {
+// `sendWelcome` is set only by the brand-new-account path (CreateFirstProject);
+// the picker passes false so existing users don't get a duplicate welcome email.
+export const approveDeviceWithProject = async (
+  rawUserCode: string,
+  projectId: string,
+  sendWelcome = false
+): Promise<{ error?: string }> => {
   const session = await getServerSession();
   if (!session?.user) return { error: "Unauthorized" };
 
@@ -159,6 +167,18 @@ export const approveDeviceWithProject = async (rawUserCode: string, projectId: s
     await auth.api.deviceApprove({ body: { userCode }, headers: await headers() });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to approve device" };
+  }
+
+  // 3) Brand-new account onboarding parity: send the welcome email the onboarding
+  //    wizard would have. Best-effort — never fail the approval on an email error.
+  //    No-op unless RESEND_API_KEY is set (Feature.SEND_EMAIL), so self-hosted
+  //    installs without email config are unaffected.
+  if (sendWelcome && session.user.email && isFeatureEnabled(Feature.SEND_EMAIL)) {
+    try {
+      await sendWelcomeEmail(session.user.email);
+    } catch {
+      // Best-effort — sendWelcomeEmail logs Resend errors itself; never block approval.
+    }
   }
   return {};
 };

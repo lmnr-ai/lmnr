@@ -64,11 +64,14 @@ export function CreateFirstProject({ userCode, workspaces, onApproved, onDenied 
         setCreatedProjectId(projectId);
       }
 
-      // 2) THEN authorize the device against the now-existing project.
+      // 2) THEN authorize the device against the now-existing project. A user with
+      //    no workspace at all is a brand-new account, so request the onboarding
+      //    welcome email (onboarding parity); a user who already had a workspace
+      //    has been welcomed before.
       const res = await fetch("/api/cli/device/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userCode, projectId }),
+        body: JSON.stringify({ userCode, projectId, sendWelcome: !hasWorkspace }),
       });
       if (!res.ok) {
         const errMessage = await res

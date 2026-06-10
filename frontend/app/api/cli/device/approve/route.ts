@@ -9,13 +9,15 @@ const Body = z
   .object({
     userCode: z.string().min(1),
     projectId: z.uuid(),
+    // Set by the brand-new-account flow so the user gets the onboarding welcome email.
+    sendWelcome: z.boolean().optional(),
   })
   .strict();
 
 export async function POST(req: NextRequest): Promise<Response> {
   try {
-    const { userCode, projectId } = Body.parse(await req.json().catch(() => ({})));
-    const result = await approveDeviceWithProject(userCode, projectId);
+    const { userCode, projectId, sendWelcome } = Body.parse(await req.json().catch(() => ({})));
+    const result = await approveDeviceWithProject(userCode, projectId, sendWelcome);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
