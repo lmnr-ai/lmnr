@@ -56,7 +56,8 @@ function groupByWorkspace(
 export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDenied }: Props) {
   const { toast } = useToast();
   const [options, setOptions] = useState<SessionProject[]>(projects);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Auto-select when there's only one project — nothing to choose between.
+  const [selectedId, setSelectedId] = useState<string | null>(projects.length === 1 ? projects[0].id : null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [denying, setDenying] = useState(false);
