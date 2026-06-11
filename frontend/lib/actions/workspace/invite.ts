@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { z } from "zod/v4";
 
@@ -50,7 +50,9 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
   const [existingInvitation] = await db
     .select({ id: workspaceInvitations.id })
     .from(workspaceInvitations)
-    .where(and(eq(workspaceInvitations.email, email), eq(workspaceInvitations.workspaceId, workspaceId)))
+    // Match case-insensitively so a legacy mixed-case row for the same address
+    // still blocks a duplicate invite (email is already lowercased by the schema).
+    .where(and(sql`lower(${workspaceInvitations.email}) = ${email}`, eq(workspaceInvitations.workspaceId, workspaceId)))
     .limit(1);
 
   if (existingInvitation) {
