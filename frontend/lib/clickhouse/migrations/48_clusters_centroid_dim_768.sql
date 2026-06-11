@@ -25,7 +25,7 @@ ENGINE = ReplacingMergeTree(updated_at)
 PRIMARY KEY (project_id, signal_id)
 ORDER BY (project_id, signal_id, id);
 
-ALTER TABLE signal_event_clusters_768 ADD INDEX centroid_cosine_hnsw centroid TYPE vector_similarity(
+ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS signal_event_clusters_centroid_cosine_hnsw centroid TYPE vector_similarity(
     'hnsw',
     cosineDistance,
     768
@@ -33,10 +33,8 @@ ALTER TABLE signal_event_clusters_768 ADD INDEX centroid_cosine_hnsw centroid TY
 
 ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX centroid_cosine_hnsw;
 
-ALTER TABLE signal_event_clusters_768 ADD INDEX clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
 
 ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX clusters_project_id_cluster_id_idx;
 
 EXCHANGE TABLES signal_event_clusters AND signal_event_clusters_768;
-
-RENAME TABLE signal_event_clusters_768 TO old_signal_event_clusters_3072;
