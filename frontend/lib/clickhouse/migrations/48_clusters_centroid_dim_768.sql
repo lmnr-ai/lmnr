@@ -31,10 +31,10 @@ ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS signal_event_clust
     768
 );
 
-ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX centroid_cosine_hnsw;
+ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX signal_event_clusters_centroid_cosine_hnsw;
 
-ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS signal_event_clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
 
-ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX clusters_project_id_cluster_id_idx;
+ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX signal_event_clusters_project_id_cluster_id_idx;
 
 EXCHANGE TABLES signal_event_clusters AND signal_event_clusters_768;
