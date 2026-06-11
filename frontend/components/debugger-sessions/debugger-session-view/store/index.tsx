@@ -137,10 +137,16 @@ interface DebuggerSessionViewState {
   // and flushed into `traceSpans` when the slot is created. Transient, not persisted.
   realtimeSpanBuffer: Record<string, TraceViewSpan[]>;
 
-  // Displayed session name (the SessionHeader title). Seeded from the breadcrumb
-  // prop at store creation; updated live by the `session_update` realtime event so
-  // a rename reflects without reload.
+  // Displayed session name used by the BREADCRUMB. Seeded from the breadcrumb prop
+  // (`name ?? id`) at store creation; updated live by the `session_update` realtime
+  // event so a rename reflects without reload.
   sessionName: string;
+
+  // The session's REAL name, or null when it has never been named. Drives the
+  // editable page title (the ghost input shows a "Set session name" placeholder
+  // when null) — distinct from `sessionName`, which falls back to the id for the
+  // breadcrumb. Updated alongside `sessionName` on rename.
+  sessionNameRaw: string | null;
 
   // True when a run was added live via trace_update — drives the "New trace" pill
   // at the bottom of the view. Cleared on pill click / dismiss. Transient.
@@ -208,6 +214,7 @@ export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionVie
 const createDebuggerSessionViewStore = (options?: {
   initialTraceRow?: TraceRow;
   initialSessionName?: string;
+  initialSessionNameRaw?: string | null;
   projectId?: string;
   storeKey?: string;
 }) =>
@@ -228,6 +235,7 @@ const createDebuggerSessionViewStore = (options?: {
 
           noteMetadataKey: NOTE_METADATA_KEY,
           sessionName: options?.initialSessionName ?? "Session",
+          sessionNameRaw: options?.initialSessionNameRaw ?? null,
           realtimeSpanBuffer: {},
           newTraceNotice: false,
           tracesHydrated: false,
@@ -538,7 +546,8 @@ const createDebuggerSessionViewStore = (options?: {
             }
           },
 
-          setSessionName: (name) => set({ sessionName: name } as Partial<DebuggerSessionViewStore>),
+          setSessionName: (name) =>
+            set({ sessionName: name, sessionNameRaw: name } as Partial<DebuggerSessionViewStore>),
 
           dismissNewTraceNotice: () => set({ newTraceNotice: false } as Partial<DebuggerSessionViewStore>),
 
@@ -576,6 +585,7 @@ export const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSession
 interface DebuggerSessionViewStoreProviderProps {
   initialTraceRow?: TraceRow;
   initialSessionName?: string;
+  initialSessionNameRaw?: string | null;
   storeKey?: string;
 }
 
@@ -583,11 +593,12 @@ const DebuggerSessionViewStoreProvider = ({
   children,
   initialTraceRow,
   initialSessionName,
+  initialSessionNameRaw,
   storeKey,
 }: PropsWithChildren<DebuggerSessionViewStoreProviderProps>) => {
   const { projectId } = useParams<{ projectId: string }>();
   const [storeState] = useState(() =>
-    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, projectId, storeKey })
+    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, initialSessionNameRaw, projectId, storeKey })
   );
 
   // Provide both the base context (shared session-view children) and the

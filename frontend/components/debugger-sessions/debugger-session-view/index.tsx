@@ -17,6 +17,10 @@ interface DebuggerSessionViewProps {
   headerPath?: ComponentProps<typeof Header>["path"];
   // Debugger session id — drives the trace fetch + realtime span streaming.
   sessionId?: string;
+  // The session's real name (null when never named). Seeds the editable title's
+  // raw name so it can show a "Set session name" placeholder vs. the breadcrumb,
+  // which falls back to the id.
+  initialName?: string | null;
 }
 
 // Last breadcrumb segment is the session/trace title rendered in the header.
@@ -67,7 +71,7 @@ function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["
   return <Header path={livePath} />;
 }
 
-export default function DebuggerSessionView({ trace, headerPath, sessionId }: DebuggerSessionViewProps) {
+export default function DebuggerSessionView({ trace, headerPath, sessionId, initialName }: DebuggerSessionViewProps) {
   // Multi-trace session view (not the /alpha single-trace harness) is a viewed session.
   useEffect(() => {
     if (sessionId) track("debugger_sessions", "session_viewed");
@@ -82,6 +86,7 @@ export default function DebuggerSessionView({ trace, headerPath, sessionId }: De
       key={sessionId ?? trace?.id}
       initialTraceRow={initialTraceRow}
       initialSessionName={sessionTitle}
+      initialSessionNameRaw={initialName ?? null}
     >
       <LiveSessionBreadcrumb path={path} />
       <div className="flex-none border-t" />

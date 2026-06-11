@@ -115,6 +115,35 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
   return session;
 };
 
+export const UpdateDebuggerSessionNameSchema = z.object({
+  projectId: z.guid(),
+  id: z.guid(),
+  name: z.string().trim().min(1),
+});
+
+/**
+ * Rename a debugger session (update-only, project-scoped). Throws when no row
+ * matches `(id, projectId)` so the API route can surface a clear error rather
+ * than silently creating a ghost session. The FE convention is a Next API route
+ * + drizzle (mirrors dataset/project rename); the CLI rename has its own
+ * app-server endpoint (`PATCH /v1/cli/rollouts/{id}/name`).
+ */
+export const updateDebuggerSessionName = async (input: z.infer<typeof UpdateDebuggerSessionNameSchema>) => {
+  const { projectId, id, name } = UpdateDebuggerSessionNameSchema.parse(input);
+
+  const [session] = await db
+    .update(debuggerSessions)
+    .set({ name })
+    .where(and(eq(debuggerSessions.id, id), eq(debuggerSessions.projectId, projectId)))
+    .returning();
+
+  if (!session) {
+    throw new Error("Session not found");
+  }
+
+  return session;
+};
+
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {
   const { projectId, id } = GetDebuggerSessionSchema.parse(input);
 

@@ -16,5 +16,5 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
     { name: sessionName, copyValue: session.id },
   ];
 
-  return <DebuggerSessionView headerPath={headerPath} sessionId={session.id} />;
+  return <DebuggerSessionView headerPath={headerPath} sessionId={session.id} initialName={session.name ?? null} />;
 }
