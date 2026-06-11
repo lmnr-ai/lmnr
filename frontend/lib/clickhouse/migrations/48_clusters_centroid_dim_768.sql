@@ -4,7 +4,7 @@
 -- (Code: 469 centroid_same_dim). We swap in a fresh 768-dim table rather than
 -- ALTER the constraint in place, because adding a constraint to an already
 -- populated 3072-dim table would fail. Any pre-existing clusters are preserved
--- in `old_signal_event_clusters_3072` for operators who want to inspect them;
+-- in `signal_event_clusters_768` for operators who want to inspect them;
 -- it is safe to drop once no longer needed.
 CREATE TABLE IF NOT EXISTS signal_event_clusters_768
 (
