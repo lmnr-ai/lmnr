@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 
 import { getServerSession } from "@/lib/auth-session";
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   const invitation = await db.query.workspaceInvitations.findFirst({
-    where: and(eq(workspaceInvitations.id, id), eq(workspaceInvitations.email, email)),
+    where: and(eq(workspaceInvitations.id, id), sql`lower(${workspaceInvitations.email}) = lower(${email})`),
   });
 
   if (!invitation) {
