@@ -77,7 +77,7 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
           onClick={handleToggleTimeline}
           variant="outline"
           className={cn(
-            "h-6 text-xs px-1.5",
+            "h-6 text-xs px-1.5 bg-transparent",
             isTimelineOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
           )}
         >

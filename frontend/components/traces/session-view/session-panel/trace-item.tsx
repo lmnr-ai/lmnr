@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,19 +51,31 @@ export default function TraceItem({
   // Only the data the header chrome needs: `spans` gates the pending-expand
   // spinner; `spansError` lets a failed lazy-load still flip out of pending.
   // The collapsed body (input + last-span preview) is its own row now.
-  const { spans, spansError, ensureTraceSpans, isTimelineOpen } = useSessionViewBaseStore(
+  const { spans, spansError, ensureTraceSpans, isTimelineOpen, setTimelineOpen } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
       spansError: s.traceSpansError[trace.id],
       ensureTraceSpans: s.ensureTraceSpans,
       isTimelineOpen: s.timelineOpenTraceIds.has(trace.id),
+      setTimelineOpen: s.setTimelineOpen,
     }),
     shallow
   );
 
+  const isDebugger = analyticsFeature === "debugger_sessions";
+
   // Debugger-only: the toggle lives in the expanded control bar, so the timeline
   // must never orphan-render under a collapsed card.
-  const showTimeline = analyticsFeature === "debugger_sessions" && expanded && isTimelineOpen;
+  const showTimeline = isDebugger && expanded && isTimelineOpen;
+
+  // Default the timeline open each time a debugger card expands. Runs only on the
+  // expand transition (not on `isTimelineOpen` changes), so a manual close while
+  // expanded sticks — it only re-opens on the next expand.
+  useEffect(() => {
+    if (isDebugger && expanded) {
+      setTimelineOpen(trace.id, true);
+    }
+  }, [isDebugger, expanded, trace.id, setTimelineOpen]);
 
   const pendingExpandRef = useRef(false);
   const [isPendingExpand, setIsPendingExpand] = useState(false);
@@ -203,7 +216,20 @@ export default function TraceItem({
               </span>
             </div>
           </button>
-          {showTimeline && <SessionCondensedTimeline trace={trace} />}
+          <AnimatePresence initial={false}>
+            {showTimeline && (
+              <motion.div
+                key="condensed-timeline"
+                className="overflow-hidden"
+                initial={{ height: 0, opacity: 0.5 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0.5 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <SessionCondensedTimeline trace={trace} />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {expanded && (
             <div className="bg-secondary/75 px-3 py-2 border-t">
               <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />

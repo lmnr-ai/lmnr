@@ -323,7 +323,7 @@ function SessionCondensedTimeline({ trace }: SessionCondensedTimelineProps) {
 
   return (
     <div
-      className="relative flex flex-col h-[180px] w-full overflow-hidden border-t"
+      className="relative flex flex-col h-[90px] w-full overflow-hidden border-t"
       onClick={(e) => e.stopPropagation()}
     >
       <div
