@@ -16,7 +16,9 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const InviteUserSchema = z.object({
   workspaceId: z.guid(),
-  email: z.string(),
+  // Better Auth stores all user emails lowercased, so normalize invitations the
+  // same way — otherwise a mixed-case invite never matches the user on sign-up.
+  email: z.string().transform((e) => e.trim().toLowerCase()),
 });
 
 const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
