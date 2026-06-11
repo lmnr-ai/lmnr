@@ -1,15 +1,29 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, patch, web};
+use actix_web::{HttpResponse, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
+    api::v1::rollouts::{RegisterSessionRequest, handle_register_session},
     auth::cli_user::CliProjectAuth,
     db::{DB, debugger_sessions::update_debugger_session_name},
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
 };
+
+/// `POST /v1/cli/rollouts/{session_id}` — CLI twin of `/v1/rollouts/{session_id}`
+/// (which stays project-API-key for SDKs/customers). Delegates to the shared
+/// `handle_register_session`; differs only in auth (`CliProjectAuth` user token).
+#[post("rollouts/{session_id}")]
+pub async fn register_session(
+    path: web::Path<Uuid>,
+    body: web::Json<RegisterSessionRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    handle_register_session(path.into_inner(), auth.project_id, body.into_inner().name, db).await
+}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

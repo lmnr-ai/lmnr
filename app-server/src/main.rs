@@ -1920,7 +1920,8 @@ fn main() -> anyhow::Result<()> {
                                         web::scope("/traces")
                                             .service(api::v1::cli::traces::update_trace_metadata),
                                     )
-                                    .service(api::v1::cli::rollouts::update_name),
+                                    .service(api::v1::cli::rollouts::update_name)
+                                    .service(api::v1::cli::rollouts::register_session),
                             )
                             .service(
                                 web::scope("/v1")

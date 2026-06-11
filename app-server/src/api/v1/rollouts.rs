@@ -33,10 +33,26 @@ pub async fn register_session(
     body: web::Json<RegisterSessionRequest>,
     db: web::Data<DB>,
 ) -> ResponseResult {
+    handle_register_session(
+        path.into_inner(),
+        project_api_key.project_id,
+        body.into_inner().name,
+        db,
+    )
+    .await
+}
+
+/// Shared register (idempotent upsert) handler used by both the project-API-key
+/// `POST /v1/rollouts/{session_id}` and the CLI user-token
+/// `POST /v1/cli/rollouts/{session_id}` routes. Differs only in how the
+/// `project_id` is authenticated; the DB call and JSON response are identical.
+pub async fn handle_register_session(
+    session_id: Uuid,
+    project_id: Uuid,
+    name: Option<String>,
+    db: web::Data<DB>,
+) -> ResponseResult {
     let db = db.into_inner();
-    let session_id = path.into_inner();
-    let project_id = project_api_key.project_id;
-    let name = body.into_inner().name;
 
     let session =
         create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
