@@ -97,5 +97,6 @@ export const config = {
     "/invitations",
     "/onboarding",
     "/checkout",
+    "/device",
   ],
 };

@@ -7,11 +7,11 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-use actix_limitation::{Limiter, RateLimiter};
+use actix_limitation::Limiter;
 use actix_web::{
-    App, HttpMessage, HttpServer, dev,
+    App, HttpServer, dev,
     http::StatusCode,
-    middleware::{Condition, ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
+    middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -1716,13 +1716,11 @@ fn main() -> anyhow::Result<()> {
             let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
             let http_period_secs: u64 =
                 env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
-            // project_auth middleware populates ProjectApiKey in request extensions
+            // Per-project SQL rate limiter, counted inline in `handle_sql_query`
+            // (shared by both /v1/sql and /v1/cli/sql) with an explicit
+            // `ratelimit:<project_id>` key — no middleware key extractor needed
+            // since project_id is only known after the auth extractor runs.
             match Limiter::builder(&redis_url)
-                .key_by(|req: &dev::ServiceRequest| {
-                    req.extensions()
-                        .get::<db::project_api_keys::ProjectApiKey>()
-                        .map(|k| format!("ratelimit:{}", k.project_id))
-                })
                 .limit(http_limit)
                 .period(Duration::from_secs(http_period_secs))
                 .build()
@@ -1796,11 +1794,21 @@ fn main() -> anyhow::Result<()> {
                         mq_for_http.clone(),
                     ));
 
+                    // Shared in-process JWKS cache for the CLI user-token surface.
+                    // Built once outside the HttpServer closure so all workers share it.
+                    let jwks_cache = web::Data::new(Arc::new(
+                        auth::cli_user::JwksCache::from_env(http_client_for_http.clone()),
+                    ));
+
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
+                        // AuthN-only middleware for the /v1/cli scope; project
+                        // authz is the CliProjectAuth extractor's job per-handler.
+                        let cli_auth =
+                            HttpAuthentication::bearer(auth::cli_user::cli_auth_validator);
 
                         let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
@@ -1831,7 +1839,8 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
                             .app_data(web::Data::new(http_client_for_http.clone()))
-                            .app_data(web::Data::new(llm_provider_client_for_http.clone()));
+                            .app_data(web::Data::new(llm_provider_client_for_http.clone()))
+                            .app_data(jwks_cache.clone());
 
                         if let Some(ref limiter) = rate_limiter {
                             app = app.app_data(web::Data::new(limiter.clone()));
@@ -1891,16 +1900,32 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service(
                                 web::scope("/v1/sql")
-                                    .wrap(Condition::new(
-                                        rate_limiter.is_some(),
-                                        RateLimiter::default(),
-                                    ))
                                     .wrap(project_auth.clone())
                                     .service(api::v1::sql::execute_sql_query),
+                            )
+                            // CLI user-token surface: list_projects takes
+                            // CliUserAuth, the rest take CliProjectAuth.
+                            .service(
+                                web::scope("/v1/cli")
+                                    .wrap(cli_auth.clone())
+                                    .service(api::v1::cli::list_projects)
+                                    .service(
+                                        web::scope("/sql")
+                                            .service(api::v1::cli::sql::execute_sql_query),
+                                    )
+                                    .service(api::v1::cli::datasets::get_datasets)
+                                    .service(api::v1::cli::datasets::get_datapoints)
+                                    .service(api::v1::cli::datasets::create_datapoints)
+                                    .service(
+                                        web::scope("/traces")
+                                            .service(api::v1::cli::traces::update_trace_metadata),
+                                    )
+                                    .service(api::v1::cli::rollouts::update_name),
                             )
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
+                                    .service(api::v1::projects::get_current_project)
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
@@ -1908,9 +1933,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
+                                    // Debugger session lifecycle — SDK-driven
+                                    // (project API key). update_name is CLI-only,
+                                    // so it lives under /v1/cli, not here.
                                     .service(api::v1::rollouts::register_session)
                                     .service(api::v1::rollouts::lookup_cache)
-                                    .service(api::v1::rollouts::update_name)
                                     .service(api::v1::rollouts::delete),
                             )
                             .service({

@@ -1,10 +1,12 @@
 pub mod browser_sessions;
+pub mod cli;
 pub mod datasets;
 pub mod evals;
 pub mod labeling_queues;
 pub mod logs;
 pub mod mcp;
 pub mod metrics;
+pub mod projects;
 pub mod rollouts;
 pub mod spans;
 pub mod sql;

@@ -85,14 +85,18 @@ export async function requireProjectAccess(projectId: string) {
 
   return session;
 }
-export const isUserMemberOfProject = async (projectId: string, userId: string) => {
+export const isUserMemberOfProject = async (projectId: string, userId: string, opts?: { skipCache?: boolean }) => {
   const cacheKey = PROJECT_MEMBER_CACHE_KEY(projectId, userId);
 
-  try {
-    const cached = await cache.get<boolean>(cacheKey);
-    if (!isNil(cached)) return cached;
-  } catch (e) {
-    console.error("Error getting entry from cache", e);
+  // Security-sensitive callers (key mint, device-scope write) pass skipCache so a
+  // membership cached up to 30 days ago can't authorize a since-removed user.
+  if (!opts?.skipCache) {
+    try {
+      const cached = await cache.get<boolean>(cacheKey);
+      if (!isNil(cached)) return cached;
+    } catch (e) {
+      console.error("Error getting entry from cache", e);
+    }
   }
 
   const result = await db
@@ -105,7 +109,7 @@ export const isUserMemberOfProject = async (projectId: string, userId: string) =
   const isMember = result.length > 0;
 
   try {
-    // 30 days
+    // 30 days. Refresh the cache from the fresh read even on skipCache.
     await cache.set(cacheKey, isMember, { expireAfterSeconds: 30 * 24 * 60 * 60 });
   } catch (e) {
     console.error("Error setting entry in cache", e);

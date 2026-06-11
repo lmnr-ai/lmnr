@@ -1237,3 +1237,41 @@ export const agentVersions = pgTable(
     primaryKey({ columns: [table.projectId, table.versionHash], name: "agent_versions_pkey" }),
   ]
 );
+
+// in-flight RFC 8628 device-flow login; `userId` is set once the user claims
+// the code via GET /api/auth/device.
+export const deviceCodes = pgTable(
+  "device_codes",
+  {
+    id: text().primaryKey().notNull(),
+    deviceCode: text("device_code").notNull(),
+    userCode: text("user_code").notNull(),
+    userId: uuid("user_id"),
+    clientId: text("client_id"),
+    scope: text(),
+    // Opaque CLI round-trip metadata (e.g. browser-selected projectId). Delivered
+    // to the polling CLI via an x-lmnr-* response header by a /device/token hook,
+    // NOT echoed by BetterAuth's native token response (which only returns scope).
+    metadata: text(),
+    status: text().default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true, mode: "date" }),
+    pollingInterval: integer("polling_interval"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("device_codes_device_code_key").on(table.deviceCode),
+    unique("device_codes_user_code_key").on(table.userCode),
+    index("device_codes_user_code_idx").using("btree", table.userCode.asc().nullsLast().op("text_ops")),
+    index("device_codes_device_code_idx").using("btree", table.deviceCode.asc().nullsLast().op("text_ops")),
+    index("device_codes_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamptz_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "device_codes_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);

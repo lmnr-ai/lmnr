@@ -1,11 +1,12 @@
 "use client";
+import Image from "next/image";
+import logo from "@/assets/logo/laminar-wordmark.svg";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
-import React, { type PropsWithChildren, type ReactNode } from "react";
+import { type PropsWithChildren, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LaminarLogo } from "@/components/ui/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { Feature } from "@/lib/features/features.ts";
@@ -53,10 +54,10 @@ export default function StepShell({
   const isCloud = featureFlags[Feature.LAMINAR_CLOUD];
 
   return (
-    <div className="relative h-svh w-full flex items-stretch md:items-center justify-center bg-background py-4 md:py-6 lg:py-8 overflow-hidden">
+    <div className="relative h-svh w-full flex items-stretch md:items-center justify-center py-4 md:py-6 lg:py-8 overflow-hidden">
       <div className="relative w-full max-w-2xl xl:max-w-3xl 2xl:max-w-4xl flex flex-col gap-4 md:gap-6 xl:gap-8 md:h-[40rem] xl:h-[44rem] 2xl:h-[48rem] md:max-h-[calc(100svh-3rem)] lg:max-h-[calc(100svh-7rem)]">
         <div className="flex items-center justify-between gap-3 px-4 shrink-0">
-          <LaminarLogo className="h-6 xl:h-7 2xl:h-8 w-auto text-muted-foreground/70" fill="currentColor" />
+          <Image alt="Laminar logo" src={logo} className="w-[100px] h-auto md:-translate-y-0.5" priority />
           {isCloud && (
             <span className="text-[11px] xl:text-xs uppercase tracking-[0.08em] text-muted-foreground/80 tabular-nums">
               Step <span className="text-foreground/80">{stepIndex + 1}</span>
@@ -71,7 +72,7 @@ export default function StepShell({
               <div
                 key={i}
                 className={cn(
-                  "h-1 xl:h-1.5 flex-1 rounded-full transition-colors duration-300",
+                  "h-1 flex-1 rounded-full transition-colors duration-300",
                   i <= stepIndex ? "bg-primary" : "bg-border"
                 )}
               />

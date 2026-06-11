@@ -68,9 +68,12 @@ export default function PricingCard({
       </div>
       <Link href={ctaHref} className="w-full">
         <LandingButton
-          variant={isAccent ? "primary" : "outline"}
+          variant={isAccent ? "solid" : "outline"}
           size="sm"
-          className={cn("w-full", isAccent && "bg-white text-landing-primary-400 border-white/40 hover:bg-white/90")}
+          className={cn(
+            "w-full",
+            isAccent && "bg-white text-landing-primary-400 border border-white/40 hover:bg-white/90"
+          )}
         >
           {ctaLabel}
         </LandingButton>

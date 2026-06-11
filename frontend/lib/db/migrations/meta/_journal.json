@@ -638,6 +638,13 @@
       "when": 1781016760978,
       "tag": "0090_curved_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1781016760979,
+      "tag": "0091_lam_1720_device_code",
+      "breakpoints": true
     }
   ]
 }

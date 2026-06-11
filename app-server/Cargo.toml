@@ -36,6 +36,8 @@ half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
+jsonwebtoken = {version = "10", default-features = false, features = ["use_pem", "rust_crypto"]}
+jwks_client_rs = "0.6"
 lapin = "4.7"
 log = "0.4.29"
 moka = {version = "0.12", features = ["sync", "future"]}
@@ -76,7 +78,12 @@ tracing = {version = "0.1.41", features = ["attributes"]}
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"
+url = "2.5"
 uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
 [build-dependencies]
 tonic-prost-build = "0.14"
+
+[dev-dependencies]
+ed25519-dalek = {version = "2", features = ["pkcs8", "rand_core"]}
+wiremock = "0.6"

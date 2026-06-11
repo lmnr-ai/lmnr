@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 
 import FrameworksGrid from "../../integrations/frameworks-grid";
 import ApiKeyGenerator from "../../onboarding/api-key-generator";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 const InstallTabsSection = dynamic(() => import("./tabs-section.tsx").then((mod) => mod.InstallTabsSection), {
   ssr: false,
@@ -16,10 +18,17 @@ const InitializationTabsSection = dynamic(
   }
 );
 
-export function ManualTab() {
+interface Props {
+  onClose?: () => void;
+}
+
+export function ManualTab({ onClose }: Props) {
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-8 ">
+      <div className="flex flex-col gap-3 items-start">
+        <Button variant="ghost" className="text-secondary-foreground p-0 gap-1" onClick={onClose}>
+          <ArrowLeft className="size-3" /> Setup with coding agent
+        </Button>
         <h3 className="text-base font-medium">Install Laminar SDK</h3>
         <InstallTabsSection />
       </div>
