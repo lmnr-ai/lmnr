@@ -4,7 +4,7 @@
 -- (Code: 469 centroid_same_dim). We swap in a fresh 768-dim table rather than
 -- ALTER the constraint in place, because adding a constraint to an already
 -- populated 3072-dim table would fail. Any pre-existing clusters are preserved
--- in `old_signal_event_clusters_3072` for operators who want to inspect them;
+-- in `signal_event_clusters_768` for operators who want to inspect them;
 -- it is safe to drop once no longer needed.
 CREATE TABLE IF NOT EXISTS signal_event_clusters_768
 (
@@ -25,18 +25,16 @@ ENGINE = ReplacingMergeTree(updated_at)
 PRIMARY KEY (project_id, signal_id)
 ORDER BY (project_id, signal_id, id);
 
-ALTER TABLE signal_event_clusters_768 ADD INDEX centroid_cosine_hnsw centroid TYPE vector_similarity(
+ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS signal_event_clusters_centroid_cosine_hnsw centroid TYPE vector_similarity(
     'hnsw',
     cosineDistance,
     768
 );
 
-ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX centroid_cosine_hnsw;
+ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX signal_event_clusters_centroid_cosine_hnsw;
 
-ALTER TABLE signal_event_clusters_768 ADD INDEX clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE signal_event_clusters_768 ADD INDEX IF NOT EXISTS signal_event_clusters_project_id_cluster_id_idx (project_id, id) TYPE bloom_filter GRANULARITY 1;
 
-ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX clusters_project_id_cluster_id_idx;
+ALTER TABLE signal_event_clusters_768 MATERIALIZE INDEX signal_event_clusters_project_id_cluster_id_idx;
 
 EXCHANGE TABLES signal_event_clusters AND signal_event_clusters_768;
-
-RENAME TABLE signal_event_clusters_768 TO old_signal_event_clusters_3072;
