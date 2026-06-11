@@ -22,8 +22,14 @@ const InviteUserSchema = z.object({
 });
 
 const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
-  // If the user already exists and is a member, throw an error
-  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  // If the user already exists and is a member, throw an error. Match
+  // case-insensitively: Better Auth lowercases emails, but legacy users.email
+  // rows may predate normalization (email is already lowercased by the schema).
+  const [existingUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${email}`)
+    .limit(1);
 
   if (existingUser) {
     const [existingMembership] = await db
