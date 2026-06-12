@@ -33,6 +33,11 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(name ?? "");
   const [editing, setEditing] = useState(false);
+  // Escape cancels the edit, but its programmatic `.blur()` fires `onBlur` →
+  // `commit` SYNCHRONOUSLY, before React flushes the `setValue(name)` reset — so
+  // `commit`'s closure would still see the typed text and issue a rename. This
+  // ref lets `commit` detect the cancel and bail before any request.
+  const cancelRef = useRef(false);
 
   // Adopt external (SSE / store) name changes — e.g. a CLI rename of the open
   // session — without clobbering an in-progress edit or fighting a just-blurred
@@ -48,6 +53,12 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
 
   const commit = async () => {
     setEditing(false);
+    // Escape-triggered blur: discard the edit without persisting.
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      setValue(name ?? "");
+      return;
+    }
     const trimmed = value.trim();
     // No-op (unchanged) or an attempt to clear the name → just restore the field.
     if (trimmed === (name ?? "") || trimmed.length === 0) {
@@ -100,6 +111,7 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
             e.preventDefault();
             inputRef.current?.blur();
           } else if (e.key === "Escape") {
+            cancelRef.current = true;
             setValue(name ?? "");
             setEditing(false);
             inputRef.current?.blur();

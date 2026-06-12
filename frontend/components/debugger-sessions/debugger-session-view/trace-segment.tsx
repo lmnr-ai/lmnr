@@ -164,6 +164,8 @@ export default function TraceSegment({
   const toggleSpanCollapse = useSessionViewBaseStore((s) => s.toggleSpanCollapse);
   const scrollToTraceId = useSessionViewBaseStore((s) => s.scrollToTraceId);
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
+  const scrollToGroup = useSessionViewBaseStore((s) => s.scrollToGroup);
+  const consumeScrollToGroup = useSessionViewBaseStore((s) => s.consumeScrollToGroup);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
   // In-flight → skeleton; settled + empty → "No spans found". Expanding starts a
@@ -294,6 +296,35 @@ export default function TraceSegment({
     return () => cancelAnimationFrame(rafId);
   }, [selectedSpan, rows, traceId, virtualizer]);
 
+  // Scroll to a subagent group's header when the condensed timeline requests it
+  // (clicking a group box). The debugger renders per-trace virtualizers rather
+  // than the flat SessionList, so this segment owns the scroll for its own trace.
+  // Offset by the sticky header height so the target lands below it; the second
+  // (rAF) pass corrects for estimateSize-vs-real-height drift, mirroring list.tsx.
+  useEffect(() => {
+    if (!scrollToGroup || scrollToGroup.traceId !== traceId) return;
+    const idx = rows.findIndex((r) => r.type === "group-header" && r.group.groupId === scrollToGroup.groupId);
+    if (idx === -1) {
+      // Group header isn't a row here (collapsed trace or tree mode) — nothing to
+      // scroll to; clear so a later matching render isn't blocked by a stale request.
+      consumeScrollToGroup();
+      return;
+    }
+    const scrollToGroupRow = () => {
+      const offset = virtualizer.getOffsetForIndex(idx, "start")?.[0];
+      if (offset !== undefined) {
+        const headerH = headerRef.current?.offsetHeight ?? 0;
+        scrollEl?.scrollTo({ top: Math.max(0, offset - headerH), behavior: "auto" });
+      }
+    };
+    scrollToGroupRow();
+    const rafId = requestAnimationFrame(() => {
+      scrollToGroupRow();
+      consumeScrollToGroup();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToGroup, traceId, rows, virtualizer, scrollEl, consumeScrollToGroup]);
+
   return (
     <div id={traceAnchorId(traceId)} className="relative">
       {note && (
@@ -307,7 +338,9 @@ export default function TraceSegment({
           When collapsed the body below it is the (non-sticky) TraceCollapsedBody
           sibling, so the stuck header pins just the ~40px bar over its own body —
           the same row-split the regular view does, without a flat-row builder. */}
-      <div ref={headerRef} data-vrow className="sticky top-0 z-20 bg-background">
+      <div ref={headerRef} data-vrow className="sticky top-0 z-20 bg-background flex flex-col">
+        {/* Spacer */}
+        <div className="bg-background w-full h-2" />
         <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
           <TraceItem
             trace={trace}
