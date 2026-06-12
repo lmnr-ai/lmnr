@@ -2,7 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import SessionSpanPanel from "@/components/traces/session-view/session-span-panel";
@@ -63,36 +63,52 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
     scrollEl?.scrollTo({ top: scrollEl.scrollHeight, behavior: "smooth" });
   }, [scrollEl]);
 
-  // iMessage-style pinning: while at the bottom, follow content growth
-  // (ResizeObserver snap); scrolling up past the slack unpins.
-  useEffect(() => {
-    if (!scrollEl) return;
-    // No initial measure on purpose: short loading content is trivially "at the
-    // bottom", and an initial pin would drag the viewport down as traces load.
-    const pinned = { current: false };
-    const measure = () => {
-      pinned.current = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - PIN_SLACK_PX;
-    };
-    scrollEl.addEventListener("scroll", measure, { passive: true });
-    const content = scrollEl.firstElementChild;
-    const observer = new ResizeObserver(() => {
-      // "instant" overrides the container's scroll-smooth — an animated snap
-      // fires scroll events outside the slack and unpins mid-flight.
-      if (pinned.current) scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "instant" });
-    });
-    if (content) observer.observe(content);
-    return () => {
-      scrollEl.removeEventListener("scroll", measure);
-      observer.disconnect();
-    };
-  }, [scrollEl]);
+  // Stick-to-bottom decisions only start once the initial runs fetch has
+  // settled: during loading the page is trivially short, so an "at the bottom"
+  // reading taken before history renders would drag an old session's viewport
+  // to the bottom. The /alpha harness (no sessionId) seeds traces at store
+  // creation, so it settles immediately.
+  const [scrollSettled, setScrollSettled] = useState(() => !sessionId);
 
   // Initial fetch of the session's runs (skipped for the /alpha single-trace
   // harness, which seeded base `traces` with one row at store creation).
   useEffect(() => {
     if (!sessionId) return;
-    void storeApi.getState().fetchSessionTraces(sessionId);
+    void storeApi
+      .getState()
+      .fetchSessionTraces(sessionId)
+      .finally(() => setScrollSettled(true));
   }, [sessionId, storeApi]);
+
+  // Seed the pre-growth height AFTER the settle commit (the fetched trace list
+  // is in the DOM by layout-effect time), so the history render itself never
+  // reads as growth from a short page.
+  const prevScrollHeightRef = useRef(0);
+  useLayoutEffect(() => {
+    if (!scrollSettled || !scrollEl) return;
+    prevScrollHeightRef.current = scrollEl.scrollHeight;
+  }, [scrollSettled, scrollEl]);
+
+  // iMessage-style stick-to-bottom, decided at growth time: when content
+  // height changes, follow it iff the viewport was within PIN_SLACK_PX of the
+  // bottom of the PREVIOUS content height. No scroll listener — geometry at
+  // the moment of growth is the whole state, so a fresh live session follows
+  // streamed spans without the user ever having scrolled.
+  useEffect(() => {
+    if (!scrollSettled || !scrollEl) return;
+    const content = scrollEl.firstElementChild;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      const prev = prevScrollHeightRef.current;
+      prevScrollHeightRef.current = scrollEl.scrollHeight;
+      const wasAtBottom = scrollEl.scrollTop + scrollEl.clientHeight >= prev - PIN_SLACK_PX;
+      // "instant" overrides the container's scroll-smooth — an animated snap
+      // lags behind rapid streaming growth.
+      if (wasAtBottom) scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: "instant" });
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scrollSettled, scrollEl]);
 
   const { createdMs, lastActivityMs } = useMemo(() => minMaxFromTraces(traces), [traces]);
 
@@ -140,7 +156,13 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
 
   return (
     <div className="flex flex-1 min-h-0 w-full">
-      <div ref={setScrollEl} className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto">
+      {/* overflow-x-hidden + the article's min-w floor: at narrow widths the
+          article stops compressing and slides under the span panel's left edge
+          instead of crunching its content. */}
+      <div
+        ref={setScrollEl}
+        className="thin-scrollbar min-h-0 min-w-0 flex-1 scroll-smooth overflow-y-auto overflow-x-hidden"
+      >
         <div className="mx-auto flex w-full gap-16 px-6">
           <div className="flex grow-1 justify-center shrink-0 basis-0 min-w-fit">
             {!spanPanelOpen && (
@@ -149,7 +171,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
               </div>
             )}
           </div>
-          <div className="min-w-0 w-[720px] pb-[160px]">
+          <div className="min-w-[560px] w-[720px] pb-[160px]">
             <SessionHeader
               title={sessionName}
               createdMs={createdMs}
