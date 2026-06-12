@@ -10,17 +10,16 @@ import {
 } from "@/components/traces/session-view/store/base";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { toast } from "@/lib/hooks/use-toast";
 import { type RealtimeSpan, type SpanType, type TraceRow } from "@/lib/traces/types";
 
-// Trace-metadata key the coding agent writes its run note to. Naming stays
-// `rollout.*` to match `rollout.session_id`. The value is an opaque markdown string.
+// Trace-metadata key the agent writes its run note to (markdown string).
 export const NOTE_METADATA_KEY = "rollout.note";
 
 // Max runs fetched per session (mirrors the previous multi-trace-view cap).
 const MAX_RUNS = 200;
 
-// Normalize a trace_update payload's `metadata` (object OR JSON string) into the
-// Record<string,string> shape `TraceRow.metadata` carries.
+// Normalize metadata (object OR JSON string) into TraceRow's Record<string,string>.
 const normalizeMetadata = (metadata: unknown): Record<string, string> => {
   if (!metadata) return {};
   if (typeof metadata === "string") {
@@ -39,10 +38,8 @@ const normalizeMetadata = (metadata: unknown): Record<string, string> => {
   return {};
 };
 
-// Map a streamed RealtimeSpan onto the TraceViewSpan shape the shared list reads.
-// Only `"update"` mode exists now (span_start is dead — see content component).
-// Token/cost fields come off `gen_ai.usage.*` attributes, mirroring trace-view's
-// onRealtimeUpdateSpans — without this, streamed LLM spans render 0 tokens / $0.
+// Map a streamed RealtimeSpan onto TraceViewSpan. Token/cost come off
+// `gen_ai.usage.*` attrs — without this, streamed LLM spans render 0 tokens / $0.
 const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan => {
   const attrs = (s.attributes ?? {}) as Record<string, unknown>;
   const num = (key: string) => Number(attrs[key]) || 0;
@@ -78,10 +75,8 @@ const realtimeToTraceViewSpan = (s: RealtimeSpan): TraceViewSpan => {
   } as TraceViewSpan;
 };
 
-// Merge incoming spans into an existing list: dedupe by spanId (incoming wins,
-// preserving the existing span's `collapsed`), sort by startTime, enrich pending.
-// `incomingWins=false` flips precedence so a base list (e.g. a CH fetch) overrides
-// buffered/streamed duplicates for the same spanId.
+// Dedupe by spanId (newest endTime wins; `incomingWins` breaks ties), preserve
+// `collapsed`, sort by startTime, enrich pending.
 const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWins = true): TraceViewSpan[] => {
   const byId = new Map<string, TraceViewSpan>();
   for (const s of base) byId.set(s.spanId, s);
@@ -91,14 +86,12 @@ const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWi
       byId.set(s.spanId, s);
       continue;
     }
-    // Real spans always replace pending placeholders (whose endTime is synthesized
-    // from children and can run ahead); a placeholder never replaces a real span.
+    // Real spans always beat pending placeholders (whose endTime can run ahead).
     if (prev.pending !== s.pending) {
       if (prev.pending) byId.set(s.spanId, { ...s, collapsed: prev.collapsed });
       continue;
     }
-    // Per-span recency: never let an older snapshot (e.g. a lagging CH hydrate)
-    // replace a fresher version of the same span. endTime tie → side precedence.
+    // Per-span recency: an older snapshot (e.g. lagging CH fetch) never wins.
     const prevEnd = new Date(prev.endTime).getTime();
     const incEnd = new Date(s.endTime).getTime();
     const incomingNewer = incEnd > prevEnd || (incEnd === prevEnd && incomingWins);
@@ -108,8 +101,7 @@ const mergeSpans = (base: TraceViewSpan[], incoming: TraceViewSpan[], incomingWi
   return enrichSpansWithPending(merged);
 };
 
-// Build a minimal TraceRow slot for a trace we only know the id (and maybe
-// metadata) of — used by /alpha seeding and live trace_update of an unknown run.
+// Minimal TraceRow for a trace we only know the id of (live trace_update).
 const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {}): TraceRow => ({
   id: traceId,
   startTime: new Date().toISOString(),
@@ -128,86 +120,71 @@ const minimalTraceRow = (traceId: string, metadata: Record<string, string> = {})
 });
 
 interface DebuggerSessionViewState {
-  // Run note source-of-truth lives on each TraceRow's metadata; no extra state.
-  noteMetadataKey: string;
+  // Per-trace span fetch in flight: dedupes concurrent fetches, drives the
+  // skeleton. Expand always refetches, so a failed fetch heals on re-expand.
+  traceSpansFetching: Record<string, boolean>;
 
-  // Realtime spans that arrived for a trace whose `traceSpans[traceId]` slot
-  // didn't exist yet (the backend dispatches the span branch and the trace_update
-  // branch concurrently, so spans can race ahead of the slot). Buffered by traceId
-  // and flushed into `traceSpans` when the slot is created. Transient, not persisted.
-  realtimeSpanBuffer: Record<string, TraceViewSpan[]>;
-
-  // Displayed session name (the SessionHeader title). Seeded from the breadcrumb
-  // prop at store creation; updated live by the `session_update` realtime event so
-  // a rename reflects without reload.
+  // Displayed session name used by the BREADCRUMB. Seeded from the breadcrumb prop
+  // (`name ?? id`) at store creation; updated live by the `session_update` realtime
+  // event so a rename reflects without reload.
   sessionName: string;
+
+  // The session's REAL name, or null when it has never been named. Drives the
+  // editable page title (the ghost input shows a "Set session name" placeholder
+  // when null) — distinct from `sessionName`, which falls back to the id for the
+  // breadcrumb. Updated alongside `sessionName` on rename.
+  sessionNameRaw: string | null;
 
   // True when a run was added live via trace_update — drives the "New trace" pill
   // at the bottom of the view. Cleared on pill click / dismiss. Transient.
   newTraceNotice: boolean;
 
-  // True once the initial fetchSessionTraces has settled. Gates newTraceNotice so a
-  // trace_update that races ahead of the first fetch (for a run already in the
-  // initial set) can't flash the "New trace" pill on page load (finding #8).
-  tracesHydrated: boolean;
-
-  // Per-trace "hydration in flight" flag (set while hydrateTraceRow runs). Drives
-  // the segment skeleton so a placeholder empty `[]` slot doesn't flash "No spans
-  // found" before the one-shot hydrate fetch settles. Transient.
-  traceHydrating: Record<string, boolean>;
-
-  // Per-trace "a fetch returned 0 spans" flag. A genuinely-empty trace stays
-  // empty; without this the ensureTraceSpans override would treat its `[]` slot as
-  // not-loaded and refetch on every re-expand (a loop). Transient.
-  traceSpansConfirmedEmpty: Record<string, boolean>;
+  // Prevents the "New trace" pill from flashing on page load.
+  isInitialTracesLoaded: boolean;
 }
 
 interface DebuggerSessionViewActions {
-  // Refetch override: a defined-but-empty `[]` slot is a placeholder (seeded from
-  // the realtime buffer by applyTraceUpdate), NOT a confirmed-empty result, so
-  // collapse→re-expand should retry it. Delegates to the base fetch otherwise.
-  ensureTraceSpans: (trace: TraceRow) => Promise<void>;
+  // Expand-path fetch: always fetches (deduped while in flight), directly — the
+  // base slice's shape-based guard would skip the fetch once any SSE span landed.
+  fetchTraceSpans: (trace: TraceRow) => Promise<void>;
 
-  // Fetch this session's runs (traces) via the `rollout.session_id` metadata
-  // filter, oldest-first, into base `traces`. Reads projectId from base state.
+  // Fetch the session's runs via the `rollout.session_id` metadata filter.
   fetchSessionTraces: (sessionId: string) => Promise<void>;
 
-  // Realtime: upsert a streamed span into its (already-loaded) trace.
+  // Realtime: upsert a streamed span.
   applyRealtimeSpan: (span: RealtimeSpan) => void;
 
-  // Realtime: batch entry point for a span_update payload (one store call per event).
+  // Batch entry point for a span_update payload.
   applyRealtimeSpans: (spans: RealtimeSpan[]) => void;
 
   // Realtime: merge a trace_update into the run list (add + auto-expand if new).
   applyTraceUpdate: (t: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }) => void;
 
-  // Realtime: batch entry point for a trace_update payload (one store call per event).
+  // Batch entry point for a trace_update payload.
   applyTraceUpdates: (traces: { traceId: string; metadata?: unknown; hasBrowserSession?: boolean }[]) => void;
 
-  // Fetch the full TraceRow (real stats: tokens/cost/startTime) for a single
-  // trace and merge it onto the existing row. Used to hydrate a run that first
-  // appeared via a trace_update (whose payload carries no stats). Preserves the
-  // row's current metadata (already merged from realtime) and its bumped endTime.
+  // One-shot catch-up for a realtime-added run: real row stats + pre-subscribe
+  // spans (trace_update payloads carry neither).
   hydrateTraceRow: (traceId: string) => Promise<void>;
 
-  // Update the displayed session name live (driven by the `session_update`
-  // realtime event after a rename via PATCH /v1/.../rollouts/{id}/name).
+  // Live rename (driven by the `session_update` realtime event).
   setSessionName: (name: string) => void;
 
   // Hide the "New trace" pill (pill click or its X).
   dismissNewTraceNotice: () => void;
 
-  // Read the agent-authored note (`rollout.note`) off a run's metadata object.
+  // Agent-authored note (`rollout.note`) off a run's metadata.
   noteForTrace: (traceId: string) => string | undefined;
-  // Span type for an already-loaded span (drives the span-ref chip icon color).
+  // Span type for a loaded span (drives the span-ref chip icon).
   getSpanType: (traceId: string, spanId: string) => SpanType | undefined;
 }
 
 export type DebuggerSessionViewStore = BaseSessionViewStore & DebuggerSessionViewState & DebuggerSessionViewActions;
 
-const createDebuggerSessionViewStore = (options?: {
+export const createDebuggerSessionViewStore = (options?: {
   initialTraceRow?: TraceRow;
   initialSessionName?: string;
+  initialSessionNameRaw?: string | null;
   projectId?: string;
   storeKey?: string;
 }) =>
@@ -219,61 +196,60 @@ const createDebuggerSessionViewStore = (options?: {
         return {
           ...baseSlice,
 
-          // Seeded at store creation (projectId is static for the page) instead of
-          // synced from the URL param in an effect.
+          // Seeded at creation (static per page) — no URL-param sync effect.
           projectId: options?.projectId,
 
           // Seed base `traces` with the single /alpha trace when provided.
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
 
-          noteMetadataKey: NOTE_METADATA_KEY,
           sessionName: options?.initialSessionName ?? "Session",
-          realtimeSpanBuffer: {},
+          sessionNameRaw: options?.initialSessionNameRaw ?? null,
+          traceSpansFetching: {},
           newTraceNotice: false,
-          tracesHydrated: false,
-          traceHydrating: {},
-          traceSpansConfirmedEmpty: {},
+          isInitialTracesLoaded: false,
 
-          ensureTraceSpans: async (trace) => {
-            const state = get();
-            const slot = state.traceSpans[trace.id];
-            // Skip when spans already exist, a load/hydrate is in flight, or a prior
-            // fetch confirmed the trace is genuinely empty (refetch-loop guard).
-            if (
-              (slot && slot.length > 0) ||
-              state.traceSpansLoading[trace.id] ||
-              state.traceHydrating[trace.id] ||
-              state.traceSpansConfirmedEmpty[trace.id]
-            ) {
-              return;
-            }
-            // Drop a placeholder empty `[]` slot so base ensureTraceSpans (which
-            // early-returns on ANY defined slot) actually fetches on re-expand.
-            if (slot && slot.length === 0) {
-              const next = { ...get().traceSpans };
-              delete next[trace.id];
-              set({ traceSpans: next } as Partial<DebuggerSessionViewStore>);
-            }
-            await baseSlice.ensureTraceSpans(trace);
-            // Flush realtime spans that buffered for this KNOWN run (its slot didn't
-            // exist when they streamed, so applyRealtimeSpan couldn't merge them and
-            // the new-run flush in applyTraceUpdate never ran). Recency-aware merge.
-            const buffered = get().realtimeSpanBuffer[trace.id];
-            if (buffered?.length) {
-              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], buffered));
-              set((s) => {
-                const next = { ...s.realtimeSpanBuffer };
-                delete next[trace.id];
-                return { realtimeSpanBuffer: next } as Partial<DebuggerSessionViewStore>;
-              });
-            }
-            // Mark genuinely-empty results so future re-expands don't refetch.
-            const after = get().traceSpans[trace.id];
-            if (after && after.length === 0) {
+          fetchTraceSpans: async (trace) => {
+            if (get().traceSpansFetching[trace.id]) return;
+
+            set(
+              (s) =>
+                ({
+                  traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: true },
+                  traceSpansError: { ...s.traceSpansError, [trace.id]: undefined },
+                }) as Partial<DebuggerSessionViewStore>
+            );
+            try {
+              const { projectId } = get();
+              if (!projectId) return;
+              const spanParams = new URLSearchParams();
+              spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
+              spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
+              const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
+              if (!res.ok) throw new Error("Failed to load spans");
+              const fetchedSpans = (await res.json()) as TraceViewSpan[];
+              // Always write the slot (even empty) so the expanded body resolves out
+              // of its skeleton; merge preserves anything streamed in meanwhile.
+              // incomingWins=false: on a re-expand a lagging CH snapshot must not
+              // clobber equal-recency live SSE spans — ties keep the live span.
+              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, false));
+            } catch {
+              // The UI keeps whatever streamed; re-expand retries.
               set(
                 (s) =>
                   ({
-                    traceSpansConfirmedEmpty: { ...s.traceSpansConfirmedEmpty, [trace.id]: true },
+                    traceSpansError: { ...s.traceSpansError, [trace.id]: "Failed to load spans" },
+                  }) as Partial<DebuggerSessionViewStore>
+              );
+              toast({
+                variant: "destructive",
+                title: "Failed to load spans",
+                description: "Collapse and expand the run to retry.",
+              });
+            } finally {
+              set(
+                (s) =>
+                  ({
+                    traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: false },
                   }) as Partial<DebuggerSessionViewStore>
               );
             }
@@ -304,13 +280,8 @@ const createDebuggerSessionViewStore = (options?: {
                 return;
               }
               const body = (await res.json()) as { items: TraceRow[] };
-              // The /traces endpoint returns `metadata` as a raw JSON STRING (the CH
-              // `metadata` column is selected verbatim — see lib/actions/traces/utils.ts;
-              // the traces table parses it lazily in JsonTooltip). `TraceRow.metadata`
-              // is typed as an object, so normalize here before storing — otherwise
-              // noteForTrace / getSpanType read the string as an object and notes +
-              // outline headings never render. (Realtime trace_update already ships a
-              // JSON object and goes through normalizeMetadata in applyTraceUpdate.)
+              // /traces returns `metadata` as a raw JSON string; normalize or notes
+              // and outline headings never render.
               const normalized = (body.items ?? []).map((item) => ({
                 ...item,
                 metadata: normalizeMetadata(item.metadata),
@@ -319,14 +290,8 @@ const createDebuggerSessionViewStore = (options?: {
               const sorted = normalized.sort(
                 (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
               );
-              // MERGE with current rows instead of replacing: a run that started while
-              // this fetch was in flight was added by applyTraceUpdate but is absent
-              // from the (CH-lagged) response — replacing wholesale wipes its row, and
-              // the next trace_update then re-runs the new-run branch and clobbers the
-              // populated spans slot with the (already-flushed) empty buffer →
-              // "(no spans)". Fetched rows win per-id (richer stats) but keep the live
-              // row's merged metadata + realtime-bumped endTime (same semantics as
-              // hydrateTraceRow); realtime-only rows are kept as-is.
+              // MERGE, don't replace: a run added live mid-fetch is absent from the
+              // CH-lagged response — wholesale replace would wipe it.
               get().setTraces((prev) => {
                 const prevById = new Map(prev.map((t) => [t.id, t]));
                 const merged = sorted.map((fetched) => {
@@ -349,9 +314,8 @@ const createDebuggerSessionViewStore = (options?: {
               get().setTracesError(e instanceof Error ? e.message : "Failed to load session traces");
             } finally {
               get().setIsTracesLoading(false);
-              // Mark hydrated even on error: a failed initial fetch shouldn't leave the
-              // pill permanently suppressed — subsequent live runs are genuinely new.
-              set({ tracesHydrated: true } as Partial<DebuggerSessionViewStore>);
+              // Even on error, so a failed initial fetch can't suppress the pill forever.
+              set({ isInitialTracesLoaded: true } as Partial<DebuggerSessionViewStore>);
             }
           },
 
@@ -359,29 +323,12 @@ const createDebuggerSessionViewStore = (options?: {
             const traceId = span.traceId;
             const tvSpan = realtimeToTraceViewSpan(span);
 
-            if (get().traceSpans[traceId]) {
-              // Slot exists → merge straight into the live list (dedupe + sort + enrich).
-              get().setTraceSpans(traceId, mergeSpans(get().traceSpans[traceId], [tvSpan]));
-            } else {
-              // Slot not created yet. The backend dispatches the span branch and the
-              // trace_update branch concurrently, so spans routinely arrive BEFORE the
-              // trace_update creates the slot. Buffer here (dedupe by spanId); the
-              // new-run branch in applyTraceUpdate flushes the buffer once the slot
-              // exists. Previously these spans were dropped → "(no spans)" on short runs.
-              set((state) => {
-                const buffered = state.realtimeSpanBuffer[traceId] ?? [];
-                return {
-                  realtimeSpanBuffer: { ...state.realtimeSpanBuffer, [traceId]: mergeSpans(buffered, [tvSpan]) },
-                } as Partial<DebuggerSessionViewStore>;
-              });
-            }
+            // Unconditional upsert — a span may arrive before its trace_update creates
+            // the row; it just sits in the map until the row renders.
+            get().setTraceSpans(traceId, mergeSpans(get().traceSpans[traceId] ?? [], [tvSpan]));
 
-            // Bump the owning trace row's endTime when the span extends past it (keeps
-            // list stats/ordering correct for a live run). Find the row FIRST and only
-            // rebuild `traces` when the endTime actually moves — otherwise every streamed
-            // span would mint a new array identity and bust every derived memo
-            // (previewTraces, traceIds, allSpansById, …) for no change (finding #6). No-op
-            // if the row doesn't exist yet — endTime is seeded from trace_update / hydrate.
+            // Bump the row's endTime — but only rebuild `traces` when it actually
+            // moves, or every streamed span would bust the derived memos.
             const spanEndMs = new Date(span.endTime).getTime();
             if (Number.isNaN(spanEndMs)) return;
             const targetRow = get().traces.find((t) => t.id === traceId);
@@ -399,50 +346,19 @@ const createDebuggerSessionViewStore = (options?: {
             const existing = get().traces.find((row) => row.id === t.traceId);
 
             if (!existing) {
-              // Unknown run → add a lightweight slot (placeholder stats) and append to
-              // ordering. Initialize the spans slot to the FLUSHED realtime buffer (any
-              // spans that raced ahead of this event) so the run is realtime-fed: with a
-              // non-empty/defined `traceSpans[id]`, the auto-expand's ensureTraceSpans
-              // short-circuits and we skip the doomed lazy fetch (it would window on the
-              // placeholder "now" times AND lag ClickHouse → return [], the "(no spans)"
-              // bug). Pre-existing CH spans for a run that started before view-open are
-              // recovered by the one-shot fetch in hydrateTraceRow (real times, merged).
-              const buffered = get().realtimeSpanBuffer[t.traceId] ?? [];
-              // Never overwrite an existing populated slot: the row can vanish-and-
-              // return (e.g. it was realtime-added, then a wholesale traces update
-              // dropped it) while the slot kept its streamed spans — re-seeding from
-              // the (already-flushed, empty) buffer would wipe them.
-              const existingSlot = get().traceSpans[t.traceId];
+              // Unknown run → add a placeholder row; any spans that raced ahead are
+              // already in `traceSpans`.
               get().setTraces((traces) => [...traces, minimalTraceRow(t.traceId, metadata)]);
-              get().setTraceSpans(t.traceId, existingSlot ? mergeSpans(existingSlot, buffered) : buffered);
-              set((state) => {
-                if (!(t.traceId in state.realtimeSpanBuffer)) return {} as Partial<DebuggerSessionViewStore>;
-                const next = { ...state.realtimeSpanBuffer };
-                delete next[t.traceId];
-                return { realtimeSpanBuffer: next } as Partial<DebuggerSessionViewStore>;
-              });
-              // Mark hydrating BEFORE expanding: setTraceExpanded triggers the
-              // ensureTraceSpans override, whose guard then short-circuits the doomed
-              // lazy fetch (placeholder "now" times + CH lag → []). hydrateTraceRow
-              // owns the real fetch and clears the flag in its finally.
-              set(
-                (s) =>
-                  ({ traceHydrating: { ...s.traceHydrating, [t.traceId]: true } }) as Partial<DebuggerSessionViewStore>
-              );
-              get().setTraceExpanded(t.traceId, true);
+              // Hydrate FIRST: its sync prefix marks fetching, so the auto-expand's
+              // fetchTraceSpans dedupes — one fetch per new run.
               void get().hydrateTraceRow(t.traceId);
-              // Surface the "New trace" pill so the user can jump to the new run — but
-              // only once the initial fetch has settled, so a trace_update that beat the
-              // first fetch (for a run already in the initial set) can't flash it on load.
-              if (get().tracesHydrated) set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
+              get().setTraceExpanded(t.traceId, true);
+              // Pill only after the initial fetch settles, so it can't flash on load.
+              if (get().isInitialTracesLoaded) set({ newTraceNotice: true } as Partial<DebuggerSessionViewStore>);
               return;
             }
 
-            // Known run → merge metadata (makes live note updates work: `rollout.note`
-            // arrives here after a POST /v1/traces/metadata patch) AND any non-metadata
-            // fields the payload carries (e.g. hasBrowserSession). Bail only when there
-            // is genuinely nothing to apply, so a browser-session signal isn't dropped
-            // just because the metadata happened to be empty (finding #10).
+            // Known run → merge metadata (live note updates) + hasBrowserSession.
             const hasMetadata = Object.keys(metadata).length > 0;
             const hasBrowserSession = typeof t.hasBrowserSession === "boolean";
             if (!hasMetadata && !hasBrowserSession) return;
@@ -466,14 +382,15 @@ const createDebuggerSessionViewStore = (options?: {
           hydrateTraceRow: async (traceId) => {
             const { projectId } = get();
             if (!projectId) return;
-            // Skip if the row already has real stats (a slot has startTime===endTime).
-            const current = get().traces.find((t) => t.id === traceId);
-            if (current && current.startTime !== current.endTime) return;
+            if (get().traceSpansFetching[traceId]) return;
 
-            // Mark hydrating so the segment shows the skeleton (not "No spans found")
-            // for a placeholder empty `[]` slot while this fetch is in flight.
+            // Mark fetching in the SYNCHRONOUS prefix (before any await) so a streamed
+            // span can never flash "No spans found" ahead of the skeleton.
             set(
-              (s) => ({ traceHydrating: { ...s.traceHydrating, [traceId]: true } }) as Partial<DebuggerSessionViewStore>
+              (s) =>
+                ({
+                  traceSpansFetching: { ...s.traceSpansFetching, [traceId]: true },
+                }) as Partial<DebuggerSessionViewStore>
             );
             try {
               const params = new URLSearchParams();
@@ -481,7 +398,7 @@ const createDebuggerSessionViewStore = (options?: {
               params.set("pageSize", "1");
               params.append("filter", JSON.stringify({ column: "id", operator: "eq", value: traceId }));
               const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
-              if (!res.ok) return;
+              if (!res.ok) throw new Error("Failed to load run");
               const body = (await res.json()) as { items: TraceRow[] };
               const fetched = body.items?.[0];
               if (!fetched) return;
@@ -490,9 +407,8 @@ const createDebuggerSessionViewStore = (options?: {
               get().setTraces((traces) =>
                 traces.map((row) => {
                   if (row.id !== traceId) return row;
-                  // Keep the live-merged metadata + any realtime-bumped endTime if it's
-                  // already ahead of the fetched row's (mid-run, the fetched snapshot
-                  // may lag the streamed spans).
+                  // Keep live-merged metadata + a realtime-bumped endTime that's ahead
+                  // of the (possibly lagging) fetched snapshot.
                   const liveEndAhead = new Date(row.endTime).getTime() > new Date(fetched.endTime).getTime();
                   return {
                     ...fetched,
@@ -502,43 +418,44 @@ const createDebuggerSessionViewStore = (options?: {
                 })
               );
 
-              // Recover spans that were persisted in ClickHouse BEFORE the view opened
-              // (a run already in progress) — the realtime stream only carries spans
-              // emitted after we subscribed. Fetch once now that we have REAL trace
-              // times (the new-run slot's lazy fetch was intentionally skipped because
-              // it would have windowed on placeholder "now" times). Merge CH-wins over
-              // the realtime-fed slot so duplicates resolve to the fuller fetched span,
-              // and any spans that streamed in during this fetch are preserved.
+              // Recover spans persisted BEFORE we subscribed, now that real trace
+              // times are known; merge preserves anything streamed meanwhile.
               const startDate = new Date(new Date(fetched.startTime).getTime() - 1000).toISOString();
               const endDate = new Date(new Date(fetched.endTime).getTime() + 1000).toISOString();
               const spanParams = new URLSearchParams();
-              spanParams.append("searchIn", "input");
-              spanParams.append("searchIn", "output");
               spanParams.set("startDate", startDate);
               spanParams.set("endDate", endDate);
               const spansRes = await fetch(
                 `/api/projects/${projectId}/traces/${traceId}/spans?${spanParams.toString()}`
               );
-              if (spansRes.ok) {
-                const fetchedSpans = (await spansRes.json()) as TraceViewSpan[];
-                if (fetchedSpans.length > 0) {
-                  const live = get().traceSpans[traceId] ?? [];
-                  // CH-wins: base = live (realtime), incoming = fetched with incomingWins.
-                  get().setTraceSpans(traceId, mergeSpans(live, fetchedSpans, true));
-                }
+              if (!spansRes.ok) throw new Error("Failed to load spans");
+              const fetchedSpans = (await spansRes.json()) as TraceViewSpan[];
+              if (fetchedSpans.length > 0) {
+                const live = get().traceSpans[traceId] ?? [];
+                // incomingWins=false: keep equal-recency live SSE spans over a
+                // possibly-lagging CH snapshot (same tie-break as the expand fetch).
+                get().setTraceSpans(traceId, mergeSpans(live, fetchedSpans, false));
               }
             } catch {
-              // Best-effort hydration — placeholder stats / realtime-fed spans remain on failure.
-            } finally {
-              set((s) => {
-                const next = { ...s.traceHydrating };
-                delete next[traceId];
-                return { traceHydrating: next } as Partial<DebuggerSessionViewStore>;
+              // The UI keeps whatever streamed; re-expand retries.
+              toast({
+                variant: "destructive",
+                title: "Failed to load run data",
+                description: "Collapse and expand the run to retry.",
               });
+            } finally {
+              // Unconditional — the skeleton must always resolve (the old P1).
+              set(
+                (s) =>
+                  ({
+                    traceSpansFetching: { ...s.traceSpansFetching, [traceId]: false },
+                  }) as Partial<DebuggerSessionViewStore>
+              );
             }
           },
 
-          setSessionName: (name) => set({ sessionName: name } as Partial<DebuggerSessionViewStore>),
+          setSessionName: (name) =>
+            set({ sessionName: name, sessionNameRaw: name } as Partial<DebuggerSessionViewStore>),
 
           dismissNewTraceNotice: () => set({ newTraceNotice: false } as Partial<DebuggerSessionViewStore>),
 
@@ -552,7 +469,6 @@ const createDebuggerSessionViewStore = (options?: {
         };
       },
       {
-        // Distinct from `session-view-state` AND the parked `debugger-session-state`.
         name: options?.storeKey ?? "debugger-session-view-state",
         partialize: (state) => ({
           sessionPanelWidth: state.sessionPanelWidth,
@@ -576,6 +492,7 @@ export const DebuggerSessionViewContext = createContext<StoreApi<DebuggerSession
 interface DebuggerSessionViewStoreProviderProps {
   initialTraceRow?: TraceRow;
   initialSessionName?: string;
+  initialSessionNameRaw?: string | null;
   storeKey?: string;
 }
 
@@ -583,11 +500,12 @@ const DebuggerSessionViewStoreProvider = ({
   children,
   initialTraceRow,
   initialSessionName,
+  initialSessionNameRaw,
   storeKey,
 }: PropsWithChildren<DebuggerSessionViewStoreProviderProps>) => {
   const { projectId } = useParams<{ projectId: string }>();
   const [storeState] = useState(() =>
-    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, projectId, storeKey })
+    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, initialSessionNameRaw, projectId, storeKey })
   );
 
   // Provide both the base context (shared session-view children) and the

@@ -1,15 +1,40 @@
 use std::sync::Arc;
 
-use actix_web::{HttpResponse, patch, web};
+use actix_web::{HttpResponse, patch, post, web};
 use uuid::Uuid;
 
 use crate::{
+    api::v1::rollouts::RegisterSessionRequest,
     auth::cli_user::CliProjectAuth,
-    db::{DB, debugger_sessions::update_debugger_session_name},
+    db::{
+        DB,
+        debugger_sessions::{create_or_update_debugger_session, update_debugger_session_name},
+    },
     pubsub::PubSub,
     realtime::{SseMessage, send_to_key},
     routes::types::ResponseResult,
 };
+
+/// `POST /v1/cli/rollouts/{session_id}` — CLI twin of `/v1/rollouts/{session_id}`
+/// (which stays project-API-key for SDKs/customers). Same idempotent upsert and
+/// JSON response; differs only in auth (`CliProjectAuth` user token).
+#[post("rollouts/{session_id}")]
+pub async fn register_session(
+    path: web::Path<Uuid>,
+    body: web::Json<RegisterSessionRequest>,
+    auth: CliProjectAuth,
+    db: web::Data<DB>,
+) -> ResponseResult {
+    let db = db.into_inner();
+    let session_id = path.into_inner();
+    let project_id = auth.project_id;
+    let name = body.into_inner().name;
+
+    let session =
+        create_or_update_debugger_session(&db.pool, &session_id, &project_id, name).await?;
+
+    Ok(HttpResponse::Ok().json(session))
+}
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

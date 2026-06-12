@@ -2,6 +2,8 @@
 import { Check, Copy } from "lucide-react";
 import { type MouseEvent, useState } from "react";
 
+import { useDebuggerSessionViewStore } from "../store";
+import EditableSessionTitle from "./editable-session-title";
 import { fmtRelative } from "./utils";
 
 export interface SessionHeaderProps {
@@ -21,6 +23,8 @@ export interface SessionHeaderProps {
  */
 export default function SessionHeader({ title, createdMs, lastActivityMs, runCount, sessionId }: SessionHeaderProps) {
   const [copied, setCopied] = useState(false);
+  const sessionNameRaw = useDebuggerSessionViewStore((s) => s.sessionNameRaw);
+  const setSessionName = useDebuggerSessionViewStore((s) => s.setSessionName);
 
   const onCopy = async (e: MouseEvent<HTMLButtonElement>) => {
     try {
@@ -40,7 +44,11 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
 
   return (
     <header className="flex flex-col gap-3 py-5 h-[180px] pt-14">
-      <h1 className="text-2xl font-medium text-foreground">{title}</h1>
+      {sessionId ? (
+        <EditableSessionTitle name={sessionNameRaw} sessionId={sessionId} onRenamed={setSessionName} />
+      ) : (
+        <h1 className="text-2xl font-medium text-foreground">{title}</h1>
+      )}
       <div className="flex items-center gap-2.5 text-sm text-secondary-foreground">
         <span>Created {fmtRelative(createdMs)}</span>
         <span>·</span>

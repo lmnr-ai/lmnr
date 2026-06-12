@@ -43,6 +43,8 @@ function CondensedTimeline() {
     transcriptExpandedGroups,
     requestScrollToGroup,
     tab,
+    isCostHeatmapVisible,
+    setIsCostHeatmapVisible,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     getCondensedSubagentGroups: state.getCondensedSubagentGroups,
@@ -64,6 +66,8 @@ function CondensedTimeline() {
     transcriptExpandedGroups: state.transcriptExpandedGroups,
     requestScrollToGroup: state.requestScrollToGroup,
     tab: state.tab,
+    isCostHeatmapVisible: state.isCostHeatmapVisible,
+    setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
   }));
 
   const {
@@ -297,6 +301,7 @@ function CondensedTimeline() {
                   selectedSpan={selectedSpan}
                   isIncludedInGroupSelection={isIncludedInGroupSelection}
                   maxSpanCost={maxSpanCost}
+                  isCostHeatmapVisible={isCostHeatmapVisible}
                   onClick={handleSpanClick}
                 />
               );
@@ -362,7 +367,13 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <Controls onZoomIn={() => handleZoom("in")} onZoomOut={() => handleZoom("out")} />
+      <Controls
+        onZoomIn={() => handleZoom("in")}
+        onZoomOut={() => handleZoom("out")}
+        zoom={condensedTimelineZoom}
+        isCostHeatmapVisible={isCostHeatmapVisible}
+        onToggleCostHeatmap={setIsCostHeatmapVisible}
+      />
     </div>
   );
 }

@@ -30,9 +30,8 @@ import RunComment from "./run-comment";
 import { traceAnchorId } from "./session-outline/utils";
 import { useDebuggerSessionViewStore } from "./store";
 
-// Paste-to-agent prompt for "cache and rerun from here": the SDK resolves
-// LMNR_DEBUG_CACHE_UNTIL from a span id (see lmnr-ts debug/config.ts
-// parseCacheUntil) — no need to compute an occurrence count here.
+// Paste-to-agent prompt for "cache and rerun from here"; the SDK resolves
+// LMNR_DEBUG_CACHE_UNTIL from a span id directly.
 const rerunPrompt = (traceId: string, spanId: string, sessionId?: string) =>
   [
     "Rerun the agent with these env vars:",
@@ -147,10 +146,9 @@ export default function TraceSegment({
   const traceId = trace.id;
 
   // Narrow per-trace store selections: streamed spans re-render only this segment.
-  const { spans, loading, error, expanded, selectedSpan } = useSessionViewBaseStore(
+  const { spans, error, expanded, selectedSpan } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[traceId],
-      loading: s.traceSpansLoading[traceId],
       error: s.traceSpansError[traceId],
       expanded: s.expandedTraceIds.has(traceId),
       selectedSpan: s.selectedSpan,
@@ -166,11 +164,13 @@ export default function TraceSegment({
   const toggleSpanCollapse = useSessionViewBaseStore((s) => s.toggleSpanCollapse);
   const scrollToTraceId = useSessionViewBaseStore((s) => s.scrollToTraceId);
   const consumeScrollToTrace = useSessionViewBaseStore((s) => s.consumeScrollToTrace);
+  const scrollToGroup = useSessionViewBaseStore((s) => s.scrollToGroup);
+  const consumeScrollToGroup = useSessionViewBaseStore((s) => s.consumeScrollToGroup);
 
   const note = useDebuggerSessionViewStore((s) => s.noteForTrace(traceId));
-  // True while hydrateTraceRow's one-shot fetch is in flight for this run — keeps
-  // a placeholder empty `[]` slot on the skeleton instead of "No spans found".
-  const hydrating = useDebuggerSessionViewStore((s) => !!s.traceHydrating[traceId]);
+  // In-flight → skeleton; settled + empty → "No spans found". Expanding starts a
+  // fetch synchronously, so an empty segment is never mislabeled pre-fetch.
+  const isLoading = useDebuggerSessionViewStore((s) => !!s.traceSpansFetching[traceId]);
 
   const rows = useMemo<TranscriptRow[]>(() => {
     if (!expanded || !spans || spans.length === 0) return [];
@@ -182,12 +182,8 @@ export default function TraceSegment({
   const headerRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
 
-  // R1: when THIS trace was just collapsed, bring its header into view — only if
-  // out of view (mirrors the regular view's scrollToIndex align:"auto"). The
-  // debugger has no flat-row virtualizer to scrollToIndex against; the header is
-  // plain DOM, so we bounds-check it against the page scroll container and scroll
-  // only when it's outside the viewport, then consume the one-shot request. Keyed
-  // on `expanded` too so it runs AFTER the collapse rebuilds this segment's height.
+  // On collapse, bring this trace's header into view only if it's out of view.
+  // Keyed on `expanded` so it runs after the collapse rebuilds segment height.
   useEffect(() => {
     if (scrollToTraceId !== traceId) return;
     const header = headerRef.current;
@@ -205,10 +201,8 @@ export default function TraceSegment({
     consumeScrollToTrace();
   }, [scrollToTraceId, traceId, expanded, scrollEl, consumeScrollToTrace]);
 
-  // Measure this viewport's offset within the scroll content (rect math instead
-  // of offsetTop — robust to positioned ancestors). Re-measured whenever the
-  // column's height changes (layoutVersion) since anything above us moving
-  // shifts the offset. The ±1px guard keeps re-measure→re-render convergent.
+  // Measure this viewport's offset in the scroll content; re-measured on column
+  // height changes (layoutVersion). The ±1px guard keeps it convergent.
   useLayoutEffect(() => {
     const el = viewportRef.current;
     if (!el || !scrollEl) return;
@@ -302,6 +296,27 @@ export default function TraceSegment({
     return () => cancelAnimationFrame(rafId);
   }, [selectedSpan, rows, traceId, virtualizer]);
 
+  // Scroll to a subagent group's header when the condensed timeline requests it
+  // (clicking a group box). The debugger renders per-trace virtualizers rather
+  // than the flat SessionList, so this segment owns the scroll for its own trace.
+  // `scrollToIndex` self-measures and centers the row (clear of the sticky header),
+  // mirroring the selected-span scroll above.
+  useEffect(() => {
+    if (!scrollToGroup || scrollToGroup.traceId !== traceId) return;
+    const idx = rows.findIndex((r) => r.type === "group-header" && r.group.groupId === scrollToGroup.groupId);
+    if (idx === -1) {
+      // Group header isn't a row here (collapsed trace or tree mode) — nothing to
+      // scroll to; clear so a later matching render isn't blocked by a stale request.
+      consumeScrollToGroup();
+      return;
+    }
+    const rafId = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: "center" });
+      consumeScrollToGroup();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollToGroup, traceId, rows, virtualizer, consumeScrollToGroup]);
+
   return (
     <div id={traceAnchorId(traceId)} className="relative">
       {note && (
@@ -315,7 +330,9 @@ export default function TraceSegment({
           When collapsed the body below it is the (non-sticky) TraceCollapsedBody
           sibling, so the stuck header pins just the ~40px bar over its own body —
           the same row-split the regular view does, without a flat-row builder. */}
-      <div ref={headerRef} data-vrow className="sticky top-0 z-20 bg-background">
+      <div ref={headerRef} data-vrow className="sticky top-0 z-20 bg-background flex flex-col">
+        {/* Spacer */}
+        <div className="bg-background w-full h-2" />
         <CopyFlag label="Copy trace ID" toastTitle="Copied trace ID" value={traceId}>
           <TraceItem
             trace={trace}
@@ -324,6 +341,7 @@ export default function TraceSegment({
             totalTraces={totalTraces}
             onToggle={() => toggleTraceExpanded(traceId)}
             analyticsFeature="debugger_sessions"
+            timelineLoading={isLoading}
           />
         </CopyFlag>
       </div>
@@ -335,14 +353,14 @@ export default function TraceSegment({
       {!expanded && <TraceCollapsedBody trace={trace} traceIO={traceIO} />}
 
       {expanded && error && <div className="py-4 px-2 text-sm text-destructive">{error}</div>}
-      {expanded && !error && (!spans || (spans.length === 0 && (loading || hydrating))) && (
+      {expanded && !error && (!spans || spans.length === 0) && isLoading && (
         <div className="flex flex-col gap-2 py-2 px-2">
           <Skeleton className="h-5 w-full" />
           <Skeleton className="h-5 w-3/4" />
           <Skeleton className="h-5 w-2/3" />
         </div>
       )}
-      {expanded && !error && spans && spans.length === 0 && !loading && !hydrating && (
+      {expanded && !error && (!spans || spans.length === 0) && !isLoading && (
         <div className="py-4 px-2 text-sm text-muted-foreground">No spans found for this trace.</div>
       )}
 

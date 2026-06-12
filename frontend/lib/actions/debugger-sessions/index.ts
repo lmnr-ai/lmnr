@@ -6,6 +6,7 @@ import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
+import { NotFoundError } from "@/lib/errors";
 
 export type DebuggerSession = {
   id: string;
@@ -113,6 +114,39 @@ export const createDebuggerSession = async (input: z.infer<typeof CreateDebugger
   }
 
   return session;
+};
+
+export const UpdateDebuggerSessionNameSchema = z.object({
+  projectId: z.guid(),
+  id: z.guid(),
+  name: z.string().trim().min(1),
+});
+
+/**
+ * Rename a debugger session (update-only, project-scoped). Routes through
+ * app-server rather than writing the row directly, because app-server also
+ * broadcasts `session_update` over realtime — so every open debugger-session
+ * view (this tab and others) updates its title live, the same way the CLI
+ * rename does. app-server owns both the write and the broadcast (single source
+ * of truth). A missing session → `NotFoundError` (404), distinct from a 500.
+ */
+export const updateDebuggerSessionName = async (input: z.infer<typeof UpdateDebuggerSessionNameSchema>) => {
+  const { projectId, id, name } = UpdateDebuggerSessionNameSchema.parse(input);
+
+  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${id}/name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+
+  if (res.status === 404) {
+    throw new NotFoundError("Session not found");
+  }
+  if (!res.ok) {
+    throw new Error("Failed to rename session");
+  }
+
+  return { id, projectId, name };
 };
 
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {

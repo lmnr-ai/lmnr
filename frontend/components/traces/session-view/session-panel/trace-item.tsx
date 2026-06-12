@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown, Copy, ExternalLink } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
@@ -18,6 +19,7 @@ import { track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
+import SessionCondensedTimeline from "../session-condensed-timeline";
 import { useSessionViewBaseStore } from "../store";
 import TraceControlBar from "./trace-control-bar";
 
@@ -31,6 +33,9 @@ interface TraceItemProps {
   /** Which surface this card belongs to — drives the control bar's analytics
    *  attribution. The debugger passes "debugger_sessions"; defaults to "sessions". */
   analyticsFeature?: "sessions" | "debugger_sessions";
+  /** Spans-fetch-in-flight for this trace, forwarded to the condensed timeline's
+   *  skeleton. Only the debugger renders the timeline and owns this flag. */
+  timelineLoading?: boolean;
 }
 
 export default function TraceItem({
@@ -41,51 +46,45 @@ export default function TraceItem({
   onToggle,
   className,
   analyticsFeature,
+  timelineLoading,
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
   const { toast } = useToast();
 
-  // Only the data the header chrome needs: `spans` gates the pending-expand
-  // spinner; `spansError` lets a failed lazy-load still flip out of pending.
-  // The collapsed body (input + last-span preview) is its own row now.
-  const { spans, spansError, ensureTraceSpans } = useSessionViewBaseStore(
+  // `spans` lets handleToggle skip a redundant fetch; the timeline flags drive
+  // the debugger-only condensed timeline. The expanded body owns load/empty/error.
+  const { spans, fetchTraceSpans, isTimelineOpen, setTimelineOpen } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
-      spansError: s.traceSpansError[trace.id],
-      ensureTraceSpans: s.ensureTraceSpans,
+      fetchTraceSpans: s.fetchTraceSpans,
+      isTimelineOpen: s.timelineOpenTraceIds.has(trace.id),
+      setTimelineOpen: s.setTimelineOpen,
     }),
     shallow
   );
 
-  const pendingExpandRef = useRef(false);
-  const [isPendingExpand, setIsPendingExpand] = useState(false);
+  const isDebugger = analyticsFeature === "debugger_sessions";
 
+  // Debugger-only: the toggle lives in the expanded control bar, so the timeline
+  // must never orphan-render under a collapsed card.
+  const showTimeline = isDebugger && expanded && isTimelineOpen;
+
+  // Default the timeline open each time a debugger card expands. Runs only on the
+  // expand transition (not on `isTimelineOpen` changes), so a manual close while
+  // expanded sticks — it only re-opens on the next expand.
   useEffect(() => {
-    if (!pendingExpandRef.current) return;
-    if (spans || spansError) {
-      pendingExpandRef.current = false;
-      queueMicrotask(() => {
-        setIsPendingExpand(false);
-        onToggle();
-      });
+    if (isDebugger && expanded) {
+      setTimelineOpen(trace.id, true);
     }
-  }, [spans, spansError, onToggle]);
+  }, [isDebugger, expanded, trace.id, setTimelineOpen]);
 
+  // Expand immediately — the expanded body owns its loading/empty/error states.
   const handleToggle = useCallback(() => {
     track("sessions", expanded ? "trace_card_collapsed" : "trace_card_expanded", { traceId: trace.id });
-    if (expanded) {
-      onToggle();
-      return;
-    }
-    if (spans) {
-      onToggle();
-      return;
-    }
-    pendingExpandRef.current = true;
-    setIsPendingExpand(true);
-    ensureTraceSpans(trace);
-  }, [expanded, spans, onToggle, ensureTraceSpans, trace]);
+    if (!expanded && !spans) void fetchTraceSpans(trace);
+    onToggle();
+  }, [expanded, spans, onToggle, fetchTraceSpans, trace]);
 
   const handleCopyTraceId = useCallback(async () => {
     await navigator.clipboard.writeText(trace.id);
@@ -117,20 +116,14 @@ export default function TraceItem({
           the side+bottom borders and bottom rounding, stitching one card across
           two virtual rows. The header button's own `border-b` (collapsed) is the
           single divider. When expanded the body rows below are borderless spans. */}
-      <div
-        className={cn(
-          "overflow-hidden w-full border-x border-t border-[rgba(232,232,232,0.1)]",
-          expanded ? "bg-muted rounded-lg border-b" : "bg-muted/75 rounded-t-lg"
-        )}
-      >
+      <div className={cn("overflow-hidden w-full border border-x border-t", expanded ? "rounded-lg" : "rounded-t-lg")}>
         <div onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
           <button
             type="button"
             className={cn(
-              "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px]",
-              expanded
-                ? "pl-1.5 pr-3 hover:bg-muted/80"
-                : "pl-1.5 pr-3 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"
+              "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px] pl-1.5 pr-3 bg-muted/75",
+
+              "hover:bg-muted/90"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -177,7 +170,6 @@ export default function TraceItem({
               <span className="text-[13px] leading-[17px] text-secondary-foreground whitespace-nowrap">
                 {relativeTime}
               </span>
-              {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
               <span
                 className={cn(
                   "flex items-center justify-center rounded-full pl-1 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap",
@@ -197,8 +189,22 @@ export default function TraceItem({
               </span>
             </div>
           </button>
+          <AnimatePresence initial={false}>
+            {showTimeline && (
+              <motion.div
+                key="condensed-timeline"
+                className="overflow-hidden border-b"
+                initial={{ height: 0, opacity: 0.5 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0.5 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                <SessionCondensedTimeline trace={trace} isLoading={timelineLoading ?? false} />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {expanded && (
-            <div className="bg-secondary/75 px-3 py-2 border-t">
+            <div className={cn("px-3 py-2", showTimeline ? "bg-muted/75" : "bg-muted/50 border-t")}>
               <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />
             </div>
           )}

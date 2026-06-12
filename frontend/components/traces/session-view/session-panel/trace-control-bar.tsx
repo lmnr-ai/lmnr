@@ -1,9 +1,12 @@
+import { GanttChart } from "lucide-react";
 import { shallow } from "zustand/shallow";
 
 import Metadata from "@/components/traces/trace-view/metadata";
 import ViewToggle, { type ViewTab } from "@/components/traces/trace-view/view-toggle";
+import { Button } from "@/components/ui/button";
 import { type Feature, track } from "@/lib/posthog";
 import { type TraceRow } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import { useSessionViewBaseStore } from "../store";
 
@@ -28,15 +31,25 @@ function metadataToString(metadata: TraceRow["metadata"] | string | undefined): 
 /** Per-trace Tree/Transcript + Content toggle and Metadata button. Rendered in
  *  the expanded trace header's control strip in both session surfaces. */
 export default function TraceControlBar({ trace, analyticsFeature = "sessions" }: TraceControlBarProps) {
-  const { mode, showContent, setTraceViewMode, toggleTraceShowTreeContent } = useSessionViewBaseStore(
-    (s) => ({
-      mode: s.traceViewModes[trace.id] ?? "transcript",
-      showContent: s.traceShowTreeContent[trace.id] ?? true,
-      setTraceViewMode: s.setTraceViewMode,
-      toggleTraceShowTreeContent: s.toggleTraceShowTreeContent,
-    }),
-    shallow
-  );
+  const { mode, showContent, setTraceViewMode, toggleTraceShowTreeContent, isTimelineOpen, toggleTimelineOpen } =
+    useSessionViewBaseStore(
+      (s) => ({
+        mode: s.traceViewModes[trace.id] ?? "transcript",
+        showContent: s.traceShowTreeContent[trace.id] ?? true,
+        setTraceViewMode: s.setTraceViewMode,
+        toggleTraceShowTreeContent: s.toggleTraceShowTreeContent,
+        isTimelineOpen: s.timelineOpenTraceIds.has(trace.id),
+        toggleTimelineOpen: s.toggleTimelineOpen,
+      }),
+      shallow
+    );
+
+  const isDebugger = analyticsFeature === "debugger_sessions";
+
+  const handleToggleTimeline = () => {
+    track(analyticsFeature, "condensed_timeline_toggled", { traceId: trace.id, open: !isTimelineOpen });
+    toggleTimelineOpen(trace.id);
+  };
 
   const handleTabChange = (next: ViewTab) => {
     if (next !== mode) {
@@ -48,14 +61,30 @@ export default function TraceControlBar({ trace, analyticsFeature = "sessions" }
   const metaString = metadataToString(trace.metadata as TraceRow["metadata"] | string | undefined);
 
   return (
-    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-      <ViewToggle
-        tab={mode}
-        onTabChange={handleTabChange}
-        showContent={showContent}
-        onToggleContent={() => toggleTraceShowTreeContent(trace.id)}
-      />
-      <Metadata metadata={metaString} />
+    <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex">
+        <ViewToggle
+          tab={mode}
+          onTabChange={handleTabChange}
+          showContent={showContent}
+          onToggleContent={() => toggleTraceShowTreeContent(trace.id)}
+        />
+        <Metadata metadata={metaString} />
+      </div>
+
+      {isDebugger && (
+        <Button
+          onClick={handleToggleTimeline}
+          variant="outline"
+          className={cn(
+            "h-6 text-xs px-1.5 bg-transparent",
+            isTimelineOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+          )}
+        >
+          <GanttChart size={14} className="mr-1" />
+          Timeline
+        </Button>
+      )}
     </div>
   );
 }

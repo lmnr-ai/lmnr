@@ -1920,7 +1920,8 @@ fn main() -> anyhow::Result<()> {
                                         web::scope("/traces")
                                             .service(api::v1::cli::traces::update_trace_metadata),
                                     )
-                                    .service(api::v1::cli::rollouts::update_name),
+                                    .service(api::v1::cli::rollouts::update_name)
+                                    .service(api::v1::cli::rollouts::register_session),
                             )
                             .service(
                                 web::scope("/v1")
@@ -1950,7 +1951,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
-                                    .service(routes::spans::get_skeleton_hashes);
+                                    .service(routes::spans::get_skeleton_hashes)
+                                    .service(routes::rollouts::update_session_name);
                                 #[cfg(feature = "signals")]
                                 let scope = scope
                                     .service(crate::signals::private::routes::submit_signal_job)
