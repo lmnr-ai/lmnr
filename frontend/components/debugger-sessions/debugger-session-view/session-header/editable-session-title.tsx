@@ -80,8 +80,6 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
 
   return (
     <div className="-ml-1 grid max-w-full grid-cols-1 items-center">
-      {/* Hidden sizer: dictates the field's width from the text/placeholder so the
-          focus outline hugs the text. Mirrors the input's box (padding + border). */}
       <span
         aria-hidden
         className="invisible col-start-1 row-start-1 whitespace-pre rounded border border-transparent px-1 text-2xl font-medium"
@@ -110,7 +108,9 @@ export default function EditableSessionTitle({ name, sessionId, onRenamed }: Edi
         className={cn(
           "col-start-1 row-start-1 w-full min-w-0 rounded border border-transparent bg-transparent px-1",
           "text-2xl font-medium text-foreground outline-none transition-colors",
-          "placeholder:text-muted-foreground focus:border-input"
+          "placeholder:text-muted-foreground rounded placeholder:font-normal",
+          "hover:ring hover:ring-green-5 hover:ring-offset-[4px] hover:ring-muted-foreground/20 hover:ring-offset-secondary hover:bg-secondary",
+          "focus:ring focus:ring-green-5 focus:ring-offset-[4px] focus:ring-muted-foreground/35 focus:ring-offset-secondary focus:bg-secondary"
         )}
       />
     </div>
