@@ -215,10 +215,6 @@ export const createDebuggerSessionViewStore = (options?: {
               (s) =>
                 ({
                   traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: true },
-                  // Mirror into the base `traceSpansLoading` flag: shared base-store
-                  // consumers (SessionCondensedTimeline) read that for their skeleton,
-                  // while traceSpansFetching is our in-flight dedupe guard.
-                  traceSpansLoading: { ...s.traceSpansLoading, [trace.id]: true },
                   traceSpansError: { ...s.traceSpansError, [trace.id]: undefined },
                 }) as Partial<DebuggerSessionViewStore>
             );
@@ -252,7 +248,6 @@ export const createDebuggerSessionViewStore = (options?: {
                 (s) =>
                   ({
                     traceSpansFetching: { ...s.traceSpansFetching, [trace.id]: false },
-                    traceSpansLoading: { ...s.traceSpansLoading, [trace.id]: false },
                   }) as Partial<DebuggerSessionViewStore>
               );
             }
@@ -393,8 +388,6 @@ export const createDebuggerSessionViewStore = (options?: {
               (s) =>
                 ({
                   traceSpansFetching: { ...s.traceSpansFetching, [traceId]: true },
-                  // Keep base `traceSpansLoading` in sync for shared timeline skeleton.
-                  traceSpansLoading: { ...s.traceSpansLoading, [traceId]: true },
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
@@ -452,7 +445,6 @@ export const createDebuggerSessionViewStore = (options?: {
                 (s) =>
                   ({
                     traceSpansFetching: { ...s.traceSpansFetching, [traceId]: false },
-                    traceSpansLoading: { ...s.traceSpansLoading, [traceId]: false },
                   }) as Partial<DebuggerSessionViewStore>
               );
             }

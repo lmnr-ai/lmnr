@@ -36,18 +36,21 @@ const EMPTY_SET = new Set<string>();
 
 interface SessionCondensedTimelineProps {
   trace: TraceRow;
+  /** Whether this trace's spans are being fetched (drives the skeleton). Passed in
+   *  rather than read from the store: the loading flag (traceSpansFetching) lives on
+   *  the debugger store, which this base-dir component intentionally doesn't import. */
+  isLoading: boolean;
 }
 
 /** Per-trace condensed timeline for the (debugger) session panel. Reuses the
  *  store-free trace-view leaves, but sources all state from the session base
  *  store keyed by `trace.id` instead of one global trace. */
-function SessionCondensedTimeline({ trace }: SessionCondensedTimelineProps) {
+function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineContentRef = useRef<HTMLDivElement>(null);
 
   const {
     spans,
-    isSpansLoading,
     zoom,
     visibleSpanIds,
     selectedSpan,
@@ -66,7 +69,6 @@ function SessionCondensedTimeline({ trace }: SessionCondensedTimelineProps) {
   } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
-      isSpansLoading: s.traceSpansLoading[trace.id] ?? false,
       zoom: s.condensedTimelineZoomByTrace[trace.id] ?? MIN_ZOOM,
       visibleSpanIds: s.condensedTimelineVisibleSpanIdsByTrace[trace.id] ?? EMPTY_SET,
       selectedSpan: s.selectedSpan,
@@ -224,7 +226,7 @@ function SessionCondensedTimeline({ trace }: SessionCondensedTimelineProps) {
   }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, timelineWidthInMilliseconds]);
 
   const renderContent = () => {
-    if (isSpansLoading) {
+    if (isLoading) {
       return (
         <div className="flex flex-col gap-2 py-2 w-full h-full">
           <Skeleton className="h-6 w-full" />

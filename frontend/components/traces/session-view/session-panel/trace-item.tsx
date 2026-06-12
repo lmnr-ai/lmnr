@@ -33,6 +33,9 @@ interface TraceItemProps {
   /** Which surface this card belongs to — drives the control bar's analytics
    *  attribution. The debugger passes "debugger_sessions"; defaults to "sessions". */
   analyticsFeature?: "sessions" | "debugger_sessions";
+  /** Spans-fetch-in-flight for this trace, forwarded to the condensed timeline's
+   *  skeleton. Only the debugger renders the timeline and owns this flag. */
+  timelineLoading?: boolean;
 }
 
 export default function TraceItem({
@@ -43,6 +46,7 @@ export default function TraceItem({
   onToggle,
   className,
   analyticsFeature,
+  timelineLoading,
 }: TraceItemProps) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
@@ -195,7 +199,7 @@ export default function TraceItem({
                 exit={{ height: 0, opacity: 0.5 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                <SessionCondensedTimeline trace={trace} />
+                <SessionCondensedTimeline trace={trace} isLoading={timelineLoading ?? false} />
               </motion.div>
             )}
           </AnimatePresence>

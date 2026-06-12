@@ -299,8 +299,8 @@ export default function TraceSegment({
   // Scroll to a subagent group's header when the condensed timeline requests it
   // (clicking a group box). The debugger renders per-trace virtualizers rather
   // than the flat SessionList, so this segment owns the scroll for its own trace.
-  // Offset by the sticky header height so the target lands below it; the second
-  // (rAF) pass corrects for estimateSize-vs-real-height drift, mirroring list.tsx.
+  // `scrollToIndex` self-measures and centers the row (clear of the sticky header),
+  // mirroring the selected-span scroll above.
   useEffect(() => {
     if (!scrollToGroup || scrollToGroup.traceId !== traceId) return;
     const idx = rows.findIndex((r) => r.type === "group-header" && r.group.groupId === scrollToGroup.groupId);
@@ -310,20 +310,12 @@ export default function TraceSegment({
       consumeScrollToGroup();
       return;
     }
-    const scrollToGroupRow = () => {
-      const offset = virtualizer.getOffsetForIndex(idx, "start")?.[0];
-      if (offset !== undefined) {
-        const headerH = headerRef.current?.offsetHeight ?? 0;
-        scrollEl?.scrollTo({ top: Math.max(0, offset - headerH), behavior: "auto" });
-      }
-    };
-    scrollToGroupRow();
     const rafId = requestAnimationFrame(() => {
-      scrollToGroupRow();
+      virtualizer.scrollToIndex(idx, { align: "center" });
       consumeScrollToGroup();
     });
     return () => cancelAnimationFrame(rafId);
-  }, [scrollToGroup, traceId, rows, virtualizer, scrollEl, consumeScrollToGroup]);
+  }, [scrollToGroup, traceId, rows, virtualizer, consumeScrollToGroup]);
 
   return (
     <div id={traceAnchorId(traceId)} className="relative">
@@ -349,6 +341,7 @@ export default function TraceSegment({
             totalTraces={totalTraces}
             onToggle={() => toggleTraceExpanded(traceId)}
             analyticsFeature="debugger_sessions"
+            timelineLoading={isLoading}
           />
         </CopyFlag>
       </div>
