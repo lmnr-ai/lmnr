@@ -193,6 +193,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
               </div>
+            ) : traces.length === 0 ? (
+              <div className="flex justify-center py-16 text-sm text-muted-foreground">No runs in this session yet</div>
             ) : (
               <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
             )}
