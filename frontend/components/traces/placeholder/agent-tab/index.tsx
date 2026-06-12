@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 
-import FrameworksGrid from "@/components/integrations/frameworks-grid";
 import { track } from "@/lib/posthog";
 
 import { AgentPromptBox } from "./agent-prompt-box";
@@ -17,7 +16,7 @@ https://laminar.sh/docs/tracing/integrations/overview
 \`lmnr-cli sql query "SELECT * FROM traces ORDER BY start_time DESC LIMIT 1" --json \`
 5. View your traces in the browser`;
 
-export function OneCommandSetup() {
+export function AgentTab() {
   const isFromOnboarding = useSearchParams().get("onboarding") === "true";
 
   return (
@@ -34,13 +33,6 @@ export function OneCommandSetup() {
           prompt={AGENT_PROMPT}
           onCopy={() => track("onboarding", "coding_agent_command_copied", { from_onboarding: isFromOnboarding })}
         />
-      </div>
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-base font-medium">Integrations</h3>
-          <p className="text-sm text-muted-foreground">Read the docs for specific frameworks or SDKs</p>
-        </div>
-        <FrameworksGrid />
       </div>
     </div>
   );

@@ -4,14 +4,15 @@ import { ArrowUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import FrameworksGrid from "@/components/integrations/frameworks-grid";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
+import { AgentTab } from "./agent-tab";
 import { ManualTab } from "./manual-tab";
-import { OneCommandSetup } from "./one-command-setup";
 
 export default function TracesPagePlaceholder() {
   const router = useRouter();
@@ -68,13 +69,21 @@ export default function TracesPagePlaceholder() {
             </div>
           )}
 
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-medium">Integrations</h3>
+              <p className="text-sm text-muted-foreground">Read the docs for specific frameworks or SDKs</p>
+            </div>
+            <FrameworksGrid />
+          </div>
+
           <Tabs defaultValue="agent" className="gap-8">
             <TabsList>
               <TabsTrigger value="agent">Coding agent</TabsTrigger>
               <TabsTrigger value="manual">Manual</TabsTrigger>
             </TabsList>
             <TabsContent asChild value="agent">
-              <OneCommandSetup />
+              <AgentTab />
             </TabsContent>
             <TabsContent asChild value="manual">
               <ManualTab />

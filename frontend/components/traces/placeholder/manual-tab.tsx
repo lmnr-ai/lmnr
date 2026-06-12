@@ -2,8 +2,6 @@
 
 import dynamic from "next/dynamic";
 
-import FrameworksGrid from "@/components/integrations/frameworks-grid";
-
 import ApiKeyGenerator from "../../onboarding/api-key-generator";
 
 const InstallTabsSection = dynamic(() => import("./tabs-section.tsx").then((mod) => mod.InstallTabsSection), {
@@ -26,16 +24,6 @@ export function ManualTab() {
       </div>
 
       <ApiKeyGenerator context="traces" titleClassName="text-base" />
-
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-1">
-          <h3 className="text-base font-medium">Integrations</h3>
-          <p className="text-sm text-muted-foreground">
-            Learn how to integrate Laminar with your favorite frameworks and SDKs.
-          </p>
-        </div>
-        <FrameworksGrid />
-      </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
