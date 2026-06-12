@@ -174,6 +174,29 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   });
 }
 
+export const GetSpanTypeSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+  spanId: z.guid(),
+});
+
+export async function getSpanType(input: z.infer<typeof GetSpanTypeSchema>): Promise<SpanType | null> {
+  const { projectId, traceId, spanId } = GetSpanTypeSchema.parse(input);
+
+  const rows = await executeQuery<{ spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_type as spanType
+      FROM spans
+      WHERE trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
+      LIMIT 1
+    `,
+    parameters: { traceId, spanId },
+  });
+
+  return rows[0]?.spanType ?? null;
+}
+
 export const GetSpanTypesSchema = z.object({
   projectId: z.guid(),
   spanIds: z.array(z.string()),

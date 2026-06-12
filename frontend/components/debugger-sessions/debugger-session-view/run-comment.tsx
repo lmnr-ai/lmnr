@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 import { noteMarkdownComponents, noteProseClassName, spanTagsToLinks } from "./note-markdown";
 import { headingAnchorId, parseNoteHeadings, slugify } from "./session-outline/utils";
-import { SpanChip } from "./span-reference";
+import { SelfResolvingSpanChip } from "./span-reference";
 import { useDebuggerSessionViewStore } from "./store";
 
 interface RunCommentProps {
@@ -83,7 +83,7 @@ export default function RunComment({ traceId }: RunCommentProps) {
               : referenceText;
           const id = spanId;
           return (
-            <SpanChip
+            <SelfResolvingSpanChip
               label={
                 preview ? (
                   <>
@@ -93,6 +93,8 @@ export default function RunComment({ traceId }: RunCommentProps) {
                   children
                 )
               }
+              traceId={traceId}
+              spanId={id}
               spanType={getSpanType(traceId, id)}
               onClick={() => setSelectedSpan({ traceId, spanId: id })}
             />
