@@ -226,7 +226,9 @@ function SessionCondensedTimeline({ trace, isLoading }: SessionCondensedTimeline
   }, [scrollStartTime, scrollEndTime, spanTimelineStartMs, timelineWidthInMilliseconds]);
 
   const renderContent = () => {
-    if (isLoading) {
+    // Skeleton only when there's nothing to show — SSE-streamed spans render
+    // even while the ClickHouse fetch is still in flight.
+    if (isLoading && isEmpty(condensedSpans)) {
       return (
         <div className="flex flex-col gap-2 py-2 w-full h-full">
           <Skeleton className="h-6 w-full" />
