@@ -1,136 +1,105 @@
-"use client";
-
+import { Plus } from "lucide-react";
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
-import { type ReactNode } from "react";
 
-import {
-  IconAmazonBedrock,
-  IconAnthropic,
-  IconBrowserUse,
-  IconCrewAI,
-  IconGemini,
-  IconGroq,
-  IconLangchain,
-  IconMistral,
-  IconOpenAI,
-  IconOpenTelemetry,
-  IconPlaywright,
-  IconVercel,
-} from "../ui/icons";
+import anthropic from "@/assets/landing/logos/anthropic.svg";
+import browserUse from "@/assets/landing/logos/browser-use.svg";
+import claude from "@/assets/landing/logos/claude.svg";
+import gemini from "@/assets/landing/logos/gemini.svg";
+import langchain from "@/assets/landing/logos/langchain.svg";
+import lightLlm from "@/assets/landing/logos/light-llm.svg";
+import mastra from "@/assets/landing/logos/mastra.svg";
+import openAi from "@/assets/landing/logos/open-ai.svg";
+import openHands from "@/assets/landing/logos/open-hands.svg";
+import openaiAgents from "@/assets/landing/logos/openai-agents.svg";
+import opencodeSdk from "@/assets/landing/logos/opencode-sdk.svg";
+import playwright from "@/assets/landing/logos/playwright.svg";
+import pydanticAi from "@/assets/landing/logos/pydantic-ai.svg";
+import stagehand from "@/assets/landing/logos/stagehand.svg";
+import vercel from "@/assets/landing/logos/vercel.svg";
+import { cn } from "@/lib/utils";
+
+const DOCS_BASE = "https://laminar.sh/docs/tracing/integrations";
 
 interface Integration {
-  name: string;
-  icon?: ReactNode;
-  emoji?: string;
-  link: string;
+  src: StaticImageData;
+  alt: string;
+  href: string;
+  iconClassName?: string;
 }
 
+// Top integrations shown on the landing — see all in the docs.
 const integrations: Integration[] = [
-  {
-    name: "OpenTelemetry",
-    icon: <IconOpenTelemetry className="h-6 w-6" />,
-    link: "https://docs.lmnr.ai/tracing/otel",
-  },
-  {
-    name: "LangGraph",
-    icon: <IconLangchain className="h-8 w-8" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/langchain",
-  },
-  {
-    name: "CrewAI",
-    icon: <IconCrewAI className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "AI SDK",
-    icon: <IconVercel className="w-4 h-4 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/vercel-ai-sdk",
-  },
-  {
-    name: "LiteLLM",
-    emoji: "🚅",
-    link: "https://docs.lmnr.ai/tracing/integrations/litellm",
-  },
-  {
-    name: "Browser Use",
-    icon: <IconBrowserUse className="w-5 h-5 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/browser-use",
-  },
-  {
-    name: "StageHand",
-    emoji: "🤘",
-    link: "https://docs.lmnr.ai/tracing/integrations/stagehand",
-  },
-  {
-    name: "Playwright",
-    icon: <IconPlaywright className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/playwright",
-  },
-  {
-    name: "OpenAI",
-    icon: <IconOpenAI className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/openai",
-  },
-  {
-    name: "Anthropic",
-    icon: <IconAnthropic className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/anthropic",
-  },
-  {
-    name: "Gemini",
-    icon: <IconGemini className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/gemini",
-  },
-  {
-    name: "Mistral",
-    icon: <IconMistral className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "Bedrock",
-    icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
-  {
-    name: "Groq",
-    icon: <IconGroq className="w-6 h-6" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/overview",
-  },
+  { src: vercel, alt: "Vercel AI SDK", href: `${DOCS_BASE}/vercel-ai-sdk`, iconClassName: "size-3.5" },
+  { src: claude, alt: "Claude Agent SDK", href: `${DOCS_BASE}/claude-agent-sdk` },
+  { src: openaiAgents, alt: "OpenAI Agents SDK", href: `${DOCS_BASE}/openai-agents-sdk`, iconClassName: "size-5" },
+  { src: langchain, alt: "LangChain DeepAgents", href: `${DOCS_BASE}/deepagents` },
+  { src: opencodeSdk, alt: "OpenCode SDK", href: `${DOCS_BASE}/opencode` },
+  { src: lightLlm, alt: "LiteLLM", href: `${DOCS_BASE}/litellm` },
+  { src: mastra, alt: "Mastra", href: `${DOCS_BASE}/mastra` },
+  { src: pydanticAi, alt: "Pydantic AI", href: `${DOCS_BASE}/pydantic-ai` },
+  { src: openHands, alt: "OpenHands SDK", href: `${DOCS_BASE}/openhands-sdk` },
+  { src: browserUse, alt: "Browser Use", href: `${DOCS_BASE}/browser-use`, iconClassName: "size-5" },
+  { src: stagehand, alt: "Stagehand", href: `${DOCS_BASE}/stagehand` },
+  { src: playwright, alt: "Playwright", href: `${DOCS_BASE}/playwright` },
+  { src: openAi, alt: "OpenAI SDK", href: `${DOCS_BASE}/openai`, iconClassName: "size-5" },
+  { src: gemini, alt: "Gemini API", href: `${DOCS_BASE}/gemini` },
+  { src: anthropic, alt: "Anthropic SDK", href: `${DOCS_BASE}/anthropic` },
 ];
 
-interface FrameworksGridProps {
+interface Props {
   className?: string;
-  gridClassName?: string;
-  itemClassName?: string;
-  showLabels?: boolean;
-  labelTextColor?: string;
 }
 
-export default function FrameworksGrid({
-  className = "",
-  gridClassName = "grid grid-cols-4 md:grid-cols-5 gap-4",
-  itemClassName = "",
-  showLabels = true,
-  labelTextColor = "text-muted-foreground",
-}: FrameworksGridProps) {
-  return (
-    <div className={className}>
-      <div className={gridClassName}>
-        {integrations.map((integration, index) => (
-          <Link
-            key={index}
-            rel="noopener noreferrer"
-            target="_blank"
-            href={integration.link}
-            className={`flex flex-col items-center group w-16 ${itemClassName}`}
-          >
-            <div className="w-12 h-12 rounded-lg flex flex-col items-center justify-center hover:bg-white/20 transition-colors">
-              {integration.icon || <span className="text-2xl">{integration.emoji}</span>}
-            </div>
-            {showLabels && <span className={`text-xs mt-2 text-center ${labelTextColor}`}>{integration.name}</span>}
-          </Link>
-        ))}
+// 3-column grid of integration rows (icon + name). Items fill COLUMN-FIRST
+// at md+ so col1 = 1–5, col2 = 6–10, col3 = 11–15 in source order. On
+// mobile we drop back to a single row-major column so the array order
+// matches reading order.
+//
+// Each column tightens to its widest item via `repeat(3,max-content)`, and
+// `justify-between` distributes the leftover horizontal space between
+// columns. This avoids the wide empty whitespace short names had next to
+// them when the columns were fixed 1fr each.
+//
+// FLAG: `md:grid-rows-5` is coupled to `integrations.length === 15`. If
+// the list grows or shrinks, this number must change in lockstep or the
+// column split will be wrong (e.g. 16 items would spill into a fourth
+// column with one orphan). Treat the array length below as load-bearing.
+const FrameworksGrid = ({ className }: Props) => (
+  <div
+    className={cn(
+      "grid grid-cols-1 md:grid-cols-[repeat(4,max-content)] md:justify-between md:grid-rows-4 md:grid-flow-col gap-y-2 w-full max-w-[760px]",
+      className
+    )}
+  >
+    {integrations.map((integration, index) => (
+      <Link
+        key={`${integration.alt}-${index}`}
+        href={integration.href}
+        target="_blank"
+        className="group flex items-center gap-4 h-7 no-underline"
+      >
+        <div className="flex items-center justify-center size-4 shrink-0">
+          <Image
+            src={integration.src}
+            alt={integration.alt}
+            className={cn("size-4 object-contain", integration.iconClassName)}
+          />
+        </div>
+        <p className="text-sm text-landing-text-200 transition-colors group-hover:text-white">{integration.alt}</p>
+      </Link>
+    ))}
+    <Link
+      href="https://laminar.sh/docs/tracing/integrations/overview#integrations"
+      target="_blank"
+      className="group flex items-center gap-4 h-7 no-underline"
+    >
+      <div className="flex items-center justify-center size-4 shrink-0">
+        <Plus className="text-secondary-foreground" />
       </div>
-    </div>
-  );
-}
+      <p className="text-sm text-landing-text-200 transition-colors group-hover:text-white">All integrations</p>
+    </Link>
+  </div>
+);
+
+export default FrameworksGrid;

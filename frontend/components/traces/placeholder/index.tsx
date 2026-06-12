@@ -4,22 +4,21 @@ import { ArrowUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import FrameworksGrid from "@/components/integrations/frameworks-grid";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
+import { AgentTab } from "./agent-tab";
 import { ManualTab } from "./manual-tab";
-import { OneCommandSetup } from "./one-command-setup";
 
 export default function TracesPagePlaceholder() {
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
   const searchParams = useSearchParams();
   const [isConnected, setIsConnected] = useState(false);
-  // Below the "Listening for incoming traces" banner the page shows either the
-  // one-command setup (default) or the full manual onboarding ("Set up manually").
-  const [manualSetup, setManualSetup] = useState(false);
   const isFromOnboarding = searchParams.get("onboarding") === "true";
 
   useEffect(() => {
@@ -54,19 +53,14 @@ export default function TracesPagePlaceholder() {
     eventHandlers,
   });
 
-  const onSetupManually = () => {
-    track("onboarding", "manual_setup_selected", { from_onboarding: isFromOnboarding });
-    setManualSetup(true);
-  };
-
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <Header path={"traces"} />
       <ScrollArea>
-        <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-16">
+        <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-36">
           <h1 className="text-2xl font-medium">Get started with Tracing</h1>
           {isConnected && (
-            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 p-4">
+            <div className="flex items-center gap-4 rounded-md border border-primary/30 bg-primary/5 px-5 py-4">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
@@ -75,13 +69,28 @@ export default function TracesPagePlaceholder() {
             </div>
           )}
 
-          {manualSetup ? (
-            <ManualTab onClose={() => setManualSetup(false)} />
-          ) : (
-            <OneCommandSetup onSetupManually={onSetupManually} />
-          )}
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-medium">Works with your stack</h3>
+              <p className="text-sm text-muted-foreground">Laminar integrates with the frameworks and SDKs you use</p>
+            </div>
+            <FrameworksGrid />
+          </div>
 
-          <div className="flex items-center gap-6 text-sm">
+          <Tabs defaultValue="agent" className="gap-8">
+            <TabsList>
+              <TabsTrigger value="agent">Coding agent</TabsTrigger>
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+            </TabsList>
+            <TabsContent asChild value="agent">
+              <AgentTab />
+            </TabsContent>
+            <TabsContent asChild value="manual">
+              <ManualTab />
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex items-center gap-6 text-sm mt-12">
             <a
               href="https://docs.lmnr.ai/tracing/introduction"
               target="_blank"
