@@ -71,8 +71,8 @@ export default function TracesPagePlaceholder() {
 
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
-              <h3 className="text-base font-medium">Integrations</h3>
-              <p className="text-sm text-muted-foreground">Read the docs for specific frameworks or SDKs</p>
+              <h3 className="text-base font-medium">Works with your stack</h3>
+              <p className="text-sm text-muted-foreground">Laminar integrates with the frameworks and SDKs you use</p>
             </div>
             <FrameworksGrid />
           </div>

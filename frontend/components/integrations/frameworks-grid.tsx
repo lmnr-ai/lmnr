@@ -68,7 +68,7 @@ interface Props {
 const FrameworksGrid = ({ className }: Props) => (
   <div
     className={cn(
-      "grid grid-cols-1 md:grid-cols-[repeat(4,max-content)] md:justify-between md:grid-rows-4 md:grid-flow-col gap-y-3 w-full max-w-[760px]",
+      "grid grid-cols-1 md:grid-cols-[repeat(4,max-content)] md:justify-between md:grid-rows-4 md:grid-flow-col gap-y-2 w-full max-w-[760px]",
       className
     )}
   >

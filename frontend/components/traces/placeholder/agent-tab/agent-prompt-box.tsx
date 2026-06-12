@@ -118,7 +118,7 @@ export function AgentPromptBox({ prompt, onCopy }: AgentPromptBoxProps) {
         )}
       >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-        {copied ? <span className="">Copied</span> : <span className="">Copy</span>}
+        {copied ? <span className="">Copied</span> : <span className="">Copy setup prompt</span>}
       </div>
     </button>
   );
