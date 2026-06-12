@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { z } from "zod/v4";
 
@@ -16,12 +16,20 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const InviteUserSchema = z.object({
   workspaceId: z.guid(),
-  email: z.string(),
+  // Better Auth stores all user emails lowercased, so normalize invitations the
+  // same way — otherwise a mixed-case invite never matches the user on sign-up.
+  email: z.string().transform((e) => e.trim().toLowerCase()),
 });
 
 const createSelfHostedInvitation = async (workspaceId: string, email: string) => {
-  // If the user already exists and is a member, throw an error
-  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  // If the user already exists and is a member, throw an error. Match
+  // case-insensitively: Better Auth lowercases emails, but legacy users.email
+  // rows may predate normalization (email is already lowercased by the schema).
+  const [existingUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = ${email}`)
+    .limit(1);
 
   if (existingUser) {
     const [existingMembership] = await db
@@ -48,7 +56,9 @@ const createSelfHostedInvitation = async (workspaceId: string, email: string) =>
   const [existingInvitation] = await db
     .select({ id: workspaceInvitations.id })
     .from(workspaceInvitations)
-    .where(and(eq(workspaceInvitations.email, email), eq(workspaceInvitations.workspaceId, workspaceId)))
+    // Match case-insensitively so a legacy mixed-case row for the same address
+    // still blocks a duplicate invite (email is already lowercased by the schema).
+    .where(and(sql`lower(${workspaceInvitations.email}) = ${email}`, eq(workspaceInvitations.workspaceId, workspaceId)))
     .limit(1);
 
   if (existingInvitation) {
