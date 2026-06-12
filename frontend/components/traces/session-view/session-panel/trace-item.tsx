@@ -1,9 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { ChevronDown, Copy, ExternalLink } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
@@ -48,14 +48,12 @@ export default function TraceItem({
   const projectId = params.projectId;
   const { toast } = useToast();
 
-  // Only the data the header chrome needs: `spans` gates the pending-expand
-  // spinner; `spansError` lets a failed lazy-load still flip out of pending.
-  // The collapsed body (input + last-span preview) is its own row now.
-  const { spans, spansError, ensureTraceSpans, isTimelineOpen, setTimelineOpen } = useSessionViewBaseStore(
+  // `spans` lets handleToggle skip a redundant fetch; the timeline flags drive
+  // the debugger-only condensed timeline. The expanded body owns load/empty/error.
+  const { spans, fetchTraceSpans, isTimelineOpen, setTimelineOpen } = useSessionViewBaseStore(
     (s) => ({
       spans: s.traceSpans[trace.id],
-      spansError: s.traceSpansError[trace.id],
-      ensureTraceSpans: s.ensureTraceSpans,
+      fetchTraceSpans: s.fetchTraceSpans,
       isTimelineOpen: s.timelineOpenTraceIds.has(trace.id),
       setTimelineOpen: s.setTimelineOpen,
     }),
@@ -77,34 +75,12 @@ export default function TraceItem({
     }
   }, [isDebugger, expanded, trace.id, setTimelineOpen]);
 
-  const pendingExpandRef = useRef(false);
-  const [isPendingExpand, setIsPendingExpand] = useState(false);
-
-  useEffect(() => {
-    if (!pendingExpandRef.current) return;
-    if (spans || spansError) {
-      pendingExpandRef.current = false;
-      queueMicrotask(() => {
-        setIsPendingExpand(false);
-        onToggle();
-      });
-    }
-  }, [spans, spansError, onToggle]);
-
+  // Expand immediately — the expanded body owns its loading/empty/error states.
   const handleToggle = useCallback(() => {
     track("sessions", expanded ? "trace_card_collapsed" : "trace_card_expanded", { traceId: trace.id });
-    if (expanded) {
-      onToggle();
-      return;
-    }
-    if (spans) {
-      onToggle();
-      return;
-    }
-    pendingExpandRef.current = true;
-    setIsPendingExpand(true);
-    ensureTraceSpans(trace);
-  }, [expanded, spans, onToggle, ensureTraceSpans, trace]);
+    if (!expanded && !spans) void fetchTraceSpans(trace);
+    onToggle();
+  }, [expanded, spans, onToggle, fetchTraceSpans, trace]);
 
   const handleCopyTraceId = useCallback(async () => {
     await navigator.clipboard.writeText(trace.id);
@@ -190,7 +166,6 @@ export default function TraceItem({
               <span className="text-[13px] leading-[17px] text-secondary-foreground whitespace-nowrap">
                 {relativeTime}
               </span>
-              {isPendingExpand && <Loader2 size={16} className="text-secondary-foreground animate-spin" />}
               <span
                 className={cn(
                   "flex items-center justify-center rounded-full pl-1 pr-1 py-0.5 text-xs font-medium leading-[17px] text-secondary-foreground whitespace-nowrap",
