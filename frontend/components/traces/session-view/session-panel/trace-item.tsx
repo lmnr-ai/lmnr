@@ -136,20 +136,14 @@ export default function TraceItem({
           the side+bottom borders and bottom rounding, stitching one card across
           two virtual rows. The header button's own `border-b` (collapsed) is the
           single divider. When expanded the body rows below are borderless spans. */}
-      <div
-        className={cn(
-          "overflow-hidden w-full border-x border-t border-[rgba(232,232,232,0.1)]",
-          expanded ? "bg-muted rounded-lg border-b" : "bg-muted/75 rounded-t-lg"
-        )}
-      >
+      <div className={cn("overflow-hidden w-full border border-x border-t", expanded ? "rounded-lg" : "rounded-t-lg")}>
         <div onClick={handleToggle} className={cn("w-full flex flex-col transition-all ease-in-out")}>
           <button
             type="button"
             className={cn(
-              "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px]",
-              expanded
-                ? "pl-1.5 pr-3 hover:bg-muted/80"
-                : "pl-1.5 pr-3 bg-[rgba(232,232,232,0.02)] border-b border-[rgba(232,232,232,0.1)] hover:bg-[rgba(232,232,232,0.04)]"
+              "w-full flex items-center justify-between text-left cursor-pointer transition-all ease-in-out h-[40px] pl-1.5 pr-3 bg-muted/75",
+
+              "hover:bg-muted/90"
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -220,7 +214,7 @@ export default function TraceItem({
             {showTimeline && (
               <motion.div
                 key="condensed-timeline"
-                className="overflow-hidden"
+                className="overflow-hidden border-b"
                 initial={{ height: 0, opacity: 0.5 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0.5 }}
@@ -231,7 +225,7 @@ export default function TraceItem({
             )}
           </AnimatePresence>
           {expanded && (
-            <div className="bg-secondary/75 px-3 py-2 border-t">
+            <div className={cn("px-3 py-2", showTimeline ? "bg-muted/75" : "bg-muted/50 border-t")}>
               <TraceControlBar trace={trace} analyticsFeature={analyticsFeature} />
             </div>
           )}
