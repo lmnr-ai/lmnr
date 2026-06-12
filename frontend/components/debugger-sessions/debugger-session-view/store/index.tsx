@@ -229,7 +229,9 @@ export const createDebuggerSessionViewStore = (options?: {
               const fetchedSpans = (await res.json()) as TraceViewSpan[];
               // Always write the slot (even empty) so the expanded body resolves out
               // of its skeleton; merge preserves anything streamed in meanwhile.
-              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, true));
+              // incomingWins=false: on a re-expand a lagging CH snapshot must not
+              // clobber equal-recency live SSE spans — ties keep the live span.
+              get().setTraceSpans(trace.id, mergeSpans(get().traceSpans[trace.id] ?? [], fetchedSpans, false));
             } catch {
               // The UI keeps whatever streamed; re-expand retries.
               set(
@@ -430,7 +432,9 @@ export const createDebuggerSessionViewStore = (options?: {
               const fetchedSpans = (await spansRes.json()) as TraceViewSpan[];
               if (fetchedSpans.length > 0) {
                 const live = get().traceSpans[traceId] ?? [];
-                get().setTraceSpans(traceId, mergeSpans(live, fetchedSpans, true));
+                // incomingWins=false: keep equal-recency live SSE spans over a
+                // possibly-lagging CH snapshot (same tie-break as the expand fetch).
+                get().setTraceSpans(traceId, mergeSpans(live, fetchedSpans, false));
               }
             } catch {
               // The UI keeps whatever streamed; re-expand retries.

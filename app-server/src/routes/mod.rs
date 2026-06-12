@@ -1,6 +1,7 @@
 pub mod error;
 pub mod probes;
 pub mod realtime;
+pub mod rollouts;
 pub mod signal_events;
 pub mod spans;
 pub mod sql;

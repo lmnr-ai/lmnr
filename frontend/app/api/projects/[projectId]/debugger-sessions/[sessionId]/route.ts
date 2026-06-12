@@ -1,6 +1,7 @@
 import { prettifyError, ZodError } from "zod/v4";
 
 import { updateDebuggerSessionName } from "@/lib/actions/debugger-sessions";
+import { NotFoundError } from "@/lib/errors";
 
 export async function PATCH(
   req: Request,
@@ -18,6 +19,10 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    if (error instanceof NotFoundError) {
+      return Response.json({ error: error.message }, { status: 404 });
     }
 
     return Response.json(

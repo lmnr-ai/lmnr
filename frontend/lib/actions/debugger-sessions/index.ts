@@ -6,6 +6,7 @@ import { PaginationSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { debuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
+import { NotFoundError } from "@/lib/errors";
 
 export type DebuggerSession = {
   id: string;
@@ -122,26 +123,30 @@ export const UpdateDebuggerSessionNameSchema = z.object({
 });
 
 /**
- * Rename a debugger session (update-only, project-scoped). Throws when no row
- * matches `(id, projectId)` so the API route can surface a clear error rather
- * than silently creating a ghost session. The FE convention is a Next API route
- * + drizzle (mirrors dataset/project rename); the CLI rename has its own
- * app-server endpoint (`PATCH /v1/cli/rollouts/{id}/name`).
+ * Rename a debugger session (update-only, project-scoped). Routes through
+ * app-server rather than writing the row directly, because app-server also
+ * broadcasts `session_update` over realtime — so every open debugger-session
+ * view (this tab and others) updates its title live, the same way the CLI
+ * rename does. app-server owns both the write and the broadcast (single source
+ * of truth). A missing session → `NotFoundError` (404), distinct from a 500.
  */
 export const updateDebuggerSessionName = async (input: z.infer<typeof UpdateDebuggerSessionNameSchema>) => {
   const { projectId, id, name } = UpdateDebuggerSessionNameSchema.parse(input);
 
-  const [session] = await db
-    .update(debuggerSessions)
-    .set({ name })
-    .where(and(eq(debuggerSessions.id, id), eq(debuggerSessions.projectId, projectId)))
-    .returning();
+  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/projects/${projectId}/rollouts/${id}/name`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
 
-  if (!session) {
-    throw new Error("Session not found");
+  if (res.status === 404) {
+    throw new NotFoundError("Session not found");
+  }
+  if (!res.ok) {
+    throw new Error("Failed to rename session");
   }
 
-  return session;
+  return { id, projectId, name };
 };
 
 export async function getDebuggerSession(input: z.infer<typeof GetDebuggerSessionSchema>) {
