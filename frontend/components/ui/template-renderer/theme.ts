@@ -22,7 +22,7 @@ export const LAMINAR_IFRAME_THEME = {
     primary: { DEFAULT: "#CB7B4F", foreground: "#E8E8E8" },
     secondary: { DEFAULT: "#1B1B1C", foreground: "#B5B5B5" },
 
-    muted: { DEFAULT: "#2E2E2F", foreground: "#858585" },
+    muted: { DEFAULT: "#2E2E2F", foreground: "#999999" },
     accent: { DEFAULT: "#343437", foreground: "#FFFFFF" },
 
     border: "#3B3B3F",

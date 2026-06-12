@@ -192,7 +192,7 @@
     --secondary-foreground: 0 0% 71%;
 
     --muted: 240 1% 18%; /* landing-surface-400 */
-    --muted-foreground: 0 0% 52%;
+    --muted-foreground: 0 0% 60%; /* lifted from 52% to clear WCAG AA on the lighter muted surface */
 
     --accent: 240 3% 21%; /* a step above muted so selected/hover states read */
     --accent-foreground: 210 100% 100%;
