@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { track } from "@/lib/posthog";
 import { cn, tryParseJson } from "@/lib/utils";
 
+import EstimateSection from "./estimate-section";
 import { type ManageSignalContentVariant } from "./manage-signal-content";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
@@ -127,6 +128,7 @@ export default function SignalFormFields({
       <SchemaFieldsBuilder />
       <TriggersSection />
       <SamplingSection />
+      <EstimateSection />
       {/*  Temporarily hide test section */}
       {/*<TestSection />*/}
 
