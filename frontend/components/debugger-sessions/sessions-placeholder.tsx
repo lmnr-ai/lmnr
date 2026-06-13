@@ -1,19 +1,29 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { AgentPromptBox } from "@/components/common/agent-prompt-box";
 import CodeHighlighter from "@/components/ui/code-highlighter";
 import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
-// TODO: replace with the real "run your agent in debug mode" prompt when ready.
-const DEBUG_PROMPT = "TODO: debug-mode prompt — pending copy.";
-// TODO: replace with the real debugger docs URL when ready.
-const DOCS_URL = "#";
+const DOCS_URL = "https://laminar.sh/docs/debugger/introduction";
+
+// The prompt copied for the user to paste into a coding agent. Template literal
+// so the body reads as literal multiline markdown.
+const DEBUG_PROMPT = `1. Run \`npx lmnr-cli setup\` at the project root if you haven't already. This authenticates the user, links the project, saves a project API key to .env, and installs the Laminar skill.
+2. Make sure the agent is instrumented with Laminar. Use the installed skill or the docs:
+https://laminar.sh/docs/tracing/integrations/overview
+3. Record a run in debug mode and capture the run pointer:
+\`LMNR_DEBUG=true npx tsx my_agent.ts 2>&1 | tee run.log\` (or \`LMNR_DEBUG=true uv run my_agent.py ...\`), then \`grep LMNR_DEBUG_RUN run.log\` to read the \`trace_id\`.
+4. Inspect the run to find the replay boundary — the LLM call right before the bug:
+\`lmnr-cli sql query "SELECT span_id, name, span_type, start_time FROM spans WHERE trace_id = '<trace-id>' ORDER BY start_time"\`
+5. Edit the agent, then replay from that checkpoint so cached calls return instantly and only your fix runs live:
+\`LMNR_DEBUG=true LMNR_DEBUG_REPLAY_TRACE_ID=<trace-id> LMNR_DEBUG_CACHE_UNTIL=<span-id> npx tsx my_agent.ts\`
+6. Repeat steps 4-5 until the run is green, then watch each attempt in the Debugger.`;
 
 const DEBUG_RUN = {
   python: `LMNR_DEBUG=true uv run my_agent.py`,
@@ -23,17 +33,7 @@ const DEBUG_RUN = {
 // Startup / onboarding page shown when a project has no debugger sessions yet,
 // in place of the table. Modeled on the evaluations / traces placeholders.
 export default function SessionsPlaceholder() {
-  const { toast } = useToast();
   const [tab, setTab] = useState("typescript");
-
-  const handleCopyPrompt = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(DEBUG_PROMPT);
-      toast({ title: "Copied prompt", duration: 1500 });
-    } catch {
-      toast({ variant: "destructive", title: "Couldn't copy — clipboard unavailable" });
-    }
-  }, [toast]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
@@ -72,23 +72,18 @@ export default function SessionsPlaceholder() {
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
               <h2 className="text-lg font-medium">Debugger is built for coding agents.</h2>
-              <p className="text-sm text-muted-foreground">Copy the prompt and let your coding agent drive the runs.</p>
+              <p className="text-sm text-muted-foreground">
+                Copy this prompt and let your coding agent record, inspect, and replay the runs.
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button size="md" onClick={handleCopyPrompt}>
-                Copy prompt
-              </Button>
-              {/* TODO: point at the real docs page when ready. */}
-              <Button size="md" variant="outline" asChild>
-                <a href={DOCS_URL} target="_blank" rel="noopener noreferrer">
-                  Docs
-                </a>
-              </Button>
-            </div>
+            <AgentPromptBox
+              prompt={DEBUG_PROMPT}
+              copyLabel="Copy debugger prompt"
+              onCopy={() => track("debugger_sessions", "debugger_prompt_copied")}
+            />
           </div>
 
           <div className="flex items-center gap-6 text-sm">
-            {/* TODO: point at the real debugger docs page when ready. */}
             <a
               href={DOCS_URL}
               target="_blank"
