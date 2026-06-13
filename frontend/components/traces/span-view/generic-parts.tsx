@@ -6,8 +6,9 @@ import {
   type ToolCallPart,
   type ToolResultPart,
 } from "ai";
-import { omit } from "lodash";
 import React, { memo } from "react";
+
+import { isAISDKToolResultEnvelope } from "@/lib/spans/types";
 
 import {
   FileContentPart,
@@ -81,21 +82,28 @@ const GenericToolCallContentPart = ({
   <ToolCallContentPart
     toolName={part.toolName}
     toolCallId={part.toolCallId}
-    content={omit(part, "type")}
+    content={part.input ?? {}}
     presetKey={presetKey}
     messageIndex={messageIndex}
     contentPartIndex={contentPartIndex}
   />
 );
 
-const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => (
-  <ToolResultContentPart
-    toolCallId={part.toolCallId}
-    toolName={part.toolName}
-    content={omit(part, "type")}
-    presetKey={presetKey}
-  />
-);
+const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => {
+  // Only unwrap recognised AI SDK v7 envelopes (`{type: "text"|"json"|..., value}`).
+  // Raw outputs that coincidentally have `{type, value}` keys keep their sibling
+  // fields instead of being collapsed to `value`.
+  const resolved = isAISDKToolResultEnvelope(part.output) ? part.output.value : part.output;
+  const content = typeof resolved === "string" ? resolved : JSON.stringify(resolved ?? null, null, 2);
+  return (
+    <ToolResultContentPart
+      toolCallId={part.toolCallId}
+      toolName={part.toolName}
+      content={content}
+      presetKey={presetKey}
+    />
+  );
+};
 
 const PureContentParts = ({
   message,
