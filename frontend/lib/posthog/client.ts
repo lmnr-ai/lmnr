@@ -33,7 +33,8 @@ export type Feature =
   | "shared"
   | "invitations"
   | "notifications"
-  | "advanced_search";
+  | "advanced_search"
+  | "compare";
 
 export const init = (telemetryEnabled: boolean) => {
   if (!telemetryEnabled) return;
