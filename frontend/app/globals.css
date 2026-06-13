@@ -166,25 +166,35 @@
   :root {
     --radius: 0.5rem;
 
-    --background: 0 0% 4%;
+    /* Surface scale is unified with the landing `landing-surface-*` ramp.
+       Lighter = more raised. The HSL triples below are the exact landing
+       rgb steps converted to HSL so the existing `hsl(var(--token))` call
+       sites keep working. Elevation ladder, dark → light:
+         800 (0 0% 6%)    recessed chrome (sidebar)        — use sparingly
+         700 (240 2% 9%)  base content surface  → background
+         600 (240 2% 11%) raised surface        → secondary
+         550 (240 2% 13%) floating panel        → card
+         500 (240 1% 15%) overlay               → popover
+         400 (240 1% 18%) highest fill          → muted (chips, inputs, hovers) */
+    --background: 240 2% 9%; /* landing-surface-700 */
     --foreground: 0 8% 90%;
 
-    --card: 0 0% 7%;
+    --card: 240 2% 13%; /* landing-surface-550 */
     --card-foreground: 240 8% 80%;
 
-    --popover: 0 0% 8%;
+    --popover: 240 1% 15%; /* landing-surface-500 */
     --popover-foreground: 0 8% 90%;
 
     --primary: 18 59% 55%;
     --primary-foreground: 16 0% 91%;
 
-    --secondary: 0 0% 7%;
+    --secondary: 240 2% 11%; /* landing-surface-600 */
     --secondary-foreground: 0 0% 71%;
 
-    --muted: 240 6% 14%;
-    --muted-foreground: 0 0% 52%;
+    --muted: 240 1% 18%; /* landing-surface-400 */
+    --muted-foreground: 0 0% 60%; /* lifted from 52% to clear WCAG AA on the lighter muted surface */
 
-    --accent: 232 9% 17%;
+    --accent: 240 3% 21%; /* a step above muted so selected/hover states read */
     --accent-foreground: 210 100% 100%;
 
     --destructive: 0 60% 50%;
@@ -195,8 +205,8 @@
     --success-foreground: 355.7 100% 97.3%;
     --success-bright: 158 64% 52%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
+    --border: 240 3% 24%;
+    --input: 240 3% 24%;
     --ring: 212 96% 78%;
 
     --chart-1: 220 70% 50%;
@@ -205,13 +215,15 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 7%;
+    /* Sidebar is intentionally recessed below the base (landing-surface-800)
+       so the lighter content area reads as raised against the chrome. */
+    --sidebar-background: 0 0% 6%; /* landing-surface-800 */
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent: 240 2% 13%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-border: 240 3% 14%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --tool: 42 93% 46%;
