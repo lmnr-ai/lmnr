@@ -19,8 +19,7 @@ type Components = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
 
 // Streamdown ships big defaults (h1 `text-3xl`, headings with `mt-6 mb-2`),
 // too large for this inline prompt box. The classes below replace those per
-// element. Duplicated from the debugger run-note markdown so the two can
-// diverge independently.
+// element.
 const STYLES: Partial<Record<keyof JSX.IntrinsicElements, string>> = {
   h1: "mt-3 mb-1 text-xl font-semibold text-muted-foreground",
   h2: "mt-3 mb-1 text-lg font-semibold text-muted-foreground",
@@ -62,11 +61,12 @@ const proseClassName = "text-sm text-secondary-foreground";
 
 interface AgentPromptBoxProps {
   prompt: string;
+  copyLabel?: string;
   onCopy?: () => void;
 }
 
 // Scrollable, click-to-copy box that renders an agent prompt as markdown.
-export function AgentPromptBox({ prompt, onCopy }: AgentPromptBoxProps) {
+export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy }: AgentPromptBoxProps) {
   const [copied, setCopied] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [notAtTheBottom, setNotAtTheBottom] = useState(false);
@@ -112,13 +112,10 @@ export function AgentPromptBox({ prompt, onCopy }: AgentPromptBoxProps) {
       )}
       <div
         aria-label={copied ? "Copied" : "Copy prompt"}
-        className={cn(
-          "absolute top-2 right-2 items-center gap-2 rounded bg-primary px-3 py-1 text-sm transition-colors flex border border-white/20 text-primary-foreground",
-          { "": copied }
-        )}
+        className="absolute top-2 right-2 items-center gap-2 rounded bg-primary px-3 py-1 text-sm transition-colors flex border border-white/20 text-primary-foreground"
       >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-        {copied ? <span className="">Copied</span> : <span className="">Copy setup prompt</span>}
+        {copied ? <span>Copied</span> : <span>{copyLabel}</span>}
       </div>
     </button>
   );
