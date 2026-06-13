@@ -19,29 +19,29 @@ interface Differentiator {
 const DIFFERENTIATORS: Differentiator[] = [
   {
     step: "01.",
-    title: "Read a run, don't click a span tree",
-    body: "Most tools make you expand a nested span tree to reconstruct what happened. Laminar's debugger renders an agent run top-to-bottom — input, every LLM turn, tool calls, and subagents as cards you read in order. On a large trace that's the difference between a ten-second read and a ten-minute scroll.",
+    title: "Transcript view, not a span tree",
+    body: "The debugger renders a run top-to-bottom: input, every LLM turn, tool calls, and subagents as ordered cards. You read it instead of expanding a nested tree.",
     learnMore: { label: "Debugger", href: "https://laminar.sh/docs/debugger/introduction" },
   },
   {
     step: "02.",
-    title: "Track outcomes, not just scores",
-    body: "Describe the outcome you care about in plain language plus a JSON schema, and Signals emit structured, queryable payloads on matching traces — not just a number. They backfill across historical traffic and fire on new runs, and related events auto-cluster into failure modes you can alert on.",
+    title: "Outcomes, not scores",
+    body: "Define an outcome in plain language plus a JSON schema. Signals emit structured, queryable payloads on matching traces, backfill over history, fire on new runs, and cluster into failure modes you can alert on.",
     learnMore: { label: "Signals", href: "https://laminar.sh/docs/signals/introduction" },
   },
   {
     step: "03.",
-    title: "Your bill doesn't scale quadratically",
-    body: "Agents replay their whole message history every turn, so naive tracing stores the same bytes over and over and cost grows as the square of turn count. Laminar deduplicates messages by content hash automatically — roughly 20x average storage reduction, up to 50x on long coding agents — and shrinks the metric you're billed on.",
+    title: "Storage scales linearly",
+    body: "Agents replay their full message history every turn, so naive tracing stores the same bytes O(turns²). Laminar deduplicates messages by content hash: ~20x less storage on average, up to 50x on long coding agents.",
     learnMore: {
-      label: "20x trace compression",
+      label: "Trace compression",
       href: "https://laminar.sh/blog/laminar-20x-agent-trace-compression",
     },
   },
   {
     step: "04.",
-    title: "Real SQL, fully open source",
-    body: "Query traces, signal events, clusters, evals, and datasets with real ClickHouse-backed SQL — from the editor, REST API, CLI, or MCP server, no proprietary query dialect. The entire platform is Apache 2.0 and self-hostable with every feature included; there is no enterprise gate.",
+    title: "SQL, and open source",
+    body: "Query traces, signal events, clusters, evals, and datasets with ClickHouse SQL from the editor, REST API, CLI, or MCP — no custom dialect. Apache 2.0, self-hostable, every feature included.",
     learnMore: { label: "GitHub", href: "https://github.com/lmnr-ai/lmnr" },
   },
 ];
@@ -80,8 +80,7 @@ const Compare = ({ hasSession }: Props) => (
           <div className="flex flex-col items-start gap-4">
             <h1 className={cn(mainTitle, "tracking-[-0.015em]")}>How is Laminar different?</h1>
             <p className="font-sans-landing text-[20px] text-landing-text-200">
-              Laminar is built for the debug loop on real agent traffic — reading a failure, fixing it, and confirming
-              the fix held. Here is what sets it apart from other observability and eval tools.
+              Built for debugging agents in production: find a failure, fix it, confirm it. Four things set it apart.
             </p>
           </div>
 
@@ -94,10 +93,8 @@ const Compare = ({ hasSession }: Props) => (
           <Divider />
 
           <section className="flex flex-col items-start gap-6 w-full">
-            <h2 className={subSection}>Want the long version?</h2>
-            <p className={bodyMedium}>
-              We wrote a detailed, head-to-head breakdown comparing Laminar with other platforms feature by feature.
-            </p>
+            <h2 className={subSection}>More detail</h2>
+            <p className={bodyMedium}>A feature-by-feature comparison with another platform.</p>
             <Link
               href="https://laminar.sh/blog/laminar-vs-braintrust"
               target="_blank"
