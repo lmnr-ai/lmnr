@@ -61,14 +61,15 @@ pub fn setup_tracing_and_logging(
     // Built fresh per layer (`EnvFilter` isn't `Clone`); applied to both the fmt logger and the
     // Sentry OTEL layer so neither bridges TRACE/DEBUG library spans.
     let build_env_filter = || {
-        if std::env::var("RUST_LOG").is_ok_and(|s| !s.is_empty()) {
+        if std::env::var(crate::env::observability::RUST_LOG).is_ok_and(|s| !s.is_empty()) {
             EnvFilter::from_default_env()
         } else {
             EnvFilter::new("info")
         }
     };
 
-    let sentry_dsn_set = std::env::var("SENTRY_DSN").is_ok_and(|s| !s.is_empty());
+    let sentry_dsn_set =
+        std::env::var(crate::env::observability::SENTRY_DSN).is_ok_and(|s| !s.is_empty());
 
     // Sentry's tracing layer only forwards ERROR-level events, and never any
     // internal ones.

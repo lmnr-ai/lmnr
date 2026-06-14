@@ -87,8 +87,8 @@ impl JwksCache {
     /// var. The `http` arg is retained for call-site compatibility; `WebSource`
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
-        let base = std::env::var("NEXT_INTERNAL_URL")
-            .or_else(|_| std::env::var("NEXT_PUBLIC_URL"))
+        let base = std::env::var(crate::env::notifications::NEXT_INTERNAL_URL)
+            .or_else(|_| std::env::var(crate::env::notifications::NEXT_PUBLIC_URL))
             .map(|v| v.trim_end_matches('/').to_string())
             .unwrap_or_else(|_| {
                 log::warn!(
@@ -171,7 +171,9 @@ impl FromRequest for CliUserAuth {
             Some(u) => ready(Ok(u)),
             // The `/v1/cli` middleware inserts this; absence means the
             // middleware didn't run (misconfigured route) → treat as unauthed.
-            None => ready(Err(actix_web::error::ErrorUnauthorized("Not authenticated"))),
+            None => ready(Err(actix_web::error::ErrorUnauthorized(
+                "Not authenticated",
+            ))),
         }
     }
 }
@@ -501,7 +503,9 @@ mod tests {
         )
         .await;
 
-        let req = test::TestRequest::get().uri("/v1/cli/datasets").to_request();
+        let req = test::TestRequest::get()
+            .uri("/v1/cli/datasets")
+            .to_request();
         let resp = test::call_service(&app, req).await;
         assert_eq!(resp.status(), actix_web::http::StatusCode::UNAUTHORIZED);
     }

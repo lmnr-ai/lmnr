@@ -46,19 +46,22 @@ impl InternalSpan {
     pub fn model(self, provider: &str, model: &str) -> Self {
         self.span
             .set_attribute("gen_ai.request.model", model.to_string());
-        self.span.set_attribute("gen_ai.system", provider.to_string());
+        self.span
+            .set_attribute("gen_ai.system", provider.to_string());
         self
     }
 
     pub fn tools(self, tools: Option<&Value>) -> Self {
         if let Some(tools) = tools {
-            self.span.set_attribute("ai.prompt.tools", tools_attr(tools));
+            self.span
+                .set_attribute("ai.prompt.tools", tools_attr(tools));
         }
         self
     }
 
     pub fn event_name(self, name: &str) -> Self {
-        self.span.set_attribute("signal.event_name", name.to_string());
+        self.span
+            .set_attribute("signal.event_name", name.to_string());
         self
     }
 

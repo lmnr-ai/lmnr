@@ -32,12 +32,8 @@ use crate::db::workspaces::WorkspaceDeployment;
 /// (`spans`, `traces_replacing`, `deduped_content`). Read once from
 /// `SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS`, defaults to 400 ms when unset OR set to
 /// an empty string (common with k8s ConfigMap keys whose values aren't filled in).
-pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("SPANS_CH_WAIT_FOR_ASYNC_INSERT_MS")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "400".to_string())
-});
+pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> =
+    LazyLock::new(|| crate::env::clickhouse::ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.get());
 
 /// Bounds the whole INSERT request task awaited by `Insert::end()`. The clickhouse
 /// crate dispatches the request (including the TCP dial) inside a spawned task and
@@ -52,10 +48,7 @@ pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> = LazyLoc
 /// while — but low enough that a dead endpoint is detected in a couple of minutes
 /// rather than never. Read once from `CLICKHOUSE_INSERT_TIMEOUT_SECS`; `0` disables.
 pub static INSERT_END_TIMEOUT: LazyLock<Option<Duration>> = LazyLock::new(|| {
-    let secs = std::env::var("CLICKHOUSE_INSERT_TIMEOUT_SECS")
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok())
-        .unwrap_or(120);
+    let secs = crate::env::clickhouse::INSERT_TIMEOUT_SECS.get();
     (secs > 0).then(|| Duration::from_secs(secs))
 });
 

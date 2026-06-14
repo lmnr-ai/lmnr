@@ -1,8 +1,6 @@
 /// This module contains feature flags that can be used to enable or disable certain features in the application.
 // TODO: consider https://doc.rust-lang.org/reference/conditional-compilation.html instead
-use std::env;
-
-const OPERATION_MODE: &str = "OPERATION_MODE";
+use crate::env;
 
 const PRODUCER: &str = "producer";
 const CONSUMER: &str = "consumer";
@@ -32,37 +30,44 @@ pub enum Feature {
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
     match feature {
-        Feature::UsageLimit => env::var("ENVIRONMENT") == Ok("PRODUCTION".to_string()),
+        Feature::UsageLimit => {
+            std::env::var(env::connections::ENVIRONMENT) == Ok("PRODUCTION".to_string())
+        }
         Feature::Storage => {
-            env::var("AWS_ACCESS_KEY_ID").is_ok()
-                && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
-                && env::var("S3_EXPORTS_BUCKET").is_ok()
+            std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok()
+                && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok()
+                && std::env::var(env::storage::S3_EXPORTS_BUCKET).is_ok()
         }
         Feature::FullBuild => ["FULL", "PRODUCTION"].contains(
-            &env::var("ENVIRONMENT")
+            &std::env::var(env::connections::ENVIRONMENT)
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
-        Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
-        Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
+        Feature::RabbitMQ => std::env::var(env::mq::URL).is_ok(),
+        Feature::SqlQueryEngine => std::env::var(env::connections::QUERY_ENGINE_URL).is_ok(),
         Feature::ClickhouseReadOnly => {
-            env::var("CLICKHOUSE_RO_USER").is_ok() && env::var("CLICKHOUSE_RO_PASSWORD").is_ok()
+            std::env::var(env::clickhouse::RO_USER).is_ok()
+                && std::env::var(env::clickhouse::RO_PASSWORD).is_ok()
         }
         Feature::Tracing => {
-            env::var("SENTRY_DSN").is_ok() && env::var("ENABLE_TRACING").is_ok_and(|s| s == "true")
+            std::env::var(env::observability::SENTRY_DSN).is_ok()
+                && std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
         }
-        Feature::InternalTracing => env::var("ENABLE_TRACING").is_ok_and(|s| s == "true"),
+        Feature::InternalTracing => {
+            std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
+        }
         Feature::Signals => {
             // Mirrors the credential checks in `LlmClient::new` so this flag
             // is true exactly when the signal worker would actually start.
-            let provider = env::var("LLM_PROVIDER")
+            let provider = std::env::var(env::llm::PROVIDER)
                 .ok()
                 .map(|s| s.trim().to_lowercase())
                 .unwrap_or_default();
-            let has_llm_api_key = env::var("LLM_API_KEY").is_ok_and(|s| !s.is_empty());
-            let has_aws = env::var("AWS_ACCESS_KEY_ID").is_ok_and(|s| !s.is_empty())
-                && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|s| !s.is_empty())
-                && env::var("AWS_REGION").is_ok_and(|s| !s.is_empty());
+            let has_llm_api_key = std::env::var(env::llm::API_KEY).is_ok_and(|s| !s.is_empty());
+            let has_aws = std::env::var(env::secrets::AWS_ACCESS_KEY_ID)
+                .is_ok_and(|s| !s.is_empty())
+                && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|s| !s.is_empty())
+                && std::env::var(env::secrets::AWS_REGION).is_ok_and(|s| !s.is_empty());
             match provider.as_str() {
                 "gemini" | "openai" => has_llm_api_key,
                 "bedrock" => has_aws,
@@ -71,32 +76,34 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             }
         }
         Feature::Reports => {
-            env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true")
-                && env::var("RESEND_API_KEY").is_ok_and(|s| !s.is_empty())
+            std::env::var(env::observability::ENABLE_REPORTS).is_ok_and(|s| s == "true")
+                && std::env::var(env::secrets::RESEND_API_KEY).is_ok_and(|s| !s.is_empty())
         }
         Feature::RateLimiter => {
-            env::var("REDIS_URL").is_ok()
-                && env::var("RATE_LIMIT").is_ok()
-                && env::var("RATE_LIMIT_PERIOD_SECS").is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok()
+                && std::env::var(env::rate_limit::HTTP_LIMIT).is_ok()
+                && std::env::var(env::rate_limit::HTTP_PERIOD_SECS).is_ok()
         }
         Feature::GrpcRateLimiter => {
-            env::var("REDIS_URL").is_ok()
-                && env::var("GRPC_RATE_LIMIT").is_ok()
-                && env::var("GRPC_RATE_LIMIT_PERIOD_SECS").is_ok()
+            std::env::var(env::connections::REDIS_URL).is_ok()
+                && std::env::var(env::rate_limit::GRPC_LIMIT).is_ok()
+                && std::env::var(env::rate_limit::GRPC_PERIOD_SECS).is_ok()
         }
-        Feature::PiiRedaction => env::var("PII_REDACTOR_URL").is_ok_and(|s| !s.is_empty()),
+        Feature::PiiRedaction => {
+            std::env::var(env::connections::PII_REDACTOR_URL).is_ok_and(|s| !s.is_empty())
+        }
     }
 }
 
 pub fn enable_consumer() -> bool {
-    match env::var(OPERATION_MODE) {
+    match std::env::var(env::connections::OPERATION_MODE) {
         Ok(v) => v.trim().to_lowercase() == CONSUMER,
         Err(_) => true,
     }
 }
 
 pub fn enable_producer() -> bool {
-    match env::var(OPERATION_MODE) {
+    match std::env::var(env::connections::OPERATION_MODE) {
         Ok(v) => v.trim().to_lowercase() == PRODUCER,
         Err(_) => true,
     }
