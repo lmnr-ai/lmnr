@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import Projects from "@/components/projects/projects";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
+import { getLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { requireWorkspaceAccess } from "@/lib/authorization";
@@ -49,5 +50,10 @@ export default async function WorkspaceSettingsResolver(props: {
     query.set("section", "usage");
   }
 
-  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?${query.toString()}`);
+  // The workspace picker links here without a project id, so honor the last-used project cookie
+  // (matching /settings's resolver) instead of always landing on projects[0].
+  const lastProjectId = await getLastProjectIdCookie().catch(() => undefined);
+  const targetProject = projects.find((p) => p.id === lastProjectId) ?? projects[0];
+
+  return redirect(`/settings/${params.workspaceId}/${targetProject.id}?${query.toString()}`);
 }
