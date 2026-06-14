@@ -16,19 +16,32 @@ const TAB_TO_SECTION: Record<string, string> = {
 
 export default async function WorkspaceRedirect(props: {
   params: Promise<{ workspaceId: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
 
   // Redirects to /sign-in / notFound() itself.
   await requireWorkspaceAccess(params.workspaceId);
 
-  const tab = searchParams.tab;
+  const tab = typeof searchParams.tab === "string" ? searchParams.tab : undefined;
   const section = tab ? TAB_TO_SECTION[tab] : undefined;
+
+  // Preserve every other query param (e.g. Slack OAuth's ?slack=success|error,
+  // which the integrations card reads to surface the connection result).
+  const rest = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (key === "tab" || value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach((v) => rest.append(key, v));
+    } else {
+      rest.append(key, value);
+    }
+  }
 
   // No mapped section (missing tab, or the old "projects" tab) -> land on the workspace settings index.
   if (!section) {
-    return redirect(`/settings/${params.workspaceId}`);
+    const query = rest.toString();
+    return redirect(`/settings/${params.workspaceId}${query ? `?${query}` : ""}`);
   }
 
   const projects = await getProjectsByWorkspace(params.workspaceId);
@@ -36,5 +49,6 @@ export default async function WorkspaceRedirect(props: {
     return redirect("/projects");
   }
 
-  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?section=${section}`);
+  rest.set("section", section);
+  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?${rest.toString()}`);
 }
