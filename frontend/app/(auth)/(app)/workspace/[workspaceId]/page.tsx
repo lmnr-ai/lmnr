@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 
-import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { requireWorkspaceAccess } from "@/lib/authorization";
 
 // Legacy /workspace/[workspaceId]?tab=... URLs now live under the shared /settings page.
@@ -38,22 +37,13 @@ export default async function WorkspaceRedirect(props: {
     }
   }
 
-  // No mapped section (missing tab, or the old "projects" tab) -> land on the workspace settings index.
-  if (!section) {
-    const query = rest.toString();
-    return redirect(`/settings/${params.workspaceId}${query ? `?${query}` : ""}`);
+  // Carry the mapped section through (a missing/unmapped tab, incl. the old "projects" tab, lands on
+  // the settings index). Always redirect to the 1-segment resolver and let it pick the project —
+  // it honors the last-project cookie (matching /settings) and renders the create-project terminal
+  // for an empty workspace, so the shim must NOT hardcode projects[0] (would ignore the cookie).
+  if (section) {
+    rest.set("section", section);
   }
-
-  // Carry the mapped section through both redirects below so a deep link (e.g. ?tab=integrations)
-  // still opens the right panel — even for an empty workspace, once it gains a project.
-  rest.set("section", section);
-
-  const projects = await getProjectsByWorkspace(params.workspaceId);
-  // Empty workspace -> the bare /settings/[id] resolver renders the create-project terminal.
-  // Don't redirect to /projects: it routes back here and loops endlessly.
-  if (projects.length === 0) {
-    return redirect(`/settings/${params.workspaceId}?${rest.toString()}`);
-  }
-
-  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?${rest.toString()}`);
+  const query = rest.toString();
+  return redirect(`/settings/${params.workspaceId}${query ? `?${query}` : ""}`);
 }
