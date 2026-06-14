@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 
+import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
+import Projects from "@/components/projects/projects";
+import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
+import { getWorkspace } from "@/lib/actions/workspace";
 import { requireWorkspaceAccess } from "@/lib/authorization";
 
 export default async function WorkspaceSettingsResolver(props: {
@@ -13,8 +17,21 @@ export default async function WorkspaceSettingsResolver(props: {
   await requireWorkspaceAccess(params.workspaceId);
 
   const projects = await getProjectsByWorkspace(params.workspaceId);
+  // An empty workspace has no project to anchor the 2-segment settings URL. Don't redirect to
+  // /projects — that bounces back here via the /workspace shim in an endless loop. Render a
+  // terminal "create a project" surface instead, the only way out of a project-less workspace.
   if (projects.length === 0) {
-    return redirect("/projects");
+    const workspace = await getWorkspace({ workspaceId: params.workspaceId });
+    return (
+      <WorkspaceMenuProvider>
+        <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
+        <div className="flex-1 overflow-y-auto">
+          <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
+            <Projects workspace={workspace} />
+          </div>
+        </div>
+      </WorkspaceMenuProvider>
+    );
   }
 
   // Preserve every incoming query param (e.g. Slack OAuth's ?slack=success|error,

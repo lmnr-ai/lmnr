@@ -45,8 +45,11 @@ export default async function WorkspaceRedirect(props: {
   }
 
   const projects = await getProjectsByWorkspace(params.workspaceId);
+  // Empty workspace -> the bare /settings/[id] resolver renders the create-project terminal.
+  // Don't redirect to /projects: it routes back here and loops endlessly.
   if (projects.length === 0) {
-    return redirect("/projects");
+    const query = rest.toString();
+    return redirect(`/settings/${params.workspaceId}${query ? `?${query}` : ""}`);
   }
 
   rest.set("section", section);
