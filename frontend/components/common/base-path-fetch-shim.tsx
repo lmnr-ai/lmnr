@@ -24,8 +24,12 @@ if (typeof window !== "undefined" && BASE_PATH) {
       if (typeof input === "string" && needsPrefix(input)) {
         return originalFetch(`${BASE_PATH}${input}`, init);
       }
-      // Request objects already carry a resolved absolute URL, and URL/absolute
-      // string inputs are origin-qualified — neither needs prefixing.
+      // Request objects and absolute string URLs are already origin-qualified, so
+      // they pass through. URL-object inputs are NOT prefixed either: a URL built
+      // from a root-relative path (`new URL("/api/foo", origin)`) resolves WITHOUT
+      // the base-path and would 404 under a sub-path deploy — so don't add
+      // `fetch(new URL("/api/..."))` call sites; use a plain string path, which the
+      // branch above prefixes.
       return originalFetch(input, init);
     };
 
