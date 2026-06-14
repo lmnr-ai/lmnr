@@ -369,7 +369,7 @@ const SharedSettings = ({
                           <Link
                             key={p.id}
                             passHref
-                            href={`/settings/${workspaceId}/${p.id}?section=general`}
+                            href={`/settings/${workspaceId}/${p.id}?section=${activeSection}`}
                             onClick={() => setLastProjectIdCookie(p.id)}
                           >
                             <DropdownMenuItem className={cn("cursor-pointer", { "bg-accent": p.id === projectId })}>
