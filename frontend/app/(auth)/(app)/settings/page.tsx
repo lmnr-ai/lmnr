@@ -50,9 +50,11 @@ export default async function SettingsResolver() {
   const targetWorkspaceId = get(lastWorkspace, "workspaceId") ?? (get(head(workspaceLists), "workspaceId") as string);
 
   const wsProjects = await getProjectsByWorkspace(targetWorkspaceId);
-  // No project in the workspace: defer to /projects (handles onboarding) since the route needs a projectId.
+  // No project to anchor the 2-segment URL: hand off to the 1-segment resolver, which renders the
+  // create-project terminal directly. Redirecting to /projects instead would add hops through the
+  // legacy /workspace shim before landing on that same terminal.
   if (wsProjects.length === 0) {
-    return redirect("/projects");
+    return redirect(`/settings/${targetWorkspaceId}`);
   }
 
   return redirect(`/settings/${targetWorkspaceId}/${wsProjects[0].id}?section=general`);
