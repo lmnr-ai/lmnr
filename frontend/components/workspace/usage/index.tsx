@@ -187,7 +187,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         <SettingsSection>
           <SettingsSectionHeader size="sm" title="Billing" description="Need to upgrade or manage your subscription?" />
           <Link
-            href="?tab=billing"
+            href="?section=billing"
             className="text-primary hover:underline inline-flex items-center gap-1 text-sm w-fit"
             onClick={() => setMenu("billing")}
           >
