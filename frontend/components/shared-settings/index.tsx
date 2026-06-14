@@ -314,7 +314,7 @@ const SharedSettings = ({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" side="right" className="min-w-56 rounded-lg text-xs">
                         {workspaces?.map((w) => (
-                          <Link key={w.id} passHref href={`/settings/${w.id}`}>
+                          <Link key={w.id} passHref href={`/settings/${w.id}?section=${activeSection}`}>
                             <DropdownMenuItem
                               onSelect={() => setLastWorkspaceIdCookie(w.id)}
                               className={cn("cursor-pointer", { "bg-accent": w.id === workspaceId })}
