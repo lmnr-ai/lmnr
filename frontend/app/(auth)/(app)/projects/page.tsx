@@ -68,5 +68,19 @@ export default async function ProjectsPage() {
 
   const targetWorkspaceId = get(lastWorkspace, "workspaceId") ?? (get(head(workspaceLists), "workspaceId") as string);
 
+  // Drop the user into a project's traces, not the workspace settings. /workspace/[id] is now a
+  // redirect shim into /settings (Usage), so falling back to it would strand /projects (and the
+  // sidebar logo that routes through it) on settings instead of the product. Only when the target
+  // workspace has no project do we hand off to the shim, which renders the create-project terminal.
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.workspaceId, targetWorkspaceId),
+    columns: { id: true },
+    orderBy: desc(projects.createdAt),
+  });
+
+  if (project) {
+    return redirect(`/project/${project.id}/traces`);
+  }
+
   return redirect(`/workspace/${targetWorkspaceId}`);
 }
