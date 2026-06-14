@@ -163,8 +163,13 @@ const SharedSettings = ({
   };
 
   const rawSection = searchParams.get("section") as Section | null;
-  const activeSection: Section =
-    rawSection && VALID_SECTIONS.has(rawSection) && isSectionEnabled(rawSection) ? rawSection : "general";
+  const activeSection: Section = (() => {
+    if (!rawSection || !VALID_SECTIONS.has(rawSection)) return "general";
+    // A real but feature-disabled workspace section (billing/deployment off) lands on the
+    // default workspace section, not the project General panel the URL never named.
+    if (!isSectionEnabled(rawSection)) return "usage";
+    return rawSection;
+  })();
 
   const sectionHref = (section: Section) => `/settings/${workspaceId}/${projectId}?section=${section}`;
 
