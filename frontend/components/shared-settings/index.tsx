@@ -154,8 +154,17 @@ const SharedSettings = ({
 
   const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
 
+  // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
+  // via a direct ?section= or a legacy ?tab= redirect when their flag is off.
+  const isSectionEnabled = (section: Section): boolean => {
+    if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
+    if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
+    return true;
+  };
+
   const rawSection = searchParams.get("section") as Section | null;
-  const activeSection: Section = rawSection && VALID_SECTIONS.has(rawSection) ? rawSection : "general";
+  const activeSection: Section =
+    rawSection && VALID_SECTIONS.has(rawSection) && isSectionEnabled(rawSection) ? rawSection : "general";
 
   const sectionHref = (section: Section) => `/settings/${workspaceId}/${projectId}?section=${section}`;
 
