@@ -91,11 +91,7 @@ impl StringEnv {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
-<<<<<<< HEAD
             .unwrap_or(self.default.to_string())
-=======
-            .unwrap_or_else(|| self.default.to_string())
->>>>>>> 371c30f5a (refactor(app-server): centralize env var registry in src/env)
     }
 }
 
