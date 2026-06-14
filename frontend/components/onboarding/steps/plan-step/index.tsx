@@ -13,6 +13,7 @@ import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { Feature } from "@/lib/features/features";
 import { track } from "@/lib/posthog";
+import { withBasePath } from "@/lib/utils";
 
 interface PlanStepProps {
   stepIndex: number;
@@ -70,7 +71,7 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
     }
     track("onboarding", "checkout_started", { tier: selectedTier, from_tier: currentTier });
     beginSubmitting();
-    window.location.href = checkoutUrl;
+    window.location.href = withBasePath(checkoutUrl);
   };
 
   if (!subscriptionEnabled) {

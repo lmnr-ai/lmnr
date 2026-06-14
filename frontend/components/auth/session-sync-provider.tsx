@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useEffect } from "react";
 
 import { signOut } from "@/lib/auth-client";
+import { withBasePath } from "@/lib/utils";
 
 const AUTH_CHANNEL_NAME = "auth-sync-channel";
 const LOGOUT_EVENT = "logout";
@@ -19,7 +20,7 @@ export const useSessionSync = () => {
     channel.addEventListener("message", async (event) => {
       if (event.data.type === LOGOUT_EVENT) {
         await signOut();
-        window.location.href = "/";
+        window.location.href = withBasePath("/");
       }
     });
 

@@ -11,6 +11,35 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Sub-path the app is served under, baked in at build time (see next.config.ts).
+// Next auto-prefixes <Link>/router/redirect/next-image/assets, but NOT runtime
+// native fetch, EventSource, window.location.*, or Better Auth callbackURLs —
+// those must call withBasePath explicitly. Empty string when root-served, so all
+// helpers below are no-ops in the regular frontend-ee image.
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+// Prefix a root-relative app path with BASE_PATH. Absolute URLs (http(s)://,
+// //host) and non-root values are returned unchanged so external calls
+// (PostHog/Sentry) and already-prefixed paths are never double-stamped.
+export function withBasePath(path: string): string {
+  if (!BASE_PATH) return path;
+  if (!path.startsWith("/")) return path;
+  if (path.startsWith("//")) return path;
+  if (path === BASE_PATH || path.startsWith(`${BASE_PATH}/`)) return path;
+  return `${BASE_PATH}${path}`;
+}
+
+// Inverse of withBasePath: strip the baked prefix off a browser-observed path
+// (window.location.pathname carries it) so the result can be fed back into
+// anything that re-prefixes — router.push and Better Auth callbackURLs both add
+// BASE_PATH themselves, so storing a prefix-inclusive value would double-stamp.
+export function stripBasePath(path: string): string {
+  if (!BASE_PATH) return path;
+  if (path === BASE_PATH) return "/";
+  if (path.startsWith(`${BASE_PATH}/`)) return path.slice(BASE_PATH.length);
+  return path;
+}
+
 // Constrain a post-auth `callbackUrl` (read from the query string) to a
 // same-origin relative path before it reaches `router.push`, preventing an
 // open redirect to an attacker-controlled site. Anything that resolves off our
@@ -88,10 +117,14 @@ const redirectToSignIn = () => {
   if (typeof window === "undefined") return;
   if (isRedirectingToSignIn) return;
   // Loop guard: never bounce a request that originated on the sign-in page.
-  if (window.location.pathname.startsWith("/sign-in")) return;
+  // pathname carries BASE_PATH under a sub-path deploy, so compare against the
+  // prefixed form.
+  if (window.location.pathname.startsWith(withBasePath("/sign-in"))) return;
   isRedirectingToSignIn = true;
-  const callbackUrl = encodeURIComponent(window.location.pathname + window.location.search);
-  window.location.assign(`/sign-in?callbackUrl=${callbackUrl}`);
+  // callbackUrl must be prefix-free: the sign-in page re-prefixes it (router.push
+  // auto-adds BASE_PATH), so strip the prefix off the observed pathname first.
+  const callbackUrl = encodeURIComponent(stripBasePath(window.location.pathname) + window.location.search);
+  window.location.assign(withBasePath(`/sign-in?callbackUrl=${callbackUrl}`));
   // A successful navigation tears this module down, so this timer only fires if
   // the navigation was blocked (e.g. a beforeunload prompt the user cancels) —
   // release the guard so a later 401 can retry instead of no-opping forever.

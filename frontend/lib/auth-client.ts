@@ -1,6 +1,8 @@
 import { deviceAuthorizationClient, genericOAuthClient, jwtClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+import { withBasePath } from "@/lib/utils";
+
 export const authClient = createAuthClient({
   plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient()],
 });
@@ -22,11 +24,14 @@ export type AuthProvider = "github" | "google" | "microsoft-entra-id" | "okta" |
 // own path so a failed sign-up attempt lands back on sign-up, not sign-in. The
 // original `callbackUrl` is preserved so a successful retry still deep-links.
 export const signInWithProvider = (provider: AuthProvider, callbackURL: string, errorPath = "/sign-in") => {
-  const errorCallbackURL = `${errorPath}?callbackUrl=${encodeURIComponent(callbackURL)}`;
+  // Better Auth redirects callbackURL / errorCallbackURL VERBATIM (they bypass
+  // Next's basePath), so prefix both for sub-path deploys.
+  const prefixedCallbackURL = withBasePath(callbackURL);
+  const errorCallbackURL = withBasePath(`${errorPath}?callbackUrl=${encodeURIComponent(callbackURL)}`);
   if (provider === "github" || provider === "google") {
-    return authClient.signIn.social({ provider, callbackURL, errorCallbackURL });
+    return authClient.signIn.social({ provider, callbackURL: prefixedCallbackURL, errorCallbackURL });
   }
-  return authClient.signIn.oauth2({ providerId: provider, callbackURL, errorCallbackURL });
+  return authClient.signIn.oauth2({ providerId: provider, callbackURL: prefixedCallbackURL, errorCallbackURL });
 };
 
 // Sign in with our passwordless local-email endpoint (self-hosted convenience).
