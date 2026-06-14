@@ -1,100 +1,40 @@
-import { and, eq } from "drizzle-orm";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import WorkspaceSidebar from "@/components/workspace/sidebar";
-import WorkspaceComponent from "@/components/workspace/workspace";
-import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
-import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
-import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
-import { getWorkspace } from "@/lib/actions/workspace";
-import { getServerSession } from "@/lib/auth-session";
-import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { getProjectsByWorkspace } from "@/lib/actions/projects";
+import { requireWorkspaceAccess } from "@/lib/authorization";
 
-export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
-  const params = await props.params;
+// Legacy /workspace/[workspaceId]?tab=... URLs now live under the shared /settings page.
+const TAB_TO_SECTION: Record<string, string> = {
+  usage: "usage",
+  team: "team",
+  deployment: "deployment",
+  billing: "billing",
+  integrations: "integrations",
+  reports: "reports",
+  settings: "workspace-general",
+};
 
-  const session = await getServerSession();
-  if (!session) {
-    return redirect("/sign-in");
+export default async function WorkspaceRedirect(props: {
+  params: Promise<{ workspaceId: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
+
+  // Redirects to /sign-in / notFound() itself.
+  await requireWorkspaceAccess(params.workspaceId);
+
+  const tab = searchParams.tab;
+  const section = tab ? TAB_TO_SECTION[tab] : undefined;
+
+  // No mapped section (missing tab, or the old "projects" tab) -> land on the workspace settings index.
+  if (!section) {
+    return redirect(`/settings/${params.workspaceId}`);
   }
 
-  const user = session.user;
-
-  const workspace = await getWorkspace({ workspaceId: params.workspaceId });
-
-  const userMembership = await db
-    .select({ role: membersOfWorkspaces.memberRole })
-    .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
-    .limit(1)
-    .then((res) => res[0]);
-
-  if (!userMembership) {
-    return notFound();
+  const projects = await getProjectsByWorkspace(params.workspaceId);
+  if (projects.length === 0) {
+    return redirect("/projects");
   }
 
-  const isOwner = userMembership.role === "owner";
-  const currentUserRole = userMembership.role || "member";
-
-  const stats = await getWorkspaceStats(params.workspaceId).catch((e) => {
-    console.error("Error fetching workspace stats:", e);
-    return null;
-  });
-
-  const invitations = await db.query.workspaceInvitations
-    .findMany({
-      where: eq(workspaceInvitations.workspaceId, params.workspaceId),
-    })
-    .catch((e) => {
-      console.error("Error fetching invitations:", e);
-      return [];
-    });
-
-  const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
-
-  // Fetch subscription details for paid tiers (only for owners/admins)
-  const isPaidTier = workspace.tierName !== "Free";
-  let subscription = null;
-  let upcomingInvoice = null;
-
-  if (canManageBilling && isPaidTier) {
-    try {
-      [subscription, upcomingInvoice] = await Promise.all([
-        getSubscriptionDetails(params.workspaceId),
-        getUpcomingInvoice(params.workspaceId),
-      ]);
-    } catch (error) {
-      console.error("Error fetching subscription details:", error);
-    }
-  }
-
-  return (
-    <WorkspaceMenuProvider>
-      <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
-      <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
-        <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
-          <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
-            <WorkspaceComponent
-              invitations={invitations}
-              workspace={workspace}
-              workspaceStats={stats}
-              isOwner={isOwner}
-              currentUserRole={currentUserRole}
-              subscription={subscription}
-              upcomingInvoice={upcomingInvoice}
-              canManageBilling={canManageBilling}
-              slackClientId={process.env.SLACK_CLIENT_ID}
-              slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-              slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
-            />
-          </SidebarInset>
-        </SidebarProvider>
-      </div>
-    </WorkspaceMenuProvider>
-  );
+  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?section=${section}`);
 }

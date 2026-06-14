@@ -35,7 +35,11 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       track("workspace", "created");
-      router.push(`/workspace/${newWorkspace.id}`);
+      if (newWorkspace.projectId) {
+        router.push(`/settings/${newWorkspace.id}/${newWorkspace.projectId}?section=general`);
+      } else {
+        router.push(`/settings/${newWorkspace.id}`);
+      }
     } catch (e) {
       toast({
         title: "Error creating workspace",

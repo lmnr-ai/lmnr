@@ -1,6 +1,6 @@
 "use client";
 
-import { Book, X } from "lucide-react";
+import { Book, Settings, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
@@ -60,6 +60,14 @@ const SidebarFooterComponent = () => {
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
                   <Book size={16} />
                   <span>Docs</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Settings" asChild>
+                <Link href="/settings">
+                  <Settings size={16} />
+                  <span>Settings</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
