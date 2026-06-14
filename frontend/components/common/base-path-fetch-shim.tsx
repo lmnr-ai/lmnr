@@ -10,6 +10,9 @@ import { BASE_PATH } from "@/lib/utils";
 // image behaves identically.
 if (typeof window !== "undefined" && BASE_PATH) {
   const w = window as typeof window & { __lmnrBasePathFetchPatched?: boolean };
+  // `__lmnrBasePathFetchPatched` is shared mutable state, but browser JS is
+  // single-threaded so the check-then-set can't race — no mutex needed. It only
+  // guards against double-evaluation in one realm (HMR / double-import).
   if (!w.__lmnrBasePathFetchPatched) {
     w.__lmnrBasePathFetchPatched = true;
 
