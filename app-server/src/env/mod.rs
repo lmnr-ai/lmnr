@@ -89,7 +89,7 @@ impl StringEnv {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| self.default.to_string())
+            .unwrap_or(self.default.to_string())
     }
 }
 

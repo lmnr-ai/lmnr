@@ -284,8 +284,7 @@ fn main() -> anyhow::Result<()> {
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
             let rabbitmq_url = std::env::var(env::mq::URL).expect("RABBITMQ_URL must be set");
-            let auto_reconnect =
-                std::env::var(env::mq::AUTO_RECONNECT).is_ok_and(|v| v.to_lowercase() == "true");
+            let auto_reconnect = env::mq::AUTO_RECONNECT.get();
             let mut props = ConnectionProperties::default();
             if auto_reconnect {
                 props = props.enable_auto_recover();
@@ -1290,7 +1289,7 @@ fn main() -> anyhow::Result<()> {
                                     BatchingConfig {
                                         size: batch_size,
                                         flush_interval: Duration::from_secs(
-                                            batch_flush_interval_sec as u64,
+                                            batch_flush_interval_sec,
                                         ),
                                     },
                                 )

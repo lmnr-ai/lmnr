@@ -1,11 +1,11 @@
 //! RabbitMQ connection + channel tuning.
 
-use super::NumEnv;
+use super::{BoolEnv, NumEnv};
 
 /// RabbitMQ connection URL. Required when the RabbitMQ feature is on.
 pub const URL: &str = "RABBITMQ_URL";
 /// Whether to enable lapin's auto-recover on the connection.
-pub const AUTO_RECONNECT: &str = "RABBITMQ_AUTO_RECONNECT";
+pub const AUTO_RECONNECT: BoolEnv = BoolEnv::new("RABBITMQ_AUTO_RECONNECT", false);
 
 pub const MAX_CHANNEL_POOL_SIZE: NumEnv<usize> = NumEnv::new("RABBITMQ_MAX_CHANNEL_POOL_SIZE", 64);
 /// Max message payload in bytes. Default 50 MB.

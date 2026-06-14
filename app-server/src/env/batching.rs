@@ -20,7 +20,7 @@ pub const CLUSTERING_EVENTS_SIZE: NumEnv<usize> = NumEnv::new("CLUSTERING_EVENTS
 pub const CLUSTERING_EVENTS_FLUSH_INTERVAL_SEC: NumEnv<u64> =
     NumEnv::new("CLUSTERING_EVENTS_BATCH_FLUSH_INTERVAL_SEC", 300);
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const SIGNALS_FLUSH_INTERVAL_SEC: NumEnv<usize> =
+pub const SIGNALS_FLUSH_INTERVAL_SEC: NumEnv<u64> =
     NumEnv::new("SIGNALS_BATCH_FLUSH_INTERVAL_SEC", 300);
 
 /// `SIGNALS_BATCH_SIZE` has no static default — it falls back to a

@@ -88,7 +88,7 @@ impl JwksCache {
     /// manages its own client.
     pub fn from_env(_http: reqwest::Client) -> Self {
         let base = std::env::var(crate::env::notifications::NEXT_INTERNAL_URL)
-            .or_else(|_| std::env::var(crate::env::notifications::NEXT_PUBLIC_URL))
+            .or(std::env::var(crate::env::notifications::NEXT_PUBLIC_URL))
             .map(|v| v.trim_end_matches('/').to_string())
             .unwrap_or_else(|_| {
                 log::warn!(
