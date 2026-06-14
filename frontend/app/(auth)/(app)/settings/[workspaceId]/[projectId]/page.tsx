@@ -23,17 +23,33 @@ export const metadata: Metadata = {
   title: "Settings",
 };
 
-export default async function SettingsPage(props: { params: Promise<{ workspaceId: string; projectId: string }> }) {
-  const params = await props.params;
+export default async function SettingsPage(props: {
+  params: Promise<{ workspaceId: string; projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
 
   // Project access implies workspace access; redirects to /sign-in / notFound() itself.
   const session = await requireProjectAccess(params.projectId);
   const user = session.user;
 
   const projectDetails = await getProjectDetails(params.projectId);
-  // The route's workspaceId must match the project's actual workspace.
+  // The route's workspaceId must match the project's actual workspace. Preserve
+  // the original query string (section + any deep-link params) on the bounce.
   if (projectDetails.workspaceId !== params.workspaceId) {
-    return redirect(`/settings/${projectDetails.workspaceId}/${params.projectId}?section=general`);
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(searchParams)) {
+      if (value === undefined) continue;
+      if (Array.isArray(value)) {
+        value.forEach((v) => query.append(key, v));
+      } else {
+        query.append(key, value);
+      }
+    }
+    if (!query.has("section")) {
+      query.set("section", "general");
+    }
+    return redirect(`/settings/${projectDetails.workspaceId}/${params.projectId}?${query.toString()}`);
   }
 
   const [workspace, apiKeys, projects] = await Promise.all([

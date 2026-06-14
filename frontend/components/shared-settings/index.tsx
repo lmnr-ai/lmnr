@@ -114,6 +114,24 @@ type Section =
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
+const VALID_SECTIONS = new Set<Section>([
+  "usage",
+  "team",
+  "deployment",
+  "integrations",
+  "reports",
+  "billing",
+  "workspace-general",
+  "general",
+  "project-api-keys",
+  "provider-api-keys",
+  "model-costs",
+  "render-templates",
+  "agent-versions",
+  "security",
+  "alerts",
+]);
+
 const SharedSettings = ({
   workspace,
   projectId,
@@ -136,7 +154,8 @@ const SharedSettings = ({
 
   const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
 
-  const activeSection = (searchParams.get("section") as Section) || "general";
+  const rawSection = searchParams.get("section") as Section | null;
+  const activeSection: Section = rawSection && VALID_SECTIONS.has(rawSection) ? rawSection : "general";
 
   const sectionHref = (section: Section) => `/settings/${workspaceId}/${projectId}?section=${section}`;
 
