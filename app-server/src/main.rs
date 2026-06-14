@@ -191,11 +191,12 @@ fn main() -> anyhow::Result<()> {
     }
 
     let internal_tracing_enabled = is_feature_enabled(Feature::InternalTracing);
-    let (_internal_tracer_provider, internal_ingest_deps) = instrumentation::setup_tracing_and_logging(
-        is_feature_enabled(Feature::Tracing),
-        internal_tracing_enabled,
-        &runtime_handle,
-    );
+    let (_internal_tracer_provider, internal_ingest_deps) =
+        instrumentation::setup_tracing_and_logging(
+            is_feature_enabled(Feature::Tracing),
+            internal_tracing_enabled,
+            &runtime_handle,
+        );
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
@@ -949,8 +950,8 @@ fn main() -> anyhow::Result<()> {
         //    but it's still a valid binary data. Rust will refuse to create a String from it, while
         //    the validation in the SDK would require us to make it a String
         .with_validation(false)
-        .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "1");
+        .with_setting("async_insert", "1")
+        .with_setting("wait_for_async_insert", "1");
 
     let clickhouse = match clickhouse_password {
         Ok(password) => clickhouse_client.with_password(password),
@@ -1796,9 +1797,9 @@ fn main() -> anyhow::Result<()> {
 
                     // Shared in-process JWKS cache for the CLI user-token surface.
                     // Built once outside the HttpServer closure so all workers share it.
-                    let jwks_cache = web::Data::new(Arc::new(
-                        auth::cli_user::JwksCache::from_env(http_client_for_http.clone()),
-                    ));
+                    let jwks_cache = web::Data::new(Arc::new(auth::cli_user::JwksCache::from_env(
+                        http_client_for_http.clone(),
+                    )));
 
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
