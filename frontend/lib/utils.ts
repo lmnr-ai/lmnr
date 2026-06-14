@@ -57,7 +57,11 @@ export function sanitizeCallbackUrl(raw: string | string[] | undefined, defaultU
     const base = "https://placeholder.invalid";
     const url = new URL(value, base);
     if (url.origin !== base) return defaultUrl;
-    const path = url.pathname + url.search + url.hash;
+    // Enforce the prefix-free callbackUrl contract at the boundary: consumers
+    // (router.push, OAuth callbackURL) re-apply BASE_PATH, so an inbound value
+    // that already carries the prefix (stale link / hand-crafted query) would
+    // otherwise double-stamp to `/lmnr/lmnr/...`.
+    const path = stripBasePath(url.pathname) + url.search + url.hash;
     return path === "/" ? defaultUrl : path;
   } catch {
     return defaultUrl;
