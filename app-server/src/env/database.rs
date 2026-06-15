@@ -1,11 +1,16 @@
 //! Postgres connection settings.
 
-use super::NumEnv;
+use super::{NumEnv, StringEnv};
 
 /// Full connection URL. When set, takes precedence over the discrete vars.
 pub const URL: &str = "DATABASE_URL";
 /// PEM root cert; when set, switches sslmode to VerifyFull.
 pub const SSL_ROOT_CERT: &str = "DATABASE_SSL_ROOT_CERT";
+
+/// Postgres schema all tables live in, applied as the connection `search_path`.
+/// Defaults to `public`. All queries use unqualified table names, so this is the
+/// single switch that points the app-server at a non-public schema.
+pub const SCHEMA: StringEnv = StringEnv::new("POSTGRES_SCHEMA", "public");
 
 /// Discrete connection params (used when `DATABASE_URL` is unset).
 pub const USERNAME: &str = "DATABASE_USERNAME";

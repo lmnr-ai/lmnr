@@ -115,9 +115,17 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 ```
 
 - `pnpm schema-pull:lint` heavily reformats `schema.ts`, `relations.ts`, and `tsconfig.json`. After running it, revert unrelated formatting changes before committing.
+- **Migration SQL must stay schema-neutral (no `"public".` qualifiers).** Tables resolve via the connection `search_path` (`POSTGRES_SCHEMA`, default `public`), so a hardcoded `"public".` would break non-public self-hosted installs. `drizzle-kit generate` re-emits `"public".` prefixes (it has no schema-neutral output mode) — after generating, strip every `"public".` token from the new `.sql` file (`sed -i 's/"public"\.//g' <file>`). Snapshots/`_journal.json` already record an empty schema, so they need no change.
 - `npx drizzle-kit generate` requires a TTY for interactive prompts. In non-interactive shells (CI, sandbox), write migration SQL files and `_journal.json` entries manually.
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
 - **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
+
+## Configurable Postgres schema (`POSTGRES_SCHEMA`)
+
+- `POSTGRES_SCHEMA` (default `public`) is the schema all Postgres tables live in. It's applied as the connection `search_path` in BOTH services — frontend `lib/db/drizzle.ts` (`connection: { search_path }` on the `postgres()` client) and app-server `db/mod.rs` (`PgConnectOptions::options([("search_path", …)])`, descriptor `env::database::SCHEMA`). All queries use unqualified table names, so the search_path is the only routing mechanism; the two services MUST be set to the same value.
+- The frontend resolves the value via `getPostgresSchema()` in `drizzle.ts`: empty/unset means "no explicit schema" (connection defaults to `public`, migrator keeps tracking in the standard `drizzle` schema). Any explicit value — INCLUDING `public` — is treated as set.
+- **`migrationsSchema` guard (instrumentation.ts):** `migrate()` is passed `migrationsSchema: <schema>` ONLY when an explicit `POSTGRES_SCHEMA` is set. This is deliberate: relocating `__drizzle_migrations` into a schema where it doesn't already exist makes the migrator see "no last migration" and re-run all migrations (non-idempotent `ALTER TYPE … ADD VALUE` then errors). Existing default (`public`) deployments have their tracker in `drizzle` and must stay there. So: unset → tracker stays in `drizzle`; explicit schema → tracker moves into that schema (lets a Laminar DB coexist with another Drizzle service in the same instance).
+- `POSTGRES_CREATE_SCHEMA` (default `true`, frontend-only) gates the boot-time `CREATE SCHEMA IF NOT EXISTS`. Set `false` when the schema is pre-provisioned or the DB role lacks `CREATE`. The data schema is NOT auto-created by the migrator — only the migrations-table schema is — so this DDL is required for a fresh non-public install.
 
 ## Comment style
 

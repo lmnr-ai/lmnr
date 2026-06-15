@@ -9,4 +9,4 @@ CREATE TABLE "custom_model_costs" (
 	CONSTRAINT "custom_model_costs_project_id_provider_model_unique" UNIQUE("project_id","provider","model")
 );
 --> statement-breakpoint
-ALTER TABLE "custom_model_costs" ADD CONSTRAINT "custom_model_costs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ALTER TABLE "custom_model_costs" ADD CONSTRAINT "custom_model_costs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;

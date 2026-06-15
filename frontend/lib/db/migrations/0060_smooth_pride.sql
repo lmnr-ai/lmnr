@@ -17,7 +17,7 @@ CREATE TABLE "dataset_parquets" (
 	"project_id" uuid NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dataset_export_jobs" ADD CONSTRAINT "dataset_export_jobs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "datasets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "dataset_parquets" ADD CONSTRAINT "dataset_parquets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

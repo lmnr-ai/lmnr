@@ -16,7 +16,7 @@ export async function register() {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
         await import("@/lib/db/migrations/schema.ts");
-      const { db, getDatabaseConfig } = await import("@/lib/db/drizzle.ts");
+      const { db, getDatabaseConfig, getPostgresSchema } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -205,7 +205,18 @@ export async function register() {
           error instanceof Error ? error.message : String(error)
         );
       }
-      await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
+      const postgresSchema = getPostgresSchema();
+      if (postgresSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
+        await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+      }
+      // Track migrations inside the configured schema so a Laminar DB can coexist
+      // with another Drizzle-managed service in the same instance. Default (no
+      // explicit schema) keeps the tracker in the standard "drizzle" schema — so
+      // existing public deployments are untouched and don't re-run migrations.
+      await migrate(db as any, {
+        migrationsFolder: "lib/db/migrations",
+        ...(postgresSchema ? { migrationsSchema: postgresSchema } : {}),
+      });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
