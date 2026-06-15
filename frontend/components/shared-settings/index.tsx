@@ -65,10 +65,9 @@ import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
 import { cn, swrFetcher } from "@/lib/utils";
 import {
@@ -334,11 +333,17 @@ const SharedSettings = ({
                     className="w-(--radix-dropdown-menu-trigger-width) rounded-lg text-xs bg-landing-surface-600"
                   >
                     {workspaces?.map((w) => (
-                      <Link key={w.id} passHref href={`/settings/${w.id}?section=${activeSection}`}>
-                        <DropdownMenuItem
-                          onSelect={() => setLastWorkspaceIdCookie(w.id)}
-                          className={cn("cursor-pointer", { "bg-accent": w.id === workspaceId })}
-                        >
+                      <Link
+                        key={w.id}
+                        passHref
+                        href={`/settings/${w.id}?section=${activeSection}`}
+                        // Write the breadcrumb cookie synchronously (no server action) so it can't
+                        // race / interrupt the soft navigation before the next /settings resolve.
+                        onClick={() => {
+                          document.cookie = `${LAST_WORKSPACE_ID}=${w.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                        }}
+                      >
+                        <DropdownMenuItem className={cn("cursor-pointer", { "bg-accent": w.id === workspaceId })}>
                           <span className="text-xs text-sidebar-foreground font-medium truncate">{w.name}</span>
                         </DropdownMenuItem>
                       </Link>
@@ -395,7 +400,12 @@ const SharedSettings = ({
                         key={p.id}
                         passHref
                         href={`/settings/${workspaceId}/${p.id}?section=${activeSection}`}
-                        onClick={() => setLastProjectIdCookie(p.id)}
+                        // Write the breadcrumb cookies synchronously (no server action) so they can't
+                        // race / interrupt the soft navigation before the next /settings resolve.
+                        onClick={() => {
+                          document.cookie = `${LAST_PROJECT_ID}=${p.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                          document.cookie = `${LAST_WORKSPACE_ID}=${workspaceId};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                        }}
                       >
                         <DropdownMenuItem className={cn("cursor-pointer", { "bg-accent": p.id === projectId })}>
                           <span className="text-xs text-sidebar-foreground font-medium truncate">{p.name}</span>
