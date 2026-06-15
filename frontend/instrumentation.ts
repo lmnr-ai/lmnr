@@ -207,7 +207,14 @@ export async function register() {
       }
       const postgresSchema = getPostgresSchema();
       if (postgresSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
-        await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+        try {
+          await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+        } catch (error) {
+          console.warn(
+            `Skipping CREATE SCHEMA "${postgresSchema}" (insufficient privileges or pre-provisioned); set POSTGRES_CREATE_SCHEMA=false to silence:`,
+            error instanceof Error ? error.message : String(error)
+          );
+        }
       }
       // Track migrations inside the configured schema so a Laminar DB can coexist
       // with another Drizzle-managed service in the same instance. Default (no
