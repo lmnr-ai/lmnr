@@ -296,7 +296,7 @@ const SharedSettings = ({
 
   return (
     <div className="flex flex-col h-full">
-      <Header path="settings" />
+      <Header path="settings" showSidebarTrigger={false} />
       <SidebarProvider defaultOpen>
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
           <Sidebar collapsible="none" className="border-r">
