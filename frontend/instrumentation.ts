@@ -206,7 +206,13 @@ export async function register() {
         );
       }
       const postgresSchema = getPostgresSchema();
-      if (postgresSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
+      // Any case variant of "public" is the default schema (which always exists),
+      // so we never create it or relocate the migrations tracker into it. Note an
+      // unquoted identifier in search_path folds to lowercase, so a value like
+      // "PUBLIC" resolves to "public" at query time — quoting it into CREATE SCHEMA
+      // would create a SEPARATE "PUBLIC" schema that queries never reach.
+      const isPublicSchema = postgresSchema.toLowerCase() === "public";
+      if (postgresSchema && !isPublicSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
         try {
           await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
         } catch (error) {
@@ -218,13 +224,13 @@ export async function register() {
       }
       // Track migrations inside the configured schema so a Laminar DB can coexist
       // with another Drizzle-managed service in the same instance. An unset or
-      // explicit "public" schema keeps the tracker in the standard "drizzle"
+      // "public" (any case) schema keeps the tracker in the standard "drizzle"
       // schema — so existing public deployments are untouched and don't re-run
       // migrations (relocating the tracker would make the migrator see no prior
       // migration and re-run all of them).
       await migrate(db as any, {
         migrationsFolder: "lib/db/migrations",
-        ...(postgresSchema && postgresSchema !== "public" ? { migrationsSchema: postgresSchema } : {}),
+        ...(postgresSchema && !isPublicSchema ? { migrationsSchema: postgresSchema } : {}),
       });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
