@@ -79,9 +79,10 @@ pub fn evaluate_array_contains_filter(
 
     match operator {
         FilterOperator::Eq => array.iter().any(|item| item == target),
+        FilterOperator::Ne => !array.iter().any(|item| item == target),
         _ => {
             log::warn!(
-                "Invalid operator {:?} for array containment filter, only eq/includes supported",
+                "Invalid operator {:?} for array containment filter, only eq/ne supported",
                 operator
             );
             false

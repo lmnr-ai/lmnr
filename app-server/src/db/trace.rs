@@ -663,4 +663,56 @@ mod tests {
             "Ne filter should return false when span name exists in accumulated names"
         );
     }
+
+    /// tags Eq: matches when the tag is present on the trace.
+    #[test]
+    fn test_tags_eq_filter() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+
+        let mut trace = make_trace(trace_id, project_id, Some(Uuid::new_v4()), None);
+        trace.tags = vec!["prod".to_string(), "urgent".to_string()];
+
+        let filters = vec![Filter {
+            column: "tags".to_string(),
+            operator: FilterOperator::Eq,
+            value: json!("urgent"),
+        }];
+
+        assert!(trace.matches_filters(&[], &filters));
+    }
+
+    /// tags Ne: matches when the tag is absent, does NOT match when present.
+    /// Regression test — `Ne` previously fell through to the catch-all arm and
+    /// always returned false, so a `tags != x` trigger never fired.
+    #[test]
+    fn test_tags_ne_filter() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+
+        let mut trace = make_trace(trace_id, project_id, Some(Uuid::new_v4()), None);
+        trace.tags = vec!["prod".to_string()];
+
+        // Tag absent -> `tags != "staging"` should match.
+        let absent = vec![Filter {
+            column: "tags".to_string(),
+            operator: FilterOperator::Ne,
+            value: json!("staging"),
+        }];
+        assert!(
+            trace.matches_filters(&[], &absent),
+            "Ne filter should match when the tag is not present"
+        );
+
+        // Tag present -> `tags != "prod"` should not match.
+        let present = vec![Filter {
+            column: "tags".to_string(),
+            operator: FilterOperator::Ne,
+            value: json!("prod"),
+        }];
+        assert!(
+            !trace.matches_filters(&[], &present),
+            "Ne filter should not match when the tag is present"
+        );
+    }
 }
