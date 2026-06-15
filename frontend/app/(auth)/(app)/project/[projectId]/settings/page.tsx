@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getProjectDetails } from "@/lib/actions/project";
+import { requireProjectAccess } from "@/lib/authorization";
 
 // Legacy /project/[projectId]/settings URLs now live under the shared /settings page.
 export default async function ProjectSettingsRedirect(props: {
@@ -8,6 +9,11 @@ export default async function ProjectSettingsRedirect(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
+
+  // Redirects to /sign-in / notFound() itself. Gates the redirect so an unauthenticated caller
+  // can't read the target workspaceId from the 302 Location header.
+  await requireProjectAccess(params.projectId);
+
   const section = typeof searchParams.tab === "string" ? searchParams.tab : "general";
 
   // Preserve every other query param (e.g. Slack OAuth's ?slack=success|error).
