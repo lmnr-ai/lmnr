@@ -322,7 +322,7 @@ const SharedSettings = ({
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landingtext-600 w-full justify-between h-9"
+                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landing-surface-600 w-full justify-between h-9"
                     >
                       <span className="mr-2 truncate">{workspace.name}</span>
                       <ChevronsUpDown className="size-4" />
@@ -372,7 +372,7 @@ const SharedSettings = ({
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landingtext-600 w-full justify-between h-9"
+                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landing-surface-600 w-full justify-between h-9"
                     >
                       <span className="mr-2 truncate">{currentProject?.name ?? "Project"}</span>
                       <ChevronsUpDown className="size-4" />
