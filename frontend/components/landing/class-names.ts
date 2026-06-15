@@ -22,7 +22,7 @@ export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-
 
 // Tiny, wide-tracked muted label — used for step numbers above section
 // titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
-// MORE row at the bottom of each surface-550 mock panel. Single source
+// MORE row at the bottom of each surface-500 mock panel. Single source
 // of truth so all those labels stay visually consistent.
 export const microLabel = "font-sans-landing text-foreground-300";
 

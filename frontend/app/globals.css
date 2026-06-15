@@ -96,6 +96,7 @@
   --color-subagent: hsl(var(--subagent));
 
   /* Surface elevation ramp — neutral, dark-theme  */
+  --color-surface-200: oklch(0.3092 0 0); /* #303030 */
   --color-surface-300: oklch(0.2891 0 0); /* #2b2b2b */
   --color-surface-400: oklch(0.2686 0 0); /* #262626 */
   --color-surface-500: oklch(0.2478 0 0); /* #212121 */

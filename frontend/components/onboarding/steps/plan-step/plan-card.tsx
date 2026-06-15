@@ -14,7 +14,7 @@ interface PlanCardProps {
 }
 
 // Styled to match the regular (non-accent) pricing-page tier columns: a flat
-// surface-550 panel, no border, no divider under the price, landing fonts.
+// surface-500 panel, no border, no divider under the price, landing fonts.
 // Selection uses an INSET ring (drawn inside the box) so the ScrollArea's overflow
 // can't clip it the way an outset ring/border at the grid edge would be.
 export default function PlanCard({ plan, selected, onSelect, disabled = false, isCurrent = false }: PlanCardProps) {
