@@ -46,16 +46,16 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: var(--color-surface-300); /* ΔE 4.07 */
+  --color-border: var(--color-surface-300);
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-background: var(--color-surface-1000); /* ΔE 0.32 */
+  --color-background: var(--color-surface-1000);
   --color-foreground: hsl(var(--foreground));
 
   --color-primary: var(--color-primary-400);
   --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: var(--color-surface-800); /* ΔE 0.00 */
+  --color-secondary: var(--color-surface-800);
   --color-secondary-foreground: var(--color-foreground-200);
 
   --color-success: hsl(var(--success));
@@ -67,16 +67,16 @@
   --color-success-bright: hsl(var(--success-bright));
   --color-destructive-bright: hsl(var(--destructive-bright));
 
-  --color-muted: var(--color-surface-500); /* ΔE 2.91 */
+  --color-muted: var(--color-surface-500);
   --color-muted-foreground: var(--color-foreground-400);
 
-  --color-accent: var(--color-surface-400); /* ΔE 4.67 */
+  --color-accent: var(--color-surface-400);
   --color-accent-foreground: hsl(var(--accent-foreground));
 
-  --color-popover: var(--color-surface-800); /* ΔE 0.52 */
+  --color-popover: var(--color-surface-800);
   --color-popover-foreground: hsl(var(--popover-foreground));
 
-  --color-card: var(--color-surface-800); /* ΔE 0.00 */
+  --color-card: var(--color-surface-800);
   --color-card-foreground: hsl(var(--card-foreground));
 
   --color-sidebar: hsl(var(--sidebar-background));
