@@ -19,6 +19,7 @@ pub mod utils;
 pub use data_plane::DataPlaneBatch;
 
 use std::sync::LazyLock;
+use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -36,6 +37,26 @@ pub static SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS: LazyLock<String> = LazyLoc
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "400".to_string())
+});
+
+/// Bounds the whole INSERT request task awaited by `Insert::end()`. The clickhouse
+/// crate dispatches the request (including the TCP dial) inside a spawned task and
+/// `end()` simply awaits that task's JoinHandle, so this single timeout covers BOTH
+/// a fresh dial that hangs (dead CH pod / blackholed endpoint) AND a connected-then-
+/// silent socket: either way the handle never resolves, the timeout fires, the task
+/// is aborted, and `end()` returns `Error::TimedOut`. That converts a silently
+/// wedged ingest consumer into a `transient` error that Rabbit requeues, so the
+/// connection heals in place once CH is reachable again.
+///
+/// Default is generous — large batches + materialized views can legitimately take a
+/// while — but low enough that a dead endpoint is detected in a couple of minutes
+/// rather than never. Read once from `CLICKHOUSE_INSERT_TIMEOUT_SECS`; `0` disables.
+pub static INSERT_END_TIMEOUT: LazyLock<Option<Duration>> = LazyLock::new(|| {
+    let secs = std::env::var("CLICKHOUSE_INSERT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .unwrap_or(120);
+    (secs > 0).then(|| Duration::from_secs(secs))
 });
 
 #[derive(Serialize, Clone, Copy, Debug)]

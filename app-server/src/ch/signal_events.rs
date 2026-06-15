@@ -192,7 +192,10 @@ pub async fn get_signal_events_by_ids(
         placeholders.join(",")
     );
 
-    let mut query = clickhouse.query(&query_str).bind(project_id).bind(signal_id);
+    let mut query = clickhouse
+        .query(&query_str)
+        .bind(project_id)
+        .bind(signal_id);
 
     for event_id in event_ids {
         query = query.bind(event_id);
@@ -215,7 +218,7 @@ pub async fn insert_signal_events(
     let ch_insert = clickhouse.insert::<CHSignalEvent>("signal_events").await;
     match ch_insert {
         Ok(mut ch_insert) => {
-            ch_insert = ch_insert.with_option("wait_for_async_insert", "0");
+            ch_insert = ch_insert.with_setting("wait_for_async_insert", "0");
             for event in events {
                 ch_insert.write(&event).await?;
             }

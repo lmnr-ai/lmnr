@@ -67,8 +67,8 @@ pub async fn insert_browser_events(
             );
             e
         })?
-        .with_option("async_insert", "1")
-        .with_option(
+        .with_setting("async_insert", "1")
+        .with_setting(
             "wait_for_async_insert",
             if wait_for_async_insert { "1" } else { "0" },
         );

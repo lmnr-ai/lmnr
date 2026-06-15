@@ -34,16 +34,16 @@ pub async fn query(
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     let mut clickhouse_query = clickhouse_ro
         .query(&query)
-        .with_option("default_format", "JSON")
-        .with_option("output_format_json_quote_64bit_integers", "0")
-        .with_option(
+        .with_setting("default_format", "JSON")
+        .with_setting("output_format_json_quote_64bit_integers", "0")
+        .with_setting(
             "max_execution_time",
             env::var("SQL_QUERY_MAX_EXECUTION_TIME")
                 .as_ref()
                 .map(|s| s.as_str())
                 .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
         )
-        .with_option(
+        .with_setting(
             "max_result_bytes",
             env::var("SQL_QUERY_MAX_RESULT_BYTES")
                 .as_ref()

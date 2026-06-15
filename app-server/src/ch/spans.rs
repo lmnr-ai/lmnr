@@ -234,7 +234,7 @@ impl ClickhouseInsertable for CHSpan {
     // already coalesces upstream; without this, CH parks at the adaptive
     // max (~1s) because per-flush byte size is well below the size cap.
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_option(
+        insert.with_setting(
             "async_insert_busy_timeout_max_ms",
             SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
         )
