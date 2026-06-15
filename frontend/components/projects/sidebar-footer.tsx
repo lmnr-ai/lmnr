@@ -2,12 +2,11 @@
 
 import { Book, Settings, X } from "lucide-react";
 import Link from "next/link";
-import React from "react";
 
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
+import SidebarUserMenu from "@/components/projects/sidebar-user-menu.tsx";
 import { IconGitHub } from "@/components/ui/icons";
-import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -28,7 +27,7 @@ const SidebarFooterComponent = () => {
   const features = useFeatureFlags();
 
   return (
-    <SidebarFooter className="px-0 mb-2">
+    <SidebarFooter className="px-0">
       {features.LAMINAR_CLOUD && (
         <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
           <SidebarGroupContent>
@@ -71,26 +70,8 @@ const SidebarFooterComponent = () => {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            <SidebarMenuItem className="mt-4 mx-0 px-2">
-              <Link passHref href="/projects" className="flex items-center">
-                <div className="relative flex">
-                  <LaminarIcon
-                    className={cn(
-                      "w-4 h-4 transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-0 scale-50 absolute" : "opacity-100 scale-100"
-                    )}
-                    fill="#5B5B5B"
-                  />
-
-                  <LaminarLogo
-                    fill="#5B5B5B"
-                    className={cn(
-                      "w-30 h-5 text-secondary transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-100 scale-100" : "opacity-0 scale-50 absolute"
-                    )}
-                  />
-                </div>
-              </Link>
+            <SidebarMenuItem className="mt-4">
+              <SidebarUserMenu />
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
