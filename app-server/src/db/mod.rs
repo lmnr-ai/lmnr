@@ -47,6 +47,10 @@ fn get_pg_connect_options() -> anyhow::Result<sqlx::postgres::PgConnectOptions> 
         options_from_database_env_vars()?
     };
 
+    // All queries use unqualified table names; the search_path points them at the
+    // configured schema (default `public`).
+    let options = options.options([("search_path", env::database::SCHEMA.get())]);
+
     if let Ok(ssl_root_cert) = std::env::var(env::database::SSL_ROOT_CERT) {
         Ok(options
             .ssl_mode(sqlx::postgres::PgSslMode::VerifyFull)

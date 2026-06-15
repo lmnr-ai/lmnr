@@ -17,5 +17,5 @@ CREATE TABLE "workspace_usage_warnings" (
 	CONSTRAINT "workspace_usage_warnings_workspace_id_usage_item_limit_value_un" UNIQUE("workspace_id","usage_item","limit_value")
 );
 --> statement-breakpoint
-ALTER TABLE "workspace_usage_limits" ADD CONSTRAINT "workspace_usage_limits_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "workspace_usage_warnings" ADD CONSTRAINT "workspace_usage_warnings_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;
+ALTER TABLE "workspace_usage_limits" ADD CONSTRAINT "workspace_usage_limits_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "workspace_usage_warnings" ADD CONSTRAINT "workspace_usage_warnings_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;
