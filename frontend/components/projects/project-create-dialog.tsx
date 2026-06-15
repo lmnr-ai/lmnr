@@ -76,8 +76,8 @@ export default function ProjectCreateDialog({
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0} className="w-fit">
-              <Button icon="plus" className="w-fit" disabled>
+            <span tabIndex={0} className={cn("w-fit", className)}>
+              <Button icon="plus" className={cn("w-fit", className)} disabled>
                 Project
               </Button>
             </span>
