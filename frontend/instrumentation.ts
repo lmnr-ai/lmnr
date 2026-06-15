@@ -217,12 +217,14 @@ export async function register() {
         }
       }
       // Track migrations inside the configured schema so a Laminar DB can coexist
-      // with another Drizzle-managed service in the same instance. Default (no
-      // explicit schema) keeps the tracker in the standard "drizzle" schema — so
-      // existing public deployments are untouched and don't re-run migrations.
+      // with another Drizzle-managed service in the same instance. An unset or
+      // explicit "public" schema keeps the tracker in the standard "drizzle"
+      // schema — so existing public deployments are untouched and don't re-run
+      // migrations (relocating the tracker would make the migrator see no prior
+      // migration and re-run all of them).
       await migrate(db as any, {
         migrationsFolder: "lib/db/migrations",
-        ...(postgresSchema ? { migrationsSchema: postgresSchema } : {}),
+        ...(postgresSchema && postgresSchema !== "public" ? { migrationsSchema: postgresSchema } : {}),
       });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
