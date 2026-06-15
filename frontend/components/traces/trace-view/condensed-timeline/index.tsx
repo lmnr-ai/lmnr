@@ -239,11 +239,11 @@ function CondensedTimeline() {
               }}
             >
               <div className="absolute top-0 h-6 flex items-center -translate-x-1/2 z-[34]">
-                <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">
+                <div className="size-5 bg-foreground-500 text-primary-foreground rounded-full flex items-center justify-center">
                   <PlayIcon className="w-3 h-3" />
                 </div>
               </div>
-              <div className="absolute top-[6px] bottom-[-60px] w-px bg-landing-text-500" />
+              <div className="absolute top-[6px] bottom-[-60px] w-px bg-foreground-500" />
             </div>
           )}
 

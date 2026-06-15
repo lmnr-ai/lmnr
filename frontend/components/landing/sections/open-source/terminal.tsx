@@ -50,9 +50,7 @@ const SPINNER_MS = 80;
 
 type Phase = "type1" | "git" | "type2" | "compose" | "ready";
 
-const Cursor = () => (
-  <span className="inline-block w-1.5 h-3.5 bg-landing-text-300 ml-0.5 align-middle animate-pulse" />
-);
+const Cursor = () => <span className="inline-block w-1.5 h-3.5 bg-foreground-300 ml-0.5 align-middle animate-pulse" />;
 
 const Terminal = () => {
   const ref = useRef<HTMLDivElement>(null);
@@ -123,32 +121,32 @@ const Terminal = () => {
 
   return (
     <div ref={ref} className="font-mono text-xs leading-5 flex flex-col gap-0.5">
-      <p className="text-landing-text-300 whitespace-pre-wrap">
-        <span className="text-landing-primary-300">~ $</span> {typed1}
+      <p className="text-foreground-300 whitespace-pre-wrap">
+        <span className="text-primary-300">~ $</span> {typed1}
         {phase === "type1" && <Cursor />}
       </p>
       {GIT_LINES.slice(0, gitLines).map((line, i) => (
-        <p key={`git-${i}`} className="text-landing-text-400 whitespace-pre-wrap">
+        <p key={`git-${i}`} className="text-foreground-400 whitespace-pre-wrap">
           {line}
         </p>
       ))}
 
       {(phase === "type2" || phase === "compose" || phase === "ready") && (
-        <p className="text-landing-text-300 whitespace-pre-wrap mt-1">
-          <span className="text-landing-primary-300">~/lmnr $</span> {typed2}
+        <p className="text-foreground-300 whitespace-pre-wrap mt-1">
+          <span className="text-primary-300">~/lmnr $</span> {typed2}
           {phase === "type2" && <Cursor />}
         </p>
       )}
 
       {(phase === "compose" || phase === "ready") && (
         <>
-          <p className="text-landing-primary-300 whitespace-pre">
+          <p className="text-primary-300 whitespace-pre">
             [+] Running {ticked}/{ROWS.length}
           </p>
           {ROWS.slice(0, spawned).map((r, i) => {
             const isTicked = i < ticked;
             return (
-              <p key={r.name} className="text-landing-text-400 whitespace-pre">
+              <p key={r.name} className="text-foreground-400 whitespace-pre">
                 {isTicked ? " ✔" : ` ${SPINNER[spinnerFrame]}`} {r.name}
                 {isTicked ? `${r.verb}   ${r.elapsed}` : PRESENT_TENSE[r.verb]}
               </p>
@@ -159,7 +157,7 @@ const Terminal = () => {
 
       {phase === "ready" && (
         <>
-          <p className="text-landing-primary-300 whitespace-pre">▶ Ready on http://localhost:5667</p>
+          <p className="text-primary-300 whitespace-pre">▶ Ready on http://localhost:5667</p>
         </>
       )}
     </div>

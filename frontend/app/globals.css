@@ -46,17 +46,17 @@
   --font-sans-landing: var(--font-general-sans);
   --font-manrope: var(--font-manrope);
 
-  --color-border: hsl(var(--border));
+  --color-border: var(--color-surface-300); /* ΔE 4.07 */
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
+  --color-background: var(--color-surface-1000); /* ΔE 0.32 */
   --color-foreground: hsl(var(--foreground));
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary: var(--color-primary-400);
+  --color-primary-foreground: var(--color-foreground-100);
 
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary: var(--color-surface-800); /* ΔE 0.00 */
+  --color-secondary-foreground: var(--color-foreground-200);
 
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
@@ -67,16 +67,16 @@
   --color-success-bright: hsl(var(--success-bright));
   --color-destructive-bright: hsl(var(--destructive-bright));
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted: var(--color-surface-500); /* ΔE 2.91 */
+  --color-muted-foreground: var(--color-foreground-400);
 
-  --color-accent: hsl(var(--accent));
+  --color-accent: var(--color-surface-400); /* ΔE 4.67 */
   --color-accent-foreground: hsl(var(--accent-foreground));
 
-  --color-popover: hsl(var(--popover));
+  --color-popover: var(--color-surface-800); /* ΔE 0.52 */
   --color-popover-foreground: hsl(var(--popover-foreground));
 
-  --color-card: hsl(var(--card));
+  --color-card: var(--color-surface-800); /* ΔE 0.00 */
   --color-card-foreground: hsl(var(--card-foreground));
 
   --color-sidebar: hsl(var(--sidebar-background));
@@ -95,25 +95,31 @@
 
   --color-subagent: hsl(var(--subagent));
 
-  /*TODO: unify landing and platform colors*/
-  --color-landing-primary-200: rgb(218 135 95);
-  --color-landing-primary-300: rgb(213 126 87);
-  --color-landing-primary-400: rgb(208 117 78);
-  --color-landing-surface-400: rgb(46 46 47);
-  --color-landing-surface-500: rgb(37 37 38);
-  --color-landing-surface-550: rgb(32 32 33);
-  --color-landing-surface-600: rgb(27 27 28);
-  --color-landing-surface-700: rgb(22 22 23);
-  --color-landing-surface-800: rgb(15 15 15);
-  --color-landing-surface-900: rgb(5 5 5);
-  --color-landing-text-100: rgb(255 255 255);
-  --color-landing-text-200: rgb(195 196 200);
-  --color-landing-text-300: rgb(146 148 156);
-  --color-landing-text-400: rgb(124 126 133);
-  --color-landing-text-500: rgb(95 97 102);
-  --color-landing-text-600: rgb(67 68 71);
-  --color-landing-primary-400-10: rgb(208 117 78 / 0.1);
-  --color-landing-primary-400-50: rgb(208 117 78 / 0.5);
+  /* Surface elevation ramp — neutral, dark-theme  */
+  --color-surface-300: oklch(0.2891 0 0); /* #2b2b2b */
+  --color-surface-400: oklch(0.2686 0 0); /* #262626 */
+  --color-surface-500: oklch(0.2478 0 0); /* #212121 */
+  --color-surface-600: oklch(0.2264 0 0); /* #1c1c1c */
+  --color-surface-700: oklch(0.2046 0 0); /* #171717 */
+  --color-surface-800: oklch(0.1822 0 0); /* #121212 */
+  --color-surface-900: oklch(0.1591 0 0); /* #0d0d0d */
+  --color-surface-1000: oklch(0.1344 0 0); /* #080808 */
+
+  /* Foreground (text) ramp — neutral, dark-theme */
+  --color-foreground-50: oklch(1 0 0); /* #ffffff */
+  --color-foreground-100: oklch(0.9249 0 0); /* #e6e6e6 */
+  --color-foreground-200: oklch(0.7731 0 0); /* #b5b5b5 */
+  --color-foreground-300: oklch(0.696 0 0); /* #9d9d9d */
+  --color-foreground-400: oklch(0.6167 0 0); /* #858585 */
+  --color-foreground-500: oklch(0.4962 0 0); /* #626262 */
+  --color-foreground-600: oklch(0.3904 0 0); /* #454545 */
+
+  /* Primary brand ramp — 400 is the canonical brand orange (= --color-primary). */
+  --color-primary-200: oklch(0.7019 0.1158 46.05); /* rgb(218 135 95) */
+  --color-primary-300: oklch(0.6789 0.1207 44.39); /* rgb(213 126 87) */
+  --color-primary-400: oklch(0.6559 0.1262 43.33); /* rgb(208 117 78) */
+  --color-primary-400-10: oklch(0.6559 0.1262 43.33 / 0.1);
+  --color-primary-400-50: oklch(0.6559 0.1262 43.33 / 0.5);
 
   --breakpoint-3xl: 112rem;
 }
@@ -136,14 +142,14 @@
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: rgb(67 68 71);
+    background-color: var(--color-foreground-600);
     border-radius: 9999px;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background-color: rgb(95 97 102);
+    background-color: var(--color-foreground-500);
   }
   scrollbar-width: thin;
-  scrollbar-color: rgb(67 68 71) transparent;
+  scrollbar-color: var(--color-foreground-600) transparent;
 }
 
 @utility hide-arrow {
@@ -248,7 +254,8 @@
    than primary-400 was) with a near-opaque fill and a wider shadow
    ring, then settles back. */
 @keyframes signal-span-flash {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgb(218 135 95 / 0);
     background-color: rgb(234 232 224 / 0.15);
   }
@@ -277,7 +284,7 @@
   }
 
   ::selection {
-    background-color: var(--color-landing-primary-400-50);
+    background-color: var(--color-primary-400-50);
     color: white;
   }
 
@@ -285,7 +292,6 @@
     letter-spacing: 0.002em;
     font-weight: 450;
   }
-
 }
 
 /* TODO(blog): strip pasted `class="px-2 py-1"` from Strapi posts, then move
@@ -305,7 +311,7 @@
 .blog-article th,
 .blog-article td {
   padding: 0.75rem 0;
-  border-bottom: 1px solid var(--color-landing-text-600);
+  border-bottom: 1px solid var(--color-foreground-600);
   vertical-align: top;
   text-align: left;
 }
@@ -321,6 +327,5 @@
   font-weight: 500;
 }
 .blog-article td {
-  color: var(--color-landing-text-200);
+  color: var(--color-foreground-200);
 }
-

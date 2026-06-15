@@ -35,7 +35,7 @@ const UnderstandWhyTraceViewMobile = () => {
             }
           </p>
         </div>
-        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
+        <div className="bg-surface-500 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
           <SlackNotificationCard className="w-[600px] max-w-[600px] shrink-0" />
           <SectionFootnote name="Signals" href="https://laminar.sh/docs/signals/introduction" />
         </div>
@@ -48,7 +48,7 @@ const UnderstandWhyTraceViewMobile = () => {
           <h2 className={subSection}>{"Understand why\nin seconds."}</h2>
           <p className={bodyMedium}>{"Go from issue description to the\nexact step that caused it."}</p>
         </div>
-        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
+        <div className="bg-surface-500 relative w-full overflow-hidden h-[280px] px-5 py-4 flex flex-col justify-center">
           <SignalEventCard className="w-[600px] max-w-[600px] shrink-0" />
           <SectionFootnote name="Signals" href="https://laminar.sh/docs/signals/introduction" />
         </div>
@@ -63,12 +63,12 @@ const UnderstandWhyTraceViewMobile = () => {
             in a readable transcript and timeline.
           </p>
         </div>
-        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px]">
+        <div className="bg-surface-500 relative w-full overflow-hidden h-[360px]">
           {/* Centering pattern (see has-this-issue): flex + `mx-auto shrink-0`
               centers the card when there's room and left-overflows when not. */}
           <div ref={transcriptRef} className="absolute inset-0 flex px-8">
             <div
-              className="border-[0.5px] border-landing-surface-500 rounded-lg overflow-hidden shrink-0 mx-auto h-full"
+              className="border-[0.5px] border-surface-400 rounded-lg overflow-hidden shrink-0 mx-auto h-full"
               style={{ width: 480 }}
             >
               <motion.img
@@ -78,9 +78,9 @@ const UnderstandWhyTraceViewMobile = () => {
                 className="pointer-events-none select-none"
               />
             </div>
-            <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-landing-surface-550/80 to-transparent pointer-events-none z-10" />
+            <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-surface-500/80 to-transparent pointer-events-none z-10" />
           </div>
-          <div className="absolute bottom-0 left-0 right-0 h-[160px] bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none z-10" />
+          <div className="absolute bottom-0 left-0 right-0 h-[160px] bg-gradient-to-t from-surface-500 to-transparent pointer-events-none z-10" />
           <SectionFootnote name="Transcript view" href="https://laminar.sh/docs/platform/viewing-traces" />
         </div>
       </div>
@@ -98,9 +98,9 @@ const UnderstandWhyTraceViewMobile = () => {
             that you can jump to directly.
           </p>
         </div>
-        <div className="bg-landing-surface-550 relative w-full overflow-hidden h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
+        <div className="bg-surface-500 relative w-full overflow-hidden h-[360px] flex items-end justify-end px-8 pt-4 pb-12">
           <div
-            className="border-[0.5px] border-landing-surface-400 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
+            className="border-[0.5px] border-surface-200 rounded-lg overflow-hidden shrink-0 mx-auto relative origin-bottom-right scale-80"
             style={{ width: 480, height: 491 }}
           >
             <Image
@@ -111,7 +111,7 @@ const UnderstandWhyTraceViewMobile = () => {
               className="object-cover object-right-bottom pointer-events-none select-none"
             />
           </div>
-          <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-landing-surface-550/80 to-transparent pointer-events-none z-10" />
+          <div className="absolute top-0 left-0 right-0 h-[40px] bg-gradient-to-b from-surface-500/80 to-transparent pointer-events-none z-10" />
           <SectionFootnote name="Ask AI" href="https://laminar.sh/docs/platform/viewing-traces#chat-with-trace" />
         </div>
       </div>

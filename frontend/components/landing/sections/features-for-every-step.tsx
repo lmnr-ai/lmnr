@@ -24,15 +24,15 @@ const Card = ({ Icon, title, description, href }: CardProps) => (
     target="_blank"
     aria-label={`Learn more about ${title}`}
     href={href}
-    className="bg-landing-surface-550 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-landing-surface-400"
+    className="bg-surface-500 font-sans-landing flex flex-col h-[180px] px-5 py-4 justify-between rounded transition-all duration-300 hover:bg-surface-200"
   >
     <div className="flex items-start justify-between w-full">
-      <Icon className="size-6 text-landing-text-300" strokeWidth={1.5} />
-      <ArrowUpRight className="size-5 text-landing-text-300" strokeWidth={1.5} />
+      <Icon className="size-6 text-foreground-300" strokeWidth={1.5} />
+      <ArrowUpRight className="size-5 text-foreground-300" strokeWidth={1.5} />
     </div>
     <div className="flex flex-col gap-1">
       <p className="leading-6 text-white text-lg">{title}</p>
-      <p className="text-landing-text-200">{description}</p>
+      <p className="text-foreground-200">{description}</p>
     </div>
   </Link>
 );

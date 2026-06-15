@@ -13,7 +13,7 @@ const Quote = () => (
       <br className="hidden md:inline" /> Laminar’s trace view is the first place we look”
     </p>
     <div className="flex flex-col items-start gap-0.5 shrink-0 pt-1.5">
-      <p className="font-sans-landing text-landing-text-300 text-lg leading-6">Magnus Müller, CEO</p>
+      <p className="font-sans-landing text-foreground-300 text-lg leading-6">Magnus Müller, CEO</p>
       <Image src={browserUseFullLogo} alt="Browser Use" height={28} className="h-7 w-auto" />
     </div>
   </section>

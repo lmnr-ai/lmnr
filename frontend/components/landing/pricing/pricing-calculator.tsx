@@ -139,7 +139,7 @@ function TierColumn({
   const extraSignals = Math.max(0, signalStepsProcessed - estimate.includedSignalSteps);
 
   return (
-    <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
+    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
       <TierHeader name={estimate.name} tooltip={tooltip} />
 
       <div className="space-y-2 text-sm">
@@ -148,42 +148,42 @@ function TierColumn({
             <span>Base</span>
             <span>${formatDollars(estimate.basePrice)}</span>
           </div>
-          <div className={cn(microLabel, "mt-0.5 text-landing-text-300")}>
+          <div className={cn(microLabel, "mt-0.5 text-foreground-300")}>
             {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignalSteps)} Signals steps
             included
           </div>
         </div>
 
         {estimate.dataOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-200">
+          <div className="flex justify-between text-foreground-200">
             <span>
               {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
             </span>
             <span>+${formatDollars(estimate.dataOverageCost)}</span>
           </div>
         ) : (
-          <div className="flex justify-between text-landing-text-300">
+          <div className="flex justify-between text-foreground-300">
             <span>Data ({formatDataSize(dataGB)})</span>
             <span>Included</span>
           </div>
         )}
 
         {estimate.signalOverageCost > 0 ? (
-          <div className="flex justify-between text-landing-text-200">
+          <div className="flex justify-between text-foreground-200">
             <span>
               {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/step
             </span>
             <span>+${formatDollars(estimate.signalOverageCost)}</span>
           </div>
         ) : (
-          <div className="flex justify-between text-landing-text-300">
+          <div className="flex justify-between text-foreground-300">
             <span>Signals steps processed ({formatNumber(signalStepsProcessed)})</span>
             <span>Included</span>
           </div>
         )}
       </div>
 
-      <div className="border-t pt-3 border-landing-surface-500">
+      <div className="border-t pt-3 border-surface-400">
         <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>${formatDollars(estimate.total)}/mo</span>
@@ -191,14 +191,10 @@ function TierColumn({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span
-          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
-        >
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
           {estimate.retention} retention
         </span>
-        <span
-          className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500 text-sm")}
-        >
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400 text-sm")}>
           {estimate.support} support
         </span>
       </div>
@@ -208,7 +204,7 @@ function TierColumn({
 
 function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
   return (
-    <div className="bg-landing-surface-550 h-full rounded p-5 space-y-4">
+    <div className="bg-surface-500 h-full rounded p-5 space-y-4">
       <TierHeader name="Enterprise" tooltip={tooltip} />
 
       <div className="space-y-2 text-sm">
@@ -216,17 +212,17 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
           <span>Base</span>
           <span>Custom</span>
         </div>
-        <div className="flex justify-between text-landing-text-300">
+        <div className="flex justify-between text-foreground-300">
           <span>Additional data</span>
           <span>Custom</span>
         </div>
-        <div className="flex justify-between text-landing-text-300">
+        <div className="flex justify-between text-foreground-300">
           <span>Additional Signals steps processing</span>
           <span>Custom</span>
         </div>
       </div>
 
-      <div className="border-t pt-3 border-landing-surface-500">
+      <div className="border-t pt-3 border-surface-400">
         <div className={cn(subSection, "flex justify-between text-lg leading-6 text-white")}>
           <span>Total</span>
           <span>Custom</span>
@@ -234,10 +230,10 @@ function EnterpriseTierColumn({ tooltip }: { tooltip?: string }) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
           {retentionLabel("enterprise")}
         </span>
-        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-landing-surface-500")}>
+        <span className={cn(microLabel, "inline-flex items-center rounded-sm px-2 py-0.5 bg-surface-400")}>
           Dedicated support
         </span>
       </div>
@@ -294,7 +290,7 @@ export default function PricingCalculator() {
 
   const tokensValue = (
     <>
-      {formatTokens(tokens)} <span className="text-sm text-landing-text-300">≈ {formatDataSize(dataGB)}</span>
+      {formatTokens(tokens)} <span className="text-sm text-foreground-300">≈ {formatDataSize(dataGB)}</span>
     </>
   );
 

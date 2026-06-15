@@ -10,7 +10,7 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
   const session = await getServerSession();
 
   return (
-    <div className="min-h-screen flex flex-col bg-landing-surface-700">
+    <div className="min-h-screen flex flex-col bg-surface-700">
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding

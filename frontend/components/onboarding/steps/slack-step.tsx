@@ -63,7 +63,7 @@ export default function SlackStep({ stepIndex, totalSteps, onAdvance, onBack }: 
       onBack={onBack}
       isSubmitting={isSubmitting}
     >
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-landing-surface-600 px-4 py-3">
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-600 px-4 py-3">
         <div className="my-auto">
           <Image src={slackLogo} alt="Slack" className="mt-0.5 shrink-0 h-7.5 w-7.5 2xl:h-8 2xl:w-8" />
         </div>

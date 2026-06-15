@@ -18,13 +18,13 @@ export const subSubSection =
   "font-sans-landing font-medium text-white whitespace-pre-line text-lg leading-6 font-[500]";
 
 // Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
-export const bodyMedium = "font-sans-landing text-landing-text-200 whitespace-pre-line text-lg";
+export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-line text-lg";
 
 // Tiny, wide-tracked muted label — used for step numbers above section
 // titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
 // MORE row at the bottom of each surface-550 mock panel. Single source
 // of truth so all those labels stay visually consistent.
-export const microLabel = "font-sans-landing text-landing-text-300";
+export const microLabel = "font-sans-landing text-foreground-300";
 
 // Center-column width for the landing/blog/pricing pages. Scales up on
 // xl/2xl screens so the column doesn't look cramped on large displays.

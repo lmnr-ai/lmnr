@@ -13,7 +13,7 @@ interface Props {
 // Absolutely-positioned label that sits at the bottom of a mock panel
 // (a surface-550 wrapper). The parent must be `relative`. Pattern:
 //
-//   <div className="bg-landing-surface-550 relative ...">
+//   <div className="bg-surface-500 relative ...">
 //     <Mock />
 //     <SectionFootnote name="Evals" href="..." />
 //   </div>
@@ -29,7 +29,7 @@ const SectionFootnote = ({ name, href }: Props) => (
     <Link
       href={href}
       target="_blank"
-      className="inline-flex items-center gap-1 hover:text-landing-text-200 transition-colors"
+      className="inline-flex items-center gap-1 hover:text-foreground-200 transition-colors"
     >
       Learn more
       <ArrowUpRight className="size-4.5 translate-y-[1.5px]" strokeWidth={1.5} />

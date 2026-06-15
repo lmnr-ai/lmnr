@@ -86,7 +86,7 @@ const FrameworksGrid = ({ className }: Props) => (
             className={cn("size-4 object-contain", integration.iconClassName)}
           />
         </div>
-        <p className="text-sm text-landing-text-200 transition-colors group-hover:text-white">{integration.alt}</p>
+        <p className="text-sm text-foreground-200 transition-colors group-hover:text-white">{integration.alt}</p>
       </Link>
     ))}
     <Link
@@ -97,7 +97,7 @@ const FrameworksGrid = ({ className }: Props) => (
       <div className="flex items-center justify-center size-4 shrink-0">
         <Plus className="text-secondary-foreground" />
       </div>
-      <p className="text-sm text-landing-text-200 transition-colors group-hover:text-white">All integrations</p>
+      <p className="text-sm text-foreground-200 transition-colors group-hover:text-white">All integrations</p>
     </Link>
   </div>
 );
