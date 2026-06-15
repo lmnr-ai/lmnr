@@ -160,6 +160,15 @@ pub fn llm_provider_env() -> String {
         .unwrap_or_default()
 }
 
+/// Provider for the auxiliary "parsing" LLM calls
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub fn parsing_provider() -> Option<String> {
+    std::env::var(env::llm::PARSING_PROVIDER)
+        .ok()
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
+}
+
 /// `LLM_API_KEY` is the single key shared by single-key providers (gemini,
 /// openai). It belongs to whichever provider `LLM_PROVIDER` names — gemini
 /// and openai cannot both initialize from it.

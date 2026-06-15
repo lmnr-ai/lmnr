@@ -16,6 +16,8 @@ pub enum Feature {
     ClickhouseReadOnly,
     /// Sentry self-tracing tree. Requires a Sentry DSN.
     Tracing,
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    Clustering,
     /// Laminar internal self-tracing tree. Independent of Sentry — gated only
     /// on `ENABLE_TRACING` so it works without a Sentry DSN.
     InternalTracing,
@@ -55,6 +57,12 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
         Feature::InternalTracing => {
             std::env::var(env::observability::ENABLE_TRACING).is_ok_and(|s| s == "true")
+        }
+        Feature::Clustering => {
+            // Kept as a
+            // separate flag (rather than aliasing to Signals) so we can
+            // extend backend gating later without renaming the variant.
+            is_feature_enabled(Feature::Signals)
         }
         Feature::Signals => {
             // Mirrors the credential checks in `LlmClient::new` so this flag

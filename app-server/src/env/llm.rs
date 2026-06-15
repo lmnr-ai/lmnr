@@ -9,6 +9,8 @@ use super::BoolEnv;
 
 /// `openai` | `gemini` | `bedrock` | `mock`. The single provider switch.
 pub const PROVIDER: &str = "LLM_PROVIDER";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const PARSING_PROVIDER: &str = "SIGNALS_PARSING_LLM_PROVIDER";
 /// Shared single-provider API key (openai / gemini).
 pub const API_KEY: &str = "LLM_API_KEY";
 /// Optional OpenAI-compatible base URL override (provider-specific default).
