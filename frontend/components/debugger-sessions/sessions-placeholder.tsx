@@ -26,8 +26,8 @@ https://laminar.sh/docs/tracing/integrations/overview
 6. Repeat steps 4-5 until the run is green, then watch each attempt in the Debugger.`;
 
 const DEBUG_RUN = {
-  python: `LMNR_DEBUG=true uv run my_agent.py`,
-  typescript: `LMNR_DEBUG=true npx tsx my_agent.ts`,
+  python: `LMNR_DEBUG=1 uv run main.py # or whatever your run command is`,
+  typescript: `LMNR_DEBUG=1 npm run dev # or whatever your run command is`,
 };
 
 // Startup / onboarding page shown when a project has no debugger sessions yet,
@@ -46,28 +46,36 @@ export default function SessionsPlaceholder() {
               Run your instrumented agent in debug mode and its sessions show up here to capture and replay.
             </p>
           </div>
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="flex border-none">
-              <TabsTrigger value="typescript">TypeScript</TabsTrigger>
-              <TabsTrigger value="python">Python</TabsTrigger>
-            </TabsList>
-            <TabsContent value="typescript">
-              <CodeHighlighter
-                copyable
-                className="rounded-md border bg-background p-4 text-xs"
-                code={DEBUG_RUN.typescript}
-                language="bash"
-              />
-            </TabsContent>
-            <TabsContent value="python">
-              <CodeHighlighter
-                copyable
-                className="rounded-md border bg-background p-4 text-xs"
-                code={DEBUG_RUN.python}
-                language="bash"
-              />
-            </TabsContent>
-          </Tabs>
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-lg font-medium">Activate debugger with just one variable</h2>
+              <p className="text-sm text-muted-foreground">
+                Run your agent like normal, with just one extra environment variable to see debugger.
+              </p>
+            </div>
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="flex border-none">
+                <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+              </TabsList>
+              <TabsContent value="typescript">
+                <CodeHighlighter
+                  copyable
+                  className="rounded-md border bg-background p-4 text-xs"
+                  code={DEBUG_RUN.typescript}
+                  language="bash"
+                />
+              </TabsContent>
+              <TabsContent value="python">
+                <CodeHighlighter
+                  copyable
+                  className="rounded-md border bg-background p-4 text-xs"
+                  code={DEBUG_RUN.python}
+                  language="bash"
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
 
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
