@@ -103,13 +103,13 @@ impl LaminarMcpServer {
     ///
     /// signal_runs: signal_id (UUID), job_id (UUID), trigger_id (UUID), run_id (UUID), trace_id (UUID), status (String), event_id (UUID), updated_at (DateTime64)
     ///
-    /// clusters: id (UUID), signal_id (UUID), name (String), level (UInt8, higher = coarser grouping), parent_id (UUID, nil for top-level), num_signal_events (UInt32), num_children_clusters (UInt16), created_at (DateTime64), updated_at (DateTime64) — hierarchical groupings of similar signal events, excludes L0 clusters
+    /// clusters: id (UUID), signal_id (UUID), name (String), level (UInt8, higher = coarser grouping), parent_id (UUID, zero/nil UUID '00000000-0000-0000-0000-000000000000' for top-level clusters — NOT SQL NULL, so filter top-level with parent_id = toUUID('00000000-0000-0000-0000-000000000000'), not IS NULL), num_signal_events (UInt32), num_children_clusters (UInt16), created_at (DateTime64), updated_at (DateTime64) — hierarchical groupings of similar signal events, excludes L0 clusters
     ///
     /// evaluation_datapoints: id (UUID), evaluation_id (UUID), data (String), target (String), metadata (String), executor_output (String), index (UInt64), trace_id (UUID), group_id (String), scores (String), created_at (DateTime64), dataset_id (UUID), dataset_datapoint_id (UUID), dataset_datapoint_created_at (DateTime64)
     ///
     /// dataset_datapoints: id (UUID), created_at (DateTime64), dataset_id (UUID), data (String), target (String), metadata (String)
     ///
-    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, clusters.signal_id = signal_events.signal_id (or has(signal_events.clusters, clusters.id) to match events to their clusters)
+    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to (use clusters.signal_id = signal_events.signal_id only to scope by signal — it is a many-to-many cross product, not an event-to-cluster match)
     ///
     /// Example queries:
     /// - Recent traces: SELECT id, start_time, total_cost FROM traces ORDER BY start_time DESC LIMIT 10
