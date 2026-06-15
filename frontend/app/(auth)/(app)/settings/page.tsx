@@ -12,7 +12,14 @@ import { membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/s
 export const dynamic = "force-dynamic";
 
 export default async function SettingsResolver() {
-  const session = await getServerSession();
+  let session;
+  try {
+    session = await getServerSession();
+  } catch (e) {
+    console.error(e);
+    return redirect("/sign-in?callbackUrl=/settings");
+  }
+
   if (!session) {
     return redirect("/sign-in?callbackUrl=/settings");
   }
