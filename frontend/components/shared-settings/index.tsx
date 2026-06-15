@@ -343,13 +343,6 @@ const SharedSettings = ({
                         </DropdownMenuItem>
                       </Link>
                     ))}
-                    <DropdownMenuSeparator />
-                    <WorkspaceCreateDialog>
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                        <Plus size={16} />
-                        <span className="text-xs">Create workspace</span>
-                      </DropdownMenuItem>
-                    </WorkspaceCreateDialog>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </SidebarMenuItem>
@@ -413,6 +406,12 @@ const SharedSettings = ({
                         <span className="text-xs">Create project</span>
                       </DropdownMenuItem>
                     </ProjectCreateDialog>
+                    <WorkspaceCreateDialog>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                        <Plus size={16} />
+                        <span className="text-xs">Create workspace</span>
+                      </DropdownMenuItem>
+                    </WorkspaceCreateDialog>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </SidebarMenuItem>
