@@ -110,12 +110,14 @@ Database schema is managed with Drizzle ORM. The source of truth is the database
 
 ```bash
 cd frontend
-npx drizzle-kit generate        # Generate migrations after manual DB changes
+pnpm db:generate                # Generate migrations AND strip "public". qualifiers (preferred)
+# or, equivalently:
+npx drizzle-kit generate && pnpm db:strip-schema
 # Migrations are applied automatically on frontend startup
 ```
 
 - `pnpm schema-pull:lint` heavily reformats `schema.ts`, `relations.ts`, and `tsconfig.json`. After running it, revert unrelated formatting changes before committing.
-- **Migration SQL must stay schema-neutral (no `"public".` qualifiers).** Tables resolve via the connection `search_path` (`POSTGRES_SCHEMA`, default `public`), so a hardcoded `"public".` would break non-public self-hosted installs. `drizzle-kit generate` re-emits `"public".` prefixes (it has no schema-neutral output mode) — after generating, strip every `"public".` token from the new `.sql` file (`sed -i 's/"public"\.//g' <file>`). Snapshots/`_journal.json` already record an empty schema, so they need no change.
+- **Migration SQL must stay schema-neutral (no `"public".` qualifiers).** Tables resolve via the connection `search_path` (`POSTGRES_SCHEMA`, default `public`), so a hardcoded `"public".` would break non-public self-hosted installs. `drizzle-kit generate` re-emits `"public".` prefixes (it has no schema-neutral output mode) — NOT only on tables, but also on **foreign-key targets** (`REFERENCES "public"."projects"(...)`), **enum/type creation** (`CREATE TYPE "public"."event_source" ...`), and **column type changes** (`SET DATA TYPE "public"."event_source"`). `pnpm db:generate` runs the generate then `pnpm db:strip-schema`, which `sed`s every `"public".` token out of all migration `.sql` files. If you generate by hand, run `pnpm db:strip-schema` (or `sed -i 's/"public"\.//g' <file>`) afterwards. The strip targets only the `"public".` schema qualifier (double-quoted name + dot), so it leaves `'public'` string literals, `public_`-prefixed constraint names, and `public_key` columns intact. Snapshots/`_journal.json` already record an empty schema, so they need no change.
 - `npx drizzle-kit generate` requires a TTY for interactive prompts. In non-interactive shells (CI, sandbox), write migration SQL files and `_journal.json` entries manually.
 - When writing migrations manually, also create a `meta/NNNN_snapshot.json`. Copy the previous snapshot, apply the schema change (e.g. add/remove columns), set `prevId` to the previous snapshot's `id`, and generate a new UUID for `id`. Without a snapshot, the next `drizzle-kit generate` will produce a duplicate migration.
 - **ClickHouse migrations** (`frontend/lib/clickhouse/migrations/`) are tracked by the migration tool and only run once. Never modify an already-applied migration file — changes won't execute on existing deployments and may cause checksum errors. Always create a new numbered migration file instead.
