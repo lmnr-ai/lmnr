@@ -20,6 +20,7 @@ interface ProjectCreateDialogProps {
   onProjectCreate?: () => void;
   isFreeTier?: boolean;
   projectCount?: number;
+  className?: string;
 }
 
 export default function ProjectCreateDialog({
@@ -27,6 +28,7 @@ export default function ProjectCreateDialog({
   onProjectCreate,
   isFreeTier,
   projectCount,
+  className,
 }: ProjectCreateDialogProps) {
   const { setMenu } = useWorkspaceMenuContext();
   const [newProjectName, setNewProjectName] = useState("");
@@ -104,7 +106,7 @@ export default function ProjectCreateDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button icon="plus" className="w-fit">
+        <Button icon="plus" className={cn("w-fit", className)}>
           Project
         </Button>
       </DialogTrigger>

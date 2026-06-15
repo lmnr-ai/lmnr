@@ -9,11 +9,9 @@ import {
   CreditCard,
   DollarSign,
   FileBarChart,
-  FolderClosed,
   GitBranch,
   Key,
   type LucideIcon,
-  Plus,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -37,6 +35,7 @@ import ProviderApiKeys from "@/components/settings/provider-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -300,8 +299,8 @@ const SharedSettings = ({
       <Header path="settings" />
       <SidebarProvider defaultOpen>
         <div className="flex flex-1 overflow-hidden" style={sidebarStyle}>
-          <Sidebar collapsible="none">
-            <SidebarContent className="bg-background">
+          <Sidebar collapsible="none" className="border-r">
+            <SidebarContent>
               <SidebarGroup className="pt-2">
                 <SidebarMenu>
                   <SidebarMenuItem className="h-7">
@@ -321,12 +320,11 @@ const SharedSettings = ({
                   <SidebarMenuItem className="h-7">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <SidebarMenuButton className="flex items-center flex-1">
-                          <FolderClosed />
+                        <SidebarMenuButton className="flex items-center flex-1 border bg-secondary hover:bg-secondary/60 active:bg-secondary/80">
                           <span className="mr-2 truncate">{workspace.name}</span>
                         </SidebarMenuButton>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" side="right" className="min-w-56 rounded-lg text-xs">
+                      <DropdownMenuContent align="start" side="bottom" className="min-w-56 rounded-lg text-xs">
                         {workspaces?.map((w) => (
                           <Link key={w.id} passHref href={`/settings/${w.id}?section=${activeSection}`}>
                             <DropdownMenuItem
@@ -364,12 +362,11 @@ const SharedSettings = ({
                   <SidebarMenuItem className="h-7">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <SidebarMenuButton className="flex items-center flex-1">
-                          <FolderClosed />
+                        <SidebarMenuButton className="flex items-center flex-1 border bg-secondary hover:bg-secondary/60 active:bg-secondary/80">
                           <span className="mr-2 truncate">{currentProject?.name ?? "Project"}</span>
                         </SidebarMenuButton>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" side="right" className="min-w-56 rounded-lg text-xs">
+                      <DropdownMenuContent align="start" side="bottom" className="min-w-56 rounded-lg text-xs">
                         {projects.map((p) => (
                           <Link
                             key={p.id}
@@ -383,19 +380,20 @@ const SharedSettings = ({
                           </Link>
                         ))}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-0">
+                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-1">
                           <ProjectCreateDialogItem
                             workspaceId={workspaceId}
                             isFreeTier={isFreeTier}
                             projectCount={projects.length}
                           />
                         </DropdownMenuItem>
-                        <WorkspaceCreateDialog>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                            <Plus size={16} />
-                            <span className="text-xs">Create workspace</span>
-                          </DropdownMenuItem>
-                        </WorkspaceCreateDialog>
+                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="p-1">
+                          <WorkspaceCreateDialog>
+                            <Button icon="plus" className="w-full">
+                              Workspace
+                            </Button>
+                          </WorkspaceCreateDialog>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </SidebarMenuItem>
@@ -437,8 +435,13 @@ const ProjectCreateDialogItem = ({
   isFreeTier?: boolean;
   projectCount: number;
 }) => (
-  <div className="w-full px-1 py-0.5">
-    <ProjectCreateDialog workspaceId={workspaceId} isFreeTier={isFreeTier} projectCount={projectCount} />
+  <div className="w-full">
+    <ProjectCreateDialog
+      workspaceId={workspaceId}
+      isFreeTier={isFreeTier}
+      projectCount={projectCount}
+      className="w-full"
+    />
   </div>
 );
 
