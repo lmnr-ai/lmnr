@@ -1,7 +1,7 @@
-use std::env;
-
 use regex::Regex;
 use sqlx::PgPool;
+
+use crate::env;
 
 pub mod agents;
 pub mod alert_targets;
@@ -33,12 +33,7 @@ impl DB {
     pub async fn connect_from_env() -> anyhow::Result<Self> {
         let options = get_pg_connect_options()?;
         let pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(
-                env::var("DATABASE_MAX_CONNECTIONS")
-                    .unwrap_or(String::from("10"))
-                    .parse::<u32>()
-                    .unwrap_or(10),
-            )
+            .max_connections(env::database::MAX_CONNECTIONS.get())
             .connect_with(options)
             .await?;
         Ok(Self { pool })
@@ -46,13 +41,13 @@ impl DB {
 }
 
 fn get_pg_connect_options() -> anyhow::Result<sqlx::postgres::PgConnectOptions> {
-    let options = if let Ok(database_url) = env::var("DATABASE_URL") {
+    let options = if let Ok(database_url) = std::env::var(env::database::URL) {
         options_from_database_url(&database_url)?
     } else {
         options_from_database_env_vars()?
     };
 
-    if let Ok(ssl_root_cert) = env::var("DATABASE_SSL_ROOT_CERT") {
+    if let Ok(ssl_root_cert) = std::env::var(env::database::SSL_ROOT_CERT) {
         Ok(options
             .ssl_mode(sqlx::postgres::PgSslMode::VerifyFull)
             .ssl_root_cert_from_pem(ssl_root_cert.into_bytes()))
@@ -91,14 +86,11 @@ fn options_from_database_url(
 }
 
 fn options_from_database_env_vars() -> anyhow::Result<sqlx::postgres::PgConnectOptions> {
-    let username = env::var("DATABASE_USERNAME").unwrap_or(String::from("postgres"));
-    let password = env::var("DATABASE_PASSWORD")?;
-    let host = env::var("DATABASE_HOST")?;
-    let port = env::var("DATABASE_PORT")
-        .unwrap_or(String::from("5432"))
-        .parse::<u16>()
-        .unwrap_or(5432);
-    let database = env::var("DATABASE_DATABASE").unwrap_or(username.clone());
+    let username = std::env::var(env::database::USERNAME).unwrap_or(String::from("postgres"));
+    let password = std::env::var(env::database::PASSWORD)?;
+    let host = std::env::var(env::database::HOST)?;
+    let port = env::database::PORT.get();
+    let database = std::env::var(env::database::DATABASE).unwrap_or(username.clone());
 
     Ok(sqlx::postgres::PgConnectOptions::new()
         .username(&username)

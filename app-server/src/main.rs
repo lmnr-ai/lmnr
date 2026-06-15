@@ -91,7 +91,6 @@ use realtime::SseConnectionMap;
 use sodiumoxide;
 use std::{
     borrow::Cow,
-    env,
     io::{self, Error},
     sync::Arc,
     thread::{self, JoinHandle},
@@ -101,7 +100,6 @@ use storage::{Storage, mock::MockStorage};
 
 use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
-use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 use crate::{
     ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse, service::ClickhouseService},
@@ -122,6 +120,7 @@ mod data_plane;
 mod datasets;
 mod db;
 mod debugger;
+mod env;
 mod evaluations;
 mod features;
 mod instrumentation;
@@ -171,21 +170,23 @@ fn main() -> anyhow::Result<()> {
     let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
     // == Sentry ==
-    let sentry_dsn =
-        env::var("SENTRY_DSN").unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
+    let sentry_dsn = std::env::var(env::observability::SENTRY_DSN)
+        .unwrap_or("https://1234567890@sentry.io/1234567890".to_string());
     let _sentry_guard = sentry::init((
         sentry_dsn,
         sentry::ClientOptions {
             release: sentry::release_name!(),
             traces_sample_rate: 1.0,
             environment: Some(Cow::Owned(
-                env::var("ENVIRONMENT").unwrap_or("development".to_string()),
+                std::env::var(env::connections::ENVIRONMENT).unwrap_or("development".to_string()),
             )),
             ..Default::default()
         },
     ));
 
-    if !is_feature_enabled(Feature::Tracing) || env::var("SENTRY_DSN").is_err() {
+    if !is_feature_enabled(Feature::Tracing)
+        || std::env::var(env::observability::SENTRY_DSN).is_err()
+    {
         // If tracing is not enabled, drop the sentry guard, thus disabling sentry
         drop(_sentry_guard);
     }
@@ -198,37 +199,22 @@ fn main() -> anyhow::Result<()> {
             &runtime_handle,
         );
 
-    let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
-        .unwrap_or(String::from("5242880")) // default to 5MB
-        .parse()
-        .unwrap();
+    let http_payload_limit: usize = env::server::HTTP_PAYLOAD_LIMIT.get();
 
     log::info!("HTTP payload limit: {}", http_payload_limit);
 
-    let grpc_payload_limit: usize = env::var("GRPC_PAYLOAD_LIMIT")
-        .unwrap_or(String::from("26214400")) // default to 25MB
-        .parse()
-        .unwrap();
+    let grpc_payload_limit: usize = env::server::GRPC_PAYLOAD_LIMIT.get();
 
     log::info!("GRPC payload limit: {}", grpc_payload_limit);
 
-    let port = env::var("PORT")
-        .unwrap_or(String::from("8000"))
-        .parse()
-        .unwrap_or(8000);
+    let port = env::server::PORT.get();
 
-    let grpc_port: u16 = env::var("GRPC_PORT")
-        .unwrap_or(String::from("8001"))
-        .parse()
-        .unwrap_or(8001);
+    let grpc_port: u16 = env::server::GRPC_PORT.get();
 
     // Default to the port 8002. Usually is different from the HTTP and gRPC ports,
     // to avoid conflicts, when producer and consumer are run on the same machine
     // in the dual mode.
-    let consumer_port: u16 = env::var("CONSUMER_PORT")
-        .unwrap_or(String::from("8002"))
-        .parse()
-        .unwrap_or(8002);
+    let consumer_port: u16 = env::server::CONSUMER_PORT.get();
 
     let grpc_address = format!("0.0.0.0:{}", grpc_port).parse().unwrap();
 
@@ -238,7 +224,7 @@ fn main() -> anyhow::Result<()> {
     // it in ResilientRedisConnection which PINGs periodically, listens for
     // op-level error notifications from callers, and atomically swaps in a
     // fresh connection on failure with uncapped exponential backoff.
-    let redis_client = if let Ok(redis_url) = env::var("REDIS_URL") {
+    let redis_client = if let Ok(redis_url) = std::env::var(env::connections::REDIS_URL) {
         log::info!("Initializing Redis client");
         match redis::Client::open(redis_url.as_str()) {
             Ok(client) => Some(client),
@@ -297,9 +283,8 @@ fn main() -> anyhow::Result<()> {
     // === 3. Message queues ===
     let (publisher_connection, consumer_connection) =
         if is_feature_enabled(Feature::RabbitMQ) && is_feature_enabled(Feature::FullBuild) {
-            let rabbitmq_url = env::var("RABBITMQ_URL").expect("RABBITMQ_URL must be set");
-            let auto_reconnect =
-                env::var("RABBITMQ_AUTO_RECONNECT").is_ok_and(|v| v.to_lowercase() == "true");
+            let rabbitmq_url = std::env::var(env::mq::URL).expect("RABBITMQ_URL must be set");
+            let auto_reconnect = env::mq::AUTO_RECONNECT.get();
             let mut props = ConnectionProperties::default();
             if auto_reconnect {
                 props = props.enable_auto_recover();
@@ -782,10 +767,7 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(64);
+            let max_channel_pool_size = env::mq::MAX_CHANNEL_POOL_SIZE.get();
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
@@ -889,7 +871,7 @@ fn main() -> anyhow::Result<()> {
     let aws_sdk_config = runtime_handle.block_on(async {
         aws_config::defaults(BehaviorVersion::latest())
             .region(aws_config::Region::new(
-                env::var("AWS_REGION").unwrap_or("us-east-1".to_string()),
+                std::env::var(env::secrets::AWS_REGION).unwrap_or("us-east-1".to_string()),
             ))
             .load()
             .await
@@ -908,7 +890,8 @@ fn main() -> anyhow::Result<()> {
 
     // == Query engine ==
     let query_engine: Arc<QueryEngine> = if is_feature_enabled(Feature::SqlQueryEngine) {
-        let query_engine_url = env::var("QUERY_ENGINE_URL").expect("QUERY_ENGINE_URL must be set");
+        let query_engine_url = std::env::var(env::connections::QUERY_ENGINE_URL)
+            .expect("QUERY_ENGINE_URL must be set");
         runtime_handle.block_on(async {
             let query_engine_grpc_client = Arc::new(
                 QueryEngineServiceClient::connect(query_engine_url)
@@ -925,9 +908,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Clickhouse ==
-    let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
-    let clickhouse_user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
-    let clickhouse_password = env::var("CLICKHOUSE_PASSWORD");
+    let clickhouse_url = std::env::var(env::clickhouse::URL).expect("CLICKHOUSE_URL must be set");
+    let clickhouse_user =
+        std::env::var(env::clickhouse::USER).expect("CLICKHOUSE_USER must be set");
+    let clickhouse_password = std::env::var(env::clickhouse::PASSWORD);
     let clickhouse_client = clickhouse::Client::default()
         .with_url(clickhouse_url.clone())
         .with_user(clickhouse_user)
@@ -964,9 +948,9 @@ fn main() -> anyhow::Result<()> {
     // == Clickhouse Read-Only Client ==
     let clickhouse_readonly_client = if is_feature_enabled(Feature::ClickhouseReadOnly) {
         let clickhouse_ro_user =
-            env::var("CLICKHOUSE_RO_USER").expect("CLICKHOUSE_RO_USER must be set");
-        let clickhouse_ro_password =
-            env::var("CLICKHOUSE_RO_PASSWORD").expect("CLICKHOUSE_RO_PASSWORD must be set");
+            std::env::var(env::clickhouse::RO_USER).expect("CLICKHOUSE_RO_USER must be set");
+        let clickhouse_ro_password = std::env::var(env::clickhouse::RO_PASSWORD)
+            .expect("CLICKHOUSE_RO_PASSWORD must be set");
 
         Some(Arc::new(crate::sql::ClickhouseReadonlyClient::new(
             clickhouse_url,
@@ -1003,7 +987,8 @@ fn main() -> anyhow::Result<()> {
     let pii_redactor: Option<pii_redactor::PiiRedactorClient> = if is_feature_enabled(
         Feature::PiiRedaction,
     ) {
-        let url = env::var("PII_REDACTOR_URL").expect("PII_REDACTOR_URL must be set");
+        let url = std::env::var(env::connections::PII_REDACTOR_URL)
+            .expect("PII_REDACTOR_URL must be set");
         match runtime_handle.block_on(
                 pii_redactor::pii_redactor::pii_redactor_service_client::PiiRedactorServiceClient::connect(url.clone()),
             ) {
@@ -1033,7 +1018,7 @@ fn main() -> anyhow::Result<()> {
     let http_client_for_consumer = http_client.clone();
 
     // == Resend client for email notifications ==
-    let resend_client = std::env::var("RESEND_API_KEY")
+    let resend_client = std::env::var(env::secrets::RESEND_API_KEY)
         .ok()
         .map(|key| Arc::new(resend_rs::Resend::new(key.as_str())));
 
@@ -1088,74 +1073,34 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        let num_spans_workers = env::var("NUM_SPANS_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_spans_workers = env::workers::NUM_SPANS.get();
 
-        let num_data_plane_spans_workers: usize =
-            get_unsigned_env_with_default("NUM_DATA_PLANE_SPANS_WORKERS", 0);
+        let num_data_plane_spans_workers = env::workers::NUM_DATA_PLANE_SPANS.get();
 
-        let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_spans_indexer_workers = env::workers::NUM_SPANS_INDEXER.get();
 
-        let num_browser_events_workers = env::var("NUM_BROWSER_EVENTS_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_browser_events_workers = env::workers::NUM_BROWSER_EVENTS.get();
 
-        let num_signals_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_signals_workers = env::workers::NUM_SEMANTIC_EVENT.get();
 
-        let num_notification_workers = env::var("NUM_NOTIFICATION_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_notification_workers = env::workers::NUM_NOTIFICATION.get();
 
-        let num_notification_delivery_workers = env::var("NUM_NOTIFICATION_DELIVERY_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_notification_delivery_workers = env::workers::NUM_NOTIFICATION_DELIVERY.get();
 
-        let num_clustering_batching_workers = env::var("NUM_CLUSTERING_BATCHING_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_clustering_batching_workers = env::workers::NUM_CLUSTERING_BATCHING.get();
 
-        let num_clustering_workers = env::var("NUM_CLUSTERING_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_clustering_workers = env::workers::NUM_CLUSTERING.get();
 
         let num_signal_job_submission_batch_workers =
-            env::var("NUM_SIGNAL_JOB_SUBMISSION_BATCH_WORKERS")
-                .unwrap_or(String::from("4"))
-                .parse::<u8>()
-                .unwrap_or(4);
+            env::workers::NUM_SIGNAL_JOB_SUBMISSION_BATCH.get();
 
-        let num_signal_job_pending_batch_workers = env::var("NUM_SIGNAL_JOB_PENDING_BATCH_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_signal_job_pending_batch_workers = env::workers::NUM_SIGNAL_JOB_PENDING_BATCH.get();
 
-        let num_logs_workers = env::var("NUM_LOGS_WORKERS")
-            .unwrap_or(String::from("4"))
-            .parse::<u8>()
-            .unwrap_or(4);
+        let num_logs_workers = env::workers::NUM_LOGS.get();
 
-        let num_reports_workers = env::var("NUM_REPORTS_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_reports_workers = env::workers::NUM_REPORTS.get();
 
-        let num_checkpoints_workers = env::var("NUM_CHECKPOINTS_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
+        let num_checkpoints_workers = env::workers::NUM_CHECKPOINTS.get();
 
         log::info!(
             "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
@@ -1193,10 +1138,8 @@ fn main() -> anyhow::Result<()> {
                 runtime_handle_for_consumer.block_on(async {
                     // Spawn spans workers using batch worker pool
                     {
-                        let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 128);
-                        let flush_interval_ms: u64 =
-                            get_unsigned_env_with_default("SPANS_BATCH_FLUSH_INTERVAL_MS", 500)
-                                as u64;
+                        let size = env::batching::SPANS_SIZE.get();
+                        let flush_interval_ms = env::batching::SPANS_FLUSH_INTERVAL_MS.get();
                         let flush_interval = Duration::from_millis(flush_interval_ms);
 
                         let db = db_for_consumer.clone();
@@ -1234,12 +1177,9 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn data plane span workers using batch worker pool
                     {
-                        let size: usize =
-                            get_unsigned_env_with_default("DATA_PLANE_SPANS_BATCH_SIZE", 256);
-                        let flush_interval_ms: u64 = get_unsigned_env_with_default(
-                            "DATA_PLANE_SPANS_BATCH_FLUSH_INTERVAL_MS",
-                            500,
-                        ) as u64;
+                        let size = env::batching::DATA_PLANE_SPANS_SIZE.get();
+                        let flush_interval_ms =
+                            env::batching::DATA_PLANE_SPANS_FLUSH_INTERVAL_MS.get();
                         let flush_interval = Duration::from_millis(flush_interval_ms);
 
                         let db = db_for_consumer.clone();
@@ -1300,15 +1240,9 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn browser events workers
                     {
-                        let size: usize = env::var("BROWSER_EVENTS_BATCH_SIZE")
-                            .unwrap_or("1024".to_string())
-                            .parse()
-                            .unwrap_or(1024);
-                        let flush_interval_sec: u64 =
-                            env::var("BROWSER_EVENTS_BATCH_FLUSH_INTERVAL_SEC")
-                                .unwrap_or("1".to_string())
-                                .parse()
-                                .unwrap_or(1);
+                        let size = env::batching::BROWSER_EVENTS_SIZE.get();
+                        let flush_interval_sec =
+                            env::batching::BROWSER_EVENTS_FLUSH_INTERVAL_SEC.get();
                         let flush_interval = Duration::from_secs(flush_interval_sec);
 
                         let db = db_for_consumer.clone();
@@ -1339,12 +1273,12 @@ fn main() -> anyhow::Result<()> {
                     // Spawn signals workers using new worker pool
                     #[cfg(feature = "signals")]
                     if llm_provider_client.is_some() {
-                        let batch_size: usize = get_unsigned_env_with_default(
-                            "SIGNALS_BATCH_SIZE",
+                        let batch_size: usize = env::num_with_default(
+                            env::batching::SIGNALS_SIZE,
                             crate::signals::private::queue::DEFAULT_BATCH_SIZE,
                         );
                         let batch_flush_interval_sec =
-                            get_unsigned_env_with_default("SIGNALS_BATCH_FLUSH_INTERVAL_SEC", 300);
+                            env::batching::SIGNALS_FLUSH_INTERVAL_SEC.get();
                         let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::SignalsBatching,
@@ -1355,7 +1289,7 @@ fn main() -> anyhow::Result<()> {
                                     BatchingConfig {
                                         size: batch_size,
                                         flush_interval: Duration::from_secs(
-                                            batch_flush_interval_sec as u64,
+                                            batch_flush_interval_sec,
                                         ),
                                     },
                                 )
@@ -1451,15 +1385,9 @@ fn main() -> anyhow::Result<()> {
                         };
                         match runner_build {
                             Ok(runner) => {
-                                let batch_size: usize = env::var("CLUSTERING_EVENTS_BATCH_SIZE")
-                                    .unwrap_or_else(|_| "100".to_string())
-                                    .parse()
-                                    .unwrap_or(100);
-                                let batch_flush_interval_sec: u64 =
-                                    env::var("CLUSTERING_EVENTS_BATCH_FLUSH_INTERVAL_SEC")
-                                        .unwrap_or_else(|_| "300".to_string())
-                                        .parse()
-                                        .unwrap_or(300);
+                                let batch_size = env::batching::CLUSTERING_EVENTS_SIZE.get();
+                                let batch_flush_interval_sec =
+                                    env::batching::CLUSTERING_EVENTS_FLUSH_INTERVAL_SEC.get();
                                 let batch_flush_interval =
                                     Duration::from_secs(batch_flush_interval_sec);
                                 {
@@ -1594,8 +1522,7 @@ fn main() -> anyhow::Result<()> {
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobRealtime,
-                            get_unsigned_env_with_default("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4)
-                                as usize,
+                            env::workers::NUM_SIGNAL_JOB_REALTIME.get(),
                             move || {
                                 SignalJobRealtimeHandler::new(
                                     db.clone(),
@@ -1712,11 +1639,16 @@ fn main() -> anyhow::Result<()> {
 
         // === Rate limiter ===
         let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
-            let redis_url = env::var("REDIS_URL").unwrap();
+            let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
 
-            let http_limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
-            let http_period_secs: u64 =
-                env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
+            let http_limit: usize = std::env::var(env::rate_limit::HTTP_LIMIT)
+                .unwrap()
+                .parse()
+                .unwrap();
+            let http_period_secs: u64 = std::env::var(env::rate_limit::HTTP_PERIOD_SECS)
+                .unwrap()
+                .parse()
+                .unwrap();
             // Per-project SQL rate limiter, counted inline in `handle_sql_query`
             // (shared by both /v1/sql and /v1/cli/sql) with an explicit
             // `ratelimit:<project_id>` key — no middleware key extractor needed
@@ -1745,10 +1677,13 @@ fn main() -> anyhow::Result<()> {
         };
 
         let grpc_rate_limiter = if is_feature_enabled(Feature::GrpcRateLimiter) {
-            let redis_url = env::var("REDIS_URL").unwrap();
+            let redis_url = std::env::var(env::connections::REDIS_URL).unwrap();
 
-            let grpc_limit: usize = env::var("GRPC_RATE_LIMIT").unwrap().parse().unwrap();
-            let grpc_period_secs: u64 = env::var("GRPC_RATE_LIMIT_PERIOD_SECS")
+            let grpc_limit: usize = std::env::var(env::rate_limit::GRPC_LIMIT)
+                .unwrap()
+                .parse()
+                .unwrap();
+            let grpc_period_secs: u64 = std::env::var(env::rate_limit::GRPC_PERIOD_SECS)
                 .unwrap()
                 .parse()
                 .unwrap();

@@ -366,6 +366,16 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 - The redactor is best-effort: gRPC failures, response-length mismatches, and parse errors all log and return without mutating the batch. Redaction failures must NEVER block trace ingestion.
 - After redaction mutates `dedup.messages[k].content` in place, the `redact_spans_in_place` write-back loop also patches `dedup.span_content_bytes[dedup_idx]` so the post-dedup input-bytes loop bills the redacted size, matching the "size reflects redacted content" invariant on `estimate_size_bytes`.
 
+## App-server env vars (`src/env/`)
+
+- Every env var the app-server reads is registered in `app-server/src/env/` (one submodule per domain: `server`, `workers`, `batching`, `clickhouse`, `database`, `mq`, `quickwit`, `llm`, `secrets`, `connections`, `rate_limit`, `observability`, `notifications`, `storage`, `sql`, `debugger`, `mock`). Do NOT inline a string literal env name or hand-roll a `std::env::var(...).parse().unwrap_or(...)` chain at a call site — add/look up the entry here.
+- **`mod env` shadows `std::env`.** Inside any file that does `use crate::env;`, you MUST write `std::env::var(...)` (fully-qualified) for bare reads — a plain `env::var` resolves to this module and won't compile.
+- Two kinds of entry:
+  - **Typed descriptors** `NumEnv<T>` / `StringEnv` / `BoolEnv` for vars with a static default — `pub const FOO: NumEnv<u32> = NumEnv::new("FOO", 4);`, read via `env::workers::FOO.get()`. `.get()` trims, treats empty string as unset, parses, and falls back to the default (empty-string-as-unset matters for k8s ConfigMap keys). `BoolEnv` accepts `true/1/yes/on` + `false/0/no/off` case-insensitively.
+  - **Bare-name `&str` constants** (`pub const URL: &str = "CLICKHOUSE_URL";`) for required secrets/connection strings that `expect()` at boot and for vars consumed only inside multi-var feature detection — forcing a default onto those would be misleading, so they keep their read logic at the call site and only borrow the name.
+  - `env::num_with_default(name, default)` free fn for the rare var whose default is a runtime value (a crate const) and so can't be a `NumEnv` const.
+- **`cargo fmt` and `cargo check --features signals` both fail in OSS** because the `signals` feature gates modules (`agent`, `clustering::private`, `signals::private`, `traces::previews`) whose files live only in `lmnr-private`. `cargo fmt` walks the module tree and errors on the missing `mod agent`. To format `main.rs` (or anything that triggers the tree walk), `touch` empty stubs for those four paths, run `rustfmt --edition 2024 <file>`, then delete the stubs. Per-file `rustfmt` on leaf files works without stubs. Default-feature `cargo check`/`cargo fmt` is the real gate.
+
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)

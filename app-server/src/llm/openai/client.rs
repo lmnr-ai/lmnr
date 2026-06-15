@@ -5,13 +5,14 @@ use super::accumulator::OpenAIStreamAccumulator;
 use super::conversions::{
     parse_openai_response, provider_request_to_openai_body, provider_request_to_openai_stream_body,
 };
+use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderResult, default_headers_from_env,
     models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
     sse::accumulate_sse,
 };
 use serde_json::Value;
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone)]
@@ -25,10 +26,10 @@ pub type OpenAIResult<T> = Result<T, OpenAIError>;
 
 impl OpenAIClient {
     pub fn new() -> OpenAIResult<Self> {
-        let api_key = env::var("LLM_API_KEY")
+        let api_key = std::env::var(env::llm::API_KEY)
             .map_err(|_| OpenAIError::config("LLM_API_KEY environment variable not set"))?;
 
-        let raw_base_url = env::var("LLM_BASE_URL")
+        let raw_base_url = std::env::var(env::llm::BASE_URL)
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());

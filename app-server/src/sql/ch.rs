@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use bytes::Bytes;
 use opentelemetry::{
@@ -10,10 +10,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::env;
 use crate::sql::{ClickhouseReadonlyClient, SqlQueryError};
-
-const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
-const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
 
 #[derive(Deserialize)]
 pub struct ClickhouseBadResponseError {
@@ -36,20 +34,8 @@ pub async fn query(
         .query(&query)
         .with_setting("default_format", "JSON")
         .with_setting("output_format_json_quote_64bit_integers", "0")
-        .with_setting(
-            "max_execution_time",
-            env::var("SQL_QUERY_MAX_EXECUTION_TIME")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
-        )
-        .with_setting(
-            "max_result_bytes",
-            env::var("SQL_QUERY_MAX_RESULT_BYTES")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
-        );
+        .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
+        .with_setting("max_result_bytes", env::sql::MAX_RESULT_BYTES.get());
 
     for (key, value) in parameters {
         span.set_attribute(KeyValue::new(

@@ -46,11 +46,7 @@ pub fn strip_role_keys(s: &str) -> String {
 pub fn clean_for_indexing(input: &str, strip_roles: bool) -> String {
     let s = ANSI_ESCAPE_RE.replace_all(input, "");
     let s = strip_noise(&s);
-    let s = if strip_roles {
-        strip_role_keys(&s)
-    } else {
-        s
-    };
+    let s = if strip_roles { strip_role_keys(&s) } else { s };
     let s = clean_whitespace(&s);
     let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
     s.nfc().collect()
