@@ -74,6 +74,10 @@ export const getDatabaseConfig = (): DatabaseConfig => {
   }
 };
 
+// Postgres schema to route unqualified table names to via search_path.
+// Empty string means use the server default (public).
+export const getPostgresSchema = (): string => (env.POSTGRES_SCHEMA || "").trim();
+
 // Singleton function to ensure only one db instance is created
 const singleton = <Value>(name: string, value: () => Value): Value => {
   const globalAny: any = global;
@@ -104,6 +108,13 @@ const createDatabaseConnection = () => {
         mode: "verify-full",
         ca: env.DATABASE_SSL_ROOT_CERT,
       },
+    };
+  }
+  const postgresSchema = getPostgresSchema();
+  if (postgresSchema) {
+    connectOptions = {
+      ...connectOptions,
+      connection: { search_path: postgresSchema },
     };
   }
   const client = postgres(connectOptions);
