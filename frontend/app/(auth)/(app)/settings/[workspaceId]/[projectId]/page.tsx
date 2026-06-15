@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import SharedSettings from "@/components/shared-settings";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { ProjectContextProvider } from "@/contexts/project-context";
 import { UserContextProvider } from "@/contexts/user-context";
@@ -108,25 +108,23 @@ export default async function SettingsPage(props: {
       <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
         <WorkspaceMenuProvider>
           <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
-          <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
+          <div className="fixed inset-0 flex overflow-clip md:pt-2 bg-sidebar">
             <SidebarProvider className="bg-sidebar">
-              <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
-                <SharedSettings
-                  workspace={workspace}
-                  projectId={params.projectId}
-                  apiKeys={apiKeys}
-                  invitations={invitations}
-                  workspaceStats={workspaceStats}
-                  isOwner={isOwner}
-                  currentUserRole={currentUserRole}
-                  subscription={subscription}
-                  upcomingInvoice={upcomingInvoice}
-                  canManageBilling={canManageBilling}
-                  slackClientId={process.env.SLACK_CLIENT_ID}
-                  slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-                  slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
-                />
-              </SidebarInset>
+              <SharedSettings
+                workspace={workspace}
+                projectId={params.projectId}
+                apiKeys={apiKeys}
+                invitations={invitations}
+                workspaceStats={workspaceStats}
+                isOwner={isOwner}
+                currentUserRole={currentUserRole}
+                subscription={subscription}
+                upcomingInvoice={upcomingInvoice}
+                canManageBilling={canManageBilling}
+                slackClientId={process.env.SLACK_CLIENT_ID}
+                slackRedirectUri={process.env.SLACK_REDIRECT_URL}
+                slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
+              />
             </SidebarProvider>
           </div>
         </WorkspaceMenuProvider>
