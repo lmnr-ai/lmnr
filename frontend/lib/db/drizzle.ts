@@ -110,13 +110,13 @@ const createDatabaseConnection = () => {
       },
     };
   }
-  const postgresSchema = getPostgresSchema();
-  if (postgresSchema) {
-    connectOptions = {
-      ...connectOptions,
-      connection: { search_path: postgresSchema },
-    };
-  }
+  // Always pin search_path so we never inherit a role-configured path that
+  // could diverge from app-server (which defaults to "public"). Unset/empty
+  // resolves to "public" here, matching env::database::SCHEMA in app-server.
+  connectOptions = {
+    ...connectOptions,
+    connection: { search_path: getPostgresSchema() || "public" },
+  };
   const client = postgres(connectOptions);
   return drizzle(client, { schema: { ...schema, ...relations } });
 };
