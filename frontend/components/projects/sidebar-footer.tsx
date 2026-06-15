@@ -46,6 +46,14 @@ const SidebarFooterComponent = () => {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Settings" asChild>
+                <Link href="/settings">
+                  <Settings size={16} />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem className="h-7">
               <SidebarMenuButton tooltip="Github" asChild>
                 <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
@@ -59,14 +67,6 @@ const SidebarFooterComponent = () => {
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
                   <Book size={16} />
                   <span>Docs</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Settings" asChild>
-                <Link href="/settings">
-                  <Settings size={16} />
-                  <span>Settings</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

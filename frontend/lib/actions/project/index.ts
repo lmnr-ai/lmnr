@@ -9,9 +9,6 @@ import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/d
 
 import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings, ProjectSettingsSchema } from "./settings";
 
-const LAST_PROJECT_ID = "last-project-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
-
 export const DeleteProjectSchema = z.object({
   projectId: z.guid(),
 });
@@ -275,5 +272,3 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     settings,
   };
 };
-
-export { LAST_PROJECT_ID, MAX_AGE };

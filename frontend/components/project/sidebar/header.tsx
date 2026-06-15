@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronsUpDown, Plus } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -25,8 +25,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
-import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
+import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
 import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
@@ -116,14 +115,14 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         className="flex items-center w-full"
                       >
                         <span className="truncate font-medium leading-tight">{project?.name}</span>
-                        <ChevronsUpDown className="ml-auto size-4 shrink-0" />
+                        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg text-xs bg-landing-surface-600"
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-landing-surface-600"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}
@@ -147,9 +146,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                             setDirection(-1);
                             setView("workspaces");
                           }}
-                          className="flex w-full items-center gap-2 rounded-sm p-1 text-muted-foreground hover:bg-accent mb-1"
+                          className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent mb-1"
                         >
-                          <ChevronLeft className="size-4 shrink-0" />
+                          <ArrowLeft className="size-3 shrink-0" />
                           <span className="truncate">{selectedWorkspace ? selectedWorkspace.name : "Projects"}</span>
                         </button>
                         <div className="max-h-[600px] overflow-y-auto">
@@ -161,9 +160,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                                 key={p.id}
                                 passHref
                                 href={`/project/${p.id}/traces`}
+                                // Write the breadcrumb cookies synchronously (no server action) so they
+                                // can't race / interrupt the soft navigation — the bug this fixes.
                                 onClick={() => {
-                                  setLastProjectIdCookie(p.id);
-                                  setLastWorkspaceIdCookie(selectedWorkspaceId);
+                                  document.cookie = `${LAST_PROJECT_ID}=${p.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                                  document.cookie = `${LAST_WORKSPACE_ID}=${selectedWorkspaceId};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
                                 }}
                               >
                                 <DropdownMenuItem
@@ -201,7 +202,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         exit="exit"
                         transition={{ duration: 0.18, ease: "easeInOut" }}
                       >
-                        <div className="p-1 text-muted-foreground">Workspaces</div>
+                        <div className="pl-2 py-1 text-secondary-foreground mb-1">Workspaces</div>
                         <div className="max-h-[600px] overflow-y-auto">
                           {workspaces?.map((w) => (
                             <DropdownMenuItem

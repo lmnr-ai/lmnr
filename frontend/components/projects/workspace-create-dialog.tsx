@@ -38,8 +38,9 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
       const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
 
       track("workspace", "created");
+      // A project is created alongside the workspace (isFirstProject) — drop into it directly.
       if (newWorkspace.projectId) {
-        router.push(`/settings/${newWorkspace.id}/${newWorkspace.projectId}?section=general`);
+        router.push(`/project/${newWorkspace.projectId}/traces`);
       } else {
         router.push(`/settings/${newWorkspace.id}`);
       }

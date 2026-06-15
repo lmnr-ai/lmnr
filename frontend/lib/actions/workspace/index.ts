@@ -27,9 +27,6 @@ import {
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
-const LAST_WORKSPACE_ID = "last-workspace-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
-
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.guid(),
 });
@@ -321,8 +318,6 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 
   return { success: true, message: "User role updated successfully" };
 };
-
-export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
   workspaceId: z.guid(),

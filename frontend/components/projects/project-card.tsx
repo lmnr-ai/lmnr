@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
+import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID } from "@/lib/cookies";
 import { swrFetcher } from "@/lib/utils";
 import { type Project, type ProjectStats } from "@/lib/workspaces/types";
 
@@ -20,8 +20,9 @@ export const numberFormatter = new Intl.NumberFormat("en-US", {
 export default function ProjectCard({ project }: ProjectCardProps) {
   const { data, isLoading } = useSWR<ProjectStats>(`/api/projects/${project.id}/stats`, swrFetcher);
 
-  const handleClick = async () => {
-    await setLastProjectIdCookie(project.id);
+  // Write the breadcrumb cookie synchronously so it can't race / interrupt the soft navigation.
+  const handleClick = () => {
+    document.cookie = `${LAST_PROJECT_ID}=${project.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
   };
 
   return (
