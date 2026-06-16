@@ -564,7 +564,7 @@ mod tests {
         };
 
         // Function tools + reasoning_effort 400s on gpt-5 chat/completions, both
-        // direct and via proxies that forward to OpenAI (LAM-1771: Brex/Signals).
+        // direct and via proxies that forward to OpenAI (LAM-1771: Signals).
         let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
         assert!(proxy.get("reasoning_effort").is_none());
         assert!(proxy.get("tools").is_some());
