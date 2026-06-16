@@ -20,12 +20,6 @@ describe("parseSystemMessages", () => {
     assert.deepStrictEqual(result[0], messages[0]);
   });
 
-  it("wraps undefined content as empty-string text part", () => {
-    const messages = [{ role: "user" as const, content: undefined as any }];
-    const result = transformFromLegacy(messages);
-    assert.deepStrictEqual(result[0].content, [{ type: "text", text: "" }]);
-  });
-
   it("converts a user message that is all tool-results to role=tool", () => {
     const toolResultPart = {
       type: "tool-result" as const,
@@ -77,6 +71,12 @@ describe("transformFromLegacy", () => {
 
   it("wraps null/undefined content as empty-string text part", () => {
     const messages = [{ role: "user" as const, content: null as any }];
+    const result = transformFromLegacy(messages);
+    assert.deepStrictEqual(result[0].content, [{ type: "text", text: "" }]);
+  });
+
+  it("wraps undefined content as empty-string text part", () => {
+    const messages = [{ role: "user" as const, content: undefined as any }];
     const result = transformFromLegacy(messages);
     assert.deepStrictEqual(result[0].content, [{ type: "text", text: "" }]);
   });
