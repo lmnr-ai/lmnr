@@ -36,39 +36,20 @@ const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * A trace can hit several distinct failure types at once, so a signal can carry
- * more than one cluster. We surface one leaf (deepest) cluster per distinct
- * cluster *tree*: group the event's (level > 0) clusters by their top-most
- * ancestor reachable within the set, then keep the deepest node in each group.
+ * more than one cluster. The event's `clusters` array holds full ancestor chains
+ * (leaf → parent → … per tree), so a leaf is simply any node that isn't named as
+ * a `parent_id` by another node in the set: leaves = clusterIds − parentIds.
  */
 function deriveLeafClusters(clusterIds: string[], meta: Map<string, ClusterNodeWithParent>): TraceSignalClusterNode[] {
   const nodes = clusterIds.map((id) => meta.get(id)).filter((n): n is ClusterNodeWithParent => !!n);
   if (nodes.length === 0) return [];
 
-  // Walk parent_id up through the available metadata to find each node's tree
-  // root. L0 (emerging) parents aren't in `meta`, so an L1 cluster is its own
-  // root — distinct L1 roots therefore correspond to distinct failure types.
-  const rootOf = (node: ClusterNodeWithParent): string => {
-    // `seen` only guards against an infinite loop on malformed data — the
-    // cluster hierarchy is a parent_id tree and should never contain cycles.
-    const seen = new Set<string>();
-    let current = node;
-    while (current.parentId && meta.has(current.parentId) && !seen.has(current.id)) {
-      seen.add(current.id);
-      current = meta.get(current.parentId)!;
-    }
-    return current.id;
-  };
+  const parentIds = new Set(nodes.map((n) => n.parentId).filter((id): id is string => !!id));
 
-  const leafByRoot = new Map<string, ClusterNodeWithParent>();
-  for (const node of nodes) {
-    const root = rootOf(node);
-    const existing = leafByRoot.get(root);
-    if (!existing || node.level > existing.level) {
-      leafByRoot.set(root, node);
-    }
-  }
-
-  return [...leafByRoot.values()].sort((a, b) => b.level - a.level).map(({ id, name, level }) => ({ id, name, level }));
+  return nodes
+    .filter((n) => !parentIds.has(n.id))
+    .sort((a, b) => b.level - a.level)
+    .map(({ id, name, level }) => ({ id, name, level }));
 }
 
 /**
