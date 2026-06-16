@@ -15,15 +15,19 @@ const DOCS_URL = "https://laminar.sh/docs/debugger/introduction";
 // The prompt copied for the user to paste into a coding agent. Template literal
 // so the body reads as literal multiline markdown.
 const DEBUG_PROMPT = `1. Run \`npx lmnr-cli setup\` at the project root if you haven't already. This authenticates the user, links the project, saves a project API key to .env, and installs the Laminar skill.
-2. Make sure the agent is instrumented with Laminar. Use the installed skill or the docs:
-https://laminar.sh/docs/tracing/integrations/overview
-3. Record a run in debug mode and capture the run pointer:
-\`LMNR_DEBUG=true npx tsx my_agent.ts 2>&1 | tee run.log\` (or \`LMNR_DEBUG=true uv run my_agent.py ...\`), then \`grep LMNR_DEBUG_RUN run.log\` to read the \`trace_id\`.
-4. Inspect the run to find the replay boundary — the LLM call right before the bug:
-\`lmnr-cli sql query "SELECT span_id, name, span_type, start_time FROM spans WHERE trace_id = '<trace-id>' ORDER BY start_time"\`
-5. Edit the agent, then replay from that checkpoint so cached calls return instantly and only your fix runs live:
-\`LMNR_DEBUG=true LMNR_DEBUG_REPLAY_TRACE_ID=<trace-id> LMNR_DEBUG_CACHE_UNTIL=<span-id> npx tsx my_agent.ts\`
-6. Repeat steps 4-5 until the run is green, then watch each attempt in the Debugger.`;
+
+2. Verify the Laminar skill is installed and read it. It has the full, robust debugger and instrumentation instructions, so refer to it as you work, and use it to confirm your agent is instrumented with Laminar.
+
+3. Run your app in debug mode by prefixing your normal run command with \`LMNR_DEBUG=1\`:
+\`LMNR_DEBUG=1 npm run dev\` (or \`LMNR_DEBUG=1 uv run main.py\`, or whatever your run command is).
+Running the same command again automatically associates the run with the same debugger session. Start a fresh session anytime with \`npx lmnr-cli debug session new\`.
+
+The skill has everything below in detail. For quick reference:
+
+- Inspect: query your runs with SQL, e.g. \`npx lmnr-cli sql query "SELECT span_id, name, span_type, start_time FROM spans WHERE trace_id = '<trace-id>' ORDER BY start_time"\`.
+- Replay (caching): after editing, re-run replaying cached LLM calls up to a boundary so only your fix runs live: \`LMNR_DEBUG=1 LMNR_DEBUG_REPLAY_TRACE_ID=<trace-id> LMNR_DEBUG_CACHE_UNTIL=<span-id> npm run dev\`.
+- Leave trace notes: \`npx lmnr-cli trace append-note "## What this run showed ..."\` so the human can follow what you did and why.
+- Rename the session: \`npx lmnr-cli debug session set-name "Fix report length + search tool"\`.`;
 
 const DEBUG_RUN = {
   python: `LMNR_DEBUG=1 uv run main.py # or whatever your run command is`,
@@ -41,9 +45,9 @@ export default function SessionsPlaceholder() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex max-w-3xl flex-col gap-12 p-6 pb-16">
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold">Get started with the Debugger</h1>
+            <h1 className="text-2xl font-medium">Get started with Debugger</h1>
             <p className="text-sm text-muted-foreground">
-              Run your instrumented agent in debug mode and its sessions show up here to capture and replay.
+              Run your instrumented agent in debug mode and its sessions will appear here.
             </p>
           </div>
           <div className="flex flex-col gap-5">
