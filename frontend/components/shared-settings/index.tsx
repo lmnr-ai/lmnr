@@ -2,9 +2,7 @@
 
 import {
   Activity,
-  ArrowLeft,
   Bell,
-  ChevronsUpDown,
   Cloud,
   Code2,
   CreditCard,
@@ -13,7 +11,6 @@ import {
   GitBranch,
   Key,
   type LucideIcon,
-  Plus,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -23,10 +20,7 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo } from "react";
-import useSWR from "swr";
 
-import ProjectCreateDialog from "@/components/projects/project-create-dialog";
-import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog";
 import AgentVersions from "@/components/settings/agent-versions";
 import AlertsSettings from "@/components/settings/alerts";
 import CustomModelCosts from "@/components/settings/custom-model-costs";
@@ -37,23 +31,16 @@ import ProviderApiKeys from "@/components/settings/provider-api-keys";
 import RenameProject from "@/components/settings/rename-project";
 import RenderTemplates from "@/components/settings/render-templates";
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import Header from "@/components/ui/header";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarProvider,
 } from "@/components/ui/sidebar";
 import WorkspaceBilling from "@/components/workspace/billing";
 import WorkspaceDeployment from "@/components/workspace/deployment-settings/workspace-deployment.tsx";
@@ -65,19 +52,10 @@ import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
-import { setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
-import { setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
 import { Feature } from "@/lib/features/features";
-import { cn, swrFetcher } from "@/lib/utils";
-import {
-  type Workspace,
-  type WorkspaceInvitation,
-  type WorkspaceRole,
-  WorkspaceTier,
-  type WorkspaceWithOptionalUsers,
-} from "@/lib/workspaces/types";
+import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 interface SharedSettingsProps {
   workspace: WorkspaceWithOptionalUsers;
@@ -150,8 +128,6 @@ const SharedSettings = ({
   const { projects } = useProjectContext();
   const workspaceId = workspace.id;
 
-  const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
-
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
   // via a direct ?section= or a legacy ?tab= redirect when their flag is off.
   const isSectionEnabled = (section: Section): boolean => {
@@ -169,7 +145,7 @@ const SharedSettings = ({
     return rawSection;
   })();
 
-  const sectionHref = (section: Section) => `/settings/${workspaceId}/${projectId}?section=${section}`;
+  const sectionHref = (section: Section) => `/project/${projectId}/settings?section=${section}`;
 
   const workspaceMenus = useMemo(() => {
     const items: { label: string; section: Section; icon: LucideIcon }[] = [
@@ -202,7 +178,6 @@ const SharedSettings = ({
   ];
 
   const currentProject = projects.find((p) => p.id === projectId);
-  const isFreeTier = featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE;
 
   const renderSection = () => {
     switch (activeSection) {
@@ -294,153 +269,68 @@ const SharedSettings = ({
   };
 
   return (
-    <>
-      <Sidebar collapsible="none" className="w-56">
-        <SidebarContent>
-          <SidebarGroup className="pt-2">
-            <SidebarMenu>
-              <SidebarMenuItem className="text-secondary-foreground">
-                <SidebarMenuButton
-                  asChild
-                  className="flex items-center flex-1 text-xs text-muted-foreground"
-                  tooltip="Back to platform"
-                >
-                  <Link href={`/project/${projectId}/traces`}>
-                    <ArrowLeft className="size-3" />
-                    <span className="mr-2">Back to platform</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroup>
-
-          <SidebarGroup className="pt-0">
-            <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
-            <SidebarMenu>
-              <SidebarMenuItem className="mb-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landing-surface-600 w-full justify-between h-9"
-                    >
-                      <span className="mr-2 truncate">{workspace.name}</span>
-                      <ChevronsUpDown className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    side="bottom"
-                    className="w-(--radix-dropdown-menu-trigger-width) rounded-lg text-xs bg-landing-surface-600"
-                  >
-                    {workspaces?.map((w) => (
-                      <Link key={w.id} passHref href={`/settings/${w.id}?section=${activeSection}`}>
-                        <DropdownMenuItem
-                          onSelect={() => setLastWorkspaceIdCookie(w.id)}
-                          className={cn("cursor-pointer", { "bg-accent": w.id === workspaceId })}
-                        >
-                          <span className="text-xs text-sidebar-foreground font-medium truncate">{w.name}</span>
-                        </DropdownMenuItem>
-                      </Link>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <WorkspaceCreateDialog>
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                        <Plus size={16} />
-                        <span className="text-xs">Create workspace</span>
-                      </DropdownMenuItem>
-                    </WorkspaceCreateDialog>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-              {workspaceMenus.map((m) => (
-                <SidebarMenuItem className="h-7" key={m.section}>
-                  <SidebarMenuButton
-                    asChild
-                    className="flex items-center flex-1"
-                    isActive={activeSection === m.section}
-                    tooltip={m.label}
-                  >
-                    <Link href={sectionHref(m.section)}>
-                      <m.icon />
-                      <span className="mr-2">{m.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-
-          <SidebarGroup className="pt-0">
-            <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
-            <SidebarMenu>
-              <SidebarMenuItem className="mb-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="flex items-center flex-1 bg-landing-surface-500 hover:bg-landing-surface-400 active:bg-landing-surface-600 w-full justify-between h-9"
-                    >
-                      <span className="mr-2 truncate">{currentProject?.name ?? "Project"}</span>
-                      <ChevronsUpDown className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    side="bottom"
-                    className="w-(--radix-dropdown-menu-trigger-width) rounded-lg text-xs bg-landing-surface-600"
-                  >
-                    {projects.map((p) => (
-                      <Link
-                        key={p.id}
-                        passHref
-                        href={`/settings/${workspaceId}/${p.id}?section=${activeSection}`}
-                        onClick={() => setLastProjectIdCookie(p.id)}
+    <div className="flex flex-col h-full gap-2">
+      {/* Header is OUTSIDE the nested provider so its SidebarTrigger toggles the main project sidebar. */}
+      <Header path="settings" />
+      <SidebarProvider defaultOpen>
+        <div className="flex flex-1 overflow-hidden">
+          <Sidebar collapsible="none" className="w-64">
+            <SidebarContent className="bg-background pl-2">
+              <SidebarGroup className="pt-0">
+                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
+                <SidebarMenu>
+                  <SidebarMenuItem className="mb-2 px-2">
+                    <span className="truncate text-sm font-medium">{workspace.name}</span>
+                  </SidebarMenuItem>
+                  {workspaceMenus.map((m) => (
+                    <SidebarMenuItem className="h-7" key={m.section}>
+                      <SidebarMenuButton
+                        asChild
+                        className="flex items-center flex-1"
+                        isActive={activeSection === m.section}
+                        tooltip={m.label}
                       >
-                        <DropdownMenuItem className={cn("cursor-pointer", { "bg-accent": p.id === projectId })}>
-                          <span className="text-xs text-sidebar-foreground font-medium truncate">{p.name}</span>
-                        </DropdownMenuItem>
-                      </Link>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <ProjectCreateDialog
-                      workspaceId={workspaceId}
-                      isFreeTier={isFreeTier}
-                      projectCount={projects.length}
-                    >
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                        <Plus size={16} />
-                        <span className="text-xs">Create project</span>
-                      </DropdownMenuItem>
-                    </ProjectCreateDialog>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-              {projectMenus.map((m) => (
-                <SidebarMenuItem className="h-7" key={m.section}>
-                  <SidebarMenuButton
-                    asChild
-                    className="flex items-center flex-1"
-                    isActive={activeSection === m.section}
-                    tooltip={m.label}
-                  >
-                    <Link href={sectionHref(m.section)}>
-                      <m.icon />
-                      <span className="mr-2">{m.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="relative flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-        <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-8 max-w-3xl mx-auto px-4 pt-16 pb-24">{renderSection()}</div>
-        </ScrollArea>
-      </SidebarInset>
-    </>
+                        <Link href={sectionHref(m.section)}>
+                          <m.icon />
+                          <span className="mr-2">{m.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+
+              <SidebarGroup className="pt-0">
+                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
+                <SidebarMenu>
+                  <SidebarMenuItem className="mb-2 px-2">
+                    <span className="truncate text-sm font-medium">{currentProject?.name ?? "Project"}</span>
+                  </SidebarMenuItem>
+                  {projectMenus.map((m) => (
+                    <SidebarMenuItem className="h-7" key={m.section}>
+                      <SidebarMenuButton
+                        asChild
+                        className="flex items-center flex-1"
+                        isActive={activeSection === m.section}
+                        tooltip={m.label}
+                      >
+                        <Link href={sectionHref(m.section)}>
+                          <m.icon />
+                          <span className="mr-2">{m.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
+          <ScrollArea className="flex-1">
+            <div className="flex flex-col gap-8 max-w-3xl 3xl:max-w-4xl mx-auto px-4 pb-24">{renderSection()}</div>
+          </ScrollArea>
+        </div>
+      </SidebarProvider>
+    </div>
   );
 };
 

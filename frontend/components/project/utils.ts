@@ -7,6 +7,7 @@ import {
   PlayCircle,
   Radio,
   Rows4,
+  Settings,
   SquareTerminal,
 } from "lucide-react";
 
@@ -55,5 +56,10 @@ export const getSidebarMenus = (projectId: string) => [
     name: "debugger",
     href: `/project/${projectId}/debugger-sessions`,
     icon: GitFork,
+  },
+  {
+    name: "settings",
+    href: `/project/${projectId}/settings`,
+    icon: Settings,
   },
 ];

@@ -1,33 +1,102 @@
-import { redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { type Metadata } from "next";
+import { notFound } from "next/navigation";
 
+import SharedSettings from "@/components/shared-settings";
+import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
+import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
 import { getProjectDetails } from "@/lib/actions/project";
+import { getApiKeys } from "@/lib/actions/project-api-keys";
+import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
+import { getWorkspace } from "@/lib/actions/workspace";
 import { requireProjectAccess } from "@/lib/authorization";
+import { db } from "@/lib/db/drizzle";
+import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
-// Legacy /project/[projectId]/settings URLs now live under the shared /settings page.
-export default async function ProjectSettingsRedirect(props: {
-  params: Promise<{ projectId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
+export const metadata: Metadata = {
+  title: "Settings",
+};
 
-  // Redirects to /sign-in / notFound() itself. Gates the redirect so an unauthenticated caller
-  // can't read the target workspaceId from the 302 Location header.
-  await requireProjectAccess(params.projectId);
+// Settings renders INSIDE the project layout (so the project sidebar stays visible). The page
+// itself isn't project-owned — the SharedSettings pickers can re-point to any project/workspace.
+export default async function ProjectSettingsPage(props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
 
-  const section = typeof searchParams.tab === "string" ? searchParams.tab : "general";
-
-  // Preserve every other query param (e.g. Slack OAuth's ?slack=success|error).
-  const rest = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (key === "tab" || value === undefined) continue;
-    if (Array.isArray(value)) {
-      value.forEach((v) => rest.append(key, v));
-    } else {
-      rest.append(key, value);
-    }
-  }
-  rest.set("section", section);
+  // Redirects to /sign-in / notFound() itself.
+  const session = await requireProjectAccess(params.projectId);
+  const user = session.user;
 
   const projectDetails = await getProjectDetails(params.projectId);
-  return redirect(`/settings/${projectDetails.workspaceId}/${params.projectId}?${rest.toString()}`);
+  const workspaceId = projectDetails.workspaceId;
+
+  const [workspace, apiKeys] = await Promise.all([
+    getWorkspace({ workspaceId }),
+    getApiKeys({ projectId: params.projectId }),
+  ]);
+
+  const userMembership = await db
+    .select({ role: membersOfWorkspaces.memberRole })
+    .from(membersOfWorkspaces)
+    .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
+    .limit(1)
+    .then((res) => res[0]);
+
+  if (!userMembership) {
+    return notFound();
+  }
+
+  const isOwner = userMembership.role === "owner";
+  const currentUserRole = userMembership.role || "member";
+
+  const workspaceStats = await getWorkspaceStats(workspaceId).catch((e) => {
+    console.error("Error fetching workspace stats:", e);
+    return null;
+  });
+
+  const invitations = await db.query.workspaceInvitations
+    .findMany({
+      where: eq(workspaceInvitations.workspaceId, workspaceId),
+    })
+    .catch((e) => {
+      console.error("Error fetching invitations:", e);
+      return [];
+    });
+
+  const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
+
+  const isPaidTier = workspace.tierName !== "Free";
+  let subscription = null;
+  let upcomingInvoice = null;
+
+  if (canManageBilling && isPaidTier) {
+    try {
+      [subscription, upcomingInvoice] = await Promise.all([
+        getSubscriptionDetails(workspaceId),
+        getUpcomingInvoice(workspaceId),
+      ]);
+    } catch (error) {
+      console.error("Error fetching subscription details:", error);
+    }
+  }
+
+  return (
+    <WorkspaceMenuProvider>
+      <SharedSettings
+        workspace={workspace}
+        projectId={params.projectId}
+        apiKeys={apiKeys}
+        invitations={invitations}
+        workspaceStats={workspaceStats}
+        isOwner={isOwner}
+        currentUserRole={currentUserRole}
+        subscription={subscription}
+        upcomingInvoice={upcomingInvoice}
+        canManageBilling={canManageBilling}
+        slackClientId={process.env.SLACK_CLIENT_ID}
+        slackRedirectUri={process.env.SLACK_REDIRECT_URL}
+        slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
+      />
+    </WorkspaceMenuProvider>
+  );
 }

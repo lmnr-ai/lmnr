@@ -1,6 +1,6 @@
 "use client";
 
-import { Book, Settings, X } from "lucide-react";
+import { Book, X } from "lucide-react";
 import Link from "next/link";
 
 import VersionBadge from "@/components/common/version-badge.tsx";
@@ -46,14 +46,6 @@ const SidebarFooterComponent = () => {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Settings" asChild>
-                <Link href="/settings">
-                  <Settings size={16} />
-                  <span>Settings</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem className="h-7">
               <SidebarMenuButton tooltip="Github" asChild>
                 <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">

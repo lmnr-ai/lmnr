@@ -50,7 +50,7 @@ export default async function WorkspaceSettingsResolver(props: {
   }
 
   // The workspace picker links here without a project id. There's no inter-workspace project
-  // switcher, so picking a workspace always lands on its first project (NOT the last-used project
-  // cookie, which is global and could point at a different workspace's project).
-  return redirect(`/settings/${params.workspaceId}/${projects[0].id}?${query.toString()}`);
+  // switcher, so picking a workspace always lands on its first project's settings (NOT the
+  // last-used project cookie, which is global and could point at a different workspace's project).
+  return redirect(`/project/${projects[0].id}/settings?${query.toString()}`);
 }
