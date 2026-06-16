@@ -86,7 +86,7 @@ export function SpanChip({
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded border border-landing-text-300/20 bg-landing-text-300/20 pl-1 pr-1.5 align-middle hover:bg-landing-text-300/30 transition-colors"
+      className="inline-flex items-center gap-1 rounded border border-foreground-300/20 bg-foreground-300/20 pl-1 pr-1.5 align-middle hover:bg-foreground-300/30 transition-colors"
     >
       <span
         className="inline-flex items-center justify-center rounded size-4 shrink-0"

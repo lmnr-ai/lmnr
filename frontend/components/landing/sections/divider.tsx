@@ -8,6 +8,6 @@ interface Props {
 // Horizontal divider line. Short variant separates "Did my fix work?" from
 // "Two lines to integrate"; full variant brackets Quote and Built for
 // production within the 880px column.
-const Divider = ({ className }: Props) => <div className={cn("h-px bg-landing-surface-500 w-full", className)} />;
+const Divider = ({ className }: Props) => <div className={cn("h-px bg-surface-400 w-full", className)} />;
 
 export default Divider;

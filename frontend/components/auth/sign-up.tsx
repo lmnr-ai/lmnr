@@ -22,7 +22,7 @@ const SignUp = ({ callbackUrl }: SignUpProps) => {
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col h-full py-4 px-5 bg-landing-surface-700">
+    <div className="flex flex-1 flex-col h-full py-4 px-5 bg-surface-700">
       <Link href="/" className="block shrink-0 self-start">
         <Image alt="Laminar logo" src={logo} className="w-[100px] h-auto" priority />
       </Link>

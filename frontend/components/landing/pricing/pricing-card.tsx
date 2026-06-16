@@ -32,15 +32,15 @@ export default function PricingCard({
   ctaLabel,
   ctaHref,
 }: PricingCardProps) {
-  const featureColor = isAccent ? "text-white" : "text-landing-text-200";
-  const suffixColor = isAccent ? "text-white/70" : "text-landing-text-400";
-  const checkColor = isAccent ? "text-white/80" : "text-landing-text-300";
+  const featureColor = isAccent ? "text-white" : "text-foreground-200";
+  const suffixColor = isAccent ? "text-white/70" : "text-foreground-400";
+  const checkColor = isAccent ? "text-white/80" : "text-foreground-300";
 
   return (
     <div
       className={cn(
         "flex flex-col gap-6 rounded h-full p-5",
-        isAccent ? "bg-landing-primary-400" : "bg-landing-surface-550",
+        isAccent ? "bg-primary-400" : "bg-surface-500",
         className
       )}
     >
@@ -70,10 +70,7 @@ export default function PricingCard({
         <LandingButton
           variant={isAccent ? "solid" : "outline"}
           size="sm"
-          className={cn(
-            "w-full",
-            isAccent && "bg-white text-landing-primary-400 border border-white/40 hover:bg-white/90"
-          )}
+          className={cn("w-full", isAccent && "bg-white text-primary-400 border border-white/40 hover:bg-white/90")}
         >
           {ctaLabel}
         </LandingButton>

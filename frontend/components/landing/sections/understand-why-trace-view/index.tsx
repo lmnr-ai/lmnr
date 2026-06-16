@@ -85,7 +85,7 @@ const TimelineBodyLink = ({ spanId, label }: { spanId: string; label: string }) 
     <button
       type="button"
       onClick={() => selectAndRevealSpan(spanId)}
-      className="underline underline-offset-2 decoration-landing-text-400 hover:text-landing-text-100 hover:decoration-landing-text-200 transition-colors cursor-pointer"
+      className="underline underline-offset-2 decoration-foreground-400 hover:text-foreground-50 hover:decoration-foreground-200 transition-colors cursor-pointer"
     >
       {label}
     </button>
@@ -197,7 +197,7 @@ const UnderstandWhyTraceView = () => {
               <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center items-center">
                 <div className="h-[760px] w-full overflow-hidden relative">
                   {/* Top gradient — text fades into page bg at top of viewport */}
-                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-landing-surface-700 to-transparent pointer-events-none h-[100px]" />
+                  <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-surface-700 to-transparent pointer-events-none h-[100px]" />
 
                   {/* Stack wrapper — vertically centered in viewport via flex
                   items-center. Inner motion.div uses `style={{ y }}` with
@@ -229,7 +229,7 @@ const UnderstandWhyTraceView = () => {
                   </div>
 
                   {/* Bottom gradient — text fades into page bg at bottom of viewport */}
-                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-700 to-transparent pointer-events-none h-[120px]" />
+                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-700 to-transparent pointer-events-none h-[120px]" />
                 </div>
               </div>
             </div>
@@ -240,14 +240,14 @@ const UnderstandWhyTraceView = () => {
               overflows (the inner grows past parent's content area, and
               `justify-end` on outer pins its right edge).
               Top + bottom gradient fades mirror the LEFT column, but
-              fade INTO the rectangle's own bg (`landing-surface-550`)
+              fade INTO the rectangle's own bg (`surface-500`)
               rather than the page bg. z-10 puts gradients above the
               bento (z-0) and below the footnote (z-20 inside
               SectionFootnote), so the footnote stays legible over the
               bottom gradient. */}
             <div className="relative">
               <div className="sticky top-0 left-0 flex justify-center items-center h-screen">
-                <div className="w-[480px] h-[760px] rounded-sm bg-landing-surface-550 overflow-hidden flex items-center justify-end px-5 relative">
+                <div className="w-[480px] h-[760px] rounded-sm bg-surface-500 overflow-hidden flex items-center justify-end px-5 relative">
                   <div className="min-w-full shrink-0 flex items-center justify-center">
                     <TraceBento phase={phase} morphProgress={morphProgress} trace={trace} spans={spans ?? []} />
                   </div>
@@ -255,11 +255,11 @@ const UnderstandWhyTraceView = () => {
                   {/* Left gradient — only in the Ask AI phase, where chat content
                     bleeds toward the left edge and needs the fade. */}
                   {phase === 4 && (
-                    <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-landing-surface-550/80 to-transparent pointer-events-none w-[80px]" />
+                    <div className="absolute bottom-0 left-0 top-0 z-10 bg-gradient-to-r from-surface-500/80 to-transparent pointer-events-none w-[80px]" />
                   )}
 
                   {/* Bottom gradient */}
-                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-landing-surface-550 to-transparent pointer-events-none h-[120px]" />
+                  <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-surface-500 to-transparent pointer-events-none h-[120px]" />
 
                   <SectionFootnote name={activeBand.name} href={activeBand.learnMoreHref} />
                 </div>

@@ -271,12 +271,12 @@ const TraceBento = ({ phase, morphProgress, trace, spans, onAllPanelsOpenChange 
   return (
     <motion.div
       initial={{
-        borderColor: "rgb(37 37 38 / 0)",
+        borderColor: "rgb(38 38 38 / 0)",
         backgroundColor: "rgb(10 10 10 / 0)",
         height: 0,
       }}
       animate={{
-        borderColor: phase >= 2 ? "rgb(37 37 38)" : "rgb(37 37 38 / 0)",
+        borderColor: phase >= 2 ? "rgb(38 38 38)" : "rgb(38 38 38 / 0)",
         backgroundColor: phase >= 2 ? "rgb(10 10 10)" : "rgb(10 10 10 / 0)",
         height: phase >= 2 ? BENTO_HEIGHT : headerHeight,
       }}
