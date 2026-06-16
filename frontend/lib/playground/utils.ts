@@ -29,39 +29,48 @@ export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
   });
 
 export const transformFromLegacy = (messages: Message[]): Message[] =>
-  messages.map((message) => ({
-    ...message,
-    content: message.content.map((part: any) => {
-      switch (part.type) {
-        case "tool-call":
-          // V4 format: { type: "tool-call", toolCallId, toolName, args }
-          // V5 format: { type: "tool-call", toolCallId, toolName, input }
-          if ("args" in part && !("input" in part)) {
-            const { args, ...rest } = part;
-            return {
-              ...rest,
-              input: typeof args === "string" ? tryParseJson(args || "{}") : args || {},
-            };
-          }
-          return part;
+  messages.map((message) => {
+    // Legacy rows (saved before the AI SDK v5 migration) store content as a
+    // plain string instead of a parts array. Normalize so the mapping below
+    // doesn't crash on `.map`.
+    const rawContent = message.content as unknown;
+    const content: Message["content"] =
+      typeof rawContent === "string" ? [{ type: "text", text: rawContent }] : (rawContent as Message["content"]);
 
-        case "tool-result":
-          // V4 format: { type: "tool-result", toolCallId, toolName, result }
-          // V5 format: { type: "tool-result", toolCallId, toolName, output: { type, value } }
-          if ("result" in part && !("output" in part)) {
-            const { result, ...rest } = part;
-            return {
-              ...rest,
-              output: {
-                type: "text",
-                value: result,
-              },
-            };
-          }
-          return part;
+    return {
+      ...message,
+      content: content.map((part: any) => {
+        switch (part.type) {
+          case "tool-call":
+            // V4 format: { type: "tool-call", toolCallId, toolName, args }
+            // V5 format: { type: "tool-call", toolCallId, toolName, input }
+            if ("args" in part && !("input" in part)) {
+              const { args, ...rest } = part;
+              return {
+                ...rest,
+                input: typeof args === "string" ? tryParseJson(args || "{}") : args || {},
+              };
+            }
+            return part;
 
-        default:
-          return part;
-      }
-    }),
-  }));
+          case "tool-result":
+            // V4 format: { type: "tool-result", toolCallId, toolName, result }
+            // V5 format: { type: "tool-result", toolCallId, toolName, output: { type, value } }
+            if ("result" in part && !("output" in part)) {
+              const { result, ...rest } = part;
+              return {
+                ...rest,
+                output: {
+                  type: "text",
+                  value: result,
+                },
+              };
+            }
+            return part;
+
+          default:
+            return part;
+        }
+      }),
+    };
+  });
