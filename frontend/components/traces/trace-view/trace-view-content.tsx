@@ -1,6 +1,7 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { shallow } from "zustand/shallow";
 
 import Chat from "@/components/traces/trace-view/chat";
@@ -34,6 +35,9 @@ export interface TraceViewContentProps {
   onClose: () => void;
   isAlwaysSelectSpan?: boolean;
   showChatInitial?: boolean;
+  // When true, Esc closes the panel (used by the traces-view side panel). An
+  // open in-span search swallows the Esc first so the search closes, not the panel.
+  closeOnEsc?: boolean;
   // Presence controls the layout type
   sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
@@ -45,6 +49,7 @@ export default function TraceViewContent({
   propsTrace,
   isAlwaysSelectSpan,
   showChatInitial,
+  closeOnEsc,
   sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
@@ -106,6 +111,20 @@ export default function TraceViewContent({
   );
 
   const initialSearch = useTraceViewStore((state) => state.initialSearch);
+
+  // Mirrors SpanView's in-span search-bar open state so the panel-close Esc can
+  // defer to it (close the search first instead of dismissing the whole panel).
+  const [spanSearchOpen, setSpanSearchOpen] = useState(false);
+
+  useHotkeys(
+    "esc",
+    () => {
+      if (spanSearchOpen) return;
+      onClose();
+    },
+    { enabled: !!closeOnEsc },
+    [spanSearchOpen, onClose]
+  );
 
   const handleFetchTrace = useCallback(async () => {
     if (propsTrace) {
@@ -361,6 +380,7 @@ export default function TraceViewContent({
           initialTab={snippetTab}
           onClose={handleSpanPanelClose}
           isAlwaysSelectSpan={isAlwaysSelectSpan}
+          onSearchOpenChange={setSpanSearchOpen}
         />
       )}
     </div>
