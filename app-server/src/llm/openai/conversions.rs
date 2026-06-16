@@ -45,6 +45,7 @@ pub fn provider_request_to_openai_body(
         "messages": messages,
     });
 
+    let mut has_tools = false;
     if let Some(tools) = request.tools.as_ref() {
         let tool_array: Vec<Value> = tools
             .iter()
@@ -62,6 +63,7 @@ pub fn provider_request_to_openai_body(
             .collect();
         if !tool_array.is_empty() {
             body["tools"] = Value::Array(tool_array);
+            has_tools = true;
         }
     }
 
@@ -76,8 +78,12 @@ pub fn provider_request_to_openai_body(
             body["max_completion_tokens"] = json!(m);
         }
 
-        // OpenAI direct rejects `reasoning_effort` with tool calls; proxies accept it.
-        if !is_openai_direct {
+        // gpt-5 reasoning models reject `reasoning_effort` + function tools on
+        // /v1/chat/completions (400, "use /v1/responses instead") — both direct
+        // and via proxies that forward to OpenAI. Drop it when tools are present.
+        // OpenAI-direct also 400s on some reasoning models without tools, so keep
+        // suppressing there too.
+        if !has_tools && !is_openai_direct {
             if let Some(tc) = gc.thinking_config.as_ref() {
                 if let Some(level) = tc.thinking_level.as_ref() {
                     if let Some(effort) = thinking_level_to_effort(level) {
@@ -522,7 +528,7 @@ mod tests {
         let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
         assert!(direct.get("reasoning_effort").is_none());
 
-        // Proxy / OpenAI-compatible endpoint: thinking forwarded.
+        // Proxy / OpenAI-compatible endpoint, no tools: thinking forwarded.
         let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
         assert_eq!(proxy["reasoning_effort"], "high");
 
@@ -531,6 +537,40 @@ mod tests {
         // We never forward sampling params — see provider_request_to_openai_body.
         assert!(direct.get("temperature").is_none());
         assert!(direct.get("top_p").is_none());
+    }
+
+    #[test]
+    fn reasoning_effort_dropped_when_tools_present_even_via_proxy() {
+        let make_req = || ProviderRequest {
+            contents: vec![user("hi")],
+            system_instruction: None,
+            tools: Some(vec![ProviderTool {
+                function_declarations: vec![ProviderFunctionDeclaration {
+                    name: "lookup".to_string(),
+                    description: "find a thing".to_string(),
+                    parameters: json!({"type": "object", "properties": {}}),
+                }],
+            }]),
+            generation_config: Some(ProviderGenerationConfig {
+                max_output_tokens: Some(100),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::High),
+                }),
+                ..Default::default()
+            }),
+            provider: None,
+            model_size: None,
+        };
+
+        // Function tools + reasoning_effort 400s on gpt-5 chat/completions, both
+        // direct and via proxies that forward to OpenAI (LAM-1771: Brex/Signals).
+        let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
+        assert!(proxy.get("reasoning_effort").is_none());
+        assert!(proxy.get("tools").is_some());
+
+        let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
+        assert!(direct.get("reasoning_effort").is_none());
     }
 
     #[test]
