@@ -19,11 +19,7 @@ use crate::llm::models::{
 use serde_json::{Value, json};
 
 /// Build the OpenAI Chat Completions request body from a `ProviderRequest`.
-pub fn provider_request_to_openai_body(
-    model: &str,
-    request: &ProviderRequest,
-    is_openai_direct: bool,
-) -> Value {
+pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -> Value {
     let mut messages: Vec<Value> = Vec::new();
 
     if let Some(sys) = request.system_instruction.as_ref() {
@@ -79,11 +75,10 @@ pub fn provider_request_to_openai_body(
         }
 
         // gpt-5 reasoning models reject `reasoning_effort` + function tools on
-        // /v1/chat/completions (400, "use /v1/responses instead") — both direct
-        // and via proxies that forward to OpenAI. Drop it when tools are present.
-        // OpenAI-direct also 400s on some reasoning models without tools, so keep
-        // suppressing there too.
-        if !has_tools && !is_openai_direct {
+        // /v1/chat/completions (400, "use /v1/responses instead") — true for both
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals),
+        // so only forward `reasoning_effort` when no tools are present.
+        if !has_tools {
             if let Some(tc) = gc.thinking_config.as_ref() {
                 if let Some(level) = tc.thinking_level.as_ref() {
                     if let Some(effort) = thinking_level_to_effort(level) {
@@ -99,12 +94,8 @@ pub fn provider_request_to_openai_body(
 
 /// Same as [`provider_request_to_openai_body`] but flags the request for SSE streaming and asks
 /// the upstream to emit a final usage-only chunk (`stream_options.include_usage`).
-pub fn provider_request_to_openai_stream_body(
-    model: &str,
-    request: &ProviderRequest,
-    is_openai_direct: bool,
-) -> Value {
-    let mut body = provider_request_to_openai_body(model, request, is_openai_direct);
+pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderRequest) -> Value {
+    let mut body = provider_request_to_openai_body(model, request);
     body["stream"] = json!(true);
     body["stream_options"] = json!({ "include_usage": true });
     body
@@ -420,7 +411,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5-mini", &req, true);
+        let body = provider_request_to_openai_body("gpt-5-mini", &req);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0]["role"], "system");
@@ -445,7 +436,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0]["role"], "user");
@@ -473,7 +464,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
         // uuid v4 is 36 chars with 4 hyphens.
         assert_eq!(id.len(), 36);
@@ -496,7 +487,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["type"], "function");
@@ -505,8 +496,8 @@ mod tests {
     }
 
     #[test]
-    fn thinking_forwarded_only_for_non_openai_direct_and_sampling_params_dropped() {
-        let make_req = || ProviderRequest {
+    fn thinking_forwarded_without_tools_and_sampling_params_dropped() {
+        let req = ProviderRequest {
             contents: vec![user("hi")],
             system_instruction: None,
             tools: None,
@@ -524,24 +515,20 @@ mod tests {
             model_size: None,
         };
 
-        // OpenAI direct: thinking dropped (it would otherwise 400 with tools).
-        let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
-        assert!(direct.get("reasoning_effort").is_none());
+        // No tools: reasoning_effort forwarded.
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        assert_eq!(body["reasoning_effort"], "high");
 
-        // Proxy / OpenAI-compatible endpoint, no tools: thinking forwarded.
-        let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
-        assert_eq!(proxy["reasoning_effort"], "high");
-
-        assert_eq!(direct["max_completion_tokens"], 100);
-        assert!(direct.get("max_tokens").is_none());
+        assert_eq!(body["max_completion_tokens"], 100);
+        assert!(body.get("max_tokens").is_none());
         // We never forward sampling params — see provider_request_to_openai_body.
-        assert!(direct.get("temperature").is_none());
-        assert!(direct.get("top_p").is_none());
+        assert!(body.get("temperature").is_none());
+        assert!(body.get("top_p").is_none());
     }
 
     #[test]
-    fn reasoning_effort_dropped_when_tools_present_even_via_proxy() {
-        let make_req = || ProviderRequest {
+    fn reasoning_effort_dropped_when_tools_present() {
+        let req = ProviderRequest {
             contents: vec![user("hi")],
             system_instruction: None,
             tools: Some(vec![ProviderTool {
@@ -563,14 +550,11 @@ mod tests {
             model_size: None,
         };
 
-        // Function tools + reasoning_effort 400s on gpt-5 chat/completions, both
-        // direct and via proxies that forward to OpenAI (LAM-1771: Signals).
-        let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
-        assert!(proxy.get("reasoning_effort").is_none());
-        assert!(proxy.get("tools").is_some());
-
-        let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
-        assert!(direct.get("reasoning_effort").is_none());
+        // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals).
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        assert!(body.get("reasoning_effort").is_none());
+        assert!(body.get("tools").is_some());
     }
 
     #[test]

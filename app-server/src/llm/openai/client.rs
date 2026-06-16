@@ -55,25 +55,13 @@ impl OpenAIClient {
     }
 }
 
-/// True when the base URL points at OpenAI's own API (`api.openai.com`).
-fn is_openai_direct_endpoint(base_url: &str) -> bool {
-    reqwest::Url::parse(base_url)
-        .ok()
-        .and_then(|u| {
-            u.host_str()
-                .map(|h| h.eq_ignore_ascii_case("api.openai.com"))
-        })
-        .unwrap_or(false)
-}
-
 impl LanguageModelClient for OpenAIClient {
     async fn generate_content(
         &self,
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        let is_openai_direct = is_openai_direct_endpoint(&self.api_base_url);
-        let body = provider_request_to_openai_body(model, request, is_openai_direct);
+        let body = provider_request_to_openai_body(model, request);
 
         let url = format!("{}/chat/completions", self.api_base_url);
         let response = self
@@ -119,8 +107,7 @@ impl LanguageModelClient for OpenAIClient {
         request: &ProviderRequest,
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
     ) -> ProviderResult<ProviderResponse> {
-        let is_openai_direct = is_openai_direct_endpoint(&self.api_base_url);
-        let body = provider_request_to_openai_stream_body(model, request, is_openai_direct);
+        let body = provider_request_to_openai_stream_body(model, request);
 
         let url = format!("{}/chat/completions", self.api_base_url);
         let response = self
