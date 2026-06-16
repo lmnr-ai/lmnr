@@ -50,7 +50,6 @@ import WorkspaceIntegrations from "@/components/workspace/workspace-integrations
 import WorkspaceSettings from "@/components/workspace/workspace-settings";
 import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { useProjectContext } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
@@ -125,7 +124,6 @@ const SharedSettings = ({
 }: SharedSettingsProps) => {
   const searchParams = useSearchParams();
   const featureFlags = useFeatureFlags();
-  const { projects } = useProjectContext();
   const workspaceId = workspace.id;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
@@ -176,8 +174,6 @@ const SharedSettings = ({
     { label: "Security", section: "security", icon: ShieldCheck },
     { label: "Alerts", section: "alerts", icon: Bell },
   ];
-
-  const currentProject = projects.find((p) => p.id === projectId);
 
   const renderSection = () => {
     switch (activeSection) {
@@ -279,9 +275,6 @@ const SharedSettings = ({
               <SidebarGroup className="pt-0">
                 <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
                 <SidebarMenu>
-                  <SidebarMenuItem className="mb-2 px-2">
-                    <span className="truncate text-sm font-medium">{workspace.name}</span>
-                  </SidebarMenuItem>
                   {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
@@ -303,9 +296,6 @@ const SharedSettings = ({
               <SidebarGroup className="pt-0">
                 <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
                 <SidebarMenu>
-                  <SidebarMenuItem className="mb-2 px-2">
-                    <span className="truncate text-sm font-medium">{currentProject?.name ?? "Project"}</span>
-                  </SidebarMenuItem>
                   {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
