@@ -5,7 +5,7 @@ import SectionFootnote from "../section-footnote";
 import EvalComparisonMock from "./eval-comparison-mock";
 
 // Vertical stack: title + subtitle on top, mock centered inside a
-// landing-surface-550 panel with a footnote pinned to the bottom.
+// surface-500 panel with a footnote pinned to the bottom.
 const DidMyFixWork = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -16,7 +16,7 @@ const DidMyFixWork = () => (
         regressions and iterate with confidence.
       </p>
     </div>
-    <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[64px] py-[40px] overflow-hidden px-8">
+    <div className="bg-surface-500 relative flex items-center w-full md:py-[64px] py-[40px] overflow-hidden px-8">
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
         <EvalComparisonMock className="w-[720px]" />
       </div>

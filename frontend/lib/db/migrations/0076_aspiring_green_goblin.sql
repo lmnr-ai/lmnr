@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS "workspace_usage" (
     "last_reported_date" timestamp with time zone not null DEFAULT date_trunc('day'::text, now())
 );-->statement-breakpoint
 
-ALTER TABLE "workspace_usage" ADD CONSTRAINT workspace_usage_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "workspace_usage" ADD CONSTRAINT workspace_usage_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint

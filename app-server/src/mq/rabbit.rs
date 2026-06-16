@@ -17,13 +17,8 @@ use super::{
 /// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
 /// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
 /// can leave channel ops stalled for tens of seconds before the alarm clears.
-static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> = LazyLock::new(|| {
-    let secs = std::env::var("RABBITMQ_CONSUMER_SETUP_TIMEOUT_SECS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(60);
-    Duration::from_secs(secs)
-});
+static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
 
 struct RabbitChannelManager {
     connection: Arc<Connection>,

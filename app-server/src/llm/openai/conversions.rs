@@ -19,11 +19,7 @@ use crate::llm::models::{
 use serde_json::{Value, json};
 
 /// Build the OpenAI Chat Completions request body from a `ProviderRequest`.
-pub fn provider_request_to_openai_body(
-    model: &str,
-    request: &ProviderRequest,
-    is_openai_direct: bool,
-) -> Value {
+pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -> Value {
     let mut messages: Vec<Value> = Vec::new();
 
     if let Some(sys) = request.system_instruction.as_ref() {
@@ -45,6 +41,7 @@ pub fn provider_request_to_openai_body(
         "messages": messages,
     });
 
+    let mut has_tools = false;
     if let Some(tools) = request.tools.as_ref() {
         let tool_array: Vec<Value> = tools
             .iter()
@@ -62,6 +59,7 @@ pub fn provider_request_to_openai_body(
             .collect();
         if !tool_array.is_empty() {
             body["tools"] = Value::Array(tool_array);
+            has_tools = true;
         }
     }
 
@@ -76,8 +74,11 @@ pub fn provider_request_to_openai_body(
             body["max_completion_tokens"] = json!(m);
         }
 
-        // OpenAI direct rejects `reasoning_effort` with tool calls; proxies accept it.
-        if !is_openai_direct {
+        // gpt-5 reasoning models reject `reasoning_effort` + function tools on
+        // /v1/chat/completions (400, "use /v1/responses instead") — true for both
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals),
+        // so only forward `reasoning_effort` when no tools are present.
+        if !has_tools {
             if let Some(tc) = gc.thinking_config.as_ref() {
                 if let Some(level) = tc.thinking_level.as_ref() {
                     if let Some(effort) = thinking_level_to_effort(level) {
@@ -93,12 +94,8 @@ pub fn provider_request_to_openai_body(
 
 /// Same as [`provider_request_to_openai_body`] but flags the request for SSE streaming and asks
 /// the upstream to emit a final usage-only chunk (`stream_options.include_usage`).
-pub fn provider_request_to_openai_stream_body(
-    model: &str,
-    request: &ProviderRequest,
-    is_openai_direct: bool,
-) -> Value {
-    let mut body = provider_request_to_openai_body(model, request, is_openai_direct);
+pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderRequest) -> Value {
+    let mut body = provider_request_to_openai_body(model, request);
     body["stream"] = json!(true);
     body["stream_options"] = json!({ "include_usage": true });
     body
@@ -414,7 +411,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5-mini", &req, true);
+        let body = provider_request_to_openai_body("gpt-5-mini", &req);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0]["role"], "system");
@@ -439,7 +436,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let messages = body["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 4);
         assert_eq!(messages[0]["role"], "user");
@@ -467,7 +464,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let id = body["messages"][0]["tool_calls"][0]["id"].as_str().unwrap();
         // uuid v4 is 36 chars with 4 hyphens.
         assert_eq!(id.len(), 36);
@@ -490,7 +487,7 @@ mod tests {
             provider: None,
             model_size: None,
         };
-        let body = provider_request_to_openai_body("gpt-5", &req, true);
+        let body = provider_request_to_openai_body("gpt-5", &req);
         let tools = body["tools"].as_array().unwrap();
         assert_eq!(tools.len(), 1);
         assert_eq!(tools[0]["type"], "function");
@@ -499,8 +496,8 @@ mod tests {
     }
 
     #[test]
-    fn thinking_forwarded_only_for_non_openai_direct_and_sampling_params_dropped() {
-        let make_req = || ProviderRequest {
+    fn thinking_forwarded_without_tools_and_sampling_params_dropped() {
+        let req = ProviderRequest {
             contents: vec![user("hi")],
             system_instruction: None,
             tools: None,
@@ -518,19 +515,46 @@ mod tests {
             model_size: None,
         };
 
-        // OpenAI direct: thinking dropped (it would otherwise 400 with tools).
-        let direct = provider_request_to_openai_body("gpt-5", &make_req(), true);
-        assert!(direct.get("reasoning_effort").is_none());
+        // No tools: reasoning_effort forwarded.
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        assert_eq!(body["reasoning_effort"], "high");
 
-        // Proxy / OpenAI-compatible endpoint: thinking forwarded.
-        let proxy = provider_request_to_openai_body("gpt-5", &make_req(), false);
-        assert_eq!(proxy["reasoning_effort"], "high");
-
-        assert_eq!(direct["max_completion_tokens"], 100);
-        assert!(direct.get("max_tokens").is_none());
+        assert_eq!(body["max_completion_tokens"], 100);
+        assert!(body.get("max_tokens").is_none());
         // We never forward sampling params — see provider_request_to_openai_body.
-        assert!(direct.get("temperature").is_none());
-        assert!(direct.get("top_p").is_none());
+        assert!(body.get("temperature").is_none());
+        assert!(body.get("top_p").is_none());
+    }
+
+    #[test]
+    fn reasoning_effort_dropped_when_tools_present() {
+        let req = ProviderRequest {
+            contents: vec![user("hi")],
+            system_instruction: None,
+            tools: Some(vec![ProviderTool {
+                function_declarations: vec![ProviderFunctionDeclaration {
+                    name: "lookup".to_string(),
+                    description: "find a thing".to_string(),
+                    parameters: json!({"type": "object", "properties": {}}),
+                }],
+            }]),
+            generation_config: Some(ProviderGenerationConfig {
+                max_output_tokens: Some(100),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::High),
+                }),
+                ..Default::default()
+            }),
+            provider: None,
+            model_size: None,
+        };
+
+        // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals).
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        assert!(body.get("reasoning_effort").is_none());
+        assert!(body.get("tools").is_some());
     }
 
     #[test]

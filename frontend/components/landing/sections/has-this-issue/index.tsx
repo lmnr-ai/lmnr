@@ -5,7 +5,7 @@ import SectionFootnote from "../section-footnote";
 import SignalEventClustersMock from "./signal-event-clusters-mock";
 
 // Vertical stack: title + subtitle on top, mock centered inside a
-// landing-surface-550 panel with a footnote pinned to the bottom.
+// surface-500 panel with a footnote pinned to the bottom.
 const HasThisIssue = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -16,7 +16,7 @@ const HasThisIssue = () => (
         stops recurring, Laminar resolves it — and reopens it if the issue returns.
       </p>
     </div>
-    <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[120px] py-[70px] overflow-hidden px-8">
+    <div className="bg-surface-500 relative flex items-center w-full md:py-[120px] py-[70px] overflow-hidden px-8">
       {/* mx-auto centers the mock when it fits; when it doesn't (narrow
           viewports) the auto margins collapse to 0 so the mock sticks
           to the start edge instead of overflowing symmetrically.

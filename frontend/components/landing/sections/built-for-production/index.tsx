@@ -13,7 +13,7 @@ import LearnMoreLink from "../two-lines-to-integrate/learn-more-link";
 const BuiltForProduction = () => (
   <section className="flex flex-col items-start w-full">
     <div className="flex flex-col gap-10 w-full">
-      <p className="font-sans-landing font-medium text-landing-text-100 text-[48px] leading-[60px] tracking-[-0.02em]">
+      <p className="font-sans-landing font-medium text-foreground-50 text-[48px] leading-[60px] tracking-[-0.02em]">
         20x more efficient storage
       </p>
 
@@ -28,7 +28,7 @@ const BuiltForProduction = () => (
 
         <div className="flex flex-col gap-1 items-start w-full md:flex-1 md:min-w-0">
           <motion.div
-            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-landing-surface-500 text-landing-text-100"
+            className="flex h-11 items-center justify-end px-5 overflow-hidden whitespace-nowrap w-full rounded-sm bg-surface-400 text-foreground-50"
             initial={{ width: 0 }}
             whileInView={{ width: "100%" }}
             viewport={{ once: true, amount: 0.6 }}
@@ -38,13 +38,13 @@ const BuiltForProduction = () => (
           </motion.div>
           <div className="flex items-center gap-3 h-11 w-full">
             <motion.div
-              className="flex h-full items-center justify-end px-5 overflow-hidden whitespace-nowrap rounded-sm bg-landing-primary-300 text-background"
+              className="flex h-full items-center justify-end px-5 overflow-hidden whitespace-nowrap rounded-sm bg-primary-300 text-background"
               initial={{ width: 0 }}
               whileInView={{ width: "5%" }}
               viewport={{ once: true, amount: 0.6 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             />
-            <p className="text-landing-text-100">Laminar</p>
+            <p className="text-foreground-50">Laminar</p>
           </div>
         </div>
       </div>

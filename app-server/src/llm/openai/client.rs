@@ -5,13 +5,14 @@ use super::accumulator::OpenAIStreamAccumulator;
 use super::conversions::{
     parse_openai_response, provider_request_to_openai_body, provider_request_to_openai_stream_body,
 };
+use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderResult, default_headers_from_env,
     models::{ProviderRequest, ProviderResponse, ProviderStreamChunk},
     sse::accumulate_sse,
 };
 use serde_json::Value;
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone)]
@@ -25,10 +26,10 @@ pub type OpenAIResult<T> = Result<T, OpenAIError>;
 
 impl OpenAIClient {
     pub fn new() -> OpenAIResult<Self> {
-        let api_key = env::var("LLM_API_KEY")
+        let api_key = std::env::var(env::llm::API_KEY)
             .map_err(|_| OpenAIError::config("LLM_API_KEY environment variable not set"))?;
 
-        let raw_base_url = env::var("LLM_BASE_URL")
+        let raw_base_url = std::env::var(env::llm::BASE_URL)
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
@@ -54,25 +55,13 @@ impl OpenAIClient {
     }
 }
 
-/// True when the base URL points at OpenAI's own API (`api.openai.com`).
-fn is_openai_direct_endpoint(base_url: &str) -> bool {
-    reqwest::Url::parse(base_url)
-        .ok()
-        .and_then(|u| {
-            u.host_str()
-                .map(|h| h.eq_ignore_ascii_case("api.openai.com"))
-        })
-        .unwrap_or(false)
-}
-
 impl LanguageModelClient for OpenAIClient {
     async fn generate_content(
         &self,
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        let is_openai_direct = is_openai_direct_endpoint(&self.api_base_url);
-        let body = provider_request_to_openai_body(model, request, is_openai_direct);
+        let body = provider_request_to_openai_body(model, request);
 
         let url = format!("{}/chat/completions", self.api_base_url);
         let response = self
@@ -118,8 +107,7 @@ impl LanguageModelClient for OpenAIClient {
         request: &ProviderRequest,
         chunk_tx: &UnboundedSender<ProviderStreamChunk>,
     ) -> ProviderResult<ProviderResponse> {
-        let is_openai_direct = is_openai_direct_endpoint(&self.api_base_url);
-        let body = provider_request_to_openai_stream_body(model, request, is_openai_direct);
+        let body = provider_request_to_openai_stream_body(model, request);
 
         let url = format!("{}/chat/completions", self.api_base_url);
         let response = self

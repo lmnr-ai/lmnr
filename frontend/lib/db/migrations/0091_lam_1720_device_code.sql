@@ -16,7 +16,7 @@ CREATE TABLE "device_codes" (
 	CONSTRAINT "device_codes_user_code_key" UNIQUE("user_code")
 );
 --> statement-breakpoint
-ALTER TABLE "device_codes" ADD CONSTRAINT "device_codes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "device_codes" ADD CONSTRAINT "device_codes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX "device_codes_user_code_idx" ON "device_codes" USING btree ("user_code" text_ops);--> statement-breakpoint
 CREATE INDEX "device_codes_device_code_idx" ON "device_codes" USING btree ("device_code" text_ops);--> statement-breakpoint
 CREATE INDEX "device_codes_expires_at_idx" ON "device_codes" USING btree ("expires_at" timestamptz_ops);

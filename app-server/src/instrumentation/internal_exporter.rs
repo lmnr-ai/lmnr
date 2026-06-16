@@ -392,8 +392,7 @@ mod tests {
 
     #[test]
     fn missing_project_id_attribute_yields_none() {
-        let (_proto, extracted) =
-            span_data_to_proto(span_data(SpanId::INVALID, vec![], vec![]));
+        let (_proto, extracted) = span_data_to_proto(span_data(SpanId::INVALID, vec![], vec![]));
         assert_eq!(extracted, None);
     }
 }

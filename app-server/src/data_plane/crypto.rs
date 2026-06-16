@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 /// Get the encryption key from the AEAD_SECRET_KEY environment variable
 fn get_key_from_env() -> Result<xchacha20poly1305_ietf::Key> {
-    let key_hex = std::env::var("AEAD_SECRET_KEY")
+    let key_hex = std::env::var(crate::env::secrets::AEAD_SECRET_KEY)
         .map_err(|_| anyhow!("AEAD_SECRET_KEY environment variable not set"))?;
 
     let key_bytes = hex::decode(&key_hex)
@@ -77,7 +77,7 @@ mod tests {
         // Set up test environment
         unsafe {
             std::env::set_var(
-                "AEAD_SECRET_KEY",
+                crate::env::secrets::AEAD_SECRET_KEY,
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             );
         }
@@ -97,7 +97,7 @@ mod tests {
     fn test_decrypt_with_wrong_workspace_id_fails() {
         unsafe {
             std::env::set_var(
-                "AEAD_SECRET_KEY",
+                crate::env::secrets::AEAD_SECRET_KEY,
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             );
         }
