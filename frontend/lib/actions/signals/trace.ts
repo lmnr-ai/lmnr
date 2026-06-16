@@ -24,15 +24,55 @@ export type TraceSignal = {
   signalName: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
-  leafCluster: TraceSignalClusterNode | null;
+  leafClusters: TraceSignalClusterNode[];
   events: EventRow[];
 };
 
 type SignalEventRow = EventRow & { clusters: string[] | null };
 
+type ClusterNodeWithParent = TraceSignalClusterNode & { parentId: string | null };
+
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * A trace can hit several distinct failure types at once, so a signal can carry
+ * more than one cluster. We surface one leaf (deepest) cluster per distinct
+ * cluster *tree*: group the event's (level > 0) clusters by their top-most
+ * ancestor reachable within the set, then keep the deepest node in each group.
+ */
+function deriveLeafClusters(clusterIds: string[], meta: Map<string, ClusterNodeWithParent>): TraceSignalClusterNode[] {
+  const nodes = clusterIds.map((id) => meta.get(id)).filter((n): n is ClusterNodeWithParent => !!n);
+  if (nodes.length === 0) return [];
+
+  // Walk parent_id up through the available metadata to find each node's tree
+  // root. L0 (emerging) parents aren't in `meta`, so an L1 cluster is its own
+  // root — distinct L1 roots therefore correspond to distinct failure types.
+  const rootOf = (node: ClusterNodeWithParent): string => {
+    const seen = new Set<string>();
+    let current = node;
+    while (current.parentId && meta.has(current.parentId) && !seen.has(current.id)) {
+      seen.add(current.id);
+      current = meta.get(current.parentId)!;
+    }
+    return current.id;
+  };
+
+  const leafByRoot = new Map<string, ClusterNodeWithParent>();
+  for (const node of nodes) {
+    const root = rootOf(node);
+    const existing = leafByRoot.get(root);
+    if (!existing || node.level > existing.level) {
+      leafByRoot.set(root, node);
+    }
+  }
+
+  return [...leafByRoot.values()].sort((a, b) => b.level - a.level).map(({ id, name, level }) => ({ id, name, level }));
+}
+
 /**
  * Signals (with their events) that fired on a trace, for the trace-view panel.
- * Each signal carries its deepest (leaf) cluster derived from its latest event.
+ * Each signal carries the leaf cluster of every distinct cluster tree it hit,
+ * derived from its latest event.
  */
 export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchema>): Promise<TraceSignal[]> {
   const { projectId, traceId } = GetTraceSignalsSchema.parse(input);
@@ -67,13 +107,13 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
     eventsBySignal.set(e.signalId, list);
   }
 
-  // The panel shows one leaf cluster per signal, off its latest event — so we
-  // only need cluster metadata for those clusters to pick the deepest one.
+  // The panel shows leaf clusters per signal, off its latest event — so we only
+  // need cluster metadata for those clusters (incl. parent_id) to group by tree.
   const latestClusterIds = new Set<string>();
   for (const events of eventsBySignal.values()) {
     for (const cid of events[0].clusters ?? []) latestClusterIds.add(cid);
   }
-  const clusterMeta: Map<string, TraceSignalClusterNode> =
+  const clusterMeta: Map<string, ClusterNodeWithParent> =
     latestClusterIds.size > 0 ? await fetchClusterNodes(projectId, [...latestClusterIds]) : new Map();
 
   const signalIds = [...eventsBySignal.keys()];
@@ -89,17 +129,13 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
 
   return signalRows.map((signal) => {
     const events = eventsBySignal.get(signal.id) ?? [];
-    const leafCluster =
-      (events[0]?.clusters ?? [])
-        .map((id) => clusterMeta.get(id))
-        .filter((n): n is TraceSignalClusterNode => !!n)
-        .sort((a, b) => b.level - a.level)[0] ?? null;
+    const leafClusters = deriveLeafClusters(events[0]?.clusters ?? [], clusterMeta);
     return {
       signalId: signal.id,
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema as Record<string, unknown>,
-      leafCluster,
+      leafClusters,
       events: events.map((e) => ({
         id: e.id,
         signalId: e.signalId,
@@ -112,19 +148,21 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
   });
 }
 
-async function fetchClusterNodes(
-  projectId: string,
-  clusterIds: string[]
-): Promise<Map<string, TraceSignalClusterNode>> {
-  const rows = await executeQuery<TraceSignalClusterNode>({
+async function fetchClusterNodes(projectId: string, clusterIds: string[]): Promise<Map<string, ClusterNodeWithParent>> {
+  const rows = await executeQuery<TraceSignalClusterNode & { parentId: string }>({
     projectId,
     query: `
-      SELECT id, name, level
+      SELECT id, name, level, parent_id as parentId
       FROM clusters
       WHERE id IN ({clusterIds: Array(UUID)})
         AND level != 0
     `,
     parameters: { clusterIds },
   });
-  return new Map(rows.map((r) => [r.id, r]));
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      { id: r.id, name: r.name, level: r.level, parentId: r.parentId === ZERO_UUID ? null : r.parentId },
+    ])
+  );
 }

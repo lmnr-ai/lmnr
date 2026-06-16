@@ -104,27 +104,28 @@ export default function SignalDetails({ traceId, signal }: Props) {
     onSelectSpan: selectSpanById,
   });
 
-  const leafCluster = signal.leafCluster;
-  const signalHref = leafCluster
-    ? `/project/${projectId}/signals/${signal.signalId}?clusterId=${leafCluster.id}&traceId=${traceId}`
-    : `/project/${projectId}/signals/${signal.signalId}?traceId=${traceId}`;
+  const leafClusters = signal.leafClusters ?? [];
+  const signalBaseHref = `/project/${projectId}/signals/${signal.signalId}`;
 
   return (
     <div className="px-2 pt-2 pb-0.5 flex flex-col gap-3">
       <div className="flex items-center gap-1.5 flex-wrap">
-        {leafCluster ? (
-          <Link
-            href={signalHref}
-            target="_blank"
-            className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
-          >
-            <ClusterIcon iconVariant="box" color={getClusterColorById(leafCluster.id)} />
-            <span className="truncate text-xs font-medium">{leafCluster.name}</span>
-            <ArrowUpRight className="size-3.5 shrink-0" />
-          </Link>
+        {leafClusters.length > 0 ? (
+          leafClusters.map((cluster) => (
+            <Link
+              key={cluster.id}
+              href={`${signalBaseHref}?clusterId=${cluster.id}&traceId=${traceId}`}
+              target="_blank"
+              className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
+            >
+              <ClusterIcon iconVariant="box" color={getClusterColorById(cluster.id)} />
+              <span className="truncate text-xs font-medium">{cluster.name}</span>
+              <ArrowUpRight className="size-3.5 shrink-0" />
+            </Link>
+          ))
         ) : (
           <Link
-            href={signalHref}
+            href={`${signalBaseHref}?traceId=${traceId}`}
             target="_blank"
             className="group flex items-center gap-1.5 min-w-0 rounded-full bg-blue-400/8 border-blue-400/30 border px-2 py-1 hover:bg-blue-400/12"
           >

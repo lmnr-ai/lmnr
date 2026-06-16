@@ -1,11 +1,11 @@
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { getClusterColorById } from "@/lib/clusters/colors";
 
-/** The panel's accent is the active signal's leaf-cluster color (the same color
- *  shown in the cluster list / stacked chart), falling back to the platform
+/** The panel's accent is the active signal's first leaf-cluster color (the same
+ *  color shown in the cluster list / stacked chart), falling back to the platform
  *  primary for unclustered signals. */
 export function getSignalAccentColor(signal?: TraceSignal): string {
-  const leaf = signal?.leafCluster;
+  const leaf = signal?.leafClusters?.[0];
   return leaf ? getClusterColorById(leaf.id) : "var(--color-primary)";
 }
 

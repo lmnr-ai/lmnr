@@ -145,7 +145,7 @@ export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
-  leafCluster: TraceSignalClusterNode | null;
+  leafClusters: TraceSignalClusterNode[];
   schemaFields: Array<{ name: string; type: string; description?: string }>;
   events: Array<Record<string, any>>;
 };
