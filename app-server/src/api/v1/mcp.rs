@@ -20,7 +20,7 @@ use crate::{
     llm::LlmClient,
     mq::MessageQueue,
     query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 // ============ Per-request context ============
@@ -133,6 +133,7 @@ impl LaminarMcpServer {
             params.query,
             project_id,
             params.parameters,
+            SqlQuerySource::Public,
             ro_client,
             self.query_engine.clone(),
             self.http_client.clone(),

@@ -18,7 +18,7 @@ use crate::{
     ch::datapoints::{self as ch_datapoints},
     db::{self, DB},
     query_engine::QueryEngine,
-    sql::{self, ClickhouseReadonlyClient},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 use super::datapoints::{CHQueryEngineDatapoint, Datapoint};
@@ -139,6 +139,7 @@ pub async fn fetch_datapoints_page(
         select_query.to_string(),
         project_id,
         parameters,
+        SqlQuerySource::Frontend,
         clickhouse_ro.clone(),
         query_engine.clone(),
         http_client.clone(),
@@ -159,6 +160,7 @@ pub async fn fetch_datapoints_page(
             "dataset_id".to_string(),
             Value::String(dataset_id.to_string()),
         )]),
+        SqlQuerySource::Frontend,
         clickhouse_ro,
         query_engine,
         http_client,
