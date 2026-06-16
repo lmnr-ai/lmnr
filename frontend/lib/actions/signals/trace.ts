@@ -48,6 +48,8 @@ function deriveLeafClusters(clusterIds: string[], meta: Map<string, ClusterNodeW
   // root. L0 (emerging) parents aren't in `meta`, so an L1 cluster is its own
   // root — distinct L1 roots therefore correspond to distinct failure types.
   const rootOf = (node: ClusterNodeWithParent): string => {
+    // `seen` only guards against an infinite loop on malformed data — the
+    // cluster hierarchy is a parent_id tree and should never contain cycles.
     const seen = new Set<string>();
     let current = node;
     while (current.parentId && meta.has(current.parentId) && !seen.has(current.id)) {
