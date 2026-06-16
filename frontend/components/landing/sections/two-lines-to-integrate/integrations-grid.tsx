@@ -85,7 +85,7 @@ const IntegrationsGrid = ({ className }: Props) => (
             className={cn("size-4 object-contain", integration.iconClassName)}
           />
         </div>
-        <p className="font-sans-landing text-lg font-[480] text-landing-text-200 transition-colors group-hover:text-white">
+        <p className="font-sans-landing text-lg font-[480] text-foreground-200 transition-colors group-hover:text-white">
           {integration.alt}
         </p>
       </Link>

@@ -35,35 +35,27 @@ use crate::{
         keys::{DEBUGGER_CACHE_KEY, DEBUGGER_CACHE_LOCK_KEY, DEBUGGER_CACHE_READY_KEY},
     },
     ch::spans::{DebugCacheSpanRow, query_debug_cache_spans_page},
+    env,
     traces::input_dedup::debug_input_hash,
 };
 
-fn env_parse<T: std::str::FromStr>(name: &str, default: T) -> T {
-    std::env::var(name)
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(default)
-}
-
 /// Spans pulled from ClickHouse per warmup page (strict/small).
 static QUERY_PAGE_SIZE: LazyLock<u32> =
-    LazyLock::new(|| env_parse("DEBUGGER_CACHE_QUERY_PAGE_SIZE", 8));
+    LazyLock::new(|| env::debugger::CACHE_QUERY_PAGE_SIZE.get());
 /// Cache ceiling: max spans admitted per `(project, trace)`.
-static MAX_SPANS: LazyLock<usize> = LazyLock::new(|| env_parse("DEBUGGER_CACHE_MAX_SPANS", 256));
+static MAX_SPANS: LazyLock<usize> = LazyLock::new(|| env::debugger::CACHE_MAX_SPANS.get());
 /// Cache ceiling: max total response bytes admitted per `(project, trace)`.
-static MAX_BYTES: LazyLock<usize> =
-    LazyLock::new(|| env_parse("DEBUGGER_CACHE_MAX_BYTES", 67_108_864));
+static MAX_BYTES: LazyLock<usize> = LazyLock::new(|| env::debugger::CACHE_MAX_BYTES.get());
 /// TTL on entry keys + ready marker.
-static TTL_SECONDS: LazyLock<u64> = LazyLock::new(|| env_parse("DEBUGGER_CACHE_TTL_SECONDS", 3600));
+static TTL_SECONDS: LazyLock<u64> = LazyLock::new(|| env::debugger::CACHE_TTL_SECONDS.get());
 /// Warmup lock TTL. The warmup task heartbeats (renews) the lock at ~TTL/3
 /// while it runs, so a warm that paginates a large trace can safely outlive a
 /// single TTL without a second lookup acquiring the lock and double-warming.
 static LOCK_TTL_SECONDS: LazyLock<u64> =
-    LazyLock::new(|| env_parse("DEBUGGER_CACHE_LOCK_TTL_SECONDS", 60));
+    LazyLock::new(|| env::debugger::CACHE_LOCK_TTL_SECONDS.get());
 /// Max wait before a blocked caller degrades to `Live`.
 static WARMUP_TIMEOUT_SECONDS: LazyLock<u64> =
-    LazyLock::new(|| env_parse("DEBUGGER_CACHE_WARMUP_TIMEOUT_SECONDS", 10));
+    LazyLock::new(|| env::debugger::CACHE_WARMUP_TIMEOUT_SECONDS.get());
 
 /// Poll interval for a caller waiting on the ready marker.
 const READY_POLL_INTERVAL: Duration = Duration::from_millis(150);

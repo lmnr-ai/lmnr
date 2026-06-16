@@ -81,7 +81,7 @@ impl MessageHandler for CheckpointsHandler {
 
 impl CheckpointsHandler {
     fn internal_project_id() -> Option<Uuid> {
-        std::env::var("CHECKPOINTS_INTERNAL_PROJECT_ID")
+        std::env::var(crate::env::connections::CHECKPOINTS_INTERNAL_PROJECT_ID)
             .ok()
             .and_then(|s| s.parse().ok())
     }
@@ -299,10 +299,15 @@ impl CheckpointsHandler {
         version_hash: &str,
     ) -> anyhow::Result<Option<Uuid>> {
         let cache_key = Self::version_hash_cache_key(project_id, version_hash);
-        if let Some(agent_id) = self.cache.get::<Uuid>(&cache_key).await.unwrap_or_else(|e| {
-            log::warn!("Failed to read agent version-hash cache {cache_key}: {e:?}");
-            None
-        }) {
+        if let Some(agent_id) = self
+            .cache
+            .get::<Uuid>(&cache_key)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!("Failed to read agent version-hash cache {cache_key}: {e:?}");
+                None
+            })
+        {
             return Ok(Some(agent_id));
         }
 

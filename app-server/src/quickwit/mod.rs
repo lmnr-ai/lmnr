@@ -28,7 +28,7 @@ pub const EVENTS_INDEX_ID: &str = "events";
 pub const SIGNAL_EVENTS_INDEX_ID: &str = "signal_events";
 
 pub static SPANS_INDEX_ID: LazyLock<String> =
-    LazyLock::new(|| std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string()));
+    LazyLock::new(|| crate::env::quickwit::SPANS_INDEX_ID.get());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {

@@ -21,13 +21,13 @@ const FEATURES: Feature[] = [
 const FeatureRow = ({ label, href }: Feature) => {
   const inner = (
     <>
-      <p className="text-lg leading-6 text-landing-text-300">{label}</p>
-      {href && <ArrowUpRight className="size-4 text-landing-text-300 shrink-0" strokeWidth={2} />}
+      <p className="text-lg leading-6 text-foreground-300">{label}</p>
+      {href && <ArrowUpRight className="size-4 text-foreground-300 shrink-0" strokeWidth={2} />}
     </>
   );
-  const className = "flex items-center gap-3 h-14 w-full border-t border-landing-text-600";
+  const className = "flex items-center gap-3 h-14 w-full border-t border-foreground-600";
   return href ? (
-    <Link href={href} target="_blank" className={`${className} hover:text-landing-text-100 transition-colors`}>
+    <Link href={href} target="_blank" className={`${className} hover:text-foreground-50 transition-colors`}>
       {inner}
     </Link>
   ) : (
@@ -50,9 +50,9 @@ const OpenSource = () => (
           overflows left-anchored otherwise (same pattern as did-my-fix). On
           mobile the inner is scaled to 80% from the left edge so it fits
           tighter viewports without horizontal scrolling. */}
-      <div className="w-full md:flex-1 md:min-w-0 bg-landing-surface-550 flex items-center p-5 overflow-hidden h-[400px]">
+      <div className="w-full md:flex-1 md:min-w-0 bg-surface-500 flex items-center p-5 overflow-hidden h-[400px]">
         <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left">
-          <div className="bg-landing-surface-700 rounded w-[420px] px-6 py-5">
+          <div className="bg-surface-700 rounded w-[420px] px-6 py-5">
             <Terminal />
           </div>
         </div>

@@ -42,14 +42,14 @@ interface SpanChipProps {
 const SpanChip = ({ iconBg, icon, label, spanId, flashSpanId, onClick }: SpanChipProps) => {
   const isFlashing = !!spanId && flashSpanId === spanId;
   const className = cn(
-    "inline-flex items-center gap-1 rounded border border-landing-text-200/15 bg-landing-text-200/15 pl-0.5 pr-1.5 py-0.5 align-middle transition-colors",
-    onClick && "cursor-pointer hover:bg-landing-text-200/25",
+    "inline-flex items-center gap-1 rounded border border-foreground-200/15 bg-foreground-200/15 pl-0.5 pr-1.5 py-0.5 align-middle transition-colors",
+    onClick && "cursor-pointer hover:bg-foreground-200/25",
     isFlashing && "signal-span-flash"
   );
   const inner = (
     <>
       <span className={cn("inline-flex items-center justify-center size-4 rounded", iconBg)}>{icon}</span>
-      <span className="text-landing-text-200 text-xs leading-none">{label}</span>
+      <span className="text-foreground-200 text-xs leading-none">{label}</span>
     </>
   );
   if (onClick && spanId) {
@@ -90,26 +90,26 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
         {/* (cube, label, arrow) is decorative — signals the row would be
             clickable in the real product. The wrapper gets the X's flex
             sibling treatment so X stays pinned right via justify-between. */}
-        <div className="flex items-center gap-1.5 min-w-0 rounded-full border border-landing-text-600 px-2 py-1">
-          <Box className="size-3.5 shrink-0 text-landing-primary-200" strokeWidth={2} />
+        <div className="flex items-center gap-1.5 min-w-0 rounded-full border border-foreground-600 px-2 py-1">
+          <Box className="size-3.5 shrink-0 text-primary-200" strokeWidth={2} />
           <span className="text-white text-xs leading-none whitespace-nowrap">Agent run hit avoidable failures</span>
-          <ArrowUpRight className="size-3.5 shrink-0 text-landing-text-300" strokeWidth={2} />
+          <ArrowUpRight className="size-3.5 shrink-0 text-foreground-300" strokeWidth={2} />
         </div>
         {onClose ? (
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded p-0.5 text-landing-text-300 hover:text-landing-text-200 transition-colors"
+            className="shrink-0 rounded p-0.5 text-foreground-300 hover:text-foreground-200 transition-colors"
             aria-label="Close signal panel"
           >
             <X className="size-4" strokeWidth={1.5} />
           </button>
         ) : (
-          <X className="size-4 shrink-0 text-landing-text-300" strokeWidth={1.5} />
+          <X className="size-4 shrink-0 text-foreground-300" strokeWidth={1.5} />
         )}
       </div>
 
-      <p className="text-landing-text-300 text-xs leading-5">
+      <p className="text-foreground-300 text-xs leading-5">
         Agent run flagged 4 issues. In one{" "}
         <SpanChip
           iconBg="bg-llm"
@@ -119,8 +119,8 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
         />{" "}
-        the agent decided to run <code className="text-landing-text-200">python</code> (macOS only ships{" "}
-        <code className="text-landing-text-200">python3</code>),{" "}
+        the agent decided to run <code className="text-foreground-200">python</code> (macOS only ships{" "}
+        <code className="text-foreground-200">python3</code>),{" "}
         <SpanChip
           iconBg="bg-tool"
           icon={<Bolt className="size-3 text-white" strokeWidth={2} />}
@@ -129,7 +129,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
         />{" "}
-        then hit <code className="text-landing-text-200">command not found</code> three times before recovering, a
+        then hit <code className="text-foreground-200">command not found</code> three times before recovering, a
         parallel{" "}
         <SpanChip
           iconBg="bg-tool"
@@ -148,7 +148,7 @@ export const SignalContent = ({ onSpanClick, flashSpanId, onClose }: SignalConte
           onClick={chipProps.onSpanClick}
           flashSpanId={chipProps.flashSpanId}
         />{" "}
-        missed when the shell CWD drifted after a <code className="text-landing-text-200">cd</code>.
+        missed when the shell CWD drifted after a <code className="text-foreground-200">cd</code>.
       </p>
     </div>
   );

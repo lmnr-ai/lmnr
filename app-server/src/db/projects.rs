@@ -129,9 +129,12 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
     fn into(self) -> ProjectWithWorkspaceBillingInfo {
         // Tolerate malformed JSON: log and fall back to defaults so a single
         // hand-edited row can't poison the cache for the whole project.
-        let settings = serde_json::from_value::<ProjectSettings>(self.settings.0)
-            .unwrap_or_else(|e| {
-                log::warn!("project[{}] settings JSON malformed, using defaults: {e:#}", self.id);
+        let settings =
+            serde_json::from_value::<ProjectSettings>(self.settings.0).unwrap_or_else(|e| {
+                log::warn!(
+                    "project[{}] settings JSON malformed, using defaults: {e:#}",
+                    self.id
+                );
                 ProjectSettings::default()
             });
         ProjectWithWorkspaceBillingInfo {
@@ -204,7 +207,10 @@ pub struct CliProject {
 }
 
 /// All projects in workspaces the user belongs to, for the CLI project picker.
-pub async fn get_projects_for_user(pool: &PgPool, user_id: &Uuid) -> anyhow::Result<Vec<CliProject>> {
+pub async fn get_projects_for_user(
+    pool: &PgPool,
+    user_id: &Uuid,
+) -> anyhow::Result<Vec<CliProject>> {
     let projects = sqlx::query_as::<_, CliProject>(
         // LIMIT bounds the response for users in large multi-workspace orgs;
         // the CLI only needs enough rows to pick a project from.

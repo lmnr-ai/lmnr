@@ -161,9 +161,11 @@ pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> Ht
                 "datapointInfo": datapoint_info,
             }))
         }
-        CreateDatapointsOutcome::NoDatapoints => HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "No datapoints provided"
-        })),
+        CreateDatapointsOutcome::NoDatapoints => {
+            HttpResponse::BadRequest().json(serde_json::json!({
+                "error": "No datapoints provided"
+            }))
+        }
         CreateDatapointsOutcome::DatasetNameConflict => {
             HttpResponse::Conflict().json(serde_json::json!({
                 "error": "Dataset with this name already exists"
@@ -174,9 +176,11 @@ pub(crate) fn create_datapoints_response(outcome: CreateDatapointsOutcome) -> Ht
                 "error": "When creating a new dataset, the name must be provided"
             }))
         }
-        CreateDatapointsOutcome::DatasetNotFound => HttpResponse::NotFound().json(serde_json::json!({
-            "error": "Dataset not found"
-        })),
+        CreateDatapointsOutcome::DatasetNotFound => {
+            HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Dataset not found"
+            }))
+        }
     }
 }
 
@@ -203,7 +207,7 @@ async fn get_parquet(
         })));
     };
 
-    let Ok(bucket) = std::env::var("S3_EXPORTS_BUCKET") else {
+    let Ok(bucket) = std::env::var(crate::env::storage::S3_EXPORTS_BUCKET) else {
         return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "exports storage is not configured"
         })));

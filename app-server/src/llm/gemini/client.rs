@@ -5,6 +5,7 @@ use super::{
     BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
     InlineRequestItem, Operation,
 };
+use crate::env;
 use crate::llm::{
     LanguageModelClient, ProviderError, ProviderResult, default_headers_from_env,
     models::{
@@ -13,7 +14,7 @@ use crate::llm::{
     },
     sse::accumulate_sse,
 };
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Clone)]
@@ -27,10 +28,10 @@ pub type GeminiResult<T> = Result<T, GeminiError>;
 
 impl GeminiClient {
     pub fn new() -> GeminiResult<Self> {
-        let api_key = env::var("LLM_API_KEY")
+        let api_key = std::env::var(env::llm::API_KEY)
             .map_err(|_| GeminiError::config("LLM_API_KEY environment variable not set"))?;
 
-        let raw_base_url = env::var("LLM_BASE_URL")
+        let raw_base_url = std::env::var(env::llm::BASE_URL)
             .ok()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta".to_string());

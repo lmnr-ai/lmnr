@@ -107,7 +107,7 @@ impl MockProviderClient {
 /// optional `MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT` (defaults to `3`).
 /// Returns `None` when the failure env var is unset or holds an unrecognized value.
 fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
-    let mode = match std::env::var("MOCK_LLM_CLIENT_GENERATE_FAILURE")
+    let mode = match std::env::var(crate::env::mock::GENERATE_FAILURE)
         .ok()
         .as_deref()
     {
@@ -124,10 +124,7 @@ fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
         None => return None,
     };
 
-    let fail_count = std::env::var("MOCK_LLM_CLIENT_GENERATE_FAILURE_COUNT")
-        .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(3);
+    let fail_count = crate::env::mock::GENERATE_FAILURE_COUNT.get();
 
     log::info!(
         "[Mock LLM client] generate_content failure injection enabled: mode={}, fail_count={}",
@@ -168,10 +165,7 @@ fn mock_get_full_spans() -> ProviderFunctionCall {
 }
 
 fn mock_steps_count() -> usize {
-    std::env::var("MOCK_LLM_CLIENT_STEPS_COUNT")
-        .ok()
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(2)
+    crate::env::mock::STEPS_COUNT.get()
 }
 
 fn current_step(request: &ProviderRequest) -> usize {
@@ -267,7 +261,7 @@ impl LanguageModelClient for MockProviderClient {
         requests: Vec<ProviderRequestItem>,
         _display_name: Option<String>,
     ) -> ProviderResult<ProviderBatchOperation> {
-        match std::env::var("MOCK_LLM_CLIENT_BATCH_FAILURE")
+        match std::env::var(crate::env::mock::BATCH_FAILURE)
             .ok()
             .as_deref()
         {
@@ -319,10 +313,7 @@ impl LanguageModelClient for MockProviderClient {
             ProviderError::NotSupported(format!("Batch '{batch_name}' not found"))
         })?;
 
-        let pending_tries = std::env::var("MOCK_LLM_CLIENT_BATCH_PENDING_TRIES")
-            .ok()
-            .and_then(|v| v.parse::<u32>().ok())
-            .unwrap_or(0);
+        let pending_tries = crate::env::mock::BATCH_PENDING_TRIES.get();
 
         entry.poll_count += 1;
 
@@ -352,7 +343,7 @@ impl LanguageModelClient for MockProviderClient {
             })
             .collect::<Vec<_>>();
 
-        let is_expired = std::env::var("MOCK_LLM_CLIENT_BATCH_EXPIRED")
+        let is_expired = std::env::var(crate::env::mock::BATCH_EXPIRED)
             .is_ok_and(|v| v.trim().to_lowercase() == "true");
 
         if is_expired {

@@ -8,5 +8,5 @@ CREATE TABLE "table_views" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "table_views" ADD CONSTRAINT "table_views_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "table_views" ADD CONSTRAINT "table_views_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "table_views_project_id_resource_name_idx" ON "table_views" USING btree ("project_id" uuid_ops,"resource" text_ops,"name" text_ops);

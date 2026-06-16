@@ -22,15 +22,15 @@ export default function PricingTable() {
         style={{ gridTemplateColumns: `1.4fr repeat(${TIER_COLUMNS.length}, 1fr)` }}
       >
         {/* Header row — sticky on md+ */}
-        <div className="sticky top-0 z-10 bg-landing-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-landing-surface-700 after:to-transparent after:pointer-events-none" />
+        <div className="sticky top-0 z-10 bg-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-700 after:to-transparent after:pointer-events-none" />
         {TIER_COLUMNS.map((tier) => (
           <div
             key={tier.id}
-            className="sticky top-0 z-10 bg-landing-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-landing-surface-700 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
+            className="sticky top-0 z-10 bg-surface-700 after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-6 after:bg-gradient-to-b after:from-surface-700 after:to-transparent after:pointer-events-none relative px-5 pt-6 pb-5 flex flex-col items-start gap-3"
           >
             <div className="flex flex-col gap-1">
               <p className={cn(subSection, "text-white")}>{tier.name}</p>
-              <p className="font-sans text-sm text-landing-text-300">
+              <p className="font-sans text-sm text-foreground-300">
                 <span className="text-white">{tier.price}</span>
                 {tier.priceSuffix ? ` ${tier.priceSuffix}` : ""}
               </p>
@@ -65,11 +65,9 @@ function FeatureGroupRows({ group }: { group: FeatureGroup }) {
 function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
   return (
     <>
-      <div className="pl-0 pr-5 py-3 text-sm text-landing-text-200 border-t border-landing-surface-500/50">
-        {row.label}
-      </div>
+      <div className="pl-0 pr-5 py-3 text-sm text-foreground-200 border-t border-surface-400/50">{row.label}</div>
       {TIER_COLUMNS.map((tier) => (
-        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-landing-surface-500/50">
+        <div key={tier.id} className="px-5 py-3 text-sm text-white border-t border-surface-400/50">
           <FeatureCell value={row.values[tier.id]} />
         </div>
       ))}
@@ -78,7 +76,7 @@ function FeatureRowCells({ row }: { row: FeatureGroup["rows"][number] }) {
 }
 
 function FeatureCell({ value }: { value: FeatureValue }) {
-  if (value === true) return <Check className="size-4 text-landing-text-100" strokeWidth={2.5} />;
-  if (value === false || value === null) return <Minus className="size-4 text-landing-text-500" />;
+  if (value === true) return <Check className="size-4 text-foreground-50" strokeWidth={2.5} />;
+  if (value === false || value === null) return <Minus className="size-4 text-foreground-500" />;
   return <span>{value}</span>;
 }

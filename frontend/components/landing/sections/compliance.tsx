@@ -35,8 +35,8 @@ const Compliance = () => (
               href={href}
               target="_blank"
               className={cn(
-                "flex items-center gap-3 h-14 w-full border-t border-landing-text-600",
-                "text-lg text-landing-text-300 no-underline"
+                "flex items-center gap-3 h-14 w-full border-t border-foreground-600",
+                "text-lg text-foreground-300 no-underline"
               )}
             >
               {label}

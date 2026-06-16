@@ -8,8 +8,8 @@ ALTER TABLE "user_usage" DROP CONSTRAINT "user_usage_user_id_fkey";
 --> statement-breakpoint
 ALTER TABLE "playgrounds" ALTER COLUMN "temperature" SET DATA TYPE real;--> statement-breakpoint
 ALTER TABLE "playgrounds" ALTER COLUMN "temperature" SET DEFAULT '1';--> statement-breakpoint
-ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX "spans_name_idx" ON "spans" USING btree ("name" text_ops);--> statement-breakpoint
 CREATE INDEX "traces_trace_type_idx" ON "traces" USING btree ("trace_type" enum_ops);--> statement-breakpoint
 ALTER TABLE "label_classes" DROP COLUMN "description";--> statement-breakpoint

@@ -49,7 +49,7 @@ function SpanChip({
         e.preventDefault();
         onClick();
       }}
-      className="inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-landing-text-300/20 hover:bg-landing-text-300/30 transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1 rounded px-1 py-0.25 align-middle bg-foreground-300/20 hover:bg-foreground-300/30 transition-colors cursor-pointer"
     >
       <span
         className="inline-flex items-center justify-center rounded size-4 shrink-0"

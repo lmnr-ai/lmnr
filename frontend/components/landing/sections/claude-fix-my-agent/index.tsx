@@ -6,7 +6,7 @@ import ClaudeCodeSessionMock from "./claude-code-session-mock";
 import RotatingAgentName from "./rotating-agent-name";
 
 // Vertical stack: title + subtitle on top, terminal session mock centered
-// inside a landing-surface-550 panel with a footnote pinned to the bottom.
+// inside a surface-500 panel with a footnote pinned to the bottom.
 const ClaudeFixMyAgent = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
@@ -21,7 +21,7 @@ const ClaudeFixMyAgent = () => (
           href="https://laminar.sh/docs/platform/mcp#mcp-server"
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:text-landing-text-200"
+          className="underline hover:text-foreground-200"
         >
           MCP
         </a>{" "}
@@ -30,7 +30,7 @@ const ClaudeFixMyAgent = () => (
           href="https://laminar.sh/docs/platform/cli#cli"
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:text-landing-text-200"
+          className="underline hover:text-foreground-200"
         >
           CLI
         </a>{" "}
@@ -38,7 +38,7 @@ const ClaudeFixMyAgent = () => (
         to confirm the fix worked.
       </p>
     </div>
-    <div className="bg-landing-surface-550 relative flex items-center w-full md:py-[40px] py-[30px] overflow-hidden px-8">
+    <div className="bg-surface-500 relative flex items-center w-full md:py-[40px] py-[30px] overflow-hidden px-8">
       <div className="shrink-0 mx-auto md:scale-none scale-[80%] origin-left sm:origin-center">
         <ClaudeCodeSessionMock />
       </div>

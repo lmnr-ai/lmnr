@@ -15,11 +15,7 @@ const DEFAULT_PREFETCH_COUNT: u16 = 128;
 /// Cap on the backoff between worker connect retries. Tunable so operators can
 /// slow the retry cadence when the broker is recovering from memory pressure.
 static CONNECT_BACKOFF_MAX_INTERVAL: LazyLock<Duration> = LazyLock::new(|| {
-    let secs = std::env::var("WORKER_CONNECT_BACKOFF_MAX_INTERVAL_SECS")
-        .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(10);
-    Duration::from_secs(secs)
+    Duration::from_secs(crate::env::workers::CONNECT_BACKOFF_MAX_INTERVAL_SECS.get())
 });
 
 /// Message handler trait - implement this to process messages
@@ -94,10 +90,7 @@ impl QueueConfig {
         routing_key: &'static str,
     ) -> Self {
         let env_key = format!("{}_PREFETCH_COUNT", queue_name.to_uppercase());
-        let prefetch_count = std::env::var(&env_key)
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_PREFETCH_COUNT);
+        let prefetch_count = crate::env::num_with_default(&env_key, DEFAULT_PREFETCH_COUNT);
 
         log::info!(
             "Queue '{}' prefetch_count={} (override via {})",

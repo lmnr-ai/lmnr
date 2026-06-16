@@ -39,7 +39,7 @@ export default function Pricing() {
             href="https://laminar.sh/docs/signals/introduction"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline hover:text-landing-text-100"
+            className="underline hover:text-foreground-50"
           >
             Signals docs
           </a>
@@ -89,7 +89,7 @@ export default function Pricing() {
             <h2 className={cn(subSection, "text-white")}>Frequently asked questions</h2>
             <Accordion type="single" collapsible className="w-full">
               {faqItems.map((item) => (
-                <AccordionItem key={item.id} value={item.id} className="border-landing-surface-500">
+                <AccordionItem key={item.id} value={item.id} className="border-surface-400">
                   <AccordionTrigger
                     className={cn("text-white text-lg leading-6 py-6")}
                     onClick={() => handleQuestionClick(item.question)}

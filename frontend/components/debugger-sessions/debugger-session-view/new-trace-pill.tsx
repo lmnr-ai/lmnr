@@ -37,7 +37,7 @@ export default function NewTracePill({
 
   return (
     <div className="absolute bottom-6 left-1/2 z-30 -translate-x-1/2">
-      <div className="flex items-center overflow-hidden rounded-full border bg-primary shadow-md hover:bg-landing-primary-300">
+      <div className="flex items-center overflow-hidden rounded-full border bg-primary shadow-md hover:bg-primary-300">
         <button
           type="button"
           className="pl-3 py-1.5 text-sm font-medium"

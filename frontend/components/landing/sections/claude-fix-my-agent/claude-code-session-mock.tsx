@@ -38,9 +38,7 @@ const DIFF_MS = 90;
 //   6..11: diff lines (one per stage)
 const TOTAL_STAGES = 6 + DIFF_LINES.length;
 
-const Cursor = () => (
-  <span className="inline-block w-1.5 h-3.5 bg-landing-text-300 ml-0.5 align-middle animate-pulse" />
-);
+const Cursor = () => <span className="inline-block w-1.5 h-3.5 bg-foreground-300 ml-0.5 align-middle animate-pulse" />;
 
 // Faithful port of the Claude Code session card from Figma (4054:7405),
 // with a line-by-line reveal that mimics a live session. Fixed-height
@@ -83,7 +81,7 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
     <div
       ref={ref}
       className={cn(
-        "w-[600px] h-[450px] rounded-md border border-landing-surface-500 bg-landing-surface-700 px-5 py-4 flex flex-col gap-[18px]",
+        "w-[600px] h-[450px] rounded-md border border-surface-400 bg-surface-700 px-5 py-4 flex flex-col gap-[18px]",
         className
       )}
     >
@@ -92,19 +90,19 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
           anything past the top edge (reads as a longer session). */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end gap-[18px]">
         {stage >= 1 && (
-          <p className={cn(monoBase, "text-landing-text-300")}>
-            <span className="text-landing-primary-300">&gt;</span> {USER_PROMPT}
+          <p className={cn(monoBase, "text-foreground-300")}>
+            <span className="text-primary-300">&gt;</span> {USER_PROMPT}
           </p>
         )}
 
         {stage >= 2 && (
           <div className="flex flex-col gap-0.5">
-            <p className={cn(monoBase, "text-landing-text-200")}>
-              <span className="text-landing-primary-300">●</span>
+            <p className={cn(monoBase, "text-foreground-200")}>
+              <span className="text-primary-300">●</span>
               {` `}laminar - query_laminar_sql(query: &quot;SELECT trace_id, output_chars FROM refine_report …&quot;)
             </p>
             {stage >= 3 && (
-              <p className={cn(monoBase, "text-landing-text-400")}>
+              <p className={cn(monoBase, "text-foreground-400")}>
                 {"  └─ Returned 5 rows · avg output: 612 chars (target ≤ 300)"}
               </p>
             )}
@@ -112,16 +110,16 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
         )}
 
         {stage >= 4 && (
-          <p className={cn(monoBase, "text-landing-text-300")}>
-            <span className="text-landing-primary-300">✻</span> {` `}The prompt says &quot;a few sentences&quot; but
-            never enforces a length — I&apos;ll make it explicit.
+          <p className={cn(monoBase, "text-foreground-300")}>
+            <span className="text-primary-300">✻</span> {` `}The prompt says &quot;a few sentences&quot; but never
+            enforces a length — I&apos;ll make it explicit.
           </p>
         )}
 
         {stage >= 5 && (
           <div className="flex flex-col gap-0.5">
-            <p className={cn(monoBase, "text-landing-text-200")}>
-              <span className="text-landing-primary-300">●</span> Update(refine-report.ts)
+            <p className={cn(monoBase, "text-foreground-200")}>
+              <span className="text-primary-300">●</span> Update(refine-report.ts)
             </p>
             <div className="h-1.5" />
             {DIFF_LINES.slice(0, diffShown).map((line, i) => (
@@ -129,20 +127,20 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
                 key={i}
                 className={cn(
                   "flex items-center pl-1 pr-2",
-                  line.kind === "removed" && "bg-landing-surface-500/60",
-                  line.kind === "added" && "bg-landing-primary-400/10"
+                  line.kind === "removed" && "bg-surface-400/60",
+                  line.kind === "added" && "bg-primary-400/10"
                 )}
               >
-                <span className={cn(monoBase, "w-7 text-right pr-2 text-landing-text-500 select-none shrink-0")}>
+                <span className={cn(monoBase, "w-7 text-right pr-2 text-foreground-500 select-none shrink-0")}>
                   {i + 1}
                 </span>
                 <span
                   className={cn(
                     monoBase,
                     "w-4 text-center shrink-0",
-                    line.kind === "added" && "text-landing-primary-300",
-                    line.kind === "removed" && "text-landing-text-400",
-                    line.kind === "context" && "text-landing-text-500"
+                    line.kind === "added" && "text-primary-300",
+                    line.kind === "removed" && "text-foreground-400",
+                    line.kind === "context" && "text-foreground-500"
                   )}
                 >
                   {line.kind === "added" ? "+" : line.kind === "removed" ? "-" : ""}
@@ -151,9 +149,9 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
                   className={cn(
                     monoBase,
                     "whitespace-pre",
-                    line.kind === "added" && "text-landing-primary-300",
-                    line.kind === "removed" && "text-landing-text-400",
-                    line.kind === "context" && "text-landing-text-300"
+                    line.kind === "added" && "text-primary-300",
+                    line.kind === "removed" && "text-foreground-400",
+                    line.kind === "context" && "text-foreground-300"
                   )}
                 >
                   {line.text}
@@ -167,16 +165,16 @@ const ClaudeCodeSessionMock = ({ className }: Props) => {
       {/* Footer — input + status. Input shows the user typing during stage 0
           then clears once the prompt is "submitted" (stage ≥ 1). */}
       <div className="shrink-0 flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 rounded-md border border-landing-surface-500 bg-landing-surface-600 px-3 py-2.5">
-          <span className={cn(monoBase, "font-medium text-landing-primary-300")}>&gt;</span>
-          <span className={cn(monoBase, "text-landing-text-200")}>
+        <div className="flex items-center gap-2 rounded-md border border-surface-400 bg-surface-600 px-3 py-2.5">
+          <span className={cn(monoBase, "font-medium text-primary-300")}>&gt;</span>
+          <span className={cn(monoBase, "text-foreground-200")}>
             {isTyping ? typed : ""}
             {isTyping && <Cursor />}
           </span>
         </div>
         <div className="flex items-center justify-between px-1">
-          <span className={cn("font-mono text-xs leading-[18px] text-landing-text-600")}>? for shortcuts</span>
-          <span className={cn("font-mono text-xs leading-[18px] text-landing-text-600")}>
+          <span className={cn("font-mono text-xs leading-[18px] text-foreground-600")}>? for shortcuts</span>
+          <span className={cn("font-mono text-xs leading-[18px] text-foreground-600")}>
             claude-opus-4-7 · 1M context
           </span>
         </div>

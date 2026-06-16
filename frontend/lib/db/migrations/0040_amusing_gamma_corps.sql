@@ -23,7 +23,7 @@ CREATE TABLE "evaluators" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "evaluator_scores" ADD CONSTRAINT "evaluator_scores_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_evaluator_id_fkey" FOREIGN KEY ("evaluator_id") REFERENCES "public"."evaluators"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "evaluators" ADD CONSTRAINT "evaluators_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evaluator_scores" ADD CONSTRAINT "evaluator_scores_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_evaluator_id_fkey" FOREIGN KEY ("evaluator_id") REFERENCES "evaluators"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evaluator_span_paths" ADD CONSTRAINT "evaluator_span_paths_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evaluators" ADD CONSTRAINT "evaluators_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
