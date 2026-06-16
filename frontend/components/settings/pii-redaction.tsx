@@ -18,7 +18,7 @@ import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 const PRO_TIERS: WorkspaceTier[] = [WorkspaceTier.PRO, WorkspaceTier.ENTERPRISE];
 
 export default function PiiRedaction() {
-  const { project, workspace } = useProjectContext();
+  const { project, workspace, settingsHref } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -86,7 +86,7 @@ export default function PiiRedaction() {
             </span>
             {workspace && (
               <Button asChild size="sm" variant="outline" className="h-7">
-                <Link href={`/workspace/${workspace.id}?tab=billing`}>
+                <Link href={settingsHref("billing")}>
                   Upgrade plan
                   <ArrowUpRight className="ml-1 size-3" />
                 </Link>

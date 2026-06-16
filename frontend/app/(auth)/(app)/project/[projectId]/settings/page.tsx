@@ -3,7 +3,6 @@ import { type Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import SharedSettings from "@/components/shared-settings";
-import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getApiKeys } from "@/lib/actions/project-api-keys";
@@ -81,22 +80,20 @@ export default async function ProjectSettingsPage(props: { params: Promise<{ pro
   }
 
   return (
-    <WorkspaceMenuProvider>
-      <SharedSettings
-        workspace={workspace}
-        projectId={params.projectId}
-        apiKeys={apiKeys}
-        invitations={invitations}
-        workspaceStats={workspaceStats}
-        isOwner={isOwner}
-        currentUserRole={currentUserRole}
-        subscription={subscription}
-        upcomingInvoice={upcomingInvoice}
-        canManageBilling={canManageBilling}
-        slackClientId={process.env.SLACK_CLIENT_ID}
-        slackRedirectUri={process.env.SLACK_REDIRECT_URL}
-        slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
-      />
-    </WorkspaceMenuProvider>
+    <SharedSettings
+      workspace={workspace}
+      projectId={params.projectId}
+      apiKeys={apiKeys}
+      invitations={invitations}
+      workspaceStats={workspaceStats}
+      isOwner={isOwner}
+      currentUserRole={currentUserRole}
+      subscription={subscription}
+      upcomingInvoice={upcomingInvoice}
+      canManageBilling={canManageBilling}
+      slackClientId={process.env.SLACK_CLIENT_ID}
+      slackRedirectUri={process.env.SLACK_REDIRECT_URL}
+      slackBrokerEnabled={!!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY}
+    />
   );
 }

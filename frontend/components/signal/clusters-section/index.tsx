@@ -34,9 +34,9 @@ import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
 
 export default function ClustersSection() {
-  const { workspace } = useProjectContext();
+  const { workspace, settingsHref } = useProjectContext();
   const isPaywall = !getHasClusteringAccess(workspace?.tierName);
-  const billingHref = workspace ? `/workspace/${workspace.id}?tab=billing` : "/";
+  const billingHref = settingsHref("billing");
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
   const [, setEmergingClusterId] = useEmergingClusterId();

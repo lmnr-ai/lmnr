@@ -14,6 +14,7 @@ import {
 } from "@/components/settings/settings-section";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Button } from "@/components/ui/button";
+import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { type ReportWithDetails } from "@/lib/actions/reports/types";
 import { track } from "@/lib/posthog";
@@ -30,6 +31,7 @@ interface WorkspaceReportsProps {
 
 export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
   const { email: userEmail } = useUserContext();
+  const { settingsHref } = useProjectContext();
 
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
@@ -54,7 +56,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         workspaceId={workspaceId}
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
-        returnPath={`/workspace/${workspaceId}?menu=reports`}
+        returnPath={settingsHref("reports")}
       />
 
       <SettingsTable

@@ -23,7 +23,7 @@ import { Feature } from "@/lib/features/features";
 const SidebarUserMenu = () => {
   const { open, openMobile } = useSidebar();
   const user = useUserContext();
-  const { workspace } = useProjectContext();
+  const { workspace, settingsHref } = useProjectContext();
   const { broadcastLogout } = useSessionSync();
   const features = useFeatureFlags();
 
@@ -56,14 +56,14 @@ const SidebarUserMenu = () => {
         </SidebarMenuButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-(--radix-dropdown-menu-trigger-width) rounded-lg text-xs bg-landing-surface-600"
+        className="w-(--radix-dropdown-menu-trigger-width) rounded-lg text-xs bg-surface-600"
         align="start"
         sideOffset={4}
         side="top"
       >
         {showUpgrade && (
           <DropdownMenuItem asChild className="cursor-pointer">
-            <Link href={`/workspace/${workspace?.id}?tab=billing`}>
+            <Link href={settingsHref("billing")}>
               <Sparkles className="size-4" />
               <span>Upgrade plan</span>
             </Link>

@@ -50,7 +50,8 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
       if (newWorkspace.projectId) {
         router.push(`/project/${newWorkspace.projectId}/traces?onboarding=true`);
       } else {
-        router.push(`/workspace/${newWorkspace.id}`);
+        // No project came back; /projects resolves to the workspace's create-project surface.
+        router.push("/projects");
       }
       // We don't need to set isLoading to false, as we are redirecting.
       // Redirect itself takes some time, so we need the button to be disabled

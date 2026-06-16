@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
+import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ export default function ProjectCreateDialog({
   className,
   children,
 }: ProjectCreateDialogProps) {
-  const { setMenu } = useWorkspaceMenuContext();
+  const { settingsHref } = useProjectContext();
   const [newProjectName, setNewProjectName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -91,11 +91,7 @@ export default function ProjectCreateDialog({
           </TooltipTrigger>
           <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
             <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
-            <Link
-              href={`/workspace/${workspaceId}?tab=billing`}
-              onClick={() => setMenu("billing")}
-              className="text-xs text-primary hover:underline"
-            >
+            <Link href={settingsHref("billing")} className="text-xs text-primary hover:underline">
               Upgrade to create more projects
             </Link>
           </TooltipContent>

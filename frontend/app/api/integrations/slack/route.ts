@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
@@ -19,7 +20,7 @@ function isRelativePath(path: string): boolean {
   return path.startsWith("/") && !path.startsWith("//");
 }
 
-function buildRedirectUrl(workspaceId: string, returnPath?: string, error = false): string {
+async function buildRedirectUrl(workspaceId: string, returnPath?: string, error = false): Promise<string> {
   const base = process.env.NEXT_PUBLIC_URL;
   const status = error ? "slack=error" : "slack=success";
 
@@ -28,7 +29,10 @@ function buildRedirectUrl(workspaceId: string, returnPath?: string, error = fals
     return `${base}${returnPath}${separator}${status}`;
   }
 
-  return `${base}/workspace/${workspaceId}?tab=integrations&${status}`;
+  // No returnPath: resolve the workspace's project to land on its integrations settings.
+  const settingsPath = await getWorkspaceSettingsPath(workspaceId, "integrations");
+  const separator = settingsPath.includes("?") ? "&" : "?";
+  return `${base}${settingsPath}${separator}${status}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
     const claim = searchParams.get("claim");
     const slackStatus = searchParams.get("slack");
     if (slackStatus === "error" || !brokeredWorkspaceId || !claim) {
-      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+      return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
     // workspaceId rides in the URL (the broker echoes only claim + team), so bind
     // the claim to the authenticated caller's membership here: this callback is a
@@ -59,14 +63,14 @@ export async function GET(request: NextRequest) {
     // bot token into a workspace they don't belong to.
     const session = await getServerSession();
     if (!session || !(await isUserMemberOfWorkspace(brokeredWorkspaceId, session.user.id))) {
-      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+      return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
     try {
       await redeemBrokeredSlackToken({ claim, workspaceId: brokeredWorkspaceId });
-      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath));
+      return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath));
     } catch (e) {
       console.error(e);
-      return NextResponse.redirect(buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
+      return NextResponse.redirect(await buildRedirectUrl(brokeredWorkspaceId, returnPath, true));
     }
   }
 
@@ -74,7 +78,7 @@ export async function GET(request: NextRequest) {
     const parsed = stateParam ? parseState(stateParam) : null;
     return NextResponse.redirect(
       parsed
-        ? buildRedirectUrl(parsed.workspaceId, parsed.returnPath, true)
+        ? await buildRedirectUrl(parsed.workspaceId, parsed.returnPath, true)
         : `${process.env.NEXT_PUBLIC_URL}/projects?slack=error`
     );
   }
@@ -83,9 +87,9 @@ export async function GET(request: NextRequest) {
 
   try {
     await connectSlackIntegration({ code, workspaceId });
-    return NextResponse.redirect(buildRedirectUrl(workspaceId, returnPath));
+    return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath));
   } catch (e) {
     console.error(e);
-    return NextResponse.redirect(buildRedirectUrl(workspaceId, returnPath, true));
+    return NextResponse.redirect(await buildRedirectUrl(workspaceId, returnPath, true));
   }
 }

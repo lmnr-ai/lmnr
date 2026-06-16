@@ -1,5 +1,5 @@
 import { differenceInMinutes } from "date-fns";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
@@ -9,7 +9,7 @@ import { LaminarLogo } from "@/components/ui/icons";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, projects, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
 const INVITATION_EXPIRY_MINUTES = 2880;
 
@@ -44,11 +44,17 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
       });
 
       // Joining a real team workspace supersedes any in-progress wizard — without
-      // this clear, the (app) layout would bounce /workspace/<id> back to /onboarding.
+      // this clear, the (app) layout would bounce back to /onboarding.
       await clearOnboardingState();
 
-      revalidatePath(`/workspace/${workspaceId}`);
-      redirect(`/workspace/${workspaceId}`);
+      // Land in the joined workspace's newest project; /projects (its own resolver) if it has none.
+      const joinedProject = await db.query.projects.findFirst({
+        where: eq(projects.workspaceId, workspaceId),
+        columns: { id: true },
+        orderBy: desc(projects.createdAt),
+      });
+      revalidatePath("/projects");
+      redirect(joinedProject ? `/project/${joinedProject.id}/traces` : "/projects");
     }
 
     if (action === "decline") {

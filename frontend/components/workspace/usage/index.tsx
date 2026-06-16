@@ -8,7 +8,6 @@ import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts"
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
-import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { Feature } from "@/lib/features/features";
@@ -84,8 +83,6 @@ const getUsageDescription = (tierName?: string): string => {
 };
 
 export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
-  const { setMenu } = useWorkspaceMenuContext();
-
   useEffect(() => {
     track("usage", "page_viewed");
   }, []);
@@ -187,9 +184,8 @@ export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: W
         <SettingsSection>
           <SettingsSectionHeader size="sm" title="Billing" description="Need to upgrade or manage your subscription?" />
           <Link
-            href="?section=billing"
+            href="?tab=billing"
             className="text-primary hover:underline inline-flex items-center gap-1 text-sm w-fit"
-            onClick={() => setMenu("billing")}
           >
             Go to Billing
             <ArrowRight className="h-3.5 w-3.5" />

@@ -1,8 +1,13 @@
 import { redirect } from "next/navigation";
 
+import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { requireWorkspaceAccess } from "@/lib/authorization";
 
-// Legacy /workspace/[workspaceId]?tab=... URLs now live under the shared /settings page.
+// Backcompat-only shim. The /workspace route is gone; settings live at /project/[id]/settings
+// (addressed by ?tab=). This exists solely so already-sent emails (app-server email.rs builds
+// /workspace/{id}?tab=usage and ?tab=reports links) keep resolving — it remaps the legacy
+// workspace "settings" tab to "workspace-general" and redirects to the workspace's project
+// settings. New in-app links go straight to /project/[id]/settings.
 const TAB_TO_SECTION: Record<string, string> = {
   usage: "usage",
   team: "team",
@@ -25,25 +30,19 @@ export default async function WorkspaceRedirect(props: {
   const tab = typeof searchParams.tab === "string" ? searchParams.tab : undefined;
   const section = tab ? TAB_TO_SECTION[tab] : undefined;
 
-  // Preserve every other query param (e.g. Slack OAuth's ?slack=success|error,
-  // which the integrations card reads to surface the connection result).
-  const rest = new URLSearchParams();
+  // Resolves the workspace's project; falls back to /projects when it has none.
+  const target = await getWorkspaceSettingsPath(params.workspaceId, section);
+
+  // Preserve any other incoming params (e.g. sessionId) on top of the resolved path.
+  const passthrough = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
     if (key === "tab" || value === undefined) continue;
     if (Array.isArray(value)) {
-      value.forEach((v) => rest.append(key, v));
+      value.forEach((v) => passthrough.append(key, v));
     } else {
-      rest.append(key, value);
+      passthrough.append(key, value);
     }
   }
-
-  // Carry the mapped section through (a missing/unmapped tab, incl. the old "projects" tab, lands on
-  // the settings index). Always redirect to the 1-segment resolver and let it pick the project —
-  // it honors the last-project cookie (matching /settings) and renders the create-project terminal
-  // for an empty workspace, so the shim must NOT hardcode projects[0] (would ignore the cookie).
-  if (section) {
-    rest.set("section", section);
-  }
-  const query = rest.toString();
-  return redirect(`/settings/${params.workspaceId}${query ? `?${query}` : ""}`);
+  const extra = passthrough.toString();
+  redirect(extra ? `${target}${target.includes("?") ? "&" : "?"}${extra}` : target);
 }

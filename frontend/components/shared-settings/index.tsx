@@ -127,14 +127,14 @@ const SharedSettings = ({
   const workspaceId = workspace.id;
 
   // Billing / Data residency are feature-gated: hidden from the sidebar AND not renderable
-  // via a direct ?section= or a legacy ?tab= redirect when their flag is off.
+  // via a direct ?tab= link when their flag is off.
   const isSectionEnabled = (section: Section): boolean => {
     if (section === "billing") return !!featureFlags[Feature.SUBSCRIPTION];
     if (section === "deployment") return !!featureFlags[Feature.DEPLOYMENT];
     return true;
   };
 
-  const rawSection = searchParams.get("section") as Section | null;
+  const rawSection = searchParams.get("tab") as Section | null;
   const activeSection: Section = (() => {
     if (!rawSection || !VALID_SECTIONS.has(rawSection)) return "general";
     // A real but feature-disabled workspace section (billing/deployment off) lands on the
@@ -143,7 +143,7 @@ const SharedSettings = ({
     return rawSection;
   })();
 
-  const sectionHref = (section: Section) => `/project/${projectId}/settings?section=${section}`;
+  const sectionHref = (section: Section) => `/project/${projectId}/settings?tab=${section}`;
 
   const workspaceMenus = useMemo(() => {
     const items: { label: string; section: Section; icon: LucideIcon }[] = [
