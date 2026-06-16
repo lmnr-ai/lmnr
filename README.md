@@ -16,6 +16,8 @@
     - [x] UI for visualizing evals and comparing results.
 - [x] Agent monitoring at scale. [Docs](https://laminar.sh/docs/signals)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
+- [x] Slack and Email alerts [Docs](https://laminar.sh/docs/signals/alerts)
+    - [x] Get notified when your agents hit errors or any condition you define
 - [x] [MCP](https://laminar.sh/docs/platform/mcp) / [CLI](https://laminar.sh/docs/platform/cli) access for your coding agent 
     - [x] Query traces, spans, metrics, and events with SQL
     - [x] Let your coding agent investigate and debug issues based on your traces
