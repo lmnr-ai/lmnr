@@ -102,7 +102,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          leafClusters?: Array<{ id: string; name: string; level: number }> | null;
+          leafClusters?: Array<{ id: string; name: string; level: number }>;
           events: EventRow[];
         }>;
         if (!Array.isArray(data)) return;
