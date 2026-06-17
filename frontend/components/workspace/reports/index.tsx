@@ -50,7 +50,10 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
 
   return (
     <SettingsSection>
-      <SettingsSectionHeader title="Reports" description="Periodic reports delivered to your email and Slack." />
+      <SettingsSectionHeader
+        title="Reports"
+        description="Periodic reports of signal activity across every project in the workspace. Stay up to date with issues in your project without digging through traces and events."
+      />
 
       <SlackConnectionCard
         workspaceId={workspaceId}

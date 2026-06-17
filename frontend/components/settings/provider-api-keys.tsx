@@ -56,7 +56,7 @@ export default function ProviderApiKeys() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Model Providers"
-        description="Set your model provider API keys for use in LLM calls. Variables are encrypted and stored securely."
+        description="Set your model provider API keys for use in Playground API calls. Variables are encrypted and stored securely."
       />
       <AddProviderApiKeyVarDialog
         existingKeyNames={providerApiKeys?.map((apiKey) => apiKey.name) ?? []}
