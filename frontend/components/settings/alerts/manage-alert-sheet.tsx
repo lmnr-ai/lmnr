@@ -244,8 +244,8 @@ export default function ManageAlertSheet({
   }, []);
 
   const selectedSignal = useMemo(
-    () => signalsData?.items?.find((s) => s.name === signalName),
-    [signalsData, signalName]
+    () => lockedSignal ?? signalsData?.items?.find((s) => s.name === signalName),
+    [lockedSignal, signalsData, signalName]
   );
 
   const additionalParams = useMemo(
