@@ -28,7 +28,7 @@ interface RedisSetOptions {
   expireAt?: Date;
 }
 
-class CacheManager {
+export class CacheManager {
   private redisClient: Redis | null = null;
   private memoryCache: Map<string, CacheEntry<any>> = new Map();
   private readonly useRedis: boolean;
@@ -218,7 +218,14 @@ class CacheManager {
       }
     } else {
       const entry = this.memoryCache.get(key);
-      return !!entry;
+      if (!entry) {
+        return false;
+      }
+      if (entry.expiresAt && entry.expiresAt < Date.now()) {
+        this.memoryCache.delete(key);
+        return false;
+      }
+      return true;
     }
   }
 }
