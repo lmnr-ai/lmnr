@@ -1,8 +1,8 @@
 "use client";
 
 import { Activity, Bell, History, Settings2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
+import { type CSSProperties, type ReactNode } from "react";
 
 import CreateSignalJob from "@/components/signal/create-signal-job";
 import SignalRunsTable from "@/components/signal/runs-table";
@@ -21,7 +21,9 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
-type SettingsSection = "settings" | "activity" | "backfill" | "alerts";
+const SECTION_IDS = ["settings", "activity", "backfill", "alerts"] as const;
+
+type SettingsSection = (typeof SECTION_IDS)[number];
 
 const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: "settings", label: "Settings", icon: <Settings2 /> },
@@ -29,11 +31,6 @@ const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: "backfill", label: "Backfill", icon: <History /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
-
-const SECTION_IDS = sections.map((s) => s.id);
-
-const isSettingsSection = (value: string | null): value is SettingsSection =>
-  value !== null && (SECTION_IDS as string[]).includes(value);
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
@@ -53,10 +50,9 @@ export default function SignalSettingsPanel({
   slackRedirectUri,
 }: SignalSettingsPanelProps) {
   const signal = useSignalStoreContext((state) => state.signal);
-  const searchParams = useSearchParams();
-  const initialSection = searchParams.get("section");
-  const [activeSection, setActiveSection] = useState<SettingsSection>(
-    isSettingsSection(initialSection) ? initialSection : "settings"
+  const [activeSection, setActiveSection] = useQueryState(
+    "section",
+    parseAsStringLiteral(SECTION_IDS).withDefault("settings")
   );
 
   return (
