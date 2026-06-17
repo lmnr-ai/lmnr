@@ -130,12 +130,17 @@ export default function ManageAlertSheet({
   const featureFlags = useFeatureFlags();
   const clusteringEnabled = featureFlags[Feature.CLUSTERING];
 
+  // Key on the primitive name, not the lockedSignal object: per-signal callers pass a fresh
+  // object literal each render, and depending on its identity would re-fire reset() on every
+  // parent re-render, wiping in-progress form input.
+  const lockedSignalName = lockedSignal?.name;
+
   const baseDefaults = useMemo<AlertFormValues>(
     () =>
-      lockedSignal
-        ? { ...DEFAULT_VALUES, type: ALERT_TYPE.SIGNAL_EVENT, signalName: lockedSignal.name }
+      lockedSignalName
+        ? { ...DEFAULT_VALUES, type: ALERT_TYPE.SIGNAL_EVENT, signalName: lockedSignalName }
         : DEFAULT_VALUES,
-    [lockedSignal]
+    [lockedSignalName]
   );
 
   const [isTesting, setIsTesting] = useState(false);
