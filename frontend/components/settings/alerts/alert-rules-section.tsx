@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { type Control, Controller, useFieldArray, useWatch } from "react-hook-form";
+import { type Control, Controller, useFieldArray, type UseFormSetValue, useWatch } from "react-hook-form";
 import useSWR from "swr";
 
 import { type AlertFormValues } from "@/components/settings/alerts/manage-alert-sheet";
@@ -26,11 +26,13 @@ const operationsForType = (type: SchemaField["type"]) => {
 
 function RuleRow({
   control,
+  setValue,
   fields,
   index,
   onRemove,
 }: {
   control: Control<AlertFormValues>;
+  setValue: UseFormSetValue<AlertFormValues>;
   fields: SchemaField[];
   index: number;
   onRemove: () => void;
@@ -46,7 +48,16 @@ function RuleRow({
         name={`rules.${index}.column`}
         control={control}
         render={({ field }) => (
-          <Select value={field.value || undefined} onValueChange={field.onChange}>
+          <Select
+            value={field.value || undefined}
+            onValueChange={(value) => {
+              field.onChange(value);
+              // Operator/value sets are type-specific; reset them so a stale operator
+              // (e.g. number ">" carried onto a boolean field) can't survive a field switch.
+              setValue(`rules.${index}.operator`, "eq");
+              setValue(`rules.${index}.value`, "");
+            }}
+          >
             <SelectTrigger className="w-40 truncate">
               <span className="truncate">{field.value || "Select field..."}</span>
             </SelectTrigger>
@@ -131,10 +142,12 @@ function RuleRow({
 
 export default function AlertRulesSection({
   control,
+  setValue,
   projectId,
   signalId,
 }: {
   control: Control<AlertFormValues>;
+  setValue: UseFormSetValue<AlertFormValues>;
   projectId: string;
   signalId: string | undefined;
 }) {
@@ -168,6 +181,7 @@ export default function AlertRulesSection({
               <RuleRow
                 key={field.id}
                 control={control}
+                setValue={setValue}
                 fields={schemaFields}
                 index={index}
                 onRemove={() => remove(index)}

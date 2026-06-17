@@ -145,6 +145,7 @@ export default function ManageAlertSheet({
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { isSubmitting },
   } = useForm<AlertFormValues>({ defaultValues: baseDefaults });
 
@@ -683,7 +684,12 @@ export default function ManageAlertSheet({
                 )}
 
                 {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && (
-                  <AlertRulesSection control={control} projectId={projectId} signalId={selectedSignal.id} />
+                  <AlertRulesSection
+                    control={control}
+                    setValue={setValue}
+                    projectId={projectId}
+                    signalId={selectedSignal.id}
+                  />
                 )}
 
                 {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && clusteringEnabled && (
