@@ -2,8 +2,8 @@
 
 use super::accumulator::GeminiStreamAccumulator;
 use super::{
-    BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
-    InlineRequestItem, Operation,
+    BatchCreateRequest, FLEX_SERVICE_TIER, GeminiError, GenerateContentRequest,
+    GenerateContentResponse, InlineRequestItem, Operation,
 };
 use crate::env;
 use crate::llm::{
@@ -14,8 +14,32 @@ use crate::llm::{
     },
     sse::accumulate_sse,
 };
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
+
+/// Per-request HTTP timeout applied only to flex-tier requests (the shared client
+/// timeout is 120s and must stay that way for every other call). Flex responses can
+/// take minutes. Reads `SIGNALS_FLEX_LLM_TIMEOUT_SECS` (default 900).
+static FLEX_REQUEST_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(env::llm::FLEX_LLM_TIMEOUT_SECS.get()));
+
+/// Log a non-2xx Gemini response. For FLEX requests, transient capacity errors
+/// (429/503) are downgraded to `debug` — the flex tier retries them and falls
+/// back to standard, so logging every attempt at `error` floods pod logs. On any
+/// other path (standard signals, trace-chat, batch) every non-2xx stays at
+/// `error`, since a 429/503 there is meaningful and not part of a retry storm.
+fn log_gemini_api_error(status: reqwest::StatusCode, error_text: &str, is_flex: bool) {
+    if is_flex && matches!(status.as_u16(), 429 | 503) {
+        log::debug!(
+            "Gemini API capacity error ({}) [flex]: {}",
+            status,
+            error_text
+        );
+    } else {
+        log::error!("Gemini API error ({}): {}", status, error_text);
+    }
+}
 
 #[derive(Clone)]
 pub struct GeminiClient {
@@ -63,20 +87,26 @@ impl GeminiClient {
     ) -> GeminiResult<GenerateContentResponse> {
         let url = format!("{}/models/{}:generateContent", self.api_base_url, model);
 
-        let response = self
+        let mut req_builder = self
             .client
             .post(&url)
             .header("x-goog-api-key", &self.api_key)
             .header("Content-Type", "application/json")
-            .json(request)
-            .send()
-            .await?;
+            .json(request);
+
+        // Flex requests can run for minutes; override the 120s client default per-request.
+        let is_flex = request.service_tier.as_deref() == Some(FLEX_SERVICE_TIER);
+        if is_flex {
+            req_builder = req_builder.timeout(*FLEX_REQUEST_TIMEOUT);
+        }
+
+        let response = req_builder.send().await?;
 
         let status = response.status();
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Gemini API error ({}): {}", status, error_text);
+            log_gemini_api_error(status, &error_text, is_flex);
 
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
@@ -114,7 +144,7 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Gemini API error ({}): {}", status, error_text);
+            log_gemini_api_error(status, &error_text, false);
 
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
@@ -140,7 +170,7 @@ impl GeminiClient {
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Gemini API error ({}): {}", status, error_text);
+            log_gemini_api_error(status, &error_text, false);
 
             return Err(GeminiError::from_response(status.as_u16(), error_text));
         }
@@ -215,7 +245,7 @@ impl LanguageModelClient for GeminiClient {
         let status = response.status();
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            log::error!("Gemini API error ({}): {}", status, error_text);
+            log_gemini_api_error(status, &error_text, false);
             return Err(GeminiError::from_response(status.as_u16(), error_text).into());
         }
 

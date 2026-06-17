@@ -86,4 +86,7 @@ tonic-prost-build = "0.14"
 
 [dev-dependencies]
 ed25519-dalek = {version = "2", features = ["pkcs8", "rand_core"]}
+# `test-util` (only in dev builds) enables `#[tokio::test(start_paused = true)]`
+# so retry/backoff tests fast-forward the virtual clock instead of sleeping.
+tokio = {version = "1.49", features = ["test-util"]}
 wiremock = "0.6"

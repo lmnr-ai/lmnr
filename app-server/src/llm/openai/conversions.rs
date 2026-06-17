@@ -408,6 +408,7 @@ mod tests {
             }),
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -433,6 +434,7 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -461,6 +463,7 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -484,6 +487,7 @@ mod tests {
                 }],
             }]),
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -511,6 +515,7 @@ mod tests {
                 }),
                 ..Default::default()
             }),
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -546,6 +551,7 @@ mod tests {
                 }),
                 ..Default::default()
             }),
+            service_tier: None,
             provider: None,
             model_size: None,
         };
