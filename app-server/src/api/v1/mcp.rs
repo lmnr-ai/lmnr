@@ -34,7 +34,7 @@ pub struct ProjectId(pub Uuid);
 /// Parameters for the SQL query tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct QuerySqlParams {
-    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces, events, signal_events, signal_runs, logs, tags, evaluation_datapoints, dataset_datapoints. Join: spans.trace_id = traces.id
+    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces, events, signal_events, signal_runs, clusters, logs, tags, evaluation_datapoints, dataset_datapoints. Join: spans.trace_id = traces.id
     pub query: String,
     /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
     #[serde(default)]
@@ -99,20 +99,23 @@ impl LaminarMcpServer {
     ///
     /// traces: id (UUID), start_time (DateTime64), end_time (DateTime64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), input_cost (Float64), output_cost (Float64), total_cost (Float64), duration (Float64), metadata (String), session_id (String), user_id (String), status (String), top_span_id (UUID), top_span_name (String), top_span_type (String), trace_type (String), tags (Array(String)), has_browser_session (Bool)
     ///
-    /// signal_events: id (UUID), signal_id (UUID), trace_id (UUID), run_id (UUID), name (String), payload (String), timestamp (DateTime64)
+    /// signal_events: id (UUID), signal_id (UUID), trace_id (UUID), run_id (UUID), name (String), payload (String), timestamp (DateTime64), severity (UInt8, 0=INFO 1=WARNING 2=CRITICAL), summary (String), clusters (Array(UUID), cluster ids this event belongs to, excludes L0)
     ///
     /// signal_runs: signal_id (UUID), job_id (UUID), trigger_id (UUID), run_id (UUID), trace_id (UUID), status (String), event_id (UUID), updated_at (DateTime64)
+    ///
+    /// clusters: id (UUID), signal_id (UUID), name (String), level (UInt8, higher = coarser grouping), parent_id (UUID, zero/nil UUID '00000000-0000-0000-0000-000000000000' for top-level clusters — NOT SQL NULL, so filter top-level with parent_id = toUUID('00000000-0000-0000-0000-000000000000'), not IS NULL), num_signal_events (UInt32), num_children_clusters (UInt16), created_at (DateTime64), updated_at (DateTime64) — hierarchical groupings of similar signal events, excludes L0 clusters
     ///
     /// evaluation_datapoints: id (UUID), evaluation_id (UUID), data (String), target (String), metadata (String), executor_output (String), index (UInt64), trace_id (UUID), group_id (String), scores (String), created_at (DateTime64), dataset_id (UUID), dataset_datapoint_id (UUID), dataset_datapoint_created_at (DateTime64)
     ///
     /// dataset_datapoints: id (UUID), created_at (DateTime64), dataset_id (UUID), data (String), target (String), metadata (String)
     ///
-    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id
+    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to (use clusters.signal_id = signal_events.signal_id only to scope by signal — it is a many-to-many cross product, not an event-to-cluster match)
     ///
     /// Example queries:
     /// - Recent traces: SELECT id, start_time, total_cost FROM traces ORDER BY start_time DESC LIMIT 10
     /// - LLM spans: SELECT name, model, input, output FROM spans WHERE span_type = 'LLM'
     /// - Errors: SELECT trace_id, name, status FROM spans WHERE status == 'error'
+    /// - Top clusters: SELECT name, num_signal_events FROM clusters ORDER BY num_signal_events DESC LIMIT 10
     #[tool(name = "query_laminar_sql")]
     async fn query_laminar_sql(
         &self,
