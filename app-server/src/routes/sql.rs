@@ -13,7 +13,7 @@ use crate::{
     cache::Cache,
     db::DB,
     query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
-    sql::{self, ClickhouseReadonlyClient},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 use super::ResponseResult;
@@ -93,6 +93,7 @@ pub async fn execute_sql_query(
                 query,
                 project_id,
                 parameters,
+                SqlQuerySource::Frontend,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),

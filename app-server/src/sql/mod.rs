@@ -26,6 +26,18 @@ use crate::{
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);
 
+/// Where an ad-hoc SQL query originated. Determines whether the per-query
+/// `max_memory_usage` ceiling is applied: the trusted internal frontend runs
+/// uncapped, while public internet-facing and CLI traffic is capped to protect
+/// ClickHouse from OOM-inducing scans.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SqlQuerySource {
+    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`).
+    Frontend,
+    /// Public internet-facing (`/v1/sql/query`) and CLI (`/v1/cli/sql/query`).
+    Public,
+}
+
 #[derive(Debug, thiserror::Error, Deserialize)]
 pub enum SqlQueryError {
     ValidationError(String),
@@ -87,6 +99,7 @@ pub async fn execute_sql_query(
     query: String,
     project_id: Uuid,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
     clickhouse_ro: Arc<ClickhouseReadonlyClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
@@ -112,6 +125,7 @@ pub async fn execute_sql_query(
         project_id,
         validated_query,
         parameters,
+        source,
     )
     .await;
 
@@ -231,6 +245,7 @@ pub async fn route_and_run_query(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
 ) -> Result<Bytes, SqlQueryError> {
     let config = get_workspace_deployment(pool, cache.clone(), project_id).await;
     let deployment_config = match config {
@@ -239,7 +254,9 @@ pub async fn route_and_run_query(
     };
 
     match deployment_config.mode {
-        DeploymentMode::CLOUD => ch::query(clickhouse_ro, project_id, query, parameters).await,
+        DeploymentMode::CLOUD => {
+            ch::query(clickhouse_ro, project_id, query, parameters, source).await
+        }
         DeploymentMode::HYBRID => {
             data_plane::query(
                 cache,

@@ -170,6 +170,12 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 - Tonic has no actix-style middleware; the limiter is plumbed into `ProcessTracesService::new` as `Option<Arc<Limiter>>` and the gRPC thread receives a clone (`grpc_rate_limiter = rate_limiter.as_ref().map(|l| Arc::new(l.clone()))`) **before** the HTTP closure moves `rate_limiter`. Don't reorder those two clones.
 - Posture is fail-open on Redis errors (logged, request allowed) — same as the bytes-limit check in the same handler — so a Redis blip can't black-hole ingestion. `LimitExceeded` returns `Status::cancelled("Rate limit exceeded")` rather than `resource_exhausted`: OTel SDK retry policies treat `resource_exhausted` as retriable only when the server attaches `RetryInfo`, so `cancelled` is the safer "legitimate clients please retry" signal here.
 
+## Ad-hoc SQL Endpoint Guards (`/v1/sql/query`)
+
+- Per-query ClickHouse settings (`max_execution_time`, `max_result_bytes`, `max_memory_usage`) are applied in `app-server/src/sql/ch.rs` via `.with_setting(...)`, env-tunable through `app-server/src/env/sql.rs` (`SQL_QUERY_*`). They are tamper-proof: the query-engine validator strips any inline `SETTINGS` clause from user SQL, so a client can't override the server-applied caps.
+- `max_memory_usage` (OOM protection — the lever that actually kills CH, not bytes scanned) is gated by `SqlQuerySource` (`sql/mod.rs`), threaded `execute_sql_query` → `route_and_run_query` → `ch::query`. It's applied ONLY for `SqlQuerySource::Public` (the internet-facing `/v1/sql/query`, CLI `/v1/cli/sql/query`, and the MCP query tool); the trusted frontend route (`routes/sql.rs`) and internal callers (`datasets/service.rs`, `sql/queries.rs`) pass `Frontend` and run uncapped. Default `SQL_QUERY_MAX_MEMORY_USAGE=0` means unlimited, so self-hosters are unrestricted unless they opt in. When adding a new caller of `sql::execute_sql_query`, pick the source deliberately.
+- Settings only apply on the CLOUD deployment path; HYBRID forwards the raw query to a remote data plane (`sql/data_plane.rs`) which runs its own CH and is not covered by these caps.
+
 ## OTLP Trace Ingestion (`/v1/traces`)
 
 - The HTTP handler dispatches on `Content-Type`: `application/json` decodes via `crate::opentelemetry_json` (serde shadow types → prost types), anything else falls through to `prost::Message::decode` (HTTP+protobuf, the default for every existing SDK). The gRPC server is unchanged. See `app-server/src/api/v1/traces.rs:decode_export_trace_request`.

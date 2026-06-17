@@ -11,7 +11,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::env;
-use crate::sql::{ClickhouseReadonlyClient, SqlQueryError};
+use crate::sql::{ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource};
 
 #[derive(Deserialize)]
 pub struct ClickhouseBadResponseError {
@@ -24,6 +24,7 @@ pub async fn query(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
 ) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("execute_sql_query");
@@ -36,6 +37,16 @@ pub async fn query(
         .with_setting("output_format_json_quote_64bit_integers", "0")
         .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
         .with_setting("max_result_bytes", env::sql::MAX_RESULT_BYTES.get());
+
+    // Cap per-query memory for public/CLI traffic only — the trusted frontend
+    // runs uncapped. `0` (the default) means unlimited, so we only set it when an
+    // operator has opted in to a concrete ceiling.
+    if source == SqlQuerySource::Public {
+        let max_memory_usage = env::sql::MAX_MEMORY_USAGE.get();
+        if max_memory_usage != "0" {
+            clickhouse_query = clickhouse_query.with_setting("max_memory_usage", max_memory_usage);
+        }
+    }
 
     for (key, value) in parameters {
         span.set_attribute(KeyValue::new(
