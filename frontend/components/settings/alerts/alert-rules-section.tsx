@@ -1,7 +1,6 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useEffect } from "react";
 import { type Control, Controller, useFieldArray, type UseFormSetValue, useWatch } from "react-hook-form";
 import useSWR from "swr";
 
@@ -163,19 +162,11 @@ export default function AlertRulesSection({
     swrFetcher
   );
 
-  const { fields, append, remove, replace } = useFieldArray({ control, name: "rules" });
+  const { fields, append, remove } = useFieldArray({ control, name: "rules" });
 
   const schemaFields = (signal?.structuredOutput ? jsonSchemaToSchemaFields(signal.structuredOutput) : []).filter((f) =>
     f.name.trim()
   );
-
-  // No fields to filter on means the conditions UI is hidden; drop any rules
-  // loaded on edit so they aren't silently persisted where the user can't see them.
-  useEffect(() => {
-    if (!isLoading && schemaFields.length === 0 && fields.length > 0) {
-      replace([]);
-    }
-  }, [isLoading, schemaFields.length, fields.length, replace]);
 
   if (isLoading) {
     return <Skeleton className="h-7 w-full" />;
