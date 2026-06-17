@@ -606,6 +606,11 @@ export default function ManageAlertSheet({
                             <Select
                               value={field.value}
                               onValueChange={(value) => {
+                                if (value !== field.value) {
+                                  // Rules are bound to the previous signal's schema columns;
+                                  // drop them so stale conditions aren't saved against the new signal.
+                                  setValue("rules", []);
+                                }
                                 field.onChange(value);
                               }}
                             >
