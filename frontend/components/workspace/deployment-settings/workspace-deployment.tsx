@@ -249,7 +249,12 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
 
         {/* Hybrid setup - shown when hybrid is selected */}
         {mode === DeploymentType.HYBRID && isEnabled && (
-          <HybridSetup isSaving={isSaving} isVerified={isVerified} onVerifiedChange={setIsVerified} />
+          <HybridSetup
+            workspaceId={workspaceId}
+            isSaving={isSaving}
+            isVerified={isVerified}
+            onVerifiedChange={setIsVerified}
+          />
         )}
 
         {/* Unsaved changes bar */}
