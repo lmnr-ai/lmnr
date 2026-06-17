@@ -1,7 +1,6 @@
 "use client";
 
 import { Book, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 
 import laminarIcon from "@/assets/logo/icon.svg";
@@ -27,6 +26,7 @@ const SidebarFooterComponent = () => {
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
   const features = useFeatureFlags();
+  const logo = open || openMobile ? laminarWordmark : laminarIcon;
 
   return (
     <SidebarFooter className="px-0">
@@ -66,10 +66,19 @@ const SidebarFooterComponent = () => {
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4 mx-0 px-2">
               <Link passHref href="/projects" className="flex items-center">
-                <Image
-                  alt="Laminar"
-                  src={open || openMobile ? laminarWordmark : laminarIcon}
-                  className={cn(open || openMobile ? "w-[96px]" : "w-5", "h-auto")}
+                {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
+                <span
+                  aria-label="Laminar"
+                  className={cn("block bg-surface-200", open || openMobile ? "w-[166px]" : "w-[35px]")}
+                  style={{
+                    maskImage: `url(${logo.src})`,
+                    WebkitMaskImage: `url(${logo.src})`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    aspectRatio: `${logo.width} / ${logo.height}`,
+                  }}
                 />
               </Link>
             </SidebarMenuItem>

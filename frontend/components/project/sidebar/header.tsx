@@ -123,7 +123,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600"
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}
@@ -141,60 +141,65 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         exit="exit"
                         transition={{ duration: 0.18, ease: "easeInOut" }}
                       >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDirection(-1);
-                            setView("workspaces");
-                          }}
-                          className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent"
-                        >
-                          <ArrowLeft className="size-3 shrink-0" />
-                          <span className="truncate">All workspaces</span>
-                        </button>
-                        <div className="px-1 py-1 mb-1 truncate font-medium text-sidebar-foreground">
-                          {selectedWorkspace ? `${selectedWorkspace.name} workspace` : "Workspace"}
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDirection(-1);
+                              setView("workspaces");
+                            }}
+                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent"
+                          >
+                            <ArrowLeft className="size-3 shrink-0" />
+                            <span className="truncate">All workspaces</span>
+                          </button>
+                          <div className="px-2 py-1 truncate font-medium text-secondary-foreground">
+                            {selectedWorkspace ? `${selectedWorkspace.name} workspace` : "Workspace"}
+                          </div>
                         </div>
-                        <div className="max-h-[600px] overflow-y-auto">
-                          {!isSelectedCurrent && otherLoading ? (
-                            <div className="p-1 text-muted-foreground">Loading…</div>
-                          ) : (
-                            displayedProjects.map((p) => (
-                              <Link
-                                key={p.id}
-                                passHref
-                                href={`/project/${p.id}/traces`}
-                                // Write the breadcrumb cookies synchronously (no server action) so they
-                                // can't race / interrupt the soft navigation — the bug this fixes.
-                                onClick={() => {
-                                  document.cookie = `${LAST_PROJECT_ID}=${p.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
-                                  document.cookie = `${LAST_WORKSPACE_ID}=${selectedWorkspaceId};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
-                                }}
-                              >
-                                <DropdownMenuItem
-                                  className={cn("cursor-pointer", {
-                                    "bg-accent": isSelectedCurrent && p.id === projectId,
-                                  })}
+                        <DropdownMenuSeparator className="m-0" />
+                        <div className="p-1">
+                          <div className="max-h-[600px] overflow-y-auto">
+                            {!isSelectedCurrent && otherLoading ? (
+                              <div className="p-1 text-muted-foreground">Loading…</div>
+                            ) : (
+                              displayedProjects.map((p) => (
+                                <Link
+                                  key={p.id}
+                                  passHref
+                                  href={`/project/${p.id}/traces`}
+                                  // Write the breadcrumb cookies synchronously (no server action) so they
+                                  // can't race / interrupt the soft navigation — the bug this fixes.
+                                  onClick={() => {
+                                    document.cookie = `${LAST_PROJECT_ID}=${p.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                                    document.cookie = `${LAST_WORKSPACE_ID}=${selectedWorkspaceId};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                                  }}
                                 >
-                                  <span className="min-w-0 truncate text-xs text-sidebar-foreground font-medium">
-                                    {p.name}
-                                  </span>
-                                </DropdownMenuItem>
-                              </Link>
-                            ))
-                          )}
+                                  <DropdownMenuItem
+                                    className={cn("cursor-pointer", {
+                                      "bg-accent": isSelectedCurrent && p.id === projectId,
+                                    })}
+                                  >
+                                    <span className="min-w-0 truncate text-xs text-sidebar-foreground font-medium">
+                                      {p.name}
+                                    </span>
+                                  </DropdownMenuItem>
+                                </Link>
+                              ))
+                            )}
+                          </div>
+                          <DropdownMenuSeparator className="mx-0" />
+                          <ProjectCreateDialog
+                            workspaceId={selectedWorkspaceId}
+                            isFreeTier={selectedIsFreeTier}
+                            projectCount={displayedProjects.length}
+                          >
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                              <Plus className="size-4" />
+                              <span>Create project</span>
+                            </DropdownMenuItem>
+                          </ProjectCreateDialog>
                         </div>
-                        <DropdownMenuSeparator />
-                        <ProjectCreateDialog
-                          workspaceId={selectedWorkspaceId}
-                          isFreeTier={selectedIsFreeTier}
-                          projectCount={displayedProjects.length}
-                        >
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Plus className="size-4" />
-                            <span>Create project</span>
-                          </DropdownMenuItem>
-                        </ProjectCreateDialog>
                       </motion.div>
                     ) : (
                       <motion.div
@@ -206,47 +211,51 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         exit="exit"
                         transition={{ duration: 0.18, ease: "easeInOut" }}
                       >
-                        <div className="pl-2 py-1 text-secondary-foreground mb-1">Workspaces</div>
-                        <div className="max-h-[600px] overflow-y-auto">
-                          {workspaces?.map((w) => (
-                            <DropdownMenuItem
-                              key={w.id}
-                              onSelect={(e) => {
-                                // Select within the picker only — slide back to this workspace's projects.
-                                e.preventDefault();
-                                setSelectedWorkspaceId(w.id);
-                                setDirection(1);
-                                setView("projects");
-                              }}
-                              className={cn("cursor-pointer", { "bg-accent": w.id === selectedWorkspaceId })}
-                            >
-                              <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground font-medium">
-                                {w.name}
-                              </span>
-                              <span
-                                className={cn(
-                                  "shrink-0 text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                                  { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
-                                )}
+                        <div className="p-1">
+                          <div className="pl-2 py-1 text-secondary-foreground mb-1">Workspaces</div>
+                          <div className="max-h-[600px] overflow-y-auto">
+                            {workspaces?.map((w) => (
+                              <DropdownMenuItem
+                                key={w.id}
+                                onSelect={(e) => {
+                                  // Select within the picker only — slide back to this workspace's projects.
+                                  e.preventDefault();
+                                  setSelectedWorkspaceId(w.id);
+                                  setDirection(1);
+                                  setView("projects");
+                                }}
+                                className={cn("cursor-pointer", { "bg-accent": w.id === selectedWorkspaceId })}
                               >
-                                {w.tierName}
-                              </span>
+                                <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground font-medium">
+                                  {w.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "shrink-0 text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                                    { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
+                                  )}
+                                >
+                                  {w.tierName}
+                                </span>
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                          <DropdownMenuSeparator className="mx-0" />
+                          <WorkspaceCreateDialog>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                              <Plus className="size-4" />
+                              <span>Create workspace</span>
                             </DropdownMenuItem>
-                          ))}
+                          </WorkspaceCreateDialog>
                         </div>
-                        <DropdownMenuSeparator />
-                        <WorkspaceCreateDialog>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Plus className="size-4" />
-                            <span>Create workspace</span>
-                          </DropdownMenuItem>
-                        </WorkspaceCreateDialog>
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-                <DropdownMenuSeparator />
-                <AccountMenu />
+                <DropdownMenuSeparator className="m-0" />
+                <div className="p-1">
+                  <AccountMenu />
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
