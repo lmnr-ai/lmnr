@@ -582,7 +582,7 @@ export default function ManageAlertSheet({
                       <Input
                         {...field}
                         placeholder="e.g. High error rate alert"
-                        disabled={isSignalsSectionLoading}
+                        disabled={!lockedSignal && isSignalsSectionLoading}
                         className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
                       />
                       {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
