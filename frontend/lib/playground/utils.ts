@@ -1,8 +1,14 @@
 import { type ModelMessage, type SystemModelMessage, type ToolModelMessage } from "ai";
 
-import { type Message } from "@/lib/playground/types";
+import { type Message, type TextPart } from "@/lib/playground/types";
 
 import { tryParseJson } from "../utils";
+
+// Legacy rows (pre AI SDK v5) stored message content as a plain string instead
+// of a parts array. Normalize those into a single text part so the editor —
+// and the .map() below — always see an array.
+const toContentParts = (content: Message["content"]): Message["content"] =>
+  Array.isArray(content) ? content : [{ type: "text", text: String(content ?? "") } as TextPart];
 
 export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
   messages.map((message) => {
@@ -31,7 +37,7 @@ export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
 export const transformFromLegacy = (messages: Message[]): Message[] =>
   messages.map((message) => ({
     ...message,
-    content: message.content.map((part: any) => {
+    content: toContentParts(message.content).map((part: any) => {
       switch (part.type) {
         case "tool-call":
           // V4 format: { type: "tool-call", toolCallId, toolName, args }
