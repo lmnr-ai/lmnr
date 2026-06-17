@@ -5,7 +5,7 @@ import { createContext, type PropsWithChildren, use, useCallback, useMemo } from
 import { type ProjectDetails } from "@/lib/actions/project";
 import { type Project, type Workspace } from "@/lib/workspaces/types";
 
-// Mirrors the Section union in components/shared-settings/index.tsx.
+// Canonical settings-section union. components/shared-settings/index.tsx imports this as `Section`.
 export type SettingsSection =
   | "usage"
   | "team"

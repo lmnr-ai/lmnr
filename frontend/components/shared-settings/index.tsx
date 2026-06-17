@@ -50,6 +50,7 @@ import WorkspaceIntegrations from "@/components/workspace/workspace-integrations
 import WorkspaceSettings from "@/components/workspace/workspace-settings";
 import WorkspaceUsers from "@/components/workspace/workspace-users";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { type SettingsSection } from "@/contexts/project-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
@@ -72,22 +73,7 @@ interface SharedSettingsProps {
   slackBrokerEnabled?: boolean;
 }
 
-type Section =
-  | "usage"
-  | "team"
-  | "deployment"
-  | "integrations"
-  | "reports"
-  | "billing"
-  | "workspace-general"
-  | "general"
-  | "project-api-keys"
-  | "provider-api-keys"
-  | "model-costs"
-  | "render-templates"
-  | "agent-versions"
-  | "security"
-  | "alerts";
+type Section = SettingsSection;
 
 const VALID_SECTIONS = new Set<Section>([
   "usage",
