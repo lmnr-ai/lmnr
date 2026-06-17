@@ -255,20 +255,23 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       await tx.insert(alertTargets).values(allTargets);
     }
 
-    await tx
-      .delete(alertTriggerRules)
-      .where(and(eq(alertTriggerRules.alertId, alertId), eq(alertTriggerRules.projectId, projectId)));
+    // Omitting rules leaves existing rules untouched; an explicit empty array clears them.
+    if (rules !== undefined) {
+      await tx
+        .delete(alertTriggerRules)
+        .where(and(eq(alertTriggerRules.alertId, alertId), eq(alertTriggerRules.projectId, projectId)));
 
-    if (rules && rules.length > 0) {
-      await tx.insert(alertTriggerRules).values(
-        rules.map((r) => ({
-          alertId,
-          projectId,
-          column: r.column,
-          operator: r.operator,
-          value: r.value,
-        }))
-      );
+      if (rules.length > 0) {
+        await tx.insert(alertTriggerRules).values(
+          rules.map((r) => ({
+            alertId,
+            projectId,
+            column: r.column,
+            operator: r.operator,
+            value: r.value,
+          }))
+        );
+      }
     }
 
     return { id: alertId };
