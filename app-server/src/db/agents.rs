@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::utils::sanitize_string;
+
 /// A single agent version row, identified by `(project_id, version_hash)`.
 #[derive(Debug, Clone, FromRow)]
 pub struct AgentVersion {
@@ -71,7 +73,7 @@ pub async fn create_agent(
         "INSERT INTO agents (project_id, name) VALUES ($1, $2) RETURNING id",
     )
     .bind(project_id)
-    .bind(name)
+    .bind(sanitize_string(name))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -83,9 +85,9 @@ pub async fn create_agent(
     .bind(project_id)
     .bind(agent_id)
     .bind(version_hash)
-    .bind(system_prompt)
-    .bind(tool_definitions)
-    .bind(model)
+    .bind(sanitize_string(system_prompt))
+    .bind(sanitize_string(tool_definitions))
+    .bind(sanitize_string(model))
     .execute(&mut *tx)
     .await?;
 
@@ -111,9 +113,9 @@ pub async fn create_new_agent_version(
     .bind(project_id)
     .bind(agent_id)
     .bind(version_hash)
-    .bind(system_prompt)
-    .bind(tool_definitions)
-    .bind(model)
+    .bind(sanitize_string(system_prompt))
+    .bind(sanitize_string(tool_definitions))
+    .bind(sanitize_string(model))
     .execute(pool)
     .await?;
     Ok(())
