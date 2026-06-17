@@ -4,10 +4,10 @@ import { test } from "node:test";
 import { CacheManager } from "@/lib/cache";
 
 // Build an instance with no Redis configured so we exercise the in-memory fallback.
-const memoryCache = (() => {
-  delete process.env.REDIS_URL;
-  return new CacheManager();
-})();
+const savedRedisUrl = process.env.REDIS_URL;
+delete process.env.REDIS_URL;
+const memoryCache = new CacheManager();
+process.env.REDIS_URL = savedRedisUrl; // restore so other test files are not affected
 
 test("exists() returns false for an expired entry in the in-memory cache", async () => {
   await memoryCache.set("expired-key", 1, { expireAt: new Date(Date.now() - 1000) });
