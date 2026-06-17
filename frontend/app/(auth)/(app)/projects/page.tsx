@@ -78,9 +78,19 @@ export default async function ProjectsPage() {
     return redirect(`/project/${targetProjectId}/traces`);
   }
 
-  // The target workspace has no project. There's no /workspace route anymore and no project to
-  // anchor settings, so render the create-project surface here — the only exit from an empty
-  // workspace (the project sidebar's create-project picker isn't reachable without a project).
+  // Target workspace is empty — before showing its create surface, fall back to any OTHER
+  // workspace that already has a project so a user with projects elsewhere isn't stranded.
+  for (const { workspaceId } of workspaceLists) {
+    if (workspaceId === targetWorkspaceId) continue;
+    const fallbackProjectId = await getNewestProjectId(workspaceId);
+    if (fallbackProjectId) {
+      return redirect(`/project/${fallbackProjectId}/traces`);
+    }
+  }
+
+  // No workspace has any project. There's no /workspace route anymore and no project to anchor
+  // settings, so render the create-project surface here — the only exit from an empty workspace
+  // (the project sidebar's create-project picker isn't reachable without a project).
   const workspace = await getWorkspace({ workspaceId: targetWorkspaceId });
   return (
     <>
