@@ -34,6 +34,14 @@ const DEBUG_RUN = {
   typescript: `LMNR_DEBUG=1 npm run dev # or whatever your run command is`,
 };
 
+// The agent-owned debug loop, shown as a numbered list in the intro.
+const DEBUG_LOOP_STEPS = [
+  "Run the agent in debug mode.",
+  "Read and evaluate the resulting trace in Laminar",
+  "Make changes to the code.",
+  "Rerun the agent with working steps cached so each turn is fast and cheap.",
+];
+
 // Startup / onboarding page shown when a project has no debugger sessions yet,
 // in place of the table. Modeled on the evaluations / traces placeholders.
 export default function SessionsPlaceholder() {
@@ -44,11 +52,24 @@ export default function SessionsPlaceholder() {
       <Header path="debugger sessions" />
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex max-w-3xl flex-col gap-12 p-6 pb-16">
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-6">
             <h1 className="text-2xl font-medium">Get started with Debugger</h1>
-            <p className="text-sm text-muted-foreground">
-              Run your instrumented agent in debug mode and its sessions will appear here.
-            </p>
+            <div className="flex flex-col gap-5 text-muted-foreground leading-6">
+              <p>
+                Laminar debugger gives your coding agent the tools it needs at every step of the agent development loop.
+              </p>
+              <ol className="flex flex-col gap-2">
+                {DEBUG_LOOP_STEPS.map((step, i) => (
+                  <li key={step} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border bg-muted text-xs text-secondary-foreground">
+                      {i + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+              <p>Every run lands in one session you watch live right here.</p>
+            </div>
           </div>
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
