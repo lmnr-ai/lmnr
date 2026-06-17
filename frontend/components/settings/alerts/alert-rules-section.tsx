@@ -94,7 +94,11 @@ function RuleRow({
       <Controller
         name={`rules.${index}.value`}
         control={control}
-        rules={{ required: "Value is required" }}
+        rules={{
+          required: "Value is required",
+          validate: (value) =>
+            type !== "number" || value === "" || !Number.isNaN(Number(value)) || "Value must be a number",
+        }}
         render={({ field }) => {
           if (type === "boolean") {
             return (
