@@ -7,7 +7,11 @@ import { CacheManager } from "@/lib/cache";
 const savedRedisUrl = process.env.REDIS_URL;
 delete process.env.REDIS_URL;
 const memoryCache = new CacheManager();
-process.env.REDIS_URL = savedRedisUrl; // restore so other test files are not affected
+if (savedRedisUrl !== undefined) {
+  process.env.REDIS_URL = savedRedisUrl;
+} else {
+  delete process.env.REDIS_URL;
+} // restore so other test files are not affected
 
 test("exists() returns false for an expired entry in the in-memory cache", async () => {
   await memoryCache.set("expired-key", 1, { expireAt: new Date(Date.now() - 1000) });
