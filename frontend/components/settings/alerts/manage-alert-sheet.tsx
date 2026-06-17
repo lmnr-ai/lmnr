@@ -400,9 +400,14 @@ export default function ManageAlertSheet({
               }
             : {};
 
-        const rules = data.rules
-          .filter((r) => r.column && r.operator)
-          .map((r) => ({ column: r.column, operator: r.operator, value: coerceRuleValue(r.value, r.valueType) }));
+        // Conditions only exist for SIGNAL_EVENT alerts; the builder unmounts on
+        // other types but react-hook-form keeps stale rows, so drop them here.
+        const rules =
+          data.type === ALERT_TYPE.SIGNAL_EVENT
+            ? data.rules
+                .filter((r) => r.column && r.operator)
+                .map((r) => ({ column: r.column, operator: r.operator, value: coerceRuleValue(r.value, r.valueType) }))
+            : [];
 
         const res = await fetch(url, {
           method,
