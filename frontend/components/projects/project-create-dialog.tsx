@@ -89,9 +89,8 @@ export default function ProjectCreateDialog({
           </TooltipTrigger>
           <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
             <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
-            {/* Uses the /workspace shim (not settingsHref) on purpose: this dialog also renders in
-                the project-less /projects surface with no ProjectContext, where settingsHref would
-                degrade to /projects. The shim resolves the prop workspace's billing settings. */}
+            {/* /workspace shim, not settingsHref: this dialog also renders in the project-less
+                /projects surface with no ProjectContext, where settingsHref would degrade. */}
             <Link href={`/workspace/${workspaceId}?tab=billing`} className="text-xs text-primary hover:underline">
               Upgrade to create more projects
             </Link>

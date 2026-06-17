@@ -81,10 +81,8 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
   return results;
 };
 
-// The workspace's newest project, or undefined when it has none. Single source for the
-// "default project of a workspace" pick — server entry points that only know a workspaceId
-// (Stripe return URLs, Slack callbacks, invite accept, /projects) all resolve through this so
-// the ordering tiebreak can't drift between them.
+// The workspace's newest project (or undefined). Single source for the "default project of a
+// workspace" pick so callers (settings paths, /projects, invite-accept) can't drift on ordering.
 export const getNewestProjectId = async (workspaceId: string): Promise<string | undefined> => {
   const project = await db.query.projects.findFirst({
     where: eq(projects.workspaceId, workspaceId),
@@ -94,12 +92,8 @@ export const getNewestProjectId = async (workspaceId: string): Promise<string | 
   return project?.id;
 };
 
-// Settings live at /project/[projectId]/settings — there is no workspace-scoped route. A workspace
-// with no project has no settings surface, so we fall back to /projects. Caveat: /projects resolves
-// its target workspace from cookies/membership, NOT this workspaceId, so a deep link for a
-// project-less workspace can land on a different workspace. Accepted because every real caller
-// (billing / Slack / checkout / usage + report emails) targets a workspace that already has ≥1
-// project — a project-less workspace can't have generated any of those links.
+// Settings path for a workspace, via its newest project. Falls back to /projects when the workspace
+// has no project (loses the workspace context, but every real caller targets one with ≥1 project).
 export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
   const projectId = await getNewestProjectId(workspaceId);
   if (!projectId) return "/projects";

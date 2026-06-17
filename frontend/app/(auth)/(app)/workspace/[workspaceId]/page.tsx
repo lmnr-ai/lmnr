@@ -3,13 +3,8 @@ import { redirect } from "next/navigation";
 import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { requireWorkspaceAccess } from "@/lib/authorization";
 
-// Redirect shim. The /workspace route is gone; settings live at /project/[id]/settings (addressed
-// by ?tab=). It remaps the legacy workspace "settings" tab to "workspace-general" and redirects to
-// the workspace's project settings. Two consumers:
-//   1. already-sent emails (app-server email.rs builds /workspace/{id}?tab=usage and ?tab=reports);
-//   2. in-app links that know only a workspace id and may render without ProjectContext — e.g. the
-//      create-project dialog in the project-less /projects surface, where settingsHref can't help.
-// In-app links that DO have project context go straight to /project/[id]/settings instead.
+// Redirect-only shim for the removed /workspace route → /project/[id]/settings?tab= ("settings" tab
+// → "workspace-general"). Serves already-sent emails and create-dialog's no-context billing link.
 const TAB_TO_SECTION: Record<string, string> = {
   usage: "usage",
   team: "team",
