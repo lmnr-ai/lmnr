@@ -58,7 +58,7 @@ export default function SignalAlerts({
         workspaceId={workspaceId}
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
-        returnPath={`/project/${projectId}/signals/${signal.id}?tab=settings`}
+        returnPath={`/project/${projectId}/signals/${signal.id}?tab=settings&section=alerts`}
       />
 
       <Button

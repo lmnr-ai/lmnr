@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, Bell, History, Settings2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useState } from "react";
 
 import CreateSignalJob from "@/components/signal/create-signal-job";
@@ -29,6 +30,11 @@ const sections: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
 
+const SECTION_IDS = sections.map((s) => s.id);
+
+const isSettingsSection = (value: string | null): value is SettingsSection =>
+  value !== null && (SECTION_IDS as string[]).includes(value);
+
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
 interface SignalSettingsPanelProps {
@@ -47,7 +53,11 @@ export default function SignalSettingsPanel({
   slackRedirectUri,
 }: SignalSettingsPanelProps) {
   const signal = useSignalStoreContext((state) => state.signal);
-  const [activeSection, setActiveSection] = useState<SettingsSection>("settings");
+  const searchParams = useSearchParams();
+  const initialSection = searchParams.get("section");
+  const [activeSection, setActiveSection] = useState<SettingsSection>(
+    isSettingsSection(initialSection) ? initialSection : "settings"
+  );
 
   return (
     <SidebarProvider defaultOpen>
