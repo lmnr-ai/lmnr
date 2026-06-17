@@ -868,41 +868,42 @@ export const labelingQueues = pgTable(
   ]
 );
 
-export const tracesAgentChats = pgTable(
-  "traces_agent_chats",
+export const chatSessions = pgTable(
+  "chat_sessions",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    traceId: uuid("trace_id").notNull(),
+    // Launch context, e.g. {"type":"project"} or {"type":"trace","traceId":"..."}. JSONB so new
+    // contexts (signal, cluster, session, ...) need no schema change.
+    context: jsonb().default({}).notNull(),
     projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "traces_agent_chats_project_id_fkey",
+      name: "chat_sessions_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
   ]
 );
 
-export const tracesAgentMessages = pgTable(
-  "traces_agent_messages",
+export const chatMessages = pgTable(
+  "chat_messages",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     role: text().notNull(),
     parts: jsonb().notNull(),
     chatId: uuid("chat_id").notNull(),
-    traceId: uuid("trace_id").notNull(),
     projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "traces_agent_messages_project_id_fkey",
+      name: "chat_messages_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),

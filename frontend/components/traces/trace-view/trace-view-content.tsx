@@ -3,9 +3,9 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
+import TraceAgentDock from "@/components/traces/trace-view/trace-agent-dock";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -54,12 +54,11 @@ export default function TraceViewContent({
 
   const featureFlags = useFeatureFlags();
   // Panel visibility states
-  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
+  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen } = useTraceViewStore(
     (state) => ({
       spanPanelOpen: state.spanPanelOpen,
       tracesAgentOpen: state.tracesAgentOpen,
       setTracesAgentOpen: state.setTracesAgentOpen,
-      selectSpanById: state.selectSpanById,
     }),
     shallow
   );
@@ -366,10 +365,13 @@ export default function TraceViewContent({
     </div>
   );
 
+  // The chat slot now hosts the single global Laminar Agent panel (docked side-by-side) rather than a
+  // separate trace-scoped chat — one agent across the whole project. The trace-view layout still owns
+  // this slot's visibility (`tracesAgentOpen`) and resize.
   const isChatEnabled = featureFlags[Feature.AGENT];
   const chatPanel = isChatEnabled ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <Chat traceId={traceId} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
+      <TraceAgentDock />
     </div>
   ) : null;
 

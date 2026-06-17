@@ -3,8 +3,10 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
+import { useReportAgentContextName } from "@/components/agent/store";
 import EventsTable from "@/components/signal/events-table";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { getCurrentNode, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import Header from "@/components/ui/header.tsx";
@@ -24,6 +26,12 @@ function SignalContent() {
   const { signal } = useSignalStoreContext((state) => ({
     signal: state.signal,
   }));
+
+  // Report the active context's display name to the agent panel. The signal surface emits a
+  // `cluster` descriptor when drilled into one, so prefer the cluster's name there, else the signal.
+  const [clusterId] = useClusterId();
+  const clusterName = useSignalStoreContext((state) => getCurrentNode(state, clusterId)?.name);
+  useReportAgentContextName("signal", clusterId ? clusterName : signal.name);
 
   const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
     setSignal: state.setSignal,

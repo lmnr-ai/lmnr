@@ -208,4 +208,7 @@ export const useTraceViewStore = <T,>(
   return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
+/** Raw store handle for code that needs to register/subscribe imperatively (e.g. the agent registry). */
+export const useTraceViewStoreApi = (): StoreApi<TraceViewStore> | undefined => useContext(TraceViewStoreContext);
+
 export default TraceViewStoreProvider;

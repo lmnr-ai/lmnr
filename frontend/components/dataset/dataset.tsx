@@ -5,6 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useReportAgentContextName } from "@/components/agent/store";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
@@ -83,6 +84,8 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();
   const [totalCount, setTotalCount] = useState(0);
+
+  useReportAgentContextName("dataset", dataset.name);
 
   const fetchCount = useCallback(async () => {
     const url = `/api/projects/${projectId}/datasets/${dataset.id}/count`;

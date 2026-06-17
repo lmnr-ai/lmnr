@@ -3,6 +3,8 @@ import "@/app/globals.css";
 import { cookies } from "next/headers";
 import { type ReactNode } from "react";
 
+import LaminarAgent from "@/components/agent";
+import { RouteAgentContext } from "@/components/agent/store/registrars";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import NotificationPanel from "@/components/notifications/notification-panel";
@@ -54,6 +56,12 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                 <NotificationPanel />
                 {showBanner && <ProjectUsageBanner details={projectDetails} />}
                 {children}
+                {isFeatureEnabled(Feature.AGENT) && (
+                  <>
+                    <RouteAgentContext />
+                    <LaminarAgent />
+                  </>
+                )}
               </SidebarInset>
             </SidebarProvider>
           </div>

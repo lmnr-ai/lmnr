@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { TraceAgentContext } from "@/components/agent/store/registrars";
 import TraceViewStoreProvider, {
   type ResizablePanel,
   type TraceViewTrace,
@@ -34,6 +35,7 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialChatOpen={props.showChatInitial}
       initialSearch={props.initialSearch}
     >
+      <TraceAgentContext traceId={props.traceId} />
       <TraceViewContent {...props} />
     </TraceViewStoreProvider>
   );
@@ -63,6 +65,7 @@ export function TraceViewSidePanel({
         initialSearch={props.initialSearch}
       >
         <div className="relative w-full h-full flex flex-col">
+          <TraceAgentContext traceId={props.traceId} />
           <SidePanelLeftResizeHandle />
           {children}
           <TraceViewContent {...props} sidePanelRef={sidePanelRef} />

@@ -32,8 +32,8 @@ import {
   evaluatorScores,
   sqlTemplates,
   dashboardCharts,
-  tracesAgentChats,
-  tracesAgentMessages,
+  chatSessions,
+  chatMessages,
   sharedTraces,
   eventDefinitions,
   datasetExportJobs,
@@ -84,8 +84,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   sqlTemplates: many(sqlTemplates),
   dashboardCharts: many(dashboardCharts),
   labelingQueues: many(labelingQueues),
-  tracesAgentChats: many(tracesAgentChats),
-  tracesAgentMessages: many(tracesAgentMessages),
+  chatSessions: many(chatSessions),
+  chatMessages: many(chatMessages),
   sharedTraces: many(sharedTraces),
   eventDefinitions: many(eventDefinitions),
   datasetExportJobs: many(datasetExportJobs),
@@ -338,16 +338,16 @@ export const dashboardChartsRelations = relations(dashboardCharts, ({ one }) => 
   }),
 }));
 
-export const tracesAgentChatsRelations = relations(tracesAgentChats, ({ one }) => ({
+export const chatSessionsRelations = relations(chatSessions, ({ one }) => ({
   project: one(projects, {
-    fields: [tracesAgentChats.projectId],
+    fields: [chatSessions.projectId],
     references: [projects.id],
   }),
 }));
 
-export const tracesAgentMessagesRelations = relations(tracesAgentMessages, ({ one }) => ({
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
   project: one(projects, {
-    fields: [tracesAgentMessages.projectId],
+    fields: [chatMessages.projectId],
     references: [projects.id],
   }),
 }));

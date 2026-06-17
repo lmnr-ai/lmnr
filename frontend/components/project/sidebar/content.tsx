@@ -98,7 +98,10 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
   const pathname = usePathname();
   const featureFlags = useFeatureFlags();
   const options = useMemo(
-    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || featureFlags[Feature.SIGNALS]),
+    () =>
+      getSidebarMenus(details.id).filter(
+        (m) => (m.name !== "signals" && m.name !== "agent") || featureFlags[Feature.SIGNALS]
+      ),
     [details.id, featureFlags]
   );
   const { open, openMobile } = useSidebar();

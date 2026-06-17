@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { shallow } from "zustand/shallow";
 
+import { useReportAgentContextName } from "@/components/agent/store";
 import Chart from "@/components/evaluation/chart";
 import CompareChart from "@/components/evaluation/compare-chart";
 import DatapointRunsChart from "@/components/evaluation/datapoint-runs-chart";
@@ -300,6 +301,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
     () => ({ filters: effective.filters, search: effective.search }),
     [effective.filters, effective.search]
   );
+
+  useReportAgentContextName("evaluation", statsData?.evaluation?.name || evaluationName);
 
   return (
     <>

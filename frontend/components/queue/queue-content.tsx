@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 
+import { useReportAgentContextName } from "@/components/agent/store";
 import Header from "@/components/ui/header";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { track } from "@/lib/posthog";
@@ -30,6 +31,8 @@ export default function QueueContent() {
   const queue = useQueueStore((s) => s.queue);
   const itemsLen = useQueueStore((s) => s.idsList.length);
   const isInitialLoaded = useQueueStore((s) => s.isInitialLoaded);
+
+  useReportAgentContextName("labelingQueue", queue.name);
 
   const isClient = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
 

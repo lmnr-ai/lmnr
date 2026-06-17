@@ -8,10 +8,16 @@ import {
   Radio,
   Rows4,
   Settings,
+  Sparkles,
   SquareTerminal,
 } from "lucide-react";
 
 export const getSidebarMenus = (projectId: string) => [
+  {
+    name: "agent",
+    href: `/project/${projectId}/agent`,
+    icon: Sparkles,
+  },
   {
     name: "dashboards",
     href: `/project/${projectId}/dashboards`,

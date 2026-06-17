@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import { laminarAgentStore } from "@/components/agent/store";
 import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
@@ -74,11 +75,11 @@ function PayloadValue({
 export default function SignalDetails({ traceId, signal }: Props) {
   const { projectId } = useParams();
   const featureFlags = useFeatureFlags();
-  const { selectSpanById, spans, openSignalInChat } = useTraceViewStore(
+  const { selectSpanById, spans, setTracesAgentOpen } = useTraceViewStore(
     (state) => ({
       selectSpanById: state.selectSpanById,
       spans: state.spans,
-      openSignalInChat: state.openSignalInChat,
+      setTracesAgentOpen: state.setTracesAgentOpen,
     }),
     shallow
   );
@@ -86,10 +87,13 @@ export default function SignalDetails({ traceId, signal }: Props) {
   const events = (signal.events as EventRow[]) ?? [];
   const latestEvent = events[0];
 
+  // Open the global agent docked next to this trace and prefill a question about the signal event.
+  // Opening the trace's chat slot mounts the dock, which switches the panel to side-by-side.
   const handleOpenInChat = () => {
-    const signalDefinition = `### ${signal.signalName}\n${signal.prompt}`;
     const eventPayload = latestEvent ? latestEvent.payload : "No events found";
-    openSignalInChat(signalDefinition, eventPayload);
+    const prefill = `Explain how this signal event relates to my trace and reference the relevant spans.\n\n### ${signal.signalName}\n${signal.prompt}\n\n### Event payload\n${eventPayload}`;
+    laminarAgentStore.getState().setPrefillInput(prefill);
+    setTracesAgentOpen(true);
   };
 
   const schemaFields = useMemo(
