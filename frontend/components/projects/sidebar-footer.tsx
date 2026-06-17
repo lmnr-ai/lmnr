@@ -6,7 +6,7 @@ import Link from "next/link";
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
 import SidebarUserMenu from "@/components/projects/sidebar-user-menu.tsx";
-import { IconGitHub } from "@/components/ui/icons";
+import { IconGitHub, LaminarIcon, LaminarLogo } from "@/components/ui/icons";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -64,6 +64,26 @@ const SidebarFooterComponent = () => {
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4">
               <SidebarUserMenu />
+            </SidebarMenuItem>
+            <SidebarMenuItem className="mt-2 mx-0 px-2">
+              <Link passHref href="/projects" className="flex items-center">
+                <div className="relative flex">
+                  <LaminarIcon
+                    fill="#5B5B5B"
+                    className={cn(
+                      "w-4 h-4 transition-all duration-300 ease-in-out",
+                      open || openMobile ? "opacity-0 scale-50 absolute" : "opacity-100 scale-100"
+                    )}
+                  />
+                  <LaminarLogo
+                    fill="#5B5B5B"
+                    className={cn(
+                      "w-30 h-5 text-secondary transition-all duration-300 ease-in-out",
+                      open || openMobile ? "opacity-100 scale-100" : "opacity-0 scale-50 absolute"
+                    )}
+                  />
+                </div>
+              </Link>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>

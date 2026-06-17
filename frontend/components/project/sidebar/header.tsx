@@ -146,11 +146,14 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                             setDirection(-1);
                             setView("workspaces");
                           }}
-                          className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent mb-1"
+                          className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent"
                         >
                           <ArrowLeft className="size-3 shrink-0" />
-                          <span className="truncate">{selectedWorkspace ? selectedWorkspace.name : "Projects"}</span>
+                          <span className="truncate">All workspaces</span>
                         </button>
+                        <div className="px-1 py-1 mb-1 truncate font-medium text-sidebar-foreground">
+                          {selectedWorkspace ? `${selectedWorkspace.name} workspace` : "Workspace"}
+                        </div>
                         <div className="max-h-[600px] overflow-y-auto">
                           {!isSelectedCurrent && otherLoading ? (
                             <div className="p-1 text-muted-foreground">Loading…</div>
