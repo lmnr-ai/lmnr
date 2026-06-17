@@ -7,7 +7,7 @@ import { tryParseJson } from "../utils";
 // Legacy rows (pre AI SDK v5) stored message content as a plain string instead
 // of a parts array. Normalize those into a single text part so the editor —
 // and the .map() below — always see an array.
-const toContentParts = (content: Message["content"]): Message["content"] =>
+const toContentParts = (content: Message["content"] | string | null | undefined): Message["content"] =>
   Array.isArray(content) ? content : [{ type: "text", text: String(content ?? "") } as TextPart];
 
 export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
