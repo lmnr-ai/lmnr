@@ -152,7 +152,7 @@ const SharedSettings = ({
   const projectMenus: { label: string; section: Section; icon: LucideIcon }[] = [
     { label: "General", section: "general", icon: Settings2 },
     { label: "Project API Keys", section: "project-api-keys", icon: Key },
-    { label: "Model providers", section: "provider-api-keys", icon: Sparkles },
+    { label: "Playground model providers", section: "provider-api-keys", icon: Sparkles },
     { label: "Model costs", section: "model-costs", icon: DollarSign },
     { label: "Render templates", section: "render-templates", icon: Code2 },
     { label: "Agent versions", section: "agent-versions", icon: GitBranch },
@@ -255,7 +255,7 @@ const SharedSettings = ({
       <Header path="settings" />
       <SidebarProvider defaultOpen>
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar collapsible="none" className="w-64">
+          <Sidebar collapsible="none" className="w-72">
             <SidebarContent className="bg-background pl-2">
               <SidebarGroup className="pt-0">
                 <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
@@ -264,7 +264,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1"
+                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >
@@ -285,7 +285,7 @@ const SharedSettings = ({
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
-                        className="flex items-center flex-1"
+                        className="flex items-center flex-1 hover:bg-surface-700 active:bg-surface-600 data-[active=true]:bg-surface-600"
                         isActive={activeSection === m.section}
                         tooltip={m.label}
                       >

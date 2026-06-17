@@ -253,7 +253,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                   </AnimatePresence>
                 </div>
                 <DropdownMenuSeparator className="m-0" />
-                <div className="p-1">
+                <div className="px-0.5 py-1">
                   <AccountMenu />
                 </div>
               </DropdownMenuContent>

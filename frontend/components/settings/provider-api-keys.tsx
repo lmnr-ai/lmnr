@@ -55,7 +55,7 @@ export default function ProviderApiKeys() {
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="Model Providers"
+        title="Playground model providers"
         description="Set your model provider API keys for use in Playground API calls. Variables are encrypted and stored securely."
       />
       <AddProviderApiKeyVarDialog
