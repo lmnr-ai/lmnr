@@ -66,6 +66,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
     swrFetcher
   );
   const displayedProjects = isSelectedCurrent ? projects : (otherProjects ?? []);
+  // While another workspace's projects load, displayedProjects is empty — don't let that
+  // empty count fool the Free-tier create gate into showing an enabled button.
+  const projectsLoading = !isSelectedCurrent && otherLoading;
   const selectedWorkspace = workspaces?.find((w) => w.id === selectedWorkspaceId);
   const selectedIsFreeTier = featureFlags[Feature.SUBSCRIPTION] && selectedWorkspace?.tierName === WorkspaceTier.FREE;
 
@@ -160,7 +163,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         <DropdownMenuSeparator className="m-0" />
                         <div className="p-1">
                           <div className="max-h-[600px] overflow-y-auto">
-                            {!isSelectedCurrent && otherLoading ? (
+                            {projectsLoading ? (
                               <div className="p-1 text-muted-foreground">Loading…</div>
                             ) : (
                               displayedProjects.map((p) => (
@@ -189,16 +192,19 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                             )}
                           </div>
                           <DropdownMenuSeparator className="mx-0" />
-                          <ProjectCreateDialog
-                            workspaceId={selectedWorkspaceId}
-                            isFreeTier={selectedIsFreeTier}
-                            projectCount={displayedProjects.length}
-                          >
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                              <Plus className="size-4" />
-                              <span>Create project</span>
-                            </DropdownMenuItem>
-                          </ProjectCreateDialog>
+                          {/* Hidden until projects load so the Free-tier gate sees the real count. */}
+                          {!projectsLoading && (
+                            <ProjectCreateDialog
+                              workspaceId={selectedWorkspaceId}
+                              isFreeTier={selectedIsFreeTier}
+                              projectCount={displayedProjects.length}
+                            >
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                                <Plus className="size-4" />
+                                <span>Create project</span>
+                              </DropdownMenuItem>
+                            </ProjectCreateDialog>
+                          )}
                         </div>
                       </motion.div>
                     ) : (
