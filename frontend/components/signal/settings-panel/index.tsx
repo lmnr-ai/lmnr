@@ -18,6 +18,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 type SettingsSection = "settings" | "activity" | "backfill" | "alerts";
 
@@ -72,16 +73,15 @@ export default function SignalSettingsPanel({
             </SidebarGroup>
           </SidebarContent>
         </Sidebar>
-        {activeSection === "settings" && (
-          <ScrollArea className="flex-1">
-            <ManageSignalPanel
-              key={signal.id}
-              defaultValues={signal}
-              onSuccess={onSuccess}
-              scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
-            />
-          </ScrollArea>
-        )}
+        {/* Kept mounted across tab switches so in-progress signal edits aren't discarded. */}
+        <ScrollArea className={cn("flex-1", activeSection !== "settings" && "hidden")}>
+          <ManageSignalPanel
+            key={signal.id}
+            defaultValues={signal}
+            onSuccess={onSuccess}
+            scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
+          />
+        </ScrollArea>
         {activeSection === "activity" && (
           <div className="flex flex-col flex-1 overflow-hidden p-4">
             <SignalRunsTable />
