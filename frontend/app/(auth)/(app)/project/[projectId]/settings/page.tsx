@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   title: "Settings",
 };
 
-// Settings renders INSIDE the project layout (so the project sidebar stays visible). The page
-// itself isn't project-owned — the SharedSettings pickers can re-point to any project/workspace.
+// Settings renders INSIDE the project layout (so the project sidebar stays visible) and implicitly
+// targets this project + its workspace — there are no pickers; section is chosen via ?tab=.
 export default async function ProjectSettingsPage(props: { params: Promise<{ projectId: string }> }) {
   const params = await props.params;
 
