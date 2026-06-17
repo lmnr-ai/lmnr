@@ -39,10 +39,11 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
       track("workspace", "created");
       // A project is created alongside the workspace (isFirstProject) — drop into it directly.
+      // Fallback to /projects (the /settings/[workspaceId] route was removed in this PR).
       if (newWorkspace.projectId) {
         router.push(`/project/${newWorkspace.projectId}/traces`);
       } else {
-        router.push(`/settings/${newWorkspace.id}`);
+        router.push("/projects");
       }
     } catch (e) {
       toast({

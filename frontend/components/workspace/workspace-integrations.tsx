@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import SlackConnectionCard from "@/components/slack/slack-connection-card";
+import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
 
 interface WorkspaceIntegrationsProps {
@@ -19,6 +20,8 @@ export default function WorkspaceIntegrations({
   slackRedirectUri,
   slackBrokerEnabled,
 }: WorkspaceIntegrationsProps) {
+  const { settingsHref } = useProjectContext();
+
   useEffect(() => {
     track("integrations", "page_viewed");
   }, []);
@@ -32,6 +35,7 @@ export default function WorkspaceIntegrations({
           slackClientId={slackClientId}
           slackRedirectUri={slackRedirectUri}
           brokerEnabled={slackBrokerEnabled}
+          returnPath={settingsHref("integrations")}
         />
       </div>
     </>
