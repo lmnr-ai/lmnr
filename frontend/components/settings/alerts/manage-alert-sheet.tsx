@@ -186,7 +186,9 @@ export default function ManageAlertSheet({
       reset({
         type: alert.type,
         name: alert.name,
-        signalName: signal?.name ?? "",
+        // Prefer the locked signal's name: when the sheet is scoped to a signal, that name is
+        // authoritative and the signal may sit outside the paginated `data.items` page.
+        signalName: lockedSignalName ?? signal?.name ?? "",
         slackChannels: restoredSlackChannels,
         emailEnabled: !!emailTarget,
         severities:
@@ -202,7 +204,7 @@ export default function ManageAlertSheet({
         })),
       });
     },
-    [alert, reset, userEmail, baseDefaults]
+    [alert, reset, userEmail, baseDefaults, lockedSignalName]
   );
 
   const {
