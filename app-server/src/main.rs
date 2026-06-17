@@ -65,7 +65,7 @@ use signals::private::{
     batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
     queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY},
-    realtime_api::SignalJobRealtimeHandler,
+    realtime::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;

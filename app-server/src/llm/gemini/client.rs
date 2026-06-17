@@ -2,8 +2,8 @@
 
 use super::accumulator::GeminiStreamAccumulator;
 use super::{
-    BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
-    InlineRequestItem, Operation,
+    BatchCreateRequest, FLEX_SERVICE_TIER, GeminiError, GenerateContentRequest,
+    GenerateContentResponse, InlineRequestItem, Operation,
 };
 use crate::env;
 use crate::llm::{
@@ -14,8 +14,15 @@ use crate::llm::{
     },
     sse::accumulate_sse,
 };
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
+
+/// Per-request HTTP timeout applied only to flex-tier requests (the shared client
+/// timeout is 120s and must stay that way for every other call). Flex responses can
+/// take minutes. Reads `SIGNALS_FLEX_LLM_TIMEOUT_SECS` (default 900).
+static FLEX_REQUEST_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(env::llm::FLEX_LLM_TIMEOUT_SECS.get()));
 
 #[derive(Clone)]
 pub struct GeminiClient {
@@ -63,14 +70,19 @@ impl GeminiClient {
     ) -> GeminiResult<GenerateContentResponse> {
         let url = format!("{}/models/{}:generateContent", self.api_base_url, model);
 
-        let response = self
+        let mut req_builder = self
             .client
             .post(&url)
             .header("x-goog-api-key", &self.api_key)
             .header("Content-Type", "application/json")
-            .json(request)
-            .send()
-            .await?;
+            .json(request);
+
+        // Flex requests can run for minutes; override the 120s client default per-request.
+        if request.service_tier.as_deref() == Some(FLEX_SERVICE_TIER) {
+            req_builder = req_builder.timeout(*FLEX_REQUEST_TIMEOUT);
+        }
+
+        let response = req_builder.send().await?;
 
         let status = response.status();
 

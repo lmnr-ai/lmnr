@@ -146,6 +146,7 @@ async fn generate_dynamic_regex(
             temperature: Some(0.0),
             ..Default::default()
         }),
+        service_tier: None,
         provider: None,
         model_size: Some(ModelSize::Small),
     };

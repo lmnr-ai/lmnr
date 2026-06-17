@@ -48,6 +48,10 @@ pub enum GenerateFailureMode {
     /// Return a non-retryable 400 ApiError.
     #[allow(dead_code)]
     NonRetryable,
+    /// Return a `RequestError` (network/timeout). Retryable on the standard tier
+    /// but NOT a flex 429/503, so it drives the immediate flex->standard fallback.
+    #[allow(dead_code)]
+    Timeout,
 }
 
 /// Configuration for programmatic `generate_content` failure injection.
@@ -131,6 +135,7 @@ fn read_generate_failure_from_env() -> Option<GenerateFailureConfig> {
         match mode {
             GenerateFailureMode::Retryable429 => "retryable_429",
             GenerateFailureMode::NonRetryable => "non_retryable",
+            GenerateFailureMode::Timeout => "timeout",
         },
         if fail_count == usize::MAX {
             "forever".to_string()
@@ -247,6 +252,9 @@ impl LanguageModelClient for MockProviderClient {
                         retryable: false,
                         resource_exhausted: false,
                     }),
+                    GenerateFailureMode::Timeout => Err(ProviderError::RequestError(
+                        "Mock: request timed out".to_string(),
+                    )),
                 };
             }
         }

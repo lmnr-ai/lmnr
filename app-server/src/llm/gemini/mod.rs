@@ -9,6 +9,11 @@ pub use client::GeminiClient;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Gemini's cheaper, sheddable inference tier
+/// (https://ai.google.dev/gemini-api/docs/flex-inference). Set as
+/// `GenerateContentRequest::service_tier` to opt a request into it.
+pub const FLEX_SERVICE_TIER: &str = "flex";
+
 /// https://ai.google.dev/gemini-api/docs/troubleshooting#error-codes
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -297,6 +302,9 @@ pub struct GenerateContentRequest {
     pub system_instruction: Option<Content>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    /// https://ai.google.dev/gemini-api/docs/flex-inference
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

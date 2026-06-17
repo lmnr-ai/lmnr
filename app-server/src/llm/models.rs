@@ -28,6 +28,11 @@ pub struct ProviderRequest {
     pub tools: Option<Vec<ProviderTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_config: Option<ProviderGenerationConfig>,
+    /// Inference service tier (e.g. `"flex"`). Only honored by the Gemini
+    /// provider (https://ai.google.dev/gemini-api/docs/flex-inference);
+    /// other providers ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

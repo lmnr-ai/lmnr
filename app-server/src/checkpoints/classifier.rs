@@ -117,6 +117,7 @@ async fn classify_with_llm(
             temperature: Some(0.0),
             ..Default::default()
         }),
+        service_tier: None,
         provider: None,
         model_size: Some(ModelSize::Small),
     };
