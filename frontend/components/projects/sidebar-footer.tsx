@@ -69,7 +69,7 @@ const SidebarFooterComponent = () => {
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
                   aria-label="Laminar"
-                  className={cn("block bg-surface-200", open || openMobile ? "w-[166px]" : "w-[35px]")}
+                  className={cn("block bg-surface-200", open || openMobile ? "w-32" : "w-[35px]")}
                   style={{
                     maskImage: `url(${logo.src})`,
                     WebkitMaskImage: `url(${logo.src})`,

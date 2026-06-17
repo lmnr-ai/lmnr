@@ -142,7 +142,7 @@ const SharedSettings = ({
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
     items.push({ label: "Integrations", section: "integrations", icon: Unplug });
-    items.push({ label: "Reports", section: "reports", icon: FileBarChart });
+    items.push({ label: "Signal reports", section: "reports", icon: FileBarChart });
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
     }
@@ -258,7 +258,7 @@ const SharedSettings = ({
           <Sidebar collapsible="none" className="w-72">
             <SidebarContent className="bg-background pl-2">
               <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
+                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Project settings</div>
                 <SidebarMenu>
                   {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
@@ -279,7 +279,7 @@ const SharedSettings = ({
               </SidebarGroup>
 
               <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
+                <div className="px-2 py-1 text-sm text-muted-foreground mb-1">Workspace settings</div>
                 <SidebarMenu>
                   {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
