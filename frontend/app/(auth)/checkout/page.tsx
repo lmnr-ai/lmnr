@@ -70,10 +70,13 @@ export default async function CheckoutPage(props: {
   }
 
   const billingSettingsPath = await getWorkspaceSettingsPath(workspaceId!, "billing");
+  // getWorkspaceSettingsPath can fall back to a query-less "/projects", so append the session id
+  // with the correct separator instead of assuming the path already has a "?".
+  const billingSeparator = billingSettingsPath.includes("?") ? "&" : "?";
   const successUrl =
     returnTo === "onboarding"
       ? `${process.env.NEXT_PUBLIC_URL}/onboarding?upgraded=true&sessionId={CHECKOUT_SESSION_ID}`
-      : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}&sessionId={CHECKOUT_SESSION_ID}`;
+      : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}${billingSeparator}sessionId={CHECKOUT_SESSION_ID}`;
   const cancelUrl =
     returnTo === "onboarding"
       ? `${process.env.NEXT_PUBLIC_URL}/onboarding`

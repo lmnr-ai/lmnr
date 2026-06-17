@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
 import Projects from "@/components/projects/projects";
 import { getLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
+import { getNewestProjectId } from "@/lib/actions/projects";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { getServerSession } from "@/lib/auth-session";
@@ -72,14 +73,9 @@ export default async function ProjectsPage() {
   const targetWorkspaceId = get(lastWorkspace, "workspaceId") ?? (get(head(workspaceLists), "workspaceId") as string);
 
   // Drop the user into a project's traces — the product, not settings.
-  const project = await db.query.projects.findFirst({
-    where: eq(projects.workspaceId, targetWorkspaceId),
-    columns: { id: true },
-    orderBy: desc(projects.createdAt),
-  });
-
-  if (project) {
-    return redirect(`/project/${project.id}/traces`);
+  const targetProjectId = await getNewestProjectId(targetWorkspaceId);
+  if (targetProjectId) {
+    return redirect(`/project/${targetProjectId}/traces`);
   }
 
   // The target workspace has no project. There's no /workspace route anymore and no project to

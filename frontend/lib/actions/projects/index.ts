@@ -81,17 +81,24 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
   return results;
 };
 
-// Settings live at /project/[projectId]/settings — there is no workspace-scoped route. Server/
-// external entry points that only know a workspaceId (Stripe return URLs, Slack callbacks, invite
-// accept) resolve the workspace's newest project here. A workspace with no project has no settings
-// surface to land on, so we fall back to /projects (which renders the create-project surface).
-export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
+// The workspace's newest project, or undefined when it has none. Single source for the
+// "default project of a workspace" pick — server entry points that only know a workspaceId
+// (Stripe return URLs, Slack callbacks, invite accept, /projects) all resolve through this so
+// the ordering tiebreak can't drift between them.
+export const getNewestProjectId = async (workspaceId: string): Promise<string | undefined> => {
   const project = await db.query.projects.findFirst({
     where: eq(projects.workspaceId, workspaceId),
     columns: { id: true },
     orderBy: desc(projects.createdAt),
   });
+  return project?.id;
+};
 
-  if (!project) return "/projects";
-  return section ? `/project/${project.id}/settings?tab=${section}` : `/project/${project.id}/settings`;
+// Settings live at /project/[projectId]/settings — there is no workspace-scoped route. A workspace
+// with no project has no settings surface to land on, so we fall back to /projects (which renders
+// the create-project surface).
+export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
+  const projectId = await getNewestProjectId(workspaceId);
+  if (!projectId) return "/projects";
+  return section ? `/project/${projectId}/settings?tab=${section}` : `/project/${projectId}/settings`;
 };

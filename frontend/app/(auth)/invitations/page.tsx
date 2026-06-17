@@ -1,5 +1,5 @@
 import { differenceInMinutes } from "date-fns";
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
@@ -7,9 +7,10 @@ import { notFound, redirect } from "next/navigation";
 import InvitationActions from "@/components/invitations/invitation-actions";
 import { LaminarLogo } from "@/components/ui/icons";
 import { clearOnboardingState } from "@/lib/actions/onboarding";
+import { getNewestProjectId } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, projects, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 
 const INVITATION_EXPIRY_MINUTES = 2880;
 
@@ -48,13 +49,9 @@ const handleInvitation = async (action: "accept" | "decline", id: string, worksp
       await clearOnboardingState();
 
       // Land in the joined workspace's newest project; /projects (its own resolver) if it has none.
-      const joinedProject = await db.query.projects.findFirst({
-        where: eq(projects.workspaceId, workspaceId),
-        columns: { id: true },
-        orderBy: desc(projects.createdAt),
-      });
+      const joinedProjectId = await getNewestProjectId(workspaceId);
       revalidatePath("/projects");
-      redirect(joinedProject ? `/project/${joinedProject.id}/traces` : "/projects");
+      redirect(joinedProjectId ? `/project/${joinedProjectId}/traces` : "/projects");
     }
 
     if (action === "decline") {
