@@ -181,7 +181,8 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
       );
     }
 
-    if (rules && rules.length > 0) {
+    // Trigger rules are a SIGNAL_EVENT-only concept; never persist them for other alert types.
+    if (type === "SIGNAL_EVENT" && rules && rules.length > 0) {
       await tx.insert(alertTriggerRules).values(
         rules.map((r) => ({
           alertId: alert.id,
@@ -255,8 +256,14 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       await tx.insert(alertTargets).values(allTargets);
     }
 
-    // Omitting rules leaves existing rules untouched; an explicit empty array clears them.
-    if (rules !== undefined) {
+    // Trigger rules are a SIGNAL_EVENT-only concept. For other alert types, always clear any
+    // existing rules. For SIGNAL_EVENT: omitting rules leaves existing rules untouched; an
+    // explicit empty array clears them.
+    if (type !== "SIGNAL_EVENT") {
+      await tx
+        .delete(alertTriggerRules)
+        .where(and(eq(alertTriggerRules.alertId, alertId), eq(alertTriggerRules.projectId, projectId)));
+    } else if (rules !== undefined) {
       await tx
         .delete(alertTriggerRules)
         .where(and(eq(alertTriggerRules.alertId, alertId), eq(alertTriggerRules.projectId, projectId)));
