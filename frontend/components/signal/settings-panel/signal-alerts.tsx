@@ -99,9 +99,11 @@ export default function SignalAlerts({
                 </span>
               </td>
               <td className="px-4 text-xs text-muted-foreground">
-                {signalEventMeta?.severities && signalEventMeta.severities.length > 0
-                  ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
-                  : "Critical"}
+                {alert.type === ALERT_TYPE.SIGNAL_EVENT
+                  ? signalEventMeta?.severities && signalEventMeta.severities.length > 0
+                    ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
+                    : "Critical"
+                  : "—"}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
