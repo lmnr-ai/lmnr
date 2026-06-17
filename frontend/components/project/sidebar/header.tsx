@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import NotificationTrigger from "@/components/notifications/notification-trigger";
+import AccountMenu from "@/components/projects/account-menu";
 import ProjectCreateDialog from "@/components/projects/project-create-dialog";
 import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog";
 import {
@@ -244,6 +245,8 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                     )}
                   </AnimatePresence>
                 </div>
+                <DropdownMenuSeparator />
+                <AccountMenu />
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
