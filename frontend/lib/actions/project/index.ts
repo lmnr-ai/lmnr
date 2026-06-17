@@ -21,6 +21,27 @@ export const UpdateProjectSchema = z.object({
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
 
+  const projectRow = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+    columns: {
+      workspaceId: true,
+    },
+  });
+
+  if (!projectRow) {
+    throw new Error("Project not found");
+  }
+
+  // A workspace must always retain at least one project — refuse to delete the last one. The
+  // create-project UI is only reachable from within a project, so this would strand the user.
+  const siblingProjects = await db.query.projects.findMany({
+    where: eq(projects.workspaceId, projectRow.workspaceId),
+    columns: { id: true },
+  });
+  if (siblingProjects.length <= 1) {
+    throw new Error("Cannot delete the only project in a workspace");
+  }
+
   try {
     // Make sure to delete the project api keys first, because they will be
     // cascade deleted from db once we delete the project.
@@ -32,18 +53,7 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     console.error("Failed to delete project api keys from cache", error);
   }
 
-  const workspaceId = await db.query.projects.findFirst({
-    where: eq(projects.id, projectId),
-    columns: {
-      workspaceId: true,
-    },
-  });
-
-  if (!workspaceId) {
-    throw new Error("Project not found");
-  }
-
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
+  await deleteAllProjectsWorkspaceInfoFromCache(projectRow.workspaceId);
 
   await db.delete(projects).where(eq(projects.id, projectId));
   const result = await deleteProjectDataFromClickHouse(projectId);

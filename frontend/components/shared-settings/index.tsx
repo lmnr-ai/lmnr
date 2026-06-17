@@ -132,10 +132,12 @@ const SharedSettings = ({
   const sectionHref = (section: Section) => `/project/${projectId}/settings?tab=${section}`;
 
   const workspaceMenus = useMemo(() => {
-    const items: { label: string; section: Section; icon: LucideIcon }[] = [
-      { label: "Usage", section: "usage", icon: Activity },
-      { label: "Team", section: "team", icon: Users },
-    ];
+    const items: { label: string; section: Section; icon: LucideIcon }[] = [];
+    if (isOwner) {
+      items.push({ label: "General", section: "workspace-general", icon: Settings2 });
+    }
+    items.push({ label: "Usage", section: "usage", icon: Activity });
+    items.push({ label: "Team", section: "team", icon: Users });
     if (featureFlags[Feature.DEPLOYMENT]) {
       items.push({ label: "Data residency", section: "deployment", icon: Cloud });
     }
@@ -143,9 +145,6 @@ const SharedSettings = ({
     items.push({ label: "Reports", section: "reports", icon: FileBarChart });
     if (featureFlags[Feature.SUBSCRIPTION]) {
       items.push({ label: "Billing", section: "billing", icon: CreditCard });
-    }
-    if (isOwner) {
-      items.push({ label: "General", section: "workspace-general", icon: Settings2 });
     }
     return items;
   }, [featureFlags, isOwner]);
@@ -259,9 +258,9 @@ const SharedSettings = ({
           <Sidebar collapsible="none" className="w-64">
             <SidebarContent className="bg-background pl-2">
               <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
+                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
                 <SidebarMenu>
-                  {workspaceMenus.map((m) => (
+                  {projectMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
@@ -280,9 +279,9 @@ const SharedSettings = ({
               </SidebarGroup>
 
               <SidebarGroup className="pt-0">
-                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Project settings</div>
+                <div className="px-2 py-1 text-xs text-muted-foreground mb-1">Workspace settings</div>
                 <SidebarMenu>
-                  {projectMenus.map((m) => (
+                  {workspaceMenus.map((m) => (
                     <SidebarMenuItem className="h-7" key={m.section}>
                       <SidebarMenuButton
                         asChild
