@@ -255,7 +255,9 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       await tx.insert(alertTargets).values(allTargets);
     }
 
-    await tx.delete(alertTriggerRules).where(eq(alertTriggerRules.alertId, alertId));
+    await tx
+      .delete(alertTriggerRules)
+      .where(and(eq(alertTriggerRules.alertId, alertId), eq(alertTriggerRules.projectId, projectId)));
 
     if (rules && rules.length > 0) {
       await tx.insert(alertTriggerRules).values(
