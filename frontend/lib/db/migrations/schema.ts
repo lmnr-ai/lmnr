@@ -402,6 +402,31 @@ export const alerts = pgTable(
   ]
 );
 
+export const alertTriggerRules = pgTable(
+  "alert_trigger_rules",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    alertId: uuid("alert_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    column: text().notNull(),
+    operator: text().notNull(),
+    value: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_trigger_rules_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_trigger_rules_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const workspaceUsage = pgTable(
   "workspace_usage",
   {

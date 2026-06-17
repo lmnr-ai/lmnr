@@ -6,13 +6,15 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import DeleteAlertDialog from "@/components/settings/alerts/delete-alert-dialog";
+import ManageAlertSheet from "@/components/settings/alerts/manage-alert-sheet";
+import TargetChips from "@/components/settings/alerts/target-chips";
+import { SettingsTable, SettingsTableRow } from "@/components/settings/settings-section";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUserContext } from "@/contexts/user-context";
 import {
   ALERT_TYPE,
-  ALERT_TYPE_LABELS,
   type AlertWithDetails,
   SEVERITY_LABELS,
   type SeverityLevel,
@@ -20,75 +22,65 @@ import {
 } from "@/lib/actions/alerts/types";
 import { swrFetcher } from "@/lib/utils";
 
-import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
-import DeleteAlertDialog from "./delete-alert-dialog";
-import ManageAlertSheet from "./manage-alert-sheet";
-import TargetChips from "./target-chips";
-
-interface AlertsSettingsProps {
+interface SignalAlertsProps {
   projectId: string;
   workspaceId: string;
+  signal: { id: string; name: string };
   slackClientId?: string;
   slackRedirectUri?: string;
 }
 
-export default function AlertsSettings({
+export default function SignalAlerts({
   projectId,
   workspaceId,
+  signal,
   slackClientId,
   slackRedirectUri,
-}: AlertsSettingsProps) {
+}: SignalAlertsProps) {
   const { email: userEmail } = useUserContext();
-
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
   const {
     data: alertsList,
-    isLoading: isLoadingAlerts,
-    mutate: mutateAlerts,
+    isLoading,
+    mutate,
   } = useSWR<AlertWithDetails[]>(`/api/projects/${projectId}/alerts`, swrFetcher);
 
   const [deleteTarget, setDeleteTarget] = useState<AlertWithDetails | null>(null);
   const [editTarget, setEditTarget] = useState<AlertWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  return (
-    <SettingsSection>
-      <SettingsSectionHeader
-        title="Alerts"
-        description="Configure alerts for new events or clusters. Notifications can be sent to Slack and email."
-      />
+  const signalAlerts = (alertsList ?? []).filter((a) => a.sourceId === signal.id);
 
+  return (
+    <div className="flex flex-col gap-4">
       <SlackConnectionCard
         workspaceId={workspaceId}
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
-        returnPath={`/project/${projectId}/settings?tab=alerts`}
+        returnPath={`/project/${projectId}/signals/${signal.id}?tab=settings`}
       />
 
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          icon="plus"
-          className="w-fit"
-          onClick={() => {
-            setEditTarget(null);
-            setSheetOpen(true);
-          }}
-        >
-          Alert
-        </Button>
-      </div>
+      <Button
+        variant="outline"
+        icon="plus"
+        className="w-fit"
+        onClick={() => {
+          setEditTarget(null);
+          setSheetOpen(true);
+        }}
+      >
+        Alert
+      </Button>
 
       <SettingsTable
-        isLoading={isLoadingAlerts}
-        isEmpty={isNil(alertsList) || isEmpty(alertsList)}
-        emptyMessage="No alerts configured. Create one to start receiving notifications."
-        headers={["Name", "Trigger", "Signal", "Severity", "Send to", "Created", ""]}
-        colSpan={7}
+        isLoading={isLoading}
+        isEmpty={isNil(alertsList) || isEmpty(signalAlerts)}
+        emptyMessage="No alerts for this signal. Create one to start receiving notifications."
+        headers={["Name", "Severity", "Send to", "Created", ""]}
+        colSpan={5}
       >
-        {alertsList?.map((alert) => {
-          // Only show the current user's own email target + all non-email targets
+        {signalAlerts.map((alert) => {
           const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
           const signalEventMeta =
             alert.type === ALERT_TYPE.SIGNAL_EVENT ? (alert.metadata as SignalEventAlertMetadata) : null;
@@ -106,24 +98,10 @@ export default function AlertsSettings({
                   {alert.name}
                 </span>
               </td>
-              <td className="px-4 align-middle">
-                <div className="flex items-center">
-                  <Badge variant="outline" className="font-normal text-xs whitespace-nowrap bg-secondary/50">
-                    {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
-                  </Badge>
-                </div>
-              </td>
-              <td className="px-4 text-sm text-muted-foreground max-w-48">
-                <span title={alert.signalName ?? undefined} className="block truncate">
-                  {alert.signalName ?? "—"}
-                </span>
-              </td>
               <td className="px-4 text-xs text-muted-foreground">
-                {alert.type === ALERT_TYPE.SIGNAL_EVENT
-                  ? signalEventMeta?.severities && signalEventMeta.severities.length > 0
-                    ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
-                    : "Critical"
-                  : "—"}
+                {signalEventMeta?.severities && signalEventMeta.severities.length > 0
+                  ? signalEventMeta.severities.map((s) => SEVERITY_LABELS[s as SeverityLevel]).join(", ")
+                  : "Critical"}
               </td>
               <td className="px-4">
                 <TargetChips targets={visibleTargets} />
@@ -162,19 +140,20 @@ export default function AlertsSettings({
           if (!open) setEditTarget(null);
         }}
         onSaved={() => {
-          mutateAlerts();
+          mutate();
           setSheetOpen(false);
           setEditTarget(null);
         }}
         userEmail={userEmail}
+        lockedSignal={signal}
       />
 
       <DeleteAlertDialog
         projectId={projectId}
         alert={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onDeleted={() => mutateAlerts()}
+        onDeleted={() => mutate()}
       />
-    </SettingsSection>
+    </div>
   );
 }

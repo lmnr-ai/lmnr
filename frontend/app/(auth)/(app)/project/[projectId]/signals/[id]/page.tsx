@@ -45,5 +45,11 @@ export default async function SignalPage(props: {
   const traceIdParam = searchParams.traceId;
   const traceId = Array.isArray(traceIdParam) ? traceIdParam[0] : traceIdParam;
 
-  return <Signal traceId={traceId} />;
+  return (
+    <Signal
+      traceId={traceId}
+      slackClientId={process.env.SLACK_CLIENT_ID}
+      slackRedirectUri={process.env.SLACK_REDIRECT_URL}
+    />
+  );
 }

@@ -2,9 +2,15 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
+import { alerts, alertTargets, alertTriggerRules, projects, signals } from "@/lib/db/migrations/schema";
 
-import { type AlertMetadata, type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+import {
+  type AlertMetadata,
+  type AlertTarget,
+  type AlertTriggerRule,
+  type AlertType,
+  type AlertWithDetails,
+} from "./types";
 
 const TargetSchema = z.object({
   type: z.string(),
@@ -12,6 +18,12 @@ const TargetSchema = z.object({
   channelId: z.string().optional(),
   channelName: z.string().optional(),
   email: z.email().optional(),
+});
+
+const RuleSchema = z.object({
+  column: z.string().min(1),
+  operator: z.string().min(1),
+  value: z.union([z.string(), z.number(), z.boolean()]),
 });
 
 const SignalEventMetadataSchema = z.object({
@@ -38,6 +50,7 @@ const CreateAlertSchema = z.object({
   sourceId: z.guid(),
   targets: z.array(TargetSchema),
   metadata: z.unknown().optional(),
+  rules: z.array(RuleSchema).optional(),
 });
 
 const UpdateAlertSchema = z.object({
@@ -49,6 +62,7 @@ const UpdateAlertSchema = z.object({
   targets: z.array(TargetSchema),
   userEmail: z.string().optional(),
   metadata: z.unknown().optional(),
+  rules: z.array(RuleSchema).optional(),
 });
 
 const DeleteAlertSchema = z.object({
@@ -98,6 +112,23 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
     .from(alertTargets)
     .where(inArray(alertTargets.alertId, alertIds));
 
+  const ruleRows = await db
+    .select({
+      alertId: alertTriggerRules.alertId,
+      column: alertTriggerRules.column,
+      operator: alertTriggerRules.operator,
+      value: alertTriggerRules.value,
+    })
+    .from(alertTriggerRules)
+    .where(inArray(alertTriggerRules.alertId, alertIds));
+
+  const rulesByAlert = new Map<string, AlertTriggerRule[]>();
+  for (const r of ruleRows) {
+    const list = rulesByAlert.get(r.alertId) ?? [];
+    list.push({ column: r.column, operator: r.operator, value: r.value as AlertTriggerRule["value"] });
+    rulesByAlert.set(r.alertId, list);
+  }
+
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
     // Only include the current user's own email target; never expose other members' emails.
@@ -122,11 +153,12 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
     projectName: project.name,
     targets: targetsByAlert.get(a.id) ?? [],
     metadata: (a.metadata as AlertMetadata) ?? {},
+    rules: rulesByAlert.get(a.id) ?? [],
   }));
 }
 
 export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
-  const { projectId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
+  const { projectId, name, type, sourceId, targets, metadata, rules } = CreateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
@@ -149,12 +181,25 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
       );
     }
 
+    if (rules && rules.length > 0) {
+      await tx.insert(alertTriggerRules).values(
+        rules.map((r) => ({
+          alertId: alert.id,
+          projectId,
+          column: r.column,
+          operator: r.operator,
+          value: r.value,
+        }))
+      );
+    }
+
     return alert;
   });
 }
 
 export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
+  const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata, rules } =
+    UpdateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
@@ -208,6 +253,20 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
 
     if (allTargets.length > 0) {
       await tx.insert(alertTargets).values(allTargets);
+    }
+
+    await tx.delete(alertTriggerRules).where(eq(alertTriggerRules.alertId, alertId));
+
+    if (rules && rules.length > 0) {
+      await tx.insert(alertTriggerRules).values(
+        rules.map((r) => ({
+          alertId,
+          projectId,
+          column: r.column,
+          operator: r.operator,
+          value: r.value,
+        }))
+      );
     }
 
     return { id: alertId };

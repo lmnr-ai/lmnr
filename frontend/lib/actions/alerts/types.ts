@@ -34,6 +34,12 @@ export interface SignalEventAlertMetadata {
   skipSimilar?: boolean;
 }
 
+export interface AlertTriggerRule {
+  column: string;
+  operator: string;
+  value: string | number | boolean;
+}
+
 export type AlertMetadata = Record<string, any>;
 
 export interface AlertTarget {
@@ -56,4 +62,5 @@ export interface AlertWithDetails {
   createdAt: string;
   targets: AlertTarget[];
   metadata: AlertMetadata;
+  rules: AlertTriggerRule[];
 }

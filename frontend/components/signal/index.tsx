@@ -4,15 +4,16 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import EventsTable from "@/components/signal/events-table";
+import SignalSettingsPanel from "@/components/signal/settings-panel";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
+import { type ManageSignalForm } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
 
-function SignalContent() {
+function SignalContent({ slackClientId, slackRedirectUri }: { slackClientId?: string; slackRedirectUri?: string }) {
   const pathName = usePathname();
   const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
@@ -81,11 +82,13 @@ function SignalContent() {
         </TabsContent>
         {!isFreeTier && (
           <TabsContent value="settings" className="flex flex-col overflow-hidden">
-            <ManageSignalPanel
+            <SignalSettingsPanel
               key={signal.id}
-              defaultValues={signal}
+              projectId={params.projectId}
+              workspaceId={workspace?.id ?? ""}
               onSuccess={handleSuccess}
-              scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
+              slackClientId={slackClientId}
+              slackRedirectUri={slackRedirectUri}
             />
           </TabsContent>
         )}
@@ -112,7 +115,15 @@ function SignalContent() {
   );
 }
 
-export default function Signal({ traceId }: { traceId?: string }) {
+export default function Signal({
+  traceId,
+  slackClientId,
+  slackRedirectUri,
+}: {
+  traceId?: string;
+  slackClientId?: string;
+  slackRedirectUri?: string;
+}) {
   const { setTraceId } = useSignalStoreContext((state) => ({
     setTraceId: state.setTraceId,
   }));
@@ -121,5 +132,5 @@ export default function Signal({ traceId }: { traceId?: string }) {
     setTraceId(traceId ?? null);
   }, [setTraceId, traceId]);
 
-  return <SignalContent />;
+  return <SignalContent slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
 }

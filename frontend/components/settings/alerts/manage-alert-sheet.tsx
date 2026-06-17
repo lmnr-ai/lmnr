@@ -46,6 +46,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 import { cn, swrFetcher } from "@/lib/utils";
 
+import AlertRulesSection from "./alert-rules-section";
 import SlackChannelPicker, { type SlackChannelSelection } from "./slack-channel-picker";
 
 interface ManageAlertSheetProps {
@@ -57,9 +58,18 @@ interface ManageAlertSheetProps {
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   userEmail: string;
+  // When set, the alert is scoped to this signal: the trigger-type and signal
+  // selects are hidden and the signal is pre-selected and locked.
+  lockedSignal?: { id: string; name: string };
 }
 
-interface AlertFormValues {
+export interface AlertRuleFormValue {
+  column: string;
+  operator: string;
+  value: string;
+}
+
+export interface AlertFormValues {
   type: AlertType | "";
   name: string;
   signalName: string;
@@ -67,6 +77,7 @@ interface AlertFormValues {
   emailEnabled: boolean;
   severities: SeverityLevel[];
   skipSimilar: boolean;
+  rules: AlertRuleFormValue[];
 }
 
 const CHART_FIELDS = ["count"] as const;
@@ -81,11 +92,19 @@ const DEFAULT_VALUES: AlertFormValues = {
   emailEnabled: false,
   severities: [SEVERITY_LEVEL.CRITICAL],
   skipSimilar: true,
+  rules: [],
 };
 
 const ALERT_TYPE_DESCRIPTIONS: Record<AlertType, string> = {
   [ALERT_TYPE.SIGNAL_EVENT]: "Notify when a new signal event is detected.",
   [ALERT_TYPE.NEW_CLUSTER]: "Notify when a new cluster is created.",
+};
+
+const coerceRuleValue = (value: string): string | number | boolean => {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (value.trim() !== "" && !Number.isNaN(Number(value))) return Number(value);
+  return value;
 };
 
 export default function ManageAlertSheet({
@@ -97,11 +116,20 @@ export default function ManageAlertSheet({
   onOpenChange,
   onSaved,
   userEmail,
+  lockedSignal,
 }: ManageAlertSheetProps) {
   const isEditMode = !!alert;
   const hasSlackIntegration = !!integrationId;
   const featureFlags = useFeatureFlags();
   const clusteringEnabled = featureFlags[Feature.CLUSTERING];
+
+  const baseDefaults = useMemo<AlertFormValues>(
+    () =>
+      lockedSignal
+        ? { ...DEFAULT_VALUES, type: ALERT_TYPE.SIGNAL_EVENT, signalName: lockedSignal.name }
+        : DEFAULT_VALUES,
+    [lockedSignal]
+  );
 
   const [isTesting, setIsTesting] = useState(false);
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
@@ -118,7 +146,7 @@ export default function ManageAlertSheet({
     watch,
     reset,
     formState: { isSubmitting },
-  } = useForm<AlertFormValues>({ defaultValues: DEFAULT_VALUES });
+  } = useForm<AlertFormValues>({ defaultValues: baseDefaults });
 
   const alertType = watch("type");
   const signalName = watch("signalName");
@@ -128,7 +156,7 @@ export default function ManageAlertSheet({
   const resetFormFromSignals = useCallback(
     (data: { items: SignalRow[] }) => {
       if (!alert) {
-        reset(DEFAULT_VALUES);
+        reset(baseDefaults);
         return;
       }
 
@@ -153,9 +181,14 @@ export default function ManageAlertSheet({
             ? signalEventMeta.severities
             : [SEVERITY_LEVEL.CRITICAL],
         skipSimilar: signalEventMeta?.skipSimilar ?? false,
+        rules: (alert.rules ?? []).map((r) => ({
+          column: r.column,
+          operator: r.operator,
+          value: String(r.value),
+        })),
       });
     },
-    [alert, reset, userEmail]
+    [alert, reset, userEmail, baseDefaults]
   );
 
   const {
@@ -297,9 +330,9 @@ export default function ManageAlertSheet({
   }, [channelsResult, toast]);
 
   const resetForm = useCallback(() => {
-    reset(DEFAULT_VALUES);
+    reset(baseDefaults);
     setDateRange({ pastHours: "168" });
-  }, [reset]);
+  }, [reset, baseDefaults]);
 
   const onSubmit = useCallback(
     async (data: AlertFormValues) => {
@@ -358,6 +391,10 @@ export default function ManageAlertSheet({
               }
             : {};
 
+        const rules = data.rules
+          .filter((r) => r.column && r.operator)
+          .map((r) => ({ column: r.column, operator: r.operator, value: coerceRuleValue(r.value) }));
+
         const res = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
@@ -367,6 +404,7 @@ export default function ManageAlertSheet({
             sourceId: selectedSignal.id,
             targets,
             metadata,
+            rules,
           }),
         });
 
@@ -478,36 +516,38 @@ export default function ManageAlertSheet({
       <form className="flex flex-col flex-1 overflow-hidden" onSubmit={handleSubmit(onSubmit)}>
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-6 p-4">
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <div className="grid gap-2">
-                  <Label>Trigger</Label>
-                  {field.value && (
-                    <p className="text-xs text-muted-foreground">{ALERT_TYPE_DESCRIPTIONS[field.value]}</p>
-                  )}
-                  <Select
-                    value={field.value || undefined}
-                    onValueChange={(value) => field.onChange(value as AlertType)}
-                    disabled={isEditMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a notification trigger" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {([ALERT_TYPE.SIGNAL_EVENT, ...(clusteringEnabled ? [ALERT_TYPE.NEW_CLUSTER] : [])] as const).map(
-                        (t) => (
+            {!lockedSignal && (
+              <Controller
+                name="type"
+                control={control}
+                render={({ field }) => (
+                  <div className="grid gap-2">
+                    <Label>Trigger</Label>
+                    {field.value && (
+                      <p className="text-xs text-muted-foreground">{ALERT_TYPE_DESCRIPTIONS[field.value]}</p>
+                    )}
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={(value) => field.onChange(value as AlertType)}
+                      disabled={isEditMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a notification trigger" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          [ALERT_TYPE.SIGNAL_EVENT, ...(clusteringEnabled ? [ALERT_TYPE.NEW_CLUSTER] : [])] as const
+                        ).map((t) => (
                           <SelectItem key={t} value={t}>
                             {ALERT_TYPE_LABELS[t]}
                           </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            />
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            )}
 
             {alertType && (
               <>
@@ -529,41 +569,43 @@ export default function ManageAlertSheet({
                   )}
                 />
 
-                <Controller
-                  name="signalName"
-                  control={control}
-                  rules={{ required: "Signal is required" }}
-                  render={({ field, fieldState }) => (
-                    <div className="grid gap-2">
-                      <Label>Signal</Label>
-                      <p className="text-xs text-muted-foreground">Choose the signal that will trigger alert.</p>
-                      {isSignalsSectionLoading ? (
-                        <Skeleton className="h-7 w-full" />
-                      ) : (
-                        <>
-                          <Select
-                            value={field.value}
-                            onValueChange={(value) => {
-                              field.onChange(value);
-                            }}
-                          >
-                            <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
-                              <SelectValue placeholder="Select a signal" />
-                            </SelectTrigger>
-                            <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
-                              {signalsData?.items?.map((s) => (
-                                <SelectItem key={s.id} value={s.name} description={s.prompt}>
-                                  {s.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                        </>
-                      )}
-                    </div>
-                  )}
-                />
+                {!lockedSignal && (
+                  <Controller
+                    name="signalName"
+                    control={control}
+                    rules={{ required: "Signal is required" }}
+                    render={({ field, fieldState }) => (
+                      <div className="grid gap-2">
+                        <Label>Signal</Label>
+                        <p className="text-xs text-muted-foreground">Choose the signal that will trigger alert.</p>
+                        {isSignalsSectionLoading ? (
+                          <Skeleton className="h-7 w-full" />
+                        ) : (
+                          <>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                              }}
+                            >
+                              <SelectTrigger className={cn(fieldState.error && "border-destructive")}>
+                                <SelectValue placeholder="Select a signal" />
+                              </SelectTrigger>
+                              <SelectContent className="max-w-[var(--radix-select-trigger-width)]">
+                                {signalsData?.items?.map((s) => (
+                                  <SelectItem key={s.id} value={s.name} description={s.prompt}>
+                                    {s.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  />
+                )}
 
                 {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && (
                   <Controller
@@ -638,6 +680,10 @@ export default function ManageAlertSheet({
                       );
                     }}
                   />
+                )}
+
+                {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && (
+                  <AlertRulesSection control={control} projectId={projectId} signalId={selectedSignal.id} />
                 )}
 
                 {selectedSignal && alertType === ALERT_TYPE.SIGNAL_EVENT && clusteringEnabled && (
