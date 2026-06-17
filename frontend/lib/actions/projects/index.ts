@@ -95,8 +95,11 @@ export const getNewestProjectId = async (workspaceId: string): Promise<string | 
 };
 
 // Settings live at /project/[projectId]/settings — there is no workspace-scoped route. A workspace
-// with no project has no settings surface to land on, so we fall back to /projects (which renders
-// the create-project surface).
+// with no project has no settings surface, so we fall back to /projects. Caveat: /projects resolves
+// its target workspace from cookies/membership, NOT this workspaceId, so a deep link for a
+// project-less workspace can land on a different workspace. Accepted because every real caller
+// (billing / Slack / checkout / usage + report emails) targets a workspace that already has ≥1
+// project — a project-less workspace can't have generated any of those links.
 export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
   const projectId = await getNewestProjectId(workspaceId);
   if (!projectId) return "/projects";
