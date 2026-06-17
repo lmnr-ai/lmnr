@@ -54,8 +54,10 @@ function RuleRow({
               field.onChange(value);
               // Operator/value sets are type-specific; reset them so a stale operator
               // (e.g. number ">" carried onto a boolean field) can't survive a field switch.
+              // valueType drives type-correct coercion at save time.
               setValue(`rules.${index}.operator`, "eq");
               setValue(`rules.${index}.value`, "");
+              setValue(`rules.${index}.valueType`, fields.find((f) => f.name === value)?.type ?? "string");
             }}
           >
             <SelectTrigger className="w-40 truncate">
@@ -193,7 +195,9 @@ export default function AlertRulesSection({
             variant="outline"
             size="sm"
             className="w-fit"
-            onClick={() => append({ column: schemaFields[0].name, operator: "eq", value: "" })}
+            onClick={() =>
+              append({ column: schemaFields[0].name, operator: "eq", value: "", valueType: schemaFields[0].type })
+            }
           >
             <Plus className="w-3.5 h-3.5 mr-1" />
             Add condition

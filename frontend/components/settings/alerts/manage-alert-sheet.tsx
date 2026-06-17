@@ -10,6 +10,7 @@ import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
+import { type SchemaField } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -67,6 +68,7 @@ export interface AlertRuleFormValue {
   column: string;
   operator: string;
   value: string;
+  valueType: SchemaField["type"];
 }
 
 export interface AlertFormValues {
@@ -100,10 +102,15 @@ const ALERT_TYPE_DESCRIPTIONS: Record<AlertType, string> = {
   [ALERT_TYPE.NEW_CLUSTER]: "Notify when a new cluster is created.",
 };
 
-const coerceRuleValue = (value: string): string | number | boolean => {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  if (value.trim() !== "" && !Number.isNaN(Number(value))) return Number(value);
+// Coerce by the field's schema type, not by the string's content: a string or
+// enum field must keep literal values like "007" or "1.0" verbatim, while only
+// number/boolean fields are converted to their primitive type.
+const coerceRuleValue = (value: string, valueType: SchemaField["type"]): string | number | boolean => {
+  if (valueType === "boolean") return value === "true";
+  if (valueType === "number") {
+    const n = Number(value);
+    return value.trim() !== "" && !Number.isNaN(n) ? n : value;
+  }
   return value;
 };
 
@@ -186,6 +193,7 @@ export default function ManageAlertSheet({
           column: r.column,
           operator: r.operator,
           value: String(r.value),
+          valueType: typeof r.value === "number" ? "number" : typeof r.value === "boolean" ? "boolean" : "string",
         })),
       });
     },
@@ -394,7 +402,7 @@ export default function ManageAlertSheet({
 
         const rules = data.rules
           .filter((r) => r.column && r.operator)
-          .map((r) => ({ column: r.column, operator: r.operator, value: coerceRuleValue(r.value) }));
+          .map((r) => ({ column: r.column, operator: r.operator, value: coerceRuleValue(r.value, r.valueType) }));
 
         const res = await fetch(url, {
           method,
