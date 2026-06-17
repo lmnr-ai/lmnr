@@ -149,7 +149,7 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/tracing/integrations/overview)
 
 
 To start tracing LLM calls just add
