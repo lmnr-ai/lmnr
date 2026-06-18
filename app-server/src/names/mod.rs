@@ -1,5 +1,4 @@
-use rand::SeedableRng;
-use rand::{Rng, rngs::StdRng};
+use rand::{RngExt, rngs::StdRng};
 use std::{
     fs::File,
     io::{self, BufRead},
@@ -27,7 +26,7 @@ impl NameGenerator {
     pub fn new() -> Self {
         let adjectives = read_lines("data/adjectives.txt").unwrap();
         let nouns = read_lines("data/nouns.txt").unwrap();
-        let rng = RwLock::new(StdRng::from_os_rng());
+        let rng = RwLock::new(StdRng::from_rng(&mut rand::rng()));
         Self {
             adjectives,
             nouns,
