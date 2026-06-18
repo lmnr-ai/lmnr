@@ -6,7 +6,7 @@ import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { genericOAuth, keycloak, microsoftEntraId, okta } from "better-auth/plugins/generic-oauth";
 import { jwt } from "better-auth/plugins/jwt";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { localEmail } from "@/lib/auth-local-email";
 import { db } from "@/lib/db/drizzle";
@@ -30,7 +30,9 @@ const processPendingInvitations = async (userId: string, email: string): Promise
       workspaceId: workspaceInvitations.workspaceId,
     })
     .from(workspaceInvitations)
-    .where(eq(workspaceInvitations.email, email));
+    // Match case-insensitively: Better Auth lowercases user emails, but legacy
+    // invitation rows may have been stored with the email exactly as typed.
+    .where(sql`lower(${workspaceInvitations.email}) = ${email.toLowerCase()}`);
 
   if (pendingInvitations.length === 0) {
     return;
