@@ -94,8 +94,6 @@ export const config = {
     "/projects",
     "/project/:path+",
     "/workspace/:path+",
-    "/settings",
-    "/settings/:path+",
     "/invitations",
     "/onboarding",
     "/checkout",
