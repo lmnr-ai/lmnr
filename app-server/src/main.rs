@@ -48,7 +48,7 @@ use notifications::{
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
-use query_engine::{QueryEngine, in_process::InProcessQueryEngine};
+use query_engine::QueryEngine;
 use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_ROUTING_KEY};
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 #[cfg(feature = "signals")]
@@ -886,7 +886,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     // == Query engine ==
-    let query_engine: Arc<QueryEngine> = Arc::new(InProcessQueryEngine::new().into());
+    let query_engine: Arc<QueryEngine> = Arc::new(QueryEngine::new());
 
     // == Clickhouse ==
     let clickhouse_url = std::env::var(env::clickhouse::URL).expect("CLICKHOUSE_URL must be set");

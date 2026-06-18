@@ -1,10 +1,17 @@
+//! In-process query engine. Replaces the Python gRPC query-engine service with
+//! native Rust query validation and JSON↔SQL conversion built on `sqlparser`.
+
+pub mod types;
+pub mod validator;
+
+mod json_to_sql;
+mod sql_to_json;
+
 use anyhow::Result;
-use in_process::InProcessQueryEngine;
-use mock::MockQueryEngine;
 use uuid::Uuid;
 
-pub mod in_process;
-pub mod mock;
+use types::QueryStructure;
+use validator::QueryValidator;
 
 #[derive(Debug, Clone)]
 pub enum QueryEngineValidationResult {
@@ -12,24 +19,35 @@ pub enum QueryEngineValidationResult {
     Error { error: String },
 }
 
-#[enum_dispatch::enum_dispatch(QueryEngineTrait)]
-pub enum QueryEngine {
-    InProcess(InProcessQueryEngine),
-    Mock(MockQueryEngine),
+#[derive(Clone, Default)]
+pub struct QueryEngine {
+    validator: QueryValidator,
 }
 
-#[enum_dispatch::enum_dispatch]
-pub trait QueryEngineTrait {
-    async fn validate_query(
+impl QueryEngine {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn validate_query(
         &self,
         query: String,
         project_id: Uuid,
-    ) -> Result<QueryEngineValidationResult>;
+    ) -> Result<QueryEngineValidationResult> {
+        match self
+            .validator
+            .validate_and_secure_query(&query, &project_id.to_string())
+        {
+            Ok(validated_query) => Ok(QueryEngineValidationResult::Success { validated_query }),
+            Err(error) => Ok(QueryEngineValidationResult::Error { error }),
+        }
+    }
 
-    async fn sql_to_json(&self, sql: String) -> Result<in_process::types::QueryStructure>;
+    pub async fn sql_to_json(&self, sql: String) -> Result<QueryStructure> {
+        sql_to_json::convert_sql_to_json(&sql).map_err(|e| anyhow::anyhow!(e))
+    }
 
-    async fn json_to_sql(
-        &self,
-        query_structure: in_process::types::QueryStructure,
-    ) -> Result<String>;
+    pub async fn json_to_sql(&self, query_structure: QueryStructure) -> Result<String> {
+        json_to_sql::convert_json_to_sql(&query_structure).map_err(|e| anyhow::anyhow!(e))
+    }
 }

@@ -19,8 +19,6 @@ use sqlparser::dialect::ClickHouseDialect;
 use sqlparser::parser::Parser;
 
 const VIEW_VERSION: &str = "v0";
-const DEFAULT_START_TIME: &str = "1970-01-01 00:00:00";
-const DEFAULT_END_TIME: &str = "2099-12-31 23:59:59";
 
 /// ClickHouse functions that can access the filesystem, network, or other
 /// external resources. Checked against every function call and relation name
@@ -145,6 +143,7 @@ impl TableRegistry {
             "attributes",
             "trace_id",
             "tags",
+            "tool_definitions",
         ];
 
         let traces_columns = [
@@ -181,19 +180,6 @@ impl TableRegistry {
             "target",
             "metadata",
         ];
-
-        let events_columns = [
-            "id",
-            "span_id",
-            "name",
-            "timestamp",
-            "attributes",
-            "trace_id",
-            "user_id",
-            "session_id",
-        ];
-
-        let tags_columns = ["id", "span_id", "name", "created_at", "source"];
 
         let signal_runs_columns = [
             "project_id",
@@ -286,7 +272,6 @@ impl TableRegistry {
             "signal_id",
             "name",
             "level",
-            "centroid",
             "parent_id",
             "num_signal_events",
             "num_children_clusters",
@@ -309,10 +294,7 @@ impl TableRegistry {
 
         tables.insert("spans", schema(&spans_columns));
         tables.insert("traces", schema(&traces_columns));
-        tables.insert(
-            "dataset_datapoints",
-            schema(&dataset_datapoints_columns),
-        );
+        tables.insert("dataset_datapoints", schema(&dataset_datapoints_columns));
         // same columns as dataset_datapoints, but the _v0 view only exposes the
         // latest version of each datapoint
         tables.insert(
@@ -323,8 +305,6 @@ impl TableRegistry {
             "evaluation_datapoints",
             schema(&evaluation_datapoints_columns),
         );
-        tables.insert("events", schema(&events_columns));
-        tables.insert("tags", schema(&tags_columns));
         tables.insert("signal_runs", schema(&signal_runs_columns));
         tables.insert("signal_events", schema(&signal_events_columns));
         tables.insert("logs", schema(&logs_columns));
@@ -335,10 +315,7 @@ impl TableRegistry {
         tables.insert("clusters", schema(&clusters_columns));
         // L0-inclusive variants
         tables.insert("signal_events_all", schema(&signal_events_columns));
-        tables.insert(
-            "event_clusters_all",
-            schema(&event_clusters_all_columns),
-        );
+        tables.insert("event_clusters_all", schema(&event_clusters_all_columns));
 
         Self { tables }
     }
@@ -604,8 +581,7 @@ impl VisitorMut for ViewRewriter<'_> {
 
             // Skip CTE references and non-allowlisted tables (the latter is
             // rejected earlier in validation; here we just leave them alone).
-            if self.cte_names.contains(&table_name)
-                || !self.registry.is_table_allowed(&table_name)
+            if self.cte_names.contains(&table_name) || !self.registry.is_table_allowed(&table_name)
             {
                 return ControlFlow::Continue(());
             }
@@ -616,21 +592,9 @@ impl VisitorMut for ViewRewriter<'_> {
                 .map(|a| a.name.clone())
                 .unwrap_or_else(|| Ident::new(table_name.clone()));
 
-            let mut fn_args = vec![named_arg("project_id", string_expr(self.project_id))];
-
-            if table_name == "traces" {
-                let table_alias = alias.as_ref().map(|a| a.name.value.to_lowercase());
-                let (start_time, end_time) = extract_time_filters_for_traces(
-                    self.where_stack.last().and_then(|w| w.as_ref()),
-                    table_alias.as_deref(),
-                );
-                fn_args.push(named_arg("start_time", start_time));
-                fn_args.push(named_arg("end_time", end_time));
-            }
-
             *name = ObjectName(vec![ObjectNamePart::Identifier(Ident::new(view_name))]);
             *args = Some(TableFunctionArgs {
-                args: fn_args,
+                args: vec![named_arg("project_id", string_expr(self.project_id))],
                 settings: None,
             });
             *alias = Some(TableAlias {
@@ -657,108 +621,6 @@ fn string_expr(value: &str) -> Expr {
         value: Value::SingleQuotedString(value.to_string()),
         span: sqlparser::tokenizer::Span::empty(),
     })
-}
-
-/// Extract start_time / end_time bounds for the traces view function from a
-/// WHERE expression. Defaults to the unix epoch / far future when absent.
-/// `table_alias` is the alias the query gave the traces table (if any), so
-/// predicates qualified by the alias (`FROM traces t WHERE t.start_time >= …`)
-/// are still picked up rather than dropped to the epoch-wide default.
-fn extract_time_filters_for_traces(
-    where_expr: Option<&Expr>,
-    table_alias: Option<&str>,
-) -> (Expr, Expr) {
-    let mut start_time = string_expr(DEFAULT_START_TIME);
-    let mut end_time = string_expr(DEFAULT_END_TIME);
-
-    if let Some(expr) = where_expr {
-        walk_time_filters(expr, table_alias, &mut start_time, &mut end_time);
-    }
-
-    (start_time, end_time)
-}
-
-/// Whether a column qualifier refers to the traces table being rewritten:
-/// unqualified, the literal table name `traces`, or the query's alias for it.
-fn qualifier_matches_traces(qualifier: Option<&str>, table_alias: Option<&str>) -> bool {
-    match qualifier {
-        None => true,
-        Some(q) => q == "traces" || table_alias == Some(q),
-    }
-}
-
-/// Returns `(qualifier, column_name_lower)` for an identifier/compound column.
-fn column_ref(expr: &Expr) -> Option<(Option<String>, String)> {
-    match expr {
-        Expr::Identifier(ident) => Some((None, ident.value.to_lowercase())),
-        Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
-            let column = parts.last().unwrap().value.to_lowercase();
-            let qualifier = if parts.len() >= 2 {
-                Some(parts[parts.len() - 2].value.to_lowercase())
-            } else {
-                None
-            };
-            Some((qualifier, column))
-        }
-        _ => None,
-    }
-}
-
-fn walk_time_filters(
-    expr: &Expr,
-    table_alias: Option<&str>,
-    start_time: &mut Expr,
-    end_time: &mut Expr,
-) {
-    use sqlparser::ast::BinaryOperator as Op;
-
-    match expr {
-        Expr::Nested(inner) => walk_time_filters(inner, table_alias, start_time, end_time),
-        Expr::BinaryOp { left, op, right } => match op {
-            Op::And | Op::Or => {
-                walk_time_filters(left, table_alias, start_time, end_time);
-                walk_time_filters(right, table_alias, start_time, end_time);
-            }
-            Op::Gt | Op::GtEq | Op::Lt | Op::LtEq | Op::Eq => {
-                if let Some((qualifier, column)) = column_ref(left) {
-                    if !qualifier_matches_traces(qualifier.as_deref(), table_alias) {
-                        return;
-                    }
-                    if column == "start_time" {
-                        match op {
-                            Op::Gt | Op::GtEq => *start_time = (**right).clone(),
-                            Op::Lt | Op::LtEq => *end_time = (**right).clone(),
-                            _ => {}
-                        }
-                    } else if column == "end_time" {
-                        if matches!(op, Op::Lt | Op::LtEq) {
-                            *end_time = (**right).clone();
-                        }
-                    }
-                }
-            }
-            _ => {}
-        },
-        Expr::Between {
-            expr: inner,
-            negated: false,
-            low,
-            high,
-        } => {
-            if let Some((qualifier, column)) = column_ref(inner) {
-                if !qualifier_matches_traces(qualifier.as_deref(), table_alias) {
-                    return;
-                }
-                if column == "start_time" {
-                    *start_time = (**low).clone();
-                    *end_time = (**high).clone();
-                } else if column == "end_time" {
-                    *end_time = (**high).clone();
-                }
-            }
-        }
-        _ => {}
-    }
 }
 
 fn strip_settings(statement: &mut Statement) {

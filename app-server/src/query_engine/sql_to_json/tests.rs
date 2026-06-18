@@ -1,6 +1,6 @@
 use super::{convert_sql_to_json, extract_metric};
-use crate::query_engine::in_process::json_to_sql::convert_json_to_sql;
-use crate::query_engine::in_process::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
+use crate::query_engine::json_to_sql::convert_json_to_sql;
+use crate::query_engine::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
 use sqlparser::dialect::ClickHouseDialect;
 use sqlparser::parser::Parser;
 

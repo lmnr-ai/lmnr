@@ -4,8 +4,6 @@
 
 /// Redis URL. Optional — absence falls back to in-memory cache + pub/sub.
 pub const REDIS_URL: &str = "REDIS_URL";
-/// Query engine gRPC URL. Required when the SQL query engine feature is on.
-pub const QUERY_ENGINE_URL: &str = "QUERY_ENGINE_URL";
 /// pii-redactor gRPC URL. Presence enables the PII redaction feature.
 pub const PII_REDACTOR_URL: &str = "PII_REDACTOR_URL";
 /// Checkpoints self-tracing destination project id.

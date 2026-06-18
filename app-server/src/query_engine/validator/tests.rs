@@ -27,7 +27,8 @@ fn validate(query: &str) -> Result<String, String> {
 }
 
 fn validate_ok(query: &str) -> String {
-    validate(query).unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
+    validate(query)
+        .unwrap_or_else(|e| panic!("expected query to validate, got error: {e}\nquery: {query}"))
 }
 
 // ----------------------------------------------------------------------------
@@ -40,15 +41,11 @@ fn test_default_tables_registered() {
     assert!(reg.is_table_allowed("spans"));
     assert!(reg.is_table_allowed("traces"));
     assert!(reg.is_table_allowed("evaluation_datapoints"));
-    assert!(reg.is_table_allowed("events"));
-    assert!(reg.is_table_allowed("tags"));
 
     assert!(!reg.is_table_allowed("unknown_table"));
     assert!(!reg.is_table_allowed("traces_v0"));
     assert!(!reg.is_table_allowed("spans_v0"));
     assert!(!reg.is_table_allowed("evaluation_datapoints_v0"));
-    assert!(!reg.is_table_allowed("events_v0"));
-    assert!(!reg.is_table_allowed("tags_v0"));
 }
 
 #[test]
@@ -84,7 +81,10 @@ fn test_column_validation() {
 fn test_validate_basic_spans_select() {
     let result = validate_ok("SELECT span_id, name FROM spans");
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}')")
+        ),
         "got: {result}"
     );
 }
@@ -95,31 +95,8 @@ fn test_validate_basic_traces_select() {
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS traces"
-            )
+            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
         ),
-        "got: {result}"
-    );
-}
-
-#[test]
-fn test_validate_events_select() {
-    let result = validate_ok("SELECT id, name FROM events");
-    assert!(
-        contains_ws(&result, &format!("FROM events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS events")),
-        "got: {result}"
-    );
-}
-
-#[test]
-fn test_validate_tags_select() {
-    // `value` is not an allowed tags column in the registry; the Python test
-    // used `id, name, value` but only the table rewrite is asserted. `value`
-    // is unqualified so it isn't column-checked — matches Python behaviour.
-    let result = validate_ok("SELECT id, name, source FROM tags");
-    assert!(
-        contains_ws(&result, &format!("FROM tags_v0(project_id = '{SAMPLE_PROJECT_ID}') AS tags")),
         "got: {result}"
     );
 }
@@ -130,54 +107,8 @@ fn test_validate_evaluation_datapoints_select() {
     assert!(
         contains_ws(
             &result,
-            &format!("FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints")
-        ),
-        "got: {result}"
-    );
-}
-
-#[test]
-fn test_traces_with_time_filters() {
-    let result = validate_ok(
-        "SELECT trace_id FROM traces WHERE start_time >= '2024-01-01' AND end_time <= '2024-01-02'",
-    );
-    assert!(
-        contains_ws(
-            &result,
             &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
-            )
-        ),
-        "got: {result}"
-    );
-}
-
-#[test]
-fn test_traces_with_partial_time_filters() {
-    let result = validate_ok("SELECT trace_id FROM traces WHERE start_time > '2024-01-01'");
-    assert!(
-        contains_ws(
-            &result,
-            &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2099-12-31 23:59:59') AS traces"
-            )
-        ),
-        "got: {result}"
-    );
-}
-
-#[test]
-fn test_traces_with_aliased_time_filters() {
-    // Predicates qualified by the table's alias must still drive the view's
-    // start_time / end_time bounds, not fall through to the epoch-wide default.
-    let result = validate_ok(
-        "SELECT t.trace_id FROM traces t WHERE t.start_time >= '2024-01-01' AND t.end_time <= '2024-01-02'",
-    );
-    assert!(
-        contains_ws(
-            &result,
-            &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS t"
+                "FROM evaluation_datapoints_v0(project_id = '{SAMPLE_PROJECT_ID}') AS evaluation_datapoints"
             )
         ),
         "got: {result}"
@@ -232,7 +163,10 @@ fn test_reject_unknown_table() {
 #[test]
 fn test_reject_non_select() {
     let err = validate("SHOW TABLES").expect_err("should reject SHOW TABLES");
-    assert!(err.contains("Only SELECT statements are allowed"), "got: {err}");
+    assert!(
+        err.contains("Only SELECT statements are allowed"),
+        "got: {err}"
+    );
 }
 
 #[test]
@@ -277,14 +211,32 @@ fn test_allow_safe_functions() {
 fn test_reject_project_id_access() {
     let err = validate("SELECT span_id, project_id FROM spans")
         .expect_err("should reject project_id access");
-    assert!(err.contains("Column 'project_id' does not exist"), "got: {err}");
+    assert!(
+        err.contains("Column 'project_id' does not exist"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_reject_project_id_access_in_filter() {
+    let err = validate(
+        "SELECT span_id FROM spans WHERE project_id = '01234567-89ab-4def-8123-456789abcdef'",
+    )
+    .expect_err("should reject project_id access");
+    assert!(
+        err.contains("Column 'project_id' does not exist"),
+        "got: {err}"
+    );
 }
 
 #[test]
 fn test_reject_invalid_column() {
     let err = validate("SELECT spans.invalid_column FROM spans")
         .expect_err("should reject invalid column");
-    assert!(err.contains("Column 'invalid_column' does not exist"), "got: {err}");
+    assert!(
+        err.contains("Column 'invalid_column' does not exist"),
+        "got: {err}"
+    );
 }
 
 #[test]
@@ -299,7 +251,10 @@ fn test_cte_with_spans() {
         "#;
     let result = validate_ok(query);
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
     assert!(contains_ws(&result, "FROM span_stats"), "got: {result}");
@@ -316,7 +271,10 @@ fn test_subquery_with_spans() {
         "#;
     let result = validate_ok(query);
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
     assert!(
@@ -334,15 +292,16 @@ fn test_join_with_allowed_tables() {
         "#;
     let result = validate_ok(query);
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+        ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS t"
-            )
+            &format!("JOIN traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
         ),
         "got: {result}"
     );
@@ -361,7 +320,10 @@ fn test_complex_nested_query() {
         "#;
     let result = validate_ok(query);
     let spans_v0_count = result.matches("spans_v0").count();
-    assert!(spans_v0_count >= 2, "expected >=2 spans_v0, got {spans_v0_count} in: {result}");
+    assert!(
+        spans_v0_count >= 2,
+        "expected >=2 spans_v0, got {spans_v0_count} in: {result}"
+    );
     let project_filter_count = result
         .matches(&format!("project_id = '{SAMPLE_PROJECT_ID}'"))
         .count();
@@ -379,22 +341,14 @@ fn test_complex_nested_query() {
 fn test_basic_spans_query_transformation() {
     let result = validate_ok("SELECT span_id, name FROM spans");
     assert!(
-        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
-        "got: {result}"
-    );
-    assert!(contains_ws(&result, "SELECT span_id, name FROM"), "got: {result}");
-}
-
-#[test]
-fn test_basic_traces_query_transformation() {
-    let result = validate_ok("SELECT trace_id, duration FROM traces");
-    assert!(
         contains_ws(
             &result,
-            &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS traces"
-            )
+            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
         ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "SELECT span_id, name FROM"),
         "got: {result}"
     );
 }
@@ -403,20 +357,32 @@ fn test_basic_traces_query_transformation() {
 fn test_spans_with_where_clause() {
     let result = validate_ok("SELECT span_id FROM spans WHERE name = 'test_span'");
     assert!(
-        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "WHERE name = 'test_span'"), "got: {result}");
+    assert!(
+        contains_ws(&result, "WHERE name = 'test_span'"),
+        "got: {result}"
+    );
 }
 
 #[test]
 fn test_spans_with_order_by_and_limit() {
     let result = validate_ok("SELECT span_id FROM spans ORDER BY start_time DESC LIMIT 10");
     assert!(
-        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
-    assert!(contains_ws(&result, "ORDER BY start_time DESC"), "got: {result}");
+    assert!(
+        contains_ws(&result, "ORDER BY start_time DESC"),
+        "got: {result}"
+    );
     assert!(contains_ws(&result, "LIMIT 10"), "got: {result}");
 }
 
@@ -428,10 +394,16 @@ fn test_spans_time_range_query() {
     // `INTERVAL 1 HOUR` that sqlparser's ClickHouse dialect parses — same
     // functionality (interval predicate stays in the WHERE, not pushed to a
     // view function).
-    let result =
-        validate_ok("SELECT start_time FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1");
+    let result = validate_ok(
+        "SELECT start_time FROM spans WHERE start_time > now() - INTERVAL 1 HOUR LIMIT 1",
+    );
     assert!(
-        contains_ws(&result, &format!("SELECT start_time FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!(
+                "SELECT start_time FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans"
+            )
+        ),
         "got: {result}"
     );
     // The interval predicate is preserved on the query (not lifted into the view fn).
@@ -451,9 +423,7 @@ fn test_traces_time_range_query() {
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
-            )
+            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
         ),
         "got: {result}"
     );
@@ -467,9 +437,7 @@ fn test_traces_time_range_query_between() {
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '2024-01-01', end_time = '2024-01-02') AS traces"
-            )
+            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
         ),
         "got: {result}"
     );
@@ -481,24 +449,28 @@ fn test_multiple_tables_in_join() {
         SELECT s.span_id, t.duration, e.name as event_name
         FROM spans s
         JOIN traces t ON s.trace_id = t.trace_id
-        LEFT JOIN events e ON s.span_id = e.span_id
+        LEFT JOIN signal_events se ON s.span_id = se.span_id
         "#;
     let result = validate_ok(query);
     assert!(
-        contains_ws(&result, &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")),
+        contains_ws(
+            &result,
+            &format!("spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS s")
+        ),
         "got: {result}"
     );
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = '1970-01-01 00:00:00', end_time = '2099-12-31 23:59:59') AS t"
-            )
+            &format!("traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS t")
         ),
         "got: {result}"
     );
     assert!(
-        contains_ws(&result, &format!("events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS e")),
+        contains_ws(
+            &result,
+            &format!("signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS se")
+        ),
         "got: {result}"
     );
 }
@@ -606,14 +578,15 @@ LEFT JOIN spans_pivot USING (user_id)
     assert!(
         contains_ws(
             &result,
-            &format!(
-                "FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}', start_time = toDateTime('2025-08-06 00:00:00'), end_time = toDateTime('2025-08-09 00:00:00')) AS traces"
-            )
+            &format!("FROM traces_v0(project_id = '{SAMPLE_PROJECT_ID}') AS traces")
         ),
         "got: {result}"
     );
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
     // WHERE bounds preserved on both CTEs.
@@ -641,7 +614,23 @@ ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
 "#;
     let result = validate_ok(query);
     assert!(
-        contains_ws(&result, &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")),
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
         "got: {result}"
     );
+}
+
+#[test]
+fn test_nested_cte() {
+    let query = r#"
+        SELECT * FROM spans
+        WHERE trace_id IN (
+          WITH spans AS (SELECT trace_id FROM traces)
+          SELECT trace_id FROM spans
+        )
+    "#;
+    let result = validate_ok(query);
+    println!("{result}");
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::query_engine::in_process::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
+use crate::query_engine::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
 
 fn norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")

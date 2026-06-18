@@ -21,9 +21,8 @@ const DEFAULT_START_TIME: &str = "{start_time:DateTime64}";
 const DEFAULT_END_TIME: &str = "{end_time:DateTime64}";
 
 pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
-    let dialect = ClickHouseDialect {};
-    let mut statements =
-        Parser::parse_sql(&dialect, sql).map_err(|e| format!("Failed to parse SQL: {e}"))?;
+    let mut statements = Parser::parse_sql(&ClickHouseDialect {}, sql)
+        .map_err(|e| format!("Failed to parse SQL: {e}"))?;
 
     if statements.len() != 1 {
         return Err("Only SELECT queries supported".to_string());
