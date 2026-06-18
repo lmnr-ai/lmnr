@@ -59,6 +59,8 @@ export default function ClustersSection({ className }: Props) {
   const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
+  const fetchRunStats = useSignalStoreContext((state) => state.fetchRunStats);
+  const runTotals = useSignalStoreContext((state) => state.runTotals);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
@@ -139,28 +141,12 @@ export default function ClustersSection({ className }: Props) {
     startDate,
     endDate,
   });
-  const [runTotals, setRunTotals] = useState<{ timestamp: string; count: number }[] | undefined>(undefined);
 
   useEffect(() => {
-    if (!runStatsUrl) return;
     const controller = new AbortController();
-    fetch(runStatsUrl, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch signal run stats");
-        return res.json();
-      })
-      .then((data: { items: { timestamp: string; count: number }[] }) => {
-        // abort() doesn't reject an already-resolved fetch, so the .catch AbortError guard
-        // can't intercept a cleanly-resolved stale response; bail here before touching state.
-        if (controller.signal.aborted) return;
-        setRunTotals(data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })));
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setRunTotals(undefined);
-      });
+    fetchRunStats({ statsUrl: runStatsUrl, abortSignal: controller.signal });
     return () => controller.abort();
-  }, [runStatsUrl]);
+  }, [runStatsUrl, fetchRunStats]);
 
   // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
   const navigateToCluster = useCallback(

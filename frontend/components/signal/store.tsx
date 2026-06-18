@@ -37,6 +37,7 @@ export type SignalState = {
   isClustersLoading: boolean;
   clusterStatsData: ClusterStatsDataPoint[];
   isClusterStatsLoading: boolean;
+  runTotals: { timestamp: string; count: number }[];
 };
 
 export type FetchClusterStatsParams = {
@@ -61,6 +62,7 @@ export type SignalActions = {
   // Cluster actions
   fetchClusters: (params: FetchClustersParams) => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
+  fetchRunStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
 export interface EventsProps {
@@ -202,6 +204,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     isClustersLoading: true,
     clusterStatsData: [],
     isClusterStatsLoading: false,
+    runTotals: [],
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -306,6 +309,20 @@ export const createSignalStore = (initProps: EventsProps) =>
           return;
         }
         set({ clusterStatsData: [], isClusterStatsLoading: false });
+      }
+    },
+    fetchRunStats: async ({ statsUrl, abortSignal }: FetchClusterStatsParams) => {
+      // Clear at the start so a stale window's overlay never lingers during a refetch.
+      set({ runTotals: [] });
+      if (!statsUrl) return;
+      try {
+        const res = await fetch(statsUrl, { signal: abortSignal });
+        if (!res.ok) throw new Error("Failed to fetch signal run stats");
+        const data = (await res.json()) as { items: { timestamp: string; count: number }[] };
+        set({ runTotals: data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })) });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        set({ runTotals: [] });
       }
     },
   }));
