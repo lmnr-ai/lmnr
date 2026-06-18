@@ -170,7 +170,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                           </div>
                         </div>
                         <DropdownMenuSeparator className="m-0" />
-                        <ScrollArea className="max-h-[60vh] [&>div>div]:block!">
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
                           <div className="p-1">
                             {projectsLoading ? (
                               <div className="p-1 text-muted-foreground">Loading…</div>
@@ -232,7 +232,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                           <div className="pl-2 py-1 text-secondary-foreground">Workspaces</div>
                         </div>
                         <DropdownMenuSeparator className="m-0" />
-                        <ScrollArea className="max-h-[60vh] [&>div>div]:block!">
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
                           <div className="p-1">
                             {workspaces?.map((w) => (
                               <DropdownMenuItem
