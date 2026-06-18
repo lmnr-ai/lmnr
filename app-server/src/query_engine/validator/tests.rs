@@ -801,3 +801,124 @@ fn test_not_in_with_array_placeholder() {
         "got: {result}"
     );
 }
+
+#[test]
+fn test_array_join_column_not_rewritten() {
+    // `ARRAY JOIN clusters AS cluster_id` unnests the `clusters` ARRAY column of
+    // signal_events — `clusters` here is a column, NOT the `clusters` table, so
+    // it must be left untouched even though a `clusters` table exists. Only the
+    // real FROM table (`signal_events`) is rewritten to its scoped view.
+    let query = r#"
+        SELECT DISTINCT cluster_id
+        FROM signal_events
+        ARRAY JOIN clusters AS cluster_id
+        WHERE signal_id = {signalId: UUID}
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+        ),
+        "got: {result}"
+    );
+    // The array column stays a bare `clusters`, NOT `clusters_v0(...)`.
+    assert!(
+        contains_ws(&result, "ARRAY JOIN clusters AS cluster_id"),
+        "got: {result}"
+    );
+    assert!(!result.contains("clusters_v0"), "got: {result}");
+}
+
+#[test]
+fn test_left_array_join_column_not_rewritten() {
+    let query = r#"
+        SELECT cluster_id
+        FROM signal_events
+        LEFT ARRAY JOIN clusters AS cluster_id
+        WHERE signal_id = {signalId: UUID}
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, "LEFT ARRAY JOIN clusters AS cluster_id"),
+        "got: {result}"
+    );
+    assert!(!result.contains("clusters_v0"), "got: {result}");
+}
+
+#[test]
+fn test_array_join_does_not_shadow_real_clusters_table() {
+    // A query that ARRAY JOINs the `clusters` column AND separately selects from
+    // the real `clusters` table: only the table reference is rewritten, the
+    // array-join column is left alone (span-keyed, so the two don't conflate).
+    let query = r#"
+        SELECT c.id
+        FROM clusters c
+        WHERE c.id IN (
+            SELECT cluster_id
+            FROM signal_events
+            ARRAY JOIN clusters AS cluster_id
+            WHERE signal_id = {signalId: UUID}
+        )
+    "#;
+    let result = validate_ok(query);
+    // The real FROM table is scoped...
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS c")
+        ),
+        "got: {result}"
+    );
+    // ...while the array-join column is untouched.
+    assert!(
+        contains_ws(&result, "ARRAY JOIN clusters AS cluster_id"),
+        "got: {result}"
+    );
+    // Exactly one rewritten clusters view (the table), not two.
+    assert_eq!(result.matches("clusters_v0").count(), 1, "got: {result}");
+}
+
+#[test]
+fn test_full_clusters_emerging_query() {
+    // The exact shape from the frontend bug report (clusters table + ARRAY JOIN
+    // on the clusters column inside the subquery).
+    let query = r#"
+        SELECT
+          id,
+          name,
+          parent_id as parentId,
+          level
+        FROM clusters
+        WHERE signal_id = {signalId: UUID}
+          AND level != 0
+          AND id IN (
+            SELECT DISTINCT cluster_id
+            FROM signal_events
+            ARRAY JOIN clusters AS cluster_id
+            WHERE signal_id = {signalId: UUID}
+          )
+        ORDER BY num_signal_events DESC, level ASC, created_at ASC
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM clusters_v0(project_id = '{SAMPLE_PROJECT_ID}') AS clusters")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM signal_events_v0(project_id = '{SAMPLE_PROJECT_ID}') AS signal_events")
+        ),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(&result, "ARRAY JOIN clusters AS cluster_id"),
+        "got: {result}"
+    );
+    // Only the outer clusters TABLE is rewritten; the array-join column is not.
+    assert_eq!(result.matches("clusters_v0").count(), 1, "got: {result}");
+}
