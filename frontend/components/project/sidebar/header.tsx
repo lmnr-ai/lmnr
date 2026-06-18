@@ -61,10 +61,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
 
   const isSelectedCurrent = selectedWorkspaceId === workspaceId;
   // Current workspace's projects are already in context; fetch others on demand.
-  const { data: otherProjects, isLoading: otherLoading } = useSWR<Project[]>(
-    isSelectedCurrent ? null : `/api/workspaces/${selectedWorkspaceId}/projects`,
-    swrFetcher
-  );
+  const {
+    data: otherProjects,
+    isLoading: otherLoading,
+    error: otherProjectsError,
+  } = useSWR<Project[]>(isSelectedCurrent ? null : `/api/workspaces/${selectedWorkspaceId}/projects`, swrFetcher);
   const displayedProjects = isSelectedCurrent ? projects : (otherProjects ?? []);
   // While another workspace's projects load, displayedProjects is empty — don't let that
   // empty count fool the Free-tier create gate into showing an enabled button.
@@ -77,6 +78,13 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
       toast({ variant: "destructive", title: "Error", description: error.message });
     }
   }, [error, toast]);
+
+  // A failed other-workspace fetch otherwise looks like an empty project list.
+  useEffect(() => {
+    if (otherProjectsError) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to load projects for this workspace." });
+    }
+  }, [otherProjectsError, toast]);
 
   return (
     <SidebarHeader className="px-0 mt-2">
