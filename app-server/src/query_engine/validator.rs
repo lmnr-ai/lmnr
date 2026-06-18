@@ -472,6 +472,12 @@ impl QueryValidator {
         }
         let mut statement = statements.remove(0);
 
+        // ARRAY JOIN right-hand sides are array columns, not table references —
+        // identified by source span so they're skipped (not rewritten into
+        // `_v0(...)`) across all passes. The rewriter leaves these nodes intact,
+        // so the same spans stay valid for the post-rewrite check; compute once.
+        let array_join_spans = collect_array_join_spans(&statement);
+
         self.validate_security(&statement)?;
         // Reject CTEs that shadow an allowlisted physical table. CTE-name
         // collection (`collect_cte_names`) is global, not lexically scoped, so a
@@ -480,12 +486,9 @@ impl QueryValidator {
         // cross-tenant leak. Forbidding the collision keeps the invariant
         // "allowlisted name ⇒ always a physical table ⇒ always rewritten".
         self.validate_cte_names(&statement)?;
-        self.validate_tables_and_columns(&statement)?;
+        self.validate_tables_and_columns(&statement, &array_join_spans)?;
 
         let cte_names = collect_cte_names(&statement);
-        // ARRAY JOIN right-hand sides are array columns, not table references —
-        // skip them so they aren't rewritten into `_v0(...)` view functions.
-        let array_join_spans = collect_array_join_spans(&statement);
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
@@ -506,7 +509,7 @@ impl QueryValidator {
         // function), and no blocked function may have been introduced. A
         // violation means a rewrite escape — fail closed rather than ship
         // unscoped SQL to ClickHouse.
-        self.validate_post_rewrite(&statement)?;
+        self.validate_post_rewrite(&statement, &array_join_spans)?;
 
         Ok(statement.to_string())
     }
@@ -525,20 +528,22 @@ impl QueryValidator {
 
     /// Re-scan the rewritten statement: assert every allowlisted physical table
     /// reference was rewritten away and no blocked function was introduced.
-    fn validate_post_rewrite(&self, statement: &Statement) -> Result<(), String> {
+    /// `array_join_spans` are exempt — those array-column relations are
+    /// intentionally left un-rewritten (they aren't tables).
+    fn validate_post_rewrite(
+        &self,
+        statement: &Statement,
+        array_join_spans: &HashSet<Span>,
+    ) -> Result<(), String> {
         let mut scan = BlockedScanner { blocked: None };
         let _ = statement.visit(&mut scan);
         if let Some(name) = scan.blocked {
             return Err(format!("Function '{name}' is not allowed"));
         }
 
-        // The rewriter leaves ARRAY JOIN array-column relations untouched (they
-        // aren't tables), so they're still recognisable by span and must be
-        // exempted from the "everything allowlisted was rewritten" assertion.
-        let array_join_spans = collect_array_join_spans(statement);
         let mut checker = PostRewriteChecker {
             registry: &self.registry,
-            array_join_spans: &array_join_spans,
+            array_join_spans,
             error: None,
         };
         let _ = statement.visit(&mut checker);
@@ -567,13 +572,16 @@ impl QueryValidator {
         Ok(())
     }
 
-    fn validate_tables_and_columns(&self, statement: &Statement) -> Result<(), String> {
+    fn validate_tables_and_columns(
+        &self,
+        statement: &Statement,
+        array_join_spans: &HashSet<Span>,
+    ) -> Result<(), String> {
         let cte_names = collect_cte_names(statement);
-        let array_join_spans = collect_array_join_spans(statement);
         let mut checker = TableColumnChecker {
             registry: &self.registry,
             cte_names: &cte_names,
-            array_join_spans: &array_join_spans,
+            array_join_spans,
             error: None,
         };
         let _ = statement.visit(&mut checker);
