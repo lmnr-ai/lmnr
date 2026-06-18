@@ -21,7 +21,7 @@ use crate::{
     cache::Cache,
     data_plane::get_workspace_deployment,
     db::{DB, workspaces::DeploymentMode},
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+    query_engine::{QueryEngine, QueryEngineValidationResult},
 };
 
 pub struct ClickhouseReadonlyClient(clickhouse::Client);

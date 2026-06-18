@@ -57,20 +57,6 @@ services:
       timeout: 5s
       retries: 5
 
-  query-engine:
-    build:
-      context: ./query-engine
-    container_name: query-engine
-    ports:
-      - "${QUERY_ENGINE_HOST_PORT:-8903}:8903"
-    environment:
-      PORT: 8903
-    healthcheck:
-      test: ["CMD", "sleep", "5"]
-      interval: 10s
-      timeout: 6s
-      retries: 3
-
   quickwit:
     image: quickwit/quickwit:v0.8.2
     pull_policy: always
@@ -103,8 +89,6 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
-      query-engine:
-        condition: service_healthy
       quickwit:
         condition: service_healthy
     environment:
@@ -120,7 +104,6 @@ services:
       CLICKHOUSE_RO_PASSWORD: ${CLICKHOUSE_RO_PASSWORD}
       ENVIRONMENT: FULL
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
-      QUERY_ENGINE_URL: http://query-engine:8903
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans_v2

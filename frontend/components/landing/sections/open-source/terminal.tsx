@@ -26,7 +26,7 @@ interface Row {
 // - Project name: `lmnr` → containers prefixed `lmnr-<service>-1` unless
 //   the service has a `container_name:` override (clickhouse does — its
 //   container is just `clickhouse`).
-// - Services: postgres, clickhouse, quickwit, query-engine, app-server,
+// - Services: postgres, clickhouse, quickwit, app-server,
 //   frontend (+ the implicit `lmnr_default` network).
 // Names padded to a common width so the verb/elapsed column lines up.
 const ROWS: Row[] = [
@@ -34,7 +34,6 @@ const ROWS: Row[] = [
   { name: "Container lmnr-postgres-1     ", verb: "Started", elapsed: "1.4s" },
   { name: "Container clickhouse          ", verb: "Started", elapsed: "1.6s" },
   { name: "Container lmnr-quickwit-1     ", verb: "Started", elapsed: "1.7s" },
-  { name: "Container lmnr-query-engine-1 ", verb: "Started", elapsed: "2.0s" },
   { name: "Container lmnr-app-server-1   ", verb: "Started", elapsed: "2.3s" },
   { name: "Container lmnr-frontend-1     ", verb: "Started", elapsed: "2.6s" },
 ];

@@ -12,7 +12,6 @@ pub enum Feature {
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
     RabbitMQ,
-    SqlQueryEngine,
     ClickhouseReadOnly,
     /// Sentry self-tracing tree. Requires a Sentry DSN.
     Tracing,
@@ -46,7 +45,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .as_str(),
         ),
         Feature::RabbitMQ => std::env::var(env::mq::URL).is_ok(),
-        Feature::SqlQueryEngine => std::env::var(env::connections::QUERY_ENGINE_URL).is_ok(),
         Feature::ClickhouseReadOnly => {
             std::env::var(env::clickhouse::RO_USER).is_ok()
                 && std::env::var(env::clickhouse::RO_PASSWORD).is_ok()

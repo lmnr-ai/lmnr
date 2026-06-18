@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::DB,
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
+    query_engine::{QueryEngine, QueryEngineValidationResult},
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
@@ -50,14 +50,14 @@ pub struct SqlToJsonRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonResponse {
     pub success: bool,
-    pub query_structure: Option<crate::query_engine::query_engine::QueryStructure>,
+    pub query_structure: Option<crate::query_engine::types::QueryStructure>,
     pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToSqlRequest {
-    pub query_structure: crate::query_engine::query_engine::QueryStructure,
+    pub query_structure: crate::query_engine::types::QueryStructure,
 }
 
 #[derive(Serialize)]
