@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
+interface LandingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "minimal" | "outline" | "primary" | "solid";
   size?: "xs" | "sm" | "md" | "lg";
 }
@@ -10,7 +10,7 @@ interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
 const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
   ({ className, variant = "minimal", size = "md", children, ...props }, ref) => {
     const baseStyles =
-      "font-sans-landing text-landing-text-200 leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-md transition-colors";
+      "font-sans-landing text-foreground-200 leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none";
 
     const sizeStyles = {
       xs: "px-2 py-0.5 text-xs md:text-sm",
@@ -20,11 +20,10 @@ const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
     };
 
     const variantStyles = {
-      minimal: "hover:text-landing-text-100",
-      solid: "bg-landing-surface-500 hover:bg-landing-surface-400",
-      outline: "outline outline-landing-text-600 hover:text-landing-text-100 hover:bg-primary-foreground/5",
-      primary:
-        "bg-landing-primary-400 text-white border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",
+      minimal: "hover:text-foreground-50",
+      solid: "bg-surface-400 hover:bg-surface-200",
+      outline: "outline outline-foreground-600 hover:text-foreground-50 hover:bg-primary-foreground/5",
+      primary: "bg-primary-200 text-black font-medium rounded-sm hover:bg-primary-400",
     };
 
     return (

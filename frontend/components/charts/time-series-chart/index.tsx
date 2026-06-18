@@ -2,13 +2,14 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useMemo, useState } from "react";
-import { Bar, BarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
-import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
+import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -33,6 +34,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  hideZeroValues = false,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -100,12 +102,17 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
+  const BarShapeWithConfig = useCallback(
+    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
+    [chartConfig, fields]
+  );
+
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <BarChart
           data={data}
-          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
+          margin={{ left: -8, top: 8 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -117,17 +124,17 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
           {showTooltip && (
             <ChartTooltip
               content={
                 <ChartTooltipContent
                   labelKey="timestamp"
+                  hideZeroValues={hideZeroValues}
                   labelFormatter={(_, payload) =>
                     payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
                   }
@@ -135,13 +142,20 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               }
             />
           )}
-          <BarStack radius={[4, 4, 4, 4]}>
-            {fields.map((fieldKey) => {
-              const config = chartConfig[fieldKey];
-              if (!config) return null;
-              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
-            })}
-          </BarStack>
+          {fields.map((fieldKey) => {
+            const config = chartConfig[fieldKey];
+            if (!config) return null;
+
+            return (
+              <Bar
+                key={fieldKey}
+                dataKey={fieldKey}
+                fill={config.color}
+                stackId={config.stackId}
+                shape={BarShapeWithConfig}
+              />
+            );
+          })}
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}

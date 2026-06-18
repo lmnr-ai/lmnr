@@ -60,12 +60,6 @@ export interface WorkspaceInvitation {
   createdAt: string;
 }
 
-export interface ProjectStats {
-  datasetsCount: number;
-  spansCount: number;
-  evaluationsCount: number;
-}
-
 export interface WorkspaceUsage {
   totalBytesIngested: number;
   totalSignalSteps: number;

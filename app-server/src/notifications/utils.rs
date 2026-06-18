@@ -11,7 +11,8 @@ use crate::reports::email_template::{ProjectReportData, ReportData};
 /// route users to their own instance. Falls back to the given default for the
 /// managed Laminar Cloud experience.
 fn frontend_url_with_default(default: &str) -> String {
-    let raw = std::env::var("NEXT_PUBLIC_URL").unwrap_or_else(|_| default.to_string());
+    let raw =
+        std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or(default.to_string());
     raw.trim_end_matches('/').to_string()
 }
 

@@ -71,4 +71,3 @@ Laminar.initialize();
     </Tabs>
   );
 }
-

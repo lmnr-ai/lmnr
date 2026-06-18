@@ -41,6 +41,7 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         "messages": messages,
     });
 
+    let mut has_tools = false;
     if let Some(tools) = request.tools.as_ref() {
         let tool_array: Vec<Value> = tools
             .iter()
@@ -58,6 +59,7 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
             .collect();
         if !tool_array.is_empty() {
             body["tools"] = Value::Array(tool_array);
+            has_tools = true;
         }
     }
 
@@ -71,15 +73,31 @@ pub fn provider_request_to_openai_body(model: &str, request: &ProviderRequest) -
         if let Some(m) = gc.max_output_tokens {
             body["max_completion_tokens"] = json!(m);
         }
-        if let Some(tc) = gc.thinking_config.as_ref() {
-            if let Some(level) = tc.thinking_level.as_ref() {
-                if let Some(effort) = thinking_level_to_effort(level) {
-                    body["reasoning_effort"] = json!(effort);
+
+        // gpt-5 reasoning models reject `reasoning_effort` + function tools on
+        // /v1/chat/completions (400, "use /v1/responses instead") — true for both
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals),
+        // so only forward `reasoning_effort` when no tools are present.
+        if !has_tools {
+            if let Some(tc) = gc.thinking_config.as_ref() {
+                if let Some(level) = tc.thinking_level.as_ref() {
+                    if let Some(effort) = thinking_level_to_effort(level) {
+                        body["reasoning_effort"] = json!(effort);
+                    }
                 }
             }
         }
     }
 
+    body
+}
+
+/// Same as [`provider_request_to_openai_body`] but flags the request for SSE streaming and asks
+/// the upstream to emit a final usage-only chunk (`stream_options.include_usage`).
+pub fn provider_request_to_openai_stream_body(model: &str, request: &ProviderRequest) -> Value {
+    let mut body = provider_request_to_openai_body(model, request);
+    body["stream"] = json!(true);
+    body["stream_options"] = json!({ "include_usage": true });
     body
 }
 
@@ -292,7 +310,7 @@ pub fn parse_openai_response(value: Value) -> Result<ProviderResponse, OpenAIErr
     })
 }
 
-fn map_finish_reason(s: &str) -> ProviderFinishReason {
+pub(super) fn map_finish_reason(s: &str) -> ProviderFinishReason {
     match s {
         "stop" | "tool_calls" | "function_call" => ProviderFinishReason::Stop,
         "length" => ProviderFinishReason::MaxTokens,
@@ -301,7 +319,7 @@ fn map_finish_reason(s: &str) -> ProviderFinishReason {
     }
 }
 
-fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
+pub(super) fn parse_usage(usage: &Value) -> ProviderUsageMetadata {
     let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(|v| v.as_i64())
@@ -335,7 +353,7 @@ mod tests {
     use crate::llm::models::{
         ProviderContent, ProviderFunctionDeclaration, ProviderFunctionResponse,
         ProviderGenerationConfig, ProviderPart, ProviderRequest, ProviderThinkingConfig,
-        ProviderTool,
+        ProviderThinkingLevel, ProviderTool,
     };
 
     fn text_part(s: &str) -> ProviderPart {
@@ -390,6 +408,7 @@ mod tests {
             }),
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -415,6 +434,7 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -443,6 +463,7 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -466,6 +487,7 @@ mod tests {
                 }],
             }]),
             generation_config: None,
+            service_tier: None,
             provider: None,
             model_size: None,
         };
@@ -478,7 +500,7 @@ mod tests {
     }
 
     #[test]
-    fn thinking_level_maps_to_reasoning_effort_and_drops_sampling_params() {
+    fn thinking_forwarded_without_tools_and_sampling_params_dropped() {
         let req = ProviderRequest {
             contents: vec![user("hi")],
             system_instruction: None,
@@ -493,16 +515,52 @@ mod tests {
                 }),
                 ..Default::default()
             }),
+            service_tier: None,
             provider: None,
             model_size: None,
         };
+
+        // No tools: reasoning_effort forwarded.
         let body = provider_request_to_openai_body("gpt-5", &req);
         assert_eq!(body["reasoning_effort"], "high");
+
         assert_eq!(body["max_completion_tokens"], 100);
         assert!(body.get("max_tokens").is_none());
         // We never forward sampling params — see provider_request_to_openai_body.
         assert!(body.get("temperature").is_none());
         assert!(body.get("top_p").is_none());
+    }
+
+    #[test]
+    fn reasoning_effort_dropped_when_tools_present() {
+        let req = ProviderRequest {
+            contents: vec![user("hi")],
+            system_instruction: None,
+            tools: Some(vec![ProviderTool {
+                function_declarations: vec![ProviderFunctionDeclaration {
+                    name: "lookup".to_string(),
+                    description: "find a thing".to_string(),
+                    parameters: json!({"type": "object", "properties": {}}),
+                }],
+            }]),
+            generation_config: Some(ProviderGenerationConfig {
+                max_output_tokens: Some(100),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::High),
+                }),
+                ..Default::default()
+            }),
+            service_tier: None,
+            provider: None,
+            model_size: None,
+        };
+
+        // Function tools + reasoning_effort 400s on gpt-5 chat/completions, on
+        // OpenAI direct and some OpenAI-compatible gateways (LAM-1771: Signals).
+        let body = provider_request_to_openai_body("gpt-5", &req);
+        assert!(body.get("reasoning_effort").is_none());
+        assert!(body.get("tools").is_some());
     }
 
     #[test]

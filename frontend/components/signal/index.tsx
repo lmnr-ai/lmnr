@@ -5,10 +5,8 @@ import { useCallback, useEffect } from "react";
 
 import EventsTable from "@/components/signal/events-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
@@ -119,22 +117,9 @@ export default function Signal({ traceId }: { traceId?: string }) {
     setTraceId: state.setTraceId,
   }));
 
-  const handleNavigate = useCallback(
-    (item: EventNavigationItem | null) => {
-      if (item) {
-        setTraceId(item.traceId);
-      }
-    },
-    [setTraceId]
-  );
-
   useEffect(() => {
     setTraceId(traceId ?? null);
   }, [setTraceId, traceId]);
 
-  return (
-    <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <SignalContent />
-    </TraceViewNavigationProvider>
-  );
+  return <SignalContent />;
 }

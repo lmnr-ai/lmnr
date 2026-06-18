@@ -19,6 +19,8 @@ export enum Feature {
   SLACK = "SLACK",
   LANDING = "LANDING",
   LAMINAR_CLOUD = "LAMINAR_CLOUD",
+  AGENT = "AGENT",
+  TELEMETRY = "TELEMETRY",
 }
 
 const AUTH_PROVIDER_FEATURES = [
@@ -107,13 +109,17 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
   }
 
   if (feature === Feature.SLACK) {
-    return (
+    // Cloud: the official app's own OAuth config. Broker: a self-hosted instance
+    // points at the Laminar Cloud broker with its license key and needs no Slack
+    // app secrets of its own.
+    const cloudEnabled =
       process.env.ENVIRONMENT === "PRODUCTION" &&
       !!process.env.SLACK_CLIENT_ID &&
       !!process.env.SLACK_CLIENT_SECRET &&
       !!process.env.SLACK_SIGNING_SECRET &&
-      !!process.env.SLACK_REDIRECT_URL
-    );
+      !!process.env.SLACK_REDIRECT_URL;
+    const brokerEnabled = !!process.env.SLACK_BROKER_URL && !!process.env.LMNR_LICENSE_KEY;
+    return cloudEnabled || brokerEnabled;
   }
 
   if (feature === Feature.POSTHOG) {
@@ -122,6 +128,24 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.LAMINAR_CLOUD) {
     return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.AGENT) {
+    return process.env.AGENT_CHAT_ENABLED === "true";
+  }
+
+  if (feature === Feature.TELEMETRY) {
+    // Anonymous self-hosted usage telemetry. Never runs on Laminar Cloud
+    // (we have first-party analytics there), only on real self-hosted
+    // deployments, and operators can always opt out.
+    if (process.env.LAMINAR_TELEMETRY_DISABLED === "true") {
+      return false;
+    }
+    if (process.env.LAMINAR_CLOUD === "true") {
+      return false;
+    }
+
+    return true;
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

@@ -28,6 +28,11 @@ pub struct ProviderRequest {
     pub tools: Option<Vec<ProviderTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_config: Option<ProviderGenerationConfig>,
+    /// Inference service tier (e.g. `"flex"`). Only honored by the Gemini
+    /// provider (https://ai.google.dev/gemini-api/docs/flex-inference);
+    /// other providers ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -141,6 +146,16 @@ pub struct ProviderInlineResponse {
     pub error: Option<ProviderErrorInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+}
+
+/// A single streamed delta from a provider's token stream. Providers emit these as tokens
+/// arrive; the agent forwards them to the SSE client so the UI renders text/thoughts
+/// incrementally. The fully assembled `ProviderResponse` is still returned when the stream
+/// completes (used for persistence + tracing), so deltas are purely additive UX.
+#[derive(Debug, Clone)]
+pub enum ProviderStreamChunk {
+    Text(String),
+    Thought(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,8 +1,7 @@
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { updateProjectSettings } from "@/lib/actions/project/settings";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfProject } from "@/lib/authorization";
 
 export async function PATCH(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -12,7 +11,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ projectId: 
   // settings for an arbitrary project id (no app-level middleware covers
   // `/api/projects/...`). Use 401/403 JSON rather than `requireProjectAccess`
   // (which redirects / 404s for the page tree).
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const userId = session?.user?.id;
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

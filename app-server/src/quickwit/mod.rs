@@ -28,7 +28,7 @@ pub const EVENTS_INDEX_ID: &str = "events";
 pub const SIGNAL_EVENTS_INDEX_ID: &str = "signal_events";
 
 pub static SPANS_INDEX_ID: LazyLock<String> =
-    LazyLock::new(|| std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string()));
+    LazyLock::new(|| crate::env::quickwit::SPANS_INDEX_ID.get());
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {
@@ -44,15 +44,23 @@ pub struct QuickwitIndexedSpan {
 impl QuickwitIndexedSpan {
     /// Build a span document for Quickwit indexing.
     ///
-    /// `new_input_messages`: when provided (LLM spans only), `input` is the
-    /// JSON array of just those messages — the search index sees only the new
-    /// turn, so older repeated history doesn't dominate matches. Pass `None`
-    /// for non-LLM spans / non-array inputs to fall through to raw `span.input`.
+    /// `new_input_messages` / `new_output_messages`: when provided (LLM spans
+    /// only), `input` / `output` is the JSON array of just those messages —
+    /// the search index sees only the new turn, so older repeated history
+    /// doesn't dominate matches. Pass `None` for non-LLM spans / non-array
+    /// inputs to fall through to raw `span.input` / `span.output`. Output is
+    /// dedup'd the same way input is: post-LAM-1608 `span.output` is `None`
+    /// on the wire for dedup'd LLM spans, so the indexer must reconstruct the
+    /// trace-new output array from the dedup verdict, not read `span.output`.
     ///
     /// Cleaning runs here (base64 / signature stripping, role-key stripping
     /// for LLM input/output, whitespace collapse) so the Quickwit consumer
     /// doesn't have to know about provider-specific shapes.
-    pub fn from_span(span: &Span, new_input_messages: Option<&[Value]>) -> Self {
+    pub fn from_span(
+        span: &Span,
+        new_input_messages: Option<&[Value]>,
+        new_output_messages: Option<&[Value]>,
+    ) -> Self {
         // `is_llm_span()` matches the dedup / new-messages-subset predicate so
         // cached LLM spans get role-key stripping like regular LLM spans.
         let is_llm = span.is_llm_span();
@@ -66,8 +74,11 @@ impl QuickwitIndexedSpan {
             .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));
 
-        let output = span
-            .output
+        let raw_output = match new_output_messages {
+            Some(msgs) => Some(Value::Array(msgs.to_vec())),
+            None => span.output.clone(),
+        };
+        let output = raw_output
             .as_ref()
             .map(json_value_to_string)
             .map(|s| clean_for_indexing(&s, is_llm));

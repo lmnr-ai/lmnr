@@ -16,7 +16,7 @@ export async function register() {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
         await import("@/lib/db/migrations/schema.ts");
-      const { db, getDatabaseConfig } = await import("@/lib/db/drizzle.ts");
+      const { db, getDatabaseConfig, getPostgresSchema } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -101,18 +101,19 @@ export async function register() {
 
       // `CREATE OR REPLACE` so credential rotation is picked up on next boot
       // without tripping the clickhouse-migrations MD5 checksum guard (which is
-      // why this lives here instead of in `43_llm_messages.sql`).
+      // why these live here instead of in their migrations).
       // Multi-replica boots race the DDL — CH serialises it, but each replace
       // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
-      // Acceptable: layout is lazy (no preload), source lookups hit the
-      // `llm_messages` PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
+      // Acceptable: layout is lazy (no preload), source lookups hit each
+      // table's PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
       // evicts/refreshes every minute under normal operation.
+      const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
       const ensureLlmMessagesDict = async () => {
         const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
-        const escape = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-        const user = escape(process.env.CLICKHOUSE_USER || "ch_user");
-        const password = escape(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
-        const db = escape(process.env.CLICKHOUSE_DB || "default");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
 
         await clickhouseClient.command({
           query: `
@@ -129,6 +130,37 @@ export async function register() {
                 PASSWORD '${password}'
                 DB '${db}'
                 TABLE 'llm_messages'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
+      // Project-scoped dedup dict. Backs the `deduped_content` table for
+      // both input/output messages and tool definitions. The `spans_v0`
+      // view tries this dict first and falls back to `llm_messages_dict`
+      // for legacy spans.
+      const ensureDedupedContentDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY deduped_content_dict
+            (
+                project_id UUID,
+                content_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, content_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'deduped_content'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
             LIFETIME(MIN 30 MAX 60)
@@ -154,6 +186,7 @@ export async function register() {
           );
 
           await ensureLlmMessagesDict();
+          await ensureDedupedContentDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;
@@ -172,7 +205,33 @@ export async function register() {
           error instanceof Error ? error.message : String(error)
         );
       }
-      await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
+      const postgresSchema = getPostgresSchema();
+      // Any case variant of "public" is the default schema (which always exists),
+      // so we never create it or relocate the migrations tracker into it. Note an
+      // unquoted identifier in search_path folds to lowercase, so a value like
+      // "PUBLIC" resolves to "public" at query time — quoting it into CREATE SCHEMA
+      // would create a SEPARATE "PUBLIC" schema that queries never reach.
+      const isPublicSchema = postgresSchema.toLowerCase() === "public";
+      if (postgresSchema && !isPublicSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
+        try {
+          await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+        } catch (error) {
+          console.warn(
+            `Skipping CREATE SCHEMA "${postgresSchema}" (insufficient privileges or pre-provisioned); set POSTGRES_CREATE_SCHEMA=false to silence:`,
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      }
+      // Track migrations inside the configured schema so a Laminar DB can coexist
+      // with another Drizzle-managed service in the same instance. An unset or
+      // "public" (any case) schema keeps the tracker in the standard "drizzle"
+      // schema — so existing public deployments are untouched and don't re-run
+      // migrations (relocating the tracker would make the migrator see no prior
+      // migration and re-run all of them).
+      await migrate(db as any, {
+        migrationsFolder: "lib/db/migrations",
+        ...(postgresSchema && !isPublicSchema ? { migrationsSchema: postgresSchema } : {}),
+      });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
@@ -266,6 +325,12 @@ export async function register() {
       console.log("Initializing Laminar");
       Laminar.initialize();
     }
+
+    // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
+    // operators opt out (see Feature.TELEMETRY). Fire-and-forget — never blocks
+    // or fails boot.
+    const { startTelemetry } = await import("@/lib/telemetry/index.ts");
+    startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
   }
 }
 

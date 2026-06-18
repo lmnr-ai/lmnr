@@ -150,6 +150,24 @@ impl CacheTrait for RedisCache {
         }
     }
 
+    async fn renew_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
+        // EXPIRE returns 1 when the timeout was set, 0 when the key no longer
+        // exists (i.e. the lock already expired and we no longer own it).
+        let result: RedisResult<bool> = self
+            .connection
+            .current_clone()
+            .expire(key, ttl_seconds as i64)
+            .await;
+
+        match result {
+            Ok(set) => Ok(set),
+            Err(e) => {
+                self.on_error("renew_lock", &e);
+                Err(CacheError::InternalError(anyhow::Error::from(e)))
+            }
+        }
+    }
+
     async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
         let result: RedisResult<()> = self.connection.current_clone().del(key).await;
         result.map_err(|e| {

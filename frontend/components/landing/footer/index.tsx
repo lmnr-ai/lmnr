@@ -63,7 +63,7 @@ const FooterLinkText = ({ link }: { link: FooterLink }) => (
   <Link
     href={link.href}
     target={link.external ? "_blank" : undefined}
-    className="text-sm text-landing-text-300 hover:text-landing-text-100 transition-colors whitespace-nowrap"
+    className="text-sm text-foreground-300 hover:text-foreground-50 transition-colors whitespace-nowrap"
   >
     {link.label}
   </Link>
@@ -99,7 +99,7 @@ const Footer = ({ className }: Props) => (
   <div className={cn("flex flex-col items-center w-full", className)}>
     <div
       className={cn(
-        "w-full border-t border-landing-surface-500",
+        "w-full border-t border-surface-400",
         LANDING_COLUMN_MAX_W,
         "md:pt-20 md:pb-[120px]",
         "pt-16 pb-20",

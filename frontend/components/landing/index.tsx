@@ -28,7 +28,7 @@ interface Props {
 // past 880 and remain horizontally centered at stage 6), then the remaining
 // sections in the standard 880px column below.
 const Landing = ({ className, hasSession }: Props) => (
-  <div className={cn("bg-landing-surface-700 overflow-x-clip flex flex-col", className)}>
+  <div className={cn("bg-surface-700 overflow-x-clip flex flex-col", className)}>
     <Hero hasSession={hasSession} />
     {/* 80px controls the gap to the section above */}
     <UnderstandWhy className="md:mt-[calc(80px-(100vh-760px)/2)]" />

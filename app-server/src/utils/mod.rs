@@ -2,7 +2,6 @@ pub mod limits;
 pub mod text_cleaning;
 
 use serde_json::Value;
-use std::env;
 
 pub fn json_value_to_string(v: &Value) -> String {
     match v {
@@ -65,11 +64,4 @@ pub fn sanitize_string(input: &str) -> String {
             true
         })
         .collect::<String>()
-}
-
-pub fn get_unsigned_env_with_default(key: &str, default: usize) -> usize {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
 }

@@ -1,10 +1,9 @@
 import { type Metadata } from "next";
-import { getServerSession } from "next-auth";
 
 import { LANDING_COLUMN_MAX_W } from "@/components/landing/class-names";
 import LandingHeader from "@/components/landing/header";
 import Pricing from "@/components/landing/pricing";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -25,10 +24,10 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   return (
-    <div className="bg-landing-surface-700 flex flex-col w-full min-h-screen">
+    <div className="bg-surface-700 flex flex-col w-full min-h-screen">
       <LandingHeader
         hasSession={session !== null && session !== undefined}
         isIncludePadding

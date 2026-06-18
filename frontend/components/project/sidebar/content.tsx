@@ -18,17 +18,18 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
 import { type ProjectDetails } from "@/lib/actions/project";
 import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
+  const { settingsHref } = useProjectContext();
   const {
     gbLimit,
     gbUsedThisMonth,
     signalStepsLimit: signalRunsLimit,
     signalStepsUsedThisMonth: signalRunsUsedThisMonth,
-    workspaceId,
   } = usageDetails;
   const formatGB = (gb: number) => {
     if (gb < 0.001) {
@@ -84,7 +85,7 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
         />
       </div>
 
-      <Link href={`/workspace/${workspaceId}?tab=billing`}>
+      <Link href={settingsHref("billing")}>
         <Button className="w-full">
           <span>Upgrade</span>
           <SquareArrowOutUpRight className="ml-1 h-3.5 w-3.5" />

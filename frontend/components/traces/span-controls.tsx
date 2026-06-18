@@ -24,7 +24,7 @@ import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
 import { StructuredOutputSchema } from "./structured-output-schema";
-import { extractToolsFromAttributes, ToolList } from "./tool-list";
+import { resolveTools, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
@@ -111,7 +111,7 @@ export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: Pr
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <ToolList tools={resolveTools(span)} />
             <StructuredOutputSchema
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />

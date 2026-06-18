@@ -129,9 +129,12 @@ impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDb
     fn into(self) -> ProjectWithWorkspaceBillingInfo {
         // Tolerate malformed JSON: log and fall back to defaults so a single
         // hand-edited row can't poison the cache for the whole project.
-        let settings = serde_json::from_value::<ProjectSettings>(self.settings.0)
-            .unwrap_or_else(|e| {
-                log::warn!("project[{}] settings JSON malformed, using defaults: {e:#}", self.id);
+        let settings =
+            serde_json::from_value::<ProjectSettings>(self.settings.0).unwrap_or_else(|e| {
+                log::warn!(
+                    "project[{}] settings JSON malformed, using defaults: {e:#}",
+                    self.id
+                );
                 ProjectSettings::default()
             });
         ProjectWithWorkspaceBillingInfo {
@@ -165,6 +168,63 @@ pub async fn get_projects_for_workspace(
             .bind(workspace_id)
             .fetch_all(pool)
             .await?;
+
+    Ok(projects)
+}
+
+/// Returns true if `user_id` is a member of the workspace that owns `project_id`.
+/// Any membership grants access (no role filter) — this is the per-request
+/// authorization for the CLI user-token surface (`/v1/cli/*`).
+pub async fn project_has_member(
+    pool: &PgPool,
+    user_id: &Uuid,
+    project_id: &Uuid,
+) -> anyhow::Result<bool> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+            SELECT 1 FROM projects p
+            JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+            WHERE p.id = $1 AND m.user_id = $2
+        )",
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(exists)
+}
+
+/// A project the user can access, with its owning workspace. Backs the CLI
+/// `GET /v1/cli/projects` discovery endpoint.
+#[derive(Serialize, FromRow, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CliProject {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
+    pub workspace_name: String,
+}
+
+/// All projects in workspaces the user belongs to, for the CLI project picker.
+pub async fn get_projects_for_user(
+    pool: &PgPool,
+    user_id: &Uuid,
+) -> anyhow::Result<Vec<CliProject>> {
+    let projects = sqlx::query_as::<_, CliProject>(
+        // LIMIT bounds the response for users in large multi-workspace orgs;
+        // the CLI only needs enough rows to pick a project from.
+        "SELECT p.id, p.name, w.id AS workspace_id, w.name AS workspace_name
+         FROM projects p
+         JOIN members_of_workspaces m ON m.workspace_id = p.workspace_id
+         JOIN workspaces w ON w.id = p.workspace_id
+         WHERE m.user_id = $1
+         ORDER BY w.name, p.name
+         LIMIT 1000",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
 
     Ok(projects)
 }

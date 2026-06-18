@@ -57,11 +57,12 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
     [resizePanel, visible]
   );
 
-  const traceResize = usePanelResize("trace", dragPanel);
+  // Trace's left-edge handle lives at the side-panel level (TraceViewSidePanel) so it
+  // spans the full height including the header/chart area above this layout.
   const spanResize = usePanelResize("span", dragPanel);
   const chatResize = usePanelResize("chat", dragPanel);
 
-  const isResizing = traceResize.isResizing || spanResize.isResizing || chatResize.isResizing;
+  const isResizing = spanResize.isResizing || chatResize.isResizing;
   const transition = !isResizing && layoutChangeSource === "visibility" ? enterExitTransition : instantTransition;
 
   return (
@@ -75,7 +76,6 @@ export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidt
           animate={{ width: widths.trace }}
           transition={transition}
         >
-          <LeftEdgeResizeHandle onMouseDown={traceResize.handleMouseDown} />
           {panels.tracePanel}
         </motion.div>
 

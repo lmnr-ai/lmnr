@@ -26,17 +26,17 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 import { track } from "@/lib/posthog";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
-import { getClusterColor, UNCLUSTERED_COLOR } from "./colors";
 
 export default function ClustersSection() {
-  const { workspace } = useProjectContext();
+  const { workspace, settingsHref } = useProjectContext();
   const isPaywall = !getHasClusteringAccess(workspace?.tierName);
-  const billingHref = workspace ? `/workspace/${workspace.id}?tab=billing` : "/";
+  const billingHref = settingsHref("billing");
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
   const [, setEmergingClusterId] = useEmergingClusterId();
@@ -57,7 +57,7 @@ export default function ClustersSection() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const hasTimeRange = !!(pastHours || startDate);
+  const hasTimeRange = !!(pastHours || (startDate && endDate));
 
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
   const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
@@ -70,18 +70,19 @@ export default function ClustersSection() {
   const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
   const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
 
-  // Build stable color map from sibling list so colors match between list and chart
+  // Color is a pure function of cluster id (shared with trace-view), so the
+  // map is just for the unclustered virtual bucket plus convenience lookups.
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
-    visibleClusters.forEach((c, i) => map.set(c.id, getClusterColor(i, drillDownDepth)));
+    visibleClusters.forEach((c) => map.set(c.id, getClusterColorById(c.id)));
     map.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return map;
-  }, [visibleClusters, drillDownDepth]);
+  }, [visibleClusters]);
 
-  // Fetch clusters on mount
   useEffect(() => {
-    fetchClusters();
-  }, [fetchClusters]);
+    if (!pastHours && !(startDate && endDate)) return;
+    fetchClusters({ pastHours, startDate, endDate });
+  }, [fetchClusters, pastHours, startDate, endDate]);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);

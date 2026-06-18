@@ -2,12 +2,11 @@
 
 import { Book, X } from "lucide-react";
 import Link from "next/link";
-import React from "react";
 
+import laminarIcon from "@/assets/logo/icon.svg";
+import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
-import { IconGitHub } from "@/components/ui/icons";
-import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -26,9 +25,10 @@ const SidebarFooterComponent = () => {
   const [showStarCard, setShowStarCard] = useLocalStorage("showStarCard", true);
 
   const features = useFeatureFlags();
+  const logo = open || openMobile ? laminarWordmark : laminarIcon;
 
   return (
-    <SidebarFooter className="px-0 mb-2">
+    <SidebarFooter className="px-0">
       {features.LAMINAR_CLOUD && (
         <SidebarGroup className={cn((open || openMobile) && showStarCard ? "text-sm" : "hidden")}>
           <SidebarGroupContent>
@@ -47,14 +47,6 @@ const SidebarFooterComponent = () => {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem className="h-7">
-              <SidebarMenuButton tooltip="Github" asChild>
-                <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
-                  <IconGitHub className="w-4 h-4" />
-                  <span>Github</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Docs" asChild>
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
@@ -65,23 +57,20 @@ const SidebarFooterComponent = () => {
             </SidebarMenuItem>
             <SidebarMenuItem className="mt-4 mx-0 px-2">
               <Link passHref href="/projects" className="flex items-center">
-                <div className="relative flex">
-                  <LaminarIcon
-                    className={cn(
-                      "w-4 h-4 transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-0 scale-50 absolute" : "opacity-100 scale-100"
-                    )}
-                    fill="#5B5B5B"
-                  />
-
-                  <LaminarLogo
-                    fill="#5B5B5B"
-                    className={cn(
-                      "w-30 h-5 text-secondary transition-all duration-300 ease-in-out",
-                      open || openMobile ? "opacity-100 scale-100" : "opacity-0 scale-50 absolute"
-                    )}
-                  />
-                </div>
+                {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
+                <span
+                  aria-label="Laminar"
+                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "w-[35px]")}
+                  style={{
+                    maskImage: `url(${logo.src})`,
+                    WebkitMaskImage: `url(${logo.src})`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                    aspectRatio: `${logo.width} / ${logo.height}`,
+                  }}
+                />
               </Link>
             </SidebarMenuItem>
           </SidebarMenu>

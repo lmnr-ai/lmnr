@@ -7,7 +7,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { cn } from "@/lib/utils";
 
 import { formatMetricValue } from "./format-value";
-import { calculateDisplayValue, createAxisFormatter } from "./utils";
+import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -88,7 +88,7 @@ const HorizontalBarChart = ({
           barCategoryGap={0}
           layout="vertical"
           data={data}
-          margin={{ right: maxTextWidth }}
+          margin={{ ...getChartMargins(), right: maxTextWidth }}
         >
           <XAxis
             hide
@@ -104,7 +104,7 @@ const HorizontalBarChart = ({
             yAxisId={0}
             tickLine={false}
             axisLine={false}
-            width="auto"
+            tickMargin={8}
             dataKey={categoryColumn}
             tickFormatter={yAxisFormatter}
           />
@@ -136,20 +136,7 @@ const HorizontalBarChart = ({
                 dataKey={valueColumn}
                 fill={config.color}
                 shape={(props: any) => {
-                  const {
-                    payload,
-                    tooltipPayload,
-                    tooltipPosition,
-                    dataKey,
-                    stackedBarStart,
-                    stackedBarEnd,
-                    parentViewBox,
-                    originalDataIndex,
-                    isActive,
-                    background,
-                    index,
-                    ...svgProps
-                  } = props;
+                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
                   const isClickable = onBarClick && (payload?.trace_id || payload?.id);
                   return (
                     <rect
