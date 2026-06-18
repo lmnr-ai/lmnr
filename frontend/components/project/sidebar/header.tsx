@@ -33,10 +33,6 @@ import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
 
-// 60vh scroll cap; the rest of the popover is fixed-height. Needs max-h on both the ScrollArea
-// root and viewport ([&>div]) to scroll; [&>div>div]:block! defeats Radix's display:table wrapper.
-const LIST_MAX_H = "max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!";
-
 // Hierarchy left→right: [Workspaces] (parent) → [Projects in X] (child).
 // dir < 0 = move left toward the parent (workspaces); dir > 0 = move right back to projects.
 const slideVariants = {
@@ -174,7 +170,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                           </div>
                         </div>
                         <DropdownMenuSeparator className="m-0" />
-                        <ScrollArea className={LIST_MAX_H}>
+                        <ScrollArea className="max-h-[60vh] [&>div>div]:block!">
                           <div className="p-1">
                             {projectsLoading ? (
                               <div className="p-1 text-muted-foreground">Loading…</div>
@@ -236,7 +232,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                           <div className="pl-2 py-1 text-secondary-foreground">Workspaces</div>
                         </div>
                         <DropdownMenuSeparator className="m-0" />
-                        <ScrollArea className={LIST_MAX_H}>
+                        <ScrollArea className="max-h-[60vh] [&>div>div]:block!">
                           <div className="p-1">
                             {workspaces?.map((w) => (
                               <DropdownMenuItem

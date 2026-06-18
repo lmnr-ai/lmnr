@@ -10,7 +10,9 @@ const ScrollArea = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
 >(({ className, children, asChild, ...props }, ref) => (
   <ScrollAreaPrimitive.Root className={cn("relative overflow-hidden", className)} {...props}>
-    <ScrollAreaPrimitive.Viewport ref={ref} className="h-full w-full rounded-[inherit]">
+    {/* max-h-[inherit] lets a max-h-* on the root bound the viewport too, so callers can scroll
+        with a plain `max-h-[...]` instead of repeating it via `[&>div]:max-h-[...]`. */}
+    <ScrollAreaPrimitive.Viewport ref={ref} className="h-full max-h-[inherit] w-full rounded-[inherit]">
       {children}
     </ScrollAreaPrimitive.Viewport>
     <ScrollBar />
