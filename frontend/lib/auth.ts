@@ -153,6 +153,13 @@ const getGenericOAuthConfig = () => {
 export const auth = betterAuth({
   secret: AUTH_SECRET,
   baseURL: AUTH_URL,
+  session: {
+    // Verify session from a signed cookie instead of the DB; revocation lags up to maxAge.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
   // Reuse the existing `users` row id (uuid, DB default). Generating a uuid here
   // keeps every Better-Auth-managed id (session/account/verification/jwks, all
   // `text`) valid for the `uuid` users.id column and its FKs across the schema.
