@@ -1,10 +1,11 @@
 import { desc, eq } from "drizzle-orm";
 import { get, head } from "lodash";
+import { FolderOpen } from "lucide-react";
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import WorkspaceGroupTracker from "@/components/common/workspace-group-tracker";
-import Projects from "@/components/projects/projects";
+import ProjectCreateDialog from "@/components/projects/project-create-dialog";
 import { getLastProjectIdCookie } from "@/lib/actions/project/cookies.ts";
 import { getNewestProjectId } from "@/lib/actions/projects";
 import { getWorkspace } from "@/lib/actions/workspace";
@@ -12,6 +13,8 @@ import { getLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies.ts";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, projects, workspaces } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { WorkspaceTier } from "@/lib/workspaces/types";
 
 export const dynamic = "force-dynamic";
 
@@ -96,8 +99,22 @@ export default async function ProjectsPage() {
     <>
       <WorkspaceGroupTracker workspaceId={workspace.id} workspaceName={workspace.name} />
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
-          <Projects workspace={workspace} />
+        <div className="flex flex-col gap-4 max-w-4xl mx-auto px-4 py-8">
+          <h1 className="text-xl font-medium">Projects</h1>
+          <ProjectCreateDialog
+            workspaceId={workspace.id}
+            isFreeTier={isFeatureEnabled(Feature.SUBSCRIPTION) && workspace.tierName === WorkspaceTier.FREE}
+            projectCount={0}
+          />
+          <div className="flex flex-1 items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-4 max-w-md text-center">
+              <FolderOpen className="size-12 text-secondary-foreground/60" />
+              <div className="flex flex-col gap-2">
+                <h3 className="text-xl font-semibold">No projects yet</h3>
+                <p className="text-sm text-muted-foreground">Create your first project to get started.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </>
