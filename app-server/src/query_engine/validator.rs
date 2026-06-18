@@ -11,14 +11,14 @@ use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    Expr, FunctionArg, FunctionArgExpr, FunctionArgOperator, Ident, ObjectName, ObjectNamePart,
-    Query, Select, Statement, TableAlias, TableFactor, TableFunctionArgs, Value, ValueWithSpan,
-    Visit, VisitMut, Visitor, VisitorMut,
+    Expr, FunctionArg, FunctionArgExpr, FunctionArgOperator, Ident, JoinOperator, ObjectName,
+    ObjectNamePart, Query, Select, Statement, TableAlias, TableFactor, TableFunctionArgs, Value,
+    ValueWithSpan, Visit, VisitMut, Visitor, VisitorMut,
 };
 use sqlparser::dialect::ClickHouseDialect;
 use sqlparser::keywords::Keyword;
 use sqlparser::parser::Parser;
-use sqlparser::tokenizer::{Token, Tokenizer};
+use sqlparser::tokenizer::{Span, Token, TokenWithSpan, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
@@ -126,37 +126,40 @@ pub(crate) fn parse_clickhouse_sql(
     sql: &str,
 ) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
     let dialect = ClickHouseDialect {};
-    let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
+    // Tokenize WITH locations: the validator later identifies ARRAY JOIN array
+    // columns by their source span, so spans must survive into the parsed AST.
+    let tokens = Tokenizer::new(&dialect, sql).tokenize_with_location()?;
     let tokens = wrap_in_placeholder_lists(tokens);
     Parser::new(&dialect)
-        .with_tokens(tokens)
+        .with_tokens_with_locations(tokens)
         .parse_statements()
 }
 
 /// Insert `(`/`)` tokens around a `{...}` placeholder group that immediately
 /// follows an `IN` keyword, so the `IN` parser accepts it. Operates purely on
-/// the token stream (comments/whitespace are dropped by `tokenize`, string
-/// literals are opaque `Token::SingleQuotedString` values), so a `{` inside a
-/// string or comment is never matched.
+/// the token stream (string literals are opaque `Token::SingleQuotedString`
+/// values, comments are `Token::Whitespace`), so a `{` inside a string or
+/// comment is never matched. The injected parens get empty spans — they don't
+/// correspond to source text and are never span-matched downstream.
 ///
 /// Workaround for sqlparser bug — `IN {placeholder}` rejected without parens:
 /// https://github.com/apache/datafusion-sqlparser-rs/issues/2384
-fn wrap_in_placeholder_lists(tokens: Vec<Token>) -> Vec<Token> {
+fn wrap_in_placeholder_lists(tokens: Vec<TokenWithSpan>) -> Vec<TokenWithSpan> {
     let is_in_keyword =
-        |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::IN);
+        |t: &TokenWithSpan| matches!(&t.token, Token::Word(w) if w.keyword == Keyword::IN);
 
-    let mut out: Vec<Token> = Vec::with_capacity(tokens.len() + 4);
+    let mut out: Vec<TokenWithSpan> = Vec::with_capacity(tokens.len() + 4);
     let mut i = 0;
     while i < tokens.len() {
-        // Find the index of the previous non-whitespace token already emitted.
-        let prev_significant = out.iter().rev().find(|t| !is_whitespace(t));
-        if matches!(&tokens[i], Token::LBrace)
+        // Find the previous non-whitespace token already emitted.
+        let prev_significant = out.iter().rev().find(|t| !is_whitespace(&t.token));
+        if matches!(&tokens[i].token, Token::LBrace)
             && prev_significant.is_some_and(is_in_keyword)
             && let Some(close) = matching_brace_end(&tokens, i)
         {
-            out.push(Token::LParen);
+            out.push(TokenWithSpan::wrap(Token::LParen));
             out.extend_from_slice(&tokens[i..=close]);
-            out.push(Token::RParen);
+            out.push(TokenWithSpan::wrap(Token::RParen));
             i = close + 1;
             continue;
         }
@@ -173,10 +176,10 @@ fn is_whitespace(t: &Token) -> bool {
 /// Given the index of an `LBrace`, return the index of its matching `RBrace`,
 /// honoring nesting (a placeholder type like `Array(Map(...))` has no braces,
 /// but nest defensively in case ClickHouse param syntax grows them).
-fn matching_brace_end(tokens: &[Token], open: usize) -> Option<usize> {
+fn matching_brace_end(tokens: &[TokenWithSpan], open: usize) -> Option<usize> {
     let mut depth = 0usize;
     for (idx, t) in tokens.iter().enumerate().skip(open) {
-        match t {
+        match t.token {
             Token::LBrace => depth += 1,
             Token::RBrace => {
                 depth -= 1;
@@ -480,10 +483,14 @@ impl QueryValidator {
         self.validate_tables_and_columns(&statement)?;
 
         let cte_names = collect_cte_names(&statement);
+        // ARRAY JOIN right-hand sides are array columns, not table references —
+        // skip them so they aren't rewritten into `_v0(...)` view functions.
+        let array_join_spans = collect_array_join_spans(&statement);
         let mut rewriter = ViewRewriter {
             registry: &self.registry,
             project_id,
             cte_names,
+            array_join_spans: &array_join_spans,
             where_stack: Vec::new(),
             error: None,
         };
@@ -525,8 +532,13 @@ impl QueryValidator {
             return Err(format!("Function '{name}' is not allowed"));
         }
 
+        // The rewriter leaves ARRAY JOIN array-column relations untouched (they
+        // aren't tables), so they're still recognisable by span and must be
+        // exempted from the "everything allowlisted was rewritten" assertion.
+        let array_join_spans = collect_array_join_spans(statement);
         let mut checker = PostRewriteChecker {
             registry: &self.registry,
+            array_join_spans: &array_join_spans,
             error: None,
         };
         let _ = statement.visit(&mut checker);
@@ -557,9 +569,11 @@ impl QueryValidator {
 
     fn validate_tables_and_columns(&self, statement: &Statement) -> Result<(), String> {
         let cte_names = collect_cte_names(statement);
+        let array_join_spans = collect_array_join_spans(statement);
         let mut checker = TableColumnChecker {
             registry: &self.registry,
             cte_names: &cte_names,
+            array_join_spans: &array_join_spans,
             error: None,
         };
         let _ = statement.visit(&mut checker);
@@ -609,6 +623,53 @@ fn collect_cte_names(statement: &Statement) -> HashSet<String> {
     c.names
 }
 
+/// Source-span of an `ObjectName`'s last identifier, used to uniquely identify a
+/// particular relation occurrence in the original SQL (two textually identical
+/// names at different positions have different spans).
+fn relation_name_span(name: &ObjectName) -> Option<Span> {
+    match name.0.last()? {
+        ObjectNamePart::Identifier(ident) => Some(ident.span),
+        _ => None,
+    }
+}
+
+/// Collect the source spans of every relation that is the right-hand side of a
+/// ClickHouse `ARRAY JOIN`. In `... ARRAY JOIN clusters AS cluster_id`, `clusters`
+/// is an **array column** of the left table, not a table reference — `sqlparser`
+/// nonetheless models it as a `TableFactor::Table`. We key by span so the
+/// table/column visitors can recognise and skip exactly that occurrence without
+/// affecting a genuine `FROM clusters` elsewhere in the query.
+fn collect_array_join_spans(statement: &Statement) -> HashSet<Span> {
+    struct ArrayJoinCollector {
+        spans: HashSet<Span>,
+    }
+    impl Visitor for ArrayJoinCollector {
+        type Break = ();
+        fn pre_visit_select(&mut self, select: &Select) -> ControlFlow<()> {
+            for twj in &select.from {
+                for join in &twj.joins {
+                    if matches!(
+                        join.join_operator,
+                        JoinOperator::ArrayJoin
+                            | JoinOperator::LeftArrayJoin
+                            | JoinOperator::InnerArrayJoin
+                    ) && let TableFactor::Table { name, .. } = &join.relation
+                        && let Some(span) = relation_name_span(name)
+                    {
+                        self.spans.insert(span);
+                    }
+                }
+            }
+            ControlFlow::Continue(())
+        }
+    }
+    let mut c = ArrayJoinCollector {
+        spans: HashSet::new(),
+    };
+    let _ = statement.visit(&mut c);
+    c.spans
+}
+
 struct BlockedScanner {
     blocked: Option<String>,
 }
@@ -640,6 +701,7 @@ impl Visitor for BlockedScanner {
 struct TableColumnChecker<'a> {
     registry: &'a TableRegistry,
     cte_names: &'a HashSet<String>,
+    array_join_spans: &'a HashSet<Span>,
     error: Option<String>,
 }
 
@@ -647,6 +709,11 @@ impl Visitor for TableColumnChecker<'_> {
     type Break = ();
 
     fn pre_visit_relation(&mut self, name: &ObjectName) -> ControlFlow<()> {
+        // An ARRAY JOIN right-hand side is an array column of the left table,
+        // not a table reference — don't validate it against the table allowlist.
+        if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+            return ControlFlow::Continue(());
+        }
         let table = relation_table_name(name);
         if self.cte_names.contains(&table) {
             return ControlFlow::Continue(());
@@ -703,6 +770,7 @@ impl Visitor for TableColumnChecker<'_> {
 /// (one without table-function args) may remain.
 struct PostRewriteChecker<'a> {
     registry: &'a TableRegistry,
+    array_join_spans: &'a HashSet<Span>,
     error: Option<String>,
 }
 
@@ -711,6 +779,11 @@ impl Visitor for PostRewriteChecker<'_> {
 
     fn pre_visit_table_factor(&mut self, table_factor: &TableFactor) -> ControlFlow<()> {
         if let TableFactor::Table { name, args, .. } = table_factor {
+            // ARRAY JOIN array-column relations are intentionally left un-rewritten;
+            // they aren't tables, so don't flag them as "not project-scoped".
+            if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+                return ControlFlow::Continue(());
+            }
             // A view function (`spans_v0(...)`) carries args; a bare allowlisted
             // relation does not. The latter escaped rewriting — fail closed.
             if args.is_none() {
@@ -731,6 +804,7 @@ struct ViewRewriter<'a> {
     registry: &'a TableRegistry,
     project_id: &'a str,
     cte_names: HashSet<String>,
+    array_join_spans: &'a HashSet<Span>,
     where_stack: Vec<Option<Expr>>,
     error: Option<String>,
 }
@@ -753,6 +827,14 @@ impl VisitorMut for ViewRewriter<'_> {
             name, alias, args, ..
         } = table_factor
         {
+            // An ARRAY JOIN right-hand side is an array column of the left table,
+            // not a table reference — leave it exactly as written. (sqlparser
+            // models it as a `TableFactor::Table`, so without this guard we'd
+            // rewrite e.g. `ARRAY JOIN clusters` into `clusters_v0(...)`.)
+            if relation_name_span(name).is_some_and(|s| self.array_join_spans.contains(&s)) {
+                return ControlFlow::Continue(());
+            }
+
             let table_name = relation_table_name(name);
 
             // An allowlisted table name presented as a table function (e.g.
