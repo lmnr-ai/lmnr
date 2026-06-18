@@ -179,6 +179,20 @@ export const auth = betterAuth({
     },
   },
   socialProviders: getSocialProviders(),
+  session: {
+    // Serve session+user from a short-lived signed cookie instead of a Postgres
+    // round-trip on every getSession. Each navigation triggers getSession ~4x
+    // (middleware proxy.ts + the (auth), (app), and project layouts), and each
+    // call was 2 sequential round-trips (session row, then user row — the
+    // drizzle adapter doesn't join). cookieCache collapses all of that to an
+    // HMAC verify. Membership/authz freshness is unaffected (governed by the
+    // separate 30-day membership cache); the only staleness is name/email/avatar
+    // edits and cross-device session revocation lagging up to maxAge.
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
+  },
   plugins: [
     genericOAuth({ config: getGenericOAuthConfig() }),
     // Preserve a verifiable JWT for any consumer that expects one (parity with
