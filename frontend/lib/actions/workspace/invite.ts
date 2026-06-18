@@ -93,6 +93,19 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     throw new Error("Inviting members is not available on the Free plan. Please upgrade to invite team members.");
   }
 
+  // Don't invite someone who's already a member (the self-hosted branch already guards this).
+  const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+  if (existingUser) {
+    const [existingMembership] = await db
+      .select({ id: membersOfWorkspaces.id })
+      .from(membersOfWorkspaces)
+      .where(and(eq(membersOfWorkspaces.workspaceId, workspaceId), eq(membersOfWorkspaces.userId, existingUser.id)))
+      .limit(1);
+    if (existingMembership) {
+      throw new Error("This user is already a member of this workspace.");
+    }
+  }
+
   const [{ id }] = await db
     .insert(workspaceInvitations)
     .values({

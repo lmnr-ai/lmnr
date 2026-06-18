@@ -58,7 +58,7 @@ const QuickRangesList = ({
   onSelect,
   onAbsoluteClick,
   maxHours,
-  workspaceId,
+  billingHref,
   ranges = QUICK_RANGES,
   hideAbsoluteDate = false,
 }: {
@@ -66,7 +66,9 @@ const QuickRangesList = ({
   onSelect: (value: string) => void;
   onAbsoluteClick: () => void;
   maxHours?: number;
-  workspaceId?: string;
+  // Resolved by the caller (which has project context); kept a plain string so this ui/ primitive
+  // stays route-agnostic. Absent → no upgrade link.
+  billingHref?: string;
   ranges?: DateRange[];
   hideAbsoluteDate?: boolean;
 }) => (
@@ -108,11 +110,8 @@ const QuickRangesList = ({
                       Data retention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your
                       current plan.
                     </p>
-                    {workspaceId && (
-                      <Link
-                        href={`/workspace/${workspaceId}?tab=billing`}
-                        className="text-xs text-primary hover:underline"
-                      >
+                    {billingHref && (
+                      <Link href={billingHref} className="text-xs text-primary hover:underline">
                         Upgrade to see more data
                       </Link>
                     )}
@@ -231,7 +230,7 @@ export const DateRangeFilterInner = ({
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const searchParams = useSearchParams();
-  const { project, workspace } = useProjectContext();
+  const { project, settingsHref } = useProjectContext();
   const featureFlags = useFeatureFlags();
 
   const isSubscriptionEnabled = featureFlags[Feature.SUBSCRIPTION];
@@ -289,7 +288,7 @@ export const DateRangeFilterInner = ({
               onSelect={handleQuickRangeSelect}
               onAbsoluteClick={() => setShowCalendar(true)}
               maxHours={maxHours}
-              workspaceId={workspace?.id}
+              billingHref={project ? settingsHref("billing") : undefined}
               ranges={quickRanges}
               hideAbsoluteDate={hideAbsoluteDate}
             />

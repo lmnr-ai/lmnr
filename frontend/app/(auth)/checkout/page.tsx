@@ -5,6 +5,7 @@ import Stripe from "stripe";
 
 import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
+import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
@@ -50,7 +51,7 @@ export default async function CheckoutPage(props: {
     )?.id;
 
   if (!userId) {
-    redirect(`/workspace/${workspaceId}`);
+    redirect(await getWorkspaceSettingsPath(workspaceId!, "billing"));
   }
 
   if (!existingStripeCustomer?.stripeCustomerId) {
@@ -68,14 +69,18 @@ export default async function CheckoutPage(props: {
       });
   }
 
+  const billingSettingsPath = await getWorkspaceSettingsPath(workspaceId!, "billing");
+  // getWorkspaceSettingsPath can fall back to a query-less "/projects", so append the session id
+  // with the correct separator instead of assuming the path already has a "?".
+  const billingSeparator = billingSettingsPath.includes("?") ? "&" : "?";
   const successUrl =
     returnTo === "onboarding"
       ? `${process.env.NEXT_PUBLIC_URL}/onboarding?upgraded=true&sessionId={CHECKOUT_SESSION_ID}`
-      : `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
+      : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}${billingSeparator}sessionId={CHECKOUT_SESSION_ID}`;
   const cancelUrl =
     returnTo === "onboarding"
       ? `${process.env.NEXT_PUBLIC_URL}/onboarding`
-      : `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
+      : `${process.env.NEXT_PUBLIC_URL}${billingSettingsPath}`;
 
   // Only send the flat plan price to checkout – overage prices are added
   // server-side in the subscription.created webhook to avoid confusing

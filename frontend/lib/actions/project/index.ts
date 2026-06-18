@@ -9,9 +9,6 @@ import { projectApiKeys, projects, subscriptionTiers, workspaces } from "@/lib/d
 
 import { DEFAULT_PROJECT_SETTINGS, type ProjectSettings, ProjectSettingsSchema } from "./settings";
 
-const LAST_PROJECT_ID = "last-project-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
-
 export const DeleteProjectSchema = z.object({
   projectId: z.guid(),
 });
@@ -24,10 +21,41 @@ export const UpdateProjectSchema = z.object({
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
 
+  // A workspace must always retain at least one project — refuse to delete the last one.
+  // Guard + delete run in one transaction with the sibling rows locked FOR UPDATE, so two
+  // concurrent deletes can't both pass the count check and empty the workspace.
+  const { workspaceId, apiKeyHashes } = await db.transaction(async (tx) => {
+    const projectRow = await tx.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+      columns: { workspaceId: true },
+    });
+    if (!projectRow) {
+      throw new Error("Project not found");
+    }
+
+    const siblingProjects = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.workspaceId, projectRow.workspaceId))
+      .for("update");
+    if (siblingProjects.length <= 1) {
+      throw new Error("Cannot delete the only project in a workspace");
+    }
+
+    // Capture the api key hashes before the cascade delete removes the rows — we still
+    // need them to evict the matching cache entries afterwards.
+    const apiKeys = await tx.query.projectApiKeys.findMany({
+      where: eq(projectApiKeys.projectId, projectId),
+      columns: { hash: true },
+    });
+
+    await tx.delete(projects).where(eq(projects.id, projectId));
+    const apiKeyHashes = apiKeys.flatMap((k) => (k.hash ? [k.hash] : []));
+    return { workspaceId: projectRow.workspaceId, apiKeyHashes };
+  });
+
   try {
-    // Make sure to delete the project api keys first, because they will be
-    // cascade deleted from db once we delete the project.
-    const result = await deleteProjectApiKeysFromCache(projectId);
+    const result = await deleteProjectApiKeysFromCache(apiKeyHashes);
     if (!result.success) {
       console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
     }
@@ -35,20 +63,8 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     console.error("Failed to delete project api keys from cache", error);
   }
 
-  const workspaceId = await db.query.projects.findFirst({
-    where: eq(projects.id, projectId),
-    columns: {
-      workspaceId: true,
-    },
-  });
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 
-  if (!workspaceId) {
-    throw new Error("Project not found");
-  }
-
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
-
-  await db.delete(projects).where(eq(projects.id, projectId));
   const result = await deleteProjectDataFromClickHouse(projectId);
 
   if (!result.success) {
@@ -114,14 +130,10 @@ async function deleteProjectDataFromClickHouse(
   );
 }
 
-async function deleteProjectApiKeysFromCache(projectId: string) {
-  const apiKeys = await db.query.projectApiKeys.findMany({
-    where: eq(projectApiKeys.projectId, projectId),
-  });
-
+async function deleteProjectApiKeysFromCache(apiKeyHashes: string[]) {
   const results = await Promise.allSettled(
-    apiKeys.map(async (apiKey) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
+    apiKeyHashes.map(async (hash) => {
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
       try {
         await cache.remove(cacheKey);
         return { success: true };
@@ -133,7 +145,7 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
 
   return results.reduce<{ success: true } | { success: false; failedKeys: string[] }>(
     (acc, curr, index) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeys[index].hash}`;
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeyHashes[index]}`;
       if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
         if ("failedKeys" in acc) {
           return { success: false, failedKeys: [...acc.failedKeys, cacheKey] };
@@ -275,5 +287,3 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     settings,
   };
 };
-
-export { LAST_PROJECT_ID, MAX_AGE };

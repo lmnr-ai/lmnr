@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod/v4";
 
+import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
@@ -24,17 +25,30 @@ export async function GET(request: NextRequest): Promise<Response> {
   // valid absolute redirect target (NextResponse.redirect rejects a malformed
   // `undefined/...` URL) rather than throwing from the misconfiguration path.
   const errorBase = baseUrl ?? request.nextUrl.origin;
-  const errorRedirect = `${errorBase}/workspace/${workspaceId ?? ""}?tab=integrations&slack=error`;
+  // Settings live at /project/[id]/settings — prefer the caller's returnPath, else resolve the
+  // workspace's project, else fall back to /projects (workspaceId may be missing/invalid here).
+  const buildErrorRedirect = async (): Promise<string> => {
+    if (returnPath && returnPath.startsWith("/") && !returnPath.startsWith("//")) {
+      const sep = returnPath.includes("?") ? "&" : "?";
+      return `${errorBase}${returnPath}${sep}slack=error`;
+    }
+    if (workspaceId && z.guid().safeParse(workspaceId).success) {
+      const settingsPath = await getWorkspaceSettingsPath(workspaceId, "integrations");
+      const sep = settingsPath.includes("?") ? "&" : "?";
+      return `${errorBase}${settingsPath}${sep}slack=error`;
+    }
+    return `${errorBase}/projects?slack=error`;
+  };
 
   if (!brokerUrl || !licenseKey || !baseUrl) {
     console.error("Slack broker connect attempted without SLACK_BROKER_URL / LMNR_LICENSE_KEY / NEXT_PUBLIC_URL");
-    return NextResponse.redirect(errorRedirect);
+    return NextResponse.redirect(await buildErrorRedirect());
   }
   // Validate workspaceId as a UUID up front (matching the direct OAuth path's
   // z.guid()) so a malformed id fails fast here instead of embedding garbage in
   // the broker returnUrl and bouncing off the broker's own z.guid() with a 400.
   if (workspaceId === null || !z.guid().safeParse(workspaceId).success) {
-    return NextResponse.redirect(errorRedirect);
+    return NextResponse.redirect(await buildErrorRedirect());
   }
 
   // This route is browser-facing (the connect button links the browser here), so
@@ -45,7 +59,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // before redeeming the resulting claim.
   const session = await getServerSession();
   if (!session || !(await isUserMemberOfWorkspace(workspaceId, session.user.id))) {
-    return NextResponse.redirect(errorRedirect);
+    return NextResponse.redirect(await buildErrorRedirect());
   }
 
   const callback = new URL(`${baseUrl.replace(/\/+$/, "")}/api/integrations/slack`);
@@ -66,7 +80,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     if (!response.ok) {
       console.error(`Slack broker /start failed with status ${response.status}`);
-      return NextResponse.redirect(errorRedirect);
+      return NextResponse.redirect(await buildErrorRedirect());
     }
 
     const { authorizeUrl } = (await response.json()) as { authorizeUrl: string };
@@ -82,11 +96,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
     if (authorizeHost !== "slack.com") {
       console.error(`Slack broker returned unexpected authorizeUrl host: ${authorizeHost}`);
-      return NextResponse.redirect(errorRedirect);
+      return NextResponse.redirect(await buildErrorRedirect());
     }
     return NextResponse.redirect(authorizeUrl);
   } catch (e) {
     console.error("Slack broker /start error:", e);
-    return NextResponse.redirect(errorRedirect);
+    return NextResponse.redirect(await buildErrorRedirect());
   }
 }
