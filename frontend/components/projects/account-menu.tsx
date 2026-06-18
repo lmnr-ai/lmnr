@@ -13,6 +13,7 @@ import { deleteLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
 import { signOut } from "@/lib/auth-client";
 import { Feature } from "@/lib/features/features";
+import { WorkspaceTier } from "@/lib/workspaces/types";
 
 // Account section at the bottom of the project picker dropdown (user row + upgrade + log out).
 const AccountMenu = () => {
@@ -21,7 +22,8 @@ const AccountMenu = () => {
   const { broadcastLogout } = useSessionSync();
   const features = useFeatureFlags();
 
-  const showUpgrade = features[Feature.SUBSCRIPTION] && workspace?.tierName !== "Pro";
+  // Only Free workspaces should be nudged to upgrade — paid tiers (Hobby/Pro/Enterprise) shouldn't.
+  const showUpgrade = features[Feature.SUBSCRIPTION] && workspace?.tierName === WorkspaceTier.FREE;
 
   const handleLogout = async () => {
     try {
