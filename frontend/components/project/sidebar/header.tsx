@@ -33,12 +33,9 @@ import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
 
-// List self-bounds to (available popover height, capped at 80vh) minus the fixed chrome
-// (header + footer + account menu), so the list scrolls and the outer popover never does.
-// Applied to the ScrollArea root AND its viewport ([&>div]); [&>div>div] unsets Radix's
-// display:table content wrapper so long names truncate instead of widening the row.
-const LIST_MAX_H =
-  "max-h-[calc(min(80vh,var(--radix-dropdown-menu-content-available-height))_-_14rem)] [&>div]:max-h-[calc(min(80vh,var(--radix-dropdown-menu-content-available-height))_-_14rem)] [&>div>div]:block!";
+// 60vh scroll cap; the rest of the popover is fixed-height. Needs max-h on both the ScrollArea
+// root and viewport ([&>div]) to scroll; [&>div>div]:block! defeats Radix's display:table wrapper.
+const LIST_MAX_H = "max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!";
 
 // Hierarchy left→right: [Workspaces] (parent) → [Projects in X] (child).
 // dir < 0 = move left toward the parent (workspaces); dir > 0 = move right back to projects.
@@ -142,7 +139,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0 max-h-[80vh]"
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0"
                 align="start"
                 sideOffset={4}
                 side={isMobile ? "bottom" : "right"}
