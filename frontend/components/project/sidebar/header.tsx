@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SidebarHeader,
   SidebarMenu,
@@ -169,8 +170,8 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                           </div>
                         </div>
                         <DropdownMenuSeparator className="m-0" />
-                        <div className="p-1">
-                          <div className="max-h-[600px] overflow-y-auto">
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
+                          <div className="p-1">
                             {projectsLoading ? (
                               <div className="p-1 text-muted-foreground">Loading…</div>
                             ) : (
@@ -199,7 +200,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               ))
                             )}
                           </div>
-                          <DropdownMenuSeparator className="mx-0" />
+                        </ScrollArea>
+                        <DropdownMenuSeparator className="m-0" />
+                        <div className="p-1">
                           {/* Hidden until projects load so the Free-tier gate sees the real count. */}
                           {!projectsLoading && (
                             <ProjectCreateDialog
@@ -226,8 +229,11 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                         transition={{ duration: 0.18, ease: "easeInOut" }}
                       >
                         <div className="p-1">
-                          <div className="pl-2 py-1 text-secondary-foreground mb-1">Workspaces</div>
-                          <div className="max-h-[600px] overflow-y-auto">
+                          <div className="pl-2 py-1 text-secondary-foreground">Workspaces</div>
+                        </div>
+                        <DropdownMenuSeparator className="m-0" />
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
+                          <div className="p-1">
                             {workspaces?.map((w) => (
                               <DropdownMenuItem
                                 key={w.id}
@@ -254,7 +260,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                               </DropdownMenuItem>
                             ))}
                           </div>
-                          <DropdownMenuSeparator className="mx-0" />
+                        </ScrollArea>
+                        <DropdownMenuSeparator className="m-0" />
+                        <div className="p-1">
                           <WorkspaceCreateDialog>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
                               <Plus className="size-4" />
