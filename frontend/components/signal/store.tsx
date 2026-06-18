@@ -319,6 +319,9 @@ export const createSignalStore = (initProps: EventsProps) =>
         const res = await fetch(statsUrl, { signal: abortSignal });
         if (!res.ok) throw new Error("Failed to fetch signal run stats");
         const data = (await res.json()) as { items: { timestamp: string; count: number }[] };
+        // A cleanly-resolved fetch can't be caught by the AbortError branch, so guard here
+        // before overwriting the runTotals the superseding request already cleared.
+        if (abortSignal?.aborted) return;
         set({ runTotals: data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })) });
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
