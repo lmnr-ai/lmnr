@@ -48,8 +48,12 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::RabbitMQ => std::env::var(env::mq::URL).is_ok(),
         Feature::SqlQueryEngine => std::env::var(env::connections::QUERY_ENGINE_URL).is_ok(),
         Feature::ClickhouseReadOnly => {
-            std::env::var(env::clickhouse::RO_USER).is_ok()
-                && std::env::var(env::clickhouse::RO_PASSWORD).is_ok()
+            // Enabled whenever ClickHouse is configured. Dedicated read-only
+            // credentials (CLICKHOUSE_RO_USER / CLICKHOUSE_RO_PASSWORD) are used
+            // when present; otherwise the read-only client falls back to the main
+            // ClickHouse credentials (see main.rs), so self-hosted deployments get
+            // a working SQL editor and dashboards out of the box.
+            std::env::var(env::clickhouse::URL).is_ok()
         }
         Feature::Tracing => {
             std::env::var(env::observability::SENTRY_DSN).is_ok()

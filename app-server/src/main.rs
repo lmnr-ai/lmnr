@@ -914,7 +914,7 @@ fn main() -> anyhow::Result<()> {
     let clickhouse_password = std::env::var(env::clickhouse::PASSWORD);
     let clickhouse_client = clickhouse::Client::default()
         .with_url(clickhouse_url.clone())
-        .with_user(clickhouse_user)
+        .with_user(clickhouse_user.clone())
         .with_database("default")
         // Validation switches the write format from RowBinary to RowBinaryWithNamesAndTypes.
         // https://clickhouse.com/docs/interfaces/formats/RowBinaryWithNamesAndTypes
@@ -937,8 +937,8 @@ fn main() -> anyhow::Result<()> {
         .with_setting("async_insert", "1")
         .with_setting("wait_for_async_insert", "1");
 
-    let clickhouse = match clickhouse_password {
-        Ok(password) => clickhouse_client.with_password(password),
+    let clickhouse = match &clickhouse_password {
+        Ok(password) => clickhouse_client.with_password(password.clone()),
         _ => {
             log::warn!("CLICKHOUSE_PASSWORD not set, using without password");
             clickhouse_client
@@ -947,10 +947,16 @@ fn main() -> anyhow::Result<()> {
 
     // == Clickhouse Read-Only Client ==
     let clickhouse_readonly_client = if is_feature_enabled(Feature::ClickhouseReadOnly) {
-        let clickhouse_ro_user =
-            std::env::var(env::clickhouse::RO_USER).expect("CLICKHOUSE_RO_USER must be set");
+        // Dedicated read-only credentials are optional: when CLICKHOUSE_RO_USER /
+        // CLICKHOUSE_RO_PASSWORD aren't set, fall back to the main ClickHouse
+        // credentials so the SQL editor and dashboards work on self-hosted
+        // deployments without extra configuration. The public SQL path is still
+        // guarded by the query-engine validator and per-query limits, not by a
+        // privileged read-only ClickHouse user.
+        let clickhouse_ro_user = std::env::var(env::clickhouse::RO_USER)
+            .unwrap_or_else(|_| clickhouse_user.clone());
         let clickhouse_ro_password = std::env::var(env::clickhouse::RO_PASSWORD)
-            .expect("CLICKHOUSE_RO_PASSWORD must be set");
+            .unwrap_or_else(|_| clickhouse_password.clone().unwrap_or_default());
 
         Some(Arc::new(crate::sql::ClickhouseReadonlyClient::new(
             clickhouse_url,
