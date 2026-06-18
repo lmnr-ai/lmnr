@@ -15,10 +15,9 @@ anyhow = "1"
 arc-swap = "1.7"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.8.17"
-aws-sdk-bedrockruntime = "1.131.0"
-aws-sdk-s3 = "1.133.0"
-aws-smithy-types = "1.4.8"
+aws-config = "1.8.18"
+aws-sdk-bedrockruntime = {version = "1.135.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-s3 =  {version = "1.137.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
 blake3 = "1.8"
@@ -47,7 +46,7 @@ opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
 ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
-rand = "0.9.4"
+rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
 regex = "1.12.3"
@@ -63,7 +62,7 @@ serde_json = {version = "1.0.149", features = ["preserve_order"]}
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
 sqlparser = {version = "0.62", features = ["visitor"]}
-sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
+sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
 tikv-jemallocator = "0.6.0"
 tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
@@ -75,7 +74,6 @@ tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
 # Mappings usually updated on major releases: https://github.com/tokio-rs/tracing-opentelemetry/releases
 # There are newer versions of both this crate and `opentelemetry`, but `sentry-opentelemetry` is still pinned to 0.29.0
-# TODO: see if we still need to have sentry-opentelemetry or if we can go with `tracing` only
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 unicode-normalization = "0.1"

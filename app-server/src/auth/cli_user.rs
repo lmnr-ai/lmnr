@@ -322,7 +322,7 @@ mod tests {
     use ed25519_dalek::SigningKey;
     use ed25519_dalek::pkcs8::EncodePrivateKey;
     use jsonwebtoken::{EncodingKey, Header, encode};
-    use rand::RngCore;
+    use rand::Rng;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
