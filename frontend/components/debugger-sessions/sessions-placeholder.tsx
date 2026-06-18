@@ -39,7 +39,7 @@ const DEBUG_LOOP_STEPS = [
   "Run the agent in debug mode.",
   "Read and evaluate the resulting trace in Laminar",
   "Make changes to the code.",
-  "Rerun the agent with working steps cached so each turn is fast and cheap.",
+  "Rerun the agent with successful steps cached so each iteration is fast and cheap.",
 ];
 
 // Startup / onboarding page shown when a project has no debugger sessions yet,
@@ -56,7 +56,8 @@ export default function SessionsPlaceholder() {
             <h1 className="text-2xl font-medium">Get started with Debugger</h1>
             <div className="flex flex-col gap-5 text-muted-foreground leading-6">
               <p>
-                Laminar debugger gives your coding agent the tools it needs at every step of the agent development loop.
+                Laminar debugger gives your coding agent the tools they need at every step of the agent development
+                loop.
               </p>
               <ol className="flex flex-col gap-2">
                 {DEBUG_LOOP_STEPS.map((step, i) => (
