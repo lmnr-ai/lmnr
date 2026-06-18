@@ -189,7 +189,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let internal_tracing_enabled = is_feature_enabled(Feature::InternalTracing);
-    let (_internal_tracer_provider, internal_ingest_deps) =
+    let (internal_tracer_provider, internal_ingest_deps) =
         instrumentation::setup_tracing_and_logging(
             is_feature_enabled(Feature::Tracing),
             internal_tracing_enabled,
@@ -1940,5 +1940,15 @@ fn main() -> anyhow::Result<()> {
         );
         handle.join().expect("thread is not panicking")?;
     }
+
+    // Servers have stopped (SIGTERM); the runtime + ingest deps are still alive here.
+    // Flush buffered internal spans so freshly-minted signal.run roots aren't lost on a
+    // rolling deploy, which would orphan their child spans ingested by surviving pods.
+    if let Some(provider) = internal_tracer_provider {
+        if let Err(e) = provider.force_flush() {
+            log::warn!("Failed to flush internal tracer provider on shutdown: {e:?}");
+        }
+    }
+
     Ok(())
 }
