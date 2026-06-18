@@ -7,7 +7,6 @@ import laminarIcon from "@/assets/logo/icon.svg";
 import laminarWordmark from "@/assets/logo/laminar-wordmark.svg";
 import VersionBadge from "@/components/common/version-badge.tsx";
 import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
-import { IconGitHub } from "@/components/ui/icons";
 import {
   SidebarFooter,
   SidebarGroup,
@@ -48,14 +47,6 @@ const SidebarFooterComponent = () => {
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem className="h-7">
-              <SidebarMenuButton tooltip="Github" asChild>
-                <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
-                  <IconGitHub className="w-4 h-4" />
-                  <span>Github</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Docs" asChild>
                 <Link href="https://laminar.sh/docs" target="_blank" rel="noopener noreferrer">
@@ -69,7 +60,7 @@ const SidebarFooterComponent = () => {
                 {/* mask + bg tint: the SVGs are hard fill="white", so next/image can't be recolored */}
                 <span
                   aria-label="Laminar"
-                  className={cn("block bg-surface-200", open || openMobile ? "w-32" : "w-[35px]")}
+                  className={cn("block bg-secondary-foreground/30", open || openMobile ? "w-30" : "w-[35px]")}
                   style={{
                     maskImage: `url(${logo.src})`,
                     WebkitMaskImage: `url(${logo.src})`,
