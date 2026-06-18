@@ -3,11 +3,54 @@ use async_stream::stream;
 use dashmap::DashMap;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::pubsub::{PubSub, PubSubTrait, SseChannel, keys::SSE_CHANNEL_PATTERN};
+
+/// Origins permitted to open SSE connections. The frontend origin
+/// (`NEXT_PUBLIC_URL`) is always included; additional origins come from the
+/// comma-separated `SSE_ALLOWED_ORIGINS`. A trailing slash is normalized away
+/// so `https://app.example.com/` and `https://app.example.com` compare equal.
+static ALLOWED_SSE_ORIGINS: LazyLock<HashSet<String>> = LazyLock::new(|| {
+    let frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or_default();
+    let extra = std::env::var(crate::env::server::SSE_ALLOWED_ORIGINS).unwrap_or_default();
+    build_allowed_origins(&frontend, &extra)
+});
+
+/// Build the allow-list from the frontend origin plus a comma-separated list.
+/// Trailing slashes are normalized away and blanks dropped so the set holds
+/// canonical origins. Pure so the parsing is unit-testable without env state.
+fn build_allowed_origins(frontend_url: &str, extra_csv: &str) -> HashSet<String> {
+    std::iter::once(frontend_url)
+        .chain(extra_csv.split(','))
+        .map(|raw| raw.trim().trim_end_matches('/'))
+        .filter(|origin| !origin.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// Echo the request's `Origin` back only when it is on the allow-list.
+/// Returns `None` (no `Access-Control-Allow-Origin` header) otherwise — the
+/// SSE endpoint must never reply with a wildcard `*`, which would let any site
+/// read a project's realtime trace data.
+fn resolve_cors_origin(request_origin: Option<&str>) -> Option<String> {
+    match_allowed_origin(request_origin, &ALLOWED_SSE_ORIGINS)
+}
+
+/// Pure matcher: returns the original origin string when its slash-normalized
+/// form is in `allowed`. Split out from `resolve_cors_origin` so the matching
+/// rule can be tested without touching the env-backed global allow-list.
+fn match_allowed_origin(request_origin: Option<&str>, allowed: &HashSet<String>) -> Option<String> {
+    let origin = request_origin?;
+    if allowed.contains(origin.trim_end_matches('/')) {
+        Some(origin.to_string())
+    } else {
+        None
+    }
+}
 
 /// Connection with unique ID for tracking
 #[derive(Clone)]
@@ -54,6 +97,7 @@ pub fn create_sse_response(
     subscription_key: SubscriptionKey,
     connections: SseConnectionMap,
     initial_message: Option<SseMessage>,
+    request_origin: Option<String>,
 ) -> ActixResult<HttpResponse> {
     let (sender, receiver) = mpsc::unbounded_channel();
     let connection_id = Uuid::new_v4();
@@ -139,14 +183,21 @@ pub fn create_sse_response(
 
     let stream = create_sse_stream(receiver);
 
-    Ok(HttpResponse::Ok()
+    let mut response = HttpResponse::Ok();
+    response
         .insert_header(("Content-Type", "text/event-stream"))
         .insert_header(("Cache-Control", "no-cache"))
         .insert_header(("Connection", "keep-alive"))
         .insert_header(("X-Accel-Buffering", "no"))
-        .insert_header(("Access-Control-Allow-Origin", "*"))
         .insert_header(("Access-Control-Allow-Headers", "Cache-Control"))
-        .streaming(stream))
+        // Response varies by Origin since the ACAO header is reflected per-origin.
+        .insert_header(("Vary", "Origin"));
+
+    if let Some(allowed_origin) = resolve_cors_origin(request_origin.as_deref()) {
+        response.insert_header(("Access-Control-Allow-Origin", allowed_origin));
+    }
+
+    Ok(response.streaming(stream))
 }
 
 /// Send message to local SSE connections only (used by Redis subscriber)
@@ -260,4 +311,55 @@ pub async fn start_redis_subscriber(
         })
         .await
         .map_err(|e| anyhow::anyhow!("Redis subscriber failed: {:?}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn allowed() -> HashSet<String> {
+        build_allowed_origins(
+            "https://app.example.com/",
+            "https://dash.example.com, https://extra.example.com/ ,",
+        )
+    }
+
+    #[test]
+    fn build_allowed_origins_normalizes_and_drops_blanks() {
+        let set = allowed();
+        assert!(set.contains("https://app.example.com")); // trailing slash stripped
+        assert!(set.contains("https://dash.example.com")); // whitespace trimmed
+        assert!(set.contains("https://extra.example.com")); // slash + whitespace
+        assert!(!set.contains("")); // empty trailing csv entry dropped
+        assert_eq!(set.len(), 3);
+    }
+
+    #[test]
+    fn build_allowed_origins_empty_inputs_yield_empty_set() {
+        assert!(build_allowed_origins("", "").is_empty());
+        assert!(build_allowed_origins("", ",  ,").is_empty());
+    }
+
+    #[test]
+    fn match_reflects_allowed_origin_verbatim() {
+        let set = allowed();
+        // Reflected with its original (un-normalized) form so the browser's
+        // exact Origin is echoed back.
+        assert_eq!(
+            match_allowed_origin(Some("https://app.example.com"), &set),
+            Some("https://app.example.com".to_string())
+        );
+        assert_eq!(
+            match_allowed_origin(Some("https://app.example.com/"), &set),
+            Some("https://app.example.com/".to_string())
+        );
+    }
+
+    #[test]
+    fn match_rejects_unlisted_origin() {
+        let set = allowed();
+        assert_eq!(match_allowed_origin(Some("https://evil.example.com"), &set), None);
+        // No wildcard fallback: an absent Origin header yields no ACAO header.
+        assert_eq!(match_allowed_origin(None, &set), None);
+    }
 }
