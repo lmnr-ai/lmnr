@@ -11,8 +11,6 @@ use sqlparser::ast::{
     LimitClause, ObjectName, ObjectNamePart, OrderByExpr, OrderByKind, Query, Select, SelectItem,
     SetExpr, Statement, Value,
 };
-use sqlparser::dialect::ClickHouseDialect;
-use sqlparser::parser::Parser;
 use std::collections::HashSet;
 
 use super::types::{Filter, FilterValue, Metric, OrderBy, QueryStructure, TimeRange};
@@ -21,7 +19,10 @@ const DEFAULT_START_TIME: &str = "{start_time:DateTime64}";
 const DEFAULT_END_TIME: &str = "{end_time:DateTime64}";
 
 pub fn convert_sql_to_json(sql: &str) -> Result<QueryStructure, String> {
-    let mut statements = Parser::parse_sql(&ClickHouseDialect {}, sql)
+    // Use the shared parse shim (not `Parser::parse_sql` directly) to work
+    // around a sqlparser bug where `IN {placeholder}` is rejected without
+    // surrounding parens: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+    let mut statements = super::validator::parse_clickhouse_sql(sql)
         .map_err(|e| format!("Failed to parse SQL: {e}"))?;
 
     if statements.len() != 1 {

@@ -221,6 +221,28 @@ fn test_raw_sql_metric_rejects_blocked_functions() {
 }
 
 #[test]
+fn test_raw_sql_metric_rejects_typed_dict_get() {
+    // The raw-expression path shares the validator's blocked-function check, so
+    // the prefix-blocked typed dictGet family is rejected here too.
+    let q = QueryStructure {
+        table: "spans".to_string(),
+        metrics: vec![metric(
+            "raw",
+            "dictGetString('shared_content_dict', 'content', tuple(1, 2))",
+            Some("bad"),
+        )],
+        dimensions: vec!["name".to_string()],
+        filters: time_filters(),
+        time_range: None,
+        order_by: vec![],
+        limit: None,
+    };
+
+    let err = convert_json_to_sql(&q).unwrap_err();
+    assert!(err.contains("not allowed"), "got: {err}");
+}
+
+#[test]
 fn test_raw_sql_metric_rejects_multiple_expressions() {
     let q = QueryStructure {
         table: "spans".to_string(),

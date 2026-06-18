@@ -623,7 +623,10 @@ ORDER BY time_bucket WITH FILL STEP INTERVAL 1 MINUTE
 }
 
 #[test]
-fn test_nested_cte() {
+fn test_nested_cte_shadowing_protected_table_rejected() {
+    // A CTE named `spans` defined in an inner scope must not make the outer
+    // `FROM spans` (the real physical table) skip project-scoping. We reject the
+    // collision outright so the outer reference can never escape the rewrite.
     let query = r#"
         SELECT * FROM spans
         WHERE trace_id IN (
@@ -631,6 +634,170 @@ fn test_nested_cte() {
           SELECT trace_id FROM spans
         )
     "#;
+    let err = validate(query).expect_err("CTE shadowing a protected table must be rejected");
+    assert!(
+        err.contains("collides with a protected table name"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_cte_shadowing_protected_table_top_level_rejected() {
+    // Same collision at the top level.
+    let query = r#"
+        WITH spans AS (SELECT trace_id FROM traces)
+        SELECT trace_id FROM spans
+    "#;
+    let err = validate(query).expect_err("CTE shadowing a protected table must be rejected");
+    assert!(
+        err.contains("collides with a protected table name"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_cte_with_safe_name_still_allowed() {
+    // A CTE whose name doesn't collide with a protected table is unaffected;
+    // the inner `spans` reference is still rewritten to the scoped view.
+    let query = r#"
+        WITH span_ids AS (SELECT trace_id FROM spans)
+        SELECT trace_id FROM span_ids
+    "#;
     let result = validate_ok(query);
-    println!("{result}");
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+    assert!(contains_ws(&result, "FROM span_ids"), "got: {result}");
+}
+
+#[test]
+fn test_reject_typed_dict_and_join_get_functions() {
+    // Typed / suffixed variants of the dictionary + joinGet families must be
+    // blocked by prefix, not just the bare names — they can read another
+    // project's data out of a `(project_id, ...)`-keyed dictionary.
+    let blocked = [
+        "SELECT dictGetString('shared_content_dict', 'content', tuple(1, 2)) FROM spans",
+        "SELECT dictGetUInt64('d', 'a', 1) FROM spans",
+        "SELECT dictGetOrDefault('d', 'a', 1, 0) FROM spans",
+        "SELECT dictGetHierarchy('d', 1) FROM spans",
+        "SELECT dictIsIn('d', 1, 2) FROM spans",
+        "SELECT joinGet('j', 'a', 1) FROM spans",
+        "SELECT joinGetOrNull('j', 'a', 1) FROM spans",
+    ];
+    for query in blocked {
+        let err = validate(query).expect_err(&format!("expected rejection for: {query}"));
+        assert!(err.contains("not allowed"), "query {query} gave: {err}");
+    }
+}
+
+#[test]
+fn test_reject_info_disclosure_functions() {
+    let blocked = [
+        "SELECT currentDatabase() FROM spans",
+        "SELECT currentUser() FROM spans",
+        "SELECT hostName() FROM spans",
+        "SELECT getSetting('max_threads') FROM spans",
+    ];
+    for query in blocked {
+        let err = validate(query).expect_err(&format!("expected rejection for: {query}"));
+        assert!(err.contains("not allowed"), "query {query} gave: {err}");
+    }
+}
+
+#[test]
+fn test_reject_allowlisted_table_as_table_function() {
+    // Presenting an allowlisted table name with arg qualifiers must be rejected
+    // rather than left as a bare, unscoped relation.
+    let err = validate("SELECT * FROM spans(1)")
+        .expect_err("allowlisted table used as a table function must be rejected");
+    assert!(
+        err.contains("cannot be used as a table function"),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn test_in_with_array_placeholder_unparenthesized() {
+    // Bare `IN {p:Array(...)}` (no parens) is what the frontend sends; upstream
+    // sqlparser can't parse it, so we wrap it. Both the bare and parenthesized
+    // forms must validate and preserve the placeholder verbatim.
+    let bare = r#"
+        SELECT span_id FROM spans
+        WHERE span_id IN {spanIds: Array(UUID)}
+    "#;
+    let result = validate_ok(bare);
+    assert!(
+        contains_ws(&result, "span_id IN ({spanIds: Array(UUID)})"),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            &format!("FROM spans_v0(project_id = '{SAMPLE_PROJECT_ID}') AS spans")
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_with_array_placeholder_full_query() {
+    // The exact failing query shape from the bug report.
+    let query = r#"
+        SELECT
+          span_id as spanId,
+          if(span_type = 'TOOL', input, output) as data,
+          name
+        FROM spans
+        WHERE trace_id = {traceId: UUID}
+          AND span_id IN {spanIds: Array(UUID)}
+          AND span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')
+          AND start_time >= {startDate: String}
+        AND start_time <= {endDate: String}
+    "#;
+    let result = validate_ok(query);
+    // Placeholder list preserved; literal `IN (...)` list untouched.
+    assert!(
+        contains_ws(&result, "span_id IN ({spanIds: Array(UUID)})"),
+        "got: {result}"
+    );
+    assert!(
+        contains_ws(
+            &result,
+            "span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')"
+        ),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_in_placeholder_inside_string_literal_not_rewritten() {
+    // A brace group that only appears inside a string literal must NOT be
+    // treated as a placeholder list — the tokenizer makes it opaque, so the
+    // `IN ('...')` here stays a normal literal list.
+    let query = r#"
+        SELECT span_id FROM spans
+        WHERE name IN ('a IN {not a placeholder}', 'b')
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, "name IN ('a IN {not a placeholder}', 'b')"),
+        "got: {result}"
+    );
+}
+
+#[test]
+fn test_not_in_with_array_placeholder() {
+    let query = r#"
+        SELECT span_id FROM spans
+        WHERE span_id NOT IN {spanIds: Array(UUID)}
+    "#;
+    let result = validate_ok(query);
+    assert!(
+        contains_ws(&result, "span_id NOT IN ({spanIds: Array(UUID)})"),
+        "got: {result}"
+    );
 }

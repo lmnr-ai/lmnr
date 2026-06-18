@@ -16,7 +16,9 @@ use sqlparser::ast::{
     Visit, VisitMut, Visitor, VisitorMut,
 };
 use sqlparser::dialect::ClickHouseDialect;
+use sqlparser::keywords::Keyword;
 use sqlparser::parser::Parser;
+use sqlparser::tokenizer::{Token, Tokenizer};
 
 const VIEW_VERSION: &str = "v0";
 
@@ -59,11 +61,21 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
             // DoS via server-side delays
             "sleep",
             "sleepeachrow",
-            // Dictionary access (bypasses table validation)
+            // Dictionary / join-table access (bypasses table validation). The
+            // `dictGet*` / `joinGet*` families are also caught by prefix in
+            // `is_blocked_function`; the explicit entries document intent.
             "dictget",
             "dictgetordefault",
             "dictgetornull",
             "dicthas",
+            "joinget",
+            "joingetornull",
+            // Server / session info disclosure
+            "getsetting",
+            "currentdatabase",
+            "currentuser",
+            "hostname",
+            "getmacro",
             // Server memory layout disclosure
             "addresstoline",
             "addresstolinewithinlines",
@@ -75,12 +87,107 @@ fn blocked_functions() -> &'static HashSet<&'static str> {
     })
 }
 
+/// Function-name prefixes that cover an entire family of dangerous functions
+/// whose typed/suffixed variants would otherwise slip past the exact-match set
+/// (e.g. `dictGetString`, `dictGetUInt64`, `dictGetHierarchy`, `dictIsIn`,
+/// `joinGetOrNull`). Matched against the lowercased last name part.
+const BLOCKED_FUNCTION_PREFIXES: &[&str] = &["dictget", "dicthas", "dictis", "joinget"];
+
+/// Returns true if a (lowercased) function / relation name is blocked, by exact
+/// match against `blocked_functions` or by dangerous-family prefix. Centralising
+/// the decision keeps the relation scanner, expression scanner, and the
+/// json_to_sql raw-expression path consistent.
+fn is_blocked_function(name: &str) -> bool {
+    blocked_functions().contains(name)
+        || BLOCKED_FUNCTION_PREFIXES
+            .iter()
+            .any(|p| name.starts_with(p))
+}
+
 /// Scan an expression subtree for any blocked function call (used by the
 /// json_to_sql raw-expression validator). Returns the blocked name if found.
 pub fn find_blocked_function_in_expr(expr: &Expr) -> Option<String> {
     let mut scan = BlockedScanner { blocked: None };
     let _ = expr.visit(&mut scan);
     scan.blocked
+}
+
+/// Parse ClickHouse SQL, working around an upstream `sqlparser` bug: the `IN`
+/// operator's parser hard-requires a `(` and rejects a bare ClickHouse
+/// query-parameter placeholder list (`col IN {ids:Array(UUID)}`), even though
+/// the equivalent parenthesized form (`col IN ({ids:Array(UUID)})`) parses fine
+/// and is identical to ClickHouse. We tokenize, wrap any placeholder group that
+/// directly follows `IN` / `NOT IN` in parentheses, and parse the resulting
+/// token stream directly — so string literals and comments are never rewritten.
+///
+/// Upstream issue: https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+/// Remove this shim (and call `Parser::parse_sql` directly) once it's fixed.
+pub(crate) fn parse_clickhouse_sql(
+    sql: &str,
+) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
+    let dialect = ClickHouseDialect {};
+    let tokens = Tokenizer::new(&dialect, sql).tokenize()?;
+    let tokens = wrap_in_placeholder_lists(tokens);
+    Parser::new(&dialect)
+        .with_tokens(tokens)
+        .parse_statements()
+}
+
+/// Insert `(`/`)` tokens around a `{...}` placeholder group that immediately
+/// follows an `IN` keyword, so the `IN` parser accepts it. Operates purely on
+/// the token stream (comments/whitespace are dropped by `tokenize`, string
+/// literals are opaque `Token::SingleQuotedString` values), so a `{` inside a
+/// string or comment is never matched.
+///
+/// Workaround for sqlparser bug — `IN {placeholder}` rejected without parens:
+/// https://github.com/apache/datafusion-sqlparser-rs/issues/2384
+fn wrap_in_placeholder_lists(tokens: Vec<Token>) -> Vec<Token> {
+    let is_in_keyword =
+        |t: &Token| matches!(t, Token::Word(w) if w.keyword == Keyword::IN);
+
+    let mut out: Vec<Token> = Vec::with_capacity(tokens.len() + 4);
+    let mut i = 0;
+    while i < tokens.len() {
+        // Find the index of the previous non-whitespace token already emitted.
+        let prev_significant = out.iter().rev().find(|t| !is_whitespace(t));
+        if matches!(&tokens[i], Token::LBrace)
+            && prev_significant.is_some_and(is_in_keyword)
+            && let Some(close) = matching_brace_end(&tokens, i)
+        {
+            out.push(Token::LParen);
+            out.extend_from_slice(&tokens[i..=close]);
+            out.push(Token::RParen);
+            i = close + 1;
+            continue;
+        }
+        out.push(tokens[i].clone());
+        i += 1;
+    }
+    out
+}
+
+fn is_whitespace(t: &Token) -> bool {
+    matches!(t, Token::Whitespace(_))
+}
+
+/// Given the index of an `LBrace`, return the index of its matching `RBrace`,
+/// honoring nesting (a placeholder type like `Array(Map(...))` has no braces,
+/// but nest defensively in case ClickHouse param syntax grows them).
+fn matching_brace_end(tokens: &[Token], open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (idx, t) in tokens.iter().enumerate().skip(open) {
+        match t {
+            Token::LBrace => depth += 1,
+            Token::RBrace => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(idx);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 #[derive(Debug, Clone)]
@@ -354,9 +461,8 @@ impl QueryValidator {
         sql_query: &str,
         project_id: &str,
     ) -> Result<String, String> {
-        let dialect = ClickHouseDialect {};
-        let mut statements = Parser::parse_sql(&dialect, sql_query)
-            .map_err(|e| format!("Query validation failed: {e}"))?;
+        let mut statements =
+            parse_clickhouse_sql(sql_query).map_err(|e| format!("Query validation failed: {e}"))?;
 
         if statements.len() != 1 {
             return Err("Only SELECT statements are allowed".to_string());
@@ -364,6 +470,13 @@ impl QueryValidator {
         let mut statement = statements.remove(0);
 
         self.validate_security(&statement)?;
+        // Reject CTEs that shadow an allowlisted physical table. CTE-name
+        // collection (`collect_cte_names`) is global, not lexically scoped, so a
+        // CTE named `spans` defined in an inner scope would otherwise make the
+        // rewriter skip an outer `FROM spans` (the real physical table) — a
+        // cross-tenant leak. Forbidding the collision keeps the invariant
+        // "allowlisted name ⇒ always a physical table ⇒ always rewritten".
+        self.validate_cte_names(&statement)?;
         self.validate_tables_and_columns(&statement)?;
 
         let cte_names = collect_cte_names(&statement);
@@ -381,7 +494,46 @@ impl QueryValidator {
 
         strip_settings(&mut statement);
 
+        // Defense-in-depth: after rewriting, no allowlisted physical table may
+        // survive as a bare relation (every one must now be a `_v0(...)` view
+        // function), and no blocked function may have been introduced. A
+        // violation means a rewrite escape — fail closed rather than ship
+        // unscoped SQL to ClickHouse.
+        self.validate_post_rewrite(&statement)?;
+
         Ok(statement.to_string())
+    }
+
+    /// Reject any CTE whose name collides with an allowlisted physical table.
+    fn validate_cte_names(&self, statement: &Statement) -> Result<(), String> {
+        for name in collect_cte_names(statement) {
+            if self.registry.is_table_allowed(&name) {
+                return Err(format!(
+                    "CTE name '{name}' collides with a protected table name"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Re-scan the rewritten statement: assert every allowlisted physical table
+    /// reference was rewritten away and no blocked function was introduced.
+    fn validate_post_rewrite(&self, statement: &Statement) -> Result<(), String> {
+        let mut scan = BlockedScanner { blocked: None };
+        let _ = statement.visit(&mut scan);
+        if let Some(name) = scan.blocked {
+            return Err(format!("Function '{name}' is not allowed"));
+        }
+
+        let mut checker = PostRewriteChecker {
+            registry: &self.registry,
+            error: None,
+        };
+        let _ = statement.visit(&mut checker);
+        if let Some(e) = checker.error {
+            return Err(e);
+        }
+        Ok(())
     }
 
     fn validate_security(&self, statement: &Statement) -> Result<(), String> {
@@ -467,7 +619,7 @@ impl Visitor for BlockedScanner {
     fn pre_visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
         if let Expr::Function(f) = expr {
             let name = relation_table_name(&f.name);
-            if blocked_functions().contains(name.as_str()) {
+            if is_blocked_function(&name) {
                 self.blocked = Some(name);
                 return ControlFlow::Break(());
             }
@@ -477,7 +629,7 @@ impl Visitor for BlockedScanner {
 
     fn pre_visit_relation(&mut self, name: &ObjectName) -> ControlFlow<()> {
         let table = relation_table_name(name);
-        if blocked_functions().contains(table.as_str()) {
+        if is_blocked_function(&table) {
             self.blocked = Some(table);
             return ControlFlow::Break(());
         }
@@ -546,6 +698,35 @@ impl Visitor for TableColumnChecker<'_> {
     }
 }
 
+/// Post-rewrite verifier: every allowlisted physical table must have been
+/// rewritten into a `_v0(...)` view function, so no bare allowlisted relation
+/// (one without table-function args) may remain.
+struct PostRewriteChecker<'a> {
+    registry: &'a TableRegistry,
+    error: Option<String>,
+}
+
+impl Visitor for PostRewriteChecker<'_> {
+    type Break = ();
+
+    fn pre_visit_table_factor(&mut self, table_factor: &TableFactor) -> ControlFlow<()> {
+        if let TableFactor::Table { name, args, .. } = table_factor {
+            // A view function (`spans_v0(...)`) carries args; a bare allowlisted
+            // relation does not. The latter escaped rewriting — fail closed.
+            if args.is_none() {
+                let table = relation_table_name(name);
+                if self.registry.is_table_allowed(&table) {
+                    self.error = Some(format!(
+                        "Internal validation error: table '{table}' was not project-scoped"
+                    ));
+                    return ControlFlow::Break(());
+                }
+            }
+        }
+        ControlFlow::Continue(())
+    }
+}
+
 struct ViewRewriter<'a> {
     registry: &'a TableRegistry,
     project_id: &'a str,
@@ -572,12 +753,23 @@ impl VisitorMut for ViewRewriter<'_> {
             name, alias, args, ..
         } = table_factor
         {
-            // Don't rewrite something that is already a table function.
+            let table_name = relation_table_name(name);
+
+            // An allowlisted table name presented as a table function (e.g.
+            // `FROM spans(...)`) must not slip through unrewritten — reject it
+            // rather than leave a bare, unscoped relation behind.
             if args.is_some() {
+                if !self.cte_names.contains(&table_name)
+                    && self.registry.is_table_allowed(&table_name)
+                {
+                    self.error = Some(format!(
+                        "Table '{table_name}' cannot be used as a table function"
+                    ));
+                    return ControlFlow::Break(());
+                }
+                // Don't rewrite something that is already a table function.
                 return ControlFlow::Continue(());
             }
-
-            let table_name = relation_table_name(name);
 
             // Skip CTE references and non-allowlisted tables (the latter is
             // rejected earlier in validation; here we just leave them alone).
