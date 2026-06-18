@@ -1,4 +1,4 @@
-use rand::{RngExt, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use std::{
     fs::File,
     io::{self, BufRead},
