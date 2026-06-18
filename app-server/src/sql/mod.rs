@@ -32,8 +32,8 @@ pub struct ClickhouseReadonlyClient(clickhouse::Client);
 /// ClickHouse from OOM-inducing scans.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SqlQuerySource {
-    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`).
-    Frontend,
+    /// Trusted internal frontend (`/api/v1/projects/{id}/sql/query`) or other internal use.
+    Internal,
     /// Public internet-facing (`/v1/sql/query`) and CLI (`/v1/cli/sql/query`).
     Public,
 }

@@ -23,7 +23,7 @@ pub async fn get_top_span_id(
         String::from("SELECT top_span_id FROM traces WHERE id = {trace_id:UUID}"),
         project_id,
         HashMap::from([("trace_id".to_string(), Value::String(trace_id.to_string()))]),
-        SqlQuerySource::Frontend,
+        SqlQuerySource::Internal,
         clickhouse_ro,
         query_engine,
         http_client,
