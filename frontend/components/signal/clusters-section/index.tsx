@@ -30,11 +30,16 @@ import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
 
-export default function ClustersSection() {
+interface Props {
+  className?: string;
+}
+
+export default function ClustersSection({ className }: Props) {
   const { workspace, settingsHref } = useProjectContext();
   const isPaywall = !getHasClusteringAccess(workspace?.tierName);
   const billingHref = settingsHref("billing");
@@ -123,6 +128,40 @@ export default function ClustersSection() {
     };
   }, [statsUrl, fetchClusterStats, rawClusters]);
 
+  // Signal-runs overlay: count of traces this signal actually evaluated (post-trigger),
+  // fetched at the SAME interval as the cluster stats (same hook → same container width →
+  // aligned timestamps) and drawn behind the bars. This is the true denominator for the
+  // event counts — no trigger-filter re-implementation, since the backend records each run.
+  const runStatsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
+    chartContainerWidth: localChartWidth,
+    pastHours,
+    startDate,
+    endDate,
+  });
+  const [runTotals, setRunTotals] = useState<{ timestamp: string; count: number }[] | undefined>(undefined);
+
+  useEffect(() => {
+    if (!runStatsUrl) return;
+    const controller = new AbortController();
+    fetch(runStatsUrl, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch signal run stats");
+        return res.json();
+      })
+      .then((data: { items: { timestamp: string; count: number }[] }) => {
+        // abort() doesn't reject an already-resolved fetch, so the .catch AbortError guard
+        // can't intercept a cleanly-resolved stale response; bail here before touching state.
+        if (controller.signal.aborted) return;
+        setRunTotals(data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })));
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setRunTotals(undefined);
+      });
+    return () => controller.abort();
+  }, [runStatsUrl]);
+
   // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
   const navigateToCluster = useCallback(
     (id: string) => {
@@ -146,7 +185,10 @@ export default function ClustersSection() {
 
   if (isClustersLoading) {
     return (
-      <div className="flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary" style={{ maxHeight: 300 }}>
+      <div
+        className={cn("flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary", className)}
+        style={{ maxHeight: 300 }}
+      >
         <div className="w-[320px] shrink-0 border-r overflow-y-auto">
           <div className="flex flex-col gap-0.5 py-2 px-2">
             {[1, 2, 3, 4].map((i) => (
@@ -170,9 +212,9 @@ export default function ClustersSection() {
       <ResizablePanelGroup
         id="clusters-section"
         orientation="horizontal"
-        className="border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]"
+        className={cn("border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]", className)}
       >
-        <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
+        <ResizablePanel defaultSize={"36%"} minSize={"200px"} className="overflow-hidden">
           <div className="relative h-full w-full">
             <ClusterList
               className="h-full w-full"
@@ -201,7 +243,7 @@ export default function ClustersSection() {
 
         <ResizableHandle />
 
-        <ResizablePanel defaultSize={"70%"} minSize={"400px"}>
+        <ResizablePanel defaultSize={"64%"} minSize={"400px"}>
           <div className="h-full py-2 pr-2 bg-secondary" ref={chartContainerRef}>
             {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
               <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -214,6 +256,7 @@ export default function ClustersSection() {
                 containerWidth={localChartWidth}
                 colorMap={colorMap}
                 showTooltip={!isPaywall}
+                runTotals={runTotals}
               />
             )}
           </div>

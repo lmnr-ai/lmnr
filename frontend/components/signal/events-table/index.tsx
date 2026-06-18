@@ -267,11 +267,11 @@ function PureEventsTable() {
             storageKey={`signal-events-${signal.id}`}
             resource="signal-events"
             placeholder="Search events by payload, severity, trace id, and more..."
-            className="w-full flex-1"
+            className="w-full flex-1 mb-2"
           />
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <ClustersSection />
+        <ClustersSection className="mb-2" />
       </InfiniteDataTable>
     </div>
   );

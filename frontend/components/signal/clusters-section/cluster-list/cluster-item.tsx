@@ -151,13 +151,10 @@ export default function ClusterItem({
         {icon}
         <span className={cn("flex-1 min-w-0 truncate", isPaywall && "blur-[5px] select-none")}>{cluster.name}</span>
         {/* Global-scale proportion bar: this cluster's share of all events in range. */}
-        <span className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-foreground/10">
-          <span
-            className="block h-full rounded-full"
-            style={{ width: `${barPct}%`, backgroundColor: withOpacity(color, 0.7) }}
-          />
+        <span className="h-1.5 w-14 shrink-0 overflow-hidden rounded-[2px] bg-foreground/10">
+          <span className="block h-full" style={{ width: `${barPct}%`, backgroundColor: withOpacity(color, 0.7) }} />
         </span>
-        <span className="text-muted-foreground text-xs w-9 shrink-0 text-right tabular-nums">{displayCount}</span>
+        <span className="text-muted-foreground text-xs shrink-0 w-[30px] text-right">{displayCount}</span>
       </button>
 
       {typeof document !== "undefined" &&
