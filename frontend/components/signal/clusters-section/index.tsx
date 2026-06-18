@@ -18,6 +18,7 @@ import {
   getIsLeaf,
   getUnclusteredVirtualCluster,
   getVisibleClusters,
+  selectRangeEventTotal,
   selectUnclusteredCount,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
@@ -69,6 +70,7 @@ export default function ClustersSection() {
   );
   const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
   const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
+  const rangeTotal = useSignalStoreContext(selectRangeEventTotal);
 
   // Color is a pure function of cluster id (shared with trace-view), so the
   // map is just for the unclustered virtual bucket plus convenience lookups.
@@ -181,6 +183,7 @@ export default function ClustersSection() {
               unclusteredVirtualCluster={unclusteredVirtualCluster}
               selectedClusterId={clusterId}
               onNavigateToCluster={navigateToCluster}
+              rangeTotal={rangeTotal}
               isPaywall={isPaywall}
             />
             {isPaywall && (

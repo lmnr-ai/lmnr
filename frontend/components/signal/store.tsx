@@ -167,6 +167,20 @@ export const getFilteredCountByCluster = (
   return counts;
 };
 
+// Total events in the selected time range = Σ root-cluster counts + unclustered.
+// Root clusters aggregate their whole subtree, so summing roots (not every level)
+// counts each event once. Drives the list's "global scale" proportion bars — the
+// denominator stays fixed regardless of how deep the user has drilled.
+export const selectRangeEventTotal = (state: Store): number => {
+  const byId = new Map<string, number>();
+  for (const row of state.clusterStatsData) {
+    byId.set(row.cluster_id, (byId.get(row.cluster_id) ?? 0) + row.count);
+  }
+  let total = byId.get(UNCLUSTERED_ID) ?? 0;
+  for (const root of state.clusterTree) total += byId.get(root.id) ?? 0;
+  return total;
+};
+
 // --- Store ---
 
 export type SignalStoreApi = ReturnType<typeof createSignalStore>;
