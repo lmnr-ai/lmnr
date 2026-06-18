@@ -10,7 +10,7 @@ Laminar is an open-source observability platform for AI agents. It provides Open
 
 This is a multi-service monorepo with three main components:
 
-- **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC). SQL query validation + JSON↔SQL conversion run in-process here (`src/query_engine/in_process/`, built on `sqlparser`); there is no separate query-engine service.
+- **app-server/** - Rust backend (Actix-web HTTP, Tonic gRPC). SQL query validation + JSON↔SQL conversion run in-process here (`src/query_engine/in_process/`, built on `sqlparser`).
 - **frontend/** - Next.js/TypeScript web UI
 - **pii-redactor/** - optional Rust gRPC service that runs a HuggingFace token-classification PII model on CPU via ONNX Runtime. Standalone — not linked from app-server. Tested with the OpenAI privacy filter (BIOES) and Piiranha (BIO); accepts either scheme via `config.json` `id2label`. See `pii-redactor/README.md` for the gRPC contract, model layout (`model.onnx` + optional `model.onnx_data*` external-data shards + `tokenizer.json` + `config.json`), and the weight-baking Dockerfile.
 
@@ -122,7 +122,7 @@ Keep comments short. Don't write multi-paragraph rationale blocks — a single t
 
 ## In-process Query Engine (SQL validation + JSON↔SQL)
 
-- SQL validation and JSON↔SQL conversion run **in-process inside app-server** (`app-server/src/query_engine/`), built on the `sqlparser` crate (`ClickHouseDialect` + `visitor` feature). There is no separate query-engine service — don't reintroduce a network hop for these three operations.
+- SQL validation and JSON↔SQL conversion run **in-process inside app-server** (`app-server/src/query_engine/`), built on the `sqlparser` crate (`ClickHouseDialect` + `visitor` feature). Keep these three operations in-process — don't reintroduce a network hop for them.
 - `QueryEngine` is a plain struct (`query_engine/mod.rs`) with three inherent async methods: `validate_query`, `sql_to_json`, `json_to_sql`. Consumers hold `Arc<QueryEngine>`: HTTP routes (`routes/sql.rs`) and the MCP `query_laminar_sql` tool (`api/v1/mcp.rs`).
 - **The validator IS a security boundary**, not just a linter — it is the only thing standing between user SQL and ClickHouse. It enforces SELECT-only, rejects `BLOCKED_FUNCTIONS` and the `project_id` column, blocks non-allowlisted tables, and rewrites allowlisted table refs to project-scoped `_v0` views (e.g. `spans` → `spans_v0(project_id = '<uuid>')`, `traces` → `traces_v0(project_id=…, start_time=…, end_time=…)`). `json_to_sql`'s raw-expression path is also a security boundary. Preserve their rejection semantics when editing.
 - **The frontend JSON contract is binding**: route response/request types use `#[serde(rename_all = "camelCase")]` and must keep matching `frontend/lib/actions/sql/types.ts` (e.g. `queryStructure`, `validatedQuery`). The `fn`/`column`/`args`/`alias` metric shape and `dimensions` array are the camelCase wire format the chart builder + SQL editor depend on.
