@@ -2,9 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 
+import { AgentPromptBox } from "@/components/common/agent-prompt-box";
 import { track } from "@/lib/posthog";
-
-import { AgentPromptBox } from "./agent-prompt-box";
 
 // The prompt copied for the user to run themselves or paste into a coding agent.
 // Template literal so the body reads as literal multiline markdown.
