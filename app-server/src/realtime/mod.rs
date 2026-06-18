@@ -6,29 +6,47 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::mpsc;
+use url::Url;
 use uuid::Uuid;
 
 use crate::pubsub::{PubSub, PubSubTrait, SseChannel, keys::SSE_CHANNEL_PATTERN};
 
 /// Origins permitted to open SSE connections. The frontend origin
 /// (`NEXT_PUBLIC_URL`) is always included; additional origins come from the
-/// comma-separated `SSE_ALLOWED_ORIGINS`. A trailing slash is normalized away
-/// so `https://app.example.com/` and `https://app.example.com` compare equal.
+/// comma-separated `SSE_ALLOWED_ORIGINS`. Each value is reduced to its origin
+/// (`scheme://host[:port]`) so it compares equal to the browser's `Origin`
+/// header regardless of a trailing slash or path component.
 static ALLOWED_SSE_ORIGINS: LazyLock<HashSet<String>> = LazyLock::new(|| {
     let frontend = std::env::var(crate::env::notifications::NEXT_PUBLIC_URL).unwrap_or_default();
     let extra = std::env::var(crate::env::server::SSE_ALLOWED_ORIGINS).unwrap_or_default();
     build_allowed_origins(&frontend, &extra)
 });
 
+/// Reduce a configured URL to the origin form a browser sends in the `Origin`
+/// header: `scheme://host[:port]`, with no trailing slash or path. So a value
+/// like `https://app.example.com/path` is canonicalized to
+/// `https://app.example.com` and still matches. Falls back to a trailing-slash
+/// trim when the value can't be parsed as an absolute URL (or has an opaque
+/// origin), preserving the previous best-effort behaviour.
+fn canonicalize_origin(raw: &str) -> String {
+    Url::parse(raw)
+        .ok()
+        .map(|url| url.origin().ascii_serialization())
+        .filter(|origin| origin != "null")
+        .unwrap_or_else(|| raw.trim_end_matches('/').to_string())
+}
+
 /// Build the allow-list from the frontend origin plus a comma-separated list.
-/// Trailing slashes are normalized away and blanks dropped so the set holds
-/// canonical origins. Pure so the parsing is unit-testable without env state.
+/// Each entry is canonicalized to a bare origin and blanks dropped so the set
+/// holds values comparable to a browser `Origin` header. Pure so the parsing
+/// is unit-testable without env state.
 fn build_allowed_origins(frontend_url: &str, extra_csv: &str) -> HashSet<String> {
     std::iter::once(frontend_url)
         .chain(extra_csv.split(','))
-        .map(|raw| raw.trim().trim_end_matches('/'))
+        .map(str::trim)
+        .filter(|raw| !raw.is_empty())
+        .map(canonicalize_origin)
         .filter(|origin| !origin.is_empty())
-        .map(str::to_string)
         .collect()
 }
 
@@ -40,12 +58,12 @@ fn resolve_cors_origin(request_origin: Option<&str>) -> Option<String> {
     match_allowed_origin(request_origin, &ALLOWED_SSE_ORIGINS)
 }
 
-/// Pure matcher: returns the original origin string when its slash-normalized
+/// Pure matcher: returns the original origin string when its canonicalized
 /// form is in `allowed`. Split out from `resolve_cors_origin` so the matching
 /// rule can be tested without touching the env-backed global allow-list.
 fn match_allowed_origin(request_origin: Option<&str>, allowed: &HashSet<String>) -> Option<String> {
     let origin = request_origin?;
-    if allowed.contains(origin.trim_end_matches('/')) {
+    if allowed.contains(&canonicalize_origin(origin)) {
         Some(origin.to_string())
     } else {
         None
@@ -338,6 +356,30 @@ mod tests {
     fn build_allowed_origins_empty_inputs_yield_empty_set() {
         assert!(build_allowed_origins("", "").is_empty());
         assert!(build_allowed_origins("", ",  ,").is_empty());
+    }
+
+    #[test]
+    fn build_allowed_origins_strips_path_and_port() {
+        // A NEXT_PUBLIC_URL with a path must canonicalize to a bare origin so it
+        // matches the browser's Origin header (which carries no path).
+        let set = build_allowed_origins(
+            "https://app.example.com/some/path",
+            "https://dash.example.com:8443/x",
+        );
+        assert!(set.contains("https://app.example.com"));
+        assert!(set.contains("https://dash.example.com:8443"));
+        // Default port is dropped, matching how browsers send the Origin header.
+        let https = build_allowed_origins("https://app.example.com:443", "");
+        assert!(https.contains("https://app.example.com"));
+    }
+
+    #[test]
+    fn match_accepts_origin_when_config_has_path() {
+        let set = build_allowed_origins("https://app.example.com/dashboard", "");
+        assert_eq!(
+            match_allowed_origin(Some("https://app.example.com"), &set),
+            Some("https://app.example.com".to_string())
+        );
     }
 
     #[test]
