@@ -36,7 +36,6 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   showTooltip = true,
   hideZeroValues = false,
   overlayField,
-  overlayLabel,
   overlayColor = "var(--color-muted-foreground)",
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
@@ -158,7 +157,6 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               yAxisId="overlay"
               type="monotone"
               dataKey={overlayField}
-              name={overlayLabel}
               stroke={overlayColor}
               strokeWidth={1}
               fill={`url(#${gradientId})`}

@@ -27,6 +27,5 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   hideZeroValues?: boolean;
   // Optional secondary-axis line + gradient drawn behind the bars.
   overlayField?: string;
-  overlayLabel?: string;
   overlayColor?: string;
 }

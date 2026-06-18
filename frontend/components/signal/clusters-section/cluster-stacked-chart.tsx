@@ -97,7 +97,6 @@ export default function ClusterStackedChart({
       showTooltip={showTooltip}
       hideZeroValues
       overlayField={hasOverlay ? RUN_TOTAL_KEY : undefined}
-      overlayLabel={OVERLAY_LABEL}
       overlayColor={OVERLAY_COLOR}
       className="!h-full"
     />
