@@ -1703,6 +1703,7 @@ fn main() -> anyhow::Result<()> {
                     let mcp_state = web::Data::new(api::v1::mcp::McpState::new(
                         clickhouse_for_http.clone(),
                         clickhouse_readonly_client.clone(),
+                        quickwit_client.clone(),
                         query_engine.clone(),
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),
