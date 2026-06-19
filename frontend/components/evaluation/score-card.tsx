@@ -15,6 +15,23 @@ interface ScoreCardProps {
   isLoading?: boolean;
 }
 
+type MetricEntry = {
+  readonly label: string;
+  readonly key: keyof EvaluationScoreStatistics;
+};
+
+const SECONDARY_METRICS: readonly MetricEntry[] = [
+  { label: "Median", key: "medianValue" },
+  { label: "Std Dev", key: "stdDeviation" },
+  { label: "Min", key: "minValue" },
+  { label: "Max", key: "maxValue" },
+] as const;
+
+function formatMetric(value: number | undefined): string {
+  if (!isValidNumber(value)) return "-";
+  return value.toFixed(2);
+}
+
 export default function ScoreCard({
   scores,
   selectedScore,
@@ -74,6 +91,20 @@ export default function ScoreCard({
               </div>
             )}
           </div>
+          {statistics && statistics.count > 0 && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border">
+              {SECONDARY_METRICS.map(({ label, key }) => (
+                <div key={key} className="flex justify-between items-center">
+                  <span className="text-xs text-secondary-foreground">{label}</span>
+                  <span className="text-xs font-medium">{formatMetric(statistics[key])}</span>
+                </div>
+              ))}
+              <div className="flex justify-between items-center col-span-2 mt-1">
+                <span className="text-xs text-secondary-foreground">Count</span>
+                <span className="text-xs font-medium">{statistics.count}</span>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
