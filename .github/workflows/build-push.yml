@@ -20,9 +20,8 @@ jobs:
           - dockerfile: ./frontend/Dockerfile
             context: ./frontend
             image: ghcr.io/lmnr-ai/frontend
-          - dockerfile: ./query-engine/Dockerfile
-            context: ./query-engine
-            image: ghcr.io/lmnr-ai/query-engine
+            build-args: |
+              NEXT_PUBLIC_APP_VERSION=${{ github.event.release.tag_name }}
     permissions:
       contents: read
       packages: write
@@ -55,6 +54,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build-args }}
 
       - name: Generate artifact attestation
         uses: actions/attest@v4

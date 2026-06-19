@@ -170,6 +170,19 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
   return candidates.map((c) => c.content);
 };
 
+// Content (input) and Candidate (output) are different Gemini shapes. The span
+// overview stitches input + output into one array, so accept a mix and unwrap
+// any candidates to their inner content.
+const GeminiContentOrCandidateSchema = z.union([GeminiContentSchema, GeminiCandidateSchema]);
+
+/** Parse `data` as a possibly-mixed array of Gemini Contents/Candidates. Returns null on mismatch. */
+export const parseGeminiContents = (data: unknown): z.infer<typeof GeminiContentsSchema> | null => {
+  const arr = Array.isArray(data) ? data : [data];
+  const result = z.array(GeminiContentOrCandidateSchema).safeParse(arr);
+  if (!result.success || result.data.length === 0) return null;
+  return result.data.map((el) => ("content" in el ? el.content : el));
+};
+
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (
@@ -182,8 +195,13 @@ export const convertGeminiToPlaygroundMessages = async (
       // Gemini parts use field-presence discrimination (no "type" key).
       // Unrecognised variants are skipped.
       for (const part of message.parts) {
+        const thoughtSig =
+          "thoughtSignature" in part && part.thoughtSignature
+            ? { google: { thoughtSignature: part.thoughtSignature } }
+            : undefined;
+
         if ("text" in part) {
-          content.push({ type: "text", text: part.text });
+          content.push({ type: "text", text: part.text, ...(thoughtSig && { providerOptions: thoughtSig }) });
         } else if ("inlineData" in part) {
           if (part.inlineData.mimeType.startsWith("image/")) {
             let imageData = part.inlineData.data;
@@ -223,7 +241,8 @@ export const convertGeminiToPlaygroundMessages = async (
             type: "tool-call",
             toolCallId: part.functionCall.id ?? part.functionCall.name,
             toolName: part.functionCall.name,
-            input: { type: "json", value: JSON.stringify(part.functionCall.args ?? {}) },
+            input: part.functionCall.args ?? {},
+            ...(thoughtSig && { providerOptions: thoughtSig }),
           });
         } else if ("functionResponse" in part) {
           content.push({

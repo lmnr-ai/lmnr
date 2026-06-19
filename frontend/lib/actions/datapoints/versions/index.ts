@@ -7,16 +7,16 @@ import { tryParseJson } from "@/lib/utils";
 
 // Schema for listing versions of a datapoint
 export const ListDatapointVersionsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
-  datapointId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  datapointId: z.guid(),
 });
 
 // Schema for creating a new version from an existing one
 export const CreateDatapointVersionSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
-  datapointId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  datapointId: z.guid(),
   versionCreatedAt: z.string(), // The timestamp of the version to copy from
 });
 

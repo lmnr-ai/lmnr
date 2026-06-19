@@ -5,26 +5,26 @@ import { db } from "@/lib/db/drizzle";
 import { renderTemplates } from "@/lib/db/migrations/schema";
 
 export const CreateRenderTemplateSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   code: z.string().min(1, "Template code is required"),
 });
 
 export const GetRenderTemplateSchema = z.object({
-  projectId: z.string(),
-  templateId: z.string(),
+  projectId: z.guid(),
+  templateId: z.guid(),
 });
 
 export const UpdateRenderTemplateSchema = z.object({
-  projectId: z.string(),
-  templateId: z.string(),
+  projectId: z.guid(),
+  templateId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   code: z.string().min(1, "Template code is required"),
 });
 
 export const DeleteRenderTemplateSchema = z.object({
-  projectId: z.string(),
-  templateId: z.string(),
+  projectId: z.guid(),
+  templateId: z.guid(),
 });
 export async function createRenderTemplate(input: z.infer<typeof CreateRenderTemplateSchema>) {
   const { projectId, name, code } = CreateRenderTemplateSchema.parse(input);

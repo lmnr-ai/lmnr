@@ -5,7 +5,7 @@ import { FIELD_TO_CACHE_KEY } from "@/lib/actions/autocomplete/fields";
 import { executeQuery } from "@/lib/actions/sql";
 
 const GetAutocompleteSuggestionsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   entity: z.enum(["traces", "spans"]),
   field: z.string().optional(),
 });

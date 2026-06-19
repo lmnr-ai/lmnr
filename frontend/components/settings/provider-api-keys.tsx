@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { envVarsToIconMap } from "@/components/playground/utils";
 import { type EnvVars } from "@/lib/env/utils";
+import { track } from "@/lib/posthog";
 import { type ProviderApiKey } from "@/lib/settings/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export default function ProviderApiKeys() {
     });
 
     if (res.ok) {
+      track("provider_api_keys", "added", { provider: name });
       mutate();
     }
   };
@@ -45,6 +47,7 @@ export default function ProviderApiKeys() {
     });
 
     if (res.ok) {
+      track("provider_api_keys", "deleted", { provider: name });
       mutate();
     }
   };
@@ -52,8 +55,8 @@ export default function ProviderApiKeys() {
   return (
     <SettingsSection>
       <SettingsSectionHeader
-        title="Model Providers"
-        description="Set your model provider API keys for use in LLM calls. Variables are encrypted and stored securely."
+        title="Playground model providers"
+        description="Set your model provider API keys for use in Playground API calls. Variables are encrypted and stored securely."
       />
       <AddProviderApiKeyVarDialog
         existingKeyNames={providerApiKeys?.map((apiKey) => apiKey.name) ?? []}

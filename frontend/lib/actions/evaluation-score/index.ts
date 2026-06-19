@@ -3,16 +3,16 @@ import { z } from "zod/v4";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export const UpdateEvaluationScoreSchema = z.object({
-  evaluationResultId: z.string(),
+  evaluationResultId: z.guid(),
   name: z.string(),
   score: z.number(),
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 export const GetEvaluationScoreSchema = z.object({
-  evaluationResultId: z.string(),
+  evaluationResultId: z.guid(),
   name: z.string(),
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 export async function getEvaluationScore(input: z.infer<typeof GetEvaluationScoreSchema>) {

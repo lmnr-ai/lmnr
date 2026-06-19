@@ -1,35 +1,37 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { get } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
-import SearchInput from "@/components/common/search-input";
+import AdvancedSearch from "@/components/common/advanced-search";
 import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type SessionRow, type TraceRow } from "@/lib/traces/types";
+import { track } from "@/lib/posthog";
+import { type SessionRow } from "@/lib/traces/types";
 
 const FETCH_SIZE = 50;
+const RESOURCE = "sessions";
 
 export default function SessionsTable() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider
-      storageKey="sessions-table"
+    <InfiniteDataTableProvider
       uniqueKey="sessionId"
-      defaultColumnOrder={defaultSessionsColumnOrder}
+      defaults={{ columnOrder: defaultSessionsColumnOrder }}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
     >
       <SessionsTableContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }
 
@@ -39,29 +41,26 @@ function SessionsTableContent() {
   const router = useRouter();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { setTraceId, traceId } = useTracesStoreContext((state) => ({
-    setTraceId: state.setTraceId,
-    traceId: state.traceId,
-  }));
 
-  const filter = searchParams.getAll("filter");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
-  const textSearchFilter = searchParams.get("search");
 
-  const { setNavigationRefList } = useTraceViewNavigation();
-
-  // Initialize with default time range if needed - do this BEFORE useInfiniteScroll
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
-      sp.set("pastHours", "24");
+      sp.set("pastHours", "72");
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  // Only enable fetching when we have valid time params
   const shouldFetch = !!(pastHours || startDate || endDate);
 
   const fetchSessions = useCallback(
@@ -75,20 +74,14 @@ function SessionsTableContent() {
         if (startDate != null) urlParams.set("startDate", startDate);
         if (endDate != null) urlParams.set("endDate", endDate);
 
-        filter.forEach((filter) => urlParams.append("filter", filter));
+        filter.forEach((f) => urlParams.append("filter", f));
 
         if (typeof textSearchFilter === "string" && textSearchFilter.length > 0) {
           urlParams.set("search", textSearchFilter);
         }
 
         const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
-
-        const res = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
 
         if (!res.ok) {
           const text = (await res.json()) as { error: string };
@@ -113,127 +106,61 @@ function SessionsTableContent() {
     hasMore,
     isFetching,
     isLoading,
+    error,
     fetchNextPage,
     refetch,
-    updateData,
-    error,
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
-    enabled: shouldFetch,
+    enabled: shouldFetch && !isViewLoading,
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
-  useEffect(() => {
-    setNavigationRefList((sessions || [])?.flatMap((s) => s?.subRows)?.map((t) => t?.id));
-  }, [setNavigationRefList, sessions]);
-
   const handleRowClick = useCallback(
-    async (row: Row<SessionRow>) => {
-      // If clicking on a trace row (not a session row with subRows)
-      if (!row.original.subRows) {
-        const params = new URLSearchParams(searchParams);
-        setTraceId(row.original.id);
-        params.set("traceId", row.original.id);
-        router.push(`${pathName}?${params.toString()}`);
-        return;
-      }
-
-      const isCurrentlyExpanded = row.getIsExpanded();
-      row.toggleExpanded();
-
-      // If collapsing, clear the subRows
-      if (isCurrentlyExpanded) {
-        updateData((sessions) =>
-          sessions?.map((s) => {
-            if (s.sessionId === row.original.sessionId) {
-              return {
-                ...s,
-                subRows: [],
-              };
-            }
-            return s;
-          })
-        );
-        return;
-      }
-
-      // If expanding, fetch traces for this session
-      const filter = {
-        column: "session_id",
-        value: row.original.sessionId,
-        operator: "eq",
-      };
-
-      try {
-        const urlParams = new URLSearchParams();
-        urlParams.set("pageNumber", "0");
-        urlParams.set("pageSize", "50");
-        urlParams.set("filter", JSON.stringify(filter));
-
-        if (pastHours != null) urlParams.set("pastHours", pastHours);
-        if (startDate != null) urlParams.set("startDate", startDate);
-        if (endDate != null) urlParams.set("endDate", endDate);
-
-        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`);
-
-        if (!res.ok) {
-          throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
-        }
-
-        const traces = (await res.json()) as { items: TraceRow[] };
-
-        // Update the session with its subRows (traces)
-        updateData((sessions) =>
-          sessions?.map((s) => {
-            if (s.sessionId === row.original.sessionId) {
-              return {
-                ...s,
-                subRows: traces.items.toReversed(),
-              };
-            }
-            return s;
-          })
-        );
-      } catch (error) {
-        toast({
-          title: "Failed to load traces. Please try again.",
-          variant: "destructive",
-        });
-        // Collapse the row again since we failed to fetch
-        row.toggleExpanded();
-      }
+    (row: Row<SessionRow>) => {
+      const encodedSessionId = row.original.sessionId.split("/").map(encodeURIComponent).join("/");
+      router.push(`/project/${projectId}/sessions/${encodedSessionId}`);
+      track("sessions", "detail_opened", { source: "table" });
     },
-    [setTraceId, pathName, projectId, router, searchParams, pastHours, startDate, endDate, toast, updateData]
+    [projectId, router]
   );
 
   return (
-    <div className="flex overflow-hidden px-4 pb-6">
+    <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<SessionRow>
         className="w-full"
         columns={columns}
         data={sessions}
-        getRowId={(session) => get(session, ["id"], session.sessionId)}
+        getRowId={(session) => session.sessionId}
         onRowClick={handleRowClick}
-        focusedRowId={traceId || searchParams.get("traceId")}
         hasMore={hasMore}
         isFetching={isFetching}
-        isLoading={isLoading || !shouldFetch}
+        isLoading={isLoading || !shouldFetch || isViewLoading}
         fetchNextPage={fetchNextPage}
         error={error}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
-          <SearchInput placeholder="Search in sessions..." />
         </div>
-        <DataTableFilterList />
+        <div className="w-full px-px">
+          <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchAndFilters}
+            filters={filters}
+            placeholder="Search by session ID, duration, cost, tokens and more..."
+            className="w-full flex-1"
+            storageKey={`sessions-${projectId}`}
+            resource="sessions"
+          />
+        </div>
       </InfiniteDataTable>
     </div>
   );

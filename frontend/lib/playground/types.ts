@@ -21,6 +21,7 @@ export interface ImagePart {
 export interface TextPart {
   type: "text";
   text: string;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface ToolResultPart {
@@ -69,6 +70,7 @@ export interface ToolCallPart {
   toolCallId: string;
   toolName: string;
   input: unknown;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface Message {
@@ -83,7 +85,12 @@ export type OpenAIProviderOptions = {
 };
 
 export type ProviderOptions =
-  | { anthropic: AnthropicProviderOptions }
+  | {
+      anthropic: Omit<AnthropicProviderOptions, "thinking"> & {
+        thinking?: { type: "enabled"; budgetTokens?: number } | { type: "disabled" } | { type: "adaptive" };
+        effort?: "low" | "medium" | "high" | "max";
+      };
+    }
   | OpenAIProviderOptions
   | { google: GoogleGenerativeAIProviderOptions }
   | Record<string, never>;

@@ -1,14 +1,23 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { ArrowUpRight, Check, X } from "lucide-react";
-import { type MouseEvent } from "react";
+import { Check, X } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
+import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
+import { Badge } from "@/components/ui/badge";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type EventRow } from "@/lib/events/types.ts";
+import { type SpanType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
   if (!description) {
@@ -68,6 +77,63 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
+function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<string, string> }) {
+  const router = useRouter();
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
+  const { setTraceId, setSpanId } = useSignalStoreContext(
+    (state) => ({ setTraceId: state.setTraceId, setSpanId: state.setSpanId }),
+    shallow
+  );
+
+  const callbacks = useMemo<SpanReferenceCallbacks>(
+    () => ({
+      resolveSpanId: async () => null,
+      getSpanType: (uuid) => spanTypes?.[uuid] as SpanType | undefined,
+      onSelectSpan: ({ traceId, spanId }) => {
+        if (!traceId) return;
+        setTraceId(traceId);
+        setSpanId(spanId ?? null);
+
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("traceId", traceId);
+        if (spanId) {
+          params.set("spanId", spanId);
+        } else {
+          params.delete("spanId");
+        }
+        router.replace(`${pathName}?${params.toString()}`);
+      },
+    }),
+    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes]
+  );
+
+  return <>{renderSpanReferences(text, callbacks) ?? text}</>;
+}
+
+/**
+ * Render the snippet text with the matched span wrapped in `<mark>`. Offsets
+ * are UTF-16 code units (what the backend produces, what JS `slice` consumes)
+ * so emoji/CJK content stays aligned. Span-link parsing is intentionally not
+ * applied here — the snippet is a truncated window and a link that straddles
+ * the boundary would render half-broken.
+ *
+ * No `+N` count badge here (unlike `SnippetPreview` for traces): every
+ * matched field renders in its own column, so there are no hidden matches a
+ * count badge would point at.
+ */
+function HighlightedSnippet({ snippet }: { snippet: SnippetInfo }) {
+  const { text, highlight } = snippet;
+  const [start, end] = highlight;
+  return (
+    <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
+      {text.slice(0, start)}
+      <mark className="font-medium text-primary bg-primary/15 rounded px-0.5">{text.slice(start, end)}</mark>
+      {text.slice(end)}
+    </span>
+  );
+}
+
 function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
   const columnId = `payload:${field.name}`;
 
@@ -76,7 +142,12 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
     accessorFn: (row) => parsePayloadField(row.payload, field.name),
     header: () => <PayloadFieldHeader name={field.name} description={field.description} />,
     size: getColumnSize(field.type),
-    cell: ({ getValue }) => {
+    cell: ({ row, getValue }) => {
+      const snippet = row.original.fieldSnippets?.[field.name];
+      if (snippet) {
+        return <HighlightedSnippet snippet={snippet} />;
+      }
+
       const value = getValue();
       if (value === null || value === undefined) {
         return <span className="text-muted-foreground">—</span>;
@@ -92,7 +163,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              {String(value)}
+              <PayloadText text={String(value)} spanTypes={row.original.spanTypes} />
             </span>
           );
       }
@@ -129,6 +200,22 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
+const SEVERITY_STYLES: Record<number, string> = {
+  0: "rounded-3xl mr-1 text-muted-foreground/60",
+  1: "rounded-3xl mr-1 text-orange-400/80",
+  2: "rounded-3xl mr-1 text-red-400/100",
+};
+
+function SeverityCell({ value }: { value: number }) {
+  const className = SEVERITY_STYLES[value] ?? SEVERITY_STYLES[0];
+  const label = SEVERITY_LABELS[value as keyof typeof SEVERITY_LABELS] ?? "Info";
+  return (
+    <Badge variant="outline" className={cn("rounded-full font-medium", className)}>
+      {label}
+    </Badge>
+  );
+}
+
 const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
   {
     accessorKey: "timestamp",
@@ -136,6 +223,13 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140,
     id: "timestamp",
+  },
+  {
+    accessorKey: "severity",
+    header: "Severity",
+    cell: (row) => <SeverityCell value={Number(row.getValue())} />,
+    size: 120,
+    id: "severity",
   },
 ];
 
@@ -153,23 +247,12 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     cell: (row) => {
       const traceId = String(row.getValue());
       return (
-        <div className="flex items-center gap-1 min-w-0">
-          <CopyTooltip value={traceId} className="min-w-0 truncate">
+        <div className="flex items-center min-w-0">
+          <CopyTooltip value={traceId} delayDuration={300} className="min-w-0 truncate">
             <span className="font-mono text-xs truncate" dir="rtl">
               {traceId}
             </span>
           </CopyTooltip>
-          <button
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={(e: MouseEvent) => {
-              e.stopPropagation();
-              const event = new CustomEvent("open-trace", { detail: traceId });
-              window.dispatchEvent(event);
-            }}
-            title="View trace"
-          >
-            <ArrowUpRight className="size-3" />
-          </button>
         </div>
       );
     },
@@ -194,6 +277,16 @@ const staticFilters: ColumnFilter[] = [
     key: "run_id",
     dataType: "string",
   },
+  {
+    name: "Severity",
+    key: "severity",
+    dataType: "enum",
+    options: [
+      { value: "0", label: "Info" },
+      { value: "1", label: "Warning" },
+      { value: "2", label: "Critical" },
+    ],
+  },
 ];
 
 export function buildEventsColumns(schemaFields: SchemaField[]): {
@@ -207,7 +300,7 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "traceId", ...validFields.map((f) => `payload:${f.name}`), "id"];
+  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
 
   const filters = [...staticFilters, ...payloadFilters];
 

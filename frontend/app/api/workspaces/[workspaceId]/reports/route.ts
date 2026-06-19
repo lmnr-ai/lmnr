@@ -1,13 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getReports, optInReport, optOutReport } from "@/lib/actions/reports";
+import { getReports, optInReport, optOutReport, setEmailSubscriptions } from "@/lib/actions/reports";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
 
   try {
-    const result = await getReports(workspaceId);
+    const session = await getServerSession();
+    const userEmail = session?.user?.email ?? undefined;
+    const result = await getReports(workspaceId, userEmail);
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -25,8 +28,16 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
   const { workspaceId } = await props.params;
 
   try {
+    const session = await getServerSession();
+    const email = session?.user?.email;
+    if (!email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
-    const result = await optInReport({ ...body, workspaceId });
+    if (body.email && body.email !== email) {
+      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+    }
+    const result = await optInReport({ ...body, workspaceId, email });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -40,12 +51,44 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
   }
 }
 
+export async function PUT(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
+  const { workspaceId } = await props.params;
+
+  try {
+    const session = await getServerSession();
+    const email = session?.user?.email;
+    if (!email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const body = await request.json();
+    const result = await setEmailSubscriptions({ workspaceId, email, subscribedReportIds: body.subscribedReportIds });
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error(error);
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update report subscriptions." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
 
   try {
+    const session = await getServerSession();
+    const email = session?.user?.email;
+    if (!email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
-    const result = await optOutReport({ ...body, workspaceId });
+    if (body.email && body.email !== email) {
+      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+    }
+    const result = await optOutReport({ ...body, workspaceId, email });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);

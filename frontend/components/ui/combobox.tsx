@@ -48,7 +48,7 @@ export const Combobox: FC<ComboboxProps> = ({
           <ChevronsUpDown className="opacity-50 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className={cn("p-0 ", className)}>
+      <PopoverContent align="start" className={cn("p-0 ", className)} onWheel={(e) => e.stopPropagation()}>
         <Command>
           <CommandInput placeholder={placeholder} className="h-9" />
           <CommandList>
@@ -60,6 +60,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <CommandItem
                   key={item.value}
                   value={item.value}
+                  keywords={[item.label]}
                   onSelect={(currentValue) => {
                     setValue(currentValue === value ? "" : currentValue);
                     setOpen(false);

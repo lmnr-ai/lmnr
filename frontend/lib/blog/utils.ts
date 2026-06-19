@@ -1,48 +1,97 @@
-import fs from "fs";
-import matter from "gray-matter";
-import path from "path";
+import GithubSlugger from "github-slugger";
 
-import { type BlogListItem, type MatterAndContent } from "./types";
+import { type BlogListItem, type MatterAndContent, type StrapiListResponse, type StrapiPost } from "./types";
 
-const BLOG_DIR = path.join(process.cwd(), "assets/blog");
+const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
+const STRAPI_API_TOKEN = process.env.STRAPI_API_TOKEN || "";
 
-export const getBlogPosts = ({ sortByDate = true }: { sortByDate?: boolean }): BlogListItem[] => {
-  const files = fs.readdirSync(BLOG_DIR);
-  const posts = files
-    .filter((file) => file.endsWith(".mdx"))
-    .map((file) => {
-      const content = fs.readFileSync(path.join(BLOG_DIR, file), "utf8");
-      return {
-        ...(matter(content) as unknown as MatterAndContent),
-        slug: file.replace(".mdx", ""),
-      };
-    });
-  if (sortByDate) {
-    posts.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+const normalizeUploadUrls = (text: string): string => text.replaceAll(/https?:\/\/[^/]+\/uploads\//g, "/uploads/");
+
+const strapiHeaders = (): HeadersInit => {
+  const headers: HeadersInit = {};
+  if (STRAPI_API_TOKEN) {
+    headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
   }
-  return posts as unknown as BlogListItem[];
+  return headers;
 };
 
-export const getBlogPost = (slug: string): MatterAndContent => {
-  const filePath = path.join(BLOG_DIR, `${slug}.mdx`);
-  const content = fs.readFileSync(filePath, "utf8");
-
-  const parsed = matter(content);
-  if (parsed.excerpt === undefined || parsed.excerpt === "") {
-    parsed.excerpt = parsed.content.slice(0, 160).replace(/\s+/g, " ");
-  }
-  return { ...parsed, slug } as unknown as MatterAndContent;
+const mapStrapiPost = (post: StrapiPost): BlogListItem => {
+  const data = {
+    title: post.title,
+    description: post.description ?? "",
+    date: post.date,
+    author: {
+      name: post.author_name ?? "Laminar",
+      url: post.author_url ?? undefined,
+    },
+    image: post.image ? normalizeUploadUrls(post.image) : undefined,
+    excerpt: post.description ?? undefined,
+    tags: post.tags ?? undefined,
+  };
+  return { ...data, slug: post.slug, data };
 };
 
-export const headingToUrl = (heading: string) =>
-  heading
-    .replace(/[ ]/g, "-")
-    .replace(/[^a-zA-Z0-9-]/g, "")
-    .toLowerCase();
+export const getBlogPosts = async ({
+  sortByDate = true,
+  category,
+}: {
+  sortByDate?: boolean;
+  category?: "blog" | "article";
+}): Promise<BlogListItem[]> => {
+  const params = new URLSearchParams({ "pagination[pageSize]": "100" });
+  if (sortByDate) params.set("sort", "date:desc");
+  if (category) params.set("filters[category][$eq]", category);
 
+  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+    headers: strapiHeaders(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    return [];
+  }
+
+  const json: StrapiListResponse = await res.json();
+  return json.data.map(mapStrapiPost);
+};
+
+export const getBlogPost = async (slug: string): Promise<MatterAndContent | null> => {
+  const params = new URLSearchParams({ "filters[slug][$eq]": slug });
+
+  const res = await fetch(`${STRAPI_URL}/api/blog-posts?${params}`, {
+    headers: strapiHeaders(),
+    next: { revalidate: 60 },
+  });
+
+  if (!res.ok) {
+    console.error(`Strapi API error: ${res.status} ${res.statusText}`);
+    return null;
+  }
+
+  const json: StrapiListResponse = await res.json();
+  const post = json.data[0];
+  if (!post) return null;
+
+  const mapped = mapStrapiPost(post);
+  return { data: mapped.data, content: normalizeUploadUrls(post.content) };
+};
+
+// Anchor slugs are produced by `github-slugger`, the same library `rehype-slug`
+// uses internally when it walks the rendered HTML tree and assigns `id`s to
+// heading nodes. A single fresh `GithubSlugger` per call tracks occurrence
+// counts, so duplicate heading text gets suffixed (`laminar` → `laminar-1` →
+// `laminar-2`). The TOC's anchors therefore match the DOM heading ids exactly.
+//
+// Match order matters: github-slugger is stateful and counts by call order.
+// rehype-slug walks the rendered HTML tree in document order; we match that
+// here by reading the raw markdown sequentially. (The previous concat of
+// `tagHeadings + mdHeadings` had a latent ordering bug for mixed-syntax posts
+// but most content is purely markdown, so it never surfaced.)
 export const parseHeadings = (content: string) => {
   const tagHeadings = content.match(/(<h\d>)(.*)<\/h\d>/gm);
   const mdHeadings = content.match(/^ *(#{1,4}) (.*)$/gm);
+  const slugger = new GithubSlugger();
   const headings = [...(tagHeadings ?? []), ...(mdHeadings ?? [])];
   return headings
     .map((heading) => {
@@ -53,7 +102,7 @@ export const parseHeadings = (content: string) => {
         .replace(/<h\d>/, "")
         .replace(/<\/h\d>/, "")
         .trim();
-      return { level: level - 1, text, anchor: headingToUrl(text) };
+      return { level: level - 1, text, anchor: slugger.slug(text) };
     })
     .filter((heading) => heading.text !== "" && heading.level >= 0);
 };

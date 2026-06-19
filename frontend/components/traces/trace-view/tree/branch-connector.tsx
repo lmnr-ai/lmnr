@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 const ROW_HEIGHT = 36;
 const TREE_GUTTER_WIDTH = 16;
-const TREE_LINE_LEFT_BASE = 9;
+const TREE_LINE_LEFT_BASE = 10;
 const TREE_LINE_WIDTH = TREE_GUTTER_WIDTH - TREE_LINE_LEFT_BASE;
 
 interface BranchConnectorProps {

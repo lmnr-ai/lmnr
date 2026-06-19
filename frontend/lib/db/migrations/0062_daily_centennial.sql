@@ -156,17 +156,17 @@ ALTER TABLE "shared_traces" ALTER COLUMN "project_id" SET DEFAULT gen_random_uui
 
 ALTER TABLE "traces" DROP CONSTRAINT "traces_pkey";--> statement-breakpoint
 ALTER TABLE "traces" ADD CONSTRAINT "traces_pkey" PRIMARY KEY("id","project_id");--> statement-breakpoint
-ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "public"."agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "clusters" ADD CONSTRAINT "clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "event_cluster_configs" ADD CONSTRAINT "event_cluster_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "event_clusters" ADD CONSTRAINT "event_clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "semantic_event_definitions" ADD CONSTRAINT "semantic_event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "semantic_event_trigger_spans" ADD CONSTRAINT "semantic_event_trigger_spans_event_definition_id_project_i_fkey" FOREIGN KEY ("project_id","event_definition_id") REFERENCES "public"."semantic_event_definitions"("id","project_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "slack_channel_to_events" ADD CONSTRAINT "slack_channel_to_events_integration_id_fkey" FOREIGN KEY ("integration_id") REFERENCES "public"."slack_integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "slack_integrations" ADD CONSTRAINT "slack_integrations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "agent_chats" ADD CONSTRAINT "agent_chats_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "agent_messages" ADD CONSTRAINT "agent_messages_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "agent_sessions"("session_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "clusters" ADD CONSTRAINT "clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_cluster_configs" ADD CONSTRAINT "event_cluster_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_clusters" ADD CONSTRAINT "event_clusters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "semantic_event_definitions" ADD CONSTRAINT "semantic_event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "semantic_event_trigger_spans" ADD CONSTRAINT "semantic_event_trigger_spans_event_definition_id_project_i_fkey" FOREIGN KEY ("project_id","event_definition_id") REFERENCES "semantic_event_definitions"("id","project_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "slack_channel_to_events" ADD CONSTRAINT "slack_channel_to_events_integration_id_fkey" FOREIGN KEY ("integration_id") REFERENCES "slack_integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "slack_integrations" ADD CONSTRAINT "slack_integrations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 CREATE INDEX "agent_chats_created_at_idx" ON "agent_chats" USING btree ("created_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_chats_updated_at_idx" ON "agent_chats" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "agent_chats_user_id_idx" ON "agent_chats" USING hash ("user_id" uuid_ops);--> statement-breakpoint
@@ -175,7 +175,7 @@ CREATE INDEX "agent_sessions_created_at_idx" ON "agent_sessions" USING btree ("c
 CREATE INDEX "agent_sessions_updated_at_idx" ON "agent_sessions" USING btree ("updated_at" timestamptz_ops);--> statement-breakpoint
 CREATE INDEX "clusters_project_id_level_idx" ON "clusters" USING btree ("project_id" uuid_ops,"level" int8_ops);--> statement-breakpoint
 CREATE INDEX "clusters_project_id_name_idx" ON "clusters" USING btree ("project_id" uuid_ops);--> statement-breakpoint
-ALTER TABLE "event_definitions" ADD CONSTRAINT "event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_definitions" ADD CONSTRAINT "event_definitions_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "events_span_id_project_id_idx" ON "events" USING btree ("project_id" uuid_ops,"span_id" uuid_ops);--> statement-breakpoint
 CREATE INDEX "spans_root_project_id_start_time_trace_id_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops,"trace_id" uuid_ops) WHERE (parent_span_id IS NULL);--> statement-breakpoint
 CREATE INDEX "spans_project_id_start_time_idx" ON "spans" USING btree ("project_id" uuid_ops,"start_time" timestamptz_ops);--> statement-breakpoint

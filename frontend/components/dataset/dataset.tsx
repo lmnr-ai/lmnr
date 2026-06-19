@@ -7,11 +7,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ const columns: ColumnDef<Datapoint>[] = [
 ];
 
 const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
+const RESOURCE = "dataset";
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -92,7 +94,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     });
 
     if (!res.ok) {
-      throw new Error("Failed to fetch count");
+      const errMessage = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      throw new Error(errMessage ?? "Failed to fetch count");
     }
 
     const data = await res.json();
@@ -100,9 +106,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   }, [projectId, dataset.id, toast]);
 
   useEffect(() => {
-    fetchCount().then((count) => {
-      setTotalCount(count);
-    });
+    fetchCount()
+      .then((count) => {
+        setTotalCount(count);
+      })
+      .catch((e) => {
+        console.error("Error fetching dataset count:", e);
+      });
   }, [fetchCount]);
 
   const datapointId = searchParams.get("datapointId");
@@ -305,7 +315,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             }}
             onRowSelectionChange={setRowSelection}
             className="flex-1"
-            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -316,13 +325,15 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu
-              lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
+            <div className="flex flex-1 w-full space-x-2">
+              <ColumnsMenu
+                columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
+              <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
+            </div>
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
@@ -355,9 +366,14 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 };
 
 export default function Dataset(props: DatasetProps) {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider storageKey="dataset-table" defaultColumnOrder={defaultDatasetColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultDatasetColumnOrder }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <DatasetContent {...props} />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

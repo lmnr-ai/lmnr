@@ -540,6 +540,111 @@
       "when": 1774177763075,
       "tag": "0076_aspiring_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1774623258552,
+      "tag": "0077_ordinary_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1774950776846,
+      "tag": "0078_open_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1774978896688,
+      "tag": "0079_abandoned_gorgon",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1775557271129,
+      "tag": "0080_third_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1776097866364,
+      "tag": "0081_slim_santa_claus",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1776118063000,
+      "tag": "0082_fix_alert_targets_integration_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1776176186569,
+      "tag": "0083_futuristic_captain_flint",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1776626433476,
+      "tag": "0084_red_master_chief",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1779840100000,
+      "tag": "0085_lam_1612_projects_settings_jsonb",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1779878869373,
+      "tag": "0086_bouncy_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1779878869374,
+      "tag": "0087_rename_rollout_sessions_to_debugger",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1779878869375,
+      "tag": "0088_slack_broker_instances",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1780938123830,
+      "tag": "0089_lam_1720_better_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1781016760978,
+      "tag": "0090_curved_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1781016760979,
+      "tag": "0091_lam_1720_device_code",
+      "breakpoints": true
     }
   ]
 }

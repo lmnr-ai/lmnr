@@ -1,6 +1,6 @@
 import { scaleTime } from "d3-scale";
-import { format, isValid, parseISO } from "date-fns";
-import { isNil } from "lodash";
+import { format, isValid } from "date-fns";
+import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
 
@@ -17,13 +17,20 @@ const chartColors = [
   "hsl(var(--chart-5))",
 ];
 
+export const parseUtcTimestamp = (s: string): Date => {
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
+  const hasTime = s.includes("T") || s.includes(" ");
+  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
+  return new Date(s);
+};
+
 const tryFormatAsDate = (value: string | number | Date, formatPattern: string = "M/dd"): string => {
   try {
     const date =
       value instanceof Date
         ? value
         : typeof value === "string"
-          ? parseISO(value.includes("T") && !value.endsWith("Z") ? value + "Z" : value)
+          ? parseUtcTimestamp(value)
           : typeof value === "number"
             ? new Date(value)
             : null;
@@ -40,8 +47,8 @@ const getOptimalDateFormat = (data: Record<string, unknown>[], dataKey: string):
       .map((row) => {
         try {
           const value = row[dataKey];
-          if (typeof value === "string" && value.includes("T")) {
-            return parseISO(value);
+          if (typeof value === "string") {
+            return parseUtcTimestamp(value);
           }
           return new Date(value as string | number | Date);
         } catch {
@@ -52,16 +59,24 @@ const getOptimalDateFormat = (data: Record<string, unknown>[], dataKey: string):
 
     if (dates.length < 2) return "M/dd HH:mm";
 
-    const timeDifferences = dates
-      .sort((a, b) => a.getTime() - b.getTime())
-      .slice(1)
-      .map((date, index) => date.getTime() - dates[index].getTime());
+    const sortedDates = dates.sort((a, b) => a.getTime() - b.getTime());
+
+    const timeDifferences = sortedDates.slice(1).map((date, index) => date.getTime() - sortedDates[index].getTime());
 
     const medianDiff = timeDifferences.sort((a, b) => a - b)[Math.floor(timeDifferences.length / 2)];
 
     const medianDiffHours = medianDiff / (1000 * 60 * 60);
+    const totalSpanHours =
+      (sortedDates[sortedDates.length - 1].getTime() - sortedDates[0].getTime()) / (1000 * 60 * 60);
 
-    return medianDiffHours > 6 ? "M/dd" : "HH:mm";
+    if (medianDiffHours > 6) {
+      return "M/dd";
+    }
+    // If data points are close together but span more than a day, show both date and time
+    if (totalSpanHours > 24) {
+      return "M/dd HH:mm";
+    }
+    return "HH:mm";
   } catch {
     return "M/dd";
   }
@@ -84,13 +99,6 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
 
     return String(value);
   };
-};
-
-export const parseUtcTimestamp = (s: string): Date => {
-  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
-  const hasTime = s.includes("T") || s.includes(" ");
-  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
-  return new Date(s);
 };
 
 export const selectNiceTicksFromData = (
@@ -162,21 +170,6 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const selectColumnsFromData = (
-  data: Record<string, any>[],
-  xColumn: string,
-  yColumns: string[]
-): Record<string, any>[] =>
-  data.map((row) => {
-    const selectedRow: Record<string, any> = {
-      [xColumn]: row[xColumn],
-    };
-    yColumns.forEach((yColumn) => {
-      selectedRow[yColumn] = row[yColumn];
-    });
-    return selectedRow;
-  });
-
 const createChartConfig = (columns: string[]): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [
@@ -195,7 +188,7 @@ export const transformDataForBreakdown = (
   yColumn: string,
   breakdownColumn: string
 ) => {
-  const groupedByX = new Map<string, Record<string, number>>();
+  const groupedByX = new Map<string, Record<string, any>>();
   const allBreakdownValues = new Set<string>();
 
   data.forEach((row) => {
@@ -208,7 +201,7 @@ export const transformDataForBreakdown = (
     }
 
     if (!groupedByX.has(xValue)) {
-      groupedByX.set(xValue, {});
+      groupedByX.set(xValue, { ...row });
     }
 
     const xGroup = groupedByX.get(xValue);
@@ -219,10 +212,10 @@ export const transformDataForBreakdown = (
 
   const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => value && !isNil(value));
 
-  const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
+  const chartData = Array.from(groupedByX.entries()).map(([xValue, group]) => ({
+    ...group,
     [xColumn]: xValue,
-    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, 0])),
-    ...breakdownGroups,
+    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, group[value] ?? 0])),
   }));
 
   return {
@@ -233,31 +226,41 @@ export const transformDataForBreakdown = (
 };
 
 export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
-  const chartData = selectColumnsFromData(data, xColumn, yColumns);
-
   const filteredYColumns = yColumns.filter((column) => column && !isNil(column));
 
   return {
-    chartData,
+    chartData: data,
     keys: new Set(filteredYColumns),
     chartConfig: createChartConfig(filteredYColumns),
   };
 };
 
-export const calculateChartTotals = (data: Record<string, any>[], keys: string[], showTotal: boolean = false) => {
-  if (!showTotal) return { totalSum: 0, totalMax: 0 };
+export type DisplayValueResult = {
+  displayValue: number | null;
+  totalMax: number;
+};
 
-  const totalSum = data.reduce(
-    (sum, row) =>
-      sum +
-      keys.reduce((keySum, key) => {
-        const value = Number(row[key]) || 0;
-        return keySum + value;
-      }, 0),
-    0
-  );
+export const calculateDisplayValue = (
+  data: Record<string, any>[],
+  keys: string[],
+  displayMode: string
+): DisplayValueResult => {
+  if (displayMode === "none") return { displayValue: null, totalMax: calculateDataMax(data, keys) };
 
   const totalMax = calculateDataMax(data, keys);
 
-  return { totalSum, totalMax };
+  if (displayMode === "total") {
+    const totalSum = data.reduce(
+      (sum, row) => sum + keys.reduce((keySum, key) => keySum + (Number(row[key]) || 0), 0),
+      0
+    );
+    return { displayValue: totalSum, totalMax };
+  }
+
+  if (displayMode === "average") {
+    const values = data.flatMap((row) => keys.map((key) => Number(row[key]) || 0)).filter((v) => v !== 0);
+    return { displayValue: values.length > 0 ? mean(values) : 0, totalMax };
+  }
+
+  return { displayValue: null, totalMax };
 };

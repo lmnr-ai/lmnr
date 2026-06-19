@@ -1,11 +1,11 @@
 import { addMonths, subHours } from "date-fns";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const TIER_RETENTION_DAYS: Record<string, number> = {
@@ -22,15 +22,17 @@ interface ProjectBillingInfo {
   resetTime: string;
   workspaceProjectIds: string[];
   bytesLimit: number;
-  signalRunsLimit: number;
+  signalStepsLimit: number;
+  customSignalStepsLimit?: number | null;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
-  signalRunsLimit: number;
+  signalStepsLimit: number;
   resetTime: string;
   workspaceProjectIds: string[];
+  customSignalStepsLimit: number | null;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -41,9 +43,10 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
       return {
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
-        signalRunsLimit: Number(cached.signalRunsLimit),
+        signalStepsLimit: Number(cached.signalStepsLimit),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
+        customSignalStepsLimit: cached.customSignalStepsLimit != null ? Number(cached.customSignalStepsLimit) : null,
       };
     }
   } catch {
@@ -53,7 +56,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
   const tierRows = await db
     .select({
       workspaceId: workspaces.id,
-      signalRunsLimit: subscriptionTiers.signalRuns,
+      signalStepsLimit: subscriptionTiers.signalStepsProcessed,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -69,17 +72,30 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
 
   const row = tierRows[0];
 
-  const projectRows = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, row.workspaceId),
-    columns: { id: true },
-  });
+  const [projectRows, customLimitRows] = await Promise.all([
+    db.query.projects.findMany({
+      where: eq(projects.workspaceId, row.workspaceId),
+      columns: { id: true },
+    }),
+    db
+      .select({ limitValue: workspaceUsageLimits.limitValue })
+      .from(workspaceUsageLimits)
+      .where(
+        and(
+          eq(workspaceUsageLimits.workspaceId, row.workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_steps_processed")
+        )
+      )
+      .limit(1),
+  ]);
 
   return {
     workspaceId: row.workspaceId,
     tierName: row.tierName,
-    signalRunsLimit: Number(row.signalRunsLimit),
+    signalStepsLimit: Number(row.signalStepsLimit),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
+    customSignalStepsLimit: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
   };
 }
 
@@ -93,26 +109,43 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     return;
   }
 
-  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds } = info;
+  const {
+    workspaceId,
+    tierName,
+    signalStepsLimit: signalRunsLimit,
+    resetTime,
+    workspaceProjectIds,
+    customSignalStepsLimit: customSignalRunsLimit,
+  } = info;
+  const isFree = tierName.trim().toLowerCase() === "free";
 
-  if (tierName.trim().toLowerCase() !== "free") {
+  let effectiveLimit: number;
+  if (isFree) {
+    effectiveLimit = signalRunsLimit;
+  } else {
+    // For paid tiers, use the custom signal_runs limit if set
+    if (customSignalRunsLimit == null) {
+      return; // No custom limit for paid tier, no enforcement
+    }
+    effectiveLimit = customSignalRunsLimit;
+  }
+
+  // For free tier, signalRunsLimit=0 means "no limit configured on this tier"
+  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
+  if (isFree && effectiveLimit === 0) {
     return;
   }
 
-  if (signalRunsLimit === 0) {
-    return;
-  }
+  const usageCacheKey = `${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`;
 
-  const usageCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
-
-  let totalSignalRuns: number | null = null;
+  let totalSignalSteps: number | null = null;
   try {
-    totalSignalRuns = await cache.get<number>(usageCacheKey);
+    totalSignalSteps = await cache.get<number>(usageCacheKey);
   } catch {
     // cache read failed, fall through to ClickHouse
   }
 
-  if (totalSignalRuns === null) {
+  if (totalSignalSteps === null) {
     if (workspaceProjectIds.length === 0) {
       return;
     }
@@ -121,8 +154,8 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
     const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
 
-    const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
-    FROM signal_runs
+    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as totalSignalSteps
+    FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
     AND signal_runs.status = 1`;
@@ -132,14 +165,14 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
       format: "JSONEachRow",
       query_params: { projectIds: workspaceProjectIds, latestResetTime: latestResetTimeStr },
     });
-    const rows = await result.json<{ total_signal_runs: number }>();
-    totalSignalRuns = rows.length > 0 ? Number(rows[0].total_signal_runs) : 0;
+    const rows = await result.json<{ totalSignalSteps: number }>();
+    totalSignalSteps = rows.length > 0 ? Number(rows[0].totalSignalSteps) : 0;
   }
 
-  if (totalSignalRuns + tracesCount > signalRunsLimit) {
-    const remaining = Math.max(signalRunsLimit - totalSignalRuns, 0);
+  if (totalSignalSteps + tracesCount > effectiveLimit) {
+    const remaining = Math.max(effectiveLimit - totalSignalSteps, 0);
     throw new Error(
-      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${signalRunsLimit} allowed this billing period. Please upgrade your plan.`
+      `Signal steps processed limit exceeded. This job requires at least ${tracesCount} signal steps processed, but your workspace only has ${remaining} remaining out of ${effectiveLimit} allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
     );
   }
 }

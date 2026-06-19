@@ -5,22 +5,22 @@ import { db } from "@/lib/db/drizzle";
 import { sqlTemplates } from "@/lib/db/migrations/schema";
 
 export const CreateSqlTemplateSchema = z.object({
-  id: z.string(),
-  projectId: z.string(),
+  id: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   query: z.string(),
 });
 
 export const UpdateSqlTemplateSchema = z.object({
-  projectId: z.string(),
-  templateId: z.string(),
+  projectId: z.guid(),
+  templateId: z.guid(),
   name: z.string().min(1, "Template name is required"),
   query: z.string(),
 });
 
 export const DeleteSqlTemplateSchema = z.object({
-  projectId: z.string(),
-  templateId: z.string(),
+  projectId: z.guid(),
+  templateId: z.guid(),
 });
 
 export async function getSqlTemplates(input: { projectId: string }) {

@@ -5,23 +5,27 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
+import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type EventNavigationItem } from "@/components/signal/utils.ts";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 import { buildEventsColumns } from "./columns";
 
@@ -58,8 +62,9 @@ function PureEventsTable() {
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();
+  const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
+  const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
@@ -69,27 +74,18 @@ function PureEventsTable() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const filterRaw = searchParams.getAll("filter");
-  const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
+
+  const { effective, isLoading: isViewLoading, setFilters, setSearchAndFilters } = useTableView();
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const textSearchFilter = effective.search.length > 0 ? effective.search : null;
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
-
-  // Listen for open-trace events from the traceId column button
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const traceId = (e as CustomEvent<string>).detail;
-      setTraceId(traceId);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
-    };
-    window.addEventListener("open-trace", handler);
-    return () => window.removeEventListener("open-trace", handler);
-  }, [setTraceId, searchParams, pathName, router]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -112,7 +108,25 @@ function PureEventsTable() {
 
         filter.forEach((f) => urlParams.append("filter", f));
 
-        if (isUnclusteredFilter) {
+        if (textSearchFilter) {
+          urlParams.set("search", textSearchFilter);
+          // Only string-typed schema fields can produce useful free-text
+          // snippets — numbers/booleans/enums are reachable via column
+          // filters and shouldn't show highlighted matches. The backend
+          // (`search_signal_events` in `app-server/src/search/signal_events.rs`)
+          // additionally filters names against a strict identifier regex
+          // before interpolating them into the Quickwit query, so any
+          // non-identifier name silently produces no hits.
+          signal.schemaFields.forEach((f) => {
+            if (f.name.trim() && f.type === "string") {
+              urlParams.append("payloadField", f.name);
+            }
+          });
+        }
+
+        if (emergingClusterId) {
+          urlParams.set("emergingClusterId", emergingClusterId);
+        } else if (isUnclusteredFilter) {
           urlParams.set("unclustered", "true");
         } else {
           selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
@@ -140,7 +154,20 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter, signal.id, params.projectId, toast]
+    [
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+      textSearchFilter,
+      signal.id,
+      signal.schemaFields,
+      params.projectId,
+      toast,
+    ]
   );
 
   const getRowHref = useCallback(
@@ -154,12 +181,16 @@ function PureEventsTable() {
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      setSelectedEvent(row.original);
-    },
-    [setSelectedEvent]
-  );
+      const traceId = row.original.traceId;
+      track("signals", "event_to_trace");
+      setTraceId(traceId);
 
-  const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("traceId", traceId);
+      router.push(`${pathName}?${newParams.toString()}`);
+    },
+    [setTraceId, searchParams, pathName, router]
+  );
 
   const {
     data: events,
@@ -169,24 +200,27 @@ function PureEventsTable() {
     fetchNextPage,
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
-    enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
+    enabled: !!(pastHours || (startDate && endDate)) && !isViewLoading,
+    deps: [
+      params.projectId,
+      signal.id,
+      pastHours,
+      startDate,
+      endDate,
+      filter,
+      selectedClusterIds,
+      isUnclusteredFilter,
+      emergingClusterId,
+      textSearchFilter,
+    ],
   });
 
+  // Find the first event matching the active traceId to highlight it
   const focusedRowId = useMemo(() => {
-    if (!selectedEvent) return undefined;
-    return selectedEvent.id;
-  }, [selectedEvent]);
-
-  useEffect(() => {
-    if (events) {
-      setNavigationRefList(
-        events.map((event) => ({
-          traceId: event.traceId,
-        }))
-      );
-    }
-  }, [events, setNavigationRefList]);
+    if (!traceId || !events) return undefined;
+    const match = events.find((e) => e.traceId === traceId);
+    return match?.id;
+  }, [traceId, events]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -207,26 +241,37 @@ function PureEventsTable() {
         focusedRowId={focusedRowId}
         hasMore={hasMore}
         isFetching={isFetching}
-        isLoading={isLoading}
+        isLoading={isLoading || isViewLoading}
         getRowHref={getRowHref}
         fetchNextPage={fetchNextPage}
         loadMoreButton
         estimatedRowHeight={80}
-        emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+        emptyRow={filter.length === 0 && !textSearchFilter ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={filters} filters={effective.filters} onFiltersChange={setFilters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <ViewsToolbar projectId={params.projectId} resource={`signal-events:${signal.id}`} />
           <DateRangeFilter />
         </div>
-        <ClusterBreadcrumbs />
-        <DataTableFilterList />
-        <ClustersSection />
+        <div className="w-full px-px">
+          <AdvancedSearch
+            value={searchValue}
+            onChange={setSearchAndFilters}
+            filters={filters}
+            storageKey={`signal-events-${signal.id}`}
+            resource="signal-events"
+            placeholder="Search events by payload, severity, trace id, and more..."
+            className="w-full flex-1 mb-2"
+          />
+        </div>
+        {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
+        <ClustersSection className="mb-2" />
       </InfiniteDataTable>
     </div>
   );
@@ -234,12 +279,16 @@ function PureEventsTable() {
 
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
-
+  const params = useParams<{ projectId: string }>();
   const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (
-    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
+    <InfiniteDataTableProvider
+      uniqueKey="id"
+      defaults={{ columnOrder }}
+      views={{ projectId: params.projectId, resource: `signal-events:${signal.id}` }}
+    >
       <PureEventsTable />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

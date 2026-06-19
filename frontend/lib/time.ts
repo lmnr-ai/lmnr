@@ -52,7 +52,7 @@ const inferGroupByInterval = (startTime: Date, endTime: Date): GroupByInterval =
 
   if (diffInHours <= 1) {
     return GroupByInterval.Minute;
-  } else if (diffInHours <= 24) {
+  } else if (diffInHours <= 24 * 7) {
     return GroupByInterval.Hour;
   } else {
     return GroupByInterval.Day;

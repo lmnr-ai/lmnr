@@ -21,38 +21,35 @@ import {
 } from "./types";
 
 const SwitchTierSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   tier: z.enum(["hobby", "pro"]),
 });
 
 const PaymentPortalSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   returnUrl: z.url(),
 });
 
 export async function getSubscriptionDetails(workspaceId: string): Promise<SubscriptionDetails | null> {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
-  const workspace = await db
-    .select({
-      subscriptionId: workspaces.subscriptionId,
-      tierName: subscriptionTiers.name,
-    })
-    .from(workspaces)
-    .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
+  const workspace = await db.query.workspaces.findFirst({
+    with: {
+      subscriptionTier: true,
+    },
+    where: eq(workspaces.id, workspaceId),
+  });
 
-  if (!workspace[0]?.subscriptionId) {
+  if (!workspace?.subscriptionId) {
     return null;
   }
 
   const s = stripe();
-  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, {
+  const subscription = await s.subscriptions.retrieve(workspace.subscriptionId, {
     expand: ["latest_invoice.lines"],
   });
 
-  const tierName = workspace[0].tierName.toLowerCase().trim() as PaidTier;
+  const tierName = workspace.subscriptionTier.name.toLowerCase().trim() as PaidTier;
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
@@ -230,7 +227,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     newMegabytesOverageStr = (10 ** 15 - 1).toString();
   }
 
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
+  const newSignalRunsOverage = Math.max(0, usage.totalSignalSteps - newTierConfig.includedSignalSteps);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
@@ -240,14 +237,14 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     lookup_keys: [
       newTierConfig.lookupKey,
       newTierConfig.overageMegabytesLookupKey,
-      newTierConfig.overageSignalRunsLookupKey,
+      newTierConfig.overageSignalStepsProcessedLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
   const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
-    (p) => p.lookup_key === newTierConfig.overageSignalRunsLookupKey
+    (p) => p.lookup_key === newTierConfig.overageSignalStepsProcessedLookupKey
   );
 
   if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {

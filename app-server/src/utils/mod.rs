@@ -1,9 +1,7 @@
 pub mod limits;
+pub mod text_cleaning;
 
-use backoff::ExponentialBackoffBuilder;
-use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::{env, time::Duration};
 
 pub fn json_value_to_string(v: &Value) -> String {
     match v {
@@ -66,88 +64,4 @@ pub fn sanitize_string(input: &str) -> String {
             true
         })
         .collect::<String>()
-}
-
-/// Call an HTTP service with retry logic using exponential backoff
-/// Returns the deserialized response on success
-pub async fn call_service_with_retry<T>(
-    client: &reqwest::Client,
-    service_url: &str,
-    auth_token: &str,
-    request_body: &Value,
-) -> anyhow::Result<T>
-where
-    T: DeserializeOwned,
-{
-    let call_service = || async {
-        let response = client
-            .post(service_url)
-            .header("Authorization", format!("Bearer {}", auth_token))
-            .header("Content-Type", "application/json")
-            .json(request_body)
-            .send()
-            .await
-            .map_err(|e| {
-                log::warn!("Failed to call service ({}): {:?}", service_url, e);
-                backoff::Error::transient(anyhow::Error::from(e))
-            })?;
-
-        let status = response.status();
-
-        if status.is_success() {
-            let response_text = response.text().await.unwrap_or_default();
-            // log::debug!("Service response ({}): {}", service_url, response_text);
-
-            serde_json::from_str(&response_text).map_err(|e| {
-                log::error!(
-                    "Failed to deserialize response from {}: {:?}",
-                    service_url,
-                    e
-                );
-                backoff::Error::permanent(anyhow::Error::from(e))
-            })
-        } else if status.is_server_error() {
-            let response_text = response.text().await.unwrap_or_default();
-
-            log::warn!(
-                "Service returned server error status {}: Response: {}",
-                status,
-                response_text
-            );
-            Err(backoff::Error::transient(anyhow::anyhow!(
-                "Service server error. Response: {}",
-                response_text
-            )))
-        } else {
-            let status = response.status();
-            let response_text = response.text().await.unwrap_or_default();
-            log::warn!(
-                "Service returned error status {}, Response: {}",
-                status,
-                response_text
-            );
-            Err(backoff::Error::permanent(anyhow::anyhow!(
-                "Service error: {}, Response: {}",
-                status,
-                response_text
-            )))
-        }
-    };
-
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_millis(1000))
-        .with_max_interval(Duration::from_secs(30))
-        .with_max_elapsed_time(Some(Duration::from_secs(60))) // 1 minute max
-        .build();
-
-    backoff::future::retry(backoff, call_service)
-        .await
-        .map_err(Into::into)
-}
-
-pub fn get_unsigned_env_with_default(key: &str, default: usize) -> usize {
-    env::var(key)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
 }

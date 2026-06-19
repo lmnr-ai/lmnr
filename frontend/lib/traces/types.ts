@@ -5,9 +5,9 @@ export type TagClass = typeof tagClasses.$inferSelect;
 
 export type SpanTag = {
   id: string;
-  createdAt: string;
-  spanId: string;
   name: string;
+  createdAt?: string;
+  spanId?: string;
   email?: string;
   color?: string;
 };
@@ -48,8 +48,8 @@ export type Span = {
   attributes: Record<string, any>;
   input: any;
   output: any;
-  inputPreview: string;
-  outputPreview: string;
+  inputPreview?: string;
+  outputPreview?: string;
   spanType: SpanType;
   events: SpanEvent[];
   path: string;
@@ -60,9 +60,18 @@ export type Span = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
+  /**
+   * Deduped tool definitions reconstructed from `deduped_content_dict` by
+   * `spans_v0` (camelCased from the view's `tool_definitions` column).
+   * Empty string when the span has no tools or for legacy spans whose
+   * definitions still ride in the attributes blob — the frontend's
+   * `extractToolsFromAttributes` is the fallback.
+   */
+  toolDefinitions?: string;
 };
 
 export type SpanRow = {
@@ -72,8 +81,6 @@ export type SpanRow = {
   name: string;
   startTime: string;
   endTime: string;
-  inputPreview?: string;
-  outputPreview?: string;
   spanType: SpanType;
 
   totalCost: number;
@@ -133,18 +140,19 @@ export type TraceRow = {
   outputCost: number;
   totalCost: number;
 
-  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
   userId?: string;
   status: string;
-  tags: string[];
-  analysis_status?: string;
-  analysis_preview?: string;
-  analysis?: string;
+  spanTags: string[];
+  traceTags: string[];
   rootSpanInput?: string;
   rootSpanOutput?: string;
+  inputSnippet?: { text: string; highlight: [number, number] };
+  outputSnippet?: { text: string; highlight: [number, number] };
+  attributesSnippet?: { text: string; highlight: [number, number] };
+  snippetsCount?: number;
 };
 
 export type RealtimeTracePayload = {

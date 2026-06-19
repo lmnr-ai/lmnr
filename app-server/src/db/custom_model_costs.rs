@@ -4,9 +4,13 @@ use uuid::Uuid;
 
 #[derive(FromRow, Debug, Clone)]
 pub struct DBCustomModelCost {
+    #[allow(unused)]
     pub id: Uuid,
+    #[allow(unused)]
     pub project_id: Uuid,
+    #[allow(unused)]
     pub provider: String,
+    #[allow(unused)]
     pub model: String,
     pub costs: Value,
 }

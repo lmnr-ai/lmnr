@@ -161,6 +161,16 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "claude-sonnet-4-5-20250929",
         label: "Claude 4.5 Sonnet",
       },
+      {
+        id: "anthropic:claude-sonnet-4-6",
+        name: "claude-sonnet-4-6",
+        label: "Claude 4.6 Sonnet",
+      },
+      {
+        id: "anthropic:claude-opus-4-6",
+        name: "claude-opus-4-6",
+        label: "Claude 4.6 Opus",
+      },
     ],
   },
   {
@@ -190,6 +200,26 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         id: "gemini:gemini-2.5-flash-lite",
         name: "gemini-2.5-flash-lite",
         label: "Gemini 2.5 Flash Lite",
+      },
+      {
+        id: "gemini:gemini-3-flash-preview",
+        name: "gemini-3-flash-preview",
+        label: "Gemini 3 Flash Preview",
+      },
+      {
+        id: "gemini:gemini-3-pro-preview",
+        name: "gemini-3-pro-preview",
+        label: "Gemini 3 Pro Preview",
+      },
+      {
+        id: "gemini:gemini-3.1-flash-lite-preview",
+        name: "gemini-3.1-flash-lite-preview",
+        label: "Gemini 3.1 Flash Lite Preview",
+      },
+      {
+        id: "gemini:gemini-3.1-pro-preview",
+        name: "gemini-3.1-pro-preview",
+        label: "Gemini 3.1 Pro Preview",
       },
     ],
   },

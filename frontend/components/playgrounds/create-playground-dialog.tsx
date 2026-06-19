@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 export default function CreatePlaygroundDialog() {
@@ -36,6 +37,7 @@ export default function CreatePlaygroundDialog() {
 
     const json = await res.json();
 
+    track("playgrounds", "created");
     setIsDialogOpen(false);
     setIsLoading(false);
 

@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -15,16 +17,24 @@ import { Label } from "../ui/label";
 import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 
 export default function DeleteProject() {
-  const { project } = useProjectContext();
+  const { project, projects } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
+
+  // A workspace must keep at least one project — deleting the last one would strand the user with
+  // no project to anchor the sidebar/settings. Gate the UI here; the API enforces it too.
+  const isOnlyProject = projects.length <= 1;
 
   const [inputProjectName, setInputProjectName] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const deleteProject = useCallback(async () => {
+    if (isOnlyProject) {
+      return;
+    }
+
     if (inputProjectName !== project?.name) {
       toast({
         variant: "destructive",
@@ -55,6 +65,7 @@ export default function DeleteProject() {
         title: "Project deleted successfully",
         description: "Redirecting to projects page...",
       });
+      track("project", "deleted");
 
       router.push("/projects");
     } catch (error) {
@@ -67,7 +78,7 @@ export default function DeleteProject() {
     } finally {
       setIsLoading(false);
     }
-  }, [inputProjectName, project?.name, toast, projectId, router]);
+  }, [isOnlyProject, inputProjectName, project?.name, toast, projectId, router]);
 
   const resetAndClose = useCallback((open: boolean) => {
     setIsDialogOpen(open);
@@ -85,14 +96,31 @@ export default function DeleteProject() {
       />
       <Dialog open={isDialogOpen} onOpenChange={resetAndClose}>
         <DialogTrigger asChild>
-          <Button
-            icon="trash"
-            onClick={() => setIsDialogOpen(true)}
-            variant="outline"
-            className="w-fit text-destructive border-destructive"
-          >
-            Delete project
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* Span wrapper so the tooltip still receives pointer events when the button is disabled. */}
+                <span className="w-fit">
+                  <Button
+                    icon="trash"
+                    onClick={() => setIsDialogOpen(true)}
+                    variant="outline"
+                    disabled={isOnlyProject}
+                    className="w-fit text-destructive border-destructive"
+                  >
+                    Delete project
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isOnlyProject && (
+                <TooltipContent>
+                  This is the only project in the workspace.
+                  <br />
+                  Create another project before deleting this one.
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </DialogTrigger>
 
         <DialogContent className="sm:max-w-md">

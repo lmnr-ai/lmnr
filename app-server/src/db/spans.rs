@@ -92,15 +92,6 @@ pub struct Span {
     pub size_bytes: usize,
 }
 
-impl Span {
-    pub fn should_record_to_clickhouse(&self) -> bool {
-        // This function is intended to filter out "signal" spans from record to clickhouse
-        // One of the signal spans is the span that carries the attribute to indicate whether
-        // the trace has a browser session or not and is named "cdp_use.session".
-        !(self.attributes.has_browser_session().unwrap_or(false) && self.name == "cdp_use.session")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,7 +495,9 @@ mod tests {
         );
         assert_eq!(attrs.get("llm.request.type"), Some(&json!("chat")));
 
-        // Verify function metadata is PRESERVED
+        // Fallback path: the filter KEEPS tool-def keys so legacy spans (no
+        // producer extraction) still render tools. New-path stripping is
+        // covered by `traces::tool_dedup` tests.
         assert_eq!(
             attrs.get("llm.request.functions.0.name"),
             Some(&json!("get_weather"))

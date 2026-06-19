@@ -103,6 +103,20 @@ impl CacheTrait for InMemoryCache {
         }
     }
 
+    async fn renew_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError> {
+        let mut locks = self.locks.write().await;
+        let now = tokio::time::Instant::now();
+        // Drop expired locks first so a stale entry can't be "renewed".
+        locks.retain(|_, &mut expires_at| expires_at > now);
+        match locks.get_mut(key) {
+            Some(expiry) => {
+                *expiry = now + Duration::from_secs(ttl_seconds);
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
     async fn release_lock(&self, key: &str) -> Result<(), CacheError> {
         let mut locks = self.locks.write().await;
         locks.remove(key);
@@ -129,5 +143,9 @@ impl CacheTrait for InMemoryCache {
         let in_cache = self.cache.get(key).await.is_some();
         let in_sorted_sets = self.sorted_sets.read().await.contains_key(key);
         Ok(in_cache || in_sorted_sets)
+    }
+
+    fn is_healthy(&self) -> bool {
+        true
     }
 }

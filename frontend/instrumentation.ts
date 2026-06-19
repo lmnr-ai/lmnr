@@ -14,8 +14,9 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { subscriptionTiers, modelCosts } = await import("@/lib/db/migrations/schema.ts");
-      const { db } = await import("@/lib/db/drizzle.ts");
+      const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
+        await import("@/lib/db/migrations/schema.ts");
+      const { db, getDatabaseConfig, getPostgresSchema } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -98,6 +99,75 @@ export async function register() {
         }
       };
 
+      // `CREATE OR REPLACE` so credential rotation is picked up on next boot
+      // without tripping the clickhouse-migrations MD5 checksum guard (which is
+      // why these live here instead of in their migrations).
+      // Multi-replica boots race the DDL — CH serialises it, but each replace
+      // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
+      // Acceptable: layout is lazy (no preload), source lookups hit each
+      // table's PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
+      // evicts/refreshes every minute under normal operation.
+      const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+      const ensureLlmMessagesDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY llm_messages_dict
+            (
+                project_id UUID,
+                trace_id UUID,
+                message_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, trace_id, message_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'llm_messages'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
+      // Project-scoped dedup dict. Backs the `deduped_content` table for
+      // both input/output messages and tool definitions. The `spans_v0`
+      // view tries this dict first and falls back to `llm_messages_dict`
+      // for legacy spans.
+      const ensureDedupedContentDict = async () => {
+        const { clickhouseClient } = await import("@/lib/clickhouse/client.ts");
+        const user = escapeChCreds(process.env.CLICKHOUSE_USER || "ch_user");
+        const password = escapeChCreds(process.env.CLICKHOUSE_PASSWORD || "ch_passwd");
+        const db = escapeChCreds(process.env.CLICKHOUSE_DB || "default");
+
+        await clickhouseClient.command({
+          query: `
+            CREATE OR REPLACE DICTIONARY deduped_content_dict
+            (
+                project_id UUID,
+                content_hash String,
+                content String
+            )
+            PRIMARY KEY project_id, content_hash
+            SOURCE(CLICKHOUSE(
+                USER '${user}'
+                PASSWORD '${password}'
+                DB '${db}'
+                TABLE 'deduped_content'
+            ))
+            LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
+            LIFETIME(MIN 30 MAX 60)
+          `,
+        });
+      };
+
       const initializeClickHouse = async () => {
         try {
           const { migration } = await import("clickhouse-migrations");
@@ -114,14 +184,54 @@ export async function register() {
             "ENGINE=Atomic", // db_engine
             String(Number(process.env.CH_MIGRATIONS_TIMEOUT) || 30000) // timeout as string
           );
+
+          await ensureLlmMessagesDict();
+          await ensureDedupedContentDict();
         } catch (error) {
           console.error("Failed to apply ClickHouse migrations:", error);
           throw error;
         }
       };
       // Run Postgres migrations and data initialization
-      await db.execute("ALTER DATABASE postgres REFRESH COLLATION VERSION");
-      await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
+      // Best-effort: requires DB owner / superuser, which managed Postgres
+      // (RDS, Supabase, Neon, Cloud SQL, Azure) doesn't grant to app roles.
+      try {
+        const dbName = getDatabaseConfig().database;
+        const quotedDbName = `"${dbName.replace(/"/g, '""')}"`;
+        await db.execute(`ALTER DATABASE ${quotedDbName} REFRESH COLLATION VERSION`);
+      } catch (error) {
+        console.warn(
+          "Skipping REFRESH COLLATION VERSION (insufficient privileges or unsupported):",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+      const postgresSchema = getPostgresSchema();
+      // Any case variant of "public" is the default schema (which always exists),
+      // so we never create it or relocate the migrations tracker into it. Note an
+      // unquoted identifier in search_path folds to lowercase, so a value like
+      // "PUBLIC" resolves to "public" at query time — quoting it into CREATE SCHEMA
+      // would create a SEPARATE "PUBLIC" schema that queries never reach.
+      const isPublicSchema = postgresSchema.toLowerCase() === "public";
+      if (postgresSchema && !isPublicSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
+        try {
+          await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+        } catch (error) {
+          console.warn(
+            `Skipping CREATE SCHEMA "${postgresSchema}" (insufficient privileges or pre-provisioned); set POSTGRES_CREATE_SCHEMA=false to silence:`,
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      }
+      // Track migrations inside the configured schema so a Laminar DB can coexist
+      // with another Drizzle-managed service in the same instance. An unset or
+      // "public" (any case) schema keeps the tracker in the standard "drizzle"
+      // schema — so existing public deployments are untouched and don't re-run
+      // migrations (relocating the tracker would make the migrator see no prior
+      // migration and re-run all of them).
+      await migrate(db as any, {
+        migrationsFolder: "lib/db/migrations",
+        ...(postgresSchema && !isPublicSchema ? { migrationsSchema: postgresSchema } : {}),
+      });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
@@ -137,6 +247,60 @@ export async function register() {
       console.log("Applying ClickHouse schema. This may take a while...");
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
+
+      // Seed default signals for projects that don't have any
+      const { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } = await import("@/lib/db/default-signals.ts");
+
+      const initializeDefaultSignals = async () => {
+        try {
+          // Find all project IDs that already have at least one signal
+          const projectsWithSignals = await db.selectDistinct({ projectId: signals.projectId }).from(signals);
+
+          const projectIdsWithSignals = new Set(projectsWithSignals.map((r) => r.projectId));
+
+          // Get all projects
+          const allProjects = await db.select({ id: projects.id }).from(projects);
+
+          // Filter to projects that have no signals
+          const projectsWithoutSignals = allProjects.filter((p) => !projectIdsWithSignals.has(p.id));
+
+          if (projectsWithoutSignals.length === 0) {
+            console.log("No projects need default signals, skipping seeding");
+            return;
+          }
+
+          let seeded = 0;
+          for (const project of projectsWithoutSignals) {
+            try {
+              const [signal] = await db
+                .insert(signals)
+                .values({
+                  projectId: project.id,
+                  ...DEFAULT_SIGNAL,
+                })
+                .onConflictDoNothing()
+                .returning({ id: signals.id });
+
+              if (signal) {
+                await db.insert(signalTriggers).values({
+                  projectId: project.id,
+                  signalId: signal.id,
+                  value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+                });
+                seeded++;
+              }
+            } catch (err) {
+              console.error(`Failed to seed default signal for project ${project.id}:`, err);
+            }
+          }
+
+          console.log(`Seeded default signals for ${seeded}/${projectsWithoutSignals.length} project(s)`);
+        } catch (error) {
+          console.error("Failed to initialize default signals:", error);
+          console.log("Continuing without default signals...");
+        }
+      };
+      await initializeDefaultSignals();
 
       // Run Quickwit index initialization
       const initializeQuickwit = async () => {
@@ -161,6 +325,12 @@ export async function register() {
       console.log("Initializing Laminar");
       Laminar.initialize();
     }
+
+    // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
+    // operators opt out (see Feature.TELEMETRY). Fire-and-forget — never blocks
+    // or fails boot.
+    const { startTelemetry } = await import("@/lib/telemetry/index.ts");
+    startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
   }
 }
 

@@ -1,11 +1,18 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
+    cache::Cache,
     db::{self, DB, project_api_keys::ProjectApiKey},
     evaluations::{
-        EvaluationDatapointResult, insert_evaluation_datapoints, update_evaluation_datapoint,
+        EvaluationDatapointResult, UpdatedDatapointStrings,
+        insert_evaluation_datapoints,
+        realtime::{
+            RealtimeDatapoint, cache_inserted_datapoint_trace_ids, send_datapoint_updates,
+        },
+        update_evaluation_datapoint,
     },
     names::NameGenerator,
+    pubsub::PubSub,
     routes::types::ResponseResult,
 };
 use actix_web::{
@@ -62,6 +69,8 @@ pub async fn save_eval_datapoints(
     req: Json<SaveEvalDatapointsRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
+    cache: web::Data<Cache>,
+    pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let eval_id = eval_id.into_inner();
@@ -71,7 +80,7 @@ pub async fn save_eval_datapoints(
     let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
-    insert_evaluation_datapoints(
+    let ch_rows = insert_evaluation_datapoints(
         &db.pool,
         clickhouse,
         points,
@@ -80,6 +89,19 @@ pub async fn save_eval_datapoints(
         &group_name,
     )
     .await?;
+
+    cache_inserted_datapoint_trace_ids(cache.into_inner(), &project_id, &eval_id, &ch_rows).await;
+
+    let realtime_points: Vec<RealtimeDatapoint<'_>> =
+        ch_rows.iter().map(RealtimeDatapoint::from_ch_insert).collect();
+
+    send_datapoint_updates(
+        pubsub.get_ref().as_ref(),
+        &project_id,
+        &eval_id,
+        &realtime_points,
+    )
+    .await;
 
     Ok(HttpResponse::Ok().json(eval_id))
 }
@@ -99,6 +121,7 @@ pub async fn update_eval_datapoint(
     req: Json<UpdateEvalDatapointRequest>,
     db: web::Data<DB>,
     clickhouse: web::Data<clickhouse::Client>,
+    pubsub: web::Data<Arc<PubSub>>,
     project_api_key: ProjectApiKey,
 ) -> ResponseResult {
     let (eval_id, datapoint_id) = path.into_inner();
@@ -106,11 +129,12 @@ pub async fn update_eval_datapoint(
     let clickhouse = clickhouse.into_inner().as_ref().clone();
     let project_id = project_api_key.project_id;
 
-    // Get evaluation group_id for ClickHouse
     let group_id = db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_id).await?;
 
-    // Update the datapoint by merging with existing
-    update_evaluation_datapoint(
+    let UpdatedDatapointStrings {
+        executor_output: ch_executor_output,
+        scores: ch_scores,
+    } = update_evaluation_datapoint(
         &db.pool,
         clickhouse,
         eval_id,
@@ -122,6 +146,20 @@ pub async fn update_eval_datapoint(
         req.trace_id,
     )
     .await?;
+
+    let realtime_point = RealtimeDatapoint::from_update_strings(
+        datapoint_id,
+        req.trace_id,
+        &ch_executor_output,
+        &ch_scores,
+    );
+    send_datapoint_updates(
+        pubsub.get_ref().as_ref(),
+        &project_id,
+        &eval_id,
+        std::slice::from_ref(&realtime_point),
+    )
+    .await;
 
     Ok(HttpResponse::Ok().json(datapoint_id))
 }

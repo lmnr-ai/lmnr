@@ -29,5 +29,10 @@ fn is_ai_sdk_llm_span(span: &Span) -> bool {
                 .attributes
                 .raw_attributes
                 .get("ai.model.provider")
+                .is_some()
+            || span
+                .attributes
+                .raw_attributes
+                .get("aisdk.model.provider")
                 .is_some())
 }

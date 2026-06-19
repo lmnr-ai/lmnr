@@ -16,7 +16,7 @@ interface SpanViewSearchBarProps {
 const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
   const searchState = useSpanSearchState();
 
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(searchState?.searchTerm ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const searchTerm = searchState?.searchTerm ?? "";
@@ -38,7 +38,11 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
         clearTimeout(debounceRef.current);
         const value = e.currentTarget.value;
         if (value === searchTerm) {
-          goToNext?.();
+          if (e.shiftKey) {
+            goToPrev?.();
+          } else {
+            goToNext?.();
+          }
         } else {
           setSearchTerm?.(value);
         }
@@ -47,7 +51,7 @@ const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
         setOpen(false);
       }
     },
-    [searchTerm, goToNext, setSearchTerm, clearSearch, setOpen]
+    [searchTerm, goToNext, goToPrev, setSearchTerm, clearSearch, setOpen]
   );
 
   const handleClear = useCallback(() => {

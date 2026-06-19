@@ -5,8 +5,8 @@ import { db } from "@/lib/db/drizzle";
 import { datasetExportJobs } from "@/lib/db/migrations/schema";
 
 const GetExportJobSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
 });
 
 export type ExportJob = {
@@ -37,6 +37,3 @@ export async function getExportJob(input: z.infer<typeof GetExportJobSchema>): P
     createdAt: job.createdAt,
   };
 }
-
-
-

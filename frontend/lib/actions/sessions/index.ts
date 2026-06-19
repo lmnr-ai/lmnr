@@ -5,21 +5,23 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
+import { getTimeRange } from "@/lib/clickhouse/utils";
 import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortColumn: z.enum(["start_time", "duration", "total_tokens", "total_cost", "trace_count"]).nullable().optional(),
+  sortDirection: z.enum(["ASC", "DESC"]).nullable().optional(),
 });
 
 export const DeleteSessionsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   sessionIds: z.array(z.string()).min(1),
 });
 
@@ -34,6 +36,8 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     search,
     searchIn,
     filter: inputFilters,
+    sortColumn,
+    sortDirection,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -41,16 +45,17 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const traceIds = search
-    ? await searchTraceIds({
+  const spanHits: SpanSearchHit[] = search
+    ? await searchSpans({
         projectId,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
+  const traceIds = [...new Set(spanHits.map((hit) => hit.trace_id))];
 
-  if (search && traceIds?.length === 0) {
+  if (search && traceIds.length === 0) {
     return { items: [] };
   }
 
@@ -62,6 +67,8 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     startTime,
     endTime,
     pastHours,
+    sortColumn: sortColumn ?? undefined,
+    sortDirection: sortDirection ?? undefined,
   });
 
   const items = await executeQuery<Omit<SessionRow, "subRows">>({
@@ -70,47 +77,10 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     projectId,
   });
 
-  return {
-    items: items.map((item) => ({ ...item, subRows: [] })),
-  };
+  const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
+
+  return { items: sessionItems };
 }
-
-const searchTraceIds = async ({
-  projectId,
-  searchQuery,
-  timeRange,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  timeRange: TimeRange;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  const baseQuery = `
-      SELECT DISTINCT(trace_id) traceId
-      FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
-
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
-  });
-
-  const result = (await response.json()) as { traceId: string }[];
-
-  return result.map((i) => i.traceId);
-};
 
 export async function deleteSessions(input: z.infer<typeof DeleteSessionsSchema>) {
   const { projectId, sessionIds } = DeleteSessionsSchema.parse(input);

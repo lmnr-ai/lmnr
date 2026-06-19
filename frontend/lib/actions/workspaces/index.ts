@@ -1,17 +1,17 @@
 import { desc, eq, inArray } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
-import { authOptions } from "@/lib/auth";
+import { createSignal } from "@/lib/actions/signals";
+import { getServerSession } from "@/lib/auth-session";
 import { defaultReports } from "@/lib/db/default-charts.ts";
+import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
   reports,
   reportTargets,
-  signals,
   signalTriggers,
   subscriptionTiers,
   workspaceAddons,
@@ -33,30 +33,8 @@ type CreateWorkspaceResult = {
   projectId?: string;
 };
 
-const DEFAULT_SIGNAL = {
-  name: "Failure Detector",
-  prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
-loops or repeated calls, wrong tool selection, logic errors, \
-and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
-  structuredOutputSchema: {
-    type: "object",
-    required: ["description", "category"],
-    properties: {
-      description: {
-        type: "string",
-        description: "Description of the issue: what happened, which span(s) are involved, and the impact",
-      },
-      category: {
-        type: "string",
-        enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
-        description: "Category of the issue",
-      },
-    },
-  },
-};
-
 export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session?.user) {
     throw new Error("Unauthorized");
@@ -109,22 +87,21 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     projectId = project.id;
 
     if (isFirstProject && projectId) {
-      const [signal] = await db
-        .insert(signals)
-        .values({
-          projectId,
-          ...DEFAULT_SIGNAL,
-        })
-        .returning({ id: signals.id });
+      // Route through createSignal so the default Failure Detector signal gets
+      // the same SIGNAL_EVENT alert + creator email target as a UI-created signal.
+      const signal = await createSignal({
+        projectId,
+        name: DEFAULT_SIGNAL.name,
+        prompt: DEFAULT_SIGNAL.prompt,
+        structuredOutput: DEFAULT_SIGNAL.structuredOutputSchema,
+        subscriberEmail: userEmail ?? undefined,
+      });
 
       if (signal) {
         await db.insert(signalTriggers).values({
           projectId,
           signalId: signal.id,
-          value: [
-            { column: "total_token_count", operator: "gt", value: "1000" },
-            { column: "root_span_finished", operator: "eq", value: "true" },
-          ],
+          value: DEFAULT_SIGNAL_TRIGGER_VALUE,
         });
       }
 
@@ -150,7 +127,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
 };
 
 export const getWorkspaces = async (): Promise<Workspace[]> => {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session?.user) {
     throw new Error("Unauthorized: User not authenticated");

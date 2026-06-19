@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { executeQuery } from "@/lib/actions/sql";
 
 export const GetSignalsStatsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   signalIds: z.array(z.string()).min(1),
   pastHours: z.coerce.number().positive(),
 });

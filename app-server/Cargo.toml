@@ -3,65 +3,89 @@ edition = "2024"
 name = "app-server"
 version = "0.1.0"
 
+[features]
+default = []
+signals = ["dep:half", "dep:ndarray", "dep:ort", "dep:tokenizers"]
+
 [dependencies]
+actix-limitation = {version = "0.5.1", default-features = false}
 actix-web = "4.13"
 actix-web-httpauth = "0.8.2"
 anyhow = "1"
+arc-swap = "1.7"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.8.15"
-aws-sdk-bedrockruntime = "1.128.0"
-aws-sdk-s3 = "1.127.0"
-aws-smithy-types = "1.4.7"
+aws-config = "1.8.18"
+aws-sdk-bedrockruntime = {version = "1.135.0", default-features = false, features = ["default-https-client", "rt-tokio"]}
+aws-sdk-s3 =  {version = "1.137.0", default-features = false, features = ["default-https-client", "rt-tokio", "sigv4a", "http-1x"]}
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
+blake3 = "1.8"
 bytes = "1.11.1"
 chrono = {version = "0.4.43", features = ["serde"]}
-clickhouse = {version = "0.14.1", features = ["rustls-tls", "uuid"]}
+clickhouse = {version = "0.15.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
 deadpool = "0.12.2"
 dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
+eventsource-stream = "0.2.3"
 futures-util = "0.3"
+half = {version = "2.7.1", features = ["serde"], optional = true}
 hex = "0.4"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
-lapin = "3.7"
+jsonwebtoken = {version = "10", default-features = false, features = ["use_pem", "rust_crypto"]}
+jwks_client_rs = "0.6"
+lapin = "4.7"
 log = "0.4.29"
 moka = {version = "0.12", features = ["sync", "future"]}
+ndarray = {version = "0.17", optional = true}
 num_cpus = "1.17.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
+ort = {version = "=2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-24"], optional = true}
 prost = "0.14"
-rand = "0.9.2"
+rand = "0.10"
 rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
-regex = "1.12.2"
-reqwest = {version = "0.12.22", features = ["json"]}
+regex = "1.12.3"
+reqwest = {version = "0.12.22", features = ["json", "stream"]}
 resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
-sentry = {version = "0.46.0", features = ["opentelemetry"]}
+sentry = {version = "0.48.0", features = ["opentelemetry", "tracing"]}
 schemars = {version = "1", features = ["uuid1"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
-serde_yaml = "0.9"
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
-sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
+sqlparser = {version = "0.62", features = ["visitor"]}
+sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
 tikv-jemallocator = "0.6.0"
+tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
 tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
+# Mappings usually updated on major releases: https://github.com/tokio-rs/tracing-opentelemetry/releases
+# There are newer versions of both this crate and `opentelemetry`, but `sentry-opentelemetry` is still pinned to 0.29.0
 tracing-opentelemetry = "0.30.0"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
-uuid = {version = "1.19.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
+unicode-normalization = "0.1"
+url = "2.5"
+uuid = {version = "1.19.0", features = ["v4", "v5", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
 [build-dependencies]
 tonic-prost-build = "0.14"
+
+[dev-dependencies]
+ed25519-dalek = {version = "2", features = ["pkcs8", "rand_core"]}
+# `test-util` (only in dev builds) enables `#[tokio::test(start_paused = true)]`
+# so retry/backoff tests fast-forward the virtual clock instead of sleeping.
+tokio = {version = "1.49", features = ["test-util"]}
+wiremock = "0.6"

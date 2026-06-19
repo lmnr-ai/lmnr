@@ -5,4 +5,4 @@ CREATE TABLE "shared_evals" (
 	"project_id" uuid DEFAULT gen_random_uuid() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "shared_evals" ADD CONSTRAINT "shared_evals_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "shared_evals" ADD CONSTRAINT "shared_evals_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

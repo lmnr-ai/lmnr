@@ -20,15 +20,15 @@ jobs:
 
       # Step 2: Install pnpm
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 9
+          version: 10
 
       # Step 3: Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "lts/*" # Use the latest LTS version of Node.js
+          node-version: "26"  # match the one in frontend/Dockerfile
           cache: "pnpm"
           # Specify the subdirectory containing the lockfile
           cache-dependency-path: ./frontend/pnpm-lock.yaml

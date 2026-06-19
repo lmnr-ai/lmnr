@@ -8,6 +8,8 @@ use crate::{
     db::{self, project_api_keys::ProjectApiKey},
 };
 
+const PROJECT_API_KEY_TTL: u64 = 86400; // seconds == 1 day
+
 pub async fn get_api_key_from_raw_value(
     pool: &PgPool,
     cache: Arc<Cache>,
@@ -21,7 +23,7 @@ pub async fn get_api_key_from_raw_value(
         Ok(None) | Err(_) => {
             let api_key = db::project_api_keys::get_api_key(pool, &api_key_hash).await?;
             let _ = cache
-                .insert::<ProjectApiKey>(&cache_key, api_key.clone())
+                .insert_with_ttl::<ProjectApiKey>(&cache_key, api_key.clone(), PROJECT_API_KEY_TTL)
                 .await;
 
             Ok(api_key)

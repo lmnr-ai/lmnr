@@ -24,9 +24,12 @@ const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/evaluations/${evaluationId}/visibility`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
       .then((data) => {
-        if (data.visibility === "public" || data.visibility === "private") {
+        if (data?.visibility === "public" || data?.visibility === "private") {
           setVisibility(data.visibility);
         }
       })

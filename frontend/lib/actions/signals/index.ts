@@ -1,14 +1,18 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import signalTemplates from "@/components/signals/prompts";
+import { SEVERITY_LEVEL } from "@/lib/actions/alerts/types";
 import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
-import { signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { alerts, alertTargets, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export type SignalRow = {
   id: string;
@@ -28,47 +32,194 @@ export type Signal = {
   projectId: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
+  sampleRate: number | null;
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
 });
 
 const GetSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const CreateSignalSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
+  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  // When provided, the creator is auto-subscribed via EMAIL alert targets on
+  // every alert created for this signal.
+  subscriberEmail: z.email().optional(),
 });
 
 const UpdateSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
+  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
 });
 
 export const DeleteSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const DeleteSignalsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   ids: z.array(z.string()).min(1, "At least one signal ID is required"),
 });
 
 const GetLastEventSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
 });
+
+const SetTemplateSignalsSchema = z.object({
+  projectId: z.guid(),
+  templateNames: z.array(z.string()),
+  subscriberEmail: z.email().optional(),
+});
+
+async function purgeSignalEventsFromClickhouse(projectId: string, eventNames: string[]) {
+  if (eventNames.length === 0) return;
+  try {
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM events
+          WHERE project_id = {projectId: UUID}
+            AND name IN ({eventNames: Array(String)})
+            AND source = 'SEMANTIC'
+        `,
+      query_params: {
+        projectId,
+        eventNames,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to delete events from ClickHouse:", error);
+  }
+}
+
+// Replaces the project's template signals with `templateNames`. Scope is
+// limited to template-named rows; custom user signals are never touched.
+// All creates + deletes commit in a single Postgres transaction so a partial
+// failure can't leave the project with half-applied template changes.
+export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignalsSchema>) {
+  const { projectId, templateNames, subscriberEmail } = SetTemplateSignalsSchema.parse(input);
+
+  const templatesByName = new Map(signalTemplates.map((t) => [t.name, t]));
+  const selected = new Set(templateNames.filter((n) => templatesByName.has(n)));
+
+  const existing = await db
+    .select({ id: signals.id, name: signals.name })
+    .from(signals)
+    .where(and(eq(signals.projectId, projectId), inArray(signals.name, Array.from(templatesByName.keys()))));
+
+  const existingNames = new Set(existing.map((s) => s.name));
+  const toCreate = Array.from(selected).filter((n) => !existingNames.has(n));
+  const toDeleteIds = existing.filter((s) => !selected.has(s.name)).map((s) => s.id);
+
+  if (toCreate.length === 0 && toDeleteIds.length === 0) {
+    return { created: 0, deleted: 0 };
+  }
+
+  const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
+
+  const deletedEvents = await db.transaction(async (tx) => {
+    // Sequential, not Promise.all: drizzle serialises statements on a single
+    // connection, and we want a deterministic abort point on failure.
+    for (const name of toCreate) {
+      const template = templatesByName.get(name)!;
+
+      const [signal] = await tx
+        .insert(signals)
+        .values({
+          projectId,
+          name: template.name,
+          prompt: template.prompt,
+          structuredOutputSchema: JSON.parse(template.structuredOutputSchema) as Record<string, unknown>,
+        })
+        .returning();
+
+      const alertsToInsert: (typeof alerts.$inferInsert)[] = [
+        {
+          projectId,
+          name: `${template.name} alert`,
+          type: "SIGNAL_EVENT",
+          sourceId: signal.id,
+          metadata: {
+            severities: [SEVERITY_LEVEL.CRITICAL],
+            skipSimilar: clusteringEnabled,
+          },
+        },
+      ];
+
+      if (clusteringEnabled) {
+        alertsToInsert.push({
+          projectId,
+          name: `${template.name} cluster alert`,
+          type: "NEW_CLUSTER",
+          sourceId: signal.id,
+          metadata: {},
+        });
+      }
+
+      const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
+
+      if (subscriberEmail && insertedAlerts.length > 0) {
+        await tx.insert(alertTargets).values(
+          insertedAlerts.map((a) => ({
+            alertId: a.id,
+            projectId,
+            type: "EMAIL" as const,
+            email: subscriberEmail,
+          }))
+        );
+      }
+
+      // Mirror the default trigger seeded by createWorkspace's Failure Detector
+      // so every template a user toggles on actually fires.
+      await tx.insert(signalTriggers).values({
+        projectId,
+        signalId: signal.id,
+        value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+      });
+    }
+
+    if (toDeleteIds.length === 0) return [];
+
+    await tx
+      .delete(alerts)
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          inArray(alerts.sourceId, toDeleteIds),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), inArray(signals.id, toDeleteIds)))
+      .returning();
+  });
+
+  await purgeSignalEventsFromClickhouse(
+    projectId,
+    deletedEvents.map((e) => e.name)
+  );
+
+  // Creates write triggers too, so invalidate the cache whenever anything changed.
+  await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+
+  return { created: toCreate.length, deleted: toDeleteIds.length };
+}
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const { projectId, pastHours, startDate, endDate, search, pageNumber, pageSize, filter } = input;
@@ -217,27 +368,72 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate, subscriberEmail } = CreateSignalSchema.parse(input);
 
-  const [result] = await db
-    .insert(signals)
-    .values({
-      projectId,
-      name,
-      prompt,
-      structuredOutputSchema: structuredOutput,
-    })
-    .returning();
+  const result = await db.transaction(async (tx) => {
+    const [signal] = await tx
+      .insert(signals)
+      .values({
+        projectId,
+        name,
+        prompt,
+        structuredOutputSchema: structuredOutput,
+        sampleRate: sampleRate ?? null,
+      })
+      .returning();
+
+    const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
+
+    const alertsToInsert: (typeof alerts.$inferInsert)[] = [
+      {
+        projectId,
+        name: `${name} alert`,
+        type: "SIGNAL_EVENT",
+        sourceId: signal.id,
+        metadata: {
+          severities: [SEVERITY_LEVEL.CRITICAL],
+          // skipSimilar depends on the clustering service; default to false when
+          // clustering is disabled so the backend doesn't silently drop notifications.
+          skipSimilar: clusteringEnabled,
+        },
+      },
+    ];
+
+    if (clusteringEnabled) {
+      alertsToInsert.push({
+        projectId,
+        name: `${name} cluster alert`,
+        type: "NEW_CLUSTER",
+        sourceId: signal.id,
+        metadata: {},
+      });
+    }
+
+    const insertedAlerts = await tx.insert(alerts).values(alertsToInsert).returning({ id: alerts.id });
+
+    if (subscriberEmail && insertedAlerts.length > 0) {
+      await tx.insert(alertTargets).values(
+        insertedAlerts.map((a) => ({
+          alertId: a.id,
+          projectId,
+          type: "EMAIL",
+          email: subscriberEmail,
+        }))
+      );
+    }
+
+    return signal;
+  });
 
   return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate } = UpdateSignalSchema.parse(input);
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput })
+    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
@@ -249,10 +445,22 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
-  const [result] = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-    .returning();
+  const [result] = await db.transaction(async (tx) => {
+    await tx
+      .delete(alerts)
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          eq(alerts.sourceId, id),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+      .returning();
+  });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -262,29 +470,27 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
-  const events = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
-    .returning();
+  const events = await db.transaction(async (tx) => {
+    await tx
+      .delete(alerts)
+      .where(
+        and(
+          eq(alerts.projectId, projectId),
+          inArray(alerts.sourceId, ids),
+          inArray(alerts.type, ["SIGNAL_EVENT", "NEW_CLUSTER"])
+        )
+      );
 
-  if (events.length > 0) {
-    try {
-      await clickhouseClient.command({
-        query: `
-          DELETE FROM events
-          WHERE project_id = {projectId: UUID}
-            AND name IN ({eventNames: Array(String)})
-            AND source = 'SEMANTIC'
-        `,
-        query_params: {
-          projectId,
-          eventNames: events.map((e) => e.name),
-        },
-      });
-    } catch (error) {
-      console.error("Failed to delete events from ClickHouse:", error);
-    }
-  }
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
+      .returning();
+  });
+
+  await purgeSignalEventsFromClickhouse(
+    projectId,
+    events.map((e) => e.name)
+  );
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -292,6 +498,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 }
 
 export { executeSignal } from "./execute";
+export { getTraceSignals, GetTraceSignalsSchema } from "./trace";
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
   const { projectId, signalId } = GetLastEventSchema.parse(input);

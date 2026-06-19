@@ -1,5 +1,6 @@
 "use client";
 
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,6 +11,7 @@ interface CopyTooltipProps {
   text?: string;
   copiedText?: string;
   className?: string;
+  delayDuration?: number;
 }
 
 export default function CopyTooltip({
@@ -18,6 +20,7 @@ export default function CopyTooltip({
   copiedText = "Copied!",
   children,
   className,
+  delayDuration = 0,
 }: PropsWithChildren<CopyTooltipProps>) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
@@ -62,16 +65,18 @@ export default function CopyTooltip({
   );
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={delayDuration}>
       <Tooltip open={open} onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild>
           <span onClick={handleCopy} className={cn("cursor-pointer", className)}>
             {children}
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          <p>{copied ? copiedText : text}</p>
-        </TooltipContent>
+        <TooltipPortal>
+          <TooltipContent>
+            <p>{copied ? copiedText : text}</p>
+          </TooltipContent>
+        </TooltipPortal>
       </Tooltip>
     </TooltipProvider>
   );

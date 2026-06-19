@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -52,29 +52,50 @@ export const GetEvaluationDatapointsSchema = z.object({
   ...EvalFiltersSchema.shape,
   ...PaginationSchema.shape,
   ...SortSchema.shape,
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
-  targetId: z.string().optional(),
+  targetId: z.guid().optional(),
   columns: z.string().optional(),
   sortSql: z.string().optional(),
 });
 
 export const GetEvaluationStatisticsSchema = z.object({
   ...EvalFiltersSchema.shape,
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
   columns: z.string().optional(),
 });
 
 export const RenameEvaluationSchema = z.object({
-  evaluationId: z.string(),
-  projectId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required"),
 });
+
+export const getEvaluationScoreNames = async ({
+  projectId,
+  evaluationId,
+}: {
+  projectId: string;
+  evaluationId: string;
+}): Promise<string[]> => {
+  const rows = await executeQuery<{ name: string }>({
+    query: `
+      SELECT DISTINCT arrayJoin(JSONExtractKeys(scores)) AS name
+      FROM evaluation_datapoints
+      WHERE evaluation_id = {evaluationId:UUID}
+        AND length(scores) > 0
+      ORDER BY name
+    `,
+    parameters: { evaluationId },
+    projectId,
+  });
+  return rows.map((r) => r.name).filter(Boolean);
+};
 
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
@@ -166,7 +187,6 @@ export const getEvaluationStatistics = async (
   evaluation: Evaluation;
   allStatistics: Record<string, EvaluationScoreStatistics>;
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
-  scores: string[];
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
@@ -196,11 +216,14 @@ export const getEvaluationStatistics = async (
       evaluation: evaluation as Evaluation,
       allStatistics: {},
       allDistributions: {},
-      scores: [],
     };
   }
 
-  // Step 2: Build and execute stats query (single JOIN, returns only scores)
+  // Build statistics from the filtered row set. The canonical list of
+  // score names is owned by the page (`getEvaluationScoreNames`) and the
+  // FE store — this endpoint only reports per-name distributions/stats
+  // for the current filter. Names with zero matching rows are simply
+  // absent from the response; the FE renders neutral values for them.
   const { query: statsQuery, parameters: statsParams } = buildEvalStatsQuery({
     evaluationId,
     traceIds: searchTraceIds,
@@ -214,7 +237,6 @@ export const getEvaluationStatistics = async (
     projectId,
   });
 
-  // Step 3: Parse scores and calculate statistics
   const parsedResults = rawResults.map((row) => {
     let scores: Record<string, unknown> | undefined;
     try {
@@ -226,14 +248,12 @@ export const getEvaluationStatistics = async (
     return { scores };
   });
 
-  const allScoreNames = [
-    ...new Set(parsedResults.flatMap((result) => (result.scores ? Object.keys(result.scores) : []))),
-  ];
+  const scoreNamesInRows = [...new Set(parsedResults.flatMap((r) => (r.scores ? Object.keys(r.scores) : [])))];
 
   const allStatistics: Record<string, EvaluationScoreStatistics> = {};
   const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
 
-  allScoreNames.forEach((scoreName) => {
+  scoreNamesInRows.forEach((scoreName) => {
     allStatistics[scoreName] = calculateScoreStatistics(parsedResults as any, scoreName);
     allDistributions[scoreName] = calculateScoreDistribution(parsedResults as any, scoreName);
   });
@@ -242,14 +262,13 @@ export const getEvaluationStatistics = async (
     evaluation: evaluation as Evaluation,
     allStatistics,
     allDistributions,
-    scores: allScoreNames,
   };
 };
 
 export const GetEvaluationCellValueSchema = z.object({
-  evaluationId: z.string(),
-  projectId: z.string(),
-  datapointId: z.string(),
+  evaluationId: z.guid(),
+  projectId: z.guid(),
+  datapointId: z.guid(),
   column: z.string(), // JSON-encoded { id, sql } where sql is the fullSql expression
 });
 
@@ -285,6 +304,78 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   }
 
   return results[0][col.id] ?? null;
+};
+
+export const GetEvaluationDatapointComparisonSchema = z.object({
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()).min(1),
+  index: z.number().int().nonnegative(),
+});
+
+export type EvaluationDatapointComparisonRow = {
+  evaluationId: string;
+  index: number;
+  scores: Record<string, number>;
+  traceId: string;
+};
+
+export const getEvaluationDatapointComparison = async (
+  input: z.infer<typeof GetEvaluationDatapointComparisonSchema>
+): Promise<EvaluationDatapointComparisonRow[]> => {
+  const { projectId, evaluationIds, index } = input;
+
+  // Authz: only consider evaluations that actually belong to this project.
+  // Filter at the DB instead of loading every project eval into memory.
+  const owned = await db.query.evaluations.findMany({
+    where: and(eq(evaluations.projectId, projectId), inArray(evaluations.id, evaluationIds)),
+    columns: { id: true },
+  });
+  const filteredIds = owned.map((e) => e.id);
+  if (filteredIds.length === 0) return [];
+
+  // Aliases must NOT shadow a column used in WHERE: ClickHouse resolves the WHERE
+  // reference to the SELECT alias, so `toString(evaluation_id) AS evaluation_id`
+  // would turn `WHERE evaluation_id IN (...)` into a String-vs-UUID compare that
+  // matches nothing. Use distinct alias names (`eval_id` / `tid`) instead.
+  // `index` is inlined (Zod-validated non-negative int) rather than a bound param.
+  // `scores` may come back as a string or an object depending on the driver.
+  const rows = await executeQuery<{
+    evaluationId: string;
+    idx: number | string;
+    scores: string | Record<string, unknown>;
+    traceId: string;
+  }>({
+    query: `
+      SELECT evaluation_id AS evaluationId, \`index\` AS idx, scores, trace_id AS traceId
+      FROM evaluation_datapoints
+      WHERE evaluation_id IN ({evaluationIds:Array(UUID)})
+        AND \`index\` = ${index}
+    `,
+    parameters: { evaluationIds: filteredIds },
+    projectId,
+  });
+
+  return rows.map((r) => {
+    let scoresObj: Record<string, unknown> | null = null;
+    if (typeof r.scores === "string") {
+      try {
+        scoresObj = r.scores ? (JSON.parse(r.scores) as Record<string, unknown>) : null;
+      } catch {
+        scoresObj = null;
+      }
+    } else if (r.scores && typeof r.scores === "object") {
+      scoresObj = r.scores;
+    }
+
+    const scores: Record<string, number> = scoresObj
+      ? Object.fromEntries(
+          Object.entries(scoresObj).filter(
+            (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])
+          )
+        )
+      : {};
+    return { evaluationId: r.evaluationId, index: Number(r.idx), scores, traceId: r.traceId };
+  });
 };
 
 export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSchema>) => {

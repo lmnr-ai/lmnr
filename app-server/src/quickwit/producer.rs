@@ -4,8 +4,12 @@ use anyhow::{Context, anyhow};
 use serde_json;
 
 use crate::{
+    ch::signal_events::CHSignalEvent,
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{IndexerQueuePayload, SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_ROUTING_KEY},
+    quickwit::{
+        IndexerQueuePayload, QuickwitIndexedSignalEvent, SPANS_INDEXER_EXCHANGE,
+        SPANS_INDEXER_ROUTING_KEY,
+    },
 };
 
 pub async fn publish_for_indexing(
@@ -36,4 +40,27 @@ pub async fn publish_for_indexing(
         .context("Failed to publish spans/events to Quickwit indexer queue")?;
 
     Ok(())
+}
+
+/// Publish a batch of signal events to the Quickwit indexer queue.
+///
+/// `payload` is shipped as a Quickwit `json` field, so per-subfield position
+/// streams + type inference take care of what the old flatten allow-list
+/// did (numbers stay numeric, keys stay metadata, phrase queries can't span
+/// fields). No schema knowledge needed at index time.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn publish_signal_events_for_indexing(
+    events: &[CHSignalEvent],
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    if events.is_empty() {
+        return Ok(());
+    }
+
+    let indexed: Vec<QuickwitIndexedSignalEvent> = events
+        .iter()
+        .map(QuickwitIndexedSignalEvent::from_event)
+        .collect();
+    let payload = IndexerQueuePayload::SignalEvents(indexed);
+    publish_for_indexing(&payload, queue).await
 }

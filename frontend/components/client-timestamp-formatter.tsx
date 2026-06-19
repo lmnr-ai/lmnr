@@ -36,6 +36,11 @@ export default function ClientTimestampFormatter({
   absolute?: boolean;
 }) {
   const date = new Date(timestamp);
+
+  if (isNaN(date.getTime())) {
+    return <span className={cn("text-sm", className)}>{timestamp}</span>;
+  }
+
   const days = differenceInDays(new Date(), date);
   const displayText = absolute
     ? formatTimestamp(timestamp)

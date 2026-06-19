@@ -7,7 +7,7 @@ import {
   type ToolSet,
 } from "ai";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { type Provider, providerToApiKey } from "@/components/playground/types";
 import { parseTools } from "@/components/playground/utils";
@@ -38,7 +38,7 @@ export const zJsonObject = z
 export const PlaygroundParamsSchema = z.object({
   messages: z.array(modelMessageSchema).min(1),
   model: z.string().min(1),
-  projectId: z.string().min(1),
+  projectId: z.guid(),
   providerOptions: z.any().optional(),
   maxTokens: z.number().positive().optional(),
   temperature: z.number().min(0).max(2).optional(),
@@ -50,7 +50,7 @@ export const PlaygroundParamsSchema = z.object({
     .transform((v) => parseTools(v)),
   toolChoice: z.any().optional(),
   structuredOutput: zJsonObject,
-  playgroundId: z.string().optional(),
+  playgroundId: z.guid().optional(),
   abortSignal: z.any().optional(),
 });
 
@@ -100,6 +100,15 @@ export async function generateChatResponse(
 
   const provider = model.split(":")[0] as Provider;
   const decodedKey = await getProviderApiKey(projectId, provider);
+
+  if (providerOptions?.google?.thinkingConfig) {
+    const tc = providerOptions.google.thinkingConfig as Record<string, unknown>;
+    if (tc.thinkingLevel != null) {
+      delete tc.thinkingBudget;
+    } else if (tc.thinkingBudget != null) {
+      delete tc.thinkingLevel;
+    }
+  }
 
   const startTime = new Date();
 

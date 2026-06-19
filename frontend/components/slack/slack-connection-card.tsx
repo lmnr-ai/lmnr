@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 import SlackConnectButton from "./slack-connect-button";
@@ -43,6 +44,7 @@ interface SlackConnectionCardProps {
   slackRedirectUri?: string;
   returnPath?: string;
   disabled?: boolean;
+  brokerEnabled?: boolean;
 }
 
 export function useSlackIntegration(workspaceId: string, enabled = true) {
@@ -55,6 +57,7 @@ export default function SlackConnectionCard({
   slackRedirectUri,
   returnPath,
   disabled,
+  brokerEnabled,
 }: SlackConnectionCardProps) {
   const searchParams = useSearchParams();
   const { data: slackIntegration, isLoading, mutate } = useSlackIntegration(workspaceId, !disabled);
@@ -71,6 +74,7 @@ export default function SlackConnectionCard({
         throw new Error(data.error ?? "Failed to remove integration");
       }
       await mutate(null);
+      track("integrations", "slack_disconnected");
       toast({
         title: "Slack integration removed",
         description: "You will no longer receive Slack notifications from this workspace.",
@@ -153,6 +157,7 @@ export default function SlackConnectionCard({
               slackClientId={slackClientId}
               slackRedirectUri={slackRedirectUri}
               returnPath={returnPath}
+              brokerEnabled={brokerEnabled}
             />
           )}
         </div>

@@ -83,7 +83,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       <ContentRenderer
         className="rounded border-0"
         readOnly
-        codeEditorClassName="rounded-none border-none bg-background"
+        codeEditorClassName="rounded-none border-none bg-background contain-strict"
         value={JSON.stringify(normalizedData)}
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
@@ -97,6 +97,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
   return (
     <ContentRenderer
       className="rounded-none border-none bg-background"
+      codeEditorClassName="rounded-none border-none bg-background contain-strict"
       readOnly
       modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
       value={JSON.stringify(normalizedData)}

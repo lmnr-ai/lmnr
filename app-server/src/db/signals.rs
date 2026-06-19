@@ -12,6 +12,8 @@ pub struct Signal {
     pub name: String,
     pub prompt: String,
     pub structured_output_schema: Value,
+    #[serde(default)]
+    pub sample_rate: Option<i16>,
 }
 
 pub async fn get_signal(
@@ -20,7 +22,7 @@ pub async fn get_signal(
     project_id: Uuid,
 ) -> Result<Option<Signal>> {
     let signal = sqlx::query_as::<_, Signal>(
-        "SELECT id, name, prompt, structured_output_schema
+        "SELECT id, name, prompt, structured_output_schema, sample_rate
         FROM signals
         WHERE id = $1 AND project_id = $2",
     )

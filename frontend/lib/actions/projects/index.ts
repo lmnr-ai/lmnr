@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
@@ -10,7 +10,7 @@ import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 export async function createProject(input: z.infer<typeof CreateProjectSchema>) {
@@ -73,7 +73,29 @@ export const getProjectsByWorkspace = async (workspaceId: string): Promise<Proje
       name: true,
       workspaceId: true,
     },
+    // Deterministic default-project pick: matches /projects' desc(createdAt) fallback so
+    // every settings entry point lands on the same project when no last-project cookie exists.
+    orderBy: desc(projects.createdAt),
   });
 
   return results;
+};
+
+// The workspace's newest project (or undefined). Single source for the "default project of a
+// workspace" pick so callers (settings paths, /projects, invite-accept) can't drift on ordering.
+export const getNewestProjectId = async (workspaceId: string): Promise<string | undefined> => {
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: { id: true },
+    orderBy: desc(projects.createdAt),
+  });
+  return project?.id;
+};
+
+// Settings path for a workspace, via its newest project. Falls back to /projects when the workspace
+// has no project (loses the workspace context, but every real caller targets one with ≥1 project).
+export const getWorkspaceSettingsPath = async (workspaceId: string, section?: string): Promise<string> => {
+  const projectId = await getNewestProjectId(workspaceId);
+  if (!projectId) return "/projects";
+  return section ? `/project/${projectId}/settings?tab=${section}` : `/project/${projectId}/settings`;
 };

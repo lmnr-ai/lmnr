@@ -8,19 +8,19 @@ CREATE TABLE IF NOT EXISTS "datapoint_to_span" (
 --> statement-breakpoint
 ALTER TABLE "labels" ALTER COLUMN "value" SET NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "datapoint_to_span" ADD CONSTRAINT "datapoint_to_span_datapoint_id_fkey" FOREIGN KEY ("datapoint_id") REFERENCES "public"."dataset_datapoints"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "datapoint_to_span" ADD CONSTRAINT "datapoint_to_span_datapoint_id_fkey" FOREIGN KEY ("datapoint_id") REFERENCES "dataset_datapoints"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "datapoint_to_span" ADD CONSTRAINT "datapoint_to_span_span_id_project_id_fkey" FOREIGN KEY ("span_id","project_id") REFERENCES "public"."spans"("span_id","project_id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "datapoint_to_span" ADD CONSTRAINT "datapoint_to_span_span_id_project_id_fkey" FOREIGN KEY ("span_id","project_id") REFERENCES "spans"("span_id","project_id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "labeling_queue_items" ADD CONSTRAINT "labelling_queue_items_queue_id_fkey" FOREIGN KEY ("queue_id") REFERENCES "public"."labeling_queues"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "labeling_queue_items" ADD CONSTRAINT "labelling_queue_items_queue_id_fkey" FOREIGN KEY ("queue_id") REFERENCES "labeling_queues"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

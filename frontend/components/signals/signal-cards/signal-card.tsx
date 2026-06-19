@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
+import { track } from "@/lib/posthog";
 import { formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
 
 export default function SignalCard({
@@ -32,7 +33,11 @@ export default function SignalCard({
   const signalUrl = `/project/${projectId}/signals/${signal.id}`;
 
   return (
-    <Link href={signalUrl} className="block h-full">
+    <Link
+      href={signalUrl}
+      className="block h-full"
+      onClick={() => track("signals", "events_viewed", { event_count: signal.eventsCount })}
+    >
       <Card className="hover:border-primary/40 transition-colors h-full">
         <CardHeader className="px-3 pt-3 pb-1">
           <div className="flex items-center justify-between">

@@ -77,18 +77,29 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
 
     router.push(`/project/${projectId}/sql/${optimisticData.id}`);
 
-    await fetch(`/api/projects/${projectId}/sql/templates`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: optimisticData.id,
-        name: `Untitled Query`,
-        query: optimisticData.query,
-      }),
-    });
-  }, [mutate, projectId, router]);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: optimisticData.id,
+          name: `Untitled Query`,
+          query: optimisticData.query,
+        }),
+      });
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast({ variant: "destructive", title: errMessage ?? "Failed to create query" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to create query" });
+    }
+  }, [mutate, projectId, router, toast]);
 
   const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
 

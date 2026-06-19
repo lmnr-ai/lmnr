@@ -2,7 +2,6 @@ import { type CellContext } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
-import { useEvalStore } from "@/components/evaluation/store";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -15,10 +14,9 @@ const formatValue = (v: unknown): string => {
   return JSON.stringify(v);
 };
 
-export const DataCell = ({ getValue, column, row }: CellContext<EvalRow, unknown>) => {
+export const DataCell = ({ getValue, column, row, table }: CellContext<EvalRow, unknown>) => {
   const { projectId } = useParams();
-  const isComparison = useEvalStore((s) => s.isComparison);
-  const isShared = useEvalStore((s) => s.isShared);
+  const { isComparison = false, isShared = false } = table.options.meta?.evalCellMeta ?? {};
   const fullSql = column.columnDef.meta?.fullSql;
   const isTruncatedColumn = column.columnDef.meta?.truncated === true;
   const isCustom = column.columnDef.meta?.isCustom === true;

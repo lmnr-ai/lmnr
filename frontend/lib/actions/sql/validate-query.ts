@@ -1,9 +1,9 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { fetcherJSON } from "@/lib/utils";
 
 export const ValidateQuerySchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   query: z.string().min(1, "SQL query is required"),
 });
 

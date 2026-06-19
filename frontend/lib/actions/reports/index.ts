@@ -13,18 +13,31 @@ import {
 } from "./types";
 
 const OptInSchema = z.object({
-  reportId: z.uuid(),
-  workspaceId: z.uuid(),
+  reportId: z.guid(),
+  workspaceId: z.guid(),
   email: z.email(),
 });
 
 const OptOutSchema = z.object({
-  reportId: z.uuid(),
-  workspaceId: z.uuid(),
+  reportId: z.guid(),
+  workspaceId: z.guid(),
   email: z.email(),
 });
 
-export async function getReports(workspaceId: string): Promise<ReportWithDetails[]> {
+const SetEmailSubscriptionsSchema = z.object({
+  workspaceId: z.guid(),
+  email: z.email(),
+  subscribedReportIds: z.array(z.guid()),
+});
+
+const SetSlackTargetsSchema = z.object({
+  reportId: z.uuid(),
+  workspaceId: z.uuid(),
+  integrationId: z.uuid(),
+  channels: z.array(z.object({ id: z.string().min(1), name: z.string() })),
+});
+
+export async function getReports(workspaceId: string, userEmail?: string): Promise<ReportWithDetails[]> {
   const reportRows = await db
     .select({
       id: reports.id,
@@ -54,6 +67,9 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
 
   const targetsByReport = new Map<string, ReportTargetRow[]>();
   for (const t of targetRows) {
+    // Only include the current user's own email target; never expose other members' emails.
+    // If userEmail is unknown, strip all email targets as a safeguard.
+    if (t.type === REPORT_TARGET_TYPE.EMAIL && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByReport.get(t.reportId) ?? [];
     list.push({
       id: t.id,
@@ -122,4 +138,75 @@ export async function optOutReport(input: z.infer<typeof OptOutSchema>) {
     );
 
   return { success: true };
+}
+
+// Overwrites the caller's email subscriptions across all reports in the
+// workspace — drops any not in `subscribedReportIds`, inserts the rest.
+export async function setEmailSubscriptions(input: z.infer<typeof SetEmailSubscriptionsSchema>) {
+  const { workspaceId, email, subscribedReportIds } = SetEmailSubscriptionsSchema.parse(input);
+
+  return await db.transaction(async (tx) => {
+    const workspaceReports = await tx
+      .select({ id: reports.id })
+      .from(reports)
+      .where(eq(reports.workspaceId, workspaceId));
+    const validIds = workspaceReports.map((r) => r.id);
+    const targetIds = subscribedReportIds.filter((id) => validIds.includes(id));
+
+    await tx
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.EMAIL),
+          eq(reportTargets.email, email)
+        )
+      );
+
+    if (targetIds.length > 0) {
+      await tx.insert(reportTargets).values(
+        targetIds.map((reportId) => ({
+          workspaceId,
+          reportId,
+          type: REPORT_TARGET_TYPE.EMAIL,
+          email,
+        }))
+      );
+    }
+
+    return { success: true, subscribed: targetIds.length };
+  });
+}
+
+// Replace ALL Slack targets for a report with the provided channel set.
+// Pass an empty `channels` array to remove every Slack target.
+export async function setSlackTargets(input: z.infer<typeof SetSlackTargetsSchema>) {
+  const { reportId, workspaceId, integrationId, channels } = SetSlackTargetsSchema.parse(input);
+
+  return await db.transaction(async (tx) => {
+    await tx
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
+        )
+      );
+
+    if (channels.length > 0) {
+      await tx.insert(reportTargets).values(
+        channels.map((c) => ({
+          workspaceId,
+          reportId,
+          type: REPORT_TARGET_TYPE.SLACK,
+          integrationId,
+          channelId: c.id,
+          channelName: c.name,
+        }))
+      );
+    }
+
+    return { success: true };
+  });
 }

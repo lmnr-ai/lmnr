@@ -2,51 +2,61 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { alerts, alertTargets, projects } from "@/lib/db/migrations/schema";
+import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
-import { type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+import { type AlertMetadata, type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
+
+const TargetSchema = z.object({
+  type: z.string(),
+  integrationId: z.guid().optional(),
+  channelId: z.string().optional(),
+  channelName: z.string().optional(),
+  email: z.email().optional(),
+});
+
+const SignalEventMetadataSchema = z.object({
+  severities: z.array(z.number().int().min(0).max(2)).nonempty(),
+  skipSimilar: z.boolean().optional(),
+});
+
+const NewClusterMetadataSchema = z.object({}).strict();
+
+// NEW_CLUSTER alerts ignore metadata; SIGNAL_EVENT alerts require severities + optional skipSimilar.
+const buildMetadataValidator = (type: "SIGNAL_EVENT" | "NEW_CLUSTER", metadata: unknown) => {
+  if (type === "SIGNAL_EVENT") {
+    const parsed = SignalEventMetadataSchema.parse(metadata ?? {});
+    const dedupedSeverities = Array.from(new Set(parsed.severities)).sort((a, b) => a - b);
+    return { ...parsed, severities: dedupedSeverities };
+  }
+  return NewClusterMetadataSchema.parse(metadata ?? {});
+};
 
 const CreateAlertSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
-  targets: z
-    .array(
-      z.object({
-        type: z.string(),
-        integrationId: z.uuid(),
-        channelId: z.string().optional(),
-        channelName: z.string().optional(),
-      })
-    )
-    .min(1),
+  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
+  sourceId: z.guid(),
+  targets: z.array(TargetSchema),
+  metadata: z.unknown().optional(),
 });
 
 const UpdateAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1),
-  type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
-  targets: z
-    .array(
-      z.object({
-        type: z.string(),
-        integrationId: z.uuid(),
-        channelId: z.string().optional(),
-        channelName: z.string().optional(),
-      })
-    )
-    .min(1),
+  type: z.enum(["SIGNAL_EVENT", "NEW_CLUSTER"]),
+  sourceId: z.guid(),
+  targets: z.array(TargetSchema),
+  userEmail: z.string().optional(),
+  metadata: z.unknown().optional(),
 });
 
 const DeleteAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
 });
 
-export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> {
+export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
@@ -61,10 +71,13 @@ export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> 
       name: alerts.name,
       type: alerts.type,
       sourceId: alerts.sourceId,
+      signalName: signals.name,
       projectId: alerts.projectId,
       createdAt: alerts.createdAt,
+      metadata: alerts.metadata,
     })
     .from(alerts)
+    .leftJoin(signals, eq(alerts.sourceId, signals.id))
     .where(eq(alerts.projectId, projectId))
     .orderBy(alerts.createdAt);
 
@@ -87,6 +100,9 @@ export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> 
 
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
+    // Only include the current user's own email target; never expose other members' emails.
+    // If userEmail is unknown, strip all email targets as a safeguard.
+    if (t.type === "EMAIL" && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByAlert.get(t.alertId) ?? [];
     list.push({
       id: t.id,
@@ -102,53 +118,97 @@ export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> 
   return alertRows.map((a) => ({
     ...a,
     type: a.type as AlertType,
+    signalName: a.signalName,
     projectName: project.name,
     targets: targetsByAlert.get(a.id) ?? [],
+    metadata: (a.metadata as AlertMetadata) ?? {},
   }));
 }
 
 export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
-  const { projectId, name, type, sourceId, targets } = CreateAlertSchema.parse(input);
+  const { projectId, name, type, sourceId, targets, metadata } = CreateAlertSchema.parse(input);
+  const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
-    const [alert] = await tx.insert(alerts).values({ projectId, name, type, sourceId }).returning({ id: alerts.id });
+    const [alert] = await tx
+      .insert(alerts)
+      .values({ projectId, name, type, sourceId, metadata: validatedMetadata })
+      .returning({ id: alerts.id });
 
-    await tx.insert(alertTargets).values(
-      targets.map((t) => ({
-        alertId: alert.id,
-        projectId,
-        type: t.type,
-        integrationId: t.integrationId,
-        channelId: t.channelId ?? null,
-        channelName: t.channelName ?? null,
-      }))
-    );
+    if (targets.length > 0) {
+      await tx.insert(alertTargets).values(
+        targets.map((t) => ({
+          alertId: alert.id,
+          projectId,
+          type: t.type,
+          integrationId: t.integrationId ?? null,
+          channelId: t.channelId ?? null,
+          channelName: t.channelName ?? null,
+          email: t.email ?? null,
+        }))
+      );
+    }
 
     return alert;
   });
 }
 
 export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets } = UpdateAlertSchema.parse(input);
+  const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
+  const validatedMetadata = buildMetadataValidator(type, metadata);
 
   return await db.transaction(async (tx) => {
     await tx
       .update(alerts)
-      .set({ name, type, sourceId })
+      .set({ name, type, sourceId, metadata: validatedMetadata })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
+
+    // Fetch existing email targets belonging to OTHER users so we can preserve them.
+    // The frontend only manages the current user's own email target + Slack targets.
+    const existingTargets = await tx
+      .select({
+        id: alertTargets.id,
+        type: alertTargets.type,
+        integrationId: alertTargets.integrationId,
+        channelId: alertTargets.channelId,
+        channelName: alertTargets.channelName,
+        email: alertTargets.email,
+      })
+      .from(alertTargets)
+      .where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
+
+    // When userEmail is known, preserve other users' email targets.
+    // When userEmail is unknown, preserve ALL email targets as a safeguard.
+    const preservedEmailTargets = existingTargets.filter(
+      (t) => t.type === "EMAIL" && (!userEmail || t.email !== userEmail)
+    );
 
     await tx.delete(alertTargets).where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
 
-    await tx.insert(alertTargets).values(
-      targets.map((t) => ({
+    const allTargets = [
+      ...targets.map((t) => ({
         alertId,
         projectId,
         type: t.type,
-        integrationId: t.integrationId,
+        integrationId: t.integrationId ?? null,
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
-      }))
-    );
+        email: t.email ?? null,
+      })),
+      ...preservedEmailTargets.map((t) => ({
+        alertId,
+        projectId,
+        type: t.type,
+        integrationId: t.integrationId ?? null,
+        channelId: t.channelId ?? null,
+        channelName: t.channelName ?? null,
+        email: t.email,
+      })),
+    ];
+
+    if (allTargets.length > 0) {
+      await tx.insert(alertTargets).values(allTargets);
+    }
 
     return { id: alertId };
   });

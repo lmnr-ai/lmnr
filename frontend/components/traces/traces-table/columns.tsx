@@ -3,8 +3,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import TagsCell from "@/components/tags/tags-cell";
+import TraceTagsCell from "@/components/tags/trace-tags-cell";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
@@ -27,18 +29,32 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
-export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
+export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
+  id: "preview",
+  header: "Preview",
+  enableResizing: true,
+  size: 420,
+  cell: (row) => (
+    <SnippetPreview
+      inputSnippet={row.row.original.inputSnippet}
+      outputSnippet={row.row.original.outputSnippet}
+      attributesSnippet={row.row.original.attributesSnippet}
+      snippetsCount={row.row.original.snippetsCount}
+      variant="table"
+    />
+  ),
+};
+
+export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
-          "": row.getValue() === "info", // temporary color values
-          "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}
       />
     ),
-    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
+    accessorKey: "status",
     header: () => <div />,
     id: "status",
     enableSorting: true,
@@ -190,45 +206,24 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
-    accessorFn: (row) => row.tags,
+    accessorFn: (row) => row.spanTags,
     cell: (row) => {
       const tags = row.getValue() as string[];
-
-      if (tags?.length > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="truncate">
-                  {tags.map((tag) => (
-                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                      <span>{tag}</span>
-                    </Badge>
-                  ))}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border max-w-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge key={tag} className="rounded-3xl" variant="outline">
-                        <span>{tag}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
+      if (tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
-    header: "Tags",
-    accessorKey: "tags",
-    id: "tags",
+    header: "Span tags",
+    accessorKey: "spanTags",
+    id: "span_tags",
     enableSorting: true,
     meta: { sql: "tags" },
+  },
+  {
+    cell: (row) => <TraceTagsCell traceId={row.row.original.id} />,
+    header: "Tags",
+    id: "trace_tags",
+    enableSorting: true,
+    meta: { sql: "trace_tags" },
   },
   {
     accessorFn: (row) => row.metadata,
@@ -256,9 +251,6 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "user_id" },
   },
 ];
-
-/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
-export const columns = STATIC_COLUMNS;
 
 export const filters: ColumnFilter[] = [
   {
@@ -336,18 +328,14 @@ export const filters: ColumnFilter[] = [
     })),
   },
   {
-    name: "Analysis status",
-    dataType: "enum",
-    key: "analysis_status",
-    options: ["info", "warning", "error"].map((v) => ({
-      label: capitalize(v),
-      value: v,
-    })),
+    name: "Span tags",
+    dataType: "array",
+    key: "tags",
   },
   {
     name: "Tags",
     dataType: "array",
-    key: "tags",
+    key: "trace_tags",
   },
   {
     name: "Metadata",
@@ -371,7 +359,8 @@ export const defaultTracesColumnOrder = [
   "duration",
   "cost",
   "total_tokens",
-  "tags",
+  "trace_tags",
+  "span_tags",
   "metadata",
   "session_id",
   "user_id",

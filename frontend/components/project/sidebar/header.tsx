@@ -1,15 +1,15 @@
 "use client";
 
-import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, Plus } from "lucide-react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import React, { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 
-import { useSessionSync } from "@/components/auth/session-sync-provider";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
+import NotificationTrigger from "@/components/notifications/notification-trigger";
+import AccountMenu from "@/components/projects/account-menu";
+import ProjectCreateDialog from "@/components/projects/project-create-dialog";
+import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.tsx";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SidebarHeader,
   SidebarMenu,
@@ -24,22 +25,54 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context.tsx";
 import { useProjectContext } from "@/contexts/project-context.tsx";
-import { useUserContext } from "@/contexts/user-context.tsx";
-import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
-import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
+import { LAST_ID_COOKIE_MAX_AGE, LAST_PROJECT_ID, LAST_WORKSPACE_ID } from "@/lib/cookies";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
-import { type Workspace } from "@/lib/workspaces/types.ts";
+import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types.ts";
+
+// Hierarchy left→right: [Workspaces] (parent) → [Projects in X] (child).
+// dir < 0 = move left toward the parent (workspaces); dir > 0 = move right back to projects.
+const slideVariants = {
+  enter: (dir: number) => ({ x: dir < 0 ? "-100%" : "100%" }),
+  center: { x: 0 },
+  exit: (dir: number) => ({
+    x: dir < 0 ? "100%" : "-100%",
+    position: "absolute" as const,
+    top: 0,
+    left: 0,
+    width: "100%",
+  }),
+};
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
   const { isMobile, openMobile, open } = useSidebar();
   const { projects, project } = useProjectContext();
-  const user = useUserContext();
-  const { broadcastLogout } = useSessionSync();
   const { data: workspaces, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
   const { toast } = useToast();
-  const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
+  const featureFlags = useFeatureFlags();
+
+  const [view, setView] = useState<"projects" | "workspaces">("projects");
+  const [direction, setDirection] = useState(0);
+  // The workspace currently being browsed in the picker — NOT necessarily the active one.
+  // Picking a workspace only changes this; navigation happens when a project is clicked.
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId);
+
+  const isSelectedCurrent = selectedWorkspaceId === workspaceId;
+  // Current workspace's projects are already in context; fetch others on demand.
+  const {
+    data: otherProjects,
+    isLoading: otherLoading,
+    error: otherProjectsError,
+  } = useSWR<Project[]>(isSelectedCurrent ? null : `/api/workspaces/${selectedWorkspaceId}/projects`, swrFetcher);
+  const displayedProjects = isSelectedCurrent ? projects : (otherProjects ?? []);
+  // While another workspace's projects load, displayedProjects is empty — don't let that
+  // empty count fool the Free-tier create gate into showing an enabled button.
+  const projectsLoading = !isSelectedCurrent && otherLoading;
+  const selectedWorkspace = workspaces?.find((w) => w.id === selectedWorkspaceId);
+  const selectedIsFreeTier = featureFlags[Feature.SUBSCRIPTION] && selectedWorkspace?.tierName === WorkspaceTier.FREE;
 
   useEffect(() => {
     if (error) {
@@ -47,121 +80,208 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
     }
   }, [error, toast]);
 
-  const handleLogout = async () => {
-    try {
-      await deleteLastWorkspaceIdCookie();
-      await deleteLastProjectIdCookie();
-      await signOut({ callbackUrl: "/" });
-      broadcastLogout();
-    } catch (e) {
-      console.error(e);
+  // A failed other-workspace fetch otherwise looks like an empty project list.
+  useEffect(() => {
+    if (otherProjectsError) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to load projects for this workspace." });
     }
-  };
+  }, [otherProjectsError, toast]);
 
   return (
     <SidebarHeader className="px-0 mt-2">
       <SidebarMenu>
-        <SidebarMenuItem className="m-0 px-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <SidebarMenuButton className={cn("flex items-center justify-center", { border: !open && !openMobile })}>
-                <AnimatePresence mode="wait" initial={false}>
-                  {!open && !openMobile ? (
-                    <motion.span
-                      key="collapsed"
-                      initial={{ opacity: 0, scale: 0.5, width: 0 }}
-                      animate={{ opacity: 1, scale: 1, width: "auto" }}
-                      exit={{ opacity: 0, scale: 0.5, width: 0 }}
-                      transition={{ duration: 0.1 }}
-                      className="flex items-center justify-center"
-                    >
-                      {project?.name?.at(0)?.toUpperCase()}
-                    </motion.span>
-                  ) : (
-                    <motion.div
-                      key="expanded"
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.1 }}
-                      className="flex items-center w-full"
-                    >
-                      <span className="truncate font-medium leading-tight">{project?.name}</span>
-                      <ChevronsUpDown className="ml-auto size-4" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </SidebarMenuButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg text-xs"
-              align="start"
-              sideOffset={4}
-              side={isMobile ? "bottom" : "right"}
+        <SidebarMenuItem className="m-0 px-2 flex items-center">
+          <div className="flex-1 overflow-hidden">
+            <DropdownMenu
+              onOpenChange={(o) => {
+                // Reset to the active workspace's projects pane on every (re)open.
+                if (!o) {
+                  setDirection(0);
+                  setView("projects");
+                  setSelectedWorkspaceId(workspaceId);
+                }
+              }}
             >
-              <DropdownMenuLabel className="flex gap-2 p-1">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.image ?? ""} alt="avatar" />
-                  <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left leading-tight">
-                  <span className="text-muted-foreground">Logged in as</span>
-                  <span className="text-sidebar-foreground">{user.email}</span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-muted-foreground p-1">
-                Projects{currentWorkspace ? ` in ${currentWorkspace.name}` : ""}
-              </DropdownMenuLabel>
-              {projects.map((project) => (
-                <Link
-                  key={project.id}
-                  passHref
-                  href={`/project/${project.id}/traces`}
-                  onClick={() => setLastProjectIdCookie(project.id)}
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  className={cn("flex items-center justify-center px-1.5", { border: !open && !openMobile })}
                 >
-                  <DropdownMenuItem
-                    className={cn("cursor-pointer", {
-                      "bg-accent": project.id === projectId,
-                    })}
-                  >
-                    <span className="text-xs text-sidebar-foreground font-medium">{project.name}</span>
-                  </DropdownMenuItem>
-                </Link>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-muted-foreground p-1">Workspaces</DropdownMenuLabel>
-              {workspaces?.map((w) => (
-                <Link key={w.id} passHref href={`/workspace/${w.id}`}>
-                  <DropdownMenuItem
-                    onSelect={() => setLastWorkspaceIdCookie(w.id)}
-                    className={cn("cursor-pointer", {
-                      "bg-accent": w.id === workspaceId,
-                    })}
-                  >
-                    <div title={w.name} className="text-xs text-sidebar-foreground font-medium truncate">
-                      {w.name}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                        {
-                          "border-primary bg-primary/10 text-primary": w.tierName === "Pro",
-                        }
-                      )}
-                    >
-                      {w.tierName}
-                    </span>
-                  </DropdownMenuItem>
-                </Link>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut />
-                <span className="text-xs">Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  <AnimatePresence mode="wait" initial={false}>
+                    {!open && !openMobile ? (
+                      <motion.span
+                        key="collapsed"
+                        initial={{ opacity: 0, scale: 0.5, width: 0 }}
+                        animate={{ opacity: 1, scale: 1, width: "auto" }}
+                        exit={{ opacity: 0, scale: 0.5, width: 0 }}
+                        transition={{ duration: 0.1 }}
+                        className="flex items-center justify-center"
+                      >
+                        {project?.name?.at(0)?.toUpperCase()}
+                      </motion.span>
+                    ) : (
+                      <motion.div
+                        key="expanded"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.1 }}
+                        className="flex items-center w-full"
+                      >
+                        <span className="truncate font-medium leading-tight">{project?.name}</span>
+                        <ChevronsUpDown className="ml-auto size-4 shrink-0 text-secondary-foreground" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg text-xs bg-surface-600 p-0"
+                align="start"
+                sideOffset={4}
+                side={isMobile ? "bottom" : "right"}
+              >
+                {/* Project + workspace picking (horizontal swipe between panes) */}
+                <div className="relative overflow-hidden">
+                  <AnimatePresence initial={false} custom={direction}>
+                    {view === "projects" ? (
+                      <motion.div
+                        key="projects"
+                        custom={direction}
+                        variants={slideVariants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                      >
+                        <div className="p-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDirection(-1);
+                              setView("workspaces");
+                            }}
+                            className="flex w-full items-center gap-1 rounded-sm p-1 text-secondary-foreground hover:bg-accent"
+                          >
+                            <ArrowLeft className="size-3 shrink-0" />
+                            <span className="truncate">All workspaces</span>
+                          </button>
+                          <div className="px-2 py-1 truncate font-medium text-secondary-foreground">
+                            {selectedWorkspace ? `${selectedWorkspace.name} workspace` : "Workspace"}
+                          </div>
+                        </div>
+                        <DropdownMenuSeparator className="m-0" />
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
+                          <div className="p-1">
+                            {projectsLoading ? (
+                              <div className="p-1 text-muted-foreground">Loading…</div>
+                            ) : (
+                              displayedProjects.map((p) => (
+                                <Link
+                                  key={p.id}
+                                  passHref
+                                  href={`/project/${p.id}/traces`}
+                                  // Write the breadcrumb cookies synchronously (no server action) so they
+                                  // can't race / interrupt the soft navigation — the bug this fixes.
+                                  onClick={() => {
+                                    document.cookie = `${LAST_PROJECT_ID}=${p.id};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                                    document.cookie = `${LAST_WORKSPACE_ID}=${selectedWorkspaceId};path=/;max-age=${LAST_ID_COOKIE_MAX_AGE}`;
+                                  }}
+                                >
+                                  <DropdownMenuItem
+                                    className={cn("cursor-pointer", {
+                                      "bg-accent": isSelectedCurrent && p.id === projectId,
+                                    })}
+                                  >
+                                    <span className="min-w-0 truncate text-xs text-sidebar-foreground font-medium">
+                                      {p.name}
+                                    </span>
+                                  </DropdownMenuItem>
+                                </Link>
+                              ))
+                            )}
+                          </div>
+                        </ScrollArea>
+                        <DropdownMenuSeparator className="m-0" />
+                        <div className="p-1">
+                          {/* Hidden until projects load so the Free-tier gate sees the real count. */}
+                          {!projectsLoading && (
+                            <ProjectCreateDialog
+                              workspaceId={selectedWorkspaceId}
+                              isFreeTier={selectedIsFreeTier}
+                              projectCount={displayedProjects.length}
+                            >
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                                <Plus className="size-4" />
+                                <span>Create project</span>
+                              </DropdownMenuItem>
+                            </ProjectCreateDialog>
+                          )}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="workspaces"
+                        custom={direction}
+                        variants={slideVariants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ duration: 0.18, ease: "easeInOut" }}
+                      >
+                        <div className="p-1">
+                          <div className="pl-2 py-1 text-secondary-foreground">Workspaces</div>
+                        </div>
+                        <DropdownMenuSeparator className="m-0" />
+                        <ScrollArea className="max-h-[60vh] [&>div]:max-h-[60vh] [&>div>div]:block!">
+                          <div className="p-1">
+                            {workspaces?.map((w) => (
+                              <DropdownMenuItem
+                                key={w.id}
+                                onSelect={(e) => {
+                                  // Select within the picker only — slide back to this workspace's projects.
+                                  e.preventDefault();
+                                  setSelectedWorkspaceId(w.id);
+                                  setDirection(1);
+                                  setView("projects");
+                                }}
+                                className={cn("cursor-pointer", { "bg-accent": w.id === selectedWorkspaceId })}
+                              >
+                                <span className="min-w-0 flex-1 truncate text-xs text-sidebar-foreground font-medium">
+                                  {w.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "shrink-0 text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                                    { "border-primary bg-primary/10 text-primary": w.tierName === "Pro" }
+                                  )}
+                                >
+                                  {w.tierName}
+                                </span>
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                        <DropdownMenuSeparator className="m-0" />
+                        <div className="p-1">
+                          <WorkspaceCreateDialog>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                              <Plus className="size-4" />
+                              <span>Create workspace</span>
+                            </DropdownMenuItem>
+                          </WorkspaceCreateDialog>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <DropdownMenuSeparator className="m-0" />
+                <div className="px-0.5 py-1">
+                  <AccountMenu />
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {(open || openMobile) && <NotificationTrigger />}
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarHeader>

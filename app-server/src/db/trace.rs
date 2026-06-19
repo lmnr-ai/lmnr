@@ -47,7 +47,7 @@ pub struct Trace {
     cost: f64,
     project_id: Uuid,
     status: Option<String>,
-    tags: Vec<String>,
+    tags: Vec<String>, // Span tags
     num_spans: i64,
     has_browser_session: Option<bool>,
     span_names: Option<Value>,
@@ -134,6 +134,8 @@ impl Trace {
             .map(|obj| obj.keys().cloned().collect())
             .unwrap_or_default()
     }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {
             return false;
@@ -144,6 +146,7 @@ impl Trace {
             .all(|filter| self.evaluate_single_filter(spans, filter))
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     fn evaluate_single_filter(&self, spans: &[Span], filter: &Filter) -> bool {
         match filter.column.as_str() {
             "input_token_count" => evaluate_number_filter(
@@ -189,10 +192,15 @@ impl Trace {
             "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
             "span_name" => {
                 let target_name = filter.value.as_str().unwrap_or("");
-                let has_span = spans
-                    .iter()
-                    .filter(|s| s.trace_id == self.id)
-                    .any(|s| s.name == target_name);
+                // Check both the accumulated span_names from the database (which includes
+                // span names from all previous batches) and the current batch of spans.
+                // This ensures the filter works correctly when spans arrive in different
+                // processing batches (e.g., child span "GitHub" arrives before root span).
+                let has_span = self.span_names().iter().any(|n| n == target_name)
+                    || spans
+                        .iter()
+                        .filter(|s| s.trace_id == self.id)
+                        .any(|s| s.name == target_name);
                 match filter.operator {
                     FilterOperator::Eq => has_span,
                     FilterOperator::Ne => !has_span,
@@ -273,7 +281,7 @@ pub async fn upsert_trace_statistics_batch(
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
-                type = COALESCE(EXCLUDED.type, traces.type, 0),
+                type = CASE WHEN COALESCE(traces.type, 0) = 0 THEN EXCLUDED.type ELSE traces.type END,
                 top_span_id = COALESCE(EXCLUDED.top_span_id, traces.top_span_id),
                 top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
                 top_span_type = COALESCE(EXCLUDED.top_span_type, traces.top_span_type),
@@ -287,7 +295,10 @@ pub async fn upsert_trace_statistics_batch(
                 input_cost = traces.input_cost + EXCLUDED.input_cost,
                 output_cost = traces.output_cost + EXCLUDED.output_cost,
                 cost = traces.cost + EXCLUDED.cost,
-                status = COALESCE(EXCLUDED.status, traces.status),
+                status = CASE
+                    WHEN traces.status = 'error' OR EXCLUDED.status = 'error' THEN 'error'
+                    ELSE COALESCE(EXCLUDED.status, traces.status)
+                END,
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
                 num_spans = traces.num_spans + EXCLUDED.num_spans,
                 has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),
@@ -355,6 +366,102 @@ pub async fn upsert_trace_statistics_batch(
     Ok(traces)
 }
 
+pub async fn trace_exists(pool: &PgPool, project_id: Uuid, trace_id: Uuid) -> Result<bool> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM traces WHERE id = $1 AND project_id = $2)",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(exists)
+}
+
+/// A post-factum metadata patch applied to an existing trace by the
+/// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
+#[derive(Debug, Clone)]
+pub struct TraceMetadataPatch {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub metadata: Value,
+}
+
+/// Merge metadata into existing traces. Each patch is `traces.metadata || patch`
+/// shallow-merged under the row lock that PG takes on the matching `(project_id, id)`,
+/// so concurrent ingestion of the same trace (which goes through the same row via
+/// `upsert_trace_statistics_batch`) serialises against this update.
+///
+/// Also bumps `num_spans` by 1. ClickHouse `traces_replacing` is
+/// `ReplacingMergeTree(num_spans)` — without a version bump, a patched row in
+/// the same flush as a regular ingestion upsert would have identical
+/// `num_spans` and CH's merge winner would be undefined. The +1 is paid by the
+/// virtual metadata-only span that drove this patch, so the count stays
+/// consistent with "one virtual span ingested" and gives the patched row a
+/// strictly higher version than the row written by the same-batch upsert
+/// (which only summed over real spans).
+///
+/// Traces that don't exist are silently skipped — no rows are created here. The
+/// HTTP handler validates existence up front, but a race (e.g. trace deleted
+/// between request and consumption) must not produce a stub trace row with
+/// metadata only and every other column NULL/0.
+#[instrument(skip(pool, patches))]
+pub async fn merge_trace_metadata_batch(
+    pool: &PgPool,
+    patches: &[TraceMetadataPatch],
+) -> Result<Vec<Trace>> {
+    if patches.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut traces = Vec::new();
+    for patch in patches {
+        let updated = sqlx::query_as::<_, Trace>(
+            r#"
+            UPDATE traces
+            SET metadata = COALESCE(traces.metadata || $1, $1, traces.metadata),
+                num_spans = COALESCE(traces.num_spans, 0) + 1
+            WHERE id = $2 AND project_id = $3
+            RETURNING
+                id,
+                project_id,
+                start_time,
+                end_time,
+                type,
+                top_span_id,
+                top_span_name,
+                top_span_type,
+                session_id,
+                metadata,
+                user_id,
+                input_token_count,
+                output_token_count,
+                total_token_count,
+                input_cost,
+                output_cost,
+                cost,
+                status,
+                tags,
+                num_spans,
+                has_browser_session,
+                span_names,
+                root_span_input,
+                root_span_output
+            "#,
+        )
+        .bind(&patch.metadata)
+        .bind(patch.trace_id)
+        .bind(patch.project_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(trace) = updated {
+            traces.push(trace);
+        }
+    }
+
+    Ok(traces)
+}
+
 pub async fn insert_shared_traces(
     pool: &PgPool,
     project_id: Uuid,
@@ -392,4 +499,168 @@ pub async fn delete_shared_traces(
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{
+        spans::{Span, SpanType},
+        utils::{Filter, FilterOperator},
+    };
+    use chrono::Utc;
+    use serde_json::json;
+
+    fn make_trace(
+        id: Uuid,
+        project_id: Uuid,
+        top_span_id: Option<Uuid>,
+        span_names: Option<Value>,
+    ) -> Trace {
+        Trace {
+            id,
+            start_time: Some(Utc::now()),
+            end_time: Some(Utc::now()),
+            trace_type: 0,
+            top_span_id,
+            top_span_name: Some("root".to_string()),
+            top_span_type: Some(0),
+            session_id: None,
+            metadata: None,
+            user_id: None,
+            input_token_count: 0,
+            output_token_count: 0,
+            total_token_count: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cost: 0.0,
+            project_id,
+            status: None,
+            tags: vec![],
+            num_spans: 1,
+            has_browser_session: None,
+            span_names,
+            root_span_input: None,
+            root_span_output: None,
+        }
+    }
+
+    fn make_span(trace_id: Uuid, project_id: Uuid, name: &str) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id,
+            trace_id,
+            parent_span_id: None,
+            name: name.to_string(),
+            attributes: Default::default(),
+            input: None,
+            output: None,
+            span_type: SpanType::Default,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    /// Simulates the bug scenario: child span "GitHub" arrives in batch 1 (no root span yet),
+    /// then root span arrives in batch 2 (without "GitHub" in the batch).
+    /// The trigger should fire because the DB trace has accumulated span_names from both batches.
+    #[test]
+    fn test_span_name_filter_uses_accumulated_db_span_names() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let top_span_id = Uuid::new_v4();
+
+        // After batch 2 (root span), the DB trace has top_span_id set and
+        // span_names accumulated from both batches (including "GitHub" from batch 1).
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(top_span_id),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        // Batch 2 only contains the root span (no "GitHub" span in this batch)
+        let current_batch_spans = vec![make_span(trace_id, project_id, "root")];
+
+        let filters = vec![
+            Filter {
+                column: "root_span_finished".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("true"),
+            },
+            Filter {
+                column: "span_name".to_string(),
+                operator: FilterOperator::Eq,
+                value: json!("GitHub"),
+            },
+        ];
+
+        // This should match because "GitHub" is in the DB's accumulated span_names
+        assert!(
+            trace.matches_filters(&current_batch_spans, &filters),
+            "Trigger should fire: 'GitHub' is in accumulated span_names even though not in current batch"
+        );
+    }
+
+    /// When the span IS in the current batch, it should still match.
+    #[test]
+    fn test_span_name_filter_matches_current_batch() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let top_span_id = Uuid::new_v4();
+
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(top_span_id),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        let current_batch_spans = vec![
+            make_span(trace_id, project_id, "root"),
+            make_span(trace_id, project_id, "GitHub"),
+        ];
+
+        let filters = vec![Filter {
+            column: "span_name".to_string(),
+            operator: FilterOperator::Eq,
+            value: json!("GitHub"),
+        }];
+
+        assert!(trace.matches_filters(&current_batch_spans, &filters));
+    }
+
+    /// Ne operator: span_name != "GitHub" should return false when "GitHub" is in accumulated names.
+    #[test]
+    fn test_span_name_ne_filter_with_accumulated_names() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+
+        let trace = make_trace(
+            trace_id,
+            project_id,
+            Some(Uuid::new_v4()),
+            Some(json!({"root": true, "GitHub": true})),
+        );
+
+        // "GitHub" not in current batch, but IS in accumulated span_names
+        let current_batch_spans = vec![make_span(trace_id, project_id, "root")];
+
+        let filters = vec![Filter {
+            column: "span_name".to_string(),
+            operator: FilterOperator::Ne,
+            value: json!("GitHub"),
+        }];
+
+        assert!(
+            !trace.matches_filters(&current_batch_spans, &filters),
+            "Ne filter should return false when span name exists in accumulated names"
+        );
+    }
 }

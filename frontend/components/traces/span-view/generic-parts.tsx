@@ -13,6 +13,7 @@ import {
   FileContentPart,
   ImageContentPart,
   TextContentPart,
+  ThinkingContentPart,
   ToolCallContentPart,
   ToolResultContentPart,
 } from "./common";
@@ -38,6 +39,27 @@ const GenericTextContentPart = ({
   contentPartIndex?: number;
 }) => (
   <TextContentPart
+    content={part.text}
+    presetKey={presetKey}
+    messageIndex={messageIndex}
+    contentPartIndex={contentPartIndex}
+  />
+);
+
+// `ReasoningPart` is not re-exported from "ai" (only imported internally from
+// `@ai-sdk/provider-utils`), so we type against its rendered shape directly.
+const GenericReasoningContentPart = ({
+  part,
+  presetKey,
+  messageIndex,
+  contentPartIndex,
+}: {
+  part: { type: "reasoning"; text: string };
+  presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}) => (
+  <ThinkingContentPart
     content={part.text}
     presetKey={presetKey}
     messageIndex={messageIndex}
@@ -103,6 +125,16 @@ const PureContentParts = ({
         return (
           <GenericTextContentPart
             key={`${parentIndex}-text-${index}-${presetKey}`}
+            part={part}
+            presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
+            messageIndex={parentIndex}
+            contentPartIndex={index}
+          />
+        );
+      case "reasoning":
+        return (
+          <GenericReasoningContentPart
+            key={`${parentIndex}-reasoning-${index}-${presetKey}`}
             part={part}
             presetKey={`${parentIndex}-${part.type}-${index}-${presetKey}`}
             messageIndex={parentIndex}

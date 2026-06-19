@@ -3,13 +3,13 @@
 import { useCallback, useMemo } from "react";
 import { useStore } from "zustand";
 
-import { useDataTableStore } from "../model/datatable-store.tsx";
+import { useTableStore } from "../model/table-store.tsx";
 
 type RowSelectionState = Record<string, boolean>;
 type Updater<T> = T | ((old: T) => T);
 
 export function useSelection() {
-  const store = useDataTableStore();
+  const store = useTableStore();
 
   const { selectedRows, selectAll } = useStore(store, (state) => ({
     selectedRows: state.selectedRows,
