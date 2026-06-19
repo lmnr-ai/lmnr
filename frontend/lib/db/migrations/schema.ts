@@ -314,6 +314,29 @@ export const alertTargets = pgTable(
   ]
 );
 
+export const alertFilters = pgTable(
+  "alert_filters",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    alertId: uuid("alert_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    value: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_filters_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_filters_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const reportTargets = pgTable(
   "report_targets",
   {

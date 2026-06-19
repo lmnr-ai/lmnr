@@ -1,4 +1,4 @@
-import { type ColumnDef, type Row } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 import React from "react";
 
@@ -8,11 +8,7 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 
-export const getSignalRunsColumns = ({
-  onJobNav,
-}: {
-  onJobNav: (row: Row<SignalRunRow>) => void;
-}): ColumnDef<SignalRunRow>[] => [
+export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
   {
     accessorKey: "runId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
@@ -37,25 +33,11 @@ export const getSignalRunsColumns = ({
     id: "eventId",
   },
   {
-    cell: (row) => {
-      if (row.row.original.jobId !== "00000000-0000-0000-0000-000000000000") {
-        return (
-          <Badge
-            onClick={() => onJobNav(row.row)}
-            className="rounded-3xl mr-1 hover:underline cursor-pointer"
-            variant="outline"
-          >
-            Job
-          </Badge>
-        );
-      }
-
-      return (
-        <Badge className="rounded-3xl mr-1" variant="outline">
-          Trigger
-        </Badge>
-      );
-    },
+    cell: (row) => (
+      <Badge className="rounded-3xl mr-1" variant="outline">
+        {row.row.original.jobId !== "00000000-0000-0000-0000-000000000000" ? "Job" : "Trigger"}
+      </Badge>
+    ),
     header: "Source",
     size: 120,
     id: "source",
@@ -72,20 +54,6 @@ export const getSignalRunsColumns = ({
     id: "status",
   },
   {
-    accessorKey: "mode",
-    header: "Mode",
-    cell: ({ row }) => {
-      const mode = row.original.mode;
-      return (
-        <Badge className="rounded-3xl mr-1" variant="outline">
-          {mode === "REALTIME" ? "Realtime" : "Batch"}
-        </Badge>
-      );
-    },
-    size: 120,
-    id: "mode",
-  },
-  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
@@ -94,7 +62,7 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "mode", "status", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {
