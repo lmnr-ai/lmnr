@@ -158,10 +158,12 @@ const TYPE_MS = 22;
 const POST_TYPE_MS = 400;
 
 // Owns the single animation clock + the session store, and renders both panes.
-// Gated on `useInView`, runs once per page load.
+// Gated on `useInView`, runs once when scrolled into view.
 const DebuggerScene = () => {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true });
+  // `amount: 0.3` so it fires once ~30% of the scene is actually on screen — not
+  // the instant the top edge clips the viewport (which reads as "on page load").
+  const isInView = useInView(ref, { once: true, amount: 0.3 });
 
   const [typed, setTyped] = useState("");
   const [revealed, setRevealed] = useState(0);
