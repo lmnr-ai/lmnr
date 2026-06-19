@@ -28,7 +28,7 @@ export type SignalRun = {
 
 export type SignalRunRow = Pick<
   SignalRun,
-  "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt" | "mode"
+  "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt"
 >;
 
 export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) => {
