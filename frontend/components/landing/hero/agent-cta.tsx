@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useAnimationControls, type Variants } from "framer-motion";
+import { motion, useAnimationControls,type Variants } from "framer-motion";
 import { useEffect } from "react";
 
 import { ClaudeLogo, CodexLogo, CursorLogo } from "./agent-logos";

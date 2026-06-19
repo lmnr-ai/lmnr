@@ -77,7 +77,9 @@ export function CreateProjectDialog({ open, onOpenChange, workspaces, onCreated 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{hasWorkspace ? "Create project" : "Create your first project"}</DialogTitle>
-          <DialogDescription>{hasWorkspace ? "Name a project." : "Name a workspace and project."}</DialogDescription>
+          <DialogDescription>
+            {hasWorkspace ? "Name a project." : "Name a workspace and project."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {!hasWorkspace ? (

@@ -36,7 +36,7 @@ const CREATE_VALUE = "__create__";
 // Group projects under a per-workspace section header (like macOS native
 // dropdowns), workspaces sorted A→Z and projects sorted A→Z within each.
 function groupByWorkspace(
-  projects: SessionProject[]
+  projects: SessionProject[],
 ): { workspaceId: string; workspaceName: string; projects: SessionProject[] }[] {
   const byWorkspace = new Map<string, { workspaceName: string; projects: SessionProject[] }>();
   for (const p of projects) {
@@ -137,7 +137,9 @@ export function ProjectPicker({ userCode, projects, workspaces, onApproved, onDe
             <SelectContent>
               {groupByWorkspace(options).map((g) => (
                 <SelectGroup key={g.workspaceId}>
-                  <SelectLabel className="text-xs font-normal text-muted-foreground">{g.workspaceName}</SelectLabel>
+                  <SelectLabel className="text-xs font-normal text-muted-foreground">
+                    {g.workspaceName}
+                  </SelectLabel>
                   {g.projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
