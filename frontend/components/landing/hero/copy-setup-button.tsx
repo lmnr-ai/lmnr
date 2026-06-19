@@ -36,7 +36,7 @@ const CopySetupButton = () => {
     >
       {copied && <Check className="size-4 text-foreground-200" />}
       <span className="font-sans-landing font-medium text-sm text-foreground-200">
-        {copied ? "Copied" : "Setup in one prompt"}
+        {copied ? "Copied" : "Copy setup prompt"}
       </span>
     </button>
   );
