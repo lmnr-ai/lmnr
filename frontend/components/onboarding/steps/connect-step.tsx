@@ -2,7 +2,7 @@
 
 import { CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
 import StepShell from "@/components/onboarding/step-shell";
@@ -49,10 +49,16 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
     [projectId, router, finishOnboarding, beginSubmitting]
   );
 
+  const firstTraceTracked = useRef(false);
   const eventHandlers = useMemo(
     () => ({
       trace_update: () => {
-        track("onboarding", "first_trace_received", { from_onboarding: true });
+        // trace_update fires for every incoming trace; only the first is the
+        // onboarding "first trace received" milestone.
+        if (!firstTraceTracked.current) {
+          firstTraceTracked.current = true;
+          track("onboarding", "first_trace_received", { from_onboarding: true });
+        }
         setIsConnected(true);
       },
     }),
