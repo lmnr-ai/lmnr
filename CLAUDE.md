@@ -300,7 +300,7 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 ## Workspace Invitation Auto-Subscribe
 
 - A user who joins a workspace via invitation is auto-subscribed (by email) to every workspace report AND every alert across all of the workspace's projects, mirroring the first-workspace onboarding behaviour. The single helper is `subscribeMemberToWorkspaceNotifications(workspaceId, email)` in `frontend/lib/actions/workspaces/subscribe.ts` — it is idempotent (skips EMAIL targets that already exist) so it's safe to call on every accept.
-- There are **two** distinct accept paths that both add a `members_of_workspaces` row and must each call the helper after the insert: (1) cloud email-link accept `app/(auth)/invitations/page.tsx::handleInvitation`, (2) self-hosted auto-accept on sign-in `lib/auth.ts::processPendingInvitations` (gated by `!Feature.SEND_EMAIL`). When changing invitation acceptance, update both or members joining via the missed path silently get no reports/alerts. (`app/api/invitations/[id]/route.ts` is revoke-only — it no longer accepts invitations, so it needs no subscribe call.)
+- There are **two** distinct accept paths that both add a `members_of_workspaces` row and must each call the helper after the insert: (1) cloud email-link accept `app/(auth)/invitations/page.tsx::handleInvitation`, (2) self-hosted auto-accept on sign-in `lib/auth.ts::processPendingInvitations` (gated by `!Feature.SEND_EMAIL`). When changing invitation acceptance, update both or members joining via the missed path silently get no reports/alerts.
 
 ## Signal Triggers
 
