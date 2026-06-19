@@ -1,0 +1,1 @@
+CREATE INDEX "alert_filters_alert_id_project_id_idx" ON "alert_filters" USING btree ("alert_id" uuid_ops,"project_id" uuid_ops);

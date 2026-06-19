@@ -652,6 +652,13 @@
       "when": 1781016760980,
       "tag": "0092_alert_filters",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1781016760981,
+      "tag": "0093_alert_filters_alert_id_project_id_idx",
+      "breakpoints": true
     }
   ]
 }

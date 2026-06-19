@@ -61,7 +61,7 @@ export default function AlertsManager({ projectId, workspaceId, userEmail, fixed
     [alertsList, fixedSignalId]
   );
 
-  const isLoadingEmpty = isLoadingAlerts && (isNil(alertsList) || isEmpty(alertsList));
+  const isLoadingEmpty = isLoadingAlerts && (isNil(alerts) || isEmpty(alerts));
   const isEmptyState = !isLoadingAlerts && (isNil(alerts) || isEmpty(alerts));
 
   return (
