@@ -599,6 +599,8 @@ Use the nuqs library to handle url param state when possible. Avoid using a useE
 
 Pass shallow as the equality function to useStore when applicable. That way even with a new selector reference each render, Zustand compares the result shallowly and won't re-render if the contents are the same.
 
+zustand is on v5, where `useStore` from `zustand` no longer accepts an `equalityFn` third argument. To pass `shallow` (or any equality fn) to a context-backed store hook, use `useStoreWithEqualityFn(store, selector, equalityFn)` from `zustand/traditional`, not the bare `useStore`. All store context hooks here follow this pattern.
+
 ### AbortController
 
 Use an `AbortController` to cancel in-flight `fetch` requests when a newer request supersedes them or the component/store state they'll update has moved on. Pass the controller's `signal` to `fetch`; the browser rejects the promise with an `AbortError` when aborted, so bail without touching state in the catch.
