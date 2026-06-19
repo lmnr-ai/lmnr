@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
@@ -287,7 +288,7 @@ export const SignalContext = createContext<SignalStoreApi | null>(null);
 export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalityFn?: (a: T, b: T) => boolean): T => {
   const store = useContext(SignalContext);
   if (!store) throw new Error("Missing SignalContext.Provider in the tree");
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {
