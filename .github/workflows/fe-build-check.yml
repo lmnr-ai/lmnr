@@ -16,7 +16,7 @@ jobs:
     steps:
       # Step 1: Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Step 2: Install pnpm
       - name: Install pnpm
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "26"  # match the one in frontend/Dockerfile
+          node-version: "26" # match the one in frontend/Dockerfile
           cache: "pnpm"
           # Specify the subdirectory containing the lockfile
           cache-dependency-path: ./frontend/pnpm-lock.yaml
