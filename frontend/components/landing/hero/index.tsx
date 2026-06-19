@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
-import CopySetupButton from "./copy-setup-button";
+import AgentCta from "./agent-cta";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -38,7 +38,7 @@ const Hero = ({ className, hasSession }: Props) => (
           >
             <span className="font-sans-landing font-medium text-sm text-black">Get started – free</span>
           </Link>
-          <CopySetupButton />
+          <AgentCta />
         </div>
       </div>
 
