@@ -135,6 +135,7 @@ const SignalEventClustersMock = ({ className }: Props) => {
               unclusteredVirtualCluster={unclusteredVirtualCluster}
               selectedClusterId={selectedClusterId}
               onNavigateToCluster={navigateToCluster}
+              rangeTotal={dataset.totalEventCount}
             />
           </div>
           <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>

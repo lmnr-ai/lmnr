@@ -24,7 +24,6 @@ export type SignalState = {
   spanId: string | null;
   selectedEvent: EventRow | null;
   runsFilters: Filter[];
-  jobsFilters: Filter[];
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -37,6 +36,7 @@ export type SignalState = {
   isClustersLoading: boolean;
   clusterStatsData: ClusterStatsDataPoint[];
   isClusterStatsLoading: boolean;
+  runTotals: { timestamp: string; count: number }[];
 };
 
 export type FetchClusterStatsParams = {
@@ -57,10 +57,10 @@ export type SignalActions = {
   fetchEvents: (params: URLSearchParams) => Promise<void>;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
-  setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
   fetchClusters: (params: FetchClustersParams) => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
+  fetchRunStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
 export interface EventsProps {
@@ -167,6 +167,20 @@ export const getFilteredCountByCluster = (
   return counts;
 };
 
+// Total events in the selected time range = Σ root-cluster counts + unclustered.
+// Root clusters aggregate their whole subtree, so summing roots (not every level)
+// counts each event once. Drives the list's "global scale" proportion bars — the
+// denominator stays fixed regardless of how deep the user has drilled.
+export const selectRangeEventTotal = (state: Store): number => {
+  const byId = new Map<string, number>();
+  for (const row of state.clusterStatsData) {
+    byId.set(row.cluster_id, (byId.get(row.cluster_id) ?? 0) + row.count);
+  }
+  let total = byId.get(UNCLUSTERED_ID) ?? 0;
+  for (const root of state.clusterTree) total += byId.get(root.id) ?? 0;
+  return total;
+};
+
 // --- Store ---
 
 export type SignalStoreApi = ReturnType<typeof createSignalStore>;
@@ -178,7 +192,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     spanId: initProps.spanId || null,
     selectedEvent: null,
     runsFilters: [],
-    jobsFilters: [],
     lastEvent: initProps.lastEvent,
     // Cluster state
     rawClusters: [],
@@ -188,6 +201,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     isClustersLoading: true,
     clusterStatsData: [],
     isClusterStatsLoading: false,
+    runTotals: [],
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -201,10 +215,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
-      })),
-    setJobsFilters: (filters) =>
-      set((state) => ({
-        jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
       })),
     fetchEvents: async (params: URLSearchParams) => {
       const { signal } = get();
@@ -292,6 +302,23 @@ export const createSignalStore = (initProps: EventsProps) =>
           return;
         }
         set({ clusterStatsData: [], isClusterStatsLoading: false });
+      }
+    },
+    fetchRunStats: async ({ statsUrl, abortSignal }: FetchClusterStatsParams) => {
+      // Clear at the start so a stale window's overlay never lingers during a refetch.
+      set({ runTotals: [] });
+      if (!statsUrl) return;
+      try {
+        const res = await fetch(statsUrl, { signal: abortSignal });
+        if (!res.ok) throw new Error("Failed to fetch signal run stats");
+        const data = (await res.json()) as { items: { timestamp: string; count: number }[] };
+        // A cleanly-resolved fetch can't be caught by the AbortError branch, so guard here
+        // before overwriting the runTotals the superseding request already cleared.
+        if (abortSignal?.aborted) return;
+        set({ runTotals: data.items.map((i) => ({ timestamp: i.timestamp, count: Number(i.count) })) });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        set({ runTotals: [] });
       }
     },
   }));

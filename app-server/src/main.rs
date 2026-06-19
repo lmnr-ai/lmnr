@@ -1708,7 +1708,6 @@ fn main() -> anyhow::Result<()> {
                         db_for_http.clone(),
                         cache_for_http.clone(),
                         llm_provider_client_for_http.clone(),
-                        mq_for_http.clone(),
                     ));
 
                     // Shared in-process JWKS cache for the CLI user-token surface.

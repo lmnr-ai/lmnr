@@ -18,7 +18,6 @@ use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
-    mq::MessageQueue,
     query_engine::QueryEngine,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
@@ -62,8 +61,6 @@ pub struct LaminarMcpServer {
     cache: Arc<Cache>,
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     llm_client: Option<Arc<LlmClient>>,
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-    queue: Arc<MessageQueue>,
 }
 
 #[tool_router]
@@ -76,7 +73,6 @@ impl LaminarMcpServer {
         db: Arc<DB>,
         cache: Arc<Cache>,
         llm_client: Option<Arc<LlmClient>>,
-        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             clickhouse,
@@ -86,7 +82,6 @@ impl LaminarMcpServer {
             db,
             cache,
             llm_client,
-            queue,
         }
     }
 
@@ -219,13 +214,7 @@ impl LaminarMcpServer {
             self.cache.clone(),
             llm_client.clone(),
         ));
-        let compressor = TraceCompressor::new(
-            extractor,
-            self.cache.clone(),
-            llm_client,
-            self.queue.clone(),
-            None,
-        );
+        let compressor = TraceCompressor::new(extractor, self.cache.clone(), llm_client);
         let compressed = compressor
             .compress_for_chat(&spans, project_id, trace_id, None)
             .await
@@ -273,7 +262,6 @@ impl McpState {
         db: Arc<DB>,
         cache: Arc<Cache>,
         llm_client: Option<Arc<LlmClient>>,
-        queue: Arc<MessageQueue>,
     ) -> Self {
         Self {
             server: LaminarMcpServer::new(
@@ -284,7 +272,6 @@ impl McpState {
                 db,
                 cache,
                 llm_client,
-                queue,
             ),
         }
     }

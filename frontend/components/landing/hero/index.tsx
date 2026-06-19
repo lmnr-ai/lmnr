@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
+import AgentCta from "./agent-cta";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -37,13 +38,7 @@ const Hero = ({ className, hasSession }: Props) => (
           >
             <span className="font-sans-landing font-medium text-sm text-black">Get started – free</span>
           </Link>
-          <Link
-            href="https://laminar.sh/docs"
-            target="_blank"
-            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm border border-foreground-600 hover:bg-surface-600 transition-colors no-underline"
-          >
-            <span className="font-sans-landing font-medium text-sm text-foreground-200">Docs</span>
-          </Link>
+          <AgentCta />
         </div>
       </div>
 
