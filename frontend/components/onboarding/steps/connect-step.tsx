@@ -33,13 +33,15 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
 
   const goToProject = useCallback(
     async ({ skipped }: { skipped: boolean }) => {
-      track("onboarding", "connect_step_completed", { skipped });
       // Paid users must never strand on /onboarding even if the cookie is gone.
       if (!projectId) {
         router.replace("/projects");
         return;
       }
+      // Only record completion once the cookie is actually cleared — a failed
+      // DELETE leaves the user pinned to /onboarding, so it isn't "completed".
       if (await finishOnboarding()) {
+        track("onboarding", "connect_step_completed", { skipped });
         beginSubmitting();
         router.replace(`/project/${projectId}/traces?onboarding=true`);
       }
