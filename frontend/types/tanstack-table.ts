@@ -1,8 +1,25 @@
 import { type RowData } from "@tanstack/react-table";
 import { type ReactNode } from "react";
 
+import { type ScoreRanges } from "@/components/evaluation/utils";
+
 // -- tanstack module augmentation --
 declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface TableMeta<TData extends RowData> {
+    // Evaluation table — passed via InfiniteDataTable so cell components can
+    // read shared rendering state (comparison mode, heatmap toggle, score
+    // ranges, shared/public flag) without importing the eval store. This
+    // keeps the cell modules free of `useEvalStore` and breaks the
+    // store ↔ cell import cycle that confused React Refresh.
+    evalCellMeta?: {
+      isComparison: boolean;
+      isShared: boolean;
+      heatmapEnabled: boolean;
+      scoreRanges: ScoreRanges;
+    };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     // The raw SQL/ClickHouse expression used in the SELECT clause and as the

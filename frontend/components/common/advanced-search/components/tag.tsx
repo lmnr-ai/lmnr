@@ -1,7 +1,6 @@
 "use client";
 
 import { X } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -22,6 +21,7 @@ import { cn } from "@/lib/utils";
 import ValueInput from "../inputs";
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import {
+  type AdvancedSearchResource,
   type FilterTag as FilterTagType,
   type FilterTagRef,
   type FocusableRef,
@@ -32,16 +32,12 @@ import FilterSelect from "./select";
 
 interface FilterTagProps {
   tag: FilterTagType;
-  resource?: "traces" | "spans";
+  resource?: AdvancedSearchResource;
   isSelected?: boolean;
   ref?: Ref<FilterTagRef>;
 }
 
 const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: FilterTagProps) => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
 
@@ -126,10 +122,10 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
     (e: MouseEvent | KeyboardEvent) => {
       e.stopPropagation();
       if ("key" in e && e.key !== "Enter" && e.key !== " ") return;
-      removeTag(tag.id, router, pathname, searchParams);
+      removeTag(tag.id);
       focusMainInput();
     },
-    [removeTag, tag.id, focusMainInput, router, pathname, searchParams]
+    [removeTag, tag.id, focusMainInput]
   );
 
   const handleEnterKey = useCallback(

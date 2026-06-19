@@ -117,6 +117,7 @@ impl MessageHandler for NotificationDeliveryHandler {
                 .map(|(notification_id, kind)| {
                     let project_id = match kind {
                         NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                        NotificationKind::NewCluster { project_id, .. } => *project_id,
                         NotificationKind::SignalsReport { project_id, .. } => *project_id,
                         NotificationKind::UsageWarning { .. } => Uuid::nil(),
                     };

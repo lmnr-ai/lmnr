@@ -6,4 +6,4 @@ CREATE TABLE "workspace_invitations" (
 	CONSTRAINT "workspace_invitations_workspace_id_email_key" UNIQUE("workspace_id","email")
 );
 --> statement-breakpoint
-ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE no action;

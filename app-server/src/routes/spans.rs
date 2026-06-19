@@ -13,8 +13,10 @@ use crate::{
     quickwit::client::QuickwitClient,
     routes::ResponseResult,
     search::snippets::SearchSpanHit,
-    signals::utils::structural_skeleton_hash,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
+    traces::{
+        OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, prompt_hash::structural_skeleton_hash,
+        spans::SpanAttributes,
+    },
 };
 
 #[derive(Deserialize)]
@@ -68,7 +70,13 @@ pub async fn create_span(
         size_bytes: 0,
     };
 
-    let rabbitmq_span_message = RabbitMqSpanMessage { span };
+    let rabbitmq_span_message = RabbitMqSpanMessage {
+        span,
+        pre_processed: false,
+        input_dedup: None,
+        output_dedup: None,
+        tool_dedup: None,
+    };
     let mq_message = serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap();
 
     if mq_message.len() >= mq_max_payload() {
@@ -101,7 +109,7 @@ pub async fn create_span(
 #[serde(rename_all = "camelCase")]
 pub struct SearchSpansRequest {
     #[serde(default)]
-    pub trace_id: Option<String>,
+    pub trace_ids: Option<Vec<String>>,
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
@@ -139,7 +147,7 @@ pub async fn search_spans(
         &clickhouse,
         project_id,
         trimmed_query,
-        request.trace_id.as_deref(),
+        request.trace_ids.as_deref(),
         request.limit,
         request.offset,
         request.start_time,

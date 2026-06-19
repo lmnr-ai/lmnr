@@ -19,14 +19,14 @@ pub struct UsageWarningDbRow {
 #[serde(rename_all = "snake_case")]
 pub enum UsageItem {
     Bytes,
-    SignalRuns,
+    SignalStepsProcessed,
 }
 
 impl UsageItem {
     fn try_from_str(s: &str) -> anyhow::Result<Self> {
         match s.to_lowercase().trim() {
             "bytes" => Ok(Self::Bytes),
-            "signal_runs" | "signalruns" => Ok(Self::SignalRuns),
+            "signal_steps_processed" | "signalstepsprocessed" => Ok(Self::SignalStepsProcessed),
             x => Err(anyhow::anyhow!("unknown usage item value {}", x)),
         }
     }
@@ -36,7 +36,7 @@ impl Display for UsageItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             Self::Bytes => "bytes",
-            Self::SignalRuns => "signal_runs",
+            Self::SignalStepsProcessed => "signal_steps_processed",
         };
         f.write_str(s)
     }
@@ -97,7 +97,6 @@ pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result
         .await?;
     Ok(())
 }
-
 
 /// Get owner email(s) for a workspace.
 pub async fn get_workspace_owner_emails(pool: &PgPool, workspace_id: Uuid) -> Result<Vec<String>> {

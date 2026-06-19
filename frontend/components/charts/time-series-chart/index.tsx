@@ -33,6 +33,8 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   onZoom,
   formatValue = numberFormatter.format,
   showTotal = true,
+  showTooltip = true,
+  hideZeroValues = false,
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
@@ -86,15 +88,15 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   }, [refArea.left, refArea.right, onZoom, pathName, router, searchParams]);
 
   const onMouseDown: CategoricalChartFunc = useCallback((e) => {
-    if (e && e.activeLabel) {
-      setRefArea({ left: e.activeLabel });
+    if (e?.activeLabel != null) {
+      setRefArea({ left: String(e.activeLabel) });
     }
   }, []);
 
   const onMouseMove: CategoricalChartFunc = useCallback(
     (e) => {
-      if (refArea.left && e && e.activeLabel) {
-        setRefArea({ left: refArea.left, right: e.activeLabel });
+      if (refArea.left && e?.activeLabel != null) {
+        setRefArea({ left: refArea.left, right: String(e.activeLabel) });
       }
     },
     [refArea.left]
@@ -127,16 +129,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             ticks={smartTicksResult?.ticks}
           />
           <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelKey="timestamp"
-                labelFormatter={(_, payload) =>
-                  payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
-                }
-              />
-            }
-          />
+          {showTooltip && (
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelKey="timestamp"
+                  hideZeroValues={hideZeroValues}
+                  labelFormatter={(_, payload) =>
+                    payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
+                  }
+                />
+              }
+            />
+          )}
           {fields.map((fieldKey) => {
             const config = chartConfig[fieldKey];
             if (!config) return null;

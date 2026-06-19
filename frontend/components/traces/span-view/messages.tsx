@@ -11,15 +11,55 @@ import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
+import OpenAIResponsesContentParts from "@/components/traces/span-view/openai-responses-parts";
 import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
-import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
+import { type GeminiContentsSchema, parseGeminiContents } from "@/lib/spans/types/gemini";
+import { parseGenAIMessages } from "@/lib/spans/types/gen-ai";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
+import {
+  type OpenAIResponsesItemsSchema,
+  parseOpenAIResponsesInput,
+  parseOpenAIResponsesOutput,
+} from "@/lib/spans/types/openai-responses";
 
 const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
+
+const RESPONSES_TOOL_CALL_TYPES = new Set([
+  "function_call",
+  "custom_tool_call",
+  "web_search_call",
+  "file_search_call",
+  "computer_call",
+  "image_generation_call",
+  "code_interpreter_call",
+  "local_shell_call",
+  "mcp_call",
+  "mcp_list_tools",
+  "mcp_approval_request",
+]);
+
+const RESPONSES_TOOL_OUTPUT_TYPES = new Set([
+  "function_call_output",
+  "computer_call_output",
+  "local_shell_call_output",
+  "mcp_approval_response",
+  "custom_tool_call_output",
+]);
+
+export function responsesItemRole(item: { type?: string; role?: string } | undefined): string | undefined {
+  if (!item) return undefined;
+  if (item.role) return item.role;
+  const t = item.type;
+  if (!t || t === "message") return item.role;
+  if (t === "reasoning") return "assistant";
+  if (RESPONSES_TOOL_CALL_TYPES.has(t)) return "assistant";
+  if (RESPONSES_TOOL_OUTPUT_TYPES.has(t)) return "tool";
+  return undefined;
+}
 
 function contentHasAnthropicTypes(blocks: unknown): boolean {
   if (!Array.isArray(blocks)) return false;
@@ -46,6 +86,7 @@ function hasAnthropicSignals(messages: unknown): boolean {
 export type ProcessedMessages =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
+  | { type: "openai-responses"; messages: z.infer<typeof OpenAIResponsesItemsSchema> }
   | { type: "anthropic"; messages: z.infer<typeof AnthropicMessagesSchema> }
   | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
@@ -63,6 +104,26 @@ export function processMessages(data: unknown): ProcessedMessages {
     }
   }
 
+  // OpenTelemetry GenAI semconv (`{role, parts: [{type: "text"|"tool_call"|...}]}`)
+  // emitted by pydantic_ai v5 and other spec-compliant libraries. The backend
+  // preserves the raw shape so we decode it here.
+  //
+  // Must run BEFORE OpenAI/LangChain/Gemini detectors: `OpenAIAssistantMessageSchema`
+  // has every field optional except `role` and Zod silently strips unknown keys, so
+  // `{role: "assistant", parts: [...], finish_reason: "stop"}` matches it and renders
+  // as an empty OpenAI message. `looksLikeGenAIMessages` is narrow enough to run
+  // early — it requires a `parts` array with an object carrying a GenAI `type`
+  // discriminator, which none of the other formats emit.
+  //
+  // There is no dedicated `gen_ai` renderer: every GenAI part type maps losslessly
+  // onto a ModelMessage content part (see `convertOne` in `gen-ai.ts`), so the
+  // generic renderer is sufficient. Add one if the spec grows a part type with no
+  // ModelMessage analogue.
+  const genAIMessages = parseGenAIMessages(data);
+  if (genAIMessages) {
+    return { messages: genAIMessages, type: "generic" };
+  }
+
   const openAIOutput = parseOpenAIOutput(data);
   if (openAIOutput) {
     return { messages: openAIOutput, type: "openai" };
@@ -71,6 +132,16 @@ export function processMessages(data: unknown): ProcessedMessages {
   const openAIInput = parseOpenAIInput(data);
   if (openAIInput) {
     return { messages: openAIInput, type: "openai" };
+  }
+
+  const responsesInput = parseOpenAIResponsesInput(data);
+  if (responsesInput) {
+    return { messages: responsesInput, type: "openai-responses" };
+  }
+
+  const responsesOutput = parseOpenAIResponsesOutput(data);
+  if (responsesOutput) {
+    return { messages: responsesOutput, type: "openai-responses" };
   }
 
   const langchainMessageResult = LangChainMessageSchema.safeParse(data);
@@ -97,14 +168,9 @@ export function processMessages(data: unknown): ProcessedMessages {
     return { messages: anthropicInput, type: "anthropic" };
   }
 
-  const geminiOutput = parseGeminiOutput(data);
-  if (geminiOutput) {
-    return { messages: geminiOutput, type: "gemini" };
-  }
-
-  const geminiInput = parseGeminiInput(data);
-  if (geminiInput) {
-    return { messages: geminiInput, type: "gemini" };
+  const geminiContents = parseGeminiContents(data);
+  if (geminiContents) {
+    return { messages: geminiContents, type: "gemini" };
   }
 
   return {
@@ -122,6 +188,54 @@ export function buildToolNameMap(result: ProcessedMessages): Map<string, string>
           for (const tc of msg.tool_calls) {
             map.set(tc.id, tc.function.name);
           }
+        }
+      }
+      break;
+    case "openai-responses":
+      for (const item of result.messages) {
+        switch (item.type) {
+          case "function_call":
+            map.set(item.call_id, item.name);
+            break;
+          case "computer_call":
+            map.set(item.call_id, "computer_use");
+            break;
+          case "local_shell_call":
+            // local_shell_call_output has no call_id in the API — its `id` field
+            // references the call's `call_id`. Register both to be resilient to
+            // either convention.
+            map.set(item.call_id, "local_shell");
+            map.set(item.id, "local_shell");
+            break;
+          case "mcp_call":
+            map.set(
+              item.id,
+              item.server_label && item.name ? `${item.server_label}.${item.name}` : (item.name ?? "mcp_call")
+            );
+            break;
+          case "web_search_call":
+            map.set(item.id, "web_search");
+            break;
+          case "file_search_call":
+            map.set(item.id, "file_search");
+            break;
+          case "image_generation_call":
+            map.set(item.id, "image_generation");
+            break;
+          case "code_interpreter_call":
+            map.set(item.id, "code_interpreter");
+            break;
+          case "mcp_approval_request":
+            map.set(
+              item.id,
+              item.server_label && item.name
+                ? `${item.server_label}.${item.name}`
+                : (item.name ?? "mcp_approval_request")
+            );
+            break;
+          case "custom_tool_call":
+            map.set(item.call_id, item.name);
+            break;
         }
       }
       break;
@@ -168,6 +282,15 @@ export function renderMessageContent(
           toolNameMap={map}
         />
       );
+    case "openai-responses":
+      return (
+        <OpenAIResponsesContentParts
+          parentIndex={index}
+          presetKey={presetKey}
+          message={result.messages[index]}
+          toolNameMap={map}
+        />
+      );
     case "anthropic":
       return (
         <AnthropicContentParts
@@ -193,14 +316,27 @@ export function renderMessageContent(
   }
 }
 
+export interface MessageLabel {
+  beforeIndex: number;
+  text: string;
+  subtext?: string;
+}
+
 interface MessagesProps {
   messages: any;
   presetKey: string;
   hideScrollToBottom?: boolean;
   maxHeight?: number;
+  labels?: MessageLabel[];
 }
 
+type VirtualItem =
+  | { kind: "label"; text: string; subtext?: string; key: string }
+  | { kind: "message"; index: number; key: string };
+
 const HEADER_HEIGHT = 28;
+const LABEL_ESTIMATE_SIZE = 40;
+const MESSAGE_ESTIMATE_SIZE = 360;
 
 function updateOverlay(
   overlayEl: HTMLDivElement | null,
@@ -221,7 +357,7 @@ function updateOverlay(
   labelEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
 }
 
-function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeight }: MessagesProps) {
+function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeight, labels }: MessagesProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
@@ -234,10 +370,36 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
 
   const prevOverlayRef = useRef<{ role?: string; show: boolean }>({ show: false });
 
+  // Interleave label rows with message rows so labels stay aligned with the
+  // messages they introduce and don't break overscan / measurement.
+  const virtualItems: VirtualItem[] = useMemo(() => {
+    const items: VirtualItem[] = [];
+    const labelsByIndex = new Map<number, MessageLabel[]>();
+    if (labels) {
+      for (const label of labels) {
+        const arr = labelsByIndex.get(label.beforeIndex) ?? [];
+        arr.push(label);
+        labelsByIndex.set(label.beforeIndex, arr);
+      }
+    }
+    for (let i = 0; i <= processedResult.messages.length; i++) {
+      const here = labelsByIndex.get(i);
+      if (here) {
+        for (let j = 0; j < here.length; j++) {
+          items.push({ kind: "label", text: here[j].text, subtext: here[j].subtext, key: `label-${i}-${j}` });
+        }
+      }
+      if (i < processedResult.messages.length) {
+        items.push({ kind: "message", index: i, key: `msg-${i}` });
+      }
+    }
+    return items;
+  }, [labels, processedResult.messages.length]);
+
   const virtualizer = useVirtualizer({
-    count: processedResult.messages.length,
+    count: virtualItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 360,
+    estimateSize: (i) => (virtualItems[i]?.kind === "label" ? LABEL_ESTIMATE_SIZE : MESSAGE_ESTIMATE_SIZE),
     overscan: searchTerm ? 100 : 24,
   });
 
@@ -268,8 +430,11 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     }
 
     if (found >= 0) {
-      const message = processedResult.messages[found] as { role?: string };
-      role = message?.role;
+      const virtualItem = virtualItems[found];
+      if (virtualItem?.kind === "message") {
+        const message = processedResult.messages[virtualItem.index] as { role?: string; type?: string };
+        role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
+      }
       const itemStart = cache[found].start;
       const itemEnd = cache[found].end;
       // Show overlay slightly before the header fully scrolls out of view,
@@ -283,19 +448,20 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
       prevOverlayRef.current = { role, show };
       updateOverlay(overlayRef.current, labelRef.current, role, show);
     }
-  }, [processedResult.messages, virtualizer]);
+  }, [processedResult.messages, processedResult.type, virtualItems, virtualizer]);
 
   const scrollToBottom = useCallback(() => {
-    virtualizer.scrollToIndex(processedResult.messages.length - 1, {
+    virtualizer.scrollToIndex(virtualItems.length - 1, {
       align: "end",
     });
-  }, [processedResult.messages.length, virtualizer]);
+  }, [virtualItems.length, virtualizer]);
 
   return (
     <>
       <div className="size-full relative">
         <div
-          className="absolute top-0 left-0 right-0 z-20 bg-background transition-opacity duration-150"
+          // adjust for scrollbar on the right
+          className="absolute top-0 left-0 right-[15px] z-20 bg-background transition-opacity duration-150"
           ref={overlayRef}
           style={{ opacity: 0, pointerEvents: "none" }}
         >
@@ -329,16 +495,37 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
               }}
             >
               {items.map((item) => {
-                const message = processedResult.messages[item.index] as { role?: string };
+                const virtualItem = virtualItems[item.index];
+                if (!virtualItem) return null;
+                if (virtualItem.kind === "label") {
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={item.index}
+                      ref={virtualizer.measureElement}
+                      className="pt-2 pb-2 px-1"
+                    >
+                      <span className="text-base font-medium text-secondary-foreground">
+                        {virtualItem.text}
+                        {virtualItem.subtext && (
+                          <span className="text-sm text-muted-foreground ml-1">{virtualItem.subtext}</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                }
+                const messageIndex = virtualItem.index;
+                const message = processedResult.messages[messageIndex] as { role?: string; type?: string };
+                const role = processedResult.type === "openai-responses" ? responsesItemRole(message) : message?.role;
                 return (
-                  <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} className="pb-4">
+                  <div key={virtualItem.key} data-index={item.index} ref={virtualizer.measureElement} className="pb-4">
                     <MessageWrapper
-                      role={message?.role}
-                      presetKey={`collapse-${item.index}-${presetKey}`}
+                      role={role}
+                      presetKey={`collapse-${messageIndex}-${presetKey}`}
                       maxHeight={maxHeight}
                       stickyHeader={false}
                     >
-                      {renderMessageContent(processedResult, item.index, presetKey, toolNameMap)}
+                      {renderMessageContent(processedResult, messageIndex, presetKey, toolNameMap)}
                     </MessageWrapper>
                   </div>
                 );
@@ -361,6 +548,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
   );
 }
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
+  if (!isEqual(prevProps.labels, nextProps.labels)) return false;
   if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;
   if (isNil(prevProps.messages) || isNil(nextProps.messages)) return false;
   if (prevProps.messages.length !== nextProps.messages.length) return false;

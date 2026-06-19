@@ -1,35 +1,67 @@
-use sqlx::PgPool;
+use serde::Deserialize;
+use sqlx::{PgPool, Postgres, QueryBuilder};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct AlertInfo {
-    pub alert_id: Uuid,
-    pub workspace_id: Uuid,
-    pub metadata: serde_json::Value,
+use crate::notifications::AlertType;
+
+/// Severity levels: 0 = info, 1 = warning, 2 = critical.
+/// Defaults to critical when absent (historical alerts).
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const DEFAULT_SEVERITY: u8 = 2;
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub struct AlertMetadata {
+    #[serde(default)]
+    pub severities: Option<Vec<u8>>,
+    #[serde(default)]
+    pub skip_similar: Option<bool>,
 }
 
-/// Look up all alerts for a given project and signal event name.
-/// Used by the signal postprocessor to discover which alerts match a fired event.
-/// Multiple alerts can reference the same signal, so all must be returned.
-pub async fn get_alerts_for_event(
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+impl AlertMetadata {
+    pub fn skip_similar(&self) -> bool {
+        // False by default to not break historical alerts
+        self.skip_similar.unwrap_or(false)
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub struct AlertInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
+    #[sqlx(json)]
+    pub metadata: AlertMetadata,
+}
+
+/// Look up all alerts for a given project and signal ID, optionally filtered by alert type.
+/// Used by the clustering handler to discover which alerts match a signal.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn get_alerts_for_signal(
     pool: &PgPool,
     project_id: Uuid,
-    event_name: &str,
+    signal_id: Uuid,
+    alert_type: Option<AlertType>,
 ) -> anyhow::Result<Vec<AlertInfo>> {
-    let records = sqlx::query_as::<_, AlertInfo>(
+    let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
         r#"
-        SELECT a.id AS alert_id, p.workspace_id, a.metadata
+        SELECT a.id, a.name, p.workspace_id, a.metadata
         FROM alerts a
-        INNER JOIN signals s ON s.id = a.source_id
         INNER JOIN projects p ON p.id = a.project_id
-        WHERE a.project_id = $1
-          AND s.name = $2
-        "#,
-    )
-    .bind(project_id)
-    .bind(event_name)
-    .fetch_all(pool)
-    .await?;
+        WHERE a.project_id = "#,
+    );
+    qb.push_bind(project_id)
+        .push(" AND a.source_id = ")
+        .push_bind(signal_id);
+
+    if let Some(t) = alert_type {
+        qb.push(" AND a.type = ").push_bind(t.as_str().to_owned());
+    }
+
+    let records = qb.build_query_as::<AlertInfo>().fetch_all(pool).await?;
 
     Ok(records)
 }

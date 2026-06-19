@@ -2,11 +2,14 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
-use super::{ClickhouseInsertable, DataPlaneBatch, Table};
+use super::{
+    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
+};
 use crate::db::spans::{Span, SpanType};
 use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
@@ -101,6 +104,13 @@ impl CHTrace {
 
 impl ClickhouseInsertable for CHTrace {
     const TABLE: Table = Table::Traces;
+
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_setting(
+            "async_insert_busy_timeout_max_ms",
+            SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
+        )
+    }
 
     fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
         DataPlaneBatch::Traces(items)
@@ -222,8 +232,10 @@ impl TraceAggregation {
                     }
                 }
             }
-            if let Some(trace_type) = span.attributes.trace_type() {
-                entry.trace_type = trace_type.clone().into();
+            if entry.trace_type == 0 {
+                if let Some(trace_type) = span.attributes.trace_type() {
+                    entry.trace_type = trace_type.clone().into();
+                }
             }
 
             if span.span_type == SpanType::Evaluation {

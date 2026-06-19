@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useProjectContext } from "@/contexts/project-context";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -38,6 +39,7 @@ export default function RenameProject() {
     });
 
     if (res.ok) {
+      track("project", "renamed");
       toast({
         title: "Project Renamed",
         description: `Project renamed successfully!.`,

@@ -13,6 +13,7 @@ import { SpanSearchProvider } from "@/components/traces/span-view/span-search-co
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
@@ -25,6 +26,8 @@ interface SpanViewProps {
   traceId: string;
   initialSearchTerm?: string;
   initialTab?: SpanViewTab;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
 const swrFetcher = async (url: string) => {
@@ -57,7 +60,13 @@ const SpanViewTabs = ({
   const defaultTab = initialTab ?? (isLLM ? "overview" : "span-input");
 
   return (
-    <Tabs key={initialTab} className="flex flex-col grow overflow-hidden gap-0" defaultValue={defaultTab} tabIndex={0}>
+    <Tabs
+      key={initialTab}
+      className="flex flex-col grow overflow-hidden gap-0"
+      defaultValue={defaultTab}
+      onValueChange={(value) => track("traces", "span_tab_selected", { tab: value })}
+      tabIndex={0}
+    >
       <div className="px-2 pb-2 mt-2 border-b w-full">
         <TabsList className="border-none text-xs h-7">
           {isLLM && (
@@ -117,7 +126,14 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId, initialSearchTerm, initialTab }: SpanViewProps) {
+export function SpanView({
+  spanId,
+  traceId,
+  initialSearchTerm,
+  initialTab,
+  onClose,
+  isAlwaysSelectSpan,
+}: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
@@ -176,7 +192,7 @@ export function SpanView({ spanId, traceId, initialSearchTerm, initialTab }: Spa
   if (span) {
     return (
       <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
-        <SpanControls span={span}>
+        <SpanControls span={span} onClose={onClose} isAlwaysSelectSpan={isAlwaysSelectSpan}>
           <SpanViewTabs
             span={span}
             searchRef={searchRef}

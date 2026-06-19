@@ -9,12 +9,12 @@ import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/a
 import {
   aggregateSpanMetrics,
   buildSpansQueryWithParams,
+  buildTraceViewAttributesExpression,
   createParentRewiring,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { type Span } from "@/lib/traces/types";
@@ -111,7 +111,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
-        traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
@@ -147,50 +146,6 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     items,
   };
 }
-
-export const searchSpanIds = async ({
-  projectId,
-  searchQuery,
-  traceId,
-  searchType,
-}: {
-  projectId: string;
-  searchQuery: string;
-  traceId?: string;
-  searchType?: SpanSearchType[];
-}): Promise<string[]> => {
-  let baseQuery = `
-      SELECT DISTINCT(span_id) spanId FROM spans
-      WHERE project_id = {projectId: UUID}
-  `;
-
-  if (traceId) {
-    baseQuery += ` AND trace_id = {traceId: UUID}`;
-  }
-
-  const finalQuery = `${baseQuery} AND (${searchTypeToQueryFilter(searchType, "query")})`;
-
-  const queryParams: Record<string, any> = {
-    projectId,
-    query: `%${searchQuery.toLowerCase()}%`,
-  };
-
-  if (traceId) {
-    queryParams.traceId = traceId;
-  }
-
-  const response = await clickhouseClient.query({
-    query: `${finalQuery}
-     ORDER BY start_time DESC
-     LIMIT 1000`,
-    format: "JSONEachRow",
-    query_params: queryParams,
-  });
-
-  const result = (await response.json()) as { spanId: string }[];
-
-  return result.map((i) => i.spanId);
-};
 
 const getTraceTreeStructure = async ({
   projectId,
@@ -246,7 +201,10 @@ const fetchTraceSpans = async ({
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
-      "attributes",
+      // Only extract the attribute keys actually used by the transcript/tree,
+      // not the full `attributes` JSON blob. The per-span view fetches the
+      // complete attributes via the `getSpan` endpoint.
+      buildTraceViewAttributesExpression(),
       "model",
       "status",
       "path",
@@ -281,7 +239,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
-        traceId,
+        traceIds: [traceId],
         searchQuery: search,
         ...(timeRange && { timeRange }),
         searchType: searchIn as SpanSearchType[],

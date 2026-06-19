@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 const TIME_INTERVAL_VALUES_MS = [
   100, 250, 500, 1000, 2000, 5000, 10000, 15000, 20000, 30000, 60000, 120000, 300000, 600000, 900000, 1800000, 3600000,
+  7200000, 14400000, 28800000,
 ] as const;
 
 const MIN_MARKER_SPACING_PX = 70;
@@ -31,25 +32,35 @@ export function formatTimeMarkerLabel(ms: number): string {
 
   if (ms < 60000) {
     const seconds = ms / 1000;
-    // Show decimal only if not a whole number
     if (Number.isInteger(seconds)) {
       return `${seconds}s`;
     }
     return `${seconds.toFixed(1).replace(/\.0$/, "")}s`;
   }
 
-  const minutes = ms / 60000;
-  if (Number.isInteger(minutes)) {
-    return `${minutes}m`;
+  if (ms < 3600000) {
+    const minutes = ms / 60000;
+    if (Number.isInteger(minutes)) {
+      return `${minutes}m`;
+    }
+    return `${minutes.toFixed(1).replace(/\.0$/, "")}m`;
   }
-  return `${minutes.toFixed(1).replace(/\.0$/, "")}m`;
+
+  const hours = Math.floor(ms / 3600000);
+  const remainingMinutes = Math.round((ms % 3600000) / 60000);
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 /**
  * Computes dynamic time markers based on timeline width and duration.
  * Uses predefined "nice" intervals and ensures minimum pixel spacing between markers.
  */
-function computeDynamicTimeMarkers(totalDurationMs: number, timelineWidthPx: number): TimeMarker[] {
+function computeDynamicTimeMarkers(
+  totalDurationMs: number,
+  timelineWidthPx: number,
+  startOffsetMs: number = 0
+): TimeMarker[] {
   if (totalDurationMs <= 0 || timelineWidthPx <= 0) {
     return [];
   }
@@ -67,14 +78,19 @@ function computeDynamicTimeMarkers(totalDurationMs: number, timelineWidthPx: num
     }
   }
 
-  // Generate markers from 0 to totalDurationMs at the selected interval
+  // When an offset is provided, snap the first marker to the next interval
+  // boundary relative to global time so labels are "round" numbers.
+  const firstMarkerLocal =
+    startOffsetMs > 0 ? Math.ceil(startOffsetMs / selectedInterval) * selectedInterval - startOffsetMs : 0;
+
+  // Generate markers across the segment at the selected interval
   const markers: TimeMarker[] = [];
 
-  for (let timeMs = 0; timeMs <= totalDurationMs; timeMs += selectedInterval) {
+  for (let timeMs = firstMarkerLocal; timeMs <= totalDurationMs; timeMs += selectedInterval) {
     markers.push({
-      label: formatTimeMarkerLabel(timeMs),
+      label: formatTimeMarkerLabel(timeMs + startOffsetMs),
       positionPercent: (timeMs / totalDurationMs) * 100,
-      timeMs,
+      timeMs: timeMs + startOffsetMs,
     });
   }
 
@@ -89,6 +105,8 @@ interface UseDynamicTimeIntervalsResult {
 interface UseDynamicTimeIntervalsProps {
   totalDurationMs: number;
   zoom: number;
+  /** Offset added to marker labels so they show global time rather than segment-local time. */
+  startOffsetMs?: number;
 }
 
 /**
@@ -99,6 +117,7 @@ interface UseDynamicTimeIntervalsProps {
 export function useDynamicTimeIntervals({
   totalDurationMs,
   zoom,
+  startOffsetMs = 0,
 }: UseDynamicTimeIntervalsProps): UseDynamicTimeIntervalsResult {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
@@ -124,8 +143,8 @@ export function useDynamicTimeIntervals({
   // Compute markers based on timeline width (container * zoom) and duration
   const markers = useMemo(() => {
     const timelineWidthPx = containerWidth * zoom;
-    return computeDynamicTimeMarkers(totalDurationMs, timelineWidthPx);
-  }, [containerWidth, zoom, totalDurationMs]);
+    return computeDynamicTimeMarkers(totalDurationMs, timelineWidthPx, startOffsetMs);
+  }, [containerWidth, zoom, totalDurationMs, startOffsetMs]);
 
   return { markers, setContainerRef };
 }

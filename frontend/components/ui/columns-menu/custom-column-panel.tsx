@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { track } from "@/lib/posthog";
 
 import type { CustomColumn, CustomColumnPanelConfig } from "./types";
 
@@ -70,6 +71,10 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
       }
 
       onSave({ name: trimmedName, sql: trimmedSql, dataType });
+      track("sql_editor", "custom_column_saved", {
+        mode: config.generationMode ?? "eval-expression",
+        is_edit: !!editingColumn,
+      });
     } catch (e: any) {
       setError(e?.message || "Invalid SQL expression.");
     } finally {
@@ -107,7 +112,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: Cus
             <div className="flex items-center justify-between">
               <Label className="text-xs">Column SQL expression</Label>
               <a
-                href="https://docs.laminar.sh/platform/sql-editor#table-schemas"
+                href="https://laminar.sh/docs/platform/sql-editor#table-schemas"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-muted-foreground underline"

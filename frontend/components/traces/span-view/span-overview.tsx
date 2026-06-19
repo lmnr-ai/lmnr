@@ -1,18 +1,15 @@
-import { ChevronDown } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo } from "react";
+import useSWR from "swr";
 
-import { MessageWrapper } from "@/components/traces/span-view/common";
-import {
-  buildToolNameMap,
-  type ProcessedMessages,
-  processMessages,
-  renderMessageContent,
-} from "@/components/traces/span-view/messages";
-import { Button } from "@/components/ui/button";
+import { type MessageLabel } from "@/components/traces/span-view/messages";
+import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseOpenAIOutput } from "@/lib/spans/types/openai";
 import { type Span } from "@/lib/traces/types";
+import { swrFetcher } from "@/lib/utils.ts";
 
 const normalize = (data: unknown): unknown => {
   if (typeof data === "string") {
@@ -33,85 +30,56 @@ const extractPayloadUrl = (data: unknown): string | null => {
   return null;
 };
 
-const fetchPayload = async (raw: unknown): Promise<unknown> => {
-  const url = extractPayloadUrl(raw);
-  if (!url) return raw;
-  const fullUrl = url.startsWith("/") ? `${url}?payloadType=raw` : url;
-  const response = await fetch(fullUrl);
-  return response.json();
-};
-
-function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; presetKey: string }) {
-  const toolNameMap = useMemo(() => buildToolNameMap(result), [result]);
-  return result.messages.map((message: any, i: number) => (
-    <MessageWrapper
-      key={`overview-${presetKey}-${i}`}
-      role={message.role}
-      presetKey={`collapse-${i}-${presetKey}`}
-      maxHeight={560}
-    >
-      {renderMessageContent(result, i, presetKey, toolNameMap)}
-    </MessageWrapper>
-  ));
-}
-
-const SCROLL_THRESHOLD = 100;
-
 const PureSpanOverview = ({ span }: { span: Span }) => {
   const { toast } = useToast();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
 
-  const [inputData, setInputData] = useState<unknown>(span.input);
-  const [outputData, setOutputData] = useState<unknown>(span.output);
-  const [isLoading, setIsLoading] = useState(false);
+  const inputUrl = extractPayloadUrl(span.input);
+  const outputUrl = extractPayloadUrl(span.output);
+  const toFull = (u: string | null) => (u ? (u.startsWith("/") ? `${u}?payloadType=raw` : u) : null);
+  const onError = () => toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD);
-  }, []);
+  const { data: fetchedInput, isLoading: loadingInput } = useSWR(toFull(inputUrl), swrFetcher, {
+    revalidateOnFocus: false,
+    onError,
+  });
+  const { data: fetchedOutput, isLoading: loadingOutput } = useSWR(toFull(outputUrl), swrFetcher, {
+    revalidateOnFocus: false,
+    onError,
+  });
 
-  const scrollToBottom = useCallback(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, []);
+  const inputData = inputUrl ? fetchedInput : span.input;
+  const outputData = outputUrl ? fetchedOutput : span.output;
+  const isLoading = (!!inputUrl && loadingInput) || (!!outputUrl && loadingOutput);
 
-  const loadData = useCallback(async () => {
-    const hasInputUrl = extractPayloadUrl(span.input);
-    const hasOutputUrl = extractPayloadUrl(span.output);
-    if (!hasInputUrl && !hasOutputUrl) return;
-
-    try {
-      setIsLoading(true);
-      const [input, output] = await Promise.all([fetchPayload(span.input), fetchPayload(span.output)]);
-      if (hasInputUrl) setInputData(input);
-      if (hasOutputUrl) setOutputData(output);
-    } catch {
-      toast({ title: "Error", description: "Failed to load span data.", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
+  // Overview = last 2 input messages stitched with the output, rendered through
+  // the same ContentRenderer the I/O tabs use so users get the mode toggle
+  // (MESSAGES / JSON / YAML / TEXT / CUSTOM) and search/copy/expand for free.
+  const { mergedValue, messageLabels } = useMemo(() => {
+    const input = normalize(inputData);
+    const output = normalize(outputData);
+    const inputArray = Array.isArray(input) ? input.slice(-2) : [];
+    const openAIOutput = parseOpenAIOutput(output);
+    const outputTail = openAIOutput ?? (output == null ? [] : Array.isArray(output) ? output : [output]);
+    const labels: MessageLabel[] = [];
+    if (inputArray.length > 0) {
+      labels.push({
+        beforeIndex: 0,
+        text: "Input",
+        subtext: inputArray.length === 1 ? "(last message)" : "(last 2 messages)",
+      });
     }
-  }, [span.input, span.output, toast]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const inputResult = useMemo(() => {
-    const normalized = normalize(inputData);
-    const messages = Array.isArray(normalized) ? normalized : [];
-    const lastTwo = messages.slice(-2);
-    return lastTwo.length > 0 ? processMessages(lastTwo) : null;
-  }, [inputData]);
-
-  const outputResult = useMemo(() => {
-    const normalized = normalize(outputData);
-    return normalized != null ? processMessages(normalized) : null;
-  }, [outputData]);
+    if (outputTail.length > 0) {
+      labels.push({ beforeIndex: inputArray.length, text: "Output" });
+    }
+    return {
+      mergedValue: JSON.stringify([...inputArray, ...outputTail]),
+      messageLabels: labels,
+    };
+  }, [inputData, outputData]);
 
   const spanPath = span.attributes?.["lmnr.span.path"] ?? [span.name];
-  const spanPathArray = typeof spanPath === "string" ? spanPath.split(".") : spanPath;
-  const presetKey = `overview-${spanPathArray.join(".")}`;
+  const spanPathString = (typeof spanPath === "string" ? spanPath.split(".") : spanPath).join(".");
+  const presetKey = `overview-${spanPathString}`;
 
   if (isLoading) {
     return (
@@ -124,42 +92,18 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
   }
 
   return (
-    <div className="relative w-full h-full">
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex flex-col w-full h-full overflow-y-auto styled-scrollbar divide-y"
-      >
-        {inputResult && (
-          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-            <span className="text-base font-medium text-secondary-foreground px-1">
-              Input <span className="text-sm text-muted-foreground">(last 2 messages)</span>
-            </span>
-            <div className="flex flex-col gap-4">
-              <OverviewMessages result={inputResult} presetKey={`${presetKey}-input`} />
-            </div>
-          </div>
-        )}
-        {outputResult && (
-          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-            <span className="text-base font-medium text-secondary-foreground px-1">Output</span>
-            <div className="flex flex-col gap-4">
-              <OverviewMessages result={outputResult} presetKey={`${presetKey}-output`} />
-            </div>
-          </div>
-        )}
-      </div>
-      {!isAtBottom && (
-        <Button
-          aria-label="Scroll to bottom"
-          size="icon"
-          className="absolute bottom-3 right-3 rounded-full z-40"
-          onClick={scrollToBottom}
-        >
-          <ChevronDown className="w-4 h-4" />
-        </Button>
-      )}
-    </div>
+    <ContentRenderer
+      className="rounded-none border-0"
+      codeEditorClassName="rounded-none border-none bg-background contain-strict"
+      readOnly
+      value={mergedValue}
+      defaultMode="messages"
+      modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
+      presetKey={presetKey}
+      customTheme={spanViewTheme}
+      messageMaxHeight={560}
+      messageLabels={messageLabels}
+    />
   );
 };
 

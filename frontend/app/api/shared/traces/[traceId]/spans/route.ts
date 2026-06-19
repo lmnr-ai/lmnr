@@ -8,9 +8,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ traceId: 
   const traceId = params.traceId;
 
   try {
-    const spans = await getSharedSpans({ traceId });
+    const result = await getSharedSpans({ traceId });
 
-    return NextResponse.json(spans);
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(e) }, { status: 400 });

@@ -2,20 +2,23 @@
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import AdvancedSearch from "@/components/common/advanced-search";
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { useTableView } from "@/components/ui/infinite-datatable/model/table-config-store";
+import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import ViewsToolbar from "@/components/ui/infinite-datatable/views/views-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PlaygroundInfo } from "@/lib/playground/types";
+import { track } from "@/lib/posthog";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import {
@@ -68,6 +71,7 @@ const playgroundsTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+const RESOURCE = "playgrounds";
 
 const EmptyRow = (
   <TableRow className="flex">
@@ -80,7 +84,7 @@ const EmptyRow = (
             create one, or open one directly from a traced span.
           </p>
           <a
-            href="https://docs.laminar.sh/playground"
+            href="https://laminar.sh/docs/playground"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
@@ -98,11 +102,19 @@ const PlaygroundsContent = () => {
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const filter = searchParams.getAll("filter");
-  const search = searchParams.get("search");
+  const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
+  const searchValue = useMemo(
+    () => ({ filters: effective.filters, search: effective.search }),
+    [effective.filters, effective.search]
+  );
+  const filter = useMemo(() => effective.filters.map((f) => JSON.stringify(f)), [effective.filters]);
+  const search = effective.search.length > 0 ? effective.search : null;
+
+  useEffect(() => {
+    track("playgrounds", "page_viewed");
+  }, []);
 
   const fetchPlaygrounds = useCallback(
     async (pageNumber: number) => {
@@ -152,7 +164,7 @@ const PlaygroundsContent = () => {
     updateData,
   } = useInfiniteScroll<PlaygroundInfo>({
     fetchFn: fetchPlaygrounds,
-    enabled: true,
+    enabled: !isViewLoading,
     deps: [projectId, filter, search],
   });
 
@@ -169,6 +181,7 @@ const PlaygroundsContent = () => {
       if (res.ok) {
         updateData((currentData) => currentData.filter((playground) => !playgroundIds.includes(playground.id)));
         setRowSelection({});
+        track("playgrounds", "deleted", { count: playgroundIds.length });
         toast({
           title: "Playgrounds deleted",
           description: `Successfully deleted ${playgroundIds.length} playground(s).`,
@@ -200,13 +213,12 @@ const PlaygroundsContent = () => {
           data={playgrounds ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
-          isLoading={isLoading}
+          isLoading={isLoading || isViewLoading}
           fetchNextPage={fetchNextPage}
           state={{
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -239,17 +251,29 @@ const PlaygroundsContent = () => {
           )}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={playgroundsTableFilters} />
+            <DataTableFilter
+              columns={playgroundsTableFilters}
+              filters={effective.filters}
+              onFiltersChange={setFilters}
+            />
             <ColumnsMenu
               columnLabels={columns.map((column) => ({
                 id: column.id!,
                 label: typeof column.header === "string" ? column.header : column.id!,
               }))}
-              lockedColumns={["__row_selection"]}
             />
-            <DataTableSearch className="mr-0.5" placeholder="Search by playground name..." />
+            <ViewsToolbar projectId={String(projectId)} resource={RESOURCE} />
           </div>
-          <DataTableFilterList />
+          <div className="w-full">
+            <AdvancedSearch
+              value={searchValue}
+              onChange={setSearchAndFilters}
+              storageKey={`playgrounds-${projectId}`}
+              filters={playgroundsTableFilters}
+              placeholder="Search by playground name..."
+              className="w-full flex-1"
+            />
+          </div>
         </InfiniteDataTable>
       </div>
     </>
@@ -257,9 +281,14 @@ const PlaygroundsContent = () => {
 };
 
 export default function Playgrounds() {
+  const { projectId } = useParams();
   return (
-    <DataTableStateProvider storageKey="playgrounds-table" defaultColumnOrder={defaultPlaygroundsColumnOrder}>
+    <InfiniteDataTableProvider
+      defaults={{ columnOrder: defaultPlaygroundsColumnOrder }}
+      lockedColumns={["__row_selection"]}
+      views={{ projectId: String(projectId), resource: RESOURCE }}
+    >
       <PlaygroundsContent />
-    </DataTableStateProvider>
+    </InfiniteDataTableProvider>
   );
 }

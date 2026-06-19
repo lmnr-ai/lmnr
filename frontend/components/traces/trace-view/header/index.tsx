@@ -1,26 +1,35 @@
-import { ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import { ArrowUpRight, ChevronsRight, Layers, Maximize, Radio, Sparkles, User } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TraceTagsList from "@/components/tags/trace-tags-list";
+import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { useProjectContext } from "@/contexts/project-context";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type EventRow } from "@/lib/events/types";
+import { Feature } from "@/lib/features/features";
+import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
-import ResizableSignalCard from "./resizeable-signal-card";
+import SignalEventsPanel from "../signal-events-panel";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
 const HEADER_ITEM_CLS = "flex items-center h-7";
+
+const FREE_TIER_RETENTION_DAYS = 15;
 
 interface HeaderProps {
   handleClose: () => void;
@@ -33,6 +42,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
+  const { toast } = useToast();
+  const { project } = useProjectContext();
+  const featureFlags = useFeatureFlags();
 
   const {
     trace,
@@ -47,6 +59,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     setIsTraceSignalsLoading,
     setActiveSignalTabId,
     initialSignalId,
+    initialSearch,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -61,13 +74,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
       setActiveSignalTabId: state.setActiveSignalTabId,
       initialSignalId: state.initialSignalId,
+      initialSearch: state.initialSearch,
     }),
     shallow
   );
 
-  // Eagerly fetch signal count when trace loads, so the button shows the correct count.
-  // Tab selection uses initialSignalId from the store (set at creation time) — see
-  // SignalEventsPanel for the same logic. Whichever fetch completes first picks the tab.
+  // Eagerly fetch signals when the trace loads, populating store + auto-opening the panel
+  // when there are any. Tab selection prefers initialSignalId from the store (set at creation).
   useEffect(() => {
     if (!traceId || !projectId) return;
 
@@ -75,13 +88,21 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       try {
         setIsTraceSignalsLoading(true);
         const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
-        if (!response.ok) return;
+        if (!response.ok) {
+          const errMessage = await response
+            .json()
+            .then((d) => d?.error)
+            .catch(() => null);
+          toast({ variant: "destructive", title: errMessage ?? "Failed to load trace signals" });
+          return;
+        }
 
         const data = (await response.json()) as Array<{
           signalId: string;
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
+          leafCluster?: { id: string; name: string; level: number } | null;
           events: EventRow[];
         }>;
         if (!Array.isArray(data)) return;
@@ -90,6 +111,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalId: s.signalId,
           signalName: s.signalName,
           prompt: s.prompt ?? "",
+          leafCluster: s.leafCluster ?? null,
           schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
             name: f.name,
             type: f.type,
@@ -105,8 +127,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
           setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
         }
-      } catch (error) {
-        console.error("Error fetching trace signals:", error);
+      } catch {
+        toast({ variant: "destructive", title: "Failed to load trace signals" });
       } finally {
         setIsTraceSignalsLoading(false);
       }
@@ -126,10 +148,36 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
   const signalCount = traceSignals.length;
 
+  const sessionId = trace?.sessionId;
+  const hasSession = sessionId && sessionId !== "<null>" && sessionId !== "";
+
+  const handleOpenSession = useCallback(() => {
+    if (!hasSession) return;
+    track("sessions", "detail_opened", { source: "trace_header" });
+    const encodedSessionId = sessionId.split("/").map(encodeURIComponent).join("/");
+    window.open(`/project/${projectId}/sessions/${encodedSessionId}`, "_blank");
+  }, [hasSession, sessionId, projectId]);
+
+  const userId = trace?.userId;
+  const hasUser = userId && userId !== "<null>" && userId !== "";
+
+  const { tags: traceTags } = useTraceTags(traceId);
+  const hasRow2 = hasSession || hasUser || traceTags.length > 0;
+
+  const handleOpenUserTraces = useCallback(() => {
+    if (!hasUser) return;
+    const params = new URLSearchParams();
+    params.append("filter", JSON.stringify({ column: "user_id", value: userId, operator: "eq" }));
+    const retentionDays = project?.logRetentionDays ?? FREE_TIER_RETENTION_DAYS;
+    params.set("pastHours", String(retentionDays * 24));
+    window.open(`/project/${projectId}/traces?${params.toString()}`, "_blank");
+  }, [hasUser, userId, projectId, project?.logRetentionDays]);
+
   return (
     <div className="relative flex flex-col px-2 pt-1.5 pb-2 flex-shrink-0">
-      <div className="flex items-start gap-1">
-        <div className="flex flex-wrap items-center gap-1 flex-1">
+      {/* Row 1: core trace controls + actions (share justified to end) */}
+      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0">
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
               <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
@@ -150,7 +198,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               <TraceDropdown traceId={traceId} />
             </span>
           )}
-          {spans.length > 0 && (
+          {featureFlags[Feature.AGENT] && spans.length > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
                 onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
@@ -163,11 +211,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 <Sparkles size={14} className="mr-1" />
                 Chat
               </Button>
-            </span>
-          )}
-          {trace?.metadata && (
-            <span className={HEADER_ITEM_CLS}>
-              <Metadata metadata={trace?.metadata} />
             </span>
           )}
           {signalCount > 0 && (
@@ -185,17 +228,79 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          <TraceTagsList traceId={traceId} />
+          <span className={HEADER_ITEM_CLS}>
+            <Metadata metadata={trace?.metadata} />
+          </span>
+          <span className={HEADER_ITEM_CLS}>
+            <TraceTagsButton traceId={traceId} />
+          </span>
         </div>
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
-      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
+      {/* Row 2: context pills (session, user, tags) */}
+      {hasRow2 && (
+        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+          {hasSession && (
+            <span className={HEADER_ITEM_CLS}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleOpenSession}
+                      variant="outline"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-56"
+                    >
+                      <Layers size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{sessionId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Open session in a new tab</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          )}
+          {hasUser && (
+            <span className={HEADER_ITEM_CLS}>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleOpenUserTraces}
+                      variant="outline"
+                      className="h-6 text-xs px-1.5 hover:bg-secondary max-w-40"
+                    >
+                      <User size={14} className="mr-1 flex-shrink-0" />
+                      <span className="truncate">{userId}</span>
+                      <ArrowUpRight size={16} className="ml-1 flex-shrink-0 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">See user traces in a new tab</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </span>
+          )}
+          <TraceTagsPills traceId={traceId} />
+        </div>
+      )}
+      <AnimatePresence>
+        {signalsPanelOpen && (
+          <SignalEventsPanel
+            traceId={traceId}
+            onClose={() => {
+              track("traces", "signals_panel_closed");
+              setSignalsPanelOpen(false);
+            }}
+            className="mt-2"
+          />
+        )}
+      </AnimatePresence>
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}
           onSubmit={onSearch}
           className="flex-1"
-          initialSearch={searchParams.get("search") ?? undefined}
+          initialSearch={initialSearch || undefined}
         />
       </div>
       {spans.length > 0 && (

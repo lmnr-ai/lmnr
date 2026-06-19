@@ -1,3 +1,5 @@
+pub mod realtime;
+
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -112,9 +114,9 @@ pub async fn insert_evaluation_datapoints(
     evaluation_id: Uuid,
     project_id: Uuid,
     group_name: &String,
-) -> Result<()> {
+) -> Result<Vec<CHEvaluationDatapoint>> {
     if evaluation_datapoints.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
@@ -130,24 +132,21 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    ch_insert_evaluation_datapoints(
-        clickhouse,
-        evaluation_datapoints
-            .into_iter()
-            .map(|dp| {
-                CHEvaluationDatapoint::from_evaluation_datapoint_result(
-                    dp,
-                    evaluation_id,
-                    project_id,
-                    group_name,
-                )
-            })
-            .collect::<Vec<_>>()
-            .as_slice(),
-    )
-    .await?;
+    let ch_rows: Vec<CHEvaluationDatapoint> = evaluation_datapoints
+        .into_iter()
+        .map(|dp| {
+            CHEvaluationDatapoint::from_evaluation_datapoint_result(
+                dp,
+                evaluation_id,
+                project_id,
+                group_name,
+            )
+        })
+        .collect();
 
-    Ok(())
+    ch_insert_evaluation_datapoints(clickhouse, ch_rows.as_slice()).await?;
+
+    Ok(ch_rows)
 }
 
 /// Update a single evaluation datapoint using INSERT...SELECT pattern.
@@ -163,7 +162,7 @@ pub async fn update_evaluation_datapoint(
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
     trace_id: Option<Uuid>,
-) -> Result<()> {
+) -> Result<UpdatedDatapointStrings> {
     // Verify the datapoint exists and get its trace_id for shared evaluation handling.
     // We use prewhere id here, so that we hit the bloom_filter skip index on the
     // project_id, evaluation_id, id BEFORE we execute FINAL
@@ -273,5 +272,13 @@ pub async fn update_evaluation_datapoint(
         .await
         .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
 
-    Ok(())
+    Ok(UpdatedDatapointStrings {
+        executor_output: new_executor_output,
+        scores: new_scores,
+    })
+}
+
+pub struct UpdatedDatapointStrings {
+    pub executor_output: String,
+    pub scores: String,
 }

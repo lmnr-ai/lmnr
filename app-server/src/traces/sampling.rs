@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "signals"), allow(dead_code))]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -153,5 +155,5 @@ pub fn should_sample_trace(
 
     let p = ((sample_rate as f64 / 100.0) * base_factor).min(1.0);
 
-    rand::Rng::random::<f64>(&mut rand::rng()) < p
+    rand::RngExt::random::<f64>(&mut rand::rng()) < p
 }

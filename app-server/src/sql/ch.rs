@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use bytes::Bytes;
 use opentelemetry::{
@@ -10,10 +10,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::sql::{ClickhouseReadonlyClient, SqlQueryError};
-
-const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
-const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
+use crate::env;
+use crate::sql::{ClickhouseReadonlyClient, SqlQueryError, SqlQuerySource};
 
 #[derive(Deserialize)]
 pub struct ClickhouseBadResponseError {
@@ -26,6 +24,7 @@ pub async fn query(
     project_id: Uuid,
     query: String,
     parameters: HashMap<String, Value>,
+    source: SqlQuerySource,
 ) -> Result<Bytes, SqlQueryError> {
     let tracer = global::tracer("app-server");
     let mut span = tracer.start("execute_sql_query");
@@ -34,22 +33,20 @@ pub async fn query(
     span.set_attribute(KeyValue::new("project_id", project_id.to_string()));
     let mut clickhouse_query = clickhouse_ro
         .query(&query)
-        .with_option("default_format", "JSON")
-        .with_option("output_format_json_quote_64bit_integers", "0")
-        .with_option(
-            "max_execution_time",
-            env::var("SQL_QUERY_MAX_EXECUTION_TIME")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME),
-        )
-        .with_option(
-            "max_result_bytes",
-            env::var("SQL_QUERY_MAX_RESULT_BYTES")
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(DEFAULT_SQL_QUERY_MAX_RESULT_BYTES),
-        );
+        .with_setting("default_format", "JSON")
+        .with_setting("output_format_json_quote_64bit_integers", "0")
+        .with_setting("max_execution_time", env::sql::MAX_EXECUTION_TIME.get())
+        .with_setting("max_result_bytes", env::sql::MAX_RESULT_BYTES.get());
+
+    // Cap per-query memory for public/CLI traffic only — the trusted frontend
+    // runs uncapped. `0` (the default) means unlimited, so we only set it when an
+    // operator has opted in to a concrete ceiling.
+    if source == SqlQuerySource::Public {
+        let max_memory_usage = env::sql::MAX_MEMORY_USAGE.get();
+        if max_memory_usage != "0" {
+            clickhouse_query = clickhouse_query.with_setting("max_memory_usage", max_memory_usage);
+        }
+    }
 
     for (key, value) in parameters {
         span.set_attribute(KeyValue::new(

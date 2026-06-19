@@ -6,7 +6,7 @@ import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { downloadSpanImages } from "@/lib/spans/utils";
-import { type Span } from "@/lib/traces/types.ts";
+import { type Span, type SpanType } from "@/lib/traces/types.ts";
 
 export const GetSpanSchema = z.object({
   spanId: z.guid(),
@@ -52,7 +52,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   }
 
   const mainQuery = `
-    SELECT 
+    SELECT
       span_id as spanId,
       parent_span_id as parentSpanId,
       name,
@@ -71,6 +71,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       output,
       path,
       attributes,
+      tool_definitions as toolDefinitions,
       events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}
@@ -158,6 +159,7 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
   const processedInput = await downloadSpanImages(span.input);
 
   await pushQueueItems({
+    projectId,
     queueId,
     items: [
       {
@@ -170,4 +172,52 @@ export async function pushSpanToLabelingQueue(input: z.infer<typeof PushSpanSche
       },
     ],
   });
+}
+
+export const GetSpanTypeSchema = z.object({
+  projectId: z.guid(),
+  traceId: z.guid(),
+  spanId: z.guid(),
+});
+
+export async function getSpanType(input: z.infer<typeof GetSpanTypeSchema>): Promise<SpanType | null> {
+  const { projectId, traceId, spanId } = GetSpanTypeSchema.parse(input);
+
+  const rows = await executeQuery<{ spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_type as spanType
+      FROM spans
+      WHERE trace_id = {traceId: UUID} AND span_id = {spanId: UUID}
+      LIMIT 1
+    `,
+    parameters: { traceId, spanId },
+  });
+
+  return rows[0]?.spanType ?? null;
+}
+
+export const GetSpanTypesSchema = z.object({
+  projectId: z.guid(),
+  spanIds: z.array(z.string()),
+});
+
+export async function getSpanTypes(input: z.infer<typeof GetSpanTypesSchema>): Promise<Record<string, SpanType>> {
+  const { projectId, spanIds } = GetSpanTypesSchema.parse(input);
+
+  if (spanIds.length === 0) {
+    return {};
+  }
+
+  const rows = await executeQuery<{ spanId: string; spanType: SpanType }>({
+    projectId,
+    query: `
+      SELECT span_id as spanId, span_type as spanType
+      FROM spans
+      WHERE span_id IN ({spanIds: Array(UUID)})
+    `,
+    parameters: { spanIds },
+  });
+
+  return Object.fromEntries(rows.map((r) => [r.spanId, r.spanType]));
 }

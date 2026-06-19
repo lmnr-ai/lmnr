@@ -75,6 +75,40 @@ impl std::fmt::Display for NotificationDefinitionType {
     }
 }
 
+/// Concrete alert types stored in `alerts.type`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AlertType {
+    SignalEvent,
+    NewCluster,
+}
+
+impl AlertType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SignalEvent => "SIGNAL_EVENT",
+            Self::NewCluster => "NEW_CLUSTER",
+        }
+    }
+}
+
+impl std::str::FromStr for AlertType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SIGNAL_EVENT" => Ok(Self::SignalEvent),
+            "NEW_CLUSTER" => Ok(Self::NewCluster),
+            other => Err(format!("unknown alert type: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for AlertType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 // ── Notification kind: the core event data ──
 
 /// Core notification data produced by various subsystems.
@@ -82,11 +116,26 @@ impl std::fmt::Display for NotificationDefinitionType {
 pub enum NotificationKind {
     EventIdentification {
         project_id: Uuid,
-        trace_id: Uuid,
-        event_name: String,
         #[serde(default)]
+        signal_id: Uuid,
+        trace_id: Uuid,
+        #[serde(default)]
+        event_id: Option<Uuid>,
+        event_name: String,
         severity: u8,
         extracted_information: Option<serde_json::Value>,
+        #[serde(default)]
+        alert_name: String,
+    },
+    NewCluster {
+        project_id: Uuid,
+        signal_id: Uuid,
+        signal_name: String,
+        cluster_id: Uuid,
+        cluster_name: String,
+        num_signal_events: u32,
+        num_child_clusters: usize,
+        alert_name: String,
     },
     SignalsReport {
         workspace_name: String,
@@ -105,6 +154,24 @@ pub enum NotificationKind {
         usage_label: String,
         formatted_limit: String,
         usage_item: String,
+        /// True when `limit_value` equals the tier's included allowance for this
+        /// usage item (e.g. 3 GiB bytes on Hobby). Used by the email template to
+        /// switch between a generic threshold-reached message and tier-specific
+        /// copy about the included allowance being consumed.
+        #[serde(default)]
+        at_tier_included_allowance: bool,
+        /// Tier display name ("Free", "Hobby", "Pro", or "your" for unknown tiers).
+        /// Defaults to empty string only when the field is absent in a legacy queued
+        /// message (backward-compat via `#[serde(default)]`); the email template's
+        /// `is_empty()` guard handles that case.
+        #[serde(default)]
+        tier_display_name: String,
+        /// True when exceeding the included allowance for this item results in
+        /// metered overage billing (Hobby / Pro, but not Free / Other). When
+        /// true and `at_tier_included_allowance` is also true, the email tells
+        /// the customer they will now be billed pay-as-you-go.
+        #[serde(default)]
+        overage_billable: bool,
     },
 }
 
@@ -228,6 +295,7 @@ impl MessageHandler for NotificationHandler {
 
             let project_id = match kind {
                 NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                NotificationKind::NewCluster { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
                 NotificationKind::UsageWarning { .. } => Uuid::nil(),
             };

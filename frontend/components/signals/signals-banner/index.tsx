@@ -69,7 +69,7 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
                 </button>
                 <div className="flex items-center gap-2">
                   <a
-                    href="https://docs.laminar.sh/signals"
+                    href="https://laminar.sh/docs/signals"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-xs font-medium px-2 border border-input bg-background hover:bg-accent transition-colors h-[22px]"

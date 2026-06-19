@@ -29,8 +29,8 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
   }, [mutate, router]);
 
   const bytesWarnings = warnings.filter((w) => w.usageItem === "bytes").sort((a, b) => a.limitValue - b.limitValue);
-  const signalRunsWarnings = warnings
-    .filter((w) => w.usageItem === "signal_runs")
+  const signalStepsWarnings = warnings
+    .filter((w) => w.usageItem === "signal_steps_processed")
     .sort((a, b) => a.limitValue - b.limitValue);
 
   const toDisplayGB = (raw: number) => Math.round((raw / GB_IN_BYTES) * 100) / 100;
@@ -70,23 +70,23 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
 
         <div className="flex flex-col rounded-md border flex-1">
           <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Signal runs</span>
+            <span className="text-sm font-medium">Signal steps processed</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
-            {signalRunsWarnings.map((w) => (
+            {signalStepsWarnings.map((w) => (
               <WarningChip
                 key={w.id}
                 workspaceId={workspaceId}
                 id={w.id}
                 displayValue={w.limitValue}
-                unit="runs"
+                unit="steps"
                 onRemove={handleUpdate}
               />
             ))}
             <AddWarningPopover
               workspaceId={workspaceId}
-              usageItem="signal_runs"
-              unit="runs"
+              usageItem="signal_steps_processed"
+              unit="steps"
               toRawValue={(display) => Math.round(display)}
               onAdd={handleUpdate}
             />

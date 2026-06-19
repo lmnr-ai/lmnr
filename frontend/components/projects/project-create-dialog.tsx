@@ -1,12 +1,14 @@
+"use client";
+
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
 
@@ -19,6 +21,9 @@ interface ProjectCreateDialogProps {
   onProjectCreate?: () => void;
   isFreeTier?: boolean;
   projectCount?: number;
+  className?: string;
+  // Optional custom trigger; defaults to a "Project" button when omitted.
+  children?: ReactNode;
 }
 
 export default function ProjectCreateDialog({
@@ -26,8 +31,9 @@ export default function ProjectCreateDialog({
   onProjectCreate,
   isFreeTier,
   projectCount,
+  className,
+  children,
 }: ProjectCreateDialogProps) {
-  const { setMenu } = useWorkspaceMenuContext();
   const [newProjectName, setNewProjectName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -38,11 +44,10 @@ export default function ProjectCreateDialog({
   const createNewProject = useCallback(async () => {
     setIsCreatingProject(true);
     try {
-      const res = await fetch("/api/projects", {
+      const res = await fetch(`/api/workspaces/${workspaceId}/projects`, {
         method: "POST",
         body: JSON.stringify({
           name: newProjectName,
-          workspaceId: workspaceId,
         }),
       });
 
@@ -52,6 +57,7 @@ export default function ProjectCreateDialog({
       }
 
       const newProject = (await res.json()) as Project;
+      track("project", "created");
       onProjectCreate?.();
       router.push(`/project/${newProject.id}/traces`);
       setIsDialogOpen(false);
@@ -73,19 +79,21 @@ export default function ProjectCreateDialog({
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span tabIndex={0} className="w-fit">
-              <Button icon="plus" className="w-fit" disabled>
-                Project
-              </Button>
+            <span tabIndex={0} className={cn("w-fit", className)} aria-disabled>
+              {children ? (
+                <span className="pointer-events-none opacity-50">{children}</span>
+              ) : (
+                <Button icon="plus" className={cn("w-fit", className)} disabled>
+                  Project
+                </Button>
+              )}
             </span>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
             <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
-            <Link
-              href={`/workspace/${workspaceId}?tab=billing`}
-              onClick={() => setMenu("billing")}
-              className="text-xs text-primary hover:underline"
-            >
+            {/* /workspace shim, not settingsHref: this dialog also renders in the project-less
+                /projects surface with no ProjectContext, where settingsHref would degrade. */}
+            <Link href={`/workspace/${workspaceId}?tab=billing`} className="text-xs text-primary hover:underline">
               Upgrade to create more projects
             </Link>
           </TooltipContent>
@@ -103,9 +111,11 @@ export default function ProjectCreateDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button icon="plus" className="w-fit">
-          Project
-        </Button>
+        {children ?? (
+          <Button icon="plus" className={cn("w-fit", className)}>
+            Project
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

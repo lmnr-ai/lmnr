@@ -4,7 +4,7 @@ export const SPAN_TYPE_TO_COLOR = {
   [SpanType.DEFAULT]: "rgba(96, 165, 250, 0.7)", // 70% opacity blue
   [SpanType.LLM]: "hsl(var(--llm))", // 90% opacity purple
   [SpanType.EXECUTOR]: "rgba(245, 158, 11, 0.7)", // 70% opacity yellow
-  [SpanType.EVALUATOR]: "rgba(6, 182, 212, 0.7)", // 70% opacity cyan
+  [SpanType.EVALUATOR]: "hsl(var(--subagent) / 0.7)",
   [SpanType.EVALUATION]: "rgba(16, 185, 129, 0.7)", // 70% opacity green
   [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
   [SpanType.TOOL]: "rgba(227, 160, 8, 0.9)",

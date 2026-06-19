@@ -2,8 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast";
 import { SimpleLRU } from "@/lib/simple-lru";
+import { type Span } from "@/lib/traces/types";
 
-export type TraceIOEntry = { input: string | null; output: string | null };
+export type TraceIOEntry = {
+  /** Extracted user-input text for the trace's main agent path. Render via a
+   *  synthetic "user" pill (no backing span). */
+  inputPreview: string | null;
+  /** Final LLM output text on the main agent path. Pairs with `outputSpan`. */
+  outputPreview: string | null;
+  /** Full span payload for the last LLM span on the main agent path, for
+   *  selectable rendering (e.g. as a `ListItem`). */
+  outputSpan: Span | null;
+};
 
 interface UseBatchedTraceIOOptions {
   debounceMs?: number;
@@ -29,24 +39,24 @@ export function useBatchedTraceIO(
       if (traceIds.length === 0 || !projectId) return;
 
       try {
-        const response = await fetch(`/api/projects/${projectId}/traces/io`, {
+        const res = await fetch(`/api/projects/${projectId}/traces/io`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ traceIds }),
         });
 
-        if (!response.ok) {
-          const errData = await response
+        if (!res.ok) {
+          const errMsg = await res
             .json()
             .then((d: { error?: string }) => d?.error)
             .catch(() => null);
-          throw new Error(errData ?? "Failed to fetch trace previews");
+          throw new Error(errMsg ?? "Failed to fetch trace previews");
         }
 
-        const data = (await response.json()) as Record<string, TraceIOEntry>;
+        const ioData = (await res.json()) as Record<string, TraceIOEntry>;
 
         for (const id of traceIds) {
-          cache.current.set(id, data[id] ?? null);
+          cache.current.set(id, ioData[id] ?? null);
           fetching.current.delete(id);
         }
 

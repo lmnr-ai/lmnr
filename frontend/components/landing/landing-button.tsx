@@ -2,28 +2,28 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-interface LandingButtonProps extends React.HTMLAttributes<HTMLButtonElement> {
-  variant?: "minimal" | "outline" | "primary";
-  size?: "sm" | "md" | "lg";
+interface LandingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "minimal" | "outline" | "primary" | "solid";
+  size?: "xs" | "sm" | "md" | "lg";
 }
 
 const LandingButton = React.forwardRef<HTMLButtonElement, LandingButtonProps>(
   ({ className, variant = "minimal", size = "md", children, ...props }, ref) => {
     const baseStyles =
-      "font-sans font-normal text-landing-text-300 tracking-[0.02em] leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-sm transition-colors";
+      "font-sans-landing text-foreground-200 leading-normal whitespace-nowrap cursor-pointer flex items-center justify-center rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none";
 
     const sizeStyles = {
-      sm: "px-4 py-2 text-xs md:text-sm",
-      md: cn("md:px-5 md:py-2.5 text-xs md:text-sm", "px-3 py-1.5"),
-      lg: cn("md:px-6 md:py-2.5 text-sm md:text-base", "px-4 py-1.5"),
+      xs: "px-2 py-0.5 text-xs md:text-sm",
+      sm: cn("px-2 py-0.5 text-xs md:text-sm md:py-1.5", "px-1 py-0.5"),
+      md: cn("md:px-5 text-xs md:text-sm md:py-3", "px-3"),
+      lg: cn("md:px-6 text-sm md:text-base md:py-3", "px-4"),
     };
 
     const variantStyles = {
-      minimal: "hover:text-landing-text-100",
-      outline:
-        "outline outline-landing-text-600 hover:text-landing-text-100 hover:outline-landing-text-400 outline-offset-1",
-      primary:
-        "bg-landing-primary-400 text-white border border-white/40 hover:bg-landing-primary-300 active:bg-landing-primary-200",
+      minimal: "hover:text-foreground-50",
+      solid: "bg-surface-400 hover:bg-surface-200",
+      outline: "outline outline-foreground-600 hover:text-foreground-50 hover:bg-primary-foreground/5",
+      primary: "bg-primary-200 text-black font-medium rounded-sm hover:bg-primary-400",
     };
 
     return (

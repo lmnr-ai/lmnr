@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import type { GenerationMode } from "@/lib/actions/sql";
 import { toast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 
 export interface SQLEditorProps {
   value: string;
@@ -74,6 +75,7 @@ export default function SQLEditor({
 
       if (data.query && onChange) {
         onChange(data.query);
+        track("sql_editor", "ai_generated", { mode: generationMode });
       }
     } catch (error) {
       toast({

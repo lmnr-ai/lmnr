@@ -1,10 +1,7 @@
-import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import type { ReadonlyURLSearchParams } from "next/navigation";
-
 import type { Filter } from "@/lib/actions/common/filters";
 import type { Operator } from "@/lib/actions/common/operators";
 
-import type { AdvancedSearchMode, AutocompleteCache, ColumnFilter, FilterTag, FilterTagFocusState } from "../types";
+import type { AutocompleteCache, ColumnFilter, FilterTag, FilterTagFocusState } from "../types";
 import type { RecentSearch, RecentsSlice } from "./recents-slice";
 import type { UndoRedoSlice, UndoSnapshot } from "./undo-redo-slice";
 
@@ -16,6 +13,10 @@ export interface SliceContext {
   setLastSubmitted: (value: { filters: Filter[]; search: string }) => void;
   initialTags: FilterTag[];
   initialSearch: string;
+  // Stable ref to the consumer-provided onChange. Called whenever the editor
+  // commits a change. Never null at runtime; defaults to a no-op so the search
+  // is functional even without an onChange (read-only / probing flows).
+  getOnChange: () => (value: { filters: Filter[]; search: string }) => void;
 }
 
 export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
@@ -29,8 +30,7 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   openSelectId: string | null;
   tagFocusStates: Map<string, FilterTagFocusState>;
   filters: ColumnFilter[];
-  mode: AdvancedSearchMode;
-  onSubmit?: (filters: Filter[], search: string) => void;
+  resource?: string;
 
   getActiveTagId: () => string | null;
   setAutocompleteData: (data: AutocompleteCache) => void;
@@ -41,38 +41,23 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   setOpenSelectId: (id: string | null) => void;
   setTags: (tags: FilterTag[]) => void;
   addTag: (field: string) => void;
-  addCompleteTag: (
-    field: string,
-    operator: Operator,
-    value: string,
-    router: AppRouterInstance,
-    pathname: string,
-    searchParams: ReadonlyURLSearchParams
-  ) => FilterTag | undefined;
-  removeTag: (
-    tagId: string,
-    router: AppRouterInstance,
-    pathname: string,
-    searchParams: ReadonlyURLSearchParams
-  ) => void;
+  addCompleteTag: (field: string, operator: Operator, value: string) => FilterTag | undefined;
+  removeTag: (tagId: string) => void;
   updateTagField: (tagId: string, field: string) => void;
   updateTagOperator: (tagId: string, operator: Operator) => void;
   updateTagValue: (tagId: string, value: string | string[]) => void;
   selectAllTags: () => void;
   clearSelection: () => void;
-  removeSelectedTags: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
+  removeSelectedTags: () => void;
   setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
   getTagFocusState: (tagId: string) => FilterTagFocusState;
-  submit: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  clearAll: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  updateLastSubmitted: (filters: Filter[], search: string) => void;
+  submit: () => void;
+  clearAll: () => void;
+  // External reflow: parent's controlled `value` changed (view switch / discard
+  // / undo from a sibling). Bypasses commit so we don't echo the change back.
+  reflowFromValue: (value: { filters: Filter[]; search: string }) => void;
   pushUndoSnapshot: () => void;
-  applyRecentSearch: (
-    recentSearch: RecentSearch,
-    router: AppRouterInstance,
-    pathname: string,
-    searchParams: ReadonlyURLSearchParams
-  ) => void;
+  applyRecentSearch: (recentSearch: RecentSearch) => void;
 }
 
 export type StoreSet = {

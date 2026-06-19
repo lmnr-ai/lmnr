@@ -64,6 +64,14 @@ export type Span = {
   inputCost: number;
   outputCost: number;
   totalCost: number;
+  /**
+   * Deduped tool definitions reconstructed from `deduped_content_dict` by
+   * `spans_v0` (camelCased from the view's `tool_definitions` column).
+   * Empty string when the span has no tools or for legacy spans whose
+   * definitions still ride in the attributes blob — the frontend's
+   * `extractToolsFromAttributes` is the fallback.
+   */
+  toolDefinitions?: string;
 };
 
 export type SpanRow = {
@@ -132,7 +140,6 @@ export type TraceRow = {
   outputCost: number;
   totalCost: number;
 
-  summary?: string;
   traceType: "DEFAULT" | "EVENT" | "EVALUATION" | "PLAYGROUND";
   sessionId?: string;
   metadata: Record<string, string>;
@@ -140,9 +147,6 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
-  analysis_status?: string;
-  analysis_preview?: string;
-  analysis?: string;
   rootSpanInput?: string;
   rootSpanOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };

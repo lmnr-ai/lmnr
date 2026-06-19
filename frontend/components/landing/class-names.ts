@@ -1,36 +1,31 @@
-/**
- * Common text classnames for Landing page components
- * Import and use with cn() utility
- *
- * Desktop styles use md: prefix, mobile styles are defaults
- */
+// Common text classnames for the redesigned landing page.
+// Import and combine with cn() from "@/lib/utils".
+//
+// All text is left-aligned by default (the redesign uses an 880px center
+// column with left-aligned content). `whitespace-pre-line` is kept so callers
+// can still pass `\n` for explicit line breaks where it matches Figma.
 
-// Hero & Large Headings
-export const sectionHeaderLarge =
-  "font-space-grotesk font-normal md:leading-[58px] md:text-[48px] tracking-[-1px] text-white text-[32px] leading-[38px]";
+// Hero title — used once for "Open-source Agent Monitoring".
+export const mainTitle =
+  "font-sans-landing text-[38px] sm:text-[42px] font-[480] text-white whitespace-pre-line leading-tight";
 
-export const sectionHeaderMedium =
-  "font-space-grotesk font-normal md:leading-tight md:text-[42px] text-white md:tracking-[-0.84px] text-[32px] leading-[40px] tracking-[-0.64px]";
+export const subSection = "font-sans-landing text-white whitespace-pre-line text-2xl leading-8 font-[500]";
 
-// Subsection Titles
-export const subsectionTitle =
-  "font-space-grotesk md:text-3xl text-white md:tracking-[-0.5px] text-2xl tracking-[-0.48px]";
+// One step smaller than `subSection` — used for sub-section titles
+// (e.g. "2.1", "2.2" under a parent subSection like "Understand why
+// in seconds"). Same weight + font, smaller scale.
+export const subSubSection =
+  "font-sans-landing font-medium text-white whitespace-pre-line text-lg leading-6 font-[500]";
 
-export const cardTitle = "font-space-grotesk md:leading-8 tracking-[-0.3px] md:text-2xl text-landing-text-100 text-[22px] leading-7";
+// Section body copy under each subSection — "MCP, CLI, and SQL API to bring Laminar...", etc.
+export const bodyMedium = "font-sans-landing text-foreground-200 whitespace-pre-line text-lg";
 
-// Body Text
-export const bodyLarge = "font-sans md:leading-8 md:text-xl text-landing-text-300 text-lg leading-6";
+// Tiny, wide-tracked muted label — used for step numbers above section
+// titles ("03.", "04.", ...) and for the SectionFootnote name + LEARN
+// MORE row at the bottom of each surface-500 mock panel. Single source
+// of truth so all those labels stay visually consistent.
+export const microLabel = "font-sans-landing text-foreground-300";
 
-export const bodyMedium = "font-sans md:leading-6 text-landing-text-300 md:text-base text-sm leading-5";
-
-export const bodySQL = "font-sans font-normal md:leading-7 md:text-xl text-landing-text-300 text-lg leading-7";
-
-// Quote Text
-export const quoteText = "font-space-grotesk text-white text-center";
-
-export const quoteSize = "md:text-[36px] md:leading-normal text-[28px] leading-9";
-
-export const quoteAttributionName = "font-sans text-landing-text-100 md:text-2xl md:leading-8 text-xl leading-7";
-
-export const quoteAttributionRole =
-  "font-sans text-landing-text-300 md:text-sm leading-normal tracking-[0.02em] text-xs";
+// Center-column width for the landing/blog/pricing pages. Scales up on
+// xl/2xl screens so the column doesn't look cramped on large displays.
+export const LANDING_COLUMN_MAX_W = "max-w-[880px] 2xl:max-w-[1000px] 3xl:max-w-[1100px]";

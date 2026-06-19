@@ -1,9 +1,11 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, Endpoint};
 use tracing::instrument;
+
+use crate::env;
 
 use super::{
     doc_batch::build_json_doc_batch,
@@ -11,9 +13,6 @@ use super::{
         CommitType, DocBatch, IngestRequest, ingest_service_client::IngestServiceClient,
     },
 };
-
-const DEFAULT_INGEST_ENDPOINT: &str = "http://localhost:7281";
-const DEFAULT_SEARCH_ENDPOINT: &str = "http://localhost:7280";
 
 #[derive(Clone)]
 pub struct QuickwitConfig {
@@ -24,10 +23,8 @@ pub struct QuickwitConfig {
 impl QuickwitConfig {
     pub fn from_env() -> Self {
         Self {
-            ingest_endpoint: env::var("QUICKWIT_INGEST_URL")
-                .unwrap_or(DEFAULT_INGEST_ENDPOINT.to_string()),
-            search_endpoint: env::var("QUICKWIT_SEARCH_URL")
-                .unwrap_or(DEFAULT_SEARCH_ENDPOINT.to_string()),
+            ingest_endpoint: env::quickwit::INGEST_URL.get(),
+            search_endpoint: env::quickwit::SEARCH_URL.get(),
         }
     }
 }

@@ -2,17 +2,23 @@ use backoff::ExponentialBackoffBuilder;
 use deadpool::managed::{Manager, Pool, PoolError, RecycleError};
 use futures_util::StreamExt;
 use lapin::{
-    BasicProperties, Channel, Connection, Consumer,
-    acker::Acker,
+    Acker, BasicProperties, Channel, Connection, ConnectionStatus, Consumer,
     options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
     types::{FieldTable, ShortString},
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 
 use super::{
     MessageQueueAcker, MessageQueueDelivery, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
+
+/// Whole-chain timeout for consumer setup (`create_channel` → `basic_qos` →
+/// `queue_bind` → `basic_consume`). Tunable because a memory-pressured broker
+/// can leave channel ops stalled for tens of seconds before the alarm clears.
+static CONSUMER_SETUP_TIMEOUT: LazyLock<Duration> =
+    LazyLock::new(|| Duration::from_secs(crate::env::mq::CONSUMER_SETUP_TIMEOUT_SECS.get()));
 
 struct RabbitChannelManager {
     connection: Arc<Connection>,
@@ -29,7 +35,6 @@ impl Manager for RabbitChannelManager {
                 backoff::Error::transient(anyhow::Error::from(e))
             })
         };
-
         let backoff = ExponentialBackoffBuilder::new()
             .with_initial_interval(std::time::Duration::from_millis(100))
             .with_max_interval(std::time::Duration::from_secs(5))
@@ -187,8 +192,8 @@ impl MessageQueueTrait for RabbitMQ {
 
             match channel
                 .basic_publish(
-                    exchange,
-                    routing_key,
+                    exchange.into(),
+                    routing_key.into(),
                     BasicPublishOptions::default(),
                     message,
                     properties.clone(),
@@ -242,69 +247,107 @@ impl MessageQueueTrait for RabbitMQ {
             )
         })?;
 
-        // Check connection health before attempting to create channel
         if !consumer_conn.status().connected() {
             return Err(anyhow::anyhow!(
                 "Consumer connection is not in connected state: {:?}",
-                consumer_conn.status().state()
+                connection_state(consumer_conn.status())
             ));
         }
 
-        let channel = consumer_conn.create_channel().await?;
+        // Bound the entire setup chain. lapin can hang inside `basic_consume` /
+        // `create_channel` against a half-dead connection; without this the
+        // worker's outer backoff retry never fires another attempt.
+        let setup = async {
+            let channel = consumer_conn
+                .create_channel()
+                .await
+                .map_err(|e| anyhow::Error::from(e))?;
 
-        // We want to limit the number of unacknowledged messages RabbitMQ will deliver,
-        // preventing unbounded memory growth of rabbitmq pod
-        channel
-            .basic_qos(prefetch_count, BasicQosOptions::default())
-            .await?;
+            channel
+                .basic_qos(prefetch_count, BasicQosOptions::default())
+                .await?;
 
-        channel
-            .queue_bind(
-                queue_name,
-                exchange,
-                routing_key,
-                QueueBindOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
+            channel
+                .queue_bind(
+                    queue_name.into(),
+                    exchange.into(),
+                    routing_key.into(),
+                    QueueBindOptions::default(),
+                    FieldTable::default(),
+                )
+                .await?;
 
-        let consumer = channel
-            .basic_consume(
-                queue_name,
-                routing_key,
-                BasicConsumeOptions::default(),
-                FieldTable::default(),
-            )
-            .await?;
+            let consumer = channel
+                .basic_consume(
+                    queue_name.into(),
+                    routing_key.into(),
+                    BasicConsumeOptions::default(),
+                    FieldTable::default(),
+                )
+                .await?;
+
+            anyhow::Ok(consumer)
+        };
+
+        let consumer = match tokio::time::timeout(*CONSUMER_SETUP_TIMEOUT, setup).await {
+            Ok(Ok(consumer)) => consumer,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "Timed out setting up RabbitMQ consumer for queue '{}'",
+                    queue_name
+                ));
+            }
+        };
 
         Ok(RabbitMQReceiver { consumer }.into())
     }
 
     fn is_healthy(&self) -> bool {
-        // Check publisher connection (always exists)
         let publisher_ok = self.publisher_connection.status().connected();
         if !publisher_ok {
             log::error!(
-                "RabbitMQ health check failed - publisher connection not connected. State: {:?}",
-                self.publisher_connection.status().state()
+                "RabbitMQ readiness: publisher connection is not connected (state: {:?})",
+                connection_state(self.publisher_connection.status())
             );
         }
 
-        // Check consumer connection (only if it exists)
-        let consumer_ok = self.consumer_connection
+        let consumer_ok = self
+            .consumer_connection
             .as_ref()
             .map(|c| {
                 let connected = c.status().connected();
                 if !connected {
                     log::error!(
-                        "RabbitMQ health check failed - consumer connection not connected. State: {:?}",
-                        c.status().state()
+                        "RabbitMQ readiness: consumer connection is not connected (state: {:?})",
+                        connection_state(c.status())
                     );
                 }
                 connected
             })
-            .unwrap_or(true); // No consumer connection = healthy (producer-only mode)
+            .unwrap_or(true);
 
         publisher_ok && consumer_ok
     }
+}
+
+fn connection_state(status: &ConnectionStatus) -> String {
+    let s = if status.blocked() {
+        "blocked"
+    } else if status.closed() {
+        "closed"
+    } else if status.closing() {
+        "closing"
+    } else if status.connected() {
+        "connected"
+    } else if status.connecting() {
+        "connecting"
+    } else if status.errored() {
+        "errored"
+    } else if status.reconnecting() {
+        "reconnecting"
+    } else {
+        "unknown"
+    };
+    s.to_string()
 }

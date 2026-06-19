@@ -2,14 +2,14 @@ import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
-import { AnthropicOutputMessageSchema, AnthropicOutputMessagesSchema } from "@/lib/spans/types/anthropic";
-import { GeminiOutputSchema } from "@/lib/spans/types/gemini";
-import { LangChainAssistantMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import { OpenAIOutputSchema } from "@/lib/spans/types/openai";
+import { detectProvider, type ProviderHint } from "@/lib/spans/providers";
+
+// ---------------------------------------------------------------------------
+// Payload classification
+// ---------------------------------------------------------------------------
 
 export const deepParseValue = (value: unknown): unknown => {
   if (!isString(value)) return value;
-
   try {
     const parsed = JSON.parse(value);
     return isString(parsed) ? deepParseValue(parsed) : parsed;
@@ -36,63 +36,34 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
   if (Array.isArray(deepParsed)) {
     return isEmpty(deepParsed) ? { kind: "empty", preview: "" } : { kind: "object", data: deepParsed };
   }
-
   if (isPlainObject(deepParsed)) {
     return isEmpty(deepParsed)
       ? { kind: "empty", preview: "" }
       : { kind: "object", data: deepParsed as Record<string, unknown> };
   }
-
   return { kind: "raw", preview: String(deepParsed) };
 };
 
-export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "unknown";
+// ---------------------------------------------------------------------------
+// Provider detection (schema-based)
+// ---------------------------------------------------------------------------
 
-export const detectOutputStructure = (data: unknown): ProviderHint => {
-  if (OpenAIOutputSchema.safeParse(data).success) return "openai";
-  if (GeminiOutputSchema.safeParse(data).success) return "gemini";
-  if (AnthropicOutputMessageSchema.safeParse(data).success) return "anthropic";
-  if (AnthropicOutputMessagesSchema.safeParse(data).success) return "anthropic";
+export { type ProviderHint };
 
-  // LangChain has no dedicated output schema — check for assistant message(s)
-  if (LangChainAssistantMessageSchema.safeParse(data).success) return "langchain";
-  if (Array.isArray(data) && LangChainMessagesSchema.safeParse(data).success) return "langchain";
+export const detectOutputStructure = (data: unknown): ProviderHint => detectProvider(data);
 
-  return "unknown";
-};
+// ---------------------------------------------------------------------------
+// Key classification — used by fingerprinting, path flattening, and
+// consumed by the heuristic module.
+// ---------------------------------------------------------------------------
 
-const describeShape = (value: unknown): string => {
-  if (isNil(value)) return "null";
-  if (isString(value)) return "string";
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-
-  if (Array.isArray(value)) {
-    if (isEmpty(value)) return "[]";
-    const uniqueShapes = [...new Set(value.map(describeShape))].sort();
-    return uniqueShapes.length === 1 ? `[]${uniqueShapes[0]}` : `[](${uniqueShapes.join("|")})`;
-  }
-
-  if (isPlainObject(value)) {
-    const obj = value as Record<string, unknown>;
-    const entries = Object.keys(obj)
-      .sort()
-      .map((key) => `${key}:${describeShape(obj[key])}`);
-    return `{${entries.join(",")}}`;
-  }
-
-  return "unknown";
-};
-
-/**
- * Generate a deterministic schema fingerprint from a JSON structure.
- */
-export const generateFingerprint = (spanName: string, data: unknown): string => `${spanName}:${describeShape(data)}`;
-
-const METADATA_KEYS = new Set([
+export const METADATA_KEYS: ReadonlySet<string> = new Set([
   "id",
+  "ids",
   "status",
   "type",
+  "types",
+  "kind",
   "mode",
   "version",
   "role",
@@ -107,7 +78,98 @@ const METADATA_KEYS = new Set([
   "created",
   "object",
   "system_fingerprint",
+  "signature",
+  "tool_use_id",
+  "stop_reason",
 ]);
+
+const IDENTIFIER_KEYS: ReadonlySet<string> = new Set(["name", "action", "function", "method", "command", "tool"]);
+
+// Keys that indicate an object is a structured response, not a flat dictionary.
+const STRUCTURED_FIELD_NAMES: ReadonlySet<string> = new Set([
+  ...METADATA_KEYS,
+  ...IDENTIFIER_KEYS,
+  "content",
+  "text",
+  "thinking",
+  "result",
+  "output",
+  "message",
+  "answer",
+  "query",
+  "description",
+  "summary",
+  "url",
+  "path",
+  "args",
+  "arguments",
+  "input",
+  "params",
+  "body",
+  "data",
+  "response",
+  "error",
+  "code",
+]);
+
+// True when an object looks like a flat key→value map (e.g. locale codes to
+// translations) rather than a structured response with known fields.
+const isDictionaryLike = (obj: Record<string, unknown>): boolean => {
+  const keys = Object.keys(obj);
+  if (keys.length < 3) return false;
+  if (keys.some((k) => STRUCTURED_FIELD_NAMES.has(k))) return false;
+  const firstType = typeof obj[keys[0]];
+  if (firstType !== "string" && firstType !== "number" && firstType !== "boolean") return false;
+  return keys.every((k) => typeof obj[k] === firstType);
+};
+
+// ---------------------------------------------------------------------------
+// Structural fingerprinting (cache key basis)
+// ---------------------------------------------------------------------------
+
+const describeShape = (value: unknown): string => {
+  if (isNil(value)) return "null";
+  if (isString(value)) return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+
+  if (Array.isArray(value)) {
+    if (isEmpty(value)) return "[]";
+    const uniqueShapes = [...new Set(value.map(describeShape))].sort();
+    return uniqueShapes.length === 1 ? `[]${uniqueShapes[0]}` : `[](${uniqueShapes.join("|")})`;
+  }
+  if (isPlainObject(value)) {
+    const obj = value as Record<string, unknown>;
+    if (isDictionaryLike(obj)) return `{*:${describeShape(obj[Object.keys(obj)[0]])}}`;
+    const entries = Object.keys(obj)
+      .sort()
+      .map((key) => `${key}:${describeShape(obj[key])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return "unknown";
+};
+
+/** Deterministic schema fingerprint for cache lookups. */
+export const generateFingerprint = (spanName: string, data: unknown): string => `${spanName}:${describeShape(data)}`;
+
+// ---------------------------------------------------------------------------
+// Path flattening — used to build the LLM prompt
+// ---------------------------------------------------------------------------
+
+const OPAQUE_VALUE_PATTERN = /^<.+ at 0x[0-9a-fA-F]+>$/;
+
+const SAMPLE_VALUE_MAX_CHARS = 80;
+
+// Short, single-line sample of a scalar value for the LLM prompt. Collapses
+// whitespace so multi-line strings don't blow up the flattened path output.
+const formatSample = (value: string | number | boolean): string => {
+  const raw = typeof value === "string" ? value : String(value);
+  const collapsed = raw.replace(/\s+/g, " ").trim();
+  if (collapsed.length === 0) return '""';
+  const truncated =
+    collapsed.length > SAMPLE_VALUE_MAX_CHARS ? `${collapsed.slice(0, SAMPLE_VALUE_MAX_CHARS)}…` : collapsed;
+  return typeof value === "string" ? `"${truncated.replace(/"/g, '\\"')}"` : truncated;
+};
 
 export const flattenPaths = (data: unknown): string[] => {
   const paths: string[] = [];
@@ -117,8 +179,10 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isString(value) || typeof value === "number" || typeof value === "boolean") {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
-      const meta = METADATA_KEYS.has(lastKey) ? " [meta]" : "";
-      paths.push(`${prefix}: ${typeof value}${meta}`);
+      let tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
+      if (!tag && isString(value) && OPAQUE_VALUE_PATTERN.test(value)) tag = " [meta]";
+      const sample = tag === " [meta]" ? "" : ` = ${formatSample(value)}`;
+      paths.push(`${prefix}: ${typeof value}${tag}${sample}`);
       return;
     }
 
@@ -129,6 +193,10 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isPlainObject(value)) {
       const obj = value as Record<string, unknown>;
+      if (isDictionaryLike(obj)) {
+        paths.push(`${prefix}{*}: ${typeof obj[Object.keys(obj)[0]]}`);
+        return;
+      }
       for (const key of Object.keys(obj)) {
         walk(obj[key], prefix ? `${prefix}.${key}` : key);
       }
@@ -139,25 +207,12 @@ export const flattenPaths = (data: unknown): string[] => {
   return paths;
 };
 
-const HTML_ENTITY_MAP: Record<string, string> = {
-  "&quot;": '"',
-  "&#x27;": "'",
-  "&#x2F;": "/",
-  "&#x60;": "`",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&amp;": "&",
-};
+// ---------------------------------------------------------------------------
+// Mustache rendering
+// ---------------------------------------------------------------------------
 
-const ENTITY_REGEX = new RegExp(Object.keys(HTML_ENTITY_MAP).join("|"), "g");
-
-const unescapeHtml = (str: string): string => str.replace(ENTITY_REGEX, (match) => HTML_ENTITY_MAP[match]);
-
-/**
- * Add a non-enumerable toString to objects/arrays so Mustache renders them
- * as JSON strings when used as {{variable}}, while still allowing section
- * blocks like {{#obj}}{{field}}{{/obj}} to drill into them.
- */
+// Attach a non-enumerable toString so Mustache renders objects/arrays as JSON
+// when used as {{var}}, while sections like {{#obj}}{{field}}{{/obj}} still work.
 const addStringifyToObjects = (value: unknown): unknown => {
   if (isNil(value) || isString(value) || typeof value === "number" || typeof value === "boolean") return value;
 
@@ -169,25 +224,22 @@ const addStringifyToObjects = (value: unknown): unknown => {
     attach(mapped, value);
     return mapped;
   }
-
   if (isPlainObject(value)) {
     const result = mapValues(value as Record<string, unknown>, addStringifyToObjects);
     attach(result, value);
     return result;
   }
-
   return value;
 };
 
-const prepareRenderTarget = (data: unknown): unknown => {
-  const deepParsed = deepParseJson(data);
-  return addStringifyToObjects(deepParsed);
-};
+const prepareRenderTarget = (data: unknown): unknown => addStringifyToObjects(deepParseJson(data));
 
 export const validateMustacheKey = (key: string, data: unknown): string | null => {
   try {
-    const rendered = unescapeHtml(Mustache.render(key, prepareRenderTarget(data)));
-    if (!rendered || rendered.trim() === "" || rendered.includes("[object Object]")) return null;
+    const rendered = Mustache.render(key, prepareRenderTarget(data), undefined, { escape: (v) => v });
+    if (!rendered) return null;
+    const trimmed = rendered.trim();
+    if (trimmed === "" || trimmed.toLowerCase() === "null" || rendered.includes("[object Object]")) return null;
     return rendered;
   } catch {
     return null;

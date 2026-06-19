@@ -31,13 +31,7 @@ export function SnippetPreview({
   const count = snippetsCount ?? 0;
 
   return (
-    <span
-      className={cn(
-        "flex gap-1.5 min-w-0",
-        variant === "table" ? "items-center" : "items-center justify-center",
-        className
-      )}
-    >
+    <span className={cn("flex gap-1.5 min-w-0 items-center", className)}>
       <span
         className={cn(
           "whitespace-normal break-words text-secondary-foreground",

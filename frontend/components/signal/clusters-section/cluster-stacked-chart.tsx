@@ -4,15 +4,16 @@ import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import { type ClusterStatsDataPoint, type EventCluster } from "@/lib/actions/clusters";
-
-import { UNCLUSTERED_COLOR, withOpacity } from "./colors";
+import ClusterIcon, { type IconVariant } from "@/components/signal/clusters-section/cluster-list/cluster-icon";
+import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_COLOR, withOpacity } from "@/lib/clusters/colors";
 
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
   colorMap: Map<string, string>;
+  showTooltip?: boolean;
 }
 
 export default function ClusterStackedChart({
@@ -20,6 +21,7 @@ export default function ClusterStackedChart({
   statsData,
   containerWidth,
   colorMap,
+  showTooltip,
 }: ClusterStackedChartProps) {
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
@@ -29,10 +31,13 @@ export default function ClusterStackedChart({
       const key = cluster.id;
       const baseColor = colorMap.get(key) ?? UNCLUSTERED_COLOR;
       const color = withOpacity(baseColor, 0.75);
+      const iconVariant: IconVariant =
+        key === UNCLUSTERED_ID ? "circle-dashed" : cluster.numChildrenClusters > 0 ? "boxes" : "box";
       config[key] = {
         label: cluster.name,
         color,
         stackId: "stack",
+        icon: () => <ClusterIcon iconVariant={iconVariant} color={baseColor} />,
       };
       fieldKeys.push(key);
     });
@@ -76,6 +81,8 @@ export default function ClusterStackedChart({
       fields={fields}
       containerWidth={containerWidth}
       showTotal={false}
+      showTooltip={showTooltip}
+      hideZeroValues
       className="!h-full"
     />
   );

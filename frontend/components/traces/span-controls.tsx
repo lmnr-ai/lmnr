@@ -3,12 +3,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
-import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import SpanTagsList from "@/components/tags/span-tags-list";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
-import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
+import { track } from "@/lib/posthog";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
@@ -25,16 +24,16 @@ import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
 import { StructuredOutputSchema } from "./structured-output-schema";
-import { extractToolsFromAttributes, ToolList } from "./tool-list";
+import { resolveTools, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
+  onClose?: () => void;
+  isAlwaysSelectSpan?: boolean;
 }
 
-export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span, onClose, isAlwaysSelectSpan }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
-  const setSelectedSpan = useTraceViewBaseStore((state) => state.setSelectedSpan);
-  const isAlwaysSelectSpan = useTraceViewBaseStore((state) => state.isAlwaysSelectSpan);
 
   const errorEventAttributes = useMemo(
     () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -84,6 +83,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
             <Link
               href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
               passHref
+              onClick={() => track("playgrounds", "experiment_clicked", { source: "span_view" })}
             >
               <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
                 <PlayCircle className="mr-1" size={14} />
@@ -91,11 +91,12 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               </Button>
             </Link>
           )}
-          {!isAlwaysSelectSpan && (
+          {!isAlwaysSelectSpan && onClose && (
             <Button
               variant="ghost"
               className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
-              onClick={() => setSelectedSpan(undefined)}
+              onClick={onClose}
+              aria-label="Close span panel"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -110,17 +111,17 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <ModelIndicator attributes={span.attributes} />
-            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <ToolList tools={resolveTools(span)} />
             <StructuredOutputSchema
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />
           </div>
+
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
             <ExportSpansPopover span={span} />
             <SpanTagsList spanId={span.spanId} />
           </div>
-          <EvaluatorScoresList spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

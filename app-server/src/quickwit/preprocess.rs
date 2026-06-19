@@ -2,11 +2,21 @@ use regex::Regex;
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::utils::text_cleaning::{clean_whitespace, strip_noise};
+
 static ANSI_ESCAPE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap());
 
 static WHITESPACE_CLASS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[\s\u00a0\u200b\ufeff]+").unwrap());
+
+// Strip top-level `"role": "..."` and escaped `\"role\":\"...\"` plus their
+// surrounding comma so the resulting JSON-ish text stays parseable visually.
+static ROLE_FIELD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?:"role"\s*:\s*"[^"]*"\s*,?\s*)"#).unwrap());
+
+static ROLE_FIELD_ESCAPED_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"(?:\\"role\\"\s*:\s*\\"[^"\\]*\\"\s*,?\s*)"#).unwrap());
 
 /// Preprocess a string for Quickwit indexing.
 ///
@@ -16,20 +26,30 @@ static WHITESPACE_CLASS_RE: LazyLock<Regex> =
 /// 3. Replace all whitespace-class characters with a single space
 /// 4. NFC Unicode normalization
 pub fn preprocess_text(input: &str) -> String {
-    // 1. Unescape literal two-char escape sequences (\n, \t, \r)
     let s = unescape_literal_sequences(input);
-
-    // 2. Strip ANSI escape codes (before whitespace normalization so that
-    //    spaces formerly separated by ANSI bytes get properly collapsed)
     let s = ANSI_ESCAPE_RE.replace_all(&s, "");
-
-    // 3. Replace whitespace-class characters with a single space
     let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
-
-    // 4. NFC Unicode normalization
     let s: String = s.nfc().collect();
-
     s
+}
+
+/// Strip `"role": "..."` JSON object entries (and the escaped variant) so the
+/// indexed text doesn't return hits for `user`/`system` role metadata.
+pub fn strip_role_keys(s: &str) -> String {
+    let s = ROLE_FIELD_RE.replace_all(s, "");
+    ROLE_FIELD_ESCAPED_RE.replace_all(&s, "").into_owned()
+}
+
+/// Full cleaning pipeline for indexed span text:
+/// strip ANSI → strip noise → optionally strip role keys → collapse whitespace
+/// → strip remaining unicode whitespace classes → NFC.
+pub fn clean_for_indexing(input: &str, strip_roles: bool) -> String {
+    let s = ANSI_ESCAPE_RE.replace_all(input, "");
+    let s = strip_noise(&s);
+    let s = if strip_roles { strip_role_keys(&s) } else { s };
+    let s = clean_whitespace(&s);
+    let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
+    s.nfc().collect()
 }
 
 /// Replace literal two-character escape sequences (backslash + letter)
@@ -177,5 +197,67 @@ mod tests {
         let input = "\\nLet me validate the input\\nThen process it";
         let result = preprocess_text(input);
         assert_eq!(result, " Let me validate the input Then process it");
+    }
+
+    // ── strip_role_keys ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_strip_role_keys_basic() {
+        let raw = r#"{"role":"user","content":"hi"}"#;
+        let result = strip_role_keys(raw);
+        assert_eq!(result, r#"{"content":"hi"}"#);
+    }
+
+    #[test]
+    fn test_strip_role_keys_escaped() {
+        let raw = r#"outer \"role\":\"system\", \"content\":\"hi\""#;
+        let result = strip_role_keys(raw);
+        assert!(!result.contains("role"));
+        assert!(result.contains("content"));
+    }
+
+    #[test]
+    fn test_strip_role_keys_no_match() {
+        let raw = r#"{"content":"my role is admin"}"#;
+        let result = strip_role_keys(raw);
+        assert_eq!(result, raw);
+    }
+
+    // ── clean_for_indexing ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_clean_for_indexing_strips_roles_and_collapses() {
+        let raw = r#"{"role":"user","content":"hello\n\nworld"}"#;
+        let result = clean_for_indexing(raw, true);
+        // role removed, literal \n collapsed to single space
+        assert_eq!(result, r#"{"content":"hello world"}"#);
+    }
+
+    #[test]
+    fn test_clean_for_indexing_keeps_roles_when_false() {
+        let raw = r#"{"role":"user","content":"hi"}"#;
+        let result = clean_for_indexing(raw, false);
+        assert!(result.contains("role"));
+        assert!(result.contains("user"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_strips_base64() {
+        let raw = format!(r#"{{"image":"iVBORw0KGgo{}"}}"#, "A".repeat(80));
+        let result = clean_for_indexing(&raw, false);
+        assert!(result.contains("[base64 image omitted]"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_strips_signature() {
+        let raw = r#"{"signature":"verylongblob"}"#;
+        let result = clean_for_indexing(raw, false);
+        assert!(result.contains("[signature omitted]"));
+        assert!(!result.contains("verylongblob"));
+    }
+
+    #[test]
+    fn test_clean_for_indexing_empty() {
+        assert_eq!(clean_for_indexing("", true), "");
     }
 }

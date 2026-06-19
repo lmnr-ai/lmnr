@@ -134,6 +134,8 @@ impl Trace {
             .map(|obj| obj.keys().cloned().collect())
             .unwrap_or_default()
     }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
         if filters.is_empty() {
             return false;
@@ -144,6 +146,7 @@ impl Trace {
             .all(|filter| self.evaluate_single_filter(spans, filter))
     }
 
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     fn evaluate_single_filter(&self, spans: &[Span], filter: &Filter) -> bool {
         match filter.column.as_str() {
             "input_token_count" => evaluate_number_filter(
@@ -278,7 +281,7 @@ pub async fn upsert_trace_statistics_batch(
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
-                type = COALESCE(EXCLUDED.type, traces.type, 0),
+                type = CASE WHEN COALESCE(traces.type, 0) = 0 THEN EXCLUDED.type ELSE traces.type END,
                 top_span_id = COALESCE(EXCLUDED.top_span_id, traces.top_span_id),
                 top_span_name = COALESCE(EXCLUDED.top_span_name, traces.top_span_name),
                 top_span_type = COALESCE(EXCLUDED.top_span_type, traces.top_span_type),
@@ -358,6 +361,102 @@ pub async fn upsert_trace_statistics_batch(
         .await?;
 
         traces.push(trace);
+    }
+
+    Ok(traces)
+}
+
+pub async fn trace_exists(pool: &PgPool, project_id: Uuid, trace_id: Uuid) -> Result<bool> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM traces WHERE id = $1 AND project_id = $2)",
+    )
+    .bind(trace_id)
+    .bind(project_id)
+    .fetch_one(pool)
+    .await?;
+    Ok(exists)
+}
+
+/// A post-factum metadata patch applied to an existing trace by the
+/// `POST /v1/traces/metadata` endpoint via a virtual metadata-only span.
+#[derive(Debug, Clone)]
+pub struct TraceMetadataPatch {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub metadata: Value,
+}
+
+/// Merge metadata into existing traces. Each patch is `traces.metadata || patch`
+/// shallow-merged under the row lock that PG takes on the matching `(project_id, id)`,
+/// so concurrent ingestion of the same trace (which goes through the same row via
+/// `upsert_trace_statistics_batch`) serialises against this update.
+///
+/// Also bumps `num_spans` by 1. ClickHouse `traces_replacing` is
+/// `ReplacingMergeTree(num_spans)` — without a version bump, a patched row in
+/// the same flush as a regular ingestion upsert would have identical
+/// `num_spans` and CH's merge winner would be undefined. The +1 is paid by the
+/// virtual metadata-only span that drove this patch, so the count stays
+/// consistent with "one virtual span ingested" and gives the patched row a
+/// strictly higher version than the row written by the same-batch upsert
+/// (which only summed over real spans).
+///
+/// Traces that don't exist are silently skipped — no rows are created here. The
+/// HTTP handler validates existence up front, but a race (e.g. trace deleted
+/// between request and consumption) must not produce a stub trace row with
+/// metadata only and every other column NULL/0.
+#[instrument(skip(pool, patches))]
+pub async fn merge_trace_metadata_batch(
+    pool: &PgPool,
+    patches: &[TraceMetadataPatch],
+) -> Result<Vec<Trace>> {
+    if patches.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut traces = Vec::new();
+    for patch in patches {
+        let updated = sqlx::query_as::<_, Trace>(
+            r#"
+            UPDATE traces
+            SET metadata = COALESCE(traces.metadata || $1, $1, traces.metadata),
+                num_spans = COALESCE(traces.num_spans, 0) + 1
+            WHERE id = $2 AND project_id = $3
+            RETURNING
+                id,
+                project_id,
+                start_time,
+                end_time,
+                type,
+                top_span_id,
+                top_span_name,
+                top_span_type,
+                session_id,
+                metadata,
+                user_id,
+                input_token_count,
+                output_token_count,
+                total_token_count,
+                input_cost,
+                output_cost,
+                cost,
+                status,
+                tags,
+                num_spans,
+                has_browser_session,
+                span_names,
+                root_span_input,
+                root_span_output
+            "#,
+        )
+        .bind(&patch.metadata)
+        .bind(patch.trace_id)
+        .bind(patch.project_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(trace) = updated {
+            traces.push(trace);
+        }
     }
 
     Ok(traces)

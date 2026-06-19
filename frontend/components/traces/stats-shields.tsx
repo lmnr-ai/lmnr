@@ -5,7 +5,7 @@ import { memo, useMemo } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Span } from "@/lib/traces/types.ts";
+import { type Span, type TraceRow } from "@/lib/traces/types.ts";
 import { cn, getDurationString } from "@/lib/utils";
 
 import { Label } from "../ui/label";
@@ -90,6 +90,79 @@ function computeSpanStats(
   };
 }
 
+// Sum aggregate stats across a list of traces. Mirrors `computeSpanStats` but
+// operates on `TraceRow`s — used by the session view, since the server doesn't
+// expose a "fetch one session aggregate" endpoint here (the sessions table
+// lists pre-aggregated SessionRows but we only have the traces loaded).
+export function computeTraceStats(
+  traces: Pick<
+    TraceRow,
+    | "startTime"
+    | "endTime"
+    | "inputTokens"
+    | "outputTokens"
+    | "totalTokens"
+    | "inputCost"
+    | "outputCost"
+    | "totalCost"
+    | "cacheReadInputTokens"
+  >[]
+): StatsShieldsProps["stats"] {
+  if (traces.length === 0) {
+    const now = new Date().toISOString();
+    return {
+      startTime: now,
+      endTime: now,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      cacheReadInputTokens: 0,
+      reasoningTokens: 0,
+    };
+  }
+
+  let minStart = new Date(traces[0].startTime).getTime();
+  let maxEnd = new Date(traces[0].endTime).getTime();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let totalTokens = 0;
+  let inputCost = 0;
+  let outputCost = 0;
+  let totalCost = 0;
+  let cacheReadInputTokens = 0;
+
+  for (const t of traces) {
+    const start = new Date(t.startTime).getTime();
+    const end = new Date(t.endTime).getTime();
+    if (start < minStart) minStart = start;
+    if (end > maxEnd) maxEnd = end;
+
+    inputTokens += t.inputTokens || 0;
+    outputTokens += t.outputTokens || 0;
+    totalTokens += t.totalTokens || 0;
+    inputCost += t.inputCost || 0;
+    outputCost += t.outputCost || 0;
+    totalCost += t.totalCost || 0;
+    cacheReadInputTokens += t.cacheReadInputTokens || 0;
+  }
+
+  return {
+    startTime: new Date(minStart).toISOString(),
+    endTime: new Date(maxEnd).toISOString(),
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    inputCost,
+    outputCost,
+    totalCost,
+    cacheReadInputTokens,
+    reasoningTokens: 0, // not available on TraceRow
+  };
+}
+
 interface StatsShieldsProps {
   stats: Pick<
     TraceViewSpan,
@@ -109,7 +182,7 @@ interface StatsShieldsProps {
   labelPrefix?: string;
 }
 
-function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+export function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
   const label = (text: string) =>
     labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
   const durationContent = (

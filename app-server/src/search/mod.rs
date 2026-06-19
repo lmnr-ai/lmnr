@@ -1,3 +1,4 @@
+pub mod signal_events;
 pub mod snippets;
 
 use chrono::{DateTime, Utc};
@@ -15,11 +16,11 @@ const DEFAULT_SEARCH_MAX_SPANS: usize = 500;
 const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
-const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['"', '?', '`', '~', '!', '\\'];
+pub(crate) const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['"', '?', '`', '~', '!', '\\'];
 // Quickwit documentation is very brief on this, it lists all of the reserved characters
 // with a note that you can escape them with a backslash. However, some of them break
 // the query parsing when escaped, so we need to remove them.
-const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
+pub(crate) const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     ':', '^', '{', '}', '[', ']', '(', ')',
     // The below characters won't break parsing but change the meaning of the query
     // even when escaped, so safest to remove them.
@@ -31,7 +32,7 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
-fn escape_quickwit_query(query: &str) -> String {
+pub(crate) fn escape_quickwit_query(query: &str) -> String {
     let escaped: String = query
         .chars()
         .flat_map(|c| {
@@ -64,7 +65,7 @@ pub async fn search_spans(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     query: &str,
-    trace_id: Option<&str>,
+    trace_ids: Option<&[String]>,
     limit: usize,
     offset: usize,
     start_time: Option<DateTime<Utc>>,
@@ -73,14 +74,21 @@ pub async fn search_spans(
 ) -> Result<Vec<SearchSpanHit>, Error> {
     let escaped_query = escape_quickwit_query(query);
 
-    // Filter by project_id and trace_id (if provided)
+    // Filter by project_id and optionally by trace_id(s)
     let mut query_parts = vec![
         format!("project_id:{}", project_id),
         format!("({})", escaped_query),
     ];
 
-    if let Some(trace_id) = trace_id {
-        query_parts.push(format!("trace_id:{}", trace_id));
+    if let Some(ids) = trace_ids {
+        match ids.len() {
+            0 => {}
+            1 => query_parts.push(format!("trace_id:{}", ids[0])),
+            _ => {
+                let id_list = ids.join(" ");
+                query_parts.push(format!("trace_id:IN [{}]", id_list));
+            }
+        }
     }
 
     let query_string = query_parts.join(" AND ");
@@ -136,12 +144,14 @@ pub async fn search_spans(
         })
         .collect();
 
+    let skip_trace_cap = trace_ids.is_some_and(|ids| !ids.is_empty());
+
     let results = if get_snippets {
         snippets::enrich_hits_with_snippets(
             clickhouse,
             project_id,
             span_hits,
-            trace_id.is_some(),
+            skip_trace_cap,
             query,
         )
         .await

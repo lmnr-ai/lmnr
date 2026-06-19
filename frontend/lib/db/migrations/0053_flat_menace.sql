@@ -1,4 +1,4 @@
-ALTER TYPE "public"."label_source" RENAME TO "tag_source";--> statement-breakpoint
+ALTER TYPE "label_source" RENAME TO "tag_source";--> statement-breakpoint
 DROP TABLE "agent_chats" CASCADE;--> statement-breakpoint
 DROP TABLE "agent_messages" CASCADE;--> statement-breakpoint
 DROP TABLE "agent_sessions" CASCADE;--> statement-breakpoint
@@ -25,12 +25,12 @@ ALTER TABLE "tags" DROP CONSTRAINT "labels_class_id_project_id_fkey";
 --> statement-breakpoint
 ALTER TABLE "members_of_workspaces" DROP CONSTRAINT "public_members_of_workspaces_workspace_id_fkey";
 --> statement-breakpoint
-ALTER TABLE "datasets" ADD CONSTRAINT "datasets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "evaluation_results" ADD CONSTRAINT "evaluation_results_evaluation_id_fkey" FOREIGN KEY ("evaluation_id") REFERENCES "public"."evaluations"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "evaluations" ADD CONSTRAINT "evaluations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "tag_classes" ADD CONSTRAINT "label_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "tags" ADD CONSTRAINT "tags_class_id_project_id_fkey" FOREIGN KEY ("class_id","project_id") REFERENCES "public"."tag_classes"("id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "members_of_workspaces_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "datasets" ADD CONSTRAINT "datasets_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "evaluation_results" ADD CONSTRAINT "evaluation_results_evaluation_id_fkey" FOREIGN KEY ("evaluation_id") REFERENCES "evaluations"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "evaluations" ADD CONSTRAINT "evaluations_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "tag_classes" ADD CONSTRAINT "label_classes_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "tags" ADD CONSTRAINT "tags_class_id_project_id_fkey" FOREIGN KEY ("class_id","project_id") REFERENCES "tag_classes"("id","project_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "members_of_workspaces" ADD CONSTRAINT "members_of_workspaces_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "users" DROP COLUMN "tier_id";--> statement-breakpoint
 ALTER TABLE "evaluation_scores" ADD CONSTRAINT "evaluation_scores_names_unique_idx" UNIQUE("result_id","name");--> statement-breakpoint
 ALTER TABLE "tag_classes" ADD CONSTRAINT "tag_classes_project_id_id_key" UNIQUE("id","project_id");--> statement-breakpoint

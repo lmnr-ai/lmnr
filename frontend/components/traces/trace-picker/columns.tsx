@@ -11,8 +11,6 @@ const StatusCell = ({ value }: { value: unknown }) => (
   <div
     className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
       "bg-destructive-bright": value === "error",
-      "": value === "info",
-      "bg-yellow-400": value === "warning",
     })}
   />
 );
@@ -62,7 +60,7 @@ const TokensCell = ({ row }: { row: TraceRow }) => (
 export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => <StatusCell value={row.getValue()} />,
-    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
+    accessorKey: "status",
     header: () => <div />,
     id: "status",
     size: 40,

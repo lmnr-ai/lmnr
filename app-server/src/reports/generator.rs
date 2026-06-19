@@ -24,10 +24,10 @@ use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
     NotificationDefinitionType, NotificationKind, NotificationMessage, push_to_notification_queue,
 };
-use crate::signals::provider::models::{
+use crate::llm::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
 };
-use crate::signals::provider::{
+use crate::llm::{
     LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
     ProviderThinkingLevel,
 };
@@ -411,6 +411,7 @@ async fn generate_project_summary(
             }),
             ..Default::default()
         }),
+        service_tier: None,
         provider: None,
         model_size: None,
     };

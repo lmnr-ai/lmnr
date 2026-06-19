@@ -1,9 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { invalidateUsageWarningsCacheForWorkspace } from "@/lib/actions/usage/utils";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import {
+  invalidateProjectCacheForWorkspace,
+  invalidateUsageWarningsCacheForWorkspace,
+} from "@/lib/actions/usage/utils";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
   subscriptionTiers,
@@ -12,6 +15,7 @@ import {
   workspaceAddons,
   workspaces,
   workspaceUsage,
+  workspaceUsageLimits,
   workspaceUsageWarnings,
 } from "@/lib/db/migrations/schema";
 
@@ -87,14 +91,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
       .values({
         workspaceId: workspace.id,
         bytes: 0,
-        signalRuns: 0,
+        signalSteps: 0,
         lastReportedDate: sql`date_trunc('day', now())`,
       })
       .onConflictDoUpdate({
         target: workspaceUsage.workspaceId,
         set: {
           bytes: 0,
-          signalRuns: 0,
+          signalSteps: 0,
           lastReportedDate: sql`date_trunc('day', now())`,
         },
       });
@@ -113,20 +117,34 @@ export const manageWorkspaceSubscriptionEvent = async ({
       where: eq(subscriptionTiers.id, newTierId),
     });
     const newTierName = newTier?.name?.toLowerCase()?.trim();
-    const currentTierConfig = ["hobby", "pro"].includes(currentTier ?? "")
-      ? TIER_CONFIG[currentTier as PaidTier]
-      : undefined;
-    if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
-      const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
+    const newPaidTier = ["hobby", "pro"].includes(newTierName ?? "") ? (newTierName as PaidTier) : undefined;
+    const currentPaidTier = ["hobby", "pro"].includes(currentTier ?? "") ? (currentTier as PaidTier) : undefined;
+    const currentTierConfig = currentPaidTier ? TIER_CONFIG[currentPaidTier] : undefined;
+    // Run limit and Hobby-overage-warning cleanup on every tier transition so that
+    // cancellations (Hobby → Free) also clear Hobby-specific defaults. Otherwise a
+    // later upgrade to Pro would inherit them.
+    await upsertDefaultTierUsageLimits({
+      workspaceId,
+      newTierName: newPaidTier,
+      currentTierName: currentPaidTier,
+    });
+    if (currentPaidTier === "hobby" && newPaidTier !== "hobby") {
+      await clearHobbyOverageWarnings(workspaceId);
+    }
+    if (newPaidTier) {
       await insertNewTierUsageWarnings({
         workspaceId,
-        newTierConfig,
+        newTierName: newPaidTier,
+        newTierConfig: TIER_CONFIG[newPaidTier],
         currentTierConfig,
       });
-      await invalidateUsageWarningsCacheForWorkspace(workspaceId);
     }
+    await Promise.all([
+      invalidateUsageWarningsCacheForWorkspace(workspaceId),
+      invalidateProjectCacheForWorkspace(workspaceId),
+    ]);
   } catch (e) {
-    console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
+    console.error(`Failed to sync usage warnings/limits for workspace ${workspaceId}, Error: ${e}`);
   }
 };
 
@@ -145,7 +163,7 @@ const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boole
     await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   if (hasSignalRuns) {
-    await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+    await cache.remove(`${WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:${workspaceId}`);
   }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };
@@ -270,7 +288,7 @@ export const handleInvoiceFinalized = async (
     .values({
       workspaceId: workspaceId,
       bytes: 0,
-      signalRuns: 0,
+      signalSteps: 0,
       lastReportedDate: sql`date_trunc('day', ${resetDate})`,
     })
     .onConflictDoUpdate({
@@ -278,7 +296,7 @@ export const handleInvoiceFinalized = async (
       set: {
         lastReportedDate: sql`date_trunc('day', ${resetDate})`,
         ...(hasBytes ? { bytes: 0 } : {}),
-        ...(hasSignalRuns ? { signalRuns: 0 } : {}),
+        ...(hasSignalRuns ? { signalSteps: 0 } : {}),
       },
     });
   await db
@@ -288,12 +306,24 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
+// Extra overage warnings fired on Hobby only, above the included allowance, so users
+// accumulating a large overage bill are nudged before it grows further.
+const HOBBY_OVERAGE_WARNING_SIGNAL_STEPS = 15_000;
+const HOBBY_OVERAGE_WARNING_BYTES = 40 * 1024 ** 3; // 40 GiB
+
+// Default hard cap on Hobby signal-step overage. Deliberately pinned to the overage
+// warning threshold so the notification coincides with ingestion being blocked;
+// users can still raise/remove it from workspace usage settings.
+const HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS = HOBBY_OVERAGE_WARNING_SIGNAL_STEPS;
+
 const insertNewTierUsageWarnings = async ({
   workspaceId,
+  newTierName,
   newTierConfig,
   currentTierConfig,
 }: {
   workspaceId: string;
+  newTierName: PaidTier;
   newTierConfig: TierConfigEntry;
   currentTierConfig?: TierConfigEntry;
 }) => {
@@ -312,24 +342,109 @@ const insertNewTierUsageWarnings = async ({
       .where(
         and(
           eq(workspaceUsageWarnings.workspaceId, workspaceId),
-          eq(workspaceUsageWarnings.usageItem, "signal_runs"),
-          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalRuns)
+          eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
+          eq(workspaceUsageWarnings.limitValue, currentTierConfig.includedSignalSteps)
         )
       );
   }
-  await db
-    .insert(workspaceUsageWarnings)
-    .values([
+
+  const values = [
+    {
+      workspaceId,
+      usageItem: "bytes",
+      limitValue: newTierConfig.includedBytes,
+    },
+    {
+      workspaceId,
+      usageItem: "signal_steps_processed",
+      limitValue: newTierConfig.includedSignalSteps,
+    },
+  ];
+  if (newTierName === "hobby") {
+    values.push(
+      {
+        workspaceId,
+        usageItem: "signal_steps_processed",
+        limitValue: HOBBY_OVERAGE_WARNING_SIGNAL_STEPS,
+      },
       {
         workspaceId,
         usageItem: "bytes",
-        limitValue: newTierConfig.includedBytes,
-      },
-      {
+        limitValue: HOBBY_OVERAGE_WARNING_BYTES,
+      }
+    );
+  }
+
+  await db.insert(workspaceUsageWarnings).values(values).onConflictDoNothing();
+};
+
+// Clear the Hobby-only overage warning rows when a workspace transitions out of Hobby.
+// Matched on exact default values so user-adjusted thresholds are preserved.
+const clearHobbyOverageWarnings = async (workspaceId: string) => {
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "signal_steps_processed"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_SIGNAL_STEPS)
+      )
+    );
+  await db
+    .delete(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, "bytes"),
+        eq(workspaceUsageWarnings.limitValue, HOBBY_OVERAGE_WARNING_BYTES)
+      )
+    );
+};
+
+// Hobby gets a default hard cap on signal steps processed so cheaper-than-Pro customers
+// don't silently accrue overage charges; Pro intentionally has no default cap. `newTierName`
+// is undefined when the workspace moves to Free (cancellation), which must still trigger the
+// Hobby cleanup — otherwise a canceled Hobby leaves a default row that would silently re-apply
+// on a future paid-tier upgrade.
+const upsertDefaultTierUsageLimits = async ({
+  workspaceId,
+  newTierName,
+  currentTierName,
+}: {
+  workspaceId: string;
+  newTierName?: PaidTier;
+  currentTierName?: PaidTier;
+}) => {
+  // Preserve user overrides: only clear the default when it still matches a known Hobby
+  // default. TIER_CONFIG["hobby"].includedSignalSteps covers workspaces whose default was
+  // written before the hard cap was raised to HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS. Looked
+  // up here (not accepted from the caller) so the cleanup does not silently skip when the
+  // caller forgets to pass currentTierConfig.
+  if (currentTierName === "hobby" && newTierName !== "hobby") {
+    const clearableValues = [HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS];
+    const legacyHobbyDefault = TIER_CONFIG.hobby.includedSignalSteps;
+    if (!clearableValues.includes(legacyHobbyDefault)) {
+      clearableValues.push(legacyHobbyDefault);
+    }
+    await db
+      .delete(workspaceUsageLimits)
+      .where(
+        and(
+          eq(workspaceUsageLimits.workspaceId, workspaceId),
+          eq(workspaceUsageLimits.limitType, "signal_steps_processed"),
+          inArray(workspaceUsageLimits.limitValue, clearableValues)
+        )
+      );
+  }
+
+  if (newTierName === "hobby") {
+    await db
+      .insert(workspaceUsageLimits)
+      .values({
         workspaceId,
-        usageItem: "signal_runs",
-        limitValue: newTierConfig.includedSignalRuns,
-      },
-    ])
-    .onConflictDoNothing();
+        limitType: "signal_steps_processed",
+        limitValue: HOBBY_DEFAULT_HARD_LIMIT_SIGNAL_STEPS,
+      })
+      .onConflictDoNothing({ target: [workspaceUsageLimits.workspaceId, workspaceUsageLimits.limitType] });
+  }
 };

@@ -82,6 +82,10 @@ export interface BuildEventsQueryOptions {
   endTime?: string;
   pastHours?: string;
   clusterFilter?: "unclustered" | string[];
+  /** Restrict results to this set of event ids (used for full-text search hydration). */
+  idFilter?: string[];
+  // "signal_events_all" is used for the "emerging cluster" that includes L0 clusters
+  table?: "signal_events" | "signal_events_all";
 }
 
 function buildClusterConditions(
@@ -101,8 +105,20 @@ function buildClusterConditions(
   ];
 }
 
+function buildIdFilterConditions(idFilter: string[] | undefined): Array<{ condition: string; params: QueryParams }> {
+  if (!idFilter) return [];
+  return [
+    {
+      condition: "id IN {ids:Array(UUID)}",
+      params: { ids: idFilter },
+    },
+  ];
+}
+
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { signalId, filters, limit, offset, startTime, endTime, pastHours, clusterFilter } = options;
+  const { signalId, filters, limit, offset, startTime, endTime, pastHours, clusterFilter, idFilter, table } = options;
+
+  const tableName = table ?? "signal_events";
 
   const customConditions: Array<{
     condition: string;
@@ -113,18 +129,23 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildIdFilterConditions(idFilter),
   ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: eventsSelectColumns,
-      table: "signal_events",
+      table: tableName,
     },
     timeRange: {
       startTime,
       endTime,
       pastHours,
-      timeColumn: "signal_events.timestamp",
+      // Qualify with the table alias so we don't collide with the
+      // `formatDateTime(timestamp, ...) AS timestamp` SELECT alias — ClickHouse
+      // resolves unqualified WHERE column refs to SELECT aliases, which would
+      // produce a String vs DateTime type error.
+      timeColumn: `${tableName}.timestamp`,
     },
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
@@ -147,7 +168,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { signalId, filters, startTime, endTime, pastHours, clusterFilter } = options;
+  const { signalId, filters, startTime, endTime, pastHours, clusterFilter, idFilter, table } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -158,12 +179,13 @@ export const buildEventsCountQueryWithParams = (
       params: { signalId },
     },
     ...buildClusterConditions(clusterFilter),
+    ...buildIdFilterConditions(idFilter),
   ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: ["COUNT(*) as count"],
-      table: "signal_events",
+      table: table ?? "signal_events",
     },
     timeRange: {
       startTime,

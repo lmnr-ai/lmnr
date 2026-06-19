@@ -15,13 +15,13 @@ CREATE TABLE IF NOT EXISTS "labeling_queues" (
 --> statement-breakpoint
 ALTER TABLE "evaluation_results" ALTER COLUMN "scores" DROP NOT NULL;--> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "evaluation_scores" ADD CONSTRAINT "evaluation_scores_result_id_fkey" FOREIGN KEY ("result_id") REFERENCES "public"."evaluation_results"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "evaluation_scores" ADD CONSTRAINT "evaluation_scores_result_id_fkey" FOREIGN KEY ("result_id") REFERENCES "evaluation_results"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "labeling_queues" ADD CONSTRAINT "labeling_queues_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
+ ALTER TABLE "labeling_queues" ADD CONSTRAINT "labeling_queues_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE cascade;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

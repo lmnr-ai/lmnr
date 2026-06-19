@@ -12,18 +12,20 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { spanIds, spanTypes, startDate, endDate } = body;
+    const { spanIds, spanTypes, startDate, endDate, inputSpanIds, promptHashes } = body;
 
-    const previews = await getSpanPreviews({
+    const result = await getSpanPreviews({
       projectId,
       traceId,
       spanIds,
       spanTypes,
       startDate,
       endDate,
+      inputSpanIds,
+      promptHashes,
     });
 
-    return NextResponse.json({ previews });
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });

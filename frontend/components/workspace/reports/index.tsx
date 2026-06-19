@@ -2,7 +2,7 @@
 
 import { isEmpty, isNil } from "lodash";
 import { Pen } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import TargetChips from "@/components/settings/alerts/target-chips";
@@ -14,8 +14,10 @@ import {
 } from "@/components/settings/settings-section";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { Button } from "@/components/ui/button";
+import { useProjectContext } from "@/contexts/project-context";
 import { useUserContext } from "@/contexts/user-context";
 import { type ReportWithDetails } from "@/lib/actions/reports/types";
+import { track } from "@/lib/posthog";
 import { swrFetcher } from "@/lib/utils";
 
 import ManageReportSheet from "./manage-report-sheet";
@@ -29,6 +31,7 @@ interface WorkspaceReportsProps {
 
 export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
   const { email: userEmail } = useUserContext();
+  const { settingsHref } = useProjectContext();
 
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
@@ -41,15 +44,22 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
   const [editTarget, setEditTarget] = useState<ReportWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  useEffect(() => {
+    track("reports", "page_viewed");
+  }, []);
+
   return (
     <SettingsSection>
-      <SettingsSectionHeader title="Reports" description="Periodic reports delivered to your email and Slack." />
+      <SettingsSectionHeader
+        title="Reports"
+        description="Periodic reports of signal activity across every project in the workspace. Stay up to date with issues in your project without digging through traces and events."
+      />
 
       <SlackConnectionCard
         workspaceId={workspaceId}
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
-        returnPath={`/workspace/${workspaceId}?menu=reports`}
+        returnPath={settingsHref("reports")}
       />
 
       <SettingsTable

@@ -9,7 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{
             PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
+            WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
@@ -18,7 +18,7 @@ use crate::{
     },
     db::{
         self, DB,
-        projects::ProjectWithWorkspaceBillingInfo,
+        projects::{ProjectWithWorkspaceBillingInfo, WorkspaceTierName},
         usage_warnings::{self, UsageItem},
     },
     mq::MessageQueue,
@@ -44,11 +44,12 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 }
 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
     if project_info.tier_name.is_free() {
-        return Some(project_info.signal_runs_limit);
+        return Some(project_info.signal_steps_limit);
     }
-    project_info.custom_signal_runs_limit
+    project_info.custom_signal_steps_limit
 }
 
 /// Compute the start of the current billing period from workspace reset_time.
@@ -128,6 +129,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
     Ok(bytes_ingested >= effective_limit)
 }
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub async fn get_workspace_signal_runs_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -157,7 +159,7 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     };
 
     let workspace_id = project_info.workspace_id;
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let signal_runs = match cache.get::<i64>(&cache_key).await {
         Ok(Some(runs)) => runs,
@@ -294,13 +296,15 @@ pub async fn update_workspace_bytes_ingested(
         project_info.reset_time,
         UsageItem::Bytes,
         current_value,
+        &project_info.tier_name,
     )
     .await;
 
     Ok(())
 }
 
-pub async fn update_workspace_signal_runs_used(
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub async fn update_workspace_signal_steps_processed(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
@@ -339,7 +343,7 @@ pub async fn update_workspace_signal_runs_used(
 
     let workspace_id = project_info.workspace_id;
 
-    let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
+    let cache_key = format!("{WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
@@ -391,8 +395,9 @@ pub async fn update_workspace_signal_runs_used(
         queue,
         workspace_id,
         project_info.reset_time,
-        UsageItem::SignalRuns,
+        UsageItem::SignalStepsProcessed,
         current_value,
+        &project_info.tier_name,
     )
     .await;
 
@@ -401,6 +406,7 @@ pub async fn update_workspace_signal_runs_used(
 
 /// Check soft limits (usage warnings) against the current usage value and enqueue
 /// notifications for any warnings that have not yet been sent this billing cycle.
+#[allow(clippy::too_many_arguments)]
 async fn check_soft_limits(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -409,6 +415,7 @@ async fn check_soft_limits(
     reset_time: DateTime<Utc>,
     usage_item: UsageItem,
     current_value: i64,
+    tier_name: &WorkspaceTierName,
 ) {
     let warnings = match get_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
         Ok(w) => w,
@@ -442,6 +449,7 @@ async fn check_soft_limits(
             warning.id,
             &usage_item,
             warning.limit_value,
+            tier_name,
         )
         .await;
     }
@@ -450,6 +458,7 @@ async fn check_soft_limits(
 /// Build and enqueue a soft-limit notification for workspace owners.
 /// Deduplication is handled on the notification-worker side via a short-lived cache
 /// lock, so this function simply constructs the message and pushes it to the queue.
+#[allow(clippy::too_many_arguments)]
 async fn send_soft_limit_notification(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -458,6 +467,7 @@ async fn send_soft_limit_notification(
     warning_id: Uuid,
     usage_item: &UsageItem,
     limit_value: i64,
+    tier_name: &WorkspaceTierName,
 ) {
     let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
         Ok(name) => name,
@@ -475,8 +485,15 @@ async fn send_soft_limit_notification(
 
     let usage_item_str = match usage_item {
         UsageItem::Bytes => "bytes",
-        UsageItem::SignalRuns => "signal_runs",
+        UsageItem::SignalStepsProcessed => "signal_steps_processed",
     };
+
+    let tier_included = match usage_item {
+        UsageItem::Bytes => tier_name.included_bytes(),
+        UsageItem::SignalStepsProcessed => tier_name.included_signal_steps(),
+    };
+    let at_tier_included_allowance = tier_included == Some(limit_value);
+    let overage_billable = matches!(tier_name, WorkspaceTierName::Hobby | WorkspaceTierName::Pro);
 
     let notification_message = NotificationMessage {
         definition_type: NotificationDefinitionType::UsageWarning,
@@ -488,6 +505,9 @@ async fn send_soft_limit_notification(
             usage_label,
             formatted_limit,
             usage_item: usage_item_str.to_string(),
+            at_tier_included_allowance,
+            tier_display_name: tier_name.display_name().to_string(),
+            overage_billable,
         }],
     };
 
@@ -539,9 +559,9 @@ fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, Strin
             };
             ("Data ingestion".to_string(), formatted)
         }
-        UsageItem::SignalRuns => {
+        UsageItem::SignalStepsProcessed => {
             let formatted = format_number_with_commas(limit_value);
-            ("Signal runs".to_string(), formatted)
+            ("Signal steps processed".to_string(), formatted)
         }
     }
 }
@@ -606,7 +626,7 @@ async fn get_usage_warnings(
     }
 }
 
-async fn get_workspace_info_for_project_id(
+pub async fn get_workspace_info_for_project_id(
     db: Arc<DB>,
     cache: Arc<Cache>,
     project_id: Uuid,

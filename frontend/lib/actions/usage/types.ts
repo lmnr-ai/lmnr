@@ -7,10 +7,10 @@ export type WorkspaceStats = {
   gbOverLimit?: number;
   gbOverLimitCost?: number;
   // Signal runs usage fields
-  signalRunsUsedThisMonth: number;
-  signalRunsLimit?: number;
-  signalRunsOverLimit?: number;
-  signalRunsOverLimitCost?: number;
+  signalStepsUsedThisMonth: number;
+  signalStepsLimit?: number;
+  signalStepsOverLimit?: number;
+  signalStepsOverLimitCost?: number;
 };
 
 export type StorageStats = {
