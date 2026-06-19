@@ -17,25 +17,26 @@ const ClaudeFixMyAgent = () => (
         {", fix my agent"}
       </h2>
       <p className={bodyMedium}>
-        With Laminar Debugger, your coding agent can write the fix, run your agent, and query data via{" "}
+        With Laminar{" "}
         <a
-          href="https://laminar.sh/docs/platform/mcp#mcp-server"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-foreground-200"
-        >
-          MCP
-        </a>{" "}
-        or{" "}
-        <a
-          href="https://laminar.sh/docs/platform/cli#cli"
+          href="https://laminar.sh/docs/platform/cli"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-foreground-200"
         >
           CLI
         </a>{" "}
-        to confirm the fix worked. Review its work live or later in the saved debugger session.
+        and{" "}
+        <a
+          href="https://laminar.sh/docs/platform/mcp"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground-200"
+        >
+          MCP
+        </a>
+        , your coding agent fully owns the iteration loop for the agents you're building. It runs your agent, reads the
+        trace, fixes, and re-runs with cached state. You can then review its work in the Debugger session UI.
       </p>
     </div>
     <div className="bg-surface-500 relative flex w-full overflow-hidden">
