@@ -18,6 +18,7 @@ interface UseOnboardingActions {
   createWorkspace: (options?: CreateWorkspaceOptions) => Promise<{ workspaceId: string; projectId: string } | null>;
   saveSignals: () => Promise<boolean>;
   saveSlack: () => Promise<boolean>;
+  savePlan: () => Promise<boolean>;
   finishOnboarding: () => Promise<boolean>;
   beginSubmitting: () => void;
   endSubmitting: () => void;
@@ -152,6 +153,22 @@ export function useOnboardingActions(): UseOnboardingActions {
     }
   }, [form, resources, errorToast]);
 
+  const savePlan = useCallback(async (): Promise<boolean> => {
+    const projectId = resources.projectId;
+    if (!projectId) return true;
+    setIsSubmitting(true);
+    try {
+      const persisted = await persistOnboardingStep(projectId, 4);
+      if (!persisted) {
+        errorToast("Couldn't save your progress", "Please try again.");
+        return false;
+      }
+      return true;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [resources.projectId, errorToast]);
+
   const finishOnboarding = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
     if (!projectId) {
@@ -180,6 +197,7 @@ export function useOnboardingActions(): UseOnboardingActions {
     createWorkspace,
     saveSignals,
     saveSlack,
+    savePlan,
     finishOnboarding,
     beginSubmitting,
     endSubmitting,

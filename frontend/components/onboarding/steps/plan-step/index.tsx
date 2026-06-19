@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
@@ -18,14 +17,14 @@ interface PlanStepProps {
   stepIndex: number;
   totalSteps: number;
   onBack: () => void;
+  onAdvance: () => void;
 }
 
-export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProps) {
-  const router = useRouter();
+export default function PlanStep({ stepIndex, totalSteps, onBack, onAdvance }: PlanStepProps) {
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
   const { resources } = useOnboardingContext();
   const flags = useFeatureFlags();
-  const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
+  const { isSubmitting, savePlan, beginSubmitting } = useOnboardingActions();
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
@@ -36,10 +35,8 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   const isUpgrade = TIER_RANK[selectedTier] > TIER_RANK[currentTier];
 
   const getNextLabel = () => {
-    if (!subscriptionEnabled) return "Finish and go to project";
     if (isUpgrade) return "Upgrade & continue";
-    if (alreadyOnPaidTier) return "Continue to project";
-    return "Finish and go to project";
+    return "Continue";
   };
 
   const buildCheckoutUrl = () => {
@@ -56,16 +53,14 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
     return `/checkout?${sp}`;
   };
 
-  const finishAndGoToProject = async () => {
-    if (!(await finishOnboarding())) return;
-    beginSubmitting();
-    router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
+  const advanceToConnect = async () => {
+    if (await savePlan()) onAdvance();
   };
 
   const handleNext = async () => {
     const checkoutUrl = buildCheckoutUrl();
     if (!checkoutUrl) {
-      await finishAndGoToProject();
+      await advanceToConnect();
       return;
     }
     track("onboarding", "checkout_started", { tier: selectedTier, from_tier: currentTier });
@@ -80,9 +75,9 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
         totalSteps={totalSteps}
         title="Almost there"
         description="Subscription management isn't configured in this environment, so you're all set on the Free tier."
-        onNext={finishAndGoToProject}
+        onNext={advanceToConnect}
         onBack={onBack}
-        nextLabel="Finish and go to project"
+        nextLabel="Continue"
         isSubmitting={isSubmitting}
       />
     );

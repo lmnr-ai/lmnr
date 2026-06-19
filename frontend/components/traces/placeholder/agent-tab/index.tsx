@@ -15,8 +15,9 @@ https://laminar.sh/docs/tracing/integrations/overview
 \`lmnr-cli sql query "SELECT * FROM traces ORDER BY start_time DESC LIMIT 1" --json \`
 5. View your traces in the browser`;
 
-export function AgentTab() {
-  const isFromOnboarding = useSearchParams().get("onboarding") === "true";
+export function AgentTab({ fromOnboarding }: { fromOnboarding?: boolean }) {
+  const paramFromOnboarding = useSearchParams().get("onboarding") === "true";
+  const isFromOnboarding = fromOnboarding ?? paramFromOnboarding;
 
   return (
     <div className="flex flex-col gap-8">

@@ -1,19 +1,17 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { FormProvider, useForm, useFormContext } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 
 import { OnboardingProvider } from "@/components/onboarding/context";
-import StepShell from "@/components/onboarding/step-shell";
+import ConnectStep from "@/components/onboarding/steps/connect-step";
 import PlanStep from "@/components/onboarding/steps/plan-step";
 import SignalsStep from "@/components/onboarding/steps/signals-step";
 import SlackStep from "@/components/onboarding/steps/slack-step";
 import WorkspaceStep from "@/components/onboarding/steps/workspace-step";
 import { ONBOARDING_STEPS, type OnboardingFormValues } from "@/components/onboarding/types";
-import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
 import { Feature } from "@/lib/features/features";
@@ -86,63 +84,23 @@ export default function OnboardingWizard({ initial, slackClientId, slackRedirect
         slackRedirectUri={slackRedirectUri}
         initialResources={{ workspaceId: initial.workspaceId, projectId: initial.projectId }}
       >
-        <WizardSteps initialStep={initial.step} projectId={initial.projectId} />
+        <WizardSteps initialStep={initial.step} />
       </OnboardingProvider>
     </FormProvider>
   );
 }
 
-function PaidFinalize({ projectId }: { projectId: string | null }) {
-  const router = useRouter();
-  const { getValues } = useFormContext<OnboardingFormValues>();
-  const { isSubmitting, finishOnboarding } = useOnboardingActions();
-
-  const tier = getValues("selectedTier");
-  const tierLabel = tier === "pro" ? "Pro" : tier === "hobby" ? "Hobby" : "paid";
-
-  const handleComplete = async () => {
-    // Stripe-paid users must never strand on /onboarding even if the cookie or
-    // project ref is gone — fall through to /projects rather than toasting.
-    if (!projectId) {
-      router.replace("/projects");
-      return;
-    }
-    if (await finishOnboarding()) {
-      router.replace(`/project/${projectId}/traces?onboarding=true`);
-    }
-  };
-
-  return (
-    <StepShell
-      stepIndex={ONBOARDING_STEPS.length - 1}
-      totalSteps={ONBOARDING_STEPS.length}
-      title="You're all set"
-      description={`Your ${tierLabel} subscription is active. Time to start tracing.`}
-      onNext={handleComplete}
-      nextLabel="Complete"
-      isSubmitting={isSubmitting}
-      centerContent
-    >
-      <CheckCircle2 className="size-10 text-emerald-500" />
-      <div className="flex flex-col gap-1 text-center">
-        <div className="text-base 2xl:text-lg font-medium text-secondary-foreground">Payment received</div>
-        <div className="text-sm 2xl:text-base text-muted-foreground">
-          You can manage billing anytime from workspace settings.
-        </div>
-      </div>
-    </StepShell>
-  );
-}
-
-function WizardSteps({ initialStep, projectId }: { initialStep: number; projectId: string | null }) {
+function WizardSteps({ initialStep }: { initialStep: number }) {
   const searchParams = useSearchParams();
   const flags = useFeatureFlags();
-  // OSS collapses to a single workspace+project step; Stripe finalize is cloud-only.
+  // OSS collapses to a single workspace+project step; Stripe return is cloud-only.
   if (!flags[Feature.LAMINAR_CLOUD]) {
     return <OssWorkspaceOnly />;
   }
+  // Stripe lands back here with ?upgraded=true — jump straight to the final
+  // connect step (the cookie kept the user pinned to /onboarding across checkout).
   if (searchParams.get("upgraded") === "true") {
-    return <PaidFinalize projectId={projectId} />;
+    return <ConnectStep upgraded />;
   }
   return <WizardStepsInner initialStep={initialStep} />;
 }
@@ -181,7 +139,9 @@ function WizardStepsInner({ initialStep }: { initialStep: number }) {
       case 2:
         return <SlackStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
       case 3:
-        return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} />;
+        return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} onAdvance={advance} />;
+      case 4:
+        return <ConnectStep onBack={back} />;
       default:
         return null;
     }
