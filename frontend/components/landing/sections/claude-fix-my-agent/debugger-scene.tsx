@@ -146,12 +146,19 @@ const SEQUENCE: Step[] = [
   { entry: { kind: "diff", sign: "+", text: "  'When done, write what you learned'," }, delay: 130 },
   { entry: { kind: "diff", sign: "+", text: "  'to MEMORY.md via write_file.'," }, delay: 130 },
 
-  { entry: { kind: "status", text: "Step 4: Verifying the fix" }, trace: 2, delay: 740 },
+  // Re-run with span caching: replay the recorded trace, serving cached LLM
+  // responses up to the boundary and running the changed tail live.
+  { entry: { kind: "status", text: "Step 4: Re-running with cached spans" }, delay: 740 },
+  { entry: { kind: "tool", text: "Bash(LMNR_DEBUG=true" }, delay: 240 },
+  { entry: { kind: "tool", text: "  LMNR_DEBUG_CACHE_UNTIL=a91c… uv run agent.py)" }, trace: 2, delay: 220 },
+  { entry: { kind: "result", text: "Replayed 8 cached spans · 4 ran live" }, delay: 420 },
+
+  { entry: { kind: "status", text: "Step 5: Verifying the fix" }, delay: 700 },
   { entry: { kind: "tool", text: 'Bash(lmnr-cli sql query "SELECT count() FROM spans' }, delay: 240 },
   { entry: { kind: "tool", text: "  WHERE name='write_file'\")" }, delay: 220 },
   { entry: { kind: "result", text: "1 row · write_file → MEMORY.md" }, note: 1, delay: 440 },
 
-  { entry: { kind: "status", text: "Step 5: Fix confirmed!" }, expand: 1, delay: 740 },
+  { entry: { kind: "status", text: "Step 6: Fix confirmed!" }, expand: 1, delay: 740 },
 ];
 
 const TYPE_MS = 22;
