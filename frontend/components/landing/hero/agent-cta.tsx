@@ -30,7 +30,7 @@ const AgentCta = () => {
         <CopySetupButton />
       </span>
       <motion.div
-        className="hidden sm:flex items-center gap-4 pl-1.5 text-foreground-500"
+        className="hidden sm:flex items-center gap-4 pl-1.5 text-foreground-300"
         variants={group}
         initial="rest"
         animate={hovered ? "jump" : "rest"}
