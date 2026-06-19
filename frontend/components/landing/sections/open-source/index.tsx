@@ -12,10 +12,10 @@ interface Feature {
 }
 
 const FEATURES: Feature[] = [
-  { label: "Fully open-source", href: "https://github.com/lmnr-ai/lmnr" },
+  { label: "Open Source", href: "https://github.com/lmnr-ai/lmnr" },
   { label: "Apache 2.0 license", href: "https://github.com/lmnr-ai/lmnr?tab=Apache-2.0-1-ov-file#readme" },
-  { label: "Set up with Docker in three lines", href: "https://laminar.sh/docs/hosting-options" },
-  { label: "Deploy anywhere with Helm Charts" },
+  { label: "Set up with Docker with single command", href: "https://laminar.sh/docs/hosting-options" },
+  { label: "Deploy on AWS or GCP with Helm charts", href: "https://laminar.sh/docs/hosting-options" },
 ];
 
 const FeatureRow = ({ label, href }: Feature) => {
@@ -39,7 +39,7 @@ const OpenSource = () => (
   <section className="flex flex-col items-start gap-10 w-full">
     <div className="flex flex-col md:flex-row gap-10 items-start w-full">
       {/* LEFT — existing feature rows. */}
-      <div className="flex flex-col w-full md:w-[320px] md:min-w-0">
+      <div className="flex flex-col w-full md:w-[380px] md:min-w-0">
         <h2 className={cn(subSection, "mb-13")}>Self-host anywhere</h2>
         {FEATURES.map((f) => (
           <FeatureRow key={f.label} {...f} />

@@ -55,25 +55,25 @@ const FeaturesForEveryStep = () => (
       />
       <Card
         Icon={Database}
-        title="Platform-wide SQL"
-        description="Build datasets from SQL queries, and have your agent query your data via MCP or CLI."
+        title="Full SQL access to all platform data"
+        description="Query all platform data with raw SQL. Have your coding agent query data with MCP or CLI."
         href="https://laminar.sh/docs/platform/sql-editor"
       />
       <Card
         Icon={Tags}
-        title="Labeling queue"
+        title="UI for fast data annotation"
         description="Build labeled datasets from traces, dataset rows, or SQL results for evals and fine-tuning."
         href="https://laminar.sh/docs/queues/quickstart"
       />
       <Card
         Icon={MonitorPlay}
-        title="Browser screen recording"
-        description="Replay your agent's browser session alongside the trace."
+        title="Screen recording for browser agents"
+        description="Capture your agent's browser session alongside the trace."
         href="https://laminar.sh/docs/tracing/browser-agent-observability"
       />
       <Card
         Icon={TextSearch}
-        title="Fast text search"
+        title="Extremely fast full-text search"
         description="Full-text search across every span input, output, and attribute."
         href="https://laminar.sh/docs/platform/search#full-text-search"
       />
