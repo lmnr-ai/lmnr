@@ -163,11 +163,12 @@ export function useOnboardingActions(): UseOnboardingActions {
         errorToast("Couldn't save your progress", "Please try again.");
         return false;
       }
+      track("onboarding", "plan_step_completed", { tier: form.getValues("selectedTier") });
       return true;
     } finally {
       setIsSubmitting(false);
     }
-  }, [resources.projectId, errorToast]);
+  }, [form, resources.projectId, errorToast]);
 
   const finishOnboarding = useCallback(async (): Promise<boolean> => {
     const projectId = resources.projectId;
