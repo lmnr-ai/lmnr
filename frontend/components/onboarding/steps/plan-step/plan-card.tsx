@@ -13,6 +13,10 @@ interface PlanCardProps {
   isCurrent?: boolean;
 }
 
+// Styled to match the regular (non-accent) pricing-page tier columns: a flat
+// surface-500 panel, no border, no divider under the price, landing fonts.
+// Selection uses an INSET ring (drawn inside the box) so the ScrollArea's overflow
+// can't clip it the way an outset ring/border at the grid edge would be.
 export default function PlanCard({ plan, selected, onSelect, disabled = false, isCurrent = false }: PlanCardProps) {
   return (
     <button
@@ -22,9 +26,9 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       aria-pressed={selected}
       aria-disabled={disabled}
       className={cn(
-        "relative text-left rounded-xl border p-4 xl:p-5 2xl:p-6 flex flex-col gap-3 2xl:gap-4 transition-all",
-        !disabled && "hover:border-primary/60 hover:shadow-sm",
-        selected && "border-primary bg-primary/5 shadow-sm",
+        "relative flex flex-col gap-3 2xl:gap-4 rounded-md p-4 xl:p-5 2xl:p-6 text-left transition-all bg-surface-500",
+        !disabled && "hover:bg-surface-400",
+        selected && "ring-1 ring-inset ring-primary",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
@@ -36,11 +40,9 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
       )}
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm xl:text-base 2xl:text-lg font-semibold tracking-tight text-secondary-foreground">
-          {plan.name}
-        </span>
+        <span className="text-sm xl:text-base 2xl:text-lg text-white">{plan.name}</span>
         {isCurrent ? (
-          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium border">
+          <span className="text-[10px] 2xl:text-xs px-1.5 py-0.5 rounded-full bg-surface-200 text-white font-medium">
             Current
           </span>
         ) : (
@@ -52,19 +54,21 @@ export default function PlanCard({ plan, selected, onSelect, disabled = false, i
         )}
       </div>
 
-      <div className="flex items-baseline gap-1 border-b pb-3 2xl:pb-4">
-        <span className="text-2xl xl:text-3xl 2xl:text-4xl font-bold tracking-tight">{plan.price}</span>
-        <span className="text-xs 2xl:text-sm text-muted-foreground">{plan.priceSubtext}</span>
-      </div>
+      <p className="flex items-baseline gap-1">
+        <span className="font-sans-landing font-medium text-2xl xl:text-3xl 2xl:text-4xl leading-none text-white tracking-[-0.02em]">
+          {plan.price}
+        </span>
+        <span className="text-xs 2xl:text-sm text-foreground-400">{plan.priceSubtext}</span>
+      </p>
 
-      <ul className="flex flex-col gap-1.5 2xl:gap-2">
+      <ul className="flex flex-col gap-1.5 2xl:gap-2 flex-1">
         {plan.features.map((f) => (
-          <li key={f.label} className="text-sm text-muted-foreground flex items-start gap-2">
-            <Check className="h-3 w-3 2xl:h-4 2xl:w-4 text-primary shrink-0 mt-0.5" />
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <span>{f.label}</span>
-              {f.sub && <span className="text-xs text-muted-foreground/70">{f.sub}</span>}
+          <li key={f.label} className="flex flex-col gap-0.5">
+            <div className="flex items-start gap-2">
+              <Check className="h-3 w-3 2xl:h-4 2xl:w-4 mt-0.5 shrink-0 text-foreground-300" strokeWidth={2.5} />
+              <span className="text-sm text-foreground-200">{f.label}</span>
             </div>
+            {f.sub && <span className="text-xs text-foreground-400 ml-[22px] 2xl:ml-[24px]">{f.sub}</span>}
           </li>
         ))}
       </ul>

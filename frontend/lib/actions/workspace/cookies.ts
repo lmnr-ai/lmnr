@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 
-import { LAST_WORKSPACE_ID, MAX_AGE } from "@/lib/actions/workspace/index.ts";
+import { LAST_ID_COOKIE_MAX_AGE, LAST_WORKSPACE_ID } from "@/lib/cookies";
 
 export const getLastWorkspaceIdCookie = async (): Promise<string | undefined> => {
   const cookieStore = await cookies();
@@ -12,7 +12,7 @@ export const getLastWorkspaceIdCookie = async (): Promise<string | undefined> =>
 export const setLastWorkspaceIdCookie = async (workspaceId: string) => {
   const cookieStore = await cookies();
   cookieStore.set(LAST_WORKSPACE_ID, workspaceId, {
-    maxAge: MAX_AGE,
+    maxAge: LAST_ID_COOKIE_MAX_AGE,
   });
 };
 

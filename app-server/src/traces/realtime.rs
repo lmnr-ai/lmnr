@@ -70,8 +70,14 @@ struct RealtimeSpan {
     created_at: DateTime<Utc>,
 }
 
-/// Send realtime span update events to SSE connections for specific traces
-/// lmnr.rollout.session_id
+/// Span attribute carrying the debug/rollout session id. The SDK stamps the
+/// session id as trace metadata (`rollout.session_id`), which lands on every
+/// span under this association-property key — NOT as a bare
+/// `lmnr.rollout.session_id` attribute (see send_span_updates).
+const ROLLOUT_SESSION_SPAN_ATTR: &str = "lmnr.association.properties.metadata.rollout.session_id";
+
+/// Send realtime span update events to SSE connections for specific traces, and
+/// to the owning debug session channel when the span carries the session id.
 pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     // Group spans by (project_id, trace_id)
     let mut spans_by_trace: HashMap<(Uuid, Uuid), Vec<RealtimeSpan>> = HashMap::new();
@@ -89,7 +95,7 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
         if let Some(rollout_session_id) = span
             .attributes
             .raw_attributes
-            .get("lmnr.rollout.session_id")
+            .get(ROLLOUT_SESSION_SPAN_ATTR)
             .and_then(|v| v.as_str())
         {
             spans_by_rollout_session

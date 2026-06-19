@@ -4,11 +4,14 @@ import { ArrowUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import FrameworksGrid from "@/components/integrations/frameworks-grid";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
 import Header from "../../ui/header";
+import { AgentTab } from "./agent-tab";
 import { ManualTab } from "./manual-tab";
 
 export default function TracesPagePlaceholder() {
@@ -54,52 +57,40 @@ export default function TracesPagePlaceholder() {
     <div className="h-full w-full flex flex-col overflow-hidden">
       <Header path={"traces"} />
       <ScrollArea>
-        <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-16">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold">Get started with Tracing</h1>
-              <p className="text-sm text-muted-foreground">
-                You don{"'"}t have any traces yet. Choose how you{"'"}d like to set up.
-              </p>
+        <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-36">
+          <h1 className="text-2xl font-medium">Get started with Tracing</h1>
+          {isConnected && (
+            <div className="flex items-center gap-4 rounded-md border border-primary/30 bg-primary/5 px-5 py-4">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+              </span>
+              <span className="text-xs text-primary-foreground">Listening for incoming traces</span>
             </div>
-            {isConnected && (
-              <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                </span>
-                <span className="text-sm">Listening for incoming traces&hellip;</span>
-              </div>
-            )}
+          )}
+
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-medium">Works with your stack</h3>
+              <p className="text-sm text-muted-foreground">Laminar integrates with the frameworks and SDKs you use</p>
+            </div>
+            <FrameworksGrid />
           </div>
 
-          {/*  TODO: Temporary hide automatic setup*/}
-          {/*<Tabs*/}
-          {/*  defaultValue="manual"*/}
-          {/*  className="gap-7"*/}
-          {/*  onValueChange={(value) => {*/}
-          {/*    track("onboarding", "setup_tab_selected", { tab: value, from_onboarding: isFromOnboarding });*/}
-          {/*  }}*/}
-          {/*>*/}
-          {/*  <TabsList className="border-none">*/}
-          {/*    <TabsTrigger value="automatic" className="gap-1.5">*/}
-          {/*      <Sparkles className="w-3.5 h-3.5" />*/}
-          {/*      Set up with AI*/}
-          {/*    </TabsTrigger>*/}
-          {/*    <TabsTrigger value="manual" className="gap-1.5">*/}
-          {/*      <Terminal className="w-3.5 h-3.5" />*/}
-          {/*      Manual*/}
-          {/*    </TabsTrigger>*/}
-          {/*  </TabsList>*/}
-          {/*  <TabsContent value="automatic">*/}
-          {/*    <AutomaticTab isFromOnboarding={isFromOnboarding} />*/}
-          {/*  </TabsContent>*/}
-          {/*  <TabsContent value="manual">*/}
-          {/*  </TabsContent>*/}
-          {/*</Tabs>*/}
+          <Tabs defaultValue="agent" className="gap-8">
+            <TabsList>
+              <TabsTrigger value="agent">Coding agent</TabsTrigger>
+              <TabsTrigger value="manual">Manual</TabsTrigger>
+            </TabsList>
+            <TabsContent asChild value="agent">
+              <AgentTab />
+            </TabsContent>
+            <TabsContent asChild value="manual">
+              <ManualTab />
+            </TabsContent>
+          </Tabs>
 
-          <ManualTab />
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-6 text-sm mt-12">
             <a
               href="https://docs.lmnr.ai/tracing/introduction"
               target="_blank"

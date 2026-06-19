@@ -2,8 +2,10 @@ import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
+import { getSpanTypes } from "@/lib/actions/span";
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
+import { parseSpanLinks } from "@/lib/traces/span-link-parsing";
 
 import { getEventsByEmergingClusterPaginated } from "./emerging-cluster";
 import { searchSignalEvents, type SignalEventSearchHit } from "./search";
@@ -34,6 +36,43 @@ export function attachSnippets(items: EventRow[], hits: SignalEventSearchHit[]):
   });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function attachSpanTypes(projectId: string, items: EventRow[]): Promise<EventRow[]> {
+  const idsByRow = new Map<string, string[]>();
+  const allSpanIds = new Set<string>();
+
+  for (const item of items) {
+    // The span-link regex matches `[0-9a-f-]+`, which can capture non-UUID
+    // fragments — keep only well-formed ids so the `Array(UUID)` query (and its
+    // schema) don't reject the whole batch.
+    const ids = parseSpanLinks(item.payload)
+      .map((link) => link.spanId)
+      .filter((id): id is string => Boolean(id) && UUID_REGEX.test(id!));
+    if (ids.length > 0) {
+      idsByRow.set(item.id, ids);
+      ids.forEach((id) => allSpanIds.add(id));
+    }
+  }
+
+  if (allSpanIds.size === 0) {
+    return items;
+  }
+
+  const typeMap = await getSpanTypes({ projectId, spanIds: [...allSpanIds] });
+
+  return items.map((item) => {
+    const ids = idsByRow.get(item.id);
+    if (!ids) return item;
+
+    const spanTypes: Record<string, string> = {};
+    for (const id of ids) {
+      if (typeMap[id]) spanTypes[id] = typeMap[id];
+    }
+    return Object.keys(spanTypes).length > 0 ? { ...item, spanTypes } : item;
+  });
+}
+
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
   const {
     projectId,
@@ -52,7 +91,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
   } = input;
 
   if (emergingClusterId) {
-    return getEventsByEmergingClusterPaginated({
+    const result = await getEventsByEmergingClusterPaginated({
       projectId,
       signalId,
       emergingClusterId,
@@ -65,6 +104,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
       search,
       payloadField,
     });
+    return { ...result, items: await attachSpanTypes(projectId, result.items) };
   }
 
   const filters = compact(filter);
@@ -127,8 +167,10 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
 
+  const items = searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems;
+
   return {
-    items: searchHits.length > 0 ? attachSnippets(rawItems, searchHits) : rawItems,
+    items: await attachSpanTypes(projectId, items),
     count: countResult?.count || 0,
   };
 }

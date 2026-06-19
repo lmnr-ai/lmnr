@@ -34,7 +34,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
       <div className={cn("flex flex-col gap-6 w-full", LANDING_COLUMN_MAX_W)}>
         <Link
           href={backHref}
-          className="text-sm text-landing-text-300 hover:text-landing-text-100 flex items-center gap-1.5 w-fit no-underline"
+          className="text-sm text-foreground-300 hover:text-foreground-50 flex items-center gap-1.5 w-fit no-underline"
         >
           <ArrowLeft size={16} />
           All blog posts
@@ -44,7 +44,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           {data.title}
         </h1>
 
-        <p className="text-sm text-landing-text-300">
+        <p className="text-sm text-foreground-300">
           {formatUTCDate(data.date)} · {data.author.name}
           {data.tags?.[0] ? ` · ${data.tags[0]}` : ""}
         </p>
@@ -69,7 +69,7 @@ export default function PostLayout({ data, backHref, tocItems, children }: Props
           <div className="flex flex-col gap-4">
             <Link
               href={backHref}
-              className="inline-flex items-center gap-1.5 text-sm text-landing-text-300 hover:text-white no-underline w-fit transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-foreground-300 hover:text-white no-underline w-fit transition-colors"
             >
               <ArrowLeft size={16} />
               All blog posts

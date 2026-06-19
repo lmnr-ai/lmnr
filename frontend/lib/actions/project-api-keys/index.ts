@@ -22,6 +22,7 @@ const DeleteProjectApiKeySchema = z.object({
 });
 
 export interface ProjectApiKeyResponse {
+  id: string;
   value: string;
   projectId: string;
   name: string | null;
@@ -56,6 +57,7 @@ export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySche
   });
 
   return {
+    id: key.id,
     value,
     projectId,
     name: name || null,

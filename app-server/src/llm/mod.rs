@@ -3,6 +3,7 @@ pub mod gemini;
 pub mod mock;
 pub mod models;
 pub mod openai;
+pub(crate) mod sse;
 
 pub use bedrock::BedrockClient;
 pub use gemini::GeminiClient;
@@ -13,9 +14,11 @@ pub use openai::OpenAIClient;
 use enum_dispatch::enum_dispatch;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::collections::HashMap;
-use std::env;
 use std::sync::OnceLock;
 use thiserror::Error;
+use tokio::sync::mpsc::UnboundedSender;
+
+use crate::env;
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
@@ -60,6 +63,33 @@ impl ProviderError {
 
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub(crate) fn emit_response_as_chunks(
+    response: &ProviderResponse,
+    chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+) {
+    let Some(parts) = response
+        .candidates
+        .as_ref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.content.as_ref())
+        .and_then(|content| content.parts.as_ref())
+    else {
+        return;
+    };
+    for part in parts {
+        let Some(text) = part.text.as_ref().filter(|t| !t.is_empty()) else {
+            continue;
+        };
+        let chunk = if part.thought == Some(true) {
+            ProviderStreamChunk::Thought(text.clone())
+        } else {
+            ProviderStreamChunk::Text(text.clone())
+        };
+        let _ = chunk_tx.send(chunk);
+    }
+}
+
 #[enum_dispatch]
 pub(crate) trait LanguageModelClient: Send + Sync {
     fn supports_batch(&self) -> bool {
@@ -71,6 +101,18 @@ pub(crate) trait LanguageModelClient: Send + Sync {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse>;
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    async fn generate_content_stream(
+        &self,
+        model: &str,
+        request: &ProviderRequest,
+        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+    ) -> ProviderResult<ProviderResponse> {
+        let response = self.generate_content(model, request).await?;
+        emit_response_as_chunks(&response, chunk_tx);
+        Ok(response)
+    }
 
     #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     async fn create_batch(
@@ -102,7 +144,7 @@ pub(crate) enum ProviderClient {
 }
 
 static ALWAYS_USE_REALTIME: OnceLock<bool> = OnceLock::new();
-const LLM_DEFAULT_HEADERS_JSON_ENV: &str = "LLM_DEFAULT_HEADERS_JSON";
+const LLM_DEFAULT_HEADERS_JSON_ENV: &str = env::llm::DEFAULT_HEADERS_JSON;
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn always_use_realtime() -> bool {
@@ -112,17 +154,26 @@ pub fn always_use_realtime() -> bool {
 /// Read and normalize `LLM_PROVIDER` (lowercased + trimmed). Empty string
 /// when unset; callers that require it should use [`resolve_provider_name`].
 pub fn llm_provider_env() -> String {
-    env::var("LLM_PROVIDER")
+    std::env::var(env::llm::PROVIDER)
         .ok()
         .map(|v| v.trim().to_lowercase())
         .unwrap_or_default()
+}
+
+/// Provider for the auxiliary "parsing" LLM calls
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub fn parsing_provider() -> Option<String> {
+    std::env::var(env::llm::PARSING_PROVIDER)
+        .ok()
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
 }
 
 /// `LLM_API_KEY` is the single key shared by single-key providers (gemini,
 /// openai). It belongs to whichever provider `LLM_PROVIDER` names — gemini
 /// and openai cannot both initialize from it.
 fn has_llm_api_key() -> bool {
-    env::var("LLM_API_KEY").is_ok_and(|v| !v.is_empty())
+    std::env::var(env::llm::API_KEY).is_ok_and(|v| !v.is_empty())
 }
 
 /// True when `LLM_PROVIDER=gemini` and `LLM_API_KEY` is set.
@@ -139,13 +190,13 @@ fn has_openai_credentials() -> bool {
 /// `LLM_PROVIDER`. This preserves the cloud setup where gemini is primary
 /// and bedrock is a "sometimes pinned" secondary.
 fn has_bedrock_credentials() -> bool {
-    env::var("AWS_ACCESS_KEY_ID").is_ok_and(|v| !v.is_empty())
-        && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|v| !v.is_empty())
-        && env::var("AWS_REGION").is_ok_and(|v| !v.is_empty())
+    std::env::var(env::secrets::AWS_ACCESS_KEY_ID).is_ok_and(|v| !v.is_empty())
+        && std::env::var(env::secrets::AWS_SECRET_ACCESS_KEY).is_ok_and(|v| !v.is_empty())
+        && std::env::var(env::secrets::AWS_REGION).is_ok_and(|v| !v.is_empty())
 }
 
 pub(crate) fn default_headers_from_env() -> Result<HeaderMap, String> {
-    let Some(raw_headers) = env::var(LLM_DEFAULT_HEADERS_JSON_ENV)
+    let Some(raw_headers) = std::env::var(LLM_DEFAULT_HEADERS_JSON_ENV)
         .ok()
         .filter(|s| !s.trim().is_empty())
     else {
@@ -282,11 +333,11 @@ mod tests {
 pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     if provider == llm_provider_env() {
         let env_key = match size {
-            ModelSize::Small => "LLM_MODEL_SMALL",
-            ModelSize::Medium => "LLM_MODEL_MEDIUM",
-            ModelSize::Large => "LLM_MODEL_LARGE",
+            ModelSize::Small => env::llm::MODEL_SMALL,
+            ModelSize::Medium => env::llm::MODEL_MEDIUM,
+            ModelSize::Large => env::llm::MODEL_LARGE,
         };
-        if let Ok(v) = env::var(env_key) {
+        if let Ok(v) = std::env::var(env_key) {
             let v = v.trim();
             if !v.is_empty() {
                 return v.to_string();
@@ -309,8 +360,7 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
 }
 
 fn finalize_client(client: &ProviderClient) -> Result<(), ProviderError> {
-    let always_realtime_env = std::env::var("SIGNALS_ALWAYS_USE_REALTIME")
-        .is_ok_and(|v| v.trim().to_lowercase() == "true");
+    let always_realtime_env = env::llm::ALWAYS_USE_REALTIME.get();
     ALWAYS_USE_REALTIME
         .set(always_realtime_env || !client.supports_batch())
         .map_err(|e| {
@@ -425,6 +475,18 @@ impl LlmClient {
     ) -> ProviderResult<ProviderResponse> {
         let (client, model) = self.resolve(request)?;
         client.generate_content(&model, request).await
+    }
+
+    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+    pub async fn generate_content_stream(
+        &self,
+        request: &ProviderRequest,
+        chunk_tx: &UnboundedSender<ProviderStreamChunk>,
+    ) -> ProviderResult<ProviderResponse> {
+        let (client, model) = self.resolve(request)?;
+        client
+            .generate_content_stream(&model, request, chunk_tx)
+            .await
     }
 
     /// Resolve `(model, provider)` strings for `request` without firing

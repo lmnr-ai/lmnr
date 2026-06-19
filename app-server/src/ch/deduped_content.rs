@@ -3,7 +3,9 @@ use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table};
+use super::{
+    ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
+};
 
 /// Project-scoped content-addressed row that backs structural dedup for any
 /// hash-referenced JSON blob the spans table points at (LLM input messages,
@@ -23,11 +25,28 @@ pub struct CHDedupedContent {
     pub content: String,
 }
 
+pub async fn get_content_by_hash(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    content_hash_hex: &str,
+) -> clickhouse::error::Result<Option<String>> {
+    clickhouse
+        .query(
+            "SELECT content FROM deduped_content
+             WHERE project_id = ? AND content_hash = toFixedString(unhex(?), 32)
+             LIMIT 1",
+        )
+        .bind(project_id)
+        .bind(content_hash_hex)
+        .fetch_optional::<String>()
+        .await
+}
+
 impl ClickhouseInsertable for CHDedupedContent {
     const TABLE: Table = Table::DedupedContent;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_option(
+        insert.with_setting(
             "async_insert_busy_timeout_max_ms",
             SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
         )

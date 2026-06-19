@@ -5,10 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ClusterBreadcrumb from "@/components/signal/clusters-section/cluster-breadcrumb";
 import ClusterList from "@/components/signal/clusters-section/cluster-list";
 import ClusterStackedChart from "@/components/signal/clusters-section/cluster-stacked-chart";
-import { getClusterColor, UNCLUSTERED_COLOR } from "@/components/signal/clusters-section/colors";
 import { buildPath, type ClusterNode, findNodeById } from "@/components/signal/clusters-section/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
 import { MOCK_DATASETS } from "./clusters-mock-data";
@@ -80,10 +80,10 @@ const SignalEventClustersMock = ({ className }: Props) => {
 
   const colorMap = useMemo(() => {
     const m = new Map<string, string>();
-    visibleClusters.forEach((c, i) => m.set(c.id, getClusterColor(i, drillDownDepth)));
+    visibleClusters.forEach((c) => m.set(c.id, getClusterColorById(c.id)));
     m.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return m;
-  }, [visibleClusters, drillDownDepth]);
+  }, [visibleClusters]);
 
   const navigateToCluster = useCallback(
     (id: string) => {
@@ -135,6 +135,7 @@ const SignalEventClustersMock = ({ className }: Props) => {
               unclusteredVirtualCluster={unclusteredVirtualCluster}
               selectedClusterId={selectedClusterId}
               onNavigateToCluster={navigateToCluster}
+              rangeTotal={dataset.totalEventCount}
             />
           </div>
           <div className="flex-1 min-w-0 py-2 pr-2 pl-1 bg-secondary" ref={chartContainerRef}>

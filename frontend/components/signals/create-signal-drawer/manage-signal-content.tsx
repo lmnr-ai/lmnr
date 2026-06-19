@@ -24,7 +24,6 @@ interface ManageSignalContentProps {
   onSubmitComplete: (data: ManageSignalForm) => void;
   previousTriggerIds: string[];
   className?: string;
-  scrollAreaClassName?: string;
 }
 
 export default function ManageSignalContent({
@@ -34,7 +33,6 @@ export default function ManageSignalContent({
   onSubmitComplete,
   previousTriggerIds,
   className,
-  scrollAreaClassName,
 }: ManageSignalContentProps) {
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,32 +60,31 @@ export default function ManageSignalContent({
     setFormTriggers,
   });
 
+  if (variant === "panel") {
+    return (
+      <form onSubmit={handleSubmit(submit)} className={cn("flex flex-col min-w-0", className)}>
+        <SignalFormFields variant={variant} isLoading={isLoading} showTemplates={!id} />
+      </form>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit(submit)} className={cn("flex flex-col flex-1 overflow-hidden min-w-0", className)}>
-      {variant === "sheet" && (
-        <div className="flex items-center justify-between px-5 pt-3">
-          <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-      <ScrollArea className={cn("flex-1 px-5 flex flex-col items-center w-full")}>
-        <SignalFormFields
-          variant={variant}
-          isLoading={isLoading}
-          showTemplates={!id}
-          className={cn("", scrollAreaClassName)}
-        />
+      <div className="flex items-center justify-between px-5 pt-3">
+        <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
+        <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+      <ScrollArea className="flex-1 px-5 w-full">
+        <SignalFormFields variant={variant} isLoading={isLoading} showTemplates={!id} />
       </ScrollArea>
-      {(variant === "sheet" || !id) && (
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
-          <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
-            <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
-            {id ? "Save" : "Create"}
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2 px-5 py-3 border-t">
+        <Button className="ml-auto w-fit gap-2" type="submit" size="md" disabled={isLoading || !isValid || !isDirty}>
+          <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
+          {id ? "Save" : "Create"}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -79,6 +79,29 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 ```
 
+### Custom Postgres schema (optional)
+
+By default Laminar uses the `public` schema. To target a different schema (e.g.
+when deploying alongside other services in a shared Postgres instance), set the
+same value for both the frontend and the app-server:
+
+```sh
+POSTGRES_SCHEMA=laminar
+# Set to false if the schema is pre-provisioned or the DB role lacks CREATE.
+# POSTGRES_CREATE_SCHEMA=true
+```
+
+The schema is applied as the connection `search_path`, so all tables, foreign
+keys, and migrations target it. When a non-public schema is set, the frontend
+also tracks migrations inside that schema (`<schema>.__drizzle_migrations`)
+rather than the shared `drizzle` schema. Note that running Laminar alongside
+another Drizzle-managed service in the same database may still require manual
+intervention, since Drizzle's migration journal is versioned per-schema.
+
+## Anonymous usage telemetry
+
+Self-hosted deployments collect anonymized usage telemetry. To opt out, set `LAMINAR_TELEMETRY_DISABLED=true` in your `.env`.
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
@@ -126,7 +149,7 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/installation)
+It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://laminar.sh/docs/tracing/integrations/overview)
 
 
 To start tracing LLM calls just add

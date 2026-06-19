@@ -12,8 +12,6 @@ import EmergingClusterBreadcrumbs from "@/components/signal/emerging-cluster-bre
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { useEmergingClusterId } from "@/components/signal/hooks/use-emerging-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type EventNavigationItem } from "@/components/signal/utils.ts";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
@@ -194,8 +192,6 @@ function PureEventsTable() {
     [setTraceId, searchParams, pathName, router]
   );
 
-  const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
-
   const {
     data: events,
     hasMore,
@@ -225,16 +221,6 @@ function PureEventsTable() {
     const match = events.find((e) => e.traceId === traceId);
     return match?.id;
   }, [traceId, events]);
-
-  useEffect(() => {
-    if (events) {
-      setNavigationRefList(
-        events.map((event) => ({
-          traceId: event.traceId,
-        }))
-      );
-    }
-  }, [events, setNavigationRefList]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -281,11 +267,11 @@ function PureEventsTable() {
             storageKey={`signal-events-${signal.id}`}
             resource="signal-events"
             placeholder="Search events by payload, severity, trace id, and more..."
-            className="w-full flex-1"
+            className="w-full flex-1 mb-2"
           />
         </div>
         {emergingClusterId ? <EmergingClusterBreadcrumbs /> : <ClusterBreadcrumbs />}
-        <ClustersSection />
+        <ClustersSection className="mb-2" />
       </InfiniteDataTable>
     </div>
   );

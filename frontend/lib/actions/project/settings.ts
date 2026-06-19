@@ -16,6 +16,7 @@ import { z } from "zod/v4";
 import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const ProjectSettingsSchema = z
   .object({
@@ -56,10 +57,12 @@ export async function updateProjectSettings(input: z.infer<typeof UpdateProjectS
 
   // Pro-tier gate: keep server-side. UI greys the same controls but a
   // forged request must still be rejected. We only run the lookup if the
-  // request actually touches a gated key.
-  const enablesGatedKey = (Object.keys(settings) as (keyof ProjectSettings)[]).some(
-    (k) => PRO_TIER_KEYS.has(k) && settings[k] === true
-  );
+  // request actually touches a gated key. Self-hosted installs aren't on the
+  // tiered billing plan (their only seeded tier is "unlimited"), so the Pro
+  // gate doesn't apply there — skip it entirely off Laminar Cloud.
+  const enablesGatedKey =
+    isFeatureEnabled(Feature.LAMINAR_CLOUD) &&
+    (Object.keys(settings) as (keyof ProjectSettings)[]).some((k) => PRO_TIER_KEYS.has(k) && settings[k] === true);
   if (enablesGatedKey) {
     const rows = await db
       .select({ tierName: subscriptionTiers.name })

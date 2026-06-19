@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getEventClusters } from "@/lib/actions/clusters";
+import { getEventClusters, GetEventClustersSchema } from "@/lib/actions/clusters";
+import { parseUrlParams } from "@/lib/actions/common/utils";
 import { hasClusteringAccessForProject } from "@/lib/actions/usage/utils";
 import { PAYWALL_CLUSTER_NAME } from "@/lib/features/clustering";
 
@@ -12,8 +13,17 @@ export async function GET(
   try {
     const { projectId, id: signalId } = await params;
 
+    const parseResult = parseUrlParams(
+      req.nextUrl.searchParams,
+      GetEventClustersSchema.omit({ projectId: true, signalId: true })
+    );
+
+    if (!parseResult.success) {
+      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
     const [result, hasAccess] = await Promise.all([
-      getEventClusters({ projectId, signalId }),
+      getEventClusters({ ...parseResult.data, projectId, signalId }),
       hasClusteringAccessForProject(projectId),
     ]);
 

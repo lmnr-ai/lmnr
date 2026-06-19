@@ -16,7 +16,7 @@ export async function register() {
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
       const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
         await import("@/lib/db/migrations/schema.ts");
-      const { db, getDatabaseConfig } = await import("@/lib/db/drizzle.ts");
+      const { db, getDatabaseConfig, getPostgresSchema } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
         const initialData = require("@/lib/db/initial-data.json");
@@ -205,7 +205,33 @@ export async function register() {
           error instanceof Error ? error.message : String(error)
         );
       }
-      await migrate(db as any, { migrationsFolder: "lib/db/migrations" });
+      const postgresSchema = getPostgresSchema();
+      // Any case variant of "public" is the default schema (which always exists),
+      // so we never create it or relocate the migrations tracker into it. Note an
+      // unquoted identifier in search_path folds to lowercase, so a value like
+      // "PUBLIC" resolves to "public" at query time — quoting it into CREATE SCHEMA
+      // would create a SEPARATE "PUBLIC" schema that queries never reach.
+      const isPublicSchema = postgresSchema.toLowerCase() === "public";
+      if (postgresSchema && !isPublicSchema && process.env.POSTGRES_CREATE_SCHEMA !== "false") {
+        try {
+          await db.execute(`CREATE SCHEMA IF NOT EXISTS "${postgresSchema.replace(/"/g, '""')}"`);
+        } catch (error) {
+          console.warn(
+            `Skipping CREATE SCHEMA "${postgresSchema}" (insufficient privileges or pre-provisioned); set POSTGRES_CREATE_SCHEMA=false to silence:`,
+            error instanceof Error ? error.message : String(error)
+          );
+        }
+      }
+      // Track migrations inside the configured schema so a Laminar DB can coexist
+      // with another Drizzle-managed service in the same instance. An unset or
+      // "public" (any case) schema keeps the tracker in the standard "drizzle"
+      // schema — so existing public deployments are untouched and don't re-run
+      // migrations (relocating the tracker would make the migrator see no prior
+      // migration and re-run all of them).
+      await migrate(db as any, {
+        migrationsFolder: "lib/db/migrations",
+        ...(postgresSchema && !isPublicSchema ? { migrationsSchema: postgresSchema } : {}),
+      });
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
@@ -299,6 +325,12 @@ export async function register() {
       console.log("Initializing Laminar");
       Laminar.initialize();
     }
+
+    // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
+    // operators opt out (see Feature.TELEMETRY). Fire-and-forget — never blocks
+    // or fails boot.
+    const { startTelemetry } = await import("@/lib/telemetry/index.ts");
+    startTelemetry().catch((error) => console.error("Failed to start telemetry:", error));
   }
 }
 

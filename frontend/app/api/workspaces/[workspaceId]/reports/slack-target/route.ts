@@ -1,15 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { setSlackTargets } from "@/lib/actions/reports";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 
 export async function POST(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
 
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

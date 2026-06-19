@@ -5,16 +5,21 @@ import { useCallback, useEffect } from "react";
 
 import EventsTable from "@/components/signal/events-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/create-signal-drawer";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
 
-function SignalContent() {
+interface SignalProps {
+  traceId?: string;
+  slackClientId?: string;
+  slackRedirectUri?: string;
+  slackBrokerEnabled?: boolean;
+}
+
+function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: Omit<SignalProps, "traceId">) {
   const pathName = usePathname();
   const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
@@ -64,7 +69,7 @@ function SignalContent() {
   return (
     <>
       <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-6 overflow-hidden">
         <div className="px-4">
           <TabsList className="h-8">
             <TabsTrigger className="text-xs" value="events">
@@ -87,7 +92,9 @@ function SignalContent() {
               key={signal.id}
               defaultValues={signal}
               onSuccess={handleSuccess}
-              scrollAreaClassName="max-w-[900px] mx-auto pt-[36px]"
+              slackClientId={slackClientId}
+              slackRedirectUri={slackRedirectUri}
+              slackBrokerEnabled={slackBrokerEnabled}
             />
           </TabsContent>
         )}
@@ -114,27 +121,20 @@ function SignalContent() {
   );
 }
 
-export default function Signal({ traceId }: { traceId?: string }) {
+export default function Signal({ traceId, slackClientId, slackRedirectUri, slackBrokerEnabled }: SignalProps) {
   const { setTraceId } = useSignalStoreContext((state) => ({
     setTraceId: state.setTraceId,
   }));
-
-  const handleNavigate = useCallback(
-    (item: EventNavigationItem | null) => {
-      if (item) {
-        setTraceId(item.traceId);
-      }
-    },
-    [setTraceId]
-  );
 
   useEffect(() => {
     setTraceId(traceId ?? null);
   }, [setTraceId, traceId]);
 
   return (
-    <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <SignalContent />
-    </TraceViewNavigationProvider>
+    <SignalContent
+      slackClientId={slackClientId}
+      slackRedirectUri={slackRedirectUri}
+      slackBrokerEnabled={slackBrokerEnabled}
+    />
   );
 }

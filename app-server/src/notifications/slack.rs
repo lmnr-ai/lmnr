@@ -31,7 +31,7 @@ pub fn decode_slack_token(
     nonce_hex: &str,
     encrypted_value: &str,
 ) -> anyhow::Result<String> {
-    let key_hex = std::env::var("SLACK_ENCRYPTION_KEY")
+    let key_hex = std::env::var(crate::env::secrets::SLACK_ENCRYPTION_KEY)
         .map_err(|_| anyhow::anyhow!("SLACK_ENCRYPTION_KEY environment variable is not set"))?;
 
     let key = Key::from_slice(

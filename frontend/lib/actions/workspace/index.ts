@@ -1,13 +1,12 @@
 import { addMonths } from "date-fns";
 import { and, eq } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import {
   cache,
   PROJECT_MEMBER_CACHE_KEY,
@@ -27,9 +26,6 @@ import {
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
-
-const LAST_WORKSPACE_ID = "last-workspace-id";
-const MAX_AGE = 60 * 60 * 24 * 30;
 
 const DeleteWorkspaceSchema = z.object({
   workspaceId: z.guid(),
@@ -323,8 +319,6 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
   return { success: true, message: "User role updated successfully" };
 };
 
-export { LAST_WORKSPACE_ID, MAX_AGE };
-
 export const TransferOwnershipSchema = z.object({
   workspaceId: z.guid(),
   currentOwnerId: z.guid(),
@@ -366,7 +360,7 @@ export async function transferOwnership(input: z.infer<typeof TransferOwnershipS
 export async function removeUserFromWorkspace(input: z.infer<typeof RemoveUserSchema>) {
   const { workspaceId, userId } = RemoveUserSchema.parse(input);
 
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (!session?.user?.id) {
     throw new Error("Unauthorized: User not authenticated");
   }

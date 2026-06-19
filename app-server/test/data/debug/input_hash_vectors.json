@@ -1,0 +1,108 @@
+{
+  "description": "Cross-language parity vectors for the debugger-replay input hash (debug_input_hash / debugInputHash, LAM-1715). For each case the SDK and app-server must produce the same `expected_hash`: hex(blake3(canonical_json(messages_without_system))). EVERY message with `role == \"system\"` is stripped first — regardless of its content (empty string, no text blocks, any shape) or position (leading, trailing, or repeated) — because the coding agent may add/remove/edit its own system prompt(s) between iterations and those edits must not change the cache key. The remaining array is canonicalized with object keys sorted recursively and array order preserved; no number canonicalization in v1. Object key order in `input` here is deliberately scrambled to prove canonicalization — the hash must not depend on it.",
+  "cases": [
+    {
+      "name": "openai-system-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a helpful assistant."
+        },
+        {
+          "content": "Hello",
+          "role": "user"
+        }
+      ],
+      "expected_hash": "d45bd7cd4db1cfbcc1316d4ccebcbd904adabd2c915c155c404f1d48cc940166"
+    },
+    {
+      "name": "no-system-message",
+      "input": [
+        {
+          "role": "user",
+          "content": "What is 2 + 2?"
+        },
+        {
+          "role": "assistant",
+          "content": "4"
+        }
+      ],
+      "expected_hash": "2c2e8470c108a2eac5a195113bd225f77e3c55d689bfeafbffad24f01dbc29bf"
+    },
+    {
+      "name": "anthropic-system-block-array-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": [
+            {
+              "type": "text",
+              "text": "Be terse."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "expected_hash": "5af900befc8e4c75b51fca6e43d0eb11ef8ab5f6677966b87ab72f55010e1df7"
+    },
+    {
+      "name": "nested-keys-canonicalized",
+      "input": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "look",
+              "meta": {
+                "z": 1,
+                "a": 2
+              }
+            }
+          ]
+        }
+      ],
+      "expected_hash": "9f5064a6709a9141606c05cca53895327671e6e99dca76e9b1b48c39f1658e41"
+    },
+    {
+      "name": "system-empty-string-content-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": ""
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        }
+      ],
+      "expected_hash": "5af900befc8e4c75b51fca6e43d0eb11ef8ab5f6677966b87ab72f55010e1df7"
+    },
+    {
+      "name": "multiple-system-messages-all-stripped",
+      "input": [
+        {
+          "role": "system",
+          "content": "first system prompt"
+        },
+        {
+          "role": "user",
+          "content": "Hi"
+        },
+        {
+          "role": "system",
+          "content": [
+            {
+              "type": "image",
+              "url": "https://example.com/x.png"
+            }
+          ]
+        }
+      ],
+      "expected_hash": "5af900befc8e4c75b51fca6e43d0eb11ef8ab5f6677966b87ab72f55010e1df7"
+    }
+  ]
+}

@@ -17,4 +17,6 @@ export type EventRow = {
   severity: number;
   /** Per-schema-field snippet for the active search query, keyed by field name. */
   fieldSnippets?: Record<string, SnippetInfo>;
+  /** Resolved span types for span links embedded in the payload, keyed by span id. */
+  spanTypes?: Record<string, string>;
 };

@@ -1,14 +1,15 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useMemo, useState } from "react";
-import { Bar, BarChart, BarStack, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import React, { useCallback, useId, useMemo, useState } from "react";
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, ReferenceArea, XAxis, YAxis } from "recharts";
+import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
-import { type CategoricalChartFunc } from "@/components/chart-builder/charts/line-chart";
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 
+import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
 import { getTickCountForWidth, isValidZoomRange, normalizeTimeRange } from "./utils";
 
@@ -33,11 +34,15 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   formatValue = numberFormatter.format,
   showTotal = true,
   showTooltip = true,
+  hideZeroValues = false,
+  overlayField,
+  overlayColor = "var(--color-muted-foreground)",
   className,
 }: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
+  const gradientId = useId().replace(/:/g, "");
   const [refArea, setRefArea] = useState<{ left?: string; right?: string }>({});
 
   const targetTickCount = useMemo(() => {
@@ -100,12 +105,19 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     [refArea.left]
   );
 
+  const BarShapeWithConfig = useCallback(
+    (props: any) => <RoundedBar {...props} chartConfig={chartConfig} fields={fields} />,
+    [chartConfig, fields]
+  );
+
+  const ChartComp = overlayField ? ComposedChart : BarChart;
+
   return (
     <div className="flex flex-col items-start h-full">
       <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
-        <BarChart
+        <ChartComp
           data={data}
-          margin={{ left: 8, right: 8, top: 8, bottom: 4 }}
+          margin={{ left: -8, top: 8 }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={zoom}
@@ -117,17 +129,48 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
             dataKey="timestamp"
             tickLine={false}
             axisLine={false}
-            tickMargin={8}
             tickFormatter={smartTicksResult?.formatter}
             allowDataOverflow
             ticks={smartTicksResult?.ticks}
           />
-          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} width="auto" />
+          <YAxis tickLine={false} axisLine={false} tickFormatter={formatValue} />
+          {overlayField && (
+            <YAxis
+              yAxisId="overlay"
+              orientation="right"
+              tickLine={false}
+              axisLine={false}
+              width={32}
+              tickFormatter={formatValue}
+            />
+          )}
+          {overlayField && (
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={overlayColor} stopOpacity={0.6} />
+                <stop offset="100%" stopColor={overlayColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+          )}
+          {overlayField && (
+            <Area
+              yAxisId="overlay"
+              type="monotone"
+              dataKey={overlayField}
+              stroke={overlayColor}
+              strokeWidth={1}
+              fill={`url(#${gradientId})`}
+              dot={false}
+              isAnimationActive={false}
+              connectNulls
+            />
+          )}
           {showTooltip && (
             <ChartTooltip
               content={
                 <ChartTooltipContent
                   labelKey="timestamp"
+                  hideZeroValues={hideZeroValues}
                   labelFormatter={(_, payload) =>
                     payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
                   }
@@ -135,13 +178,20 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               }
             />
           )}
-          <BarStack radius={[4, 4, 4, 4]}>
-            {fields.map((fieldKey) => {
-              const config = chartConfig[fieldKey];
-              if (!config) return null;
-              return <Bar key={fieldKey} dataKey={fieldKey} fill={config.color} stackId={config.stackId} />;
-            })}
-          </BarStack>
+          {fields.map((fieldKey) => {
+            const config = chartConfig[fieldKey];
+            if (!config) return null;
+
+            return (
+              <Bar
+                key={fieldKey}
+                dataKey={fieldKey}
+                fill={config.color}
+                stackId={config.stackId}
+                shape={BarShapeWithConfig}
+              />
+            );
+          })}
           {refArea.left && refArea.right && (
             <ReferenceArea
               x1={refArea.left}
@@ -153,7 +203,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               fillOpacity={0.3}
             />
           )}
-        </BarChart>
+        </ChartComp>
       </ChartContainer>
       {showTotal && (
         <div className="text-xs text-muted-foreground text-center" title={String(totalCount)}>

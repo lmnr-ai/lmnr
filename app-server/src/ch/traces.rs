@@ -106,7 +106,7 @@ impl ClickhouseInsertable for CHTrace {
     const TABLE: Table = Table::Traces;
 
     fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
-        insert.with_option(
+        insert.with_setting(
             "async_insert_busy_timeout_max_ms",
             SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS.as_str(),
         )
@@ -232,8 +232,10 @@ impl TraceAggregation {
                     }
                 }
             }
-            if let Some(trace_type) = span.attributes.trace_type() {
-                entry.trace_type = trace_type.clone().into();
+            if entry.trace_type == 0 {
+                if let Some(trace_type) = span.attributes.trace_type() {
+                    entry.trace_type = trace_type.clone().into();
+                }
             }
 
             if span.span_type == SpanType::Evaluation {
