@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
@@ -108,18 +108,14 @@ export async function updateAlertFilter(input: z.infer<typeof UpdateAlertFilterS
 export async function deleteAlertFilters(input: z.infer<typeof DeleteAlertFiltersSchema>) {
   const { projectId, alertId, filterIds } = DeleteAlertFiltersSchema.parse(input);
 
-  const results = await Promise.all(
-    filterIds.map((filterId) =>
-      db
-        .delete(alertFilters)
-        .where(
-          and(eq(alertFilters.projectId, projectId), eq(alertFilters.alertId, alertId), eq(alertFilters.id, filterId))
-        )
-        .returning()
+  const results = await db
+    .delete(alertFilters)
+    .where(
+      and(eq(alertFilters.projectId, projectId), eq(alertFilters.alertId, alertId), inArray(alertFilters.id, filterIds))
     )
-  );
+    .returning();
 
   await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
 
-  return { deletedCount: results.flat().length };
+  return { deletedCount: results.length };
 }

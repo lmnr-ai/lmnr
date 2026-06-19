@@ -446,7 +446,31 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "alert_filters_alert_id_project_id_idx": {
+          "name": "alert_filters_alert_id_project_id_idx",
+          "columns": [
+            {
+              "expression": "alert_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "uuid_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "alert_filters_alert_id_fkey": {
           "name": "alert_filters_alert_id_fkey",

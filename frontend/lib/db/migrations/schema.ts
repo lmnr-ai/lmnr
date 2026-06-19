@@ -324,6 +324,11 @@ export const alertFilters = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
+    index("alert_filters_alert_id_project_id_idx").using(
+      "btree",
+      table.alertId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
     foreignKey({
       columns: [table.alertId],
       foreignColumns: [alerts.id],

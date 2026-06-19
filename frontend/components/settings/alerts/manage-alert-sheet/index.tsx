@@ -40,7 +40,7 @@ export default function ManageAlertSheet({
 
   // Load everything the form needs for its initial values, then mount it once
   // ready — keeps init synchronous in useForm's defaultValues, no reset effect.
-  const { data: signalsData } = useSWR<{ items: SignalRow[] }>(
+  const { data: signalsData, error: signalsError } = useSWR<{ items: SignalRow[] }>(
     open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
     swrFetcher
   );
@@ -59,7 +59,7 @@ export default function ManageAlertSheet({
   );
 
   // Errored fetches count as settled so a failure can't trap the skeleton forever.
-  const signalsReady = signalsData !== undefined;
+  const signalsReady = signalsData !== undefined || signalsError !== undefined;
   const boundSignalReady = !boundSignalId || boundSignal !== undefined || boundSignalError !== undefined;
   const filtersReady = !isEditMode || existingFilters !== undefined || existingFiltersError !== undefined;
   const ready = signalsReady && boundSignalReady && filtersReady;

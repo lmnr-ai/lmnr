@@ -7,4 +7,5 @@ CREATE TABLE "alert_filters" (
 );
 --> statement-breakpoint
 ALTER TABLE "alert_filters" ADD CONSTRAINT "alert_filters_alert_id_fkey" FOREIGN KEY ("alert_id") REFERENCES "alerts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_filters" ADD CONSTRAINT "alert_filters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "alert_filters" ADD CONSTRAINT "alert_filters_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "alert_filters_alert_id_project_id_idx" ON "alert_filters" USING btree ("alert_id" uuid_ops,"project_id" uuid_ops);
