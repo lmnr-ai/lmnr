@@ -18,6 +18,8 @@ interface ClusterListProps {
   unclusteredVirtualCluster: ClusterNode;
   selectedClusterId: string | null;
   onNavigateToCluster: (clusterId: string) => void;
+  /** Total events in the selected range — denominator for the global proportion bars. */
+  rangeTotal: number;
   className?: string;
   isPaywall?: boolean;
 }
@@ -30,6 +32,7 @@ export default function ClusterList({
   unclusteredVirtualCluster,
   selectedClusterId,
   onNavigateToCluster,
+  rangeTotal,
   className,
   isPaywall,
 }: ClusterListProps) {
@@ -72,6 +75,7 @@ export default function ClusterList({
               color={getClusterColorById(cluster.id)}
               isSelected={selectedClusterId === cluster.id}
               filteredCount={filteredCount}
+              total={rangeTotal}
               onClick={() => onNavigateToCluster(cluster.id)}
               isPaywall={isPaywall}
             />
@@ -87,6 +91,7 @@ export default function ClusterList({
               color={UNCLUSTERED_COLOR}
               isSelected={selectedClusterId === UNCLUSTERED_ID}
               filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
+              total={rangeTotal}
               onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
               isPaywall={isPaywall}
             />

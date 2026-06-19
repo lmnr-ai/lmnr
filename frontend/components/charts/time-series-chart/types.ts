@@ -25,4 +25,7 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   showTotal?: boolean;
   showTooltip?: boolean;
   hideZeroValues?: boolean;
+  // Optional secondary-axis line + gradient drawn behind the bars.
+  overlayField?: string;
+  overlayColor?: string;
 }
