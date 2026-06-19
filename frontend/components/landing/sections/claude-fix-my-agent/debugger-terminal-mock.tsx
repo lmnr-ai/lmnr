@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { cn } from "@/lib/utils";
 
 // One transcript entry. The five `status` milestones are the copy spec; the
@@ -19,7 +21,14 @@ const Cursor = () => <span className="inline-block w-1.5 h-3.5 bg-foreground-300
 
 const EntryRow = ({ entry, active }: { entry: Entry; active: boolean }) => {
   switch (entry.kind) {
+    // A status line starts a new step — give it space above; its tool/result
+    // children sit flush beneath it (gap-0 on the column).
     case "status":
+      return (
+        <p className={cn(monoBase, "text-foreground-200 mt-3")}>
+          <span className={cn("text-primary-300", active && "animate-pulse")}>●</span> {entry.text}
+        </p>
+      );
     case "update":
       return (
         <p className={cn(monoBase, "text-foreground-200")}>
@@ -88,43 +97,60 @@ interface Props {
 // Debugger terminal: the coding agent driving Laminar's debugger. Purely
 // presentational — the parent scene owns the clock and feeds in the prompt
 // typing + the revealed transcript entries.
-const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, className }: Props) => (
-  <div
-    className={cn(
-      "h-[480px] w-full rounded-md border border-surface-400 bg-surface-700 px-5 py-4 flex flex-col gap-4",
-      className
-    )}
-  >
-    {/* Messages region — flex-1 with justify-end so content sits at the bottom
-        and grows up as more is revealed; overflow clips older lines off the top,
-        reading as a longer live session. */}
-    <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end gap-2.5">
-      {!isTyping && (
-        <p className={cn(monoBase, "text-foreground-300")}>
-          <span className="text-primary-300">&gt;</span> {prompt}
-        </p>
-      )}
-      {entries.map((entry, i) => (
-        <EntryRow key={i} entry={entry} active={i === entries.length - 1 && !finished} />
-      ))}
-    </div>
+const DebuggerTerminalMock = ({ entries, typed, isTyping, finished, prompt, className }: Props) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-    {/* Footer — input + status. Input shows the user typing then clears once the
-        prompt is "submitted". */}
-    <div className="shrink-0 flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 rounded-md border border-surface-400 bg-surface-600 px-3 py-2.5">
-        <span className={cn(monoBase, "font-medium text-primary-300")}>&gt;</span>
-        <span className={cn(monoBase, "text-foreground-200")}>
-          {isTyping ? typed : ""}
-          {isTyping && <Cursor />}
-        </span>
+  // Stick-to-bottom as lines stream in, like a real terminal — the user can
+  // still scroll up to read earlier output.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [entries.length, isTyping]);
+
+  return (
+    <div
+      className={cn(
+        "h-[480px] w-[400px] shrink-0 rounded-md border border-surface-400 bg-surface-700 flex flex-col",
+        className
+      )}
+    >
+      {/* Messages region — scrollable; the inner wrapper is min-h-full + justify-end
+          so short output sits at the bottom and longer output scrolls. Padding
+          lives here (not the outer shell) so the scrollbar sits at the panel edge. */}
+      <div
+        ref={scrollRef}
+        className="thin-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-smooth px-5 pt-4"
+      >
+        <div className="flex min-h-full flex-col justify-end gap-0">
+          {!isTyping && (
+            <p className={cn(monoBase, "text-foreground-300")}>
+              <span className="text-primary-300">&gt;</span> {prompt}
+            </p>
+          )}
+          {entries.map((entry, i) => (
+            <EntryRow key={i} entry={entry} active={i === entries.length - 1 && !finished} />
+          ))}
+        </div>
       </div>
-      <div className="flex items-center justify-between px-1">
-        <span className="font-mono text-xs leading-[18px] text-foreground-600">? for shortcuts</span>
-        <span className="font-mono text-xs leading-[18px] text-foreground-600">claude-opus-4-7 · 1M context</span>
+
+      {/* Footer — input + status. Input shows the user typing then clears once the
+          prompt is "submitted". pt-4 replaces the old outer gap; pb-4/px-5 replace
+          the old outer padding. */}
+      <div className="shrink-0 flex flex-col gap-1.5 px-5 pb-4 pt-4">
+        <div className="flex items-center gap-2 rounded-md border border-surface-400 bg-surface-600 px-3 py-2.5">
+          <span className={cn(monoBase, "font-medium text-primary-300")}>&gt;</span>
+          <span className={cn(monoBase, "text-foreground-200")}>
+            {isTyping ? typed : ""}
+            {isTyping && <Cursor />}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-1">
+          <span className="font-mono text-xs leading-[18px] text-foreground-600">? for shortcuts</span>
+          <span className="font-mono text-xs leading-[18px] text-foreground-600">claude-opus-4-7 · 1M context</span>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default DebuggerTerminalMock;

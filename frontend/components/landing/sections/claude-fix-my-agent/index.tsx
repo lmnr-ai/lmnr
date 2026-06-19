@@ -17,8 +17,7 @@ const ClaudeFixMyAgent = () => (
         {", fix my agent"}
       </h2>
       <p className={bodyMedium}>
-        Laminar Debugger gives your coding agent the tools it needs to build agents end-to-end. It can write the fix,
-        run your agent, and query data via{" "}
+        With Laminar Debugger, your coding agent can write the fix, run your agent, and query data via{" "}
         <a
           href="https://laminar.sh/docs/platform/mcp#mcp-server"
           target="_blank"
@@ -39,7 +38,7 @@ const ClaudeFixMyAgent = () => (
         to confirm the fix worked. Review its work live or later in the saved debugger session.
       </p>
     </div>
-    <div className="bg-surface-500 relative flex w-full md:py-[72px] py-[48px] overflow-hidden px-8">
+    <div className="bg-surface-500 relative flex w-full overflow-hidden">
       <DebuggerScene />
       <SectionFootnote name="Debugger" href="https://laminar.sh/docs/debugger/introduction" />
     </div>
