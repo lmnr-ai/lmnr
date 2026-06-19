@@ -155,7 +155,6 @@ const SEQUENCE: Step[] = [
 ];
 
 const TYPE_MS = 22;
-const POST_TYPE_MS = 400;
 
 // Owns the single animation clock + the session store, and renders both panes.
 // Gated on `useInView`, runs once when scrolled into view.
@@ -181,10 +180,10 @@ const DebuggerScene = () => {
   }, [isInView, isTyping, typed]);
 
   // Phase 1: reveal one timeline step at a time, paced by each step's delay.
+  // SEQUENCE[0].delay doubles as the post-typing pause before the first step.
   useEffect(() => {
     if (!isInView || isTyping || revealed >= SEQUENCE.length) return;
-    const delay = revealed === 0 ? POST_TYPE_MS : SEQUENCE[revealed].delay;
-    const t = setTimeout(() => setRevealed((r) => r + 1), delay);
+    const t = setTimeout(() => setRevealed((r) => r + 1), SEQUENCE[revealed].delay);
     return () => clearTimeout(t);
   }, [isInView, isTyping, revealed]);
 
