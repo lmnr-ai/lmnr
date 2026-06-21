@@ -25,7 +25,7 @@ import { schemaFieldsToStructuredOutput } from "./utils";
 const SEVERITY_STYLES: Record<number, string> = {
   0: "text-muted-foreground/60",
   1: "text-orange-400/80",
-  2: "text-red-400/100",
+  2: "text-red-400",
 };
 
 interface Props {
