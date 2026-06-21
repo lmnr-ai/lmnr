@@ -10,7 +10,7 @@ import { TraceTagsButton, TraceTagsPills, useTraceTags } from "@/components/tags
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal } from "@/components/traces/trace-view/store/base";
+import { type TraceSignal, type TraceSignalClusterNode } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
@@ -102,8 +102,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           signalName: string;
           prompt: string;
           structuredOutput: Record<string, unknown>;
-          leafCluster?: { id: string; name: string; level: number } | null;
-          events: EventRow[];
+          leafCluster?: TraceSignalClusterNode | null;
+          events: Array<EventRow & { leafCluster?: TraceSignalClusterNode | null }>;
         }>;
         if (!Array.isArray(data)) return;
 
@@ -117,7 +117,17 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             type: f.type,
             description: f.description,
           })),
-          events: Array.isArray(s.events) ? s.events : [],
+          events: Array.isArray(s.events)
+            ? s.events.map((e) => ({
+                id: e.id,
+                signalId: e.signalId,
+                traceId: e.traceId,
+                payload: e.payload,
+                timestamp: e.timestamp,
+                severity: e.severity,
+                leafCluster: e.leafCluster ?? null,
+              }))
+            : [],
         }));
 
         setTraceSignals(mapped);
