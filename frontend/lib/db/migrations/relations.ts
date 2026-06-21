@@ -384,6 +384,10 @@ export const projectApiKeysRelations = relations(projectApiKeys, ({ one }) => ({
     fields: [projectApiKeys.projectId],
     references: [projects.id],
   }),
+  user: one(users, {
+    fields: [projectApiKeys.userId],
+    references: [users.id],
+  }),
 }));
 
 export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({

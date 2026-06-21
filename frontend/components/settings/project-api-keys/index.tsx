@@ -3,7 +3,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { type GenerateProjectApiKeyResponse, type ProjectApiKey } from "@/lib/api-keys/types";
+import { type GenerateProjectApiKeyResponse, type KeyExpiration, type ProjectApiKey } from "@/lib/api-keys/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
 
@@ -23,6 +23,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
   const [newApiKeyName, setNewApiKeyName] = useState<string>("");
   const [keyType, setKeyType] = useState<"default" | "ingest_only">("default");
+  const [expiration, setExpiration] = useState<KeyExpiration>("never");
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,10 +31,10 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const { projectId } = useParams();
 
   const generateNewAPIKey = useCallback(
-    async (newName: string, isIngestOnly: boolean) => {
+    async (newName: string, isIngestOnly: boolean, expiresDays: number | null) => {
       const res = await fetch(`/api/projects/${projectId}/api-keys`, {
         method: "POST",
-        body: JSON.stringify({ name: newName, isIngestOnly }),
+        body: JSON.stringify({ name: newName, isIngestOnly, expiresDays }),
       });
       const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
 
@@ -66,18 +67,26 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
     [projectId, getProjectApiKeys]
   );
 
+  const handleKeyTypeChange = useCallback((type: "default" | "ingest_only") => {
+    setKeyType(type);
+    // Ingest-only keys are long-lived trace senders, but default to a 1-day expiry
+    // to nudge toward short-lived credentials; the user can still pick "Never".
+    setExpiration(type === "ingest_only" ? "1" : "never");
+  }, []);
+
   const handleGenerateKey = useCallback(async () => {
     try {
       setIsLoading(true);
-      await generateNewAPIKey(newApiKeyName, keyType === "ingest_only");
+      const expiresDays = expiration === "never" ? null : Number(expiration);
+      await generateNewAPIKey(newApiKeyName, keyType === "ingest_only", expiresDays);
       setIsGenerated(true);
-      track("api_keys", "generated", { key_type: keyType });
+      track("api_keys", "generated", { key_type: keyType, expiration });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to generate API key" });
     } finally {
       setIsLoading(false);
     }
-  }, [newApiKeyName, keyType, generateNewAPIKey, toast, projectId]);
+  }, [newApiKeyName, keyType, expiration, generateNewAPIKey, toast]);
 
   return (
     <SettingsSection>
@@ -91,6 +100,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
           setNewApiKeyName("");
           setKeyType("default");
+          setExpiration("never");
           setNewApiKey(null);
           setIsGenerated(false);
         }}
@@ -122,7 +132,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
               isLoading={isLoading}
               onNameChange={(name) => setNewApiKeyName(name)}
               keyType={keyType}
-              onKeyTypeChange={(type) => setKeyType(type)}
+              onKeyTypeChange={handleKeyTypeChange}
+              expiration={expiration}
+              onExpirationChange={setExpiration}
             />
           )}
         </DialogContent>
@@ -130,8 +142,8 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
       <SettingsTable
         emptyMessage="No project api keys found."
         isEmpty={isEmpty(projectApiKeys)}
-        headers={["Name", "Key", "Type", ""]}
-        colSpan={4}
+        headers={["Name", "Key", "Type", "Expires", ""]}
+        colSpan={5}
       >
         {projectApiKeys.map((apiKey, id) => (
           <SettingsTableRow key={id}>
@@ -141,6 +153,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
               <Badge variant="outline" className="font-normal whitespace-nowrap">
                 {apiKey.isIngestOnly ? "Ingest Only" : "Default"}
               </Badge>
+            </td>
+            <td className="px-4 text-sm text-muted-foreground whitespace-nowrap">
+              {apiKey.expiresAt ? new Date(apiKey.expiresAt).toLocaleDateString() : "Never"}
             </td>
             <td className="px-4">
               <div className="flex justify-end">

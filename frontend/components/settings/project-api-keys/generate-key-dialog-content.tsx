@@ -1,6 +1,7 @@
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
 
+import { KEY_EXPIRATION_OPTIONS,type KeyExpiration } from "@/lib/api-keys/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
@@ -15,6 +16,8 @@ interface GenerateKeyDialogContentProps {
   onNameChange: (name: string) => void;
   keyType: "default" | "ingest_only";
   onKeyTypeChange: (type: "default" | "ingest_only") => void;
+  expiration: KeyExpiration;
+  onExpirationChange: (value: KeyExpiration) => void;
   isLoading: boolean;
 }
 
@@ -24,6 +27,8 @@ export function GenerateKeyDialogContent({
   onNameChange,
   keyType,
   onKeyTypeChange,
+  expiration,
+  onExpirationChange,
 }: GenerateKeyDialogContentProps) {
   return (
     <>
@@ -42,7 +47,8 @@ export function GenerateKeyDialogContent({
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="max-w-xs">
-                    Ingest-only keys can write trace and browser session recording data but cannot access any other project data
+                    Ingest-only keys can write trace and browser session recording data but cannot access any other
+                    project data
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -55,6 +61,21 @@ export function GenerateKeyDialogContent({
             <SelectContent>
               <SelectItem value="default">Default</SelectItem>
               <SelectItem value="ingest_only">Ingest Only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label className="text-sm">Expiration</Label>
+          <Select value={expiration} onValueChange={(value) => onExpirationChange(value as KeyExpiration)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {KEY_EXPIRATION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
