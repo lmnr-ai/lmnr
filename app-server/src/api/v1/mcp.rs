@@ -33,7 +33,7 @@ pub struct ProjectId(pub Uuid);
 /// Parameters for the SQL query tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct QuerySqlParams {
-    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces, events, signal_events, signal_runs, clusters, logs, tags, evaluation_datapoints, dataset_datapoints. Join: spans.trace_id = traces.id
+    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces, signal_events, signal_runs, clusters, logs, evaluation_datapoints, dataset_datapoints. Join: spans.trace_id = traces.id
     pub query: String,
     /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
     #[serde(default)]
@@ -104,7 +104,7 @@ impl LaminarMcpServer {
     ///
     /// dataset_datapoints: id (UUID), created_at (DateTime64), dataset_id (UUID), data (String), target (String), metadata (String)
     ///
-    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to (use clusters.signal_id = signal_events.signal_id only to scope by signal — it is a many-to-many cross product, not an event-to-cluster match)
+    /// Joins: spans.trace_id = traces.id, has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to (use clusters.signal_id = signal_events.signal_id only to scope by signal — it is a many-to-many cross product, not an event-to-cluster match)
     ///
     /// Example queries:
     /// - Recent traces: SELECT id, start_time, total_cost FROM traces ORDER BY start_time DESC LIMIT 10
