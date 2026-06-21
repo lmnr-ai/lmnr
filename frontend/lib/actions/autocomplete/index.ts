@@ -111,7 +111,7 @@ const getAutocompleteQueries = (field: string): { queries: string[] } => {
     case "tags":
       return {
         queries: [
-          `SELECT arrayJoin(topK(512)(tag)) as value FROM traces ARRAY JOIN trace_tags AS tag WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND tag != ''`,
+          `SELECT arrayJoin(topK(512)(tag)) as value FROM spans ARRAY JOIN tags AS tag WHERE start_time >= now() - INTERVAL 7 days AND start_time < now() AND tag != ''`,
         ],
       };
     default:

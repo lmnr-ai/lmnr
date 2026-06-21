@@ -39,7 +39,7 @@ const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
     (
         "tags",
         &[
-            "SELECT arrayJoin(topK(512)(tag)) as value FROM trace_tags ARRAY JOIN tags AS tag WHERE project_id = {project_id:UUID} AND updated_at >= {start_time:DateTime64(9)} AND updated_at < {end_time:DateTime64(9)} AND tag != ''",
+            "SELECT arrayJoin(topK(512)(tag)) as value FROM spans ARRAY JOIN tags_array AS tag WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND tag != ''",
         ],
     ),
 ];
