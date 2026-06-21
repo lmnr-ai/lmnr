@@ -13,6 +13,7 @@ pub const MAX_RESULT_BYTES: StringEnv = StringEnv::new("SQL_QUERY_MAX_RESULT_BYT
 /// unlimited, so self-hosters are unrestricted unless they opt in; cloud sets a
 /// concrete cap (e.g. a few GB) via env.
 pub const MAX_MEMORY_USAGE: StringEnv = StringEnv::new("SQL_QUERY_MAX_MEMORY_USAGE", "0");
+// TODO: find more fine-grained controls for this
 /// `min_bytes_to_use_direct_io` forces the query to directly read from disk
 /// skipping the page cache if the number of bytes to read exceeds
 /// the value. Default `0` = no enforcement.
@@ -24,7 +25,5 @@ pub const MAX_MEMORY_USAGE: StringEnv = StringEnv::new("SQL_QUERY_MAX_MEMORY_USA
 /// directly from disk, thus greatly slowing them down, but unblocking the
 /// rest of critical functionality. Reference:
 /// https://presentations.clickhouse.com/2021-meetup53/optimizations/?full#13
-
-// TODO: find more fine-grained controls for this
 pub const MIN_BYTES_TO_USE_DIRECT_IO: StringEnv =
     StringEnv::new("SQL_QUERY_MIN_BYTES_TO_USE_DIRECT_IO", "0");
