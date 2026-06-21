@@ -19,6 +19,8 @@ export type TraceSignalClusterNode = {
   level: number;
 };
 
+// Mirrored by a client-safe copy in components/traces/trace-view/store/base.ts;
+// this module is server-only so its types can't be imported into client code.
 export type TraceSignalEvent = EventRow & { leafCluster: TraceSignalClusterNode | null };
 
 export type TraceSignal = {

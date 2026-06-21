@@ -142,6 +142,8 @@ export type TraceSignalClusterNode = {
   level: number;
 };
 
+// Client-safe mirror of the server-only TraceSignalEvent in lib/actions/signals/trace.ts;
+// kept in sync manually since that module can't be imported into client code.
 export type TraceSignalEvent = {
   id: string;
   signalId: string;
