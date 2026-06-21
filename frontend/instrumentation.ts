@@ -104,9 +104,16 @@ export async function register() {
       // why these live here instead of in their migrations).
       // Multi-replica boots race the DDL — CH serialises it, but each replace
       // wipes the COMPLEX_KEY_CACHE, so rolling deploys briefly cold-miss.
-      // Acceptable: layout is lazy (no preload), source lookups hit each
-      // table's PK exactly, and `LIFETIME(MIN 30 MAX 60)` already
-      // evicts/refreshes every minute under normal operation.
+      // Layout is lazy (no preload) and source lookups hit each table's PK
+      // exactly. The rows are content-addressed and immutable, so there is no
+      // freshness to chase — `LIFETIME(MIN 3600 MAX 10800)` (1–3h) just lets a
+      // cell live out its natural LRU life instead of being force-re-queried
+      // every minute. That per-minute churn was a contributor to LAM-1810:
+      // refreshing a random-hash key re-reads a whole 8192-row granule from the
+      // hash-sorted `deduped_content` table, and at scale that scatter-read
+      // poisons the shared page cache for every other CH reader. Memory is
+      // still hard-bounded by `SIZE_IN_CELLS` regardless of LIFETIME (CACHE is a
+      // fixed-size LRU), so a longer lifetime cannot grow the dict.
       const escapeChCreds = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
       const ensureLlmMessagesDict = async () => {
@@ -132,7 +139,7 @@ export async function register() {
                 TABLE 'llm_messages'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
-            LIFETIME(MIN 30 MAX 60)
+            LIFETIME(MIN 3600 MAX 10800)
           `,
         });
       };
@@ -163,7 +170,7 @@ export async function register() {
                 TABLE 'deduped_content'
             ))
             LAYOUT(COMPLEX_KEY_CACHE(SIZE_IN_CELLS 131072))
-            LIFETIME(MIN 30 MAX 60)
+            LIFETIME(MIN 3600 MAX 10800)
           `,
         });
       };
