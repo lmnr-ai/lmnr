@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { executeQuery } from "@/lib/actions/sql";
+import { backfillTraceCacheReasoningTokens } from "@/lib/actions/trace";
 import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";
 
@@ -57,8 +58,10 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
     return undefined;
   }
 
+  const backfilledTrace = await backfillTraceCacheReasoningTokens(trace, projectId, traceId);
+
   return {
-    ...trace,
+    ...backfilledTrace,
     visibility: "public",
   };
 }
