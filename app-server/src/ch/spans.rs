@@ -143,6 +143,17 @@ pub struct CHSpan {
     /// view as a virtual `tool_definitions` column via `deduped_content_dict`.
     #[serde(default)]
     pub tool_definitions_hash: [u8; 32],
+    /// Per-span token counts promoted out of the `trace_view_attributes` JSON
+    /// (migration 52) into dedicated columns so the trace-view tree reads them
+    /// directly. Sourced from `SpanUsage`, which already normalizes the dual
+    /// OTel format (`gen_ai.usage.cache_read.input_tokens` dotted vs the legacy
+    /// underscore key) in `normalize_aisdk_attributes`.
+    #[serde(default)]
+    pub cache_read_input_tokens: i64,
+    #[serde(default)]
+    pub cache_creation_input_tokens: i64,
+    #[serde(default)]
+    pub reasoning_tokens: i64,
 }
 
 impl CHSpan {
@@ -223,6 +234,9 @@ impl CHSpan {
             output_message_hashes: Vec::new(),
             output_new_message_indices: Vec::new(),
             tool_definitions_hash: [0u8; 32],
+            cache_read_input_tokens: usage.cache_read_input_tokens,
+            cache_creation_input_tokens: usage.cache_creation_input_tokens,
+            reasoning_tokens: usage.reasoning_tokens,
         }
     }
 }

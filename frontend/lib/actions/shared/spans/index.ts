@@ -43,6 +43,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         trace_id as traceId,
         status,
         trace_view_attributes as attributes,
+        cache_read_input_tokens as cacheReadInputTokens,
+        reasoning_tokens as reasoningTokens,
         path,
         model,
         events
@@ -62,15 +64,13 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
 
   const transformedSpans = spans.map((span) => {
     const parsedAttributes = tryParseJson(span.attributes) || {};
-    const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
-    const reasoningTokens = parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0;
 
     return {
       ...span,
       collapsed: false,
       attributes: parsedAttributes,
-      cacheReadInputTokens,
-      reasoningTokens,
+      cacheReadInputTokens: span.cacheReadInputTokens ?? 0,
+      reasoningTokens: span.reasoningTokens ?? 0,
       parentSpanId: span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId,
       events: (span.events || []).map((event) => ({
         timestamp: event.timestamp,

@@ -259,14 +259,12 @@ export const transformSpanWithEvents = (
   parentRewiring: Map<string, string | undefined>
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
-  const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
-  const reasoningTokens = parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0;
 
   return {
     ...span,
     attributes: parsedAttributes,
-    cacheReadInputTokens,
-    reasoningTokens,
+    cacheReadInputTokens: span.cacheReadInputTokens ?? 0,
+    reasoningTokens: span.reasoningTokens ?? 0,
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
     events: (span.events || []).map((event) => ({

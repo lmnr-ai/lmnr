@@ -205,6 +205,10 @@ const fetchTraceSpans = async ({
       // `attributes` blob off disk. The per-span view still fetches the
       // complete attributes via the `getSpan` endpoint.
       "trace_view_attributes as attributes",
+      // Per-span token counts promoted to dedicated columns (CH migration 52)
+      // — read directly instead of parsing them out of the attributes JSON.
+      "cache_read_input_tokens as cacheReadInputTokens",
+      "reasoning_tokens as reasoningTokens",
       "model",
       "status",
       "path",
