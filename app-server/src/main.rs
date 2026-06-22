@@ -1853,10 +1853,7 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 web::scope("/v1/project")
                                     .wrap(project_ingestion_auth.clone())
-                                    .route(
-                                        "",
-                                        web::get().to(api::v1::projects::get_current_project),
-                                    ),
+                                    .service(api::v1::projects::get_current_project),
                             )
                             .service(
                                 web::scope("/v1")
