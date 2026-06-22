@@ -15,7 +15,6 @@ interface ApiKeyGeneratorProps {
   title?: string;
   titleClassName?: string;
   subtitle?: string;
-  // Onboarding renders this off-route (no projectId param), so it passes one in.
   projectId?: string;
 }
 

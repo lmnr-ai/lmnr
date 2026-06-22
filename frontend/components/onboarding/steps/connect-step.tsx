@@ -2,16 +2,15 @@
 
 import { CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
+import { PlatformHighlights } from "@/components/onboarding/platform-highlights";
 import StepShell from "@/components/onboarding/step-shell";
 import { ONBOARDING_STEPS } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { AgentTab } from "@/components/traces/placeholder/agent-tab";
-import { ManualTab } from "@/components/traces/placeholder/manual-tab";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
@@ -27,6 +26,7 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
   const router = useRouter();
   const { resources } = useOnboardingContext();
   const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
+  const [received, setReceived] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
   const projectId = resources.projectId;
@@ -49,21 +49,14 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
     [projectId, router, finishOnboarding, beginSubmitting]
   );
 
-  const firstTraceTracked = useRef(false);
-  const eventHandlers = useMemo(
-    () => ({
-      trace_update: () => {
-        // trace_update fires for every incoming trace; only the first is the
-        // onboarding "first trace received" milestone.
-        if (!firstTraceTracked.current) {
-          firstTraceTracked.current = true;
-          track("onboarding", "first_trace_received", { from_onboarding: true });
-        }
-        setIsConnected(true);
-      },
-    }),
-    []
-  );
+  useEffect(() => {
+    if (received) {
+      track("onboarding", "first_trace_received", { from_onboarding: true });
+      goToProject({ skipped: false });
+    }
+  }, [received, goToProject]);
+
+  const eventHandlers = useMemo(() => ({ trace_update: () => setReceived(true) }), []);
 
   useRealtime({
     key: "traces",
@@ -84,8 +77,6 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
       title="Send your first trace"
       description={description}
       onBack={onBack}
-      onNext={() => goToProject({ skipped: false })}
-      nextLabel="Go to project"
       isSubmitting={isSubmitting}
       secondaryAction={
         <Button
@@ -109,27 +100,16 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
       )}
 
       {isConnected && (
-        <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-2">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
           </span>
-          <span className="text-sm text-primary-foreground">Listening for incoming traces</span>
+          <span className="text-sm text-secondary-foreground">Listening for incoming traces</span>
         </div>
       )}
-
-      <Tabs defaultValue="agent" className="gap-6">
-        <TabsList>
-          <TabsTrigger value="agent">Coding agent</TabsTrigger>
-          <TabsTrigger value="manual">Manual</TabsTrigger>
-        </TabsList>
-        <TabsContent asChild value="agent">
-          <AgentTab fromOnboarding />
-        </TabsContent>
-        <TabsContent asChild value="manual">
-          <ManualTab projectId={projectId ?? undefined} />
-        </TabsContent>
-      </Tabs>
+      <PlatformHighlights />
+      <AgentTab fromOnboarding />
     </StepShell>
   );
 }

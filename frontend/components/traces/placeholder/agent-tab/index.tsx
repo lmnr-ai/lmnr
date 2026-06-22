@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 
 import { AgentPromptBox } from "@/components/common/agent-prompt-box";
 import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
 // The prompt copied for the user to run themselves or paste into a coding agent.
 // Template literal so the body reads as literal multiline markdown.
@@ -20,20 +21,20 @@ export function AgentTab({ fromOnboarding }: { fromOnboarding?: boolean }) {
   const isFromOnboarding = fromOnboarding ?? paramFromOnboarding;
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-5">
+    <div className={cn("flex flex-col", fromOnboarding ? "gap-3" : "gap-5")}>
+      {!fromOnboarding && (
         <div className="flex flex-col gap-1">
           <h3 className="text-base font-medium">Get started in one prompt</h3>
           <p className="text-sm text-muted-foreground">
             Copy and paste this prompt to get started with your coding agent
           </p>
         </div>
+      )}
 
-        <AgentPromptBox
-          prompt={AGENT_PROMPT}
-          onCopy={() => track("onboarding", "coding_agent_command_copied", { from_onboarding: isFromOnboarding })}
-        />
-      </div>
+      <AgentPromptBox
+        prompt={AGENT_PROMPT}
+        onCopy={() => track("onboarding", "coding_agent_command_copied", { from_onboarding: isFromOnboarding })}
+      />
     </div>
   );
 }
