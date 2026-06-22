@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/migrations/schema";
 import { sendInvitationEmail } from "@/lib/emails/utils";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { BASE_PATH } from "@/lib/utils";
 
 const InviteUserSchema = z.object({
   workspaceId: z.guid(),
@@ -123,7 +124,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     { expiresIn: "48h" }
   );
 
-  const link = `${process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL}/invitations?token=${token}`;
+  const link = `${process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL}${BASE_PATH}/invitations?token=${token}`;
 
   await sendInvitationEmail(email, workspace.name, link);
 
