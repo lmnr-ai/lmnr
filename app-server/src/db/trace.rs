@@ -43,6 +43,7 @@ pub struct Trace {
     output_token_count: i64,
     total_token_count: i64,
     cache_read_input_tokens: i64,
+    cache_creation_input_tokens: i64,
     reasoning_tokens: i64,
     input_cost: f64,
     output_cost: f64,
@@ -100,6 +101,9 @@ impl Trace {
     }
     pub fn cache_read_input_tokens(&self) -> i64 {
         self.cache_read_input_tokens
+    }
+    pub fn cache_creation_input_tokens(&self) -> i64 {
+        self.cache_creation_input_tokens
     }
     pub fn reasoning_tokens(&self) -> i64 {
         self.reasoning_tokens
@@ -285,9 +289,10 @@ pub async fn upsert_trace_statistics_batch(
                 root_span_input,
                 root_span_output,
                 cache_read_input_tokens,
-                reasoning_tokens
+                reasoning_tokens,
+                cache_creation_input_tokens
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -303,6 +308,7 @@ pub async fn upsert_trace_statistics_batch(
                 output_token_count = traces.output_token_count + EXCLUDED.output_token_count,
                 total_token_count = traces.total_token_count + EXCLUDED.total_token_count,
                 cache_read_input_tokens = traces.cache_read_input_tokens + EXCLUDED.cache_read_input_tokens,
+                cache_creation_input_tokens = traces.cache_creation_input_tokens + EXCLUDED.cache_creation_input_tokens,
                 reasoning_tokens = traces.reasoning_tokens + EXCLUDED.reasoning_tokens,
                 input_cost = traces.input_cost + EXCLUDED.input_cost,
                 output_cost = traces.output_cost + EXCLUDED.output_cost,
@@ -344,7 +350,8 @@ pub async fn upsert_trace_statistics_batch(
                 root_span_input,
                 root_span_output,
                 cache_read_input_tokens,
-                reasoning_tokens
+                reasoning_tokens,
+                cache_creation_input_tokens
             "#,
         )
         .bind(agg.trace_id)
@@ -373,6 +380,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(&agg.root_span_output)
         .bind(agg.cache_read_input_tokens)
         .bind(agg.reasoning_tokens)
+        .bind(agg.cache_creation_input_tokens)
         .fetch_one(pool)
         .await?;
 
@@ -463,7 +471,8 @@ pub async fn merge_trace_metadata_batch(
                 root_span_input,
                 root_span_output,
                 cache_read_input_tokens,
-                reasoning_tokens
+                reasoning_tokens,
+                cache_creation_input_tokens
             "#,
         )
         .bind(&patch.metadata)
@@ -550,6 +559,7 @@ mod tests {
             output_token_count: 0,
             total_token_count: 0,
             cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
             reasoning_tokens: 0,
             input_cost: 0.0,
             output_cost: 0.0,

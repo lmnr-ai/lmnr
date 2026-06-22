@@ -33,6 +33,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         output_tokens as outputTokens,
         total_tokens as totalTokens,
         cache_read_input_tokens as cacheReadInputTokens,
+        cache_creation_input_tokens as cacheCreationInputTokens,
         reasoning_tokens as reasoningTokens,
         input_cost as inputCost,
         output_cost as outputCost,
