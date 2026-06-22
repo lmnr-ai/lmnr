@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use sqlx::PgPool;
 
 use crate::project_api_keys::hash_api_key;
@@ -18,15 +19,34 @@ pub async fn get_api_key_from_raw_value(
     let api_key_hash = hash_api_key(&raw_api_key);
     let cache_key = format!("{PROJECT_API_KEY_CACHE_KEY}:{api_key_hash}");
     let cache_res = cache.get::<ProjectApiKey>(&cache_key).await;
-    match cache_res {
-        Ok(Some(api_key)) => Ok(api_key),
-        Ok(None) | Err(_) => {
-            let api_key = db::project_api_keys::get_api_key(pool, &api_key_hash).await?;
-            let _ = cache
-                .insert_with_ttl::<ProjectApiKey>(&cache_key, api_key.clone(), PROJECT_API_KEY_TTL)
-                .await;
+    let (api_key, from_cache) = match cache_res {
+        Ok(Some(api_key)) => (api_key, true),
+        Ok(None) | Err(_) => (
+            db::project_api_keys::get_api_key(pool, &api_key_hash).await?,
+            false,
+        ),
+    };
 
-            Ok(api_key)
-        }
+    // Lazy expiration: reject expired keys and purge them from cache + DB so a
+    // revoked credential can't linger. Checked before caching a freshly-read key
+    // so an expired key is never written to the cache only to be removed again.
+    // The cache is purged unconditionally (no-op when absent): if the DB path was
+    // taken because of a cache read error, a stale entry may still exist, and we
+    // don't want it lingering until TTL eviction.
+    if let Some(expires_at) = api_key.expires_at
+        && Utc::now() > expires_at
+    {
+        let _ = cache.remove(&cache_key).await;
+        let _ = db::project_api_keys::delete_api_key_by_hash(pool, &api_key_hash).await;
+        return Err(anyhow::anyhow!("project API key expired"));
     }
+
+    // Cache only non-expired keys read from the DB.
+    if !from_cache {
+        let _ = cache
+            .insert_with_ttl::<ProjectApiKey>(&cache_key, api_key.clone(), PROJECT_API_KEY_TTL)
+            .await;
+    }
+
+    Ok(api_key)
 }

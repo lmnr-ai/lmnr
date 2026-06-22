@@ -23,7 +23,7 @@ export function ProviderButton({ icon, label, onClick, isLoading, isDisabled }: 
       disabled={isDisabled || isLoading}
       className="text-[16px] py-6 px-4 pr-6 w-full bg-surface-200 hover:bg-surface-400"
     >
-      <div className="h-5 w-5">{isLoading ? <IconSpinner className="animate-spin" /> : icon}</div>
+      <div className="h-5 w-5 text-foreground-100">{isLoading ? <IconSpinner className="animate-spin" /> : icon}</div>
       <div className="ml-2">{label}</div>
     </Button>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { CheckCircle2 } from "lucide-react";
 import { useFormContext } from "react-hook-form";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
@@ -18,14 +18,15 @@ interface PlanStepProps {
   stepIndex: number;
   totalSteps: number;
   onBack: () => void;
+  onAdvance: () => void;
+  paymentSuccess?: boolean;
 }
 
-export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProps) {
-  const router = useRouter();
+export default function PlanStep({ stepIndex, totalSteps, onBack, onAdvance, paymentSuccess }: PlanStepProps) {
   const { watch, setValue } = useFormContext<OnboardingFormValues>();
   const { resources } = useOnboardingContext();
   const flags = useFeatureFlags();
-  const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
+  const { isSubmitting, savePlan, beginSubmitting } = useOnboardingActions();
 
   const subscriptionEnabled = flags[Feature.SUBSCRIPTION];
   const selectedTier = watch("selectedTier");
@@ -36,10 +37,8 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
   const isUpgrade = TIER_RANK[selectedTier] > TIER_RANK[currentTier];
 
   const getNextLabel = () => {
-    if (!subscriptionEnabled) return "Finish and go to project";
-    if (isUpgrade) return "Upgrade & continue";
-    if (alreadyOnPaidTier) return "Continue to project";
-    return "Finish and go to project";
+    if (!paymentSuccess && isUpgrade) return "Upgrade & continue";
+    return "Continue";
   };
 
   const buildCheckoutUrl = () => {
@@ -56,16 +55,18 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
     return `/checkout?${sp}`;
   };
 
-  const finishAndGoToProject = async () => {
-    if (!(await finishOnboarding())) return;
-    beginSubmitting();
-    router.push(resources.projectId ? `/project/${resources.projectId}/traces?onboarding=true` : "/projects");
+  const advanceToConnect = async () => {
+    if (await savePlan()) onAdvance();
   };
 
   const handleNext = async () => {
+    if (paymentSuccess) {
+      await advanceToConnect();
+      return;
+    }
     const checkoutUrl = buildCheckoutUrl();
     if (!checkoutUrl) {
-      await finishAndGoToProject();
+      await advanceToConnect();
       return;
     }
     track("onboarding", "checkout_started", { tier: selectedTier, from_tier: currentTier });
@@ -80,18 +81,20 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
         totalSteps={totalSteps}
         title="Almost there"
         description="Subscription management isn't configured in this environment, so you're all set on the Free tier."
-        onNext={finishAndGoToProject}
+        onNext={advanceToConnect}
         onBack={onBack}
-        nextLabel="Finish and go to project"
+        nextLabel="Continue"
         isSubmitting={isSubmitting}
       />
     );
   }
 
-  const title = alreadyOnPaidTier ? "Your plan" : "Pick a plan";
-  const description = alreadyOnPaidTier
-    ? "You're already on a paid plan. Continue to your project."
-    : "Match the plan to your expected usage.";
+  const title = paymentSuccess ? "You're all set" : alreadyOnPaidTier ? "Your plan" : "Pick a plan";
+  const description = paymentSuccess
+    ? "Your subscription is active."
+    : alreadyOnPaidTier
+      ? "You're already on a paid plan. Continue to your project."
+      : "Match the plan to your expected usage.";
 
   return (
     <StepShell
@@ -100,14 +103,22 @@ export default function PlanStep({ stepIndex, totalSteps, onBack }: PlanStepProp
       title={title}
       description={description}
       onNext={handleNext}
-      onBack={onBack}
+      onBack={paymentSuccess ? undefined : onBack}
       nextLabel={getNextLabel()}
       isSubmitting={isSubmitting}
     >
+      {paymentSuccess && (
+        <div className="flex items-center gap-3 rounded-md border border-success/40 bg-success/5 px-4 py-3">
+          <CheckCircle2 className="size-5 shrink-0 text-success" />
+          <span className="text-sm text-secondary-foreground">
+            Payment received — manage billing anytime from workspace settings.
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 xl:gap-4 2xl:gap-5">
         {PLANS.map((plan) => {
           const isCurrent = plan.id === currentTier;
-          const isLocked = alreadyOnPaidTier && !isCurrent;
+          const isLocked = paymentSuccess || (alreadyOnPaidTier && !isCurrent);
           return (
             <PlanCard
               key={plan.id}

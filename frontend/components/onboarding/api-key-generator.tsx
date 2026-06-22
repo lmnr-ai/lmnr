@@ -15,6 +15,7 @@ interface ApiKeyGeneratorProps {
   title?: string;
   titleClassName?: string;
   subtitle?: string;
+  projectId?: string;
 }
 
 export default function ApiKeyGenerator({
@@ -22,8 +23,10 @@ export default function ApiKeyGenerator({
   title = "Get your API Key",
   titleClassName,
   subtitle,
+  projectId: projectIdProp,
 }: ApiKeyGeneratorProps) {
-  const { projectId } = useParams();
+  const params = useParams();
+  const projectId = projectIdProp ?? params.projectId;
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
