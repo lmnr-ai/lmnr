@@ -65,7 +65,7 @@ sqlparser = {version = "0.62", features = ["visitor"]}
 sqlx = {version = "0.9", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}
 thiserror = "2"
 tikv-jemallocator = "0.6.0"
-tokenizers = {version = "0.21", default-features = false, features = ["onig"], optional = true}
+tokenizers = {version = "0.23", default-features = false, features = ["onig"], optional = true}
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
 tonic = {version = "0.14", features = ["gzip"]}
