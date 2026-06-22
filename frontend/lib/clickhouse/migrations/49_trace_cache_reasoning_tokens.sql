@@ -5,13 +5,13 @@
 -- the ReplacingMergeTree upsert, same as the existing token columns.
 -- cache-creation = Anthropic prompt-caching write tokens (InputTokens.cache_write_tokens).
 ALTER TABLE default.traces_replacing
-    ADD COLUMN IF NOT EXISTS cache_read_input_tokens Int64 DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS cache_read_input_tokens Nullable(Int64);
 
 ALTER TABLE default.traces_replacing
-    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens Int64 DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens Nullable(Int64);
 
 ALTER TABLE default.traces_replacing
-    ADD COLUMN IF NOT EXISTS reasoning_tokens Int64 DEFAULT 0;
+    ADD COLUMN IF NOT EXISTS reasoning_tokens Nullable(Int64);
 
 -- Drop views in dependency order (traces_v0 depends on raw_traces_v0)
 DROP VIEW IF EXISTS default.traces_v0;
