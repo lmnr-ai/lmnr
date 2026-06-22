@@ -17,6 +17,52 @@ export const GetTraceSchema = z.object({
   projectId: z.guid(),
 });
 
+type TraceCacheReasoningTokens = Pick<
+  TraceViewTrace,
+  "cacheReadInputTokens" | "cacheCreationInputTokens" | "reasoningTokens"
+>;
+
+/**
+ * Backfills the denormalized per-trace cache/reasoning token sums for traces
+ * ingested before LAM-1807. Those rows default the trace-level columns to 0
+ * (there is no historical backfill on `traces_replacing`), so when all three
+ * are 0 we fall back to summing the per-span columns. The span columns
+ * themselves carry `DEFAULT JSONExtractInt(attributes, …)`, so old spans still
+ * resolve from `attributes` on read. New traces have non-zero denormalized
+ * values and skip this query entirely, so steady-state cost is unchanged.
+ */
+export const backfillTraceCacheReasoningTokens = async <T extends TraceCacheReasoningTokens>(
+  trace: T,
+  projectId: string,
+  traceId: string
+): Promise<T> => {
+  if (trace.cacheReadInputTokens || trace.cacheCreationInputTokens || trace.reasoningTokens) {
+    return trace;
+  }
+
+  const [extraTokens] = await executeQuery<TraceCacheReasoningTokens>({
+    query: `
+      SELECT
+        SUM(cache_read_input_tokens) as cacheReadInputTokens,
+        SUM(cache_creation_input_tokens) as cacheCreationInputTokens,
+        SUM(reasoning_tokens) as reasoningTokens
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+    `,
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
+
+  return {
+    ...trace,
+    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
+    cacheCreationInputTokens: extraTokens?.cacheCreationInputTokens ?? 0,
+    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
+  };
+};
+
 export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVisibilitySchema>) {
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
@@ -69,8 +115,10 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     return undefined;
   }
 
+  const backfilledTrace = await backfillTraceCacheReasoningTokens(trace, projectId, traceId);
+
   return {
-    ...trace,
+    ...backfilledTrace,
     visibility: sharedTrace ? "public" : "private",
   };
 }
