@@ -1,9 +1,19 @@
 import { deviceAuthorizationClient, genericOAuthClient, jwtClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
-import { withBasePath } from "@/lib/utils";
+import { BASE_PATH, withBasePath } from "@/lib/utils";
+
+// Better Auth's client resolves its API base to the root-relative `/api/auth`
+// default in the browser (basePath/env paths don't apply client-side), which
+// drops the sub-path prefix under a base-path deploy and 404s. It also captures
+// `customFetchImpl: fetch` by value at creation, so the global fetch shim can't
+// retro-prefix it if this module loaded first. Pin an absolute, prefix-correct
+// base in the browser so every auth request targets `<origin><base>/api/auth`.
+// SSR falls back to the relative default — the client is only called browser-side.
+const baseURL = typeof window !== "undefined" ? `${window.location.origin}${BASE_PATH}/api/auth` : undefined;
 
 export const authClient = createAuthClient({
+  baseURL,
   plugins: [genericOAuthClient(), jwtClient(), deviceAuthorizationClient()],
 });
 

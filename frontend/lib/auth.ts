@@ -19,6 +19,18 @@ import { Feature, isFeatureEnabled } from "./features/features";
 const AUTH_SECRET = process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
 const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 
+// Better Auth's router derives its mount/strip path from `new URL(baseURL).pathname`
+// (better-auth/dist/api/index.mjs), and Next.js already strips NEXT_PUBLIC_BASE_PATH
+// before the route handler runs. So if a self-hoster sets BETTER_AUTH_URL to their
+// full external URL including the sub-path (e.g. https://host/lmnr) — the natural
+// thing to do — the router would try to strip `/lmnr` off an already-stripped
+// `/api/auth/...` request and 404 EVERY auth route. Pin the server baseURL to the
+// ORIGIN so the router always mounts at the default `/api/auth`. The sub-path is
+// reintroduced where it's genuinely needed: in-browser client requests (see
+// auth-client.ts `baseURL`) and OAuth callback URIs (legacyCallbackUri below, which
+// keeps using the prefixed AUTH_URL so the IdP redirect_uri stays correct).
+const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
+
 /**
  * Process any pending workspace invitations for the given user.
  * Adds the user to all workspaces they've been invited to, then deletes the invitations.
@@ -152,7 +164,7 @@ const getGenericOAuthConfig = () => {
 
 export const auth = betterAuth({
   secret: AUTH_SECRET,
-  baseURL: AUTH_URL,
+  baseURL: AUTH_ORIGIN,
   session: {
     // Verify session from a signed cookie instead of the DB; revocation lags up to maxAge.
     cookieCache: {
