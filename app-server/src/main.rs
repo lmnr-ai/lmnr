@@ -1825,6 +1825,7 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/cli")
                                     .wrap(cli_auth.clone())
                                     .service(api::v1::cli::list_projects)
+                                    .service(api::v1::cli::resolve_project)
                                     .service(
                                         web::scope("/sql")
                                             .service(api::v1::cli::sql::execute_sql_query),
@@ -1839,25 +1840,10 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::cli::rollouts::update_name)
                                     .service(api::v1::cli::rollouts::register_session),
                             )
-                            // `GET /v1/project` is ingest-only authed: `lmnr-cli
-                            // setup` mints an ingest-only key and probes this
-                            // endpoint to resolve its project, so it must accept
-                            // ingest-only keys (project_auth blocks them). Mounted
-                            // under its own /v1/project scope registered BEFORE the
-                            // broad /v1 project_auth scope — actix resolves sibling
-                            // scopes in registration order and returns the first
-                            // match, so /v1/project is claimed here and the rest of
-                            // /v1 still requires a default (non-ingest-only) key.
-                            // (Scope prefixes match on segment boundaries, so this
-                            // can't swallow a future /v1/projects route.)
-                            .service(
-                                web::scope("/v1/project")
-                                    .wrap(project_ingestion_auth.clone())
-                                    .service(api::v1::projects::get_current_project),
-                            )
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
+                                    .service(api::v1::projects::get_current_project)
                                     .service(api::v1::datasets::get_datasets)
                                     .service(api::v1::datasets::get_datapoints)
                                     .service(api::v1::datasets::create_datapoints)
