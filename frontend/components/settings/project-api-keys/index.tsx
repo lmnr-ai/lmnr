@@ -23,7 +23,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const [projectApiKeys, setProjectApiKeys] = useState<ProjectApiKey[]>(apiKeys);
   const [newApiKeyName, setNewApiKeyName] = useState<string>("");
   const [keyType, setKeyType] = useState<"default" | "ingest_only">("default");
-  const [expiration, setExpiration] = useState<KeyExpiration>("never");
+  const [expiration, setExpiration] = useState<KeyExpiration>("30");
   const [newApiKey, setNewApiKey] = useState<GenerateProjectApiKeyResponse | null>(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,8 +70,9 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
   const handleKeyTypeChange = useCallback((type: "default" | "ingest_only") => {
     setKeyType(type);
     // Ingest-only keys are long-lived trace senders, but default to a 1-day expiry
-    // to nudge toward short-lived credentials; the user can still pick "Never".
-    setExpiration(type === "ingest_only" ? "1" : "never");
+    // to nudge toward short-lived credentials; default keys default to 30 days. The
+    // user can still pick "Never".
+    setExpiration(type === "ingest_only" ? "1" : "30");
   }, []);
 
   const handleGenerateKey = useCallback(async () => {
@@ -100,7 +101,7 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
           setIsGenerateKeyDialogOpen(!isGenerateKeyDialogOpen);
           setNewApiKeyName("");
           setKeyType("default");
-          setExpiration("never");
+          setExpiration("30");
           setNewApiKey(null);
           setIsGenerated(false);
         }}
