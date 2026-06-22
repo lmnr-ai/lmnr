@@ -28,7 +28,7 @@ const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 // `/api/auth/...` request and 404 EVERY auth route. Pin the server baseURL to the
 // ORIGIN so the router always mounts at the default `/api/auth`. The sub-path is
 // reintroduced where it's genuinely needed: in-browser client requests (see
-// auth-client.ts `baseURL`) and OAuth callback URIs (legacyCallbackUri below, which
+// auth-client.ts `baseURL`) and OAuth callback URIs (prefixedCallbackUri below, which
 // rebuilds the prefixed `/api/auth/callback/<id>` from AUTH_ORIGIN + BASE_PATH).
 const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
 
@@ -94,8 +94,8 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
       // Social providers derive redirect_uri from `${context.baseURL}/callback/<id>`,
       // and baseURL is pinned to the origin (AUTH_ORIGIN), so under a sub-path deploy
       // the callback would drop the prefix and the IdP redirect_uri match fails. Pin
-      // it explicitly to the prefixed legacy path, same as the generic-OAuth providers.
-      redirectURI: legacyCallbackUri("github"),
+      // it explicitly to the prefixed callback path, same as the generic-OAuth providers.
+      redirectURI: prefixedCallbackUri("github"),
       // Re-sync name/avatar from the IdP on every sign-in. The IdP is the sole
       // source of truth (no in-app profile editing), so this is safe and also
       // backfills avatars for users created before they had a picture (parity
@@ -109,27 +109,29 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
     providers.google = {
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-      redirectURI: legacyCallbackUri("google"),
+      redirectURI: prefixedCallbackUri("google"),
       overrideUserInfoOnSignIn: true,
     };
   }
   return providers;
 };
 
-// Pin redirect_uri to the LEGACY NextAuth path (`/api/auth/callback/<id>`), not
-// Better Auth's default (`/oauth2/callback/<id>`): self-hosters already registered
-// the legacy path with their IdP, and sending the new one fails the IdP's
-// redirect_uri match. The next.config.ts rewrite forwards the inbound hit to
-// Better Auth's handler. Azure's legacy id was `azure-ad`.
+// Build the OAuth redirect_uri as `<origin><base-path>/api/auth/callback/<id>`.
 //
-// Build from ORIGIN + the build-time-baked BASE_PATH, NOT from the raw AUTH_URL:
-// the sub-path prefix is the source of truth baked into the image via
-// NEXT_PUBLIC_BASE_PATH, and an operator naturally sets BETTER_AUTH_URL to their
-// bare origin (`https://app.company.com`) without the `/lmnr` suffix. Deriving the
-// callback from AUTH_URL would then drop the prefix → the IdP redirects to the
-// unprefixed `/api/auth/callback/<id>`, which the reverse proxy doesn't forward → 404.
-const legacyCallbackUri = (legacyProviderId: string) =>
-  `${AUTH_ORIGIN}${BASE_PATH}/api/auth/callback/${legacyProviderId}`;
+// Path: pin to the NextAuth-style path (`/api/auth/callback/<id>`), NOT Better Auth's
+// default (`/oauth2/callback/<id>`): self-hosters already registered this path with
+// their IdP, and sending the new one fails the IdP's redirect_uri match. The
+// next.config.ts rewrite forwards the inbound hit to Better Auth's handler. (Azure's
+// id here is `azure-ad`, matching what was registered.)
+//
+// Prefix: derive the sub-path from the build-time-baked BASE_PATH (NEXT_PUBLIC_BASE_PATH),
+// NOT from AUTH_URL. The whole point of this dynamic resolution is that an operator
+// running under a sub-path does NOT have to put it in BETTER_AUTH_URL — they keep
+// BETTER_AUTH_URL as their bare origin (`https://app.company.com`) and the prefix is
+// recovered from BASE_PATH. Deriving the callback from AUTH_URL would drop the prefix →
+// the IdP redirects to the unprefixed `/api/auth/callback/<id>`, which the reverse proxy
+// doesn't forward → 404. No-op (empty BASE_PATH) when root-served.
+const prefixedCallbackUri = (providerId: string) => `${AUTH_ORIGIN}${BASE_PATH}/api/auth/callback/${providerId}`;
 
 const getGenericOAuthConfig = () => {
   const config = [];
@@ -139,7 +141,7 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
         clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
         tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
-        redirectURI: legacyCallbackUri("azure-ad"),
+        redirectURI: prefixedCallbackUri("azure-ad"),
         // PKCE on (NextAuth parity + OAuth 2.1): genericOAuth always sends a
         // code_verifier at token exchange, so without a code_challenge at
         // authorize the IdP rejects with invalid_grant. Required for OIDC here.
@@ -156,7 +158,7 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_OKTA_CLIENT_ID!,
         clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
         issuer: process.env.AUTH_OKTA_ISSUER!,
-        redirectURI: legacyCallbackUri("okta"),
+        redirectURI: prefixedCallbackUri("okta"),
         pkce: true,
         overrideUserInfo: true,
       })
@@ -168,7 +170,7 @@ const getGenericOAuthConfig = () => {
         clientId: process.env.AUTH_KEYCLOAK_ID!,
         clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
         issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
-        redirectURI: legacyCallbackUri("keycloak"),
+        redirectURI: prefixedCallbackUri("keycloak"),
         pkce: true,
         overrideUserInfo: true,
       })

@@ -128,7 +128,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
   // sub-path is owned by NEXT_PUBLIC_BASE_PATH, and an operator naturally sets
   // BETTER_AUTH_URL to their bare origin. Appending BASE_PATH to a URL that already
   // carries the prefix would double it (`/lmnr/lmnr/invitations`). Same pattern as
-  // legacyCallbackUri in lib/auth.ts.
+  // prefixedCallbackUri in lib/auth.ts.
   const authOrigin = new URL((process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL)!).origin;
   const link = `${authOrigin}${BASE_PATH}/invitations?token=${token}`;
 
