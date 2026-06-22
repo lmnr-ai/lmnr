@@ -3254,6 +3254,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
+        },
+        "cache_creation_input_tokens": {
+          "name": "cache_creation_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
         }
       },
       "indexes": {
