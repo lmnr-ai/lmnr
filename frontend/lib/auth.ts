@@ -241,7 +241,12 @@ export const auth = betterAuth({
     // run the protocol; /api/auth/device + /api/auth/device/{approve,deny} drive
     // the browser approval page at /device.
     deviceAuthorization({
-      verificationUri: "/device",
+      // Better Auth resolves this via `new URL(verificationUri, baseURL)`, and
+      // baseURL is origin-only (AUTH_ORIGIN) — a bare `/device` would replace the
+      // whole path and drop the baked sub-path, pointing the CLI at the unprefixed
+      // (404ing) `/device`. Prefix with BASE_PATH so the RFC 8628 verification_uri
+      // is `<origin><base>/device`; no-op (`/device`) when root-served.
+      verificationUri: `${BASE_PATH}/device`,
       expiresIn: "15m",
       interval: "5s",
       userCodeLength: 8,
