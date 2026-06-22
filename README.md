@@ -14,10 +14,9 @@
 - [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] Agent monitoring at scale. [Docs](https://laminar.sh/docs/signals)
-    - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] Slack and Email alerts [Docs](https://laminar.sh/docs/signals/alerts)
-    - [x] Get notified when your agents hit errors or any condition you define
+- [x] Get alerts when your agent breaks [Docs](https://laminar.sh/docs/signals/alerts#alerts)
+    - [x] Describe any event you want to track in plain English
+    - [x] Laminar reads every agent run and pings you in Slack when they happen
 - [x] [MCP](https://laminar.sh/docs/platform/mcp) / [CLI](https://laminar.sh/docs/platform/cli) access for your coding agent 
     - [x] Query traces, spans, metrics, and events with SQL
     - [x] Let your coding agent investigate and debug issues based on your traces
