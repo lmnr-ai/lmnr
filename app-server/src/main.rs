@@ -1825,6 +1825,7 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/cli")
                                     .wrap(cli_auth.clone())
                                     .service(api::v1::cli::list_projects)
+                                    .service(api::v1::cli::resolve_project)
                                     .service(
                                         web::scope("/sql")
                                             .service(api::v1::cli::sql::execute_sql_query),
