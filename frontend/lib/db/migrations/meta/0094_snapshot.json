@@ -3245,22 +3245,19 @@
           "name": "cache_read_input_tokens",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
+          "notNull": false
         },
         "reasoning_tokens": {
           "name": "reasoning_tokens",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
+          "notNull": false
         },
         "cache_creation_input_tokens": {
           "name": "cache_creation_input_tokens",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": false,
-          "default": "'0'"
+          "notNull": false
         }
       },
       "indexes": {
