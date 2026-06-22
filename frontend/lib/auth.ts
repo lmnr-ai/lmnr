@@ -13,6 +13,7 @@ import { db } from "@/lib/db/drizzle";
 import * as schema from "@/lib/db/migrations/schema";
 import { membersOfWorkspaces, users, workspaceInvitations } from "@/lib/db/migrations/schema";
 import PostHogClient from "@/lib/posthog/server";
+import { BASE_PATH } from "@/lib/utils";
 
 import { Feature, isFeatureEnabled } from "./features/features";
 
@@ -28,7 +29,7 @@ const AUTH_URL = process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL;
 // ORIGIN so the router always mounts at the default `/api/auth`. The sub-path is
 // reintroduced where it's genuinely needed: in-browser client requests (see
 // auth-client.ts `baseURL`) and OAuth callback URIs (legacyCallbackUri below, which
-// keeps using the prefixed AUTH_URL so the IdP redirect_uri stays correct).
+// rebuilds the prefixed `/api/auth/callback/<id>` from AUTH_ORIGIN + BASE_PATH).
 const AUTH_ORIGIN = AUTH_URL ? new URL(AUTH_URL).origin : undefined;
 
 /**
@@ -120,7 +121,15 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
 // the legacy path with their IdP, and sending the new one fails the IdP's
 // redirect_uri match. The next.config.ts rewrite forwards the inbound hit to
 // Better Auth's handler. Azure's legacy id was `azure-ad`.
-const legacyCallbackUri = (legacyProviderId: string) => `${AUTH_URL}/api/auth/callback/${legacyProviderId}`;
+//
+// Build from ORIGIN + the build-time-baked BASE_PATH, NOT from the raw AUTH_URL:
+// the sub-path prefix is the source of truth baked into the image via
+// NEXT_PUBLIC_BASE_PATH, and an operator naturally sets BETTER_AUTH_URL to their
+// bare origin (`https://app.company.com`) without the `/lmnr` suffix. Deriving the
+// callback from AUTH_URL would then drop the prefix → the IdP redirects to the
+// unprefixed `/api/auth/callback/<id>`, which the reverse proxy doesn't forward → 404.
+const legacyCallbackUri = (legacyProviderId: string) =>
+  `${AUTH_ORIGIN}${BASE_PATH}/api/auth/callback/${legacyProviderId}`;
 
 const getGenericOAuthConfig = () => {
   const config = [];
