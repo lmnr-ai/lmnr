@@ -1161,6 +1161,10 @@ export const traces = pgTable(
     reasoningTokens: bigint("reasoning_tokens", { mode: "number" })
       .default(sql`'0'`)
       .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheCreationInputTokens: bigint("cache_creation_input_tokens", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
     hasBrowserSession: boolean("has_browser_session"),
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),

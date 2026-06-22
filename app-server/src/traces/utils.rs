@@ -43,6 +43,7 @@ pub async fn get_llm_usage_for_span(
     let output_tokens = attributes.output_tokens();
     let total_tokens = input_tokens.total() + output_tokens;
     let cache_read_input_tokens = input_tokens.cache_read_tokens;
+    let cache_creation_input_tokens = input_tokens.cache_write_tokens;
     let reasoning_tokens = attributes
         .int_attr(GEN_AI_USAGE_REASONING_TOKENS)
         .unwrap_or(0);
@@ -70,6 +71,7 @@ pub async fn get_llm_usage_for_span(
             output_tokens,
             total_tokens,
             cache_read_input_tokens,
+            cache_creation_input_tokens,
             reasoning_tokens,
             input_cost: input_cost.unwrap_or(0.0),
             output_cost: output_cost.unwrap_or(0.0),
@@ -124,6 +126,7 @@ pub async fn get_llm_usage_for_span(
         output_tokens,
         total_tokens,
         cache_read_input_tokens,
+        cache_creation_input_tokens,
         reasoning_tokens,
         input_cost,
         output_cost,

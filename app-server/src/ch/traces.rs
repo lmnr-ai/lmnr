@@ -41,6 +41,7 @@ pub struct CHTrace {
     pub output_tokens: i64,
     pub total_tokens: i64,
     pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
     pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
@@ -84,6 +85,7 @@ impl CHTrace {
             output_tokens: trace.output_token_count(),
             total_tokens: trace.total_token_count(),
             cache_read_input_tokens: trace.cache_read_input_tokens(),
+            cache_creation_input_tokens: trace.cache_creation_input_tokens(),
             reasoning_tokens: trace.reasoning_tokens(),
             input_cost: trace.input_cost(),
             output_cost: trace.output_cost(),
@@ -131,6 +133,7 @@ pub struct TraceAggregation {
     pub output_tokens: i64,
     pub total_tokens: i64,
     pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
     pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
@@ -171,6 +174,7 @@ impl TraceAggregation {
                         output_tokens: 0,
                         total_tokens: 0,
                         cache_read_input_tokens: 0,
+                        cache_creation_input_tokens: 0,
                         reasoning_tokens: 0,
                         input_cost: 0.0,
                         output_cost: 0.0,
@@ -208,6 +212,7 @@ impl TraceAggregation {
             entry.output_tokens += span_usage.output_tokens;
             entry.total_tokens += span_usage.total_tokens;
             entry.cache_read_input_tokens += span_usage.cache_read_input_tokens;
+            entry.cache_creation_input_tokens += span_usage.cache_creation_input_tokens;
             entry.reasoning_tokens += span_usage.reasoning_tokens;
             entry.input_cost += span_usage.input_cost;
             entry.output_cost += span_usage.output_cost;

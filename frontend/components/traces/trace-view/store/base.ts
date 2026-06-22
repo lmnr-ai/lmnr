@@ -122,6 +122,7 @@ export type TraceViewTrace = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
   reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
