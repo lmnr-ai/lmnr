@@ -97,10 +97,10 @@ function WizardSteps({ initialStep }: { initialStep: number }) {
   if (!flags[Feature.LAMINAR_CLOUD]) {
     return <OssWorkspaceOnly />;
   }
-  // Stripe lands back here with ?upgraded=true — jump straight to the final
-  // connect step (the cookie kept the user pinned to /onboarding across checkout).
+  // Stripe lands back here with ?upgraded=true — return to the plan step to
+  // confirm payment, then the user continues to the connect step.
   if (searchParams.get("upgraded") === "true") {
-    return <ConnectStep upgraded />;
+    return <WizardStepsInner initialStep={3} paymentSuccess />;
   }
   return <WizardStepsInner initialStep={initialStep} />;
 }
@@ -124,7 +124,7 @@ function OssWorkspaceOnly() {
 const STEP_MOTION_STYLE = { willChange: "opacity" } as const;
 const STEP_TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
-function WizardStepsInner({ initialStep }: { initialStep: number }) {
+function WizardStepsInner({ initialStep, paymentSuccess }: { initialStep: number; paymentSuccess?: boolean }) {
   const [stepIndex, setStepIndex] = useState(initialStep);
   const advance = useCallback(() => setStepIndex((i) => Math.min(TOTAL_STEPS - 1, i + 1)), []);
   const back = useCallback(() => setStepIndex((i) => Math.max(0, i - 1)), []);
@@ -139,7 +139,15 @@ function WizardStepsInner({ initialStep }: { initialStep: number }) {
       case 2:
         return <SlackStep stepIndex={2} totalSteps={TOTAL_STEPS} onAdvance={advance} onBack={back} />;
       case 3:
-        return <PlanStep stepIndex={3} totalSteps={TOTAL_STEPS} onBack={back} onAdvance={advance} />;
+        return (
+          <PlanStep
+            stepIndex={3}
+            totalSteps={TOTAL_STEPS}
+            onBack={back}
+            onAdvance={advance}
+            paymentSuccess={paymentSuccess}
+          />
+        );
       case 4:
         return <ConnectStep onBack={back} />;
       default:

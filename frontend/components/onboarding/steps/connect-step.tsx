@@ -1,28 +1,23 @@
 "use client";
 
-import { CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useOnboardingContext } from "@/components/onboarding/context";
-import { PlatformHighlights } from "@/components/onboarding/platform-highlights";
 import StepShell from "@/components/onboarding/step-shell";
 import { ONBOARDING_STEPS } from "@/components/onboarding/types";
 import { useOnboardingActions } from "@/components/onboarding/use-onboarding-actions";
 import { AgentTab } from "@/components/traces/placeholder/agent-tab";
-import { Button } from "@/components/ui/button";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { track } from "@/lib/posthog";
 
 const STEP_INDEX = ONBOARDING_STEPS.length - 1;
 
 interface ConnectStepProps {
-  // Stripe-paid users land here with ?upgraded=true; show a payment confirmation.
-  upgraded?: boolean;
   onBack?: () => void;
 }
 
-export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
+export default function ConnectStep({ onBack }: ConnectStepProps) {
   const router = useRouter();
   const { resources } = useOnboardingContext();
   const { isSubmitting, finishOnboarding, beginSubmitting } = useOnboardingActions();
@@ -66,39 +61,17 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
     eventHandlers,
   });
 
-  const description = upgraded
-    ? "Your subscription is active. Run the setup below to start sending traces."
-    : "Run one command in your project, or wire up the SDK manually. Your first traces will show up automatically.";
-
   return (
     <StepShell
       stepIndex={STEP_INDEX}
       totalSteps={ONBOARDING_STEPS.length}
       title="Send your first trace"
-      description={description}
+      description="Copy and paste this prompt to instrument your agent with Laminar."
       onBack={onBack}
+      onNext={() => goToProject({ skipped: true })}
+      nextLabel="Skip for now"
       isSubmitting={isSubmitting}
-      secondaryAction={
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-8 text-muted-foreground hover:text-foreground 2xl:h-9 2xl:text-sm"
-          onClick={() => goToProject({ skipped: true })}
-          disabled={isSubmitting}
-        >
-          Skip for now
-        </Button>
-      }
     >
-      {upgraded && (
-        <div className="flex items-center gap-3 rounded-md border border-success/40 bg-success/5 px-4 py-3">
-          <CheckCircle2 className="size-5 shrink-0 text-success" />
-          <span className="text-sm text-secondary-foreground">
-            Payment received — you can manage billing anytime from workspace settings.
-          </span>
-        </div>
-      )}
-
       {isConnected && (
         <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-4 py-2">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -108,7 +81,6 @@ export default function ConnectStep({ upgraded, onBack }: ConnectStepProps) {
           <span className="text-sm text-secondary-foreground">Listening for incoming traces</span>
         </div>
       )}
-      <PlatformHighlights />
       <AgentTab fromOnboarding />
     </StepShell>
   );
