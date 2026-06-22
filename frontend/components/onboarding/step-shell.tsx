@@ -2,7 +2,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import Image from "next/image";
-import { type PropsWithChildren, type ReactNode } from "react";
+import { type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 
 import logo from "@/assets/logo/laminar-wordmark.svg";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ interface StepShellProps {
   onBack?: () => void;
   onNext?: () => void;
   nextLabel?: string;
+  nextVariant?: ComponentProps<typeof Button>["variant"];
+  nextClassName?: string;
   backLabel?: string;
   nextDisabled?: boolean;
   isSubmitting?: boolean;
@@ -40,6 +42,8 @@ export default function StepShell({
   onBack,
   onNext,
   nextLabel = "Continue",
+  nextVariant,
+  nextClassName,
   backLabel = "Back",
   nextDisabled,
   isSubmitting,
@@ -126,7 +130,8 @@ export default function StepShell({
               {secondaryAction}
               {onNext && (
                 <Button
-                  className="h-8 2xl:h-9 2xl:text-sm 2xl:px-5"
+                  variant={nextVariant}
+                  className={cn("h-8 2xl:h-9 2xl:text-sm 2xl:px-5", nextClassName)}
                   type="button"
                   onClick={onNext}
                   disabled={nextDisabled || isSubmitting}

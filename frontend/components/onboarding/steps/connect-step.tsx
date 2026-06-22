@@ -66,10 +66,12 @@ export default function ConnectStep({ onBack }: ConnectStepProps) {
       stepIndex={STEP_INDEX}
       totalSteps={ONBOARDING_STEPS.length}
       title="Send your first trace"
-      description="Copy and paste this prompt to instrument your agent with Laminar."
+      description="Copy and paste this prompt to your coding agent to integrate with Laminar."
       onBack={onBack}
       onNext={() => goToProject({ skipped: true })}
       nextLabel="Skip for now"
+      nextVariant="ghost"
+      nextClassName="text-muted-foreground hover:text-foreground"
       isSubmitting={isSubmitting}
     >
       {isConnected && (
