@@ -9,7 +9,6 @@ import { FiltersSchema, PaginationFiltersSchema, TimeRangeSchema } from "@/lib/a
 import {
   aggregateSpanMetrics,
   buildSpansQueryWithParams,
-  buildTraceViewAttributesExpression,
   createParentRewiring,
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
@@ -201,10 +200,11 @@ const fetchTraceSpans = async ({
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
-      // Only extract the attribute keys actually used by the transcript/tree,
-      // not the full `attributes` JSON blob. The per-span view fetches the
+      // Materialized subset of attribute keys used by the transcript/tree
+      // (see CH migration 50). Reading this avoids pulling the full
+      // `attributes` blob off disk. The per-span view still fetches the
       // complete attributes via the `getSpan` endpoint.
-      buildTraceViewAttributesExpression(),
+      "trace_view_attributes as attributes",
       "model",
       "status",
       "path",

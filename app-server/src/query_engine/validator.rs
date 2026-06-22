@@ -251,6 +251,7 @@ impl TableRegistry {
             "output_cost",
             "total_cost",
             "attributes",
+            "trace_view_attributes",
             "trace_id",
             "tags",
             "tool_definitions",
