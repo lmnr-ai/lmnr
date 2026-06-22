@@ -90,6 +90,11 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
     providers.github = {
       clientId: process.env.AUTH_GITHUB_ID!,
       clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      // Social providers derive redirect_uri from `${context.baseURL}/callback/<id>`,
+      // and baseURL is pinned to the origin (AUTH_ORIGIN), so under a sub-path deploy
+      // the callback would drop the prefix and the IdP redirect_uri match fails. Pin
+      // it explicitly to the prefixed legacy path, same as the generic-OAuth providers.
+      redirectURI: legacyCallbackUri("github"),
       // Re-sync name/avatar from the IdP on every sign-in. The IdP is the sole
       // source of truth (no in-app profile editing), so this is safe and also
       // backfills avatars for users created before they had a picture (parity
@@ -103,6 +108,7 @@ const getSocialProviders = (): NonNullable<BetterAuthOptions["socialProviders"]>
     providers.google = {
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      redirectURI: legacyCallbackUri("google"),
       overrideUserInfoOnSignIn: true,
     };
   }
