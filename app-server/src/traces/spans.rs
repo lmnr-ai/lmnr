@@ -1276,6 +1276,8 @@ pub struct SpanUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub reasoning_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,

@@ -1153,6 +1153,14 @@ export const traces = pgTable(
     outputCost: doublePrecision("output_cost")
       .default(sql`'0'`)
       .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheReadInputTokens: bigint("cache_read_input_tokens", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    reasoningTokens: bigint("reasoning_tokens", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
     hasBrowserSession: boolean("has_browser_session"),
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),

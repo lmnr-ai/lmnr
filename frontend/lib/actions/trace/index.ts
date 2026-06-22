@@ -34,9 +34,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
   });
 
-  const [[trace], [extraTokens]] = await Promise.all([
-    executeQuery<Omit<TraceViewTrace, "visibility">>({
-      query: `
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+    query: `
       SELECT
         id,
         formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -44,6 +43,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,
+        cache_read_input_tokens as cacheReadInputTokens,
+        reasoning_tokens as reasoningTokens,
         input_cost as inputCost,
         output_cost as outputCost,
         total_cost as totalCost,
@@ -57,26 +58,11 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
       WHERE id = {traceId: UUID}
       LIMIT 1
     `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-    executeQuery<{ cacheReadInputTokens: number; reasoningTokens: number }>({
-      query: `
-      SELECT
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
-      FROM spans
-      WHERE trace_id = {traceId: UUID}
-        AND span_type = 'LLM'
-      `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-  ]);
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
 
   if (!trace) {
     return undefined;
@@ -84,8 +70,6 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
 
   return {
     ...trace,
-    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
-    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
     visibility: sharedTrace ? "public" : "private",
   };
 }

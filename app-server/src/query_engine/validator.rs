@@ -266,6 +266,8 @@ impl TableRegistry {
             "input_tokens",
             "output_tokens",
             "total_tokens",
+            "cache_read_input_tokens",
+            "reasoning_tokens",
             "input_cost",
             "output_cost",
             "total_cost",
