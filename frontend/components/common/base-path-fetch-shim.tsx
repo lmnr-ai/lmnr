@@ -19,17 +19,30 @@ if (typeof window !== "undefined" && BASE_PATH) {
     const needsPrefix = (path: string) =>
       path.startsWith("/") && !path.startsWith("//") && path !== BASE_PATH && !path.startsWith(`${BASE_PATH}/`);
 
+    const prefixString = (path: string) => (needsPrefix(path) ? `${BASE_PATH}${path}` : path);
+
+    // A URL built from a root-relative path (`new URL("/api/foo", origin)`) has
+    // already resolved against the origin and dropped the sub-path. Re-prefix the
+    // pathname for same-origin URLs only — cross-origin URLs (PostHog, GitHub, …)
+    // pass through untouched.
+    const prefixUrl = (url: URL): URL => {
+      if (url.origin === window.location.origin && needsPrefix(url.pathname)) {
+        const next = new URL(url);
+        next.pathname = `${BASE_PATH}${url.pathname}`;
+        return next;
+      }
+      return url;
+    };
+
     const originalFetch = window.fetch.bind(window);
     window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
-      if (typeof input === "string" && needsPrefix(input)) {
-        return originalFetch(`${BASE_PATH}${input}`, init);
+      if (typeof input === "string") {
+        return originalFetch(prefixString(input), init);
       }
-      // Request objects and absolute string URLs are already origin-qualified, so
-      // they pass through. URL-object inputs are NOT prefixed either: a URL built
-      // from a root-relative path (`new URL("/api/foo", origin)`) resolves WITHOUT
-      // the base-path and would 404 under a sub-path deploy — so don't add
-      // `fetch(new URL("/api/..."))` call sites; use a plain string path, which the
-      // branch above prefixes.
+      if (input instanceof URL) {
+        return originalFetch(prefixUrl(input), init);
+      }
+      // Request objects carry an already-resolved absolute URL, so they pass through.
       return originalFetch(input, init);
     };
 
@@ -37,8 +50,11 @@ if (typeof window !== "undefined" && BASE_PATH) {
     const OriginalEventSource = window.EventSource;
     if (OriginalEventSource) {
       const PatchedEventSource = function (url: string | URL, init?: EventSourceInit) {
-        if (typeof url === "string" && needsPrefix(url)) {
-          return new OriginalEventSource(`${BASE_PATH}${url}`, init);
+        if (typeof url === "string") {
+          return new OriginalEventSource(prefixString(url), init);
+        }
+        if (url instanceof URL) {
+          return new OriginalEventSource(prefixUrl(url), init);
         }
         return new OriginalEventSource(url, init);
       } as unknown as typeof EventSource;
