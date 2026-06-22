@@ -314,6 +314,34 @@ export const alertTargets = pgTable(
   ]
 );
 
+export const alertFilters = pgTable(
+  "alert_filters",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    alertId: uuid("alert_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    value: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("alert_filters_alert_id_project_id_idx").using(
+      "btree",
+      table.alertId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_filters_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_filters_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const reportTargets = pgTable(
   "report_targets",
   {
@@ -489,34 +517,6 @@ export const workspaceUsageWarnings = pgTable(
       table.usageItem,
       table.limitValue
     ),
-  ]
-);
-
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-    idempotencyKey: text("idempotency_key"),
-  },
-  (table) => [
-    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
-      .using(
-        "btree",
-        table.queueId.asc().nullsLast().op("text_ops"),
-        table.idempotencyKey.asc().nullsLast().op("text_ops")
-      )
-      .where(sql`(idempotency_key IS NOT NULL)`),
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
   ]
 );
 

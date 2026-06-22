@@ -24,7 +24,6 @@ export type SignalState = {
   spanId: string | null;
   selectedEvent: EventRow | null;
   runsFilters: Filter[];
-  jobsFilters: Filter[];
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -58,7 +57,6 @@ export type SignalActions = {
   fetchEvents: (params: URLSearchParams) => Promise<void>;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
-  setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
   fetchClusters: (params: FetchClustersParams) => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
@@ -194,7 +192,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     spanId: initProps.spanId || null,
     selectedEvent: null,
     runsFilters: [],
-    jobsFilters: [],
     lastEvent: initProps.lastEvent,
     // Cluster state
     rawClusters: [],
@@ -218,10 +215,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
-      })),
-    setJobsFilters: (filters) =>
-      set((state) => ({
-        jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
       })),
     fetchEvents: async (params: URLSearchParams) => {
       const { signal } = get();

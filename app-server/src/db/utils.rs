@@ -70,6 +70,30 @@ pub fn evaluate_string_filter(actual: &str, operator: &FilterOperator, value: &V
 }
 
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub fn evaluate_boolean_filter(actual: bool, operator: &FilterOperator, value: &Value) -> bool {
+    let target = match value {
+        Value::Bool(b) => *b,
+        Value::String(s) => match s.parse::<bool>() {
+            Ok(b) => b,
+            Err(_) => return false,
+        },
+        _ => return false,
+    };
+
+    match operator {
+        FilterOperator::Eq => actual == target,
+        FilterOperator::Ne => actual != target,
+        _ => {
+            log::warn!(
+                "Invalid operator {:?} for boolean filter, only eq/ne supported",
+                operator
+            );
+            false
+        }
+    }
+}
+
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub fn evaluate_array_contains_filter(
     array: &[String],
     operator: &FilterOperator,

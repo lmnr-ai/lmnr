@@ -10,7 +10,7 @@ const DidMyFixWork = () => (
   <section className="flex flex-col gap-10 items-start w-full">
     <div className="flex flex-col items-start">
       <span className={cn(microLabel, "mb-2")}>05.</span>
-      <h2 className={cn(subSection, "mb-2")}>Did my fix work?</h2>
+      <h2 className={cn(subSection, "mb-2")}>Did the new release break anything?</h2>
       <p className={bodyMedium}>
         Every error cluster you fix can automatically be turned into an eval dataset. Run evals after a change to catch
         regressions and iterate with confidence.

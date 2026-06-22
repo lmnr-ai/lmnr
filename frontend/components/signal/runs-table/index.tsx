@@ -1,8 +1,7 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { isEqual } from "lodash";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
@@ -13,9 +12,9 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { InfiniteDataTableProvider } from "@/components/ui/infinite-datatable/model/table-store";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
+import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -55,13 +54,11 @@ const getEmptyRow = ({
 
 function RunsTableContent() {
   const { toast } = useToast();
-  const router = useRouter();
   const params = useParams<{ projectId: string; id: string }>();
-  const { signal, runsFilters, setRunsFilters, setJobsFilters } = useSignalStoreContext((state) => ({
+  const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,
     runsFilters: state.runsFilters,
     setRunsFilters: state.setRunsFilters,
-    setJobsFilters: state.setJobsFilters,
   }));
 
   const filter = runsFilters;
@@ -89,12 +86,7 @@ function RunsTableContent() {
     [setRunsFilters]
   );
 
-  const onJobNav = (row: Row<SignalRunRow>) => {
-    router.push(`/project/${params.projectId}/signals/${params.id}?tab=jobs`);
-    setJobsFilters([{ column: "job_id", operator: Operator.Eq, value: row.original.jobId }]);
-  };
-
-  const columns = getSignalRunsColumns({ onJobNav });
+  const columns = getSignalRunsColumns();
   const fetchRuns = useCallback(
     async (pageNumber: number) => {
       try {
@@ -143,6 +135,7 @@ function RunsTableContent() {
     isFetching,
     isLoading,
     fetchNextPage,
+    refetch,
   } = useInfiniteScroll<SignalRunRow>({
     fetchFn: fetchRuns,
     enabled: !!(dateRange.pastHours || (dateRange.startDate && dateRange.endDate)),
@@ -171,6 +164,7 @@ function RunsTableContent() {
             }))}
           />
           <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
+          <RefreshButton onClick={refetch} variant="outline" />
         </div>
         <FilterList className="py-[3px] text-xs px-1" filters={filter} onRemoveFilter={handleRemoveFilter} />
       </InfiniteDataTable>
