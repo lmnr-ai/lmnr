@@ -1843,10 +1843,13 @@ fn main() -> anyhow::Result<()> {
                             // setup` mints an ingest-only key and probes this
                             // endpoint to resolve its project, so it must accept
                             // ingest-only keys (project_auth blocks them). Mounted
-                            // under its own /v1/project scope BEFORE the broad /v1
-                            // project_auth scope — actix matches the more specific
-                            // prefix first, so the rest of /v1 still requires a
-                            // default (non-ingest-only) key.
+                            // under its own /v1/project scope registered BEFORE the
+                            // broad /v1 project_auth scope — actix resolves sibling
+                            // scopes in registration order and returns the first
+                            // match, so /v1/project is claimed here and the rest of
+                            // /v1 still requires a default (non-ingest-only) key.
+                            // (Scope prefixes match on segment boundaries, so this
+                            // can't swallow a future /v1/projects route.)
                             .service(
                                 web::scope("/v1/project")
                                     .wrap(project_ingestion_auth.clone())
