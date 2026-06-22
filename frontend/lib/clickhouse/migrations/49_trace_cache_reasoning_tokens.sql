@@ -1,10 +1,14 @@
--- LAM-1807: Denormalize per-trace cache-read and reasoning token sums onto the
--- trace row so the trace-view no longer scans the full `attributes` column over
--- every LLM span just to total these two values. Aggregated at ingestion time
--- in app-server (TraceAggregation::from_spans) and summed across batches by the
--- ReplacingMergeTree upsert, same as the existing token columns.
+-- LAM-1807: Denormalize per-trace cache-read, cache-creation and reasoning token
+-- sums onto the trace row so the trace-view no longer scans the full `attributes`
+-- column over every LLM span just to total these values. Aggregated at ingestion
+-- time in app-server (TraceAggregation::from_spans) and summed across batches by
+-- the ReplacingMergeTree upsert, same as the existing token columns.
+-- cache-creation = Anthropic prompt-caching write tokens (InputTokens.cache_write_tokens).
 ALTER TABLE default.traces_replacing
     ADD COLUMN IF NOT EXISTS cache_read_input_tokens Int64 DEFAULT 0;
+
+ALTER TABLE default.traces_replacing
+    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens Int64 DEFAULT 0;
 
 ALTER TABLE default.traces_replacing
     ADD COLUMN IF NOT EXISTS reasoning_tokens Int64 DEFAULT 0;
@@ -22,6 +26,7 @@ SELECT
     t.output_tokens AS output_tokens,
     t.total_tokens AS total_tokens,
     t.cache_read_input_tokens AS cache_read_input_tokens,
+    t.cache_creation_input_tokens AS cache_creation_input_tokens,
     t.reasoning_tokens AS reasoning_tokens,
     t.input_cost AS input_cost,
     t.output_cost AS output_cost,
@@ -71,6 +76,7 @@ SELECT
     t.output_tokens AS output_tokens,
     t.total_tokens AS total_tokens,
     t.cache_read_input_tokens AS cache_read_input_tokens,
+    t.cache_creation_input_tokens AS cache_creation_input_tokens,
     t.reasoning_tokens AS reasoning_tokens,
     t.input_cost AS input_cost,
     t.output_cost AS output_cost,

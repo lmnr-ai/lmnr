@@ -42,9 +42,9 @@ pub struct Trace {
     input_token_count: i64,
     output_token_count: i64,
     total_token_count: i64,
-    cache_read_input_tokens: i64,
-    cache_creation_input_tokens: i64,
-    reasoning_tokens: i64,
+    cache_read_input_tokens: Option<i64>,
+    cache_creation_input_tokens: Option<i64>,
+    reasoning_tokens: Option<i64>,
     input_cost: f64,
     output_cost: f64,
     cost: f64,
@@ -100,13 +100,13 @@ impl Trace {
         self.total_token_count
     }
     pub fn cache_read_input_tokens(&self) -> i64 {
-        self.cache_read_input_tokens
+        self.cache_read_input_tokens.unwrap_or(0)
     }
     pub fn cache_creation_input_tokens(&self) -> i64 {
-        self.cache_creation_input_tokens
+        self.cache_creation_input_tokens.unwrap_or(0)
     }
     pub fn reasoning_tokens(&self) -> i64 {
-        self.reasoning_tokens
+        self.reasoning_tokens.unwrap_or(0)
     }
     pub fn input_cost(&self) -> f64 {
         self.input_cost
@@ -307,9 +307,9 @@ pub async fn upsert_trace_statistics_batch(
                 input_token_count = traces.input_token_count + EXCLUDED.input_token_count,
                 output_token_count = traces.output_token_count + EXCLUDED.output_token_count,
                 total_token_count = traces.total_token_count + EXCLUDED.total_token_count,
-                cache_read_input_tokens = traces.cache_read_input_tokens + EXCLUDED.cache_read_input_tokens,
-                cache_creation_input_tokens = traces.cache_creation_input_tokens + EXCLUDED.cache_creation_input_tokens,
-                reasoning_tokens = traces.reasoning_tokens + EXCLUDED.reasoning_tokens,
+                cache_read_input_tokens = COALESCE(traces.cache_read_input_tokens, 0) + COALESCE(EXCLUDED.cache_read_input_tokens, 0),
+                cache_creation_input_tokens = COALESCE(traces.cache_creation_input_tokens, 0) + COALESCE(EXCLUDED.cache_creation_input_tokens, 0),
+                reasoning_tokens = COALESCE(traces.reasoning_tokens, 0) + COALESCE(EXCLUDED.reasoning_tokens, 0),
                 input_cost = traces.input_cost + EXCLUDED.input_cost,
                 output_cost = traces.output_cost + EXCLUDED.output_cost,
                 cost = traces.cost + EXCLUDED.cost,
@@ -558,9 +558,9 @@ mod tests {
             input_token_count: 0,
             output_token_count: 0,
             total_token_count: 0,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
-            reasoning_tokens: 0,
+            cache_read_input_tokens: Some(0),
+            cache_creation_input_tokens: Some(0),
+            reasoning_tokens: Some(0),
             input_cost: 0.0,
             output_cost: 0.0,
             cost: 0.0,
