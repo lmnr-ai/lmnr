@@ -124,7 +124,13 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     { expiresIn: "48h" }
   );
 
-  const link = `${process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL}${BASE_PATH}/invitations?token=${token}`;
+  // Build from ORIGIN + the build-time-baked BASE_PATH, not the raw env URL: the
+  // sub-path is owned by NEXT_PUBLIC_BASE_PATH, and an operator naturally sets
+  // BETTER_AUTH_URL to their bare origin. Appending BASE_PATH to a URL that already
+  // carries the prefix would double it (`/lmnr/lmnr/invitations`). Same pattern as
+  // legacyCallbackUri in lib/auth.ts.
+  const authOrigin = new URL((process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL)!).origin;
+  const link = `${authOrigin}${BASE_PATH}/invitations?token=${token}`;
 
   await sendInvitationEmail(email, workspace.name, link);
 
