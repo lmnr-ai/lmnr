@@ -1,16 +1,28 @@
 -- LAM-1807 (stacked): Materialize the small subset of attribute keys the
--- trace-view tree actually reads (TRACE_VIEW_ATTRIBUTE_KEYS) into a dedicated
--- MATERIALIZED column so the per-span tree query stops reading the full
--- `attributes` blob off disk (profiling showed ~99% of the read bytes came
--- from `attributes`). The column reproduces, byte-for-byte, the compact JSON
--- the frontend used to synthesize inline via buildTraceViewAttributesExpression,
--- so the downstream tryParseJson + key-access contract is unchanged.
+-- trace-view tree actually reads into dedicated columns so the per-span tree
+-- query stops reading the full `attributes` blob off disk (profiling showed
+-- ~99% of the read bytes came from `attributes`; ~11.5 MiB → ~185 KiB per
+-- large trace).
 --
--- No backwards-compatible SQL fallback: the frontend selects this column
--- directly instead of extracting from `attributes`, so ClickHouse never has to
--- touch the `attributes` column for the tree query. Existing rows are prefilled
--- with MATERIALIZE COLUMN below (the `spans` table has no PARTITION BY, so this
--- is a single full-table mutation).
+-- Two storage shapes:
+--   * `trace_view_attributes` — a compact MATERIALIZED JSON object of the
+--     laminar-internal keys (path, ids_path, prompt_hash, has_browser_session,
+--     association tags). The frontend selects this instead of extracting from
+--     the full `attributes` blob.
+--   * `cache_read_input_tokens` / `cache_creation_input_tokens` /
+--     `reasoning_tokens` — dedicated Int64 columns (PR #1943 review). These are
+--     promoted out of the JSON because the new OTel convention is dotted
+--     (`gen_ai.usage.cache_read.input_tokens`) and that dual format is already
+--     normalized to the underscore key in Rust (`normalize_aisdk_attributes`)
+--     before `SpanUsage` is built — easier to account for in code than in a
+--     materialized expression. Ingestion writes the explicit value in
+--     `CHSpan::from_db_span`; the `DEFAULT JSONExtractInt(...)` resolves
+--     historical rows without a backfill.
+--
+-- No SQL coalesce fallback by design: selecting `attributes` at all forces
+-- ClickHouse to read that whole column per granule, defeating the win. Existing
+-- rows are prefilled via `MATERIALIZE COLUMN` (the `spans` table has no
+-- PARTITION BY, so this is a single full-table mutation that runs async).
 ALTER TABLE default.spans
     ADD COLUMN IF NOT EXISTS trace_view_attributes String MATERIALIZED
         concat('{', arrayStringConcat(arrayFilter(x -> x != '', [
@@ -18,13 +30,21 @@ ALTER TABLE default.spans
             if(JSONHas(attributes, 'lmnr.span.ids_path'), concat('"lmnr.span.ids_path":', JSONExtractRaw(attributes, 'lmnr.span.ids_path')), ''),
             if(JSONHas(attributes, 'lmnr.span.prompt_hash'), concat('"lmnr.span.prompt_hash":', JSONExtractRaw(attributes, 'lmnr.span.prompt_hash')), ''),
             if(JSONHas(attributes, 'lmnr.internal.has_browser_session'), concat('"lmnr.internal.has_browser_session":', JSONExtractRaw(attributes, 'lmnr.internal.has_browser_session')), ''),
-            if(JSONHas(attributes, 'lmnr.association.properties.tags'), concat('"lmnr.association.properties.tags":', JSONExtractRaw(attributes, 'lmnr.association.properties.tags')), ''),
-            if(JSONHas(attributes, 'lmnr.association.properties.langgraph.nodes'), concat('"lmnr.association.properties.langgraph.nodes":', JSONExtractRaw(attributes, 'lmnr.association.properties.langgraph.nodes')), ''),
-            if(JSONHas(attributes, 'lmnr.association.properties.langgraph.edges'), concat('"lmnr.association.properties.langgraph.edges":', JSONExtractRaw(attributes, 'lmnr.association.properties.langgraph.edges')), ''),
-            if(JSONHas(attributes, 'gen_ai.usage.cache_read_input_tokens'), concat('"gen_ai.usage.cache_read_input_tokens":', JSONExtractRaw(attributes, 'gen_ai.usage.cache_read_input_tokens')), ''),
-            if(JSONHas(attributes, 'gen_ai.usage.reasoning_tokens'), concat('"gen_ai.usage.reasoning_tokens":', JSONExtractRaw(attributes, 'gen_ai.usage.reasoning_tokens')), '')
+            if(JSONHas(attributes, 'lmnr.association.properties.tags'), concat('"lmnr.association.properties.tags":', JSONExtractRaw(attributes, 'lmnr.association.properties.tags')), '')
         ]), ','), '}')
         CODEC(ZSTD(3));
+
+ALTER TABLE default.spans
+    ADD COLUMN IF NOT EXISTS cache_read_input_tokens Int64
+        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.cache_read_input_tokens');
+
+ALTER TABLE default.spans
+    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens Int64
+        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.cache_creation_input_tokens');
+
+ALTER TABLE default.spans
+    ADD COLUMN IF NOT EXISTS reasoning_tokens Int64
+        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.reasoning_tokens');
 
 -- Prefill existing parts so the column is physically materialized on disk for
 -- old rows too (otherwise old parts would re-evaluate the expression on read,
@@ -32,8 +52,8 @@ ALTER TABLE default.spans
 ALTER TABLE default.spans
     MATERIALIZE COLUMN trace_view_attributes;
 
--- Recreate spans_v0 to expose the new column (mirrors migration 46, with
--- `trace_view_attributes` added next to `attributes`).
+-- Recreate spans_v0 to expose the new columns (mirrors migration 46, with
+-- `trace_view_attributes` + the three token columns added next to `attributes`).
 DROP VIEW IF EXISTS spans_v0;
 CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
     SELECT
@@ -110,6 +130,9 @@ CREATE VIEW IF NOT EXISTS spans_v0 SQL SECURITY INVOKER AS
         parent_span_id,
         attributes,
         trace_view_attributes,
+        cache_read_input_tokens,
+        cache_creation_input_tokens,
+        reasoning_tokens,
         tags_array AS tags,
         events
     FROM spans
