@@ -11,12 +11,12 @@
 
 - [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
+- [x] Signals. [Docs](https://laminar.sh/docs/signals/introduction)
+    - [x] Describe any behavior of your agent that you want to track in plain English (e.g. "agent is stuck in a loop")
+    - [x] Laminar reads every agent run and pings you in Slack when it happens.
 - [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] Get alerts when your agent breaks [Docs](https://laminar.sh/docs/signals/alerts#alerts)
-    - [x] Describe any event you want to track in plain English
-    - [x] Laminar reads every agent run and pings you in Slack when they happen
 - [x] [MCP](https://laminar.sh/docs/platform/mcp) / [CLI](https://laminar.sh/docs/platform/cli) access for your coding agent 
     - [x] Query traces, spans, metrics, and events with SQL
     - [x] Let your coding agent investigate and debug issues based on your traces
@@ -26,10 +26,10 @@
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
+    - [x] 20x trace compression for efficient ingestion and storage. Read more about it [here](https://laminar.sh/blog/laminar-20x-agent-trace-compression).
     - [x] Custom realtime engine for viewing traces as they happen.
     - [x] Ultra-fast full-text search over span data.
     - [x] gRPC exporter for tracing data.
-    - [x] 20x trace compression for efficient ingestion and storage
 
 ![Traces](./images/trace-screenshot.png)
 
