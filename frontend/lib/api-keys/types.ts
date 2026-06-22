@@ -4,7 +4,7 @@ export type ProjectApiKey = {
   name?: string;
   id: string;
   isIngestOnly: boolean;
-  expiresAt?: string | null;
+  expiresAt: string | null;
 };
 
 export type GenerateProjectApiKeyResponse = {
@@ -13,7 +13,7 @@ export type GenerateProjectApiKeyResponse = {
   projectId: string;
   shorthand: string;
   isIngestOnly: boolean;
-  expiresAt?: string | null;
+  expiresAt: string | null;
 };
 
 export const KEY_EXPIRATION_OPTIONS = [
