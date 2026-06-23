@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
-import { type Span } from "@/lib/traces/types";
 
 import { extractInputsForGroup, fingerprintUserMessage, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
@@ -75,7 +75,7 @@ interface InputQueryRow {
 interface TraceIOResult {
   inputPreview: string | null;
   outputPreview: string | null;
-  outputSpan: Span | null;
+  outputSpan: TraceViewListSpan | null;
 }
 
 interface TraceWithParsedInput {
@@ -255,12 +255,17 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   };
 }
 
-async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId: string): Promise<Map<string, Span>> {
-  // Only select the lightweight fields the downstream consumer (`toLightweight`)
-  // actually reads. Omitting `input`/`output`/`attributes`/`events` lets the query
-  // be served by the IO-excluding `spans_no_io_by_start_time` PROJECTION instead of
-  // decompressing the heavy ZSTD columns. `cacheReadInputTokens` is the only
-  // attribute-derived field that survives downstream, so extract just that one.
+async function fetchSpansByIds(
+  spanIds: string[],
+  traceIds: string[],
+  projectId: string
+): Promise<Map<string, TraceViewListSpan>> {
+  // Select only the lightweight fields the downstream consumer (`SpanItem`,
+  // typed on `TraceViewListSpan`) actually reads. Omitting `input`/`output`/
+  // `attributes`/`events` lets the query be served by the IO-excluding
+  // `spans_no_io_by_start_time` PROJECTION instead of decompressing the heavy
+  // ZSTD columns. `cacheReadInputTokens` is the only attribute-derived field
+  // that survives downstream, so extract just that one.
   const query = `
     SELECT
       span_id as spanId,
@@ -269,13 +274,9 @@ async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId:
       span_type as spanType,
       input_tokens as inputTokens,
       output_tokens as outputTokens,
-      total_tokens as totalTokens,
-      input_cost as inputCost,
-      output_cost as outputCost,
       total_cost as totalCost,
       formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
-      trace_id as traceId,
       status,
       path,
       simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens') as cacheReadInputTokens
@@ -284,21 +285,15 @@ async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId:
       AND span_id IN ({spanIds: Array(UUID)})
   `;
 
-  const rows = await executeQuery<Omit<Span, "attributes" | "events" | "input" | "output" | "reasoningTokens">>({
+  const rows = await executeQuery<TraceViewListSpan>({
     query,
     parameters: { spanIds, traceIds },
     projectId,
   });
 
-  const map = new Map<string, Span>();
+  const map = new Map<string, TraceViewListSpan>();
   for (const row of rows) {
-    map.set(row.spanId, {
-      ...row,
-      input: null,
-      output: null,
-      attributes: {},
-      events: [],
-    });
+    map.set(row.spanId, row);
   }
   return map;
 }
