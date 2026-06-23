@@ -3,7 +3,7 @@
 import { Bell } from "lucide-react";
 import useSWR from "swr";
 
-import { formatNotification } from "@/components/notifications/notification-panel";
+import { formatNotification } from "@/components/notifications/notification-panel/utils";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";

@@ -685,6 +685,12 @@ Prefer `AbortController` over hand-rolled "snapshot state at start, compare at r
 - In the `finally`, only null out the shared controller ref if it still points at the current controller — otherwise a newer operation already replaced it and you'd be clobbering its handle.
 - In the success path, use functional `set((state) => ...)` rather than a closure over `state.data` so you merge with the latest value.
 
+### Lazy components with `next/dynamic`
+
+- `dynamic(() => import("./x"))` resolves in **ESM mode** under NodeNext, which (unlike the CJS mode static imports use) needs an explicit extension — `import("./panel.tsx")`, not `import("./panel")` or the `@/...` alias, or tsc 2307s "Cannot find module" even though the file exists.
+- Importing a **default** export this way trips a synthetic-default interop type error. Use a **named** export and `.then((mod) => mod.Name)` (see `notification-panel/index.tsx`, `traces/placeholder/manual-tab.tsx`).
+- To defer an always-mounted panel's data fetch until first open, gate the `dynamic` component behind a `hasOpened` latch (`useState` flipped in an effect on `isOpen`) and return `null` until then — keeps it mounted afterward so exit animations still play. Note: a sibling trigger (e.g. an unread-badge bell) may still fetch the same SWR key on load; that's the badge's query, not the panel's.
+
 ### Error handling
 
 **Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
