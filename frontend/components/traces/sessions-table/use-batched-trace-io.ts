@@ -101,13 +101,14 @@ export function useBatchedTraceIO(
     if (currentIdsKey === lastIdsRef.current) return;
     lastIdsRef.current = currentIdsKey;
 
-    // All sessions collapsed / reset — drop cached state so we don't hold stale memory
+    // Window empty (all sessions collapsed, or a search returned no matches).
+    // Cancel any scheduled fetch for rows that scrolled away, but KEEP the
+    // cache + previews: the LRU already bounds memory, and preserving them
+    // means clearing a no-match search restores cached IO instantly instead
+    // of forcing a refetch.
     if (visibleTraceIds.length === 0) {
-      cache.current.clear();
-      fetching.current.clear();
       pendingFetch.current.clear();
       if (timer.current) clearTimeout(timer.current);
-      setPreviews({});
       return;
     }
 
