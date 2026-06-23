@@ -1,9 +1,3 @@
--- LAM-1807: Denormalize per-trace cache-read, cache-creation and reasoning token
--- sums onto the trace row so the trace-view no longer scans the full `attributes`
--- column over every LLM span just to total these values. Aggregated at ingestion
--- time in app-server (TraceAggregation::from_spans) and summed across batches by
--- the ReplacingMergeTree upsert, same as the existing token columns.
--- cache-creation = Anthropic prompt-caching write tokens (InputTokens.cache_write_tokens).
 ALTER TABLE default.traces_replacing
     ADD COLUMN IF NOT EXISTS cache_read_input_tokens UInt64;
 
@@ -13,11 +7,9 @@ ALTER TABLE default.traces_replacing
 ALTER TABLE default.traces_replacing
     ADD COLUMN IF NOT EXISTS reasoning_tokens UInt64;
 
--- Drop views in dependency order (traces_v0 depends on raw_traces_v0)
 DROP VIEW IF EXISTS default.traces_v0;
 DROP VIEW IF EXISTS default.raw_traces_v0;
 
--- Recreate raw_traces_v0, mirroring migration 36 and exposing the new columns.
 CREATE VIEW IF NOT EXISTS default.raw_traces_v0 SQL SECURITY INVOKER AS
 SELECT
     t.start_time AS start_time,
