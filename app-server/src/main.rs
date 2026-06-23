@@ -1868,7 +1868,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
                                     .service(routes::signal_events::search_signal_events)
-                                    .service(routes::spans::get_skeleton_hashes)
                                     .service(routes::rollouts::update_session_name);
                                 #[cfg(feature = "signals")]
                                 let scope = scope

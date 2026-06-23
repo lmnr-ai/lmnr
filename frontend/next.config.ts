@@ -1,7 +1,15 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import { type NextConfig } from "next";
 
+// Baked at BUILD time (not a runtime flip) — Next inlines basePath into the
+// standalone bundle's asset URLs. Empty/unset => root-served (the regular
+// `frontend-ee` image is byte-identical). The `frontend-ee-basepath` image is
+// built with NEXT_PUBLIC_BASE_PATH=/lmnr so self-hosters can reverse-proxy
+// Laminar under a sub-path without a dedicated domain.
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || undefined;
+
 const nextConfig: NextConfig = {
+  basePath,
   env: {
     LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
   },
