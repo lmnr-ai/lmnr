@@ -14,51 +14,19 @@ import {
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
-/**
- * Aggregation metric for the traces stats chart Y-axis. `count` keeps the
- * stacked success/error bars; the rest emit a single `value` field built from
- * a SUM/AVG of a numeric column on `traces`.
- */
-export const TRACE_STATS_METRICS = [
-  "count",
-  "total_tokens",
-  "input_tokens",
-  "output_tokens",
-  "total_cost",
-  "input_cost",
-  "output_cost",
-  "duration",
-] as const;
-export type TraceStatsMetric = (typeof TRACE_STATS_METRICS)[number];
-
 export const GetTraceStatsSchema = GetTracesSchema.omit({
   pageNumber: true,
   pageSize: true,
 }).extend({
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
-  metric: z.enum(TRACE_STATS_METRICS).default("count"),
 });
 
 export type TracesStatsDataPoint = {
   timestamp: string;
   successCount: number;
   errorCount: number;
-  value?: number;
 } & Record<string, number>;
-
-/** SQL aggregation per metric. `count` emits two stacked fields; the rest
- *  emit a single `value` field. */
-const METRIC_SELECT: Record<TraceStatsMetric, string> = {
-  count: `countIf(status != 'error') as successCount, countIf(status = 'error') as errorCount`,
-  total_tokens: `SUM(total_tokens) as value`,
-  input_tokens: `SUM(input_tokens) as value`,
-  output_tokens: `SUM(output_tokens) as value`,
-  total_cost: `SUM(total_cost) as value`,
-  input_cost: `SUM(input_cost) as value`,
-  output_cost: `SUM(output_cost) as value`,
-  duration: `AVG(duration) as value`,
-};
 
 export async function getTraceStats(
   input: z.infer<typeof GetTraceStatsSchema>
@@ -74,7 +42,6 @@ export async function getTraceStats(
     filter: inputFilters,
     intervalValue,
     intervalUnit,
-    metric,
     customColumns: customColumnsJson,
   } = input;
 
@@ -133,9 +100,10 @@ export async function getTraceStats(
       : "";
 
   const query = `
-    SELECT
+    SELECT 
       toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
-      ${METRIC_SELECT[metric]}
+      countIf(status != 'error') as successCount,
+      countIf(status = 'error') as errorCount
     FROM traces
     WHERE ${allConditions.join(" AND ")}
     GROUP BY timestamp

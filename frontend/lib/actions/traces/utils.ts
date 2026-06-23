@@ -437,7 +437,6 @@ export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataP
         timestamp: tick.toISOString(),
         successCount: 0,
         errorCount: 0,
-        value: 0,
       }) as TracesStatsDataPoint
   );
 };
