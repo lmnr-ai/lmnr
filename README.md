@@ -1,5 +1,6 @@
 <a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
+<a href="https://www.linkedin.com/company/lmnr-ai">![LinkedIn](https://img.shields.io/badge/-LinkedIn-blue?style=flat-square&logo=Linkedin&logoColor=white&link=https://www.linkedin.com/company/lmnr-ai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
 ![Laminar banner](./images/laminar-banner.png)
@@ -10,19 +11,22 @@
 
 - [x] Tracing. [Docs](https://laminar.sh/docs/tracing/introduction)
     - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
+- [x] Signals. [Docs](https://laminar.sh/docs/signals/introduction)
+    - [x] Describe any behavior of your agent that you want to track in plain English (e.g. "agent is stuck in a loop")
+    - [x] Laminar reads every agent run and pings you in Slack when it happens.
 - [x] Evals. [Docs](https://laminar.sh/docs/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://laminar.sh/docs/signals)
-    - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] SQL access to all data. [Docs](https://laminar.sh/docs/platform/sql-editor)
-    - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
+- [x] [MCP](https://laminar.sh/docs/platform/mcp) / [CLI](https://laminar.sh/docs/platform/cli) access for your coding agent 
+    - [x] Query traces, spans, metrics, and events with SQL
+    - [x] Let your coding agent investigate and debug issues based on your traces
 - [x] Dashboards. [Docs](https://laminar.sh/docs/custom-dashboards/overview)
     - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
 - [x] Data annotation & Datasets. [Docs](https://laminar.sh/docs/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
+    - [x] 20x trace compression for efficient ingestion and storage. Read more about it [here](https://laminar.sh/blog/laminar-20x-agent-trace-compression).
     - [x] Custom realtime engine for viewing traces as they happen.
     - [x] Ultra-fast full-text search over span data.
     - [x] gRPC exporter for tracing data.
@@ -31,7 +35,7 @@
 
 ## Documentation
 
-Check out full documentation here [laminar.sh/docs](https://laminar.sh/docs).
+Check out the full documentation here [laminar.sh/docs](https://laminar.sh/docs).
 
 ## Getting started
 
