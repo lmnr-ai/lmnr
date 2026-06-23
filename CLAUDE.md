@@ -299,6 +299,11 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 - The `traces.type` column uses a first-non-zero strategy in the ON CONFLICT upsert: `CASE WHEN traces.type = 0 THEN EXCLUDED.type ELSE traces.type END`. Once a trace is assigned a non-default type (e.g. EVALUATION=1), no subsequent batch can overwrite it. Do NOT revert to `COALESCE` (picks first non-null, lets `0` silently reset a previously set type) or `GREATEST` (picks highest numeric value, which conflates type ordering with type precedence).
 - `TraceAggregation::from_spans` in `ch/traces.rs` applies the same rule within a single batch: `trace_type` is only written when `entry.trace_type == 0`, so a child span processed later in the loop cannot overwrite a non-default type already set by an earlier span.
 
+## Workspace Invitation Auto-Subscribe
+
+- A user who joins a workspace via invitation is auto-subscribed (by email) to every workspace report AND every alert across all of the workspace's projects, mirroring the first-workspace onboarding behaviour. The single helper is `subscribeMemberToWorkspaceNotifications(workspaceId, email)` in `frontend/lib/actions/workspaces/subscribe.ts` — it is idempotent (skips EMAIL targets that already exist) so it's safe to call on every accept.
+- There are **two** distinct accept paths that both add a `members_of_workspaces` row and must each call the helper after the insert: (1) cloud email-link accept `app/(auth)/invitations/page.tsx::handleInvitation`, (2) self-hosted auto-accept on sign-in `lib/auth.ts::processPendingInvitations` (gated by `!Feature.SEND_EMAIL`). When changing invitation acceptance, update both or members joining via the missed path silently get no reports/alerts.
+
 ## Signal Triggers
 
 - Signal trigger filters are evaluated in `app-server/src/db/trace.rs` (`matches_filters` / `evaluate_single_filter`). Spans arrive in batches, so filter evaluation must check accumulated state from the DB (e.g. `trace.span_names`) — not just the current batch's raw spans. The `traces.span_names` JSONB column aggregates span names across all batches via `||` merge on upsert.
