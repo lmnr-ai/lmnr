@@ -96,12 +96,21 @@ async fn check_and_enqueue(
         now
     );
 
-    let _ = cache
-        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
-        .await;
-
     let hours_to_check = hour_boundaries_between(last_check, now);
     if hours_to_check.is_empty() {
+        // Advance the checkpoint even when there's nothing to enqueue so that
+        // a cold-start (or cache flush) doesn't permanently stall the scheduler.
+        if last_check_ts.is_none() {
+            if let Err(e) = cache
+                .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+                .await
+            {
+                log::warn!(
+                    "[Reports Scheduler] Failed to write bootstrap checkpoint: {:?}",
+                    e
+                );
+            }
+        }
         return Ok(());
     }
     log::info!(
@@ -131,6 +140,13 @@ async fn check_and_enqueue(
                 );
             }
         }
+    }
+
+    if let Err(e) = cache
+        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+        .await
+    {
+        log::warn!("[Reports Scheduler] Failed to write checkpoint: {:?}", e);
     }
 
     Ok(())
