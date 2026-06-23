@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
 
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
 import { type Span } from "@/lib/traces/types";
@@ -335,6 +334,11 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
 }
 
 async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId: string): Promise<Map<string, Span>> {
+  // Only select the lightweight fields the downstream consumer (`toLightweight`)
+  // actually reads. Omitting `input`/`output`/`attributes`/`events` lets the query
+  // be served by the IO-excluding `spans_no_io_by_start_time` PROJECTION instead of
+  // decompressing the heavy ZSTD columns. `cacheReadInputTokens` is the only
+  // attribute-derived field that survives downstream, so extract just that one.
   const query = `
     SELECT
       span_id as spanId,
@@ -351,22 +355,14 @@ async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId:
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
       trace_id as traceId,
       status,
-      input,
-      output,
       path,
-      attributes,
-      events
+      simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens') as cacheReadInputTokens
     FROM spans
     WHERE trace_id IN ({traceIds: Array(UUID)})
       AND span_id IN ({spanIds: Array(UUID)})
   `;
 
-  const rows = await executeQuery<
-    Omit<Span, "attributes" | "events" | "cacheReadInputTokens" | "reasoningTokens"> & {
-      attributes: string;
-      events: { timestamp: number; name: string; attributes: string }[];
-    }
-  >({
+  const rows = await executeQuery<Omit<Span, "attributes" | "events" | "input" | "output" | "reasoningTokens">>({
     query,
     parameters: { spanIds, traceIds },
     projectId,
@@ -374,19 +370,12 @@ async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId:
 
   const map = new Map<string, Span>();
   for (const row of rows) {
-    const parsedAttributes = tryParseJson(row.attributes) || {};
     map.set(row.spanId, {
       ...row,
-      input: tryParseJson(row.input),
-      output: tryParseJson(row.output),
-      attributes: parsedAttributes,
-      cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
-      reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
-      events: (row.events || []).map((event) => ({
-        timestamp: event.timestamp,
-        name: event.name,
-        attributes: tryParseJson(event.attributes) || {},
-      })),
+      input: null,
+      output: null,
+      attributes: {},
+      events: [],
     });
   }
   return map;
