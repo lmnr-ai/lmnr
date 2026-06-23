@@ -1,7 +1,7 @@
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import { Loader2 } from "lucide-react";
 
-import { KEY_EXPIRATION_OPTIONS,type KeyExpiration } from "@/lib/api-keys/types";
+import { KEY_EXPIRATION_OPTIONS, type KeyExpiration } from "@/lib/api-keys/types";
 import { cn } from "@/lib/utils";
 
 import { Button } from "../../ui/button";
