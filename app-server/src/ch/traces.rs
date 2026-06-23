@@ -40,9 +40,6 @@ pub struct CHTrace {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
-    pub cache_read_input_tokens: u64,
-    pub cache_creation_input_tokens: u64,
-    pub reasoning_tokens: u64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
@@ -61,6 +58,9 @@ pub struct CHTrace {
     pub span_names: Vec<String>,
     pub root_span_input: String,
     pub root_span_output: String,
+    pub cache_read_input_tokens: u64,
+    pub cache_creation_input_tokens: u64,
+    pub reasoning_tokens: u64,
 }
 
 impl CHTrace {
