@@ -19,6 +19,7 @@ use crate::{
     db::{DB, project_api_keys::ProjectApiKey},
     llm::LlmClient,
     query_engine::QueryEngine,
+    quickwit::client::QuickwitClient,
     sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
@@ -48,13 +49,27 @@ pub struct GetTraceContextParams {
     pub trace_id: Uuid,
 }
 
+const MCP_SEARCH_MAX_HITS: usize = 200;
+const MCP_SEARCH_DEFAULT_HITS: usize = 50;
+
+/// Parameters for the span search tool.
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSpansParams {
+    /// Full-text query matched against span inputs, outputs, and attributes.
+    pub query: String,
+    /// Maximum number of results to return (default: 50, max: 200).
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 // ============ MCP Server ============
 
 #[derive(Clone)]
 pub struct LaminarMcpServer {
-    #[cfg_attr(not(feature = "signals"), allow(dead_code))]
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+    quickwit: Option<QuickwitClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
@@ -68,6 +83,7 @@ impl LaminarMcpServer {
     pub fn new(
         clickhouse: clickhouse::Client,
         clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+        quickwit: Option<QuickwitClient>,
         query_engine: Arc<QueryEngine>,
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
@@ -77,6 +93,7 @@ impl LaminarMcpServer {
         Self {
             clickhouse,
             clickhouse_ro,
+            quickwit,
             query_engine,
             http_client,
             db,
@@ -184,6 +201,57 @@ impl LaminarMcpServer {
             ))])),
         }
     }
+
+    /// Full-text search across span inputs, outputs, and attributes.
+    /// Returns matching spans as a JSON array of `{ traceId, spanId }`.
+    #[tool(name = "search_spans")]
+    async fn search_spans(
+        &self,
+        context: RequestContext<RoleServer>,
+        Parameters(params): Parameters<SearchSpansParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.query.trim().is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text("[]")]));
+        }
+
+        let project_id = context
+            .extensions
+            .get::<ProjectId>()
+            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
+            .0;
+
+        let quickwit = self.quickwit.as_ref().ok_or_else(|| {
+            McpError::internal_error(
+                "Full-text search is not available (Quickwit not configured)",
+                None,
+            )
+        })?;
+
+        let limit = params
+            .limit
+            .filter(|l| *l > 0)
+            .unwrap_or(MCP_SEARCH_DEFAULT_HITS)
+            .min(MCP_SEARCH_MAX_HITS);
+
+        let hits = crate::search::search_spans(
+            quickwit,
+            &self.clickhouse,
+            project_id,
+            params.query.trim(),
+            None,
+            limit,
+            0,
+            None,
+            None,
+            false,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("Search failed: {}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&hits).unwrap_or_default(),
+        )]))
+    }
 }
 
 #[cfg(feature = "signals")]
@@ -257,6 +325,7 @@ impl McpState {
     pub fn new(
         clickhouse: clickhouse::Client,
         clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+        quickwit: Option<QuickwitClient>,
         query_engine: Arc<QueryEngine>,
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
@@ -267,6 +336,7 @@ impl McpState {
             server: LaminarMcpServer::new(
                 clickhouse,
                 clickhouse_ro,
+                quickwit,
                 query_engine,
                 http_client,
                 db,
