@@ -90,7 +90,13 @@ export async function getSessionSpans(input: z.infer<typeof GetSessionSpansSchem
     filters,
     startTime,
     endTime,
-    columns: [...spansSelectColumns, "attributes", "events"],
+    columns: [
+      ...spansSelectColumns,
+      "cache_read_input_tokens as cacheReadInputTokens",
+      "reasoning_tokens as reasoningTokens",
+      "attributes",
+      "events",
+    ],
     customConditions: [
       {
         condition: `trace_id IN ({sessionTraceIds: Array(UUID)})`,

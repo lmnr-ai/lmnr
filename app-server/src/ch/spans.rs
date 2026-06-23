@@ -143,6 +143,25 @@ pub struct CHSpan {
     /// view as a virtual `tool_definitions` column via `deduped_content_dict`.
     #[serde(default)]
     pub tool_definitions_hash: [u8; 32],
+    /// Compact JSON object of just the attribute keys the trace-view tree
+    /// reads (path, ids_path, prompt_hash, has_browser_session, association
+    /// tags). Built in `SpanAttributes::trace_view_attributes` and inserted as
+    /// a plain string so the hot read path never scans the full `attributes`
+    /// blob. NOT a `MATERIALIZED` column — see migration 50.
+    #[serde(default)]
+    pub trace_view_attributes: String,
+    /// Per-span token counts promoted out of the `attributes` JSON into
+    /// dedicated columns so the trace-view tree reads them directly. Sourced
+    /// from `SpanUsage`, which already normalizes the dual OTel format
+    /// (`gen_ai.usage.cache_read.input_tokens` dotted vs the legacy underscore
+    /// key) in `normalize_aisdk_attributes`. `UInt64` columns (migration 50),
+    /// so cast from the `i64` `SpanUsage` fields with `as u64`.
+    #[serde(default)]
+    pub cache_read_input_tokens: u64,
+    #[serde(default)]
+    pub cache_creation_input_tokens: u64,
+    #[serde(default)]
+    pub reasoning_tokens: u64,
 }
 
 impl CHSpan {
@@ -223,6 +242,10 @@ impl CHSpan {
             output_message_hashes: Vec::new(),
             output_new_message_indices: Vec::new(),
             tool_definitions_hash: [0u8; 32],
+            trace_view_attributes: span.attributes.trace_view_attributes(),
+            cache_read_input_tokens: usage.cache_read_input_tokens as u64,
+            cache_creation_input_tokens: usage.cache_creation_input_tokens as u64,
+            reasoning_tokens: usage.reasoning_tokens as u64,
         }
     }
 }
