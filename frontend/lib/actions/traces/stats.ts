@@ -25,6 +25,7 @@ export const GetTraceStatsSchema = GetTracesSchema.omit({
 export type TracesStatsDataPoint = {
   timestamp: string;
   successCount: number;
+  warningCount: number;
   errorCount: number;
 } & Record<string, number>;
 
@@ -100,9 +101,10 @@ export async function getTraceStats(
       : "";
 
   const query = `
-    SELECT 
+    SELECT
       toStartOfInterval(start_time, toInterval({intervalValue:UInt32}, {intervalUnit:String})) as timestamp,
-      countIf(status != 'error') as successCount,
+      countIf(status NOT IN ('error', 'warning')) as successCount,
+      countIf(status = 'warning') as warningCount,
       countIf(status = 'error') as errorCount
     FROM traces
     WHERE ${allConditions.join(" AND ")}

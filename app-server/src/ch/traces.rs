@@ -219,8 +219,13 @@ impl TraceAggregation {
                 }
             }
             if let Some(status) = &span.status {
-                if status == "error" {
+                let is_root = span.parent_span_id.is_none();
+                if status == "error" && is_root {
+                    // Root span error always wins
                     entry.status = Some("error".to_string());
+                } else if status == "error" && entry.status.as_deref() != Some("error") {
+                    // Non-root span error -> warning (unless root error already set)
+                    entry.status = Some("warning".to_string());
                 } else if entry.status.is_none() && !status.is_empty() {
                     entry.status = Some(status.clone());
                 }
@@ -274,5 +279,116 @@ impl TraceAggregation {
         }
 
         trace_aggregations.into_values().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::spans::{Span, SpanType};
+    use crate::traces::spans::SpanUsage;
+    use chrono::Utc;
+
+    fn make_span(
+        trace_id: Uuid,
+        project_id: Uuid,
+        parent_span_id: Option<Uuid>,
+        status: Option<&str>,
+    ) -> Span {
+        Span {
+            span_id: Uuid::new_v4(),
+            project_id,
+            trace_id,
+            parent_span_id,
+            name: "test".to_string(),
+            attributes: Default::default(),
+            input: None,
+            output: None,
+            span_type: SpanType::Default,
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            events: vec![],
+            status: status.map(|s| s.to_string()),
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        }
+    }
+
+    fn zero_usage() -> SpanUsage {
+        SpanUsage {
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            request_model: None,
+            response_model: None,
+            provider_name: None,
+        }
+    }
+
+    fn aggregate_status(spans: &[Span]) -> Option<String> {
+        let usages: Vec<SpanUsage> = spans.iter().map(|_| zero_usage()).collect();
+        let mut aggs = TraceAggregation::from_spans(spans, &usages);
+        assert_eq!(aggs.len(), 1);
+        aggs.remove(0).status
+    }
+
+    #[test]
+    fn test_root_span_error_sets_error() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let spans = vec![make_span(trace_id, project_id, None, Some("error"))];
+        assert_eq!(aggregate_status(&spans), Some("error".to_string()));
+    }
+
+    #[test]
+    fn test_non_root_span_error_sets_warning() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let parent_id = Uuid::new_v4();
+        let spans = vec![
+            make_span(trace_id, project_id, None, Some("ok")),
+            make_span(trace_id, project_id, Some(parent_id), Some("error")),
+        ];
+        assert_eq!(aggregate_status(&spans), Some("warning".to_string()));
+    }
+
+    #[test]
+    fn test_root_error_overrides_non_root_warning() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let parent_id = Uuid::new_v4();
+        let spans = vec![
+            make_span(trace_id, project_id, None, Some("error")),
+            make_span(trace_id, project_id, Some(parent_id), Some("error")),
+        ];
+        assert_eq!(aggregate_status(&spans), Some("error".to_string()));
+    }
+
+    #[test]
+    fn test_only_non_root_error_no_root_span_in_batch() {
+        // When the root span isn't in this batch, non-root error -> warning
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let parent_id = Uuid::new_v4();
+        let spans = vec![make_span(
+            trace_id,
+            project_id,
+            Some(parent_id),
+            Some("error"),
+        )];
+        assert_eq!(aggregate_status(&spans), Some("warning".to_string()));
+    }
+
+    #[test]
+    fn test_no_error_spans_keeps_ok_status() {
+        let trace_id = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let spans = vec![make_span(trace_id, project_id, None, Some("ok"))];
+        assert_eq!(aggregate_status(&spans), Some("ok".to_string()));
     }
 }

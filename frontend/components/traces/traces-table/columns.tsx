@@ -51,6 +51,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
+          "bg-yellow-400": row.getValue() === "warning",
         })}
       />
     ),
@@ -322,7 +323,7 @@ export const filters: ColumnFilter[] = [
     name: "Status",
     dataType: "enum",
     key: "status",
-    options: ["success", "error"].map((v) => ({
+    options: ["success", "warning", "error"].map((v) => ({
       label: capitalize(v),
       value: v,
     })),

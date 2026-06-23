@@ -11,6 +11,7 @@ const StatusCell = ({ value }: { value: unknown }) => (
   <div
     className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
       "bg-destructive-bright": value === "error",
+      "bg-yellow-400": value === "warning",
     })}
   />
 );

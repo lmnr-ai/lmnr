@@ -31,15 +31,17 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
         (filter, paramKey) => {
           const { operator, value } = filter;
           if (value === "success") {
-            return operator === "eq" ? `status != 'error'` : `status = 'error'`;
+            return operator === "eq" ? `status NOT IN ('error', 'warning')` : `status IN ('error', 'warning')`;
           } else if (value === "error") {
             return operator === "eq" ? `status = 'error'` : `status != 'error'`;
+          } else if (value === "warning") {
+            return operator === "eq" ? `status = 'warning'` : `status != 'warning'`;
           }
           return `status ${OperatorLabelMap[operator]} {${paramKey}:String}`;
         },
         (filter, paramKey) => {
           const { value } = filter;
-          return value === "success" || value === "error" ? {} : { [paramKey]: value };
+          return value === "success" || value === "error" || value === "warning" ? {} : { [paramKey]: value };
         }
       ),
     ],
