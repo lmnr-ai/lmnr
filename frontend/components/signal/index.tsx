@@ -9,7 +9,6 @@ import { type ManageSignalForm, ManageSignalPanel } from "@/components/signals/c
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useProjectContext } from "@/contexts/project-context";
 import { track } from "@/lib/posthog";
 
 interface SignalProps {
@@ -24,7 +23,6 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
   const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
   const searchParams = useSearchParams();
-  const { workspace } = useProjectContext();
 
   const activeTab = searchParams.get("tab") || "events";
 
@@ -39,8 +37,6 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
-
-  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   const handleSuccess = useCallback(
     async (form: ManageSignalForm) => {
@@ -75,29 +71,25 @@ function SignalContent({ slackClientId, slackRedirectUri, slackBrokerEnabled }: 
             <TabsTrigger className="text-xs" value="events">
               Events
             </TabsTrigger>
-            {!isFreeTier && (
-              <TabsTrigger className="text-xs" value="settings">
-                Settings
-              </TabsTrigger>
-            )}
+            <TabsTrigger className="text-xs" value="settings">
+              Settings
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="events" className="flex flex-col overflow-hidden">
           <EventsTable />
         </TabsContent>
-        {!isFreeTier && (
-          <TabsContent value="settings" className="flex flex-col overflow-hidden">
-            <ManageSignalPanel
-              key={signal.id}
-              defaultValues={signal}
-              onSuccess={handleSuccess}
-              slackClientId={slackClientId}
-              slackRedirectUri={slackRedirectUri}
-              slackBrokerEnabled={slackBrokerEnabled}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="settings" className="flex flex-col overflow-hidden">
+          <ManageSignalPanel
+            key={signal.id}
+            defaultValues={signal}
+            onSuccess={handleSuccess}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+            slackBrokerEnabled={slackBrokerEnabled}
+          />
+        </TabsContent>
       </Tabs>
 
       {traceId && (

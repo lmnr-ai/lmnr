@@ -1,6 +1,6 @@
 {
-  "id": "0184e754-413e-4dc4-9bfb-26c13ddf56f1",
-  "prevId": "cffd953e-427b-4182-b748-a841f4211034",
+  "id": "62c4f87d-b1ff-4695-a589-53318e7a52a2",
+  "prevId": "0184e754-413e-4dc4-9bfb-26c13ddf56f1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3259,6 +3259,24 @@
         "root_span_output": {
           "name": "root_span_output",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cache_read_input_tokens": {
+          "name": "cache_read_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cache_creation_input_tokens": {
+          "name": "cache_creation_input_tokens",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reasoning_tokens": {
+          "name": "reasoning_tokens",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": false
         }
