@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { ALERT_FILTERS_CACHE_KEY, cache } from "@/lib/cache.ts";
 import { db } from "@/lib/db/drizzle";
 import { alerts, alertTargets, projects, signals } from "@/lib/db/migrations/schema";
 
@@ -157,7 +158,7 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   const { alertId, projectId, name, type, sourceId, targets, userEmail, metadata } = UpdateAlertSchema.parse(input);
   const validatedMetadata = buildMetadataValidator(type, metadata);
 
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await tx
       .update(alerts)
       .set({ name, type, sourceId, metadata: validatedMetadata })
@@ -212,10 +213,17 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
 
     return { id: alertId };
   });
+
+  await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
+
+  return result;
 }
 
 export async function deleteAlert(input: z.infer<typeof DeleteAlertSchema>) {
   const { alertId, projectId } = DeleteAlertSchema.parse(input);
   await db.delete(alerts).where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
+
+  await cache.remove(`${ALERT_FILTERS_CACHE_KEY}:${projectId}:${alertId}`);
+
   return { success: true };
 }

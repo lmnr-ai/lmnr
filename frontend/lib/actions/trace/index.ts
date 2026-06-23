@@ -17,6 +17,52 @@ export const GetTraceSchema = z.object({
   projectId: z.guid(),
 });
 
+type TraceCacheReasoningTokens = Pick<
+  TraceViewTrace,
+  "cacheReadInputTokens" | "cacheCreationInputTokens" | "reasoningTokens"
+>;
+
+/**
+ * Backfills the denormalized per-trace cache/reasoning token sums for traces
+ * ingested before LAM-1807. Those rows default the trace-level columns to 0
+ * (there is no historical backfill on `traces_replacing`), so when all three
+ * are 0 we fall back to summing the values out of each LLM span's `attributes`.
+ * New traces have non-zero denormalized values and skip this query entirely, so
+ * steady-state cost is unchanged and the fallback fades out as old data ages.
+ */
+export const backfillTraceCacheReasoningTokens = async <T extends TraceCacheReasoningTokens>(
+  trace: T,
+  projectId: string,
+  traceId: string
+): Promise<T> => {
+  if (trace.cacheReadInputTokens || trace.cacheCreationInputTokens || trace.reasoningTokens) {
+    return trace;
+  }
+
+  const [extraTokens] = await executeQuery<TraceCacheReasoningTokens>({
+    query: `
+      SELECT
+        SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
+        SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_creation_input_tokens')) as cacheCreationInputTokens,
+        SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+        AND span_type = 'LLM'
+    `,
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
+
+  return {
+    ...trace,
+    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
+    cacheCreationInputTokens: extraTokens?.cacheCreationInputTokens ?? 0,
+    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
+  };
+};
+
 export async function updateTraceVisibility(params: z.infer<typeof UpdateTraceVisibilitySchema>) {
   const { traceId, projectId, visibility } = UpdateTraceVisibilitySchema.parse(params);
 
@@ -34,9 +80,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
   });
 
-  const [[trace], [extraTokens]] = await Promise.all([
-    executeQuery<Omit<TraceViewTrace, "visibility">>({
-      query: `
+  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+    query: `
       SELECT
         id,
         formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
@@ -44,6 +89,9 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,
+        cache_read_input_tokens as cacheReadInputTokens,
+        cache_creation_input_tokens as cacheCreationInputTokens,
+        reasoning_tokens as reasoningTokens,
         input_cost as inputCost,
         output_cost as outputCost,
         total_cost as totalCost,
@@ -57,35 +105,20 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
       WHERE id = {traceId: UUID}
       LIMIT 1
     `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-    executeQuery<{ cacheReadInputTokens: number; reasoningTokens: number }>({
-      query: `
-      SELECT
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
-      FROM spans
-      WHERE trace_id = {traceId: UUID}
-        AND span_type = 'LLM'
-      `,
-      projectId,
-      parameters: {
-        traceId,
-      },
-    }),
-  ]);
+    projectId,
+    parameters: {
+      traceId,
+    },
+  });
 
   if (!trace) {
     return undefined;
   }
 
+  const backfilledTrace = await backfillTraceCacheReasoningTokens(trace, projectId, traceId);
+
   return {
-    ...trace,
-    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
-    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
+    ...backfilledTrace,
     visibility: sharedTrace ? "public" : "private",
   };
 }

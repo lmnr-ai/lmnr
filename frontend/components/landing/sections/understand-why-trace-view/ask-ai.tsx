@@ -87,10 +87,10 @@ const SpanChip = ({ kind, label, onClick }: { kind: "tool" | "llm"; label: strin
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded border border-landing-text-200/15 bg-landing-text-200/15 pl-0.5 pr-1.5 py-0.5 align-middle hover:bg-landing-text-200/25 transition-colors"
+      className="inline-flex items-center gap-1 rounded border border-foreground-200/15 bg-foreground-200/15 pl-0.5 pr-1.5 py-0.5 align-middle hover:bg-foreground-200/25 transition-colors"
     >
       <span className={cn("inline-flex items-center justify-center size-4 rounded", iconBg)}>{icon}</span>
-      <span className="text-landing-text-200 text-xs leading-none font-mono">{label}</span>
+      <span className="text-foreground-200 text-xs leading-none font-mono">{label}</span>
     </button>
   );
 };

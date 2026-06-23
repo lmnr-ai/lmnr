@@ -12,8 +12,8 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::DB,
-    query_engine::{QueryEngine, QueryEngineTrait, QueryEngineValidationResult},
-    sql::{self, ClickhouseReadonlyClient},
+    query_engine::{QueryEngine, QueryEngineValidationResult},
+    sql::{self, ClickhouseReadonlyClient, SqlQuerySource},
 };
 
 use super::ResponseResult;
@@ -50,14 +50,14 @@ pub struct SqlToJsonRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SqlToJsonResponse {
     pub success: bool,
-    pub query_structure: Option<crate::query_engine::query_engine::QueryStructure>,
+    pub query_structure: Option<crate::query_engine::types::QueryStructure>,
     pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToSqlRequest {
-    pub query_structure: crate::query_engine::query_engine::QueryStructure,
+    pub query_structure: crate::query_engine::types::QueryStructure,
 }
 
 #[derive(Serialize)]
@@ -93,6 +93,7 @@ pub async fn execute_sql_query(
                 query,
                 project_id,
                 parameters,
+                SqlQuerySource::Internal,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
                 http_client.into_inner(),

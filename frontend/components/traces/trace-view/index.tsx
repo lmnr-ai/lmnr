@@ -6,6 +6,8 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 import TraceViewContent from "./trace-view-content";
@@ -62,7 +64,11 @@ export function TraceViewSidePanel({
       >
         <div className="relative w-full h-full flex flex-col">
           <SidePanelLeftResizeHandle />
-          {children}
+          {/* w-0 min-w-full keeps children (e.g. the eval runs chart, which pins its own
+              measured pixel width via recharts) from driving the right-anchored side panel's
+              intrinsic width — otherwise the panel ratchets wider than trace+span and a gap
+              opens between the span view and the screen edge. */}
+          {children && <div className="w-0 min-w-full">{children}</div>}
           <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
         </div>
       </TraceViewStoreProvider>
@@ -92,9 +98,11 @@ function SidePanelLeftResizeHandle() {
       shallow
     );
 
+  const isChatEnabled = useFeatureFlags()[Feature.AGENT];
   const isLoading = isTraceLoading && !hasTrace;
   const showSpan = spanPanelOpen || (isAlwaysSelectSpan && !isLoading && spansLength > 0);
-  const visible = useMemo(() => ({ span: showSpan, chat: tracesAgentOpen }), [showSpan, tracesAgentOpen]);
+  const showChat = isChatEnabled && tracesAgentOpen;
+  const visible = useMemo(() => ({ span: showSpan, chat: showChat }), [showSpan, showChat]);
 
   const drag = useCallback(
     (panel: ResizablePanel, delta: number) => resizePanel(panel, delta, visible),

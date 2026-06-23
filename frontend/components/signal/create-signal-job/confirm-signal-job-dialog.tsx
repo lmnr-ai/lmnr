@@ -42,13 +42,13 @@ export default function ConfirmSignalJobDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Create Signal Job</DialogTitle>
+          <DialogTitle>Start backfill with selected traces</DialogTitle>
           <DialogDescription>Produce events based on previous traces</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            This will create a signal job to analyze {traceCount.toLocaleString()} trace{traceCount !== 1 ? "s" : ""}.
+            This will start a backfill to analyze {traceCount.toLocaleString()} trace{traceCount !== 1 ? "s" : ""}.
           </p>
         </div>
 
@@ -82,7 +82,7 @@ export default function ConfirmSignalJobDialog({
           </Button>
           <Button type="button" onClick={onConfirm} disabled={isCreating}>
             {isCreating && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-            Create job ({traceCount.toLocaleString()} traces)
+            Start backfill ({traceCount.toLocaleString()} traces)
           </Button>
         </DialogFooter>
       </DialogContent>

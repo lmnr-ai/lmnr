@@ -1,7 +1,7 @@
 import { relations } from "drizzle-orm/relations";
 import {
   projects,
-  rolloutSessions,
+  debuggerSessions,
   sharedEvals,
   workspaces,
   workspaceAddons,
@@ -21,7 +21,6 @@ import {
   renderTemplates,
   workspaceUsageWarnings,
   labelingQueues,
-  labelingQueueItems,
   workspaceInvitations,
   evaluators,
   evaluatorSpanPaths,
@@ -44,11 +43,13 @@ import {
   tagClasses,
   traces,
   tableViews,
+  agents,
+  agentVersions,
 } from "./schema";
 
-export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
+export const debuggerSessionsRelations = relations(debuggerSessions, ({ one }) => ({
   project: one(projects, {
-    fields: [rolloutSessions.projectId],
+    fields: [debuggerSessions.projectId],
     references: [projects.id],
   }),
 }));
@@ -61,7 +62,7 @@ export const tableViewsRelations = relations(tableViews, ({ one }) => ({
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
-  rolloutSessions: many(rolloutSessions),
+  debuggerSessions: many(debuggerSessions),
   sharedEvals: many(sharedEvals),
   datasets: many(datasets),
   workspace: one(workspaces, {
@@ -93,6 +94,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tableViews: many(tableViews),
   tagClasses: many(tagClasses),
   traces: many(traces),
+  agentVersions: many(agentVersions),
+  agents: many(agents),
 }));
 
 export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
@@ -247,15 +250,7 @@ export const workspaceUsageWarningsRelations = relations(workspaceUsageWarnings,
   }),
 }));
 
-export const labelingQueueItemsRelations = relations(labelingQueueItems, ({ one }) => ({
-  labelingQueue: one(labelingQueues, {
-    fields: [labelingQueueItems.queueId],
-    references: [labelingQueues.id],
-  }),
-}));
-
-export const labelingQueuesRelations = relations(labelingQueues, ({ one, many }) => ({
-  labelingQueueItems: many(labelingQueueItems),
+export const labelingQueuesRelations = relations(labelingQueues, ({ one }) => ({
   project: one(projects, {
     fields: [labelingQueues.projectId],
     references: [projects.id],
@@ -389,6 +384,10 @@ export const projectApiKeysRelations = relations(projectApiKeys, ({ one }) => ({
     fields: [projectApiKeys.projectId],
     references: [projects.id],
   }),
+  user: one(users, {
+    fields: [projectApiKeys.userId],
+    references: [users.id],
+  }),
 }));
 
 export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({
@@ -421,4 +420,23 @@ export const tracesRelations = relations(traces, ({ one }) => ({
     fields: [traces.projectId],
     references: [projects.id],
   }),
+}));
+
+export const agentVersionsRelations = relations(agentVersions, ({ one }) => ({
+  agent: one(agents, {
+    fields: [agentVersions.agentId],
+    references: [agents.id],
+  }),
+  project: one(projects, {
+    fields: [agentVersions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const agentsRelations = relations(agents, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [agents.projectId],
+    references: [projects.id],
+  }),
+  agentVersions: many(agentVersions),
 }));

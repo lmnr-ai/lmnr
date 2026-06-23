@@ -44,6 +44,7 @@ interface SlackConnectionCardProps {
   slackRedirectUri?: string;
   returnPath?: string;
   disabled?: boolean;
+  brokerEnabled?: boolean;
 }
 
 export function useSlackIntegration(workspaceId: string, enabled = true) {
@@ -56,6 +57,7 @@ export default function SlackConnectionCard({
   slackRedirectUri,
   returnPath,
   disabled,
+  brokerEnabled,
 }: SlackConnectionCardProps) {
   const searchParams = useSearchParams();
   const { data: slackIntegration, isLoading, mutate } = useSlackIntegration(workspaceId, !disabled);
@@ -155,6 +157,7 @@ export default function SlackConnectionCard({
               slackClientId={slackClientId}
               slackRedirectUri={slackRedirectUri}
               returnPath={returnPath}
+              brokerEnabled={brokerEnabled}
             />
           )}
         </div>

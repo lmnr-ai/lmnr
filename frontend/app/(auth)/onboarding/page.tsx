@@ -1,6 +1,5 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import OnboardingWizard, { type OnboardingInitialValues } from "@/components/onboarding";
 import { DEFAULT_SELECTED_TEMPLATE_NAMES, type OnboardingFormValues } from "@/components/onboarding/types";
@@ -9,7 +8,7 @@ import { getOnboardingState } from "@/lib/actions/onboarding";
 import { resolveResume } from "@/lib/actions/onboarding/resolve-resume";
 import { loadOnboardingResumeDefaults, type OnboardingResumeDefaults } from "@/lib/actions/onboarding/resume-defaults";
 import { countWorkspaceMemberships } from "@/lib/actions/workspace/utils";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
@@ -43,7 +42,7 @@ function buildDefaults(resumeDefaults: OnboardingResumeDefaults | null): Onboard
 }
 
 export default async function OnboardingPage(props: OnboardingPageProps) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   const user = session!.user;
 
   const searchParams = await props.searchParams;
@@ -85,7 +84,7 @@ export default async function OnboardingPage(props: OnboardingPageProps) {
 
   return (
     <UserContextProvider user={user}>
-      <div className="flex flex-col min-h-screen w-full bg-background">
+      <div className="flex flex-col min-h-screen w-full bg-surface-700">
         <OnboardingWizard
           initial={initial}
           slackClientId={process.env.SLACK_CLIENT_ID}

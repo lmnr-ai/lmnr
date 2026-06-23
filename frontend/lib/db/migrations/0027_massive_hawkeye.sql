@@ -19,5 +19,5 @@ ALTER TABLE "workspaces" ALTER COLUMN "subscription_id" DROP DEFAULT;--> stateme
 ALTER TABLE "workspaces" ALTER COLUMN "subscription_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "tier_id" bigint DEFAULT '1' NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "subscription_id" text;--> statement-breakpoint
-ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "users" ADD CONSTRAINT "users_tier_id_fkey" FOREIGN KEY ("tier_id") REFERENCES "public"."user_subscription_tiers"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "user_usage" ADD CONSTRAINT "user_usage_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_tier_id_fkey" FOREIGN KEY ("tier_id") REFERENCES "user_subscription_tiers"("id") ON DELETE no action ON UPDATE no action;

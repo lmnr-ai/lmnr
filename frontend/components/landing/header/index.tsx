@@ -55,23 +55,23 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
               dimensions — no visual change. Setting one dimension and leaving
               the other auto silences the Next.js "modified, but not the other"
               warning that fill-mode + sized wrapper was triggering. */}
-          <Image alt="Laminar logo" src={logo} className="w-[80px] md:w-[100px] h-auto -translate-y-0.5" priority />
+          <Image alt="Laminar logo" src={logo} className="w-[100px] h-auto md:-translate-y-0.5" priority />
         </Link>
         <div className={cn("flex md:gap-[40px] items-center justify-center", "gap-4")}>
           <nav className="hidden md:flex md:gap-[32px] items-center font-sans-landing md:text-sm leading-normal whitespace-nowrap text-xs">
-            <Link href="https://laminar.sh/docs" target="_blank" className="no-underline hover:text-landing-text-200">
+            <Link href="https://laminar.sh/docs" target="_blank" className="no-underline hover:text-foreground-200">
               Docs
             </Link>
-            <Link href="/blog" className="no-underline hover:text-landing-text-200">
+            <Link href="/blog" className="no-underline hover:text-foreground-200">
               Blog
             </Link>
-            <Link href="/pricing" className="no-underline hover:text-landing-text-200">
+            <Link href="/pricing" className="no-underline hover:text-foreground-200">
               Pricing
             </Link>
             <Link
               target="_blank"
               href="https://cal.com/robert-lmnr/demo"
-              className="no-underline hover:text-landing-text-200"
+              className="no-underline hover:text-foreground-200"
             >
               Book demo
             </Link>
@@ -87,12 +87,12 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             ) : (
               <>
                 <Link href="/sign-in">
-                  <LandingButton variant="minimal" size="xs" className="py-1.5">
+                  <LandingButton variant="minimal" size="xs" className="py-2 sm:py-1.5">
                     Sign in
                   </LandingButton>
                 </Link>
                 <Link href="/sign-up">
-                  <LandingButton variant="outline" size="xs" className="py-1 px-3">
+                  <LandingButton variant="outline" size="xs" className="py-2 sm:py-1 px-4 sm:px-3">
                     Sign up
                   </LandingButton>
                 </Link>
@@ -100,7 +100,7 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
             )}
             <button
               type="button"
-              className="md:hidden p-1 text-landing-text-300"
+              className="md:hidden p-1 text-foreground-300"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
@@ -112,17 +112,17 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
       {/* Mobile Menu Overlay - starts below header */}
       <div
         className={cn(
-          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-landing-surface-700 md:hidden transition-opacity duration-300",
+          "fixed left-0 right-0 bottom-0 top-[60px] z-40 bg-surface-700 md:hidden transition-opacity duration-300",
           mobileMenuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
       >
-        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-landing-surface-400 gap-5">
+        <nav className="flex flex-col px-[32px] pt-12 border-t border-t-surface-200 gap-5">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               target={link.external ? "_blank" : undefined}
-              className="font-sans-landing font-medium text-[28px] leading-[30px] text-white no-underline hover:text-landing-text-200 tracking-tight"
+              className="font-sans-landing font-medium text-[28px] leading-[30px] text-white no-underline hover:text-foreground-200 tracking-tight"
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}

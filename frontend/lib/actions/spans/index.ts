@@ -42,12 +42,6 @@ export const DeleteSpansSchema = z.object({
   spanIds: z.array(z.string()).min(1),
 });
 
-export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> =>
-  executeQuery<{ count: number }>({
-    query: `SELECT count(*) as count FROM spans`,
-    projectId,
-  });
-
 function buildTraceSubquery({
   startTime,
   endTime,

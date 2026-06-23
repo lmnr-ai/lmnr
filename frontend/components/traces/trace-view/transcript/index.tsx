@@ -415,7 +415,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
             <GroupChildWrapper isLast={row.isLast}>
               <SpanItem
                 span={row.span}
-                fullSpan={spansById.get(row.span.spanId)}
                 output={previews[row.span.spanId]}
                 onSpanSelect={handleSpanSelect}
                 isSelected={selectedSpan?.spanId === row.span.spanId}
@@ -428,7 +427,6 @@ const Transcript = ({ onSpanSelect, isShared = false }: TranscriptProps) => {
           return (
             <SpanItem
               span={row.span}
-              fullSpan={spansById.get(row.span.spanId)}
               output={previews[row.span.spanId]}
               onSpanSelect={handleSpanSelect}
               isSelected={selectedSpan?.spanId === row.span.spanId}

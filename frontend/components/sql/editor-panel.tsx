@@ -16,7 +16,7 @@ import {
   TableProperties,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";

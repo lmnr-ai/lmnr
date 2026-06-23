@@ -18,6 +18,7 @@ import {
   getIsLeaf,
   getUnclusteredVirtualCluster,
   getVisibleClusters,
+  selectRangeEventTotal,
   selectUnclusteredCount,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
@@ -26,17 +27,22 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useProjectContext } from "@/contexts/project-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { getClusterColorById, UNCLUSTERED_COLOR } from "@/lib/clusters/colors";
 import { getHasClusteringAccess } from "@/lib/features/clustering";
 import { track } from "@/lib/posthog";
+import { cn } from "@/lib/utils";
 
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
-import { getClusterColor, UNCLUSTERED_COLOR } from "./colors";
 
-export default function ClustersSection() {
-  const { workspace } = useProjectContext();
+interface Props {
+  className?: string;
+}
+
+export default function ClustersSection({ className }: Props) {
+  const { workspace, settingsHref } = useProjectContext();
   const isPaywall = !getHasClusteringAccess(workspace?.tierName);
-  const billingHref = workspace ? `/workspace/${workspace.id}?tab=billing` : "/";
+  const billingHref = settingsHref("billing");
   const searchParams = useSearchParams();
   const [clusterId, setClusterId] = useClusterId();
   const [, setEmergingClusterId] = useEmergingClusterId();
@@ -53,11 +59,13 @@ export default function ClustersSection() {
   const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
+  const fetchRunStats = useSignalStoreContext((state) => state.fetchRunStats);
+  const runTotals = useSignalStoreContext((state) => state.runTotals);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const hasTimeRange = !!(pastHours || startDate);
+  const hasTimeRange = !!(pastHours || (startDate && endDate));
 
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
   const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
@@ -69,19 +77,21 @@ export default function ClustersSection() {
   );
   const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
   const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
+  const rangeTotal = useSignalStoreContext(selectRangeEventTotal);
 
-  // Build stable color map from sibling list so colors match between list and chart
+  // Color is a pure function of cluster id (shared with trace-view), so the
+  // map is just for the unclustered virtual bucket plus convenience lookups.
   const colorMap = useMemo(() => {
     const map = new Map<string, string>();
-    visibleClusters.forEach((c, i) => map.set(c.id, getClusterColor(i, drillDownDepth)));
+    visibleClusters.forEach((c) => map.set(c.id, getClusterColorById(c.id)));
     map.set(UNCLUSTERED_ID, UNCLUSTERED_COLOR);
     return map;
-  }, [visibleClusters, drillDownDepth]);
+  }, [visibleClusters]);
 
-  // Fetch clusters on mount
   useEffect(() => {
-    fetchClusters();
-  }, [fetchClusters]);
+    if (!pastHours && !(startDate && endDate)) return;
+    fetchClusters({ pastHours, startDate, endDate });
+  }, [fetchClusters, pastHours, startDate, endDate]);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -120,6 +130,24 @@ export default function ClustersSection() {
     };
   }, [statsUrl, fetchClusterStats, rawClusters]);
 
+  // Signal-runs overlay: count of traces this signal actually evaluated (post-trigger),
+  // fetched at the SAME interval as the cluster stats (same hook → same container width →
+  // aligned timestamps) and drawn behind the bars. This is the true denominator for the
+  // event counts — no trigger-filter re-implementation, since the backend records each run.
+  const runStatsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/runs/stats`,
+    chartContainerWidth: localChartWidth,
+    pastHours,
+    startDate,
+    endDate,
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchRunStats({ statsUrl: runStatsUrl, abortSignal: controller.signal });
+    return () => controller.abort();
+  }, [runStatsUrl, fetchRunStats]);
+
   // Navigation callbacks. No-op when paywalled — drilling is a Pro feature.
   const navigateToCluster = useCallback(
     (id: string) => {
@@ -143,7 +171,10 @@ export default function ClustersSection() {
 
   if (isClustersLoading) {
     return (
-      <div className="flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary" style={{ maxHeight: 300 }}>
+      <div
+        className={cn("flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary", className)}
+        style={{ maxHeight: 300 }}
+      >
         <div className="w-[320px] shrink-0 border-r overflow-y-auto">
           <div className="flex flex-col gap-0.5 py-2 px-2">
             {[1, 2, 3, 4].map((i) => (
@@ -167,9 +198,9 @@ export default function ClustersSection() {
       <ResizablePanelGroup
         id="clusters-section"
         orientation="horizontal"
-        className="border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]"
+        className={cn("border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]", className)}
       >
-        <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
+        <ResizablePanel defaultSize={"36%"} minSize={"200px"} className="overflow-hidden">
           <div className="relative h-full w-full">
             <ClusterList
               className="h-full w-full"
@@ -180,6 +211,7 @@ export default function ClustersSection() {
               unclusteredVirtualCluster={unclusteredVirtualCluster}
               selectedClusterId={clusterId}
               onNavigateToCluster={navigateToCluster}
+              rangeTotal={rangeTotal}
               isPaywall={isPaywall}
             />
             {isPaywall && (
@@ -197,7 +229,7 @@ export default function ClustersSection() {
 
         <ResizableHandle />
 
-        <ResizablePanel defaultSize={"70%"} minSize={"400px"}>
+        <ResizablePanel defaultSize={"64%"} minSize={"400px"}>
           <div className="h-full py-2 pr-2 bg-secondary" ref={chartContainerRef}>
             {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
               <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -210,6 +242,7 @@ export default function ClustersSection() {
                 containerWidth={localChartWidth}
                 colorMap={colorMap}
                 showTooltip={!isPaywall}
+                runTotals={runTotals}
               />
             )}
           </div>

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { WorkspaceTier } from "@/lib/workspaces/types";
 
@@ -16,15 +18,20 @@ import { SettingsSection, SettingsSectionHeader } from "./settings-section";
 const PRO_TIERS: WorkspaceTier[] = [WorkspaceTier.PRO, WorkspaceTier.ENTERPRISE];
 
 export default function PiiRedaction() {
-  const { project, workspace } = useProjectContext();
+  const { project, workspace, settingsHref } = useProjectContext();
   const { projectId } = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const flags = useFeatureFlags();
 
   const [enabled, setEnabled] = useState<boolean>(project?.settings.removePii ?? false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const isProTier = workspace ? PRO_TIERS.includes(workspace.tierName) : false;
+  // Self-hosted installs aren't on tiered billing, so the Pro gate only
+  // applies on Laminar Cloud. Mirror of the server gate in
+  // `lib/actions/project/settings.ts`.
+  const isCloud = flags[Feature.LAMINAR_CLOUD];
+  const isProTier = !isCloud || (workspace ? PRO_TIERS.includes(workspace.tierName) : false);
 
   const onToggle = async (next: boolean) => {
     if (!isProTier) return;
@@ -79,7 +86,7 @@ export default function PiiRedaction() {
             </span>
             {workspace && (
               <Button asChild size="sm" variant="outline" className="h-7">
-                <Link href={`/workspace/${workspace.id}?tab=billing`}>
+                <Link href={settingsHref("billing")}>
                   Upgrade plan
                   <ArrowUpRight className="ml-1 size-3" />
                 </Link>

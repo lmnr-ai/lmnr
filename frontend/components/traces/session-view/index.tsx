@@ -3,22 +3,22 @@
 import React from "react";
 
 import SessionViewContent from "./session-view-content";
-import SessionViewStoreProvider from "./store";
+import SessionViewStoreProvider, { type SessionSummary } from "./store";
 
 interface SessionViewProps {
-  projectId: string;
   sessionId: string;
+  initialSession?: SessionSummary;
 }
 
 /**
  * Full-page session view rendered by
  * `/project/[projectId]/sessions/[...sessionId]`.
  */
-export function SessionView({ projectId, sessionId }: SessionViewProps) {
+export function SessionView({ sessionId, initialSession }: SessionViewProps) {
   return (
-    <SessionViewStoreProvider key={sessionId} projectId={projectId} sessionId={sessionId}>
+    <SessionViewStoreProvider key={sessionId} initialSession={initialSession ?? { sessionId }}>
       <div className="w-full h-full flex flex-col">
-        <SessionViewContent />
+        <SessionViewContent sessionId={sessionId} />
       </div>
     </SessionViewStoreProvider>
   );

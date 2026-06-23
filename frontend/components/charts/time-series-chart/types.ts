@@ -1,3 +1,5 @@
+import type React from "react";
+
 export type TimeSeriesDataPoint = {
   timestamp: string;
 } & Record<string, number>;
@@ -7,6 +9,7 @@ export interface TimeSeriesChartConfig {
     label: string;
     color: string;
     stackId?: string;
+    icon?: React.ComponentType;
   };
 }
 
@@ -21,4 +24,8 @@ export interface TimeSeriesChartProps<T extends TimeSeriesDataPoint> {
   formatValue?: (value: number) => string;
   showTotal?: boolean;
   showTooltip?: boolean;
+  hideZeroValues?: boolean;
+  // Optional secondary-axis line + gradient drawn behind the bars.
+  overlayField?: string;
+  overlayColor?: string;
 }

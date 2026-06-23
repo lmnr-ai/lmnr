@@ -1,11 +1,9 @@
 import { z } from "zod/v4";
 
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 import { MAIN_AGENT_SEARCH_WINDOW } from "@/components/traces/trace-view/store/utils";
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
-import { type Span } from "@/lib/traces/types";
-import { fetcherJSON } from "@/lib/utils.ts";
 
 import { extractInputsForGroup, fingerprintUserMessage, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
@@ -77,7 +75,7 @@ interface InputQueryRow {
 interface TraceIOResult {
   inputPreview: string | null;
   outputPreview: string | null;
-  outputSpan: Span | null;
+  outputSpan: TraceViewListSpan | null;
 }
 
 interface TraceWithParsedInput {
@@ -98,13 +96,6 @@ export async function getMainAgentIOBatch({
   const parsed = bodySchema.parse({ traceIds });
 
   const traceData = await Promise.all(parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
-
-  // Back-compat fallback: fill in missing promptHash values by asking app-server
-  // to hash the system prompt we already parsed. Once prompt_hash is populated
-  // for most spans via the ingest pipeline (app-server/src/traces/utils.rs),
-  // this hydration step can be removed together with the /skeleton-hashes
-  // endpoint and this function's reliance on parsed.systemText.
-  await hydrateMissingPromptHashes(traceData, projectId);
 
   // Group by (systemHash, fingerprint). The fingerprint captures the top-level
   // XML-tag structure of the joined user message so traces whose user messages
@@ -150,9 +141,11 @@ export async function getMainAgentIOBatch({
     }
   }
 
-  const outputSpanIds = traceData.map((t) => t.outputSpanId).filter((id): id is string => id !== null);
+  const tracesWithOutput = traceData.filter((t) => t.outputSpanId !== null);
+  const outputSpanIds = tracesWithOutput.map((t) => t.outputSpanId as string);
   if (outputSpanIds.length > 0) {
-    const spansById = await fetchSpansByIds(outputSpanIds, projectId);
+    const outputTraceIds = [...new Set(tracesWithOutput.map((t) => t.traceId))];
+    const spansById = await fetchSpansByIds(outputSpanIds, outputTraceIds, projectId);
     for (const t of traceData) {
       if (t.outputSpanId && results[t.traceId]) {
         results[t.traceId].outputSpan = spansById.get(t.outputSpanId) ?? null;
@@ -174,15 +167,8 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   const rawInput = joinUserParts(traceData.parsed.userParts);
   if (!rawInput) return null;
 
-  // Back-compat fallback: older spans don't carry a prompt_hash attribute, so
-  // we compute one via app-server from the parsed system text and cache it as
-  // the group key for regex extraction. Remove once ingest-time hashing in
-  // app-server/src/traces/utils.rs has populated most spans with prompt_hash
-  // — then the /skeleton-hashes endpoint and this hydration can go away.
-  await hydrateMissingPromptHashes([traceData], projectId);
-
   // Without a prompt hash there is no group key to cache the regex under, so
-  // fall back to the raw user text. This should be rare after hydration.
+  // fall back to the raw user text.
   if (!traceData.promptHash) return rawInput;
 
   const results: Record<string, TraceIOResult> = {};
@@ -190,69 +176,6 @@ export async function getTraceUserInput(traceId: string, projectId: string): Pro
   await extractInputsForGroup(traceData.promptHash, projectId, [traceData], results, fingerprint);
 
   return results[traceId]?.inputPreview ?? rawInput;
-}
-
-// ---------------------------------------------------------------------------
-// Back-compat: client-side prompt-hash hydration.
-//
-// app-server computes a `lmnr.span.prompt_hash` attribute at ingest
-// (see app-server/src/traces/utils.rs::compute_prompt_hash). For spans that
-// pre-date that code path the attribute is missing, so when ClickHouse
-// returns no prompt_hash we fall back to asking app-server's
-// /projects/{projectId}/skeleton-hashes endpoint to compute it from the
-// system text we parsed client-side. This keeps the regex-cache grouping
-// working on historical data.
-//
-// TODO: once ingest-time hashing has backfilled most spans, drop this
-// function, the `/skeleton-hashes` route in app-server, and the reliance on
-// parsed.systemText in this file. At that point a missing prompt_hash can
-// simply short-circuit to returning the raw user input.
-// ---------------------------------------------------------------------------
-
-const SKELETON_BATCH_LIMIT = 200; // must stay in sync with app-server's SkeletonHashRequest cap
-
-async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
-  try {
-    const hashes = await fetcherJSON<string[]>(`/projects/${projectId}/skeleton-hashes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texts }),
-    });
-    return Array.isArray(hashes) ? hashes : [];
-  } catch {
-    return [];
-  }
-}
-
-async function hydrateMissingPromptHashes(traces: TraceWithParsedInput[], projectId: string): Promise<void> {
-  const toHash: { trace: TraceWithParsedInput; systemText: string }[] = [];
-  for (const trace of traces) {
-    if (trace.promptHash) continue;
-    const systemText = trace.parsed?.systemText?.trim();
-    if (!systemText) continue;
-    toHash.push({ trace, systemText });
-  }
-
-  if (toHash.length === 0) return;
-
-  // Dedup identical system prompts so we only pay once per unique text.
-  const uniqueTexts = [...new Set(toHash.map((e) => e.systemText))];
-
-  const hashByText = new Map<string, string>();
-  for (let offset = 0; offset < uniqueTexts.length; offset += SKELETON_BATCH_LIMIT) {
-    const batch = uniqueTexts.slice(offset, offset + SKELETON_BATCH_LIMIT);
-    const hashes = await fetchSkeletonHashes(batch, projectId);
-    if (hashes.length !== batch.length) continue;
-    for (let i = 0; i < batch.length; i++) {
-      const hash = hashes[i];
-      if (hash) hashByText.set(batch[i], hash);
-    }
-  }
-
-  for (const { trace, systemText } of toHash) {
-    const hash = hashByText.get(systemText);
-    if (hash) trace.promptHash = hash;
-  }
 }
 
 async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
@@ -332,7 +255,17 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   };
 }
 
-async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Map<string, Span>> {
+async function fetchSpansByIds(
+  spanIds: string[],
+  traceIds: string[],
+  projectId: string
+): Promise<Map<string, TraceViewListSpan>> {
+  // Select only the lightweight fields the downstream consumer (`SpanItem`,
+  // typed on `TraceViewListSpan`) actually reads. Omitting `input`/`output`/
+  // `attributes`/`events` lets the query be served by the IO-excluding
+  // `spans_no_io_by_start_time` PROJECTION instead of decompressing the heavy
+  // ZSTD columns. `cacheReadInputTokens` is the only attribute-derived field
+  // that survives downstream, so extract just that one.
   const query = `
     SELECT
       span_id as spanId,
@@ -341,50 +274,26 @@ async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Ma
       span_type as spanType,
       input_tokens as inputTokens,
       output_tokens as outputTokens,
-      total_tokens as totalTokens,
-      input_cost as inputCost,
-      output_cost as outputCost,
       total_cost as totalCost,
       formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
       formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
-      trace_id as traceId,
       status,
-      input,
-      output,
       path,
-      attributes,
-      events
+      simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens') as cacheReadInputTokens
     FROM spans
-    WHERE span_id IN ({spanIds: Array(UUID)})
+    WHERE trace_id IN ({traceIds: Array(UUID)})
+      AND span_id IN ({spanIds: Array(UUID)})
   `;
 
-  const rows = await executeQuery<
-    Omit<Span, "attributes" | "events" | "cacheReadInputTokens" | "reasoningTokens"> & {
-      attributes: string;
-      events: { timestamp: number; name: string; attributes: string }[];
-    }
-  >({
+  const rows = await executeQuery<TraceViewListSpan>({
     query,
-    parameters: { spanIds },
+    parameters: { spanIds, traceIds },
     projectId,
   });
 
-  const map = new Map<string, Span>();
+  const map = new Map<string, TraceViewListSpan>();
   for (const row of rows) {
-    const parsedAttributes = tryParseJson(row.attributes) || {};
-    map.set(row.spanId, {
-      ...row,
-      input: tryParseJson(row.input),
-      output: tryParseJson(row.output),
-      attributes: parsedAttributes,
-      cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
-      reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
-      events: (row.events || []).map((event) => ({
-        timestamp: event.timestamp,
-        name: event.name,
-        attributes: tryParseJson(event.attributes) || {},
-      })),
-    });
+    map.set(row.spanId, row);
   }
   return map;
 }

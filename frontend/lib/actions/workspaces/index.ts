@@ -1,11 +1,10 @@
 import { desc, eq, inArray } from "drizzle-orm";
-import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
 import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { createSignal } from "@/lib/actions/signals";
-import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth-session";
 import { defaultReports } from "@/lib/db/default-charts.ts";
 import { DEFAULT_SIGNAL, DEFAULT_SIGNAL_TRIGGER_VALUE } from "@/lib/db/default-signals.ts";
 import { db } from "@/lib/db/drizzle";
@@ -35,7 +34,7 @@ type CreateWorkspaceResult = {
 };
 
 export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session?.user) {
     throw new Error("Unauthorized");
@@ -128,7 +127,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
 };
 
 export const getWorkspaces = async (): Promise<Workspace[]> => {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
 
   if (!session?.user) {
     throw new Error("Unauthorized: User not authenticated");

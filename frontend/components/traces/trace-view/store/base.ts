@@ -122,6 +122,7 @@ export type TraceViewTrace = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
   reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
@@ -135,10 +136,17 @@ export type TraceViewTrace = {
   userId?: string;
 };
 
+export type TraceSignalClusterNode = {
+  id: string;
+  name: string;
+  level: number;
+};
+
 export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
+  leafCluster: TraceSignalClusterNode | null;
   schemaFields: Array<{ name: string; type: string; description?: string }>;
   events: Array<Record<string, any>>;
 };
@@ -179,11 +187,8 @@ export interface BaseTraceViewState {
   isTraceSignalsLoading: boolean;
   activeSignalTabId: string | null;
 
-  // Set once at store creation. When signals are fetched (by either Header or
-  // SignalEventsPanel — whichever wins the race), the fetch callback checks this
-  // value to pick the correct default tab instead of blindly selecting the first
-  // signal. This avoids brittle useEffect chains that try to fix the tab after
-  // the fact.
+  // Set once at store creation. When signal data arrives via fetch, the Header
+  // checks this value to pick the correct default tab.
   initialSignalId?: string;
 
   initialSearch: string;
@@ -482,12 +487,4 @@ export const useTraceViewBaseStore = <T>(
     throw new Error("useTraceViewContext must be used within a TraceViewContext provider");
   }
   return useStoreWithEqualityFn(store, selector, equalityFn);
-};
-
-export const useTraceViewBaseStoreRaw = () => {
-  const store = useContext(TraceViewContext);
-  if (!store) {
-    throw new Error("useTraceViewBaseStore must be used within a TraceViewContext provider");
-  }
-  return store;
 };

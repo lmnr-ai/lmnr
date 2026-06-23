@@ -1,5 +1,6 @@
 "use client";
 
+import { useParams } from "next/navigation";
 import React, { useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -7,25 +8,42 @@ import { type TraceRow } from "@/lib/traces/types";
 
 import FillWidthLayout, { type SessionViewPanels } from "./fill-width-layout";
 import SessionPanel from "./session-panel";
-import SessionSpanPanel from "./session-span-panel";
+import RegularSearchSlot from "./session-panel/regular-search-slot";
+import RegularTimelineToggle from "./session-panel/regular-timeline-toggle";
+import SessionTimeline from "./session-timeline";
 import { useSessionViewStore } from "./store";
+
+interface SessionViewContentProps {
+  sessionId: string;
+}
 
 const PAGE_SIZE = 200;
 
-export default function SessionViewContent() {
-  const { projectId, sessionId, spanPanelOpen, setTraces, setIsTracesLoading, setTracesError } = useSessionViewStore(
-    (s) => ({
-      projectId: s.projectId,
-      sessionId: s.sessionId,
-      spanPanelOpen: s.spanPanelOpen,
-      setTraces: s.setTraces,
-      setIsTracesLoading: s.setIsTracesLoading,
-      setTracesError: s.setTracesError,
-    }),
-    shallow
-  );
+export default function SessionViewContent({ sessionId }: SessionViewContentProps) {
+  const { projectId } = useParams<{ projectId: string }>();
 
+  const { sessionTimelineEnabled, setTraces, setIsTracesLoading, setTracesError, setSession, setProjectId } =
+    useSessionViewStore(
+      (s) => ({
+        sessionTimelineEnabled: s.sessionTimelineEnabled,
+        setTraces: s.setTraces,
+        setIsTracesLoading: s.setIsTracesLoading,
+        setTracesError: s.setTracesError,
+        setSession: s.setSession,
+        setProjectId: s.setProjectId,
+      }),
+      shallow
+    );
+
+  // Push projectId into the store so store-owned async actions
+  // (e.g. fetchTraceSpans) can issue requests without prop-drilling.
   useEffect(() => {
+    setProjectId(projectId);
+  }, [projectId, setProjectId]);
+
+  // --- Fetch traces for the session ---
+  useEffect(() => {
+    setSession({ sessionId });
     const controller = new AbortController();
     const fetchTraces = async () => {
       try {
@@ -57,15 +75,19 @@ export default function SessionViewContent() {
     };
     fetchTraces();
     return () => controller.abort();
-  }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError]);
+  }, [projectId, sessionId, setTraces, setIsTracesLoading, setTracesError, setSession]);
 
   const panels: SessionViewPanels = useMemo(
     () => ({
-      sessionPanel: <SessionPanel />,
-      spanPanel: <SessionSpanPanel />,
-      showSpan: spanPanelOpen,
+      sessionPanel: (
+        <SessionPanel
+          searchSlot={<RegularSearchSlot />}
+          timelineToggle={<RegularTimelineToggle />}
+          timelinePanel={sessionTimelineEnabled ? <SessionTimeline /> : undefined}
+        />
+      ),
     }),
-    [spanPanelOpen]
+    [sessionTimelineEnabled]
   );
 
   return <FillWidthLayout panels={panels} />;

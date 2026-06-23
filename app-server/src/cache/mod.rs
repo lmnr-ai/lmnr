@@ -49,6 +49,12 @@ pub trait CacheTrait {
     /// Lock expires after TTL seconds if not manually released.
     async fn try_acquire_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError>;
 
+    /// Extend an already-held lock's expiry to `ttl_seconds` from now. Returns
+    /// true if the lock still existed and was renewed, false if it had already
+    /// expired (so the caller no longer owns it). Used by long-running holders
+    /// to heartbeat a lock whose work outlives a single fixed TTL.
+    async fn renew_lock(&self, key: &str, ttl_seconds: u64) -> Result<bool, CacheError>;
+
     /// Release a lock
     async fn release_lock(&self, key: &str) -> Result<(), CacheError>;
 

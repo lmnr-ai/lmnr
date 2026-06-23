@@ -99,6 +99,38 @@ pub fn canonical_json(value: &Value) -> String {
     }
 }
 
+/// Debugger-replay-cache (LAM-1715) input hash for a whole LLM-call message
+/// array. Distinct from the per-message dedup hashing above: it hashes the
+/// **entire** message array (with system messages removed) as one blob so the
+/// same key can be reproduced byte-for-byte by the SDK before each live call.
+///
+/// `input` is the full reconstructed message array for the span. **Every**
+/// message with `role == "system"` is stripped first — regardless of its
+/// content or position — because the coding agent may add, remove, or edit its
+/// own system prompt(s) between iterations, and those edits must not change the
+/// cache key. The remaining array is then canonicalized (object keys sorted
+/// recursively, array order preserved) and blake3-hashed. Returns the 64-char
+/// lowercase hex digest. No number canonicalization in v1.
+///
+/// This intentionally strips by `role` alone and does NOT reuse
+/// `prompt_hash::extract_system_message` (which removes a single system message,
+/// and only when it has extractable text). The cache contract is the simpler
+/// "drop all system messages", which the SDK mirrors exactly.
+pub fn debug_input_hash(input: &Value) -> String {
+    let messages = match input.as_array() {
+        Some(arr) => Value::Array(
+            arr.iter()
+                .filter(|m| m.get("role").and_then(|r| r.as_str()) != Some("system"))
+                .cloned()
+                .collect(),
+        ),
+        None => input.clone(),
+    };
+    let canonical = canonical_json(&messages);
+    let hash = blake3::hash(canonical.as_bytes());
+    hex::encode(hash.as_bytes())
+}
+
 /// Producer's hash + Redis-status verdict for one LLM span's message array
 /// (input or output). Both axes are independent:
 ///
@@ -390,9 +422,8 @@ mod tests {
     #[test]
     fn deserializes_old_wire_shape_with_legacy_field_names() {
         let zero_hash = format!("[{}]", vec!["0"; 32].join(","));
-        let json_str = format!(
-            r#"{{"hashes":[{zero_hash}],"new_indices":[0],"new_contents":["{{}}"]}}"#
-        );
+        let json_str =
+            format!(r#"{{"hashes":[{zero_hash}],"new_indices":[0],"new_contents":["{{}}"]}}"#);
         let dedup: MessageDedup = serde_json::from_str(&json_str).unwrap();
         assert_eq!(dedup.trace_new_indices, vec![0]);
         assert_eq!(dedup.trace_new_contents, vec!["{}".to_string()]);
@@ -590,7 +621,11 @@ mod tests {
         let hash: [u8; 32] = *blake3::hash(canonical.as_bytes()).as_bytes();
         // Stamp storage as if a prior trace already inserted this hash.
         cache
-            .insert_with_ttl(&storage_seen_key(project_id, &hash), "1", MESSAGE_SEEN_TTL_SECONDS)
+            .insert_with_ttl(
+                &storage_seen_key(project_id, &hash),
+                "1",
+                MESSAGE_SEEN_TTL_SECONDS,
+            )
             .await
             .unwrap();
 
@@ -608,12 +643,7 @@ mod tests {
         let mut shared_content: Vec<CHDedupedContent> = Vec::new();
         let mut seen: std::collections::HashSet<(Uuid, [u8; 32])> =
             std::collections::HashSet::new();
-        let batch = build_dedup_batch(
-            &[&span],
-            &[Some(dedup)],
-            &mut seen,
-            &mut shared_content,
-        );
+        let batch = build_dedup_batch(&[&span], &[Some(dedup)], &mut seen, &mut shared_content);
 
         assert!(
             shared_content.is_empty(),

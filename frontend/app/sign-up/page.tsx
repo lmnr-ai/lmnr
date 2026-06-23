@@ -1,9 +1,9 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
 
 import SignUp from "@/components/auth/sign-up";
-import { authOptions } from "@/lib/auth.ts";
+import { getServerSession } from "@/lib/auth-session";
+import { sanitizeCallbackUrl } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Sign Up - Laminar",
@@ -14,26 +14,13 @@ export default async function SignUpPage(props: {
   params: Promise<Record<string, never>>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession();
   if (session) {
     redirect("/projects");
   }
 
   const searchParams = await props.searchParams;
-  let callbackUrl: string | undefined = Array.isArray(searchParams?.callbackUrl)
-    ? searchParams.callbackUrl[0]
-    : (searchParams?.callbackUrl ?? "/onboarding");
-
-  if (callbackUrl) {
-    try {
-      const url = new URL(callbackUrl);
-      if (url.pathname === "/" || url.pathname === "") {
-        callbackUrl = "/onboarding";
-      }
-    } catch {
-      // Invalid URL, use default
-    }
-  }
+  const callbackUrl = sanitizeCallbackUrl(searchParams?.callbackUrl);
 
   return <SignUp callbackUrl={callbackUrl} />;
 }

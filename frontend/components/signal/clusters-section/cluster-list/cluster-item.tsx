@@ -1,17 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Box, Boxes, CircleDashed } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
+import { withOpacity } from "@/lib/clusters/colors";
 import { cn } from "@/lib/utils";
 
-import { withOpacity } from "../colors";
 import { type ClusterNode } from "../utils";
+import ClusterIcon, { type IconVariant } from "./cluster-icon";
 
-export type IconVariant = "boxes" | "box" | "circle-dashed";
+export type { IconVariant };
 
 interface HoverRect {
   top: number;
@@ -26,6 +26,7 @@ export default function ClusterItem({
   color,
   isSelected,
   filteredCount,
+  total,
   onClick,
   isPaywall,
 }: {
@@ -34,12 +35,17 @@ export default function ClusterItem({
   color: string;
   isSelected: boolean;
   filteredCount: number | undefined;
+  /** Total events in the selected range — denominator for the global proportion bar. */
+  total: number;
   onClick: () => void;
   /** When true, render the row as a paywalled preview: name blurred, no click, no hover tooltip. */
   isPaywall?: boolean;
 }) {
   const hasChildren = iconVariant === "boxes";
   const displayCount = filteredCount ?? 0;
+  // Proportion relative to ALL events in the range (global scale), not the current
+  // sub-cluster slice. Floor a non-zero share at 2% so tiny clusters stay visible.
+  const barPct = total > 0 ? Math.max(Math.min((displayCount / total) * 100, 100), displayCount > 0 ? 2 : 0) : 0;
   const showFilteredRange = filteredCount !== undefined;
   const createdAgo = useMemo(() => {
     const d = new Date(cluster.createdAt);
@@ -120,27 +126,7 @@ export default function ClusterItem({
     }, 80);
   }, [clearLeaveTimeout, clearOpenTimeout]);
 
-  const icon = (
-    <div className={cn("size-4 flex justify-center items-center", { "blur-[5px]": isPaywall })}>
-      {iconVariant === "boxes" ? (
-        <Boxes
-          className="size-4.5 shrink-0"
-          fill={withOpacity(color, 0.1)}
-          stroke={withOpacity(color, 0.7)}
-          strokeWidth={1}
-        />
-      ) : iconVariant === "circle-dashed" ? (
-        <CircleDashed className="size-3.5 shrink-0" stroke={color} />
-      ) : (
-        <Box
-          fill={isSelected ? withOpacity(color, 0.5) : withOpacity(color, 0.1)}
-          stroke={isSelected ? color : withOpacity(color, 0.7)}
-          className="size-3.5 shrink-0"
-          strokeWidth={1.5}
-        />
-      )}
-    </div>
-  );
+  const icon = <ClusterIcon iconVariant={iconVariant} color={color} isSelected={isSelected} isPaywall={isPaywall} />;
 
   return (
     <>
@@ -163,8 +149,12 @@ export default function ClusterItem({
         onMouseLeave={isPaywall ? undefined : scheduleClose}
       >
         {icon}
-        <span className={cn("truncate", isPaywall && "blur-[5px] select-none")}>{cluster.name}</span>
-        <span className="text-muted-foreground text-xs ml-auto shrink-0">{displayCount}</span>
+        <span className={cn("flex-1 min-w-0 truncate", isPaywall && "blur-[5px] select-none")}>{cluster.name}</span>
+        {/* Global-scale proportion bar: this cluster's share of all events in range. */}
+        <span className="h-1.5 w-14 shrink-0 overflow-hidden rounded-[2px] bg-foreground/10">
+          <span className="block h-full" style={{ width: `${barPct}%`, backgroundColor: withOpacity(color, 0.7) }} />
+        </span>
+        <span className="text-muted-foreground text-xs shrink-0 w-[30px] text-right">{displayCount}</span>
       </button>
 
       {typeof document !== "undefined" &&

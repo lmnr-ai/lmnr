@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 import { LANDING_COLUMN_MAX_W, mainTitle } from "../class-names";
 import Header from "../header";
+import AgentCta from "./agent-cta";
 import LogoStrip from "./logo-strip";
 
 interface Props {
@@ -25,7 +26,7 @@ const Hero = ({ className, hasSession }: Props) => (
             Ship reliable agents{` `}
             <br className="block sm:hidden" />
           </h1>
-          <p className={cn("font-sans-landing text-[20px] text-landing-text-200")}>
+          <p className={cn("font-sans-landing text-[20px] text-foreground-200")}>
             Laminar catches every agent failure, surfaces what to fix, and confirms the fix resolved it.
           </p>
         </div>
@@ -33,17 +34,11 @@ const Hero = ({ className, hasSession }: Props) => (
         <div className="flex flex-row gap-3 items-center">
           <Link
             href="/sign-up"
-            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-landing-primary-200 hover:bg-landing-primary-400 transition-colors no-underline"
+            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm bg-primary-200 hover:bg-primary-400 transition-colors no-underline"
           >
             <span className="font-sans-landing font-medium text-sm text-black">Get started – free</span>
           </Link>
-          <Link
-            href="https://laminar.sh/docs"
-            target="_blank"
-            className="flex items-center justify-center w-[160px] h-[36px] rounded-sm border border-landing-text-600 hover:bg-landing-surface-600 transition-colors no-underline"
-          >
-            <span className="font-sans-landing font-medium text-sm text-landing-text-200">Docs</span>
-          </Link>
+          <AgentCta />
         </div>
       </div>
 

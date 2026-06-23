@@ -20,7 +20,7 @@ const Session = ({ sessionId }: { sessionId: string }) => {
       />
       <div className="flex-none border-t" />
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        <SessionView projectId={projectId} sessionId={sessionId} />
+        <SessionView sessionId={sessionId} />
       </div>
     </>
   );

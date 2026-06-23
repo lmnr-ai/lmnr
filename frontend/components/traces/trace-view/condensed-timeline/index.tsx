@@ -43,6 +43,8 @@ function CondensedTimeline() {
     transcriptExpandedGroups,
     requestScrollToGroup,
     tab,
+    isCostHeatmapVisible,
+    setIsCostHeatmapVisible,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     getCondensedSubagentGroups: state.getCondensedSubagentGroups,
@@ -64,6 +66,8 @@ function CondensedTimeline() {
     transcriptExpandedGroups: state.transcriptExpandedGroups,
     requestScrollToGroup: state.requestScrollToGroup,
     tab: state.tab,
+    isCostHeatmapVisible: state.isCostHeatmapVisible,
+    setIsCostHeatmapVisible: state.setIsCostHeatmapVisible,
   }));
 
   const {
@@ -235,11 +239,11 @@ function CondensedTimeline() {
               }}
             >
               <div className="absolute top-0 h-6 flex items-center -translate-x-1/2 z-[34]">
-                <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">
+                <div className="size-5 bg-foreground-500 text-primary-foreground rounded-full flex items-center justify-center">
                   <PlayIcon className="w-3 h-3" />
                 </div>
               </div>
-              <div className="absolute top-[6px] bottom-[-60px] w-px bg-landing-text-500" />
+              <div className="absolute top-[6px] bottom-[-60px] w-px bg-foreground-500" />
             </div>
           )}
 
@@ -297,6 +301,7 @@ function CondensedTimeline() {
                   selectedSpan={selectedSpan}
                   isIncludedInGroupSelection={isIncludedInGroupSelection}
                   maxSpanCost={maxSpanCost}
+                  isCostHeatmapVisible={isCostHeatmapVisible}
                   onClick={handleSpanClick}
                 />
               );
@@ -362,7 +367,13 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <Controls onZoomIn={() => handleZoom("in")} onZoomOut={() => handleZoom("out")} />
+      <Controls
+        onZoomIn={() => handleZoom("in")}
+        onZoomOut={() => handleZoom("out")}
+        zoom={condensedTimelineZoom}
+        isCostHeatmapVisible={isCostHeatmapVisible}
+        onToggleCostHeatmap={setIsCostHeatmapVisible}
+      />
     </div>
   );
 }

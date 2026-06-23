@@ -411,6 +411,7 @@ async fn generate_project_summary(
             }),
             ..Default::default()
         }),
+        service_tier: None,
         provider: None,
         model_size: None,
     };

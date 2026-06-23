@@ -36,21 +36,19 @@ export const tagSource = pgEnum("tag_source", ["MANUAL", "AUTO", "CODE"]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner", "admin"]);
 
-export const rolloutSessions = pgTable(
-  "rollout_sessions",
+export const debuggerSessions = pgTable(
+  "debugger_sessions",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     projectId: uuid("project_id").notNull(),
-    params: jsonb().notNull(),
-    status: text().default("PENDING").notNull(),
     name: text(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "rollout_sessions_project_id_fkey",
+      name: "debugger_sessions_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -316,6 +314,34 @@ export const alertTargets = pgTable(
   ]
 );
 
+export const alertFilters = pgTable(
+  "alert_filters",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    alertId: uuid("alert_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    value: jsonb().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("alert_filters_alert_id_project_id_idx").using(
+      "btree",
+      table.alertId.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_filters_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_filters_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const reportTargets = pgTable(
   "report_targets",
   {
@@ -494,34 +520,6 @@ export const workspaceUsageWarnings = pgTable(
   ]
 );
 
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-    idempotencyKey: text("idempotency_key"),
-  },
-  (table) => [
-    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
-      .using(
-        "btree",
-        table.queueId.asc().nullsLast().op("text_ops"),
-        table.idempotencyKey.asc().nullsLast().op("text_ops")
-      )
-      .where(sql`(idempotency_key IS NOT NULL)`),
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const workspaceInvitations = pgTable(
   "workspace_invitations",
   {
@@ -543,14 +541,93 @@ export const users = pgTable(
   "users",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    // mode: "date" (not "string") so Better Auth's adapter, which writes JS Date
+    // objects on user create/update, doesn't fail the insert with a type error.
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
     name: text().notNull(),
     email: text().notNull(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
     subscriptionId: text("subscription_id"),
     avatarUrl: text("avatar_url"),
   },
   (table) => [unique("users_email_key").on(table.email)]
 );
+
+// Better Auth core + jwt-plugin tables. Property keys are camelCase to match
+// Better Auth's model field names (the drizzle adapter resolves fields by
+// property key, not column name); userId is `uuid` so it FKs users.id, while
+// the row ids are text because Better Auth mints non-uuid string ids.
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text().primaryKey().notNull(),
+    token: text().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: uuid("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("sessions_token_key").on(table.token),
+    index("sessions_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "sessions_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: text().primaryKey().notNull(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true, mode: "date" }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true, mode: "date" }),
+    scope: text(),
+    password: text(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("accounts_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "accounts_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const verifications = pgTable("verifications", {
+  id: text().primaryKey().notNull(),
+  identifier: text().notNull(),
+  value: text().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+});
+
+export const jwks = pgTable("jwks", {
+  id: text().primaryKey().notNull(),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+});
 
 export const evaluators = pgTable(
   "evaluators",
@@ -928,6 +1005,8 @@ export const projectApiKeys = pgTable(
     hash: text(),
     id: uuid().defaultRandom().primaryKey().notNull(),
     isIngestOnly: boolean("is_ingest_only").default(false).notNull(),
+    userId: uuid("user_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
@@ -938,6 +1017,13 @@ export const projectApiKeys = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "project_api_keys_user_id_fkey",
+    })
+      .onUpdate("no action")
+      .onDelete("set null"),
   ]
 );
 
@@ -1076,6 +1162,12 @@ export const traces = pgTable(
     outputCost: doublePrecision("output_cost")
       .default(sql`'0'`)
       .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheReadInputTokens: bigint("cache_read_input_tokens", { mode: "number" }),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    reasoningTokens: bigint("reasoning_tokens", { mode: "number" }),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheCreationInputTokens: bigint("cache_creation_input_tokens", { mode: "number" }),
     hasBrowserSession: boolean("has_browser_session"),
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),
@@ -1104,5 +1196,97 @@ export const traces = pgTable(
       .onDelete("cascade"),
     primaryKey({ columns: [table.id, table.projectId], name: "traces_pkey" }),
     unique("traces_project_id_id_unique").on(table.id, table.projectId),
+  ]
+);
+
+export const slackBrokerInstances = pgTable(
+  "slack_broker_instances",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    keyHash: text("key_hash").notNull(),
+    label: text(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [unique("slack_broker_instances_key_hash_key").on(table.keyHash)]
+);
+
+export const agents = pgTable(
+  "agents",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_agents_project_id",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const agentVersions = pgTable(
+  "agent_versions",
+  {
+    projectId: uuid("project_id").notNull(),
+    agentId: uuid("agent_id").notNull(),
+    versionHash: text("version_hash").notNull(),
+    systemPrompt: text("system_prompt").notNull(),
+    toolDefinitions: text("tool_definitions").notNull(),
+    model: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.agentId],
+      foreignColumns: [agents.id],
+      name: "agent_versions_agent_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "fk_agent_versions_project_id",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.projectId, table.versionHash], name: "agent_versions_pkey" }),
+  ]
+);
+
+// in-flight RFC 8628 device-flow login; `userId` is set once the user claims
+// the code via GET /api/auth/device.
+export const deviceCodes = pgTable(
+  "device_codes",
+  {
+    id: text().primaryKey().notNull(),
+    deviceCode: text("device_code").notNull(),
+    userCode: text("user_code").notNull(),
+    userId: uuid("user_id"),
+    clientId: text("client_id"),
+    scope: text(),
+    // Opaque CLI round-trip metadata (e.g. browser-selected projectId). Delivered
+    // to the polling CLI via an x-lmnr-* response header by a /device/token hook,
+    // NOT echoed by BetterAuth's native token response (which only returns scope).
+    metadata: text(),
+    status: text().default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true, mode: "date" }),
+    pollingInterval: integer("polling_interval"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("device_codes_device_code_key").on(table.deviceCode),
+    unique("device_codes_user_code_key").on(table.userCode),
+    index("device_codes_user_code_idx").using("btree", table.userCode.asc().nullsLast().op("text_ops")),
+    index("device_codes_device_code_idx").using("btree", table.deviceCode.asc().nullsLast().op("text_ops")),
+    index("device_codes_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamptz_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "device_codes_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
