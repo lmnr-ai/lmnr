@@ -64,6 +64,18 @@ const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
 
 const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
 
+/// The subset of attribute keys the trace-view tree/transcript reads. Stored as
+/// a compact JSON object in the `spans.trace_view_attributes` column so the hot
+/// read path never scans the full `attributes` blob. Keep in sync with the
+/// frontend consumers (see `CLAUDE.md` "Trace-view Span Attributes").
+const TRACE_VIEW_ATTRIBUTE_KEYS: [&str; 5] = [
+    "lmnr.span.path",
+    "lmnr.span.ids_path",
+    "lmnr.span.prompt_hash",
+    "lmnr.internal.has_browser_session",
+    "lmnr.association.properties.tags",
+];
+
 static GEN_AI_CONTENT_OR_ROLE_ATTRIBUTE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"gen_ai\.(prompt|completion)\.\d+\.(content|role)").unwrap());
 
@@ -148,6 +160,23 @@ impl SpanAttributes {
                 })
                 .collect::<serde_json::Map<String, Value>>(),
         )
+    }
+
+    /// Compact JSON object of just the keys the trace-view tree reads, written
+    /// to the `spans.trace_view_attributes` column at ingestion. Values keep
+    /// their original JSON types so the frontend `tryParseJson` sees the same
+    /// shapes it would from the full `attributes` blob. Missing keys are
+    /// omitted (frontend tolerates undefined).
+    pub fn trace_view_attributes(&self) -> String {
+        let map = TRACE_VIEW_ATTRIBUTE_KEYS
+            .iter()
+            .filter_map(|key| {
+                self.raw_attributes
+                    .get(*key)
+                    .map(|value| (key.to_string(), value.clone()))
+            })
+            .collect::<serde_json::Map<String, Value>>();
+        json_value_to_string(&Value::Object(map))
     }
 
     pub fn to_string(&self) -> String {
@@ -1690,6 +1719,56 @@ fn rename_last_span_in_path(attributes: &mut HashMap<String, Value>, from: &str,
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_trace_view_attributes_keeps_only_known_keys_with_original_types() {
+        let attributes = HashMap::from([
+            ("lmnr.span.path".to_string(), json!(["agent", "llm"])),
+            ("lmnr.span.ids_path".to_string(), json!(["id1", "id2"])),
+            ("lmnr.span.prompt_hash".to_string(), json!("abc123")),
+            ("lmnr.internal.has_browser_session".to_string(), json!(true)),
+            (
+                "lmnr.association.properties.tags".to_string(),
+                json!(["t1", "t2"]),
+            ),
+            // Keys that must be dropped from the compact object.
+            ("gen_ai.system".to_string(), json!("OpenAI")),
+            ("gen_ai.prompt.0.content".to_string(), json!("hello")),
+        ]);
+        let span_attributes = SpanAttributes::new(attributes);
+
+        let parsed: Value =
+            serde_json::from_str(&span_attributes.trace_view_attributes()).unwrap();
+        let obj = parsed.as_object().unwrap();
+
+        assert_eq!(obj.len(), 5);
+        assert_eq!(obj["lmnr.span.path"], json!(["agent", "llm"]));
+        assert_eq!(obj["lmnr.span.ids_path"], json!(["id1", "id2"]));
+        assert_eq!(obj["lmnr.span.prompt_hash"], json!("abc123"));
+        assert_eq!(obj["lmnr.internal.has_browser_session"], json!(true));
+        assert_eq!(
+            obj["lmnr.association.properties.tags"],
+            json!(["t1", "t2"])
+        );
+        assert!(!obj.contains_key("gen_ai.system"));
+        assert!(!obj.contains_key("gen_ai.prompt.0.content"));
+    }
+
+    #[test]
+    fn test_trace_view_attributes_omits_missing_keys() {
+        let attributes = HashMap::from([(
+            "lmnr.span.prompt_hash".to_string(),
+            json!("only-one"),
+        )]);
+        let span_attributes = SpanAttributes::new(attributes);
+
+        let parsed: Value =
+            serde_json::from_str(&span_attributes.trace_view_attributes()).unwrap();
+        let obj = parsed.as_object().unwrap();
+
+        assert_eq!(obj.len(), 1);
+        assert_eq!(obj["lmnr.span.prompt_hash"], json!("only-one"));
+    }
 
     #[test]
     fn test_parse_and_enrich_attributes_openai() {

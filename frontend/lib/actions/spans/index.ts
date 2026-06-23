@@ -200,12 +200,12 @@ const fetchTraceSpans = async ({
       "span_type as spanType",
       "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
       "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
-      // Materialized subset of attribute keys used by the transcript/tree
-      // (see CH migration 50). Reading this avoids pulling the full
-      // `attributes` blob off disk. The per-span view still fetches the
+      // Compact subset of attribute keys used by the transcript/tree, built in
+      // Rust at ingestion (see CH migration 50). Reading this avoids pulling the
+      // full `attributes` blob off disk. The per-span view still fetches the
       // complete attributes via the `getSpan` endpoint.
       "trace_view_attributes as attributes",
-      // Per-span token counts promoted to dedicated columns (CH migration 52)
+      // Per-span token counts promoted to dedicated columns (CH migration 50)
       // — read directly instead of parsing them out of the attributes JSON.
       "cache_read_input_tokens as cacheReadInputTokens",
       "reasoning_tokens as reasoningTokens",

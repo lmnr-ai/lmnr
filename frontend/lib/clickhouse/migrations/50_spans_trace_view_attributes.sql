@@ -1,56 +1,42 @@
--- LAM-1807 (stacked): Materialize the small subset of attribute keys the
--- trace-view tree actually reads into dedicated columns so the per-span tree
--- query stops reading the full `attributes` blob off disk (profiling showed
--- ~99% of the read bytes came from `attributes`; ~11.5 MiB → ~185 KiB per
--- large trace).
+-- LAM-1807 (stacked): Store the small subset of attribute keys the trace-view
+-- tree actually reads in dedicated columns so the per-span tree query stops
+-- reading the full `attributes` blob off disk (profiling showed ~99% of the
+-- read bytes came from `attributes`; ~11.5 MiB → ~185 KiB per large trace).
 --
--- Two storage shapes:
---   * `trace_view_attributes` — a compact MATERIALIZED JSON object of the
---     laminar-internal keys (path, ids_path, prompt_hash, has_browser_session,
---     association tags). The frontend selects this instead of extracting from
---     the full `attributes` blob.
+-- Two storage shapes, both written by Rust at ingestion (`CHSpan::from_db_span`):
+--   * `trace_view_attributes` — a plain `String` column holding a compact JSON
+--     object of the laminar-internal keys (path, ids_path, prompt_hash,
+--     has_browser_session, association tags). Built in Rust and inserted as a
+--     string; the frontend selects it instead of extracting from the full
+--     `attributes` blob. NOT a `MATERIALIZED` expression — building it in code
+--     keeps this migration a plain instant `ADD COLUMN`, avoids re-parsing
+--     `attributes` on every insert, and makes extending the key set a normal
+--     code change rather than hand-written SQL string-concatenation.
 --   * `cache_read_input_tokens` / `cache_creation_input_tokens` /
---     `reasoning_tokens` — dedicated Int64 columns (PR #1943 review). These are
---     promoted out of the JSON because the new OTel convention is dotted
---     (`gen_ai.usage.cache_read.input_tokens`) and that dual format is already
---     normalized to the underscore key in Rust (`normalize_aisdk_attributes`)
---     before `SpanUsage` is built — easier to account for in code than in a
---     materialized expression. Ingestion writes the explicit value in
---     `CHSpan::from_db_span`; the `DEFAULT JSONExtractInt(...)` resolves
---     historical rows without a backfill.
+--     `reasoning_tokens` — dedicated `UInt64` columns (PR #1943 review). The new
+--     OTel convention is dotted (`gen_ai.usage.cache_read.input_tokens`) and
+--     that dual format is already normalized to the underscore key in Rust
+--     (`normalize_aisdk_attributes`) before `SpanUsage` is built — accounted for
+--     in code, not in a SQL expression. Written explicitly in `from_db_span`.
 --
--- No SQL coalesce fallback by design: selecting `attributes` at all forces
--- ClickHouse to read that whole column per granule, defeating the win. Existing
--- rows are prefilled via `MATERIALIZE COLUMN` (the `spans` table has no
--- PARTITION BY, so this is a single full-table mutation that runs async).
+-- All columns are plain `ADD COLUMN` with NO attributes-referencing `DEFAULT`
+-- and NO `MATERIALIZE COLUMN` backfill: a `DEFAULT JSONExtract(attributes,…)`
+-- would force old parts to re-read the full `attributes` blob on read (defeating
+-- the optimization) and would miss dotted-format spans, while `MATERIALIZE` is a
+-- full-table mutation that is painful on the unpartitioned multi-TB `spans`
+-- table. New spans are populated by Rust; pre-migration rows read empty / 0 and
+-- age out.
 ALTER TABLE default.spans
-    ADD COLUMN IF NOT EXISTS trace_view_attributes String MATERIALIZED
-        concat('{', arrayStringConcat(arrayFilter(x -> x != '', [
-            if(JSONHas(attributes, 'lmnr.span.path'), concat('"lmnr.span.path":', JSONExtractRaw(attributes, 'lmnr.span.path')), ''),
-            if(JSONHas(attributes, 'lmnr.span.ids_path'), concat('"lmnr.span.ids_path":', JSONExtractRaw(attributes, 'lmnr.span.ids_path')), ''),
-            if(JSONHas(attributes, 'lmnr.span.prompt_hash'), concat('"lmnr.span.prompt_hash":', JSONExtractRaw(attributes, 'lmnr.span.prompt_hash')), ''),
-            if(JSONHas(attributes, 'lmnr.internal.has_browser_session'), concat('"lmnr.internal.has_browser_session":', JSONExtractRaw(attributes, 'lmnr.internal.has_browser_session')), ''),
-            if(JSONHas(attributes, 'lmnr.association.properties.tags'), concat('"lmnr.association.properties.tags":', JSONExtractRaw(attributes, 'lmnr.association.properties.tags')), '')
-        ]), ','), '}')
-        CODEC(ZSTD(3));
+    ADD COLUMN IF NOT EXISTS trace_view_attributes String CODEC(ZSTD(3));
 
 ALTER TABLE default.spans
-    ADD COLUMN IF NOT EXISTS cache_read_input_tokens Int64
-        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.cache_read_input_tokens');
+    ADD COLUMN IF NOT EXISTS cache_read_input_tokens UInt64;
 
 ALTER TABLE default.spans
-    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens Int64
-        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.cache_creation_input_tokens');
+    ADD COLUMN IF NOT EXISTS cache_creation_input_tokens UInt64;
 
 ALTER TABLE default.spans
-    ADD COLUMN IF NOT EXISTS reasoning_tokens Int64
-        DEFAULT JSONExtractInt(attributes, 'gen_ai.usage.reasoning_tokens');
-
--- Prefill existing parts so the column is physically materialized on disk for
--- old rows too (otherwise old parts would re-evaluate the expression on read,
--- which still touches `attributes`).
-ALTER TABLE default.spans
-    MATERIALIZE COLUMN trace_view_attributes;
+    ADD COLUMN IF NOT EXISTS reasoning_tokens UInt64;
 
 -- Recreate spans_v0 to expose the new columns (mirrors migration 46, with
 -- `trace_view_attributes` + the three token columns added next to `attributes`).
