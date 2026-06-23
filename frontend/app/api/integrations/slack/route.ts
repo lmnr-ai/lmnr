@@ -4,6 +4,16 @@ import { getWorkspaceSettingsPath } from "@/lib/actions/projects";
 import { connectSlackIntegration, redeemBrokeredSlackToken } from "@/lib/actions/slack";
 import { getServerSession } from "@/lib/auth-session";
 import { isUserMemberOfWorkspace } from "@/lib/authorization";
+import { BASE_PATH } from "@/lib/utils";
+
+// NEXT_PUBLIC_URL is the operator's bare origin; the sub-path prefix is owned by
+// BASE_PATH (NEXT_PUBLIC_BASE_PATH, baked at build). NextResponse.redirect is NOT
+// auto-prefixed by Next, so absolute targets must be origin + BASE_PATH + path.
+// Stripping to .origin first avoids double-stamping if the env URL already carries
+// the sub-path. Same pattern as the invite link in lib/actions/workspace/invite.ts.
+function prefixedBase(): string {
+  return `${new URL(process.env.NEXT_PUBLIC_URL!).origin}${BASE_PATH}`;
+}
 
 function parseState(state: string): { workspaceId: string; returnPath?: string } {
   const colonIdx = state.indexOf(":");
@@ -21,7 +31,7 @@ function isRelativePath(path: string): boolean {
 }
 
 async function buildRedirectUrl(workspaceId: string, returnPath?: string, error = false): Promise<string> {
-  const base = process.env.NEXT_PUBLIC_URL;
+  const base = prefixedBase();
   const status = error ? "slack=error" : "slack=success";
 
   if (returnPath && isRelativePath(returnPath)) {
@@ -79,7 +89,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       parsed
         ? await buildRedirectUrl(parsed.workspaceId, parsed.returnPath, true)
-        : `${process.env.NEXT_PUBLIC_URL}/projects?slack=error`
+        : `${prefixedBase()}/projects?slack=error`
     );
   }
 

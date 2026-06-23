@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 import { useToast } from "@/lib/hooks/use-toast";
 import { SimpleLRU } from "@/lib/simple-lru";
-import { type Span } from "@/lib/traces/types";
 
 export type TraceIOEntry = {
   /** Extracted user-input text for the trace's main agent path. Render via a
@@ -10,9 +10,9 @@ export type TraceIOEntry = {
   inputPreview: string | null;
   /** Final LLM output text on the main agent path. Pairs with `outputSpan`. */
   outputPreview: string | null;
-  /** Full span payload for the last LLM span on the main agent path, for
+  /** Lightweight span payload for the last LLM span on the main agent path, for
    *  selectable rendering (e.g. as a `ListItem`). */
-  outputSpan: Span | null;
+  outputSpan: TraceViewListSpan | null;
 };
 
 interface UseBatchedTraceIOOptions {

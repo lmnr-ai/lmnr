@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Streamdown } from "streamdown";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 type Components = NonNullable<ComponentProps<typeof Streamdown>["components"]>;
@@ -78,7 +79,11 @@ export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy
   }, []);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
     updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => el.removeEventListener("scroll", updateScrollState);
   }, [updateScrollState]);
 
   const handleCopy = async () => {
@@ -98,15 +103,13 @@ export function AgentPromptBox({ prompt, copyLabel = "Copy setup prompt", onCopy
       onClick={handleCopy}
       className="relative flex flex-col rounded-md border bg-secondary text-left text-base text-muted-foreground group hover:border-secondary-foreground/25 active:border-secondary-foreground/35 overflow-hidden"
     >
-      <div
-        ref={scrollRef}
-        onScroll={updateScrollState}
-        className="max-h-[220px] overflow-y-auto px-5 py-4 transition-all duration-200"
-      >
-        <Streamdown className={proseClassName} components={markdownComponents}>
-          {prompt}
-        </Streamdown>
-      </div>
+      <ScrollArea ref={scrollRef} className="max-h-[220px] [&>div]:max-h-[220px]">
+        <div className="px-5 py-4">
+          <Streamdown className={proseClassName} components={markdownComponents}>
+            {prompt}
+          </Streamdown>
+        </div>
+      </ScrollArea>
       {notAtTheBottom && (
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[120px] bg-gradient-to-t from-secondary to-transparent" />
       )}

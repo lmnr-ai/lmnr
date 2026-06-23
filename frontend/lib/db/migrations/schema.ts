@@ -1005,6 +1005,8 @@ export const projectApiKeys = pgTable(
     hash: text(),
     id: uuid().defaultRandom().primaryKey().notNull(),
     isIngestOnly: boolean("is_ingest_only").default(false).notNull(),
+    userId: uuid("user_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("project_api_keys_hash_idx").using("hash", table.hash.asc().nullsLast().op("text_ops")),
@@ -1015,6 +1017,13 @@ export const projectApiKeys = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "project_api_keys_user_id_fkey",
+    })
+      .onUpdate("no action")
+      .onDelete("set null"),
   ]
 );
 
@@ -1153,6 +1162,12 @@ export const traces = pgTable(
     outputCost: doublePrecision("output_cost")
       .default(sql`'0'`)
       .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheReadInputTokens: bigint("cache_read_input_tokens", { mode: "number" }),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    reasoningTokens: bigint("reasoning_tokens", { mode: "number" }),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    cacheCreationInputTokens: bigint("cache_creation_input_tokens", { mode: "number" }),
     hasBrowserSession: boolean("has_browser_session"),
     topSpanId: uuid("top_span_id"),
     agentSessionId: uuid("agent_session_id"),
