@@ -108,29 +108,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
-  // Cache-read input tokens are not stored on `traces_v0`; aggregate them from
-  // span attributes for the page in one extra query, then merge by trace id.
-  if (items.length > 0) {
-    const itemIds = items.map((t) => t.id);
-    const cacheRows = await executeQuery<{ traceId: string; cacheReadInputTokens: number }>({
-      query: `
-        SELECT
-          toString(trace_id) as traceId,
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens
-        FROM spans
-        WHERE trace_id IN ({traceIds:Array(UUID)})
-          AND span_type = 'LLM'
-        GROUP BY trace_id
-      `,
-      projectId,
-      parameters: { traceIds: itemIds },
-    });
-    const cacheById = new Map(cacheRows.map((r) => [r.traceId, r.cacheReadInputTokens]));
-    for (const item of items) {
-      item.cacheReadInputTokens = cacheById.get(item.id) ?? 0;
-    }
-  }
-
   // If we have traceIds from search, sort items to match the search order
   if (search && traceIds.length > 0) {
     const traceIdIndexMap = new Map(traceIds.map((id, index) => [id, index]));
