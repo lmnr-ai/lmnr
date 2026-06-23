@@ -87,11 +87,31 @@ export async function updateProject(input: z.infer<typeof UpdateProjectSchema>) 
 async function deleteProjectDataFromClickHouse(
   projectId: string
 ): Promise<{ success: true } | { success: false; tables: string[] }> {
+  // Every project-scoped physical ClickHouse table must be listed here so deleting
+  // a project fully purges its data. Keep in sync with the schema: when a migration
+  // drops a table, remove it from this list too — an ALTER ... DELETE against a
+  // dropped table throws and aborts the purge after Postgres has already committed.
   const tables = [
     "default.spans",
+    "default.traces_replacing",
+    "default.trace_tags",
+    "default.trace_summaries",
+    "default.browser_session_events",
+    "default.deduped_content",
+    "default.llm_messages",
+    "default.logs",
     "default.evaluation_scores",
     "default.evaluation_datapoints",
-    "default.browser_session_events",
+    "default.evaluation_datapoint_executor_outputs",
+    "default.dataset_datapoints",
+    "default.labeling_queue_items",
+    "default.notifications",
+    "default.notification_deliveries",
+    "default.signal_events",
+    "default.signal_event_clusters",
+    "default.signal_runs",
+    "default.signal_run_messages",
+    "default.events_to_clusters",
   ];
 
   const deletionPromises = tables.map(async (table) => {
