@@ -25,6 +25,11 @@
 
 - When capping content width inside a panel that also owns the scrollbar (e.g. the session view list at `frontend/components/traces/session-view/session-panel/list.tsx`), apply `max-w-*` + `mx-auto` to the INNER virtualizer/content element — NOT to a wrapper around the scroll container. Wrapping the `overflow-y-auto` element makes the scrollbar render at the content edge instead of the panel edge, which looks wrong on wide viewports. Keep the scroll element full-width (`w-full`) and center a narrower inner `<div>` inside it.
 
+## Session-view fetches are windowed to the virtualizer range (LAM-1824)
+
+- Everything the session panel list (`frontend/components/traces/session-view/session-panel/list.tsx`) fetches per row is keyed off the virtualizer's visible window (`rangeStart`/`rangeEnd` over `flatRows`), never off the full `traces` array: span previews via `visibleSpanIdsByTrace`/`inputSpanIdsByTrace` → `useSessionSpanPreviews`, and extracted agent output via `outputTraceIds` (only `trace-collapsed-body` rows) → `fetchAgentOutputs`. Sessions can hold many traces (44+ observed), so anything shaped like `traces.map((t) => t.id)` turns mount into one ClickHouse read per trace in the session. Collapsed trace headers need no fetch at all for input — they render the trace row's ingestion-time `agentInput`. The `traces` prop that `useSessionSpanPreviews` takes is only a `startTime`/`endTime` lookup map, not a fetch list.
+- `overscan` on that virtualizer is therefore a **fetch** knob as much as a render knob — overscanned rows sit inside `rangeStart`..`rangeEnd` and pull previews/outputs like any on-screen row. Raising it raises up-front ClickHouse reads proportionally.
+
 ## ContentRenderer modes
 
 - Modes are `text` / `yaml` / `json` / `custom` / `messages`; everything except `custom` and `messages` is CodeMirror (`isCodeMode`). **There is deliberately no markdown mode** — markdown strips leading indentation at parse time, so prompt-shaped content (embedded JSON schemas, XML-like tags) renders flat and no CSS can recover it. Render that content as text; markdown belongs only where content is genuinely prose (`trace-view/transcript/markdown.tsx`, run notes, `json-tooltip`, `agent-prompt-box`).

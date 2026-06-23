@@ -236,6 +236,10 @@ export default function SessionList() {
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize,
+    // `overscan` is a fetch knob, not just a render knob: both windowed
+    // fetches below (span previews, agent outputs) key off `rangeStart`/
+    // `rangeEnd`, which include overscanned rows. Raising this proportionally
+    // raises the up-front ClickHouse reads on mount.
     overscan: 20,
     rangeExtractor,
     getItemKey,
