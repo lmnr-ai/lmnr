@@ -150,9 +150,11 @@ export async function getMainAgentIOBatch({
     }
   }
 
-  const outputSpanIds = traceData.map((t) => t.outputSpanId).filter((id): id is string => id !== null);
+  const tracesWithOutput = traceData.filter((t) => t.outputSpanId !== null);
+  const outputSpanIds = tracesWithOutput.map((t) => t.outputSpanId as string);
   if (outputSpanIds.length > 0) {
-    const spansById = await fetchSpansByIds(outputSpanIds, projectId);
+    const outputTraceIds = [...new Set(tracesWithOutput.map((t) => t.traceId))];
+    const spansById = await fetchSpansByIds(outputSpanIds, outputTraceIds, projectId);
     for (const t of traceData) {
       if (t.outputSpanId && results[t.traceId]) {
         results[t.traceId].outputSpan = spansById.get(t.outputSpanId) ?? null;
@@ -332,7 +334,7 @@ async function fetchTraceData(traceId: string, projectId: string): Promise<Trace
   };
 }
 
-async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Map<string, Span>> {
+async function fetchSpansByIds(spanIds: string[], traceIds: string[], projectId: string): Promise<Map<string, Span>> {
   const query = `
     SELECT
       span_id as spanId,
@@ -355,7 +357,8 @@ async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Ma
       attributes,
       events
     FROM spans
-    WHERE span_id IN ({spanIds: Array(UUID)})
+    WHERE trace_id IN ({traceIds: Array(UUID)})
+      AND span_id IN ({spanIds: Array(UUID)})
   `;
 
   const rows = await executeQuery<
@@ -365,7 +368,7 @@ async function fetchSpansByIds(spanIds: string[], projectId: string): Promise<Ma
     }
   >({
     query,
-    parameters: { spanIds },
+    parameters: { spanIds, traceIds },
     projectId,
   });
 
