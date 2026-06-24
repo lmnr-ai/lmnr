@@ -117,7 +117,7 @@ function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const { toast } = useToast();
   const [groupId] = useQueryState("groupId", parseAsString);
-  const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string }[]>(
+  const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string; lastEvaluationCreatedAt: string }[]>(
     `/api/projects/${params?.projectId}/evaluation-groups`,
     swrFetcher
   );
