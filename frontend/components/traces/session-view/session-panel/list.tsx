@@ -235,7 +235,10 @@ export default function SessionList() {
     count: flatRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize,
-    overscan: 20,
+    // Keep overscan small: every overscanned trace row pulls per-trace IO and
+    // span previews off ClickHouse (windowed by the visible range below), so a
+    // large overscan re-introduces the all-traces-up-front fetch we're avoiding.
+    overscan: 5,
     rangeExtractor,
     getItemKey,
     paddingStart: 0,
@@ -433,12 +436,27 @@ export default function SessionList() {
     spanTypesByTrace,
   });
 
-  // Main-agent input/output text + output span, fetched in one batched call
-  // per session. Reuses the `/traces/io` endpoint + hook that powers the
-  // sessions-table trace cards. Sessions can have many traces, so we pass
-  // every traceId; the hook caches (LRU 200) and chunks into 100-ID batches.
-  const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
+  // Main-agent input/output text + output span, fetched in one batched call.
+  // Reuses the `/traces/io` endpoint + hook that powers the sessions-table
+  // cards. Only traces with a row in the current virtualizer window are
+  // requested — a session can have many traces (44+ observed) and fetching IO
+  // for every one on mount means 3 ClickHouse queries per trace up front. The
+  // hook caches (LRU 200), so scrolling past a trace fetches once and keeps it.
+  const visibleTraceIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const row = flatRows[i];
+      if (!row) continue;
+      const traceId = row.type === "trace-header" ? row.trace.id : "traceId" in row ? row.traceId : undefined;
+      if (traceId && !seen.has(traceId)) {
+        seen.add(traceId);
+        ids.push(traceId);
+      }
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatRows]);
+  const { previews: traceIO } = useBatchedTraceIO(projectId, visibleTraceIds);
 
   return (
     <div
