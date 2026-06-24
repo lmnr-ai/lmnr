@@ -24,7 +24,11 @@ use crate::{
     },
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
     traces::{
-        span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
+        span_attributes::{
+            GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+            GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+            GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS,
+        },
         utils::{convert_any_value_to_json_value, serialize_indexmap},
     },
     utils::{estimate_json_size, json_value_to_string},
@@ -54,6 +58,7 @@ const AISDK_OPERATION_PREFIXES: &[&str] = &[
     "streamObject",
 ];
 
+const AI_RESPONSE_PROVIDER_METADATA: &str = "ai.response.providerMetadata";
 const INPUT_ATTRIBUTE_NAME: &str = "lmnr.span.input";
 const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 /// If this attribute is set to true, the parent span will be overridden with
@@ -230,36 +235,36 @@ impl SpanAttributes {
             GEN_AI_CACHE_WRITE_INPUT_TOKENS,
         );
 
-        let Some(prefix) = self.detect_aisdk_operation_prefix() else {
-            return;
-        };
+        if let Some(prefix) = self.detect_aisdk_operation_prefix() {
+            // Usage attributes
+            self.normalize_if_absent(&format!("{prefix}.usage.inputTokens"), GEN_AI_INPUT_TOKENS);
+            self.normalize_if_absent(
+                &format!("{prefix}.usage.outputTokens"),
+                GEN_AI_OUTPUT_TOKENS,
+            );
+            self.normalize_if_absent(
+                &format!("{prefix}.usage.cachedInputTokens"),
+                GEN_AI_CACHE_READ_INPUT_TOKENS,
+            );
+            self.normalize_if_absent(
+                &format!("{prefix}.usage.inputTokenDetails.cacheReadTokens"),
+                GEN_AI_CACHE_READ_INPUT_TOKENS,
+            );
+            self.normalize_if_absent(
+                &format!("{prefix}.usage.inputTokenDetails.cacheWriteTokens"),
+                GEN_AI_CACHE_WRITE_INPUT_TOKENS,
+            );
 
-        // Usage attributes
-        self.normalize_if_absent(&format!("{prefix}.usage.inputTokens"), GEN_AI_INPUT_TOKENS);
-        self.normalize_if_absent(
-            &format!("{prefix}.usage.outputTokens"),
-            GEN_AI_OUTPUT_TOKENS,
-        );
-        self.normalize_if_absent(
-            &format!("{prefix}.usage.cachedInputTokens"),
-            GEN_AI_CACHE_READ_INPUT_TOKENS,
-        );
-        self.normalize_if_absent(
-            &format!("{prefix}.usage.inputTokenDetails.cacheReadTokens"),
-            GEN_AI_CACHE_READ_INPUT_TOKENS,
-        );
-        self.normalize_if_absent(
-            &format!("{prefix}.usage.inputTokenDetails.cacheWriteTokens"),
-            GEN_AI_CACHE_WRITE_INPUT_TOKENS,
-        );
+            self.normalize_if_absent(&format!("{prefix}.prompt.messages"), "ai.prompt.messages");
+            self.normalize_if_absent(&format!("{prefix}.response.text"), "ai.response.text");
+            self.normalize_if_absent(
+                &format!("{prefix}.response.toolCalls"),
+                "ai.response.toolCalls",
+            );
+            self.normalize_if_absent(&format!("{prefix}.response.object"), "ai.response.object");
+        }
 
-        self.normalize_if_absent(&format!("{prefix}.prompt.messages"), "ai.prompt.messages");
-        self.normalize_if_absent(&format!("{prefix}.response.text"), "ai.response.text");
-        self.normalize_if_absent(
-            &format!("{prefix}.response.toolCalls"),
-            "ai.response.toolCalls",
-        );
-        self.normalize_if_absent(&format!("{prefix}.response.object"), "ai.response.object");
+        self.normalize_anthropic_provider_metadata();
     }
 
     fn detect_aisdk_operation_prefix(&self) -> Option<&'static str> {
@@ -295,6 +300,98 @@ impl SpanAttributes {
             if let Some(value) = self.raw_attributes.get(source_key).cloned() {
                 self.raw_attributes.insert(target_key.to_string(), value);
             }
+        }
+    }
+
+    fn normalize_anthropic_provider_metadata(&mut self) {
+        let Some(provider_metadata) = self.provider_metadata_value() else {
+            return;
+        };
+        let Some(usage) = provider_metadata
+            .get("anthropic")
+            .and_then(|anthropic| anthropic.get("usage"))
+        else {
+            return;
+        };
+
+        let cache_creation = usage.get("cache_creation");
+        let cache_creation_5m_tokens =
+            Self::json_i64(cache_creation.and_then(|v| v.get("ephemeral_5m_input_tokens")));
+        let cache_creation_1h_tokens =
+            Self::json_i64(cache_creation.and_then(|v| v.get("ephemeral_1h_input_tokens")));
+        let cache_read_tokens = Self::json_i64(usage.get("cache_read_input_tokens"));
+        let cache_creation_tokens = Self::json_i64(usage.get("cache_creation_input_tokens"))
+            .or_else(|| {
+                let inferred =
+                    cache_creation_5m_tokens.unwrap_or(0) + cache_creation_1h_tokens.unwrap_or(0);
+                (inferred > 0).then_some(inferred)
+            });
+
+        if let Some(tokens) = cache_read_tokens {
+            self.insert_if_absent(GEN_AI_CACHE_READ_INPUT_TOKENS, json!(tokens));
+        }
+        if let Some(tokens) = cache_creation_tokens {
+            self.insert_if_absent(GEN_AI_CACHE_WRITE_INPUT_TOKENS, json!(tokens));
+        }
+        if let Some(tokens) = cache_creation_5m_tokens {
+            self.insert_if_absent(
+                GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS,
+                json!(tokens),
+            );
+        }
+        if let Some(tokens) = cache_creation_1h_tokens {
+            self.insert_if_absent(
+                GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+                json!(tokens),
+            );
+        }
+
+        if !self.raw_attributes.contains_key(GEN_AI_INPUT_TOKENS)
+            && !self.raw_attributes.contains_key(GEN_AI_PROMPT_TOKENS)
+        {
+            let regular_input_tokens = Self::json_i64(usage.get("input_tokens")).unwrap_or(0);
+            let total_input_tokens = regular_input_tokens
+                + self.int_attr(GEN_AI_CACHE_WRITE_INPUT_TOKENS).unwrap_or(0)
+                + self.int_attr(GEN_AI_CACHE_READ_INPUT_TOKENS).unwrap_or(0);
+            if total_input_tokens > 0 {
+                self.insert_if_absent(GEN_AI_INPUT_TOKENS, json!(total_input_tokens));
+            }
+        }
+
+        if let Some(output_tokens) = Self::json_i64(usage.get("output_tokens")) {
+            self.insert_if_absent(GEN_AI_OUTPUT_TOKENS, json!(output_tokens));
+        }
+    }
+
+    fn provider_metadata_value(&self) -> Option<Value> {
+        match self.raw_attributes.get(AI_RESPONSE_PROVIDER_METADATA)? {
+            Value::String(metadata) => {
+                let mut value = serde_json::from_str::<Value>(metadata).ok()?;
+                loop {
+                    match value {
+                        Value::String(inner) => {
+                            value = serde_json::from_str::<Value>(&inner).ok()?;
+                        }
+                        other => return Some(other),
+                    }
+                }
+            }
+            Value::Object(_) => self
+                .raw_attributes
+                .get(AI_RESPONSE_PROVIDER_METADATA)
+                .cloned(),
+            _ => None,
+        }
+    }
+
+    fn json_i64(value: Option<&Value>) -> Option<i64> {
+        match value? {
+            Value::Number(number) => number
+                .as_i64()
+                .or_else(|| number.as_u64().and_then(|n| i64::try_from(n).ok()))
+                .filter(|n| *n >= 0),
+            Value::String(value) => value.parse::<i64>().ok().filter(|n| *n >= 0),
+            _ => None,
         }
     }
 
@@ -3902,6 +3999,150 @@ mod tests {
         assert_eq!(
             attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
             Some(&json!(100))
+        );
+    }
+
+    #[test]
+    fn test_anthropic_provider_metadata_cache_tokens_normalize_to_legacy_keys() {
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(10261)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(179)),
+            (
+                "ai.response.providerMetadata".to_string(),
+                json!(
+                    r#"{"anthropic":{"usage":{"input_tokens":1,"output_tokens":179,"cache_creation_input_tokens":3421,"cache_read_input_tokens":6839,"cache_creation":{"ephemeral_5m_input_tokens":3421}}}}"#
+                ),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(6839))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(3421))
+        );
+        assert_eq!(
+            attrs
+                .raw_attributes
+                .get(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS),
+            Some(&json!(3421))
+        );
+
+        let input_tokens = attrs.input_tokens();
+        assert_eq!(input_tokens.regular_input_tokens, 1);
+        assert_eq!(input_tokens.cache_write_tokens, 3421);
+        assert_eq!(input_tokens.cache_read_tokens, 6839);
+        assert_eq!(input_tokens.total(), 10261);
+    }
+
+    #[test]
+    fn test_anthropic_provider_metadata_reconstructs_missing_total_input_tokens() {
+        let attributes = HashMap::from([(
+            "ai.response.providerMetadata".to_string(),
+            json!({
+                "anthropic": {
+                    "usage": {
+                        "input_tokens": 3,
+                        "output_tokens": 233,
+                        "cache_creation_input_tokens": 6839,
+                        "cache_read_input_tokens": 0,
+                        "cache_creation": {
+                            "ephemeral_5m_input_tokens": 6839
+                        }
+                    }
+                }
+            }),
+        )]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(6842))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_OUTPUT_TOKENS),
+            Some(&json!(233))
+        );
+    }
+
+    #[test]
+    fn test_anthropic_provider_metadata_does_not_overwrite_existing_canonical_attrs() {
+        let attributes = HashMap::from([
+            ("gen_ai.usage.input_tokens".to_string(), json!(500)),
+            (
+                "gen_ai.usage.cache_read_input_tokens".to_string(),
+                json!(100),
+            ),
+            (
+                "gen_ai.usage.cache_creation_input_tokens".to_string(),
+                json!(50),
+            ),
+            (
+                "ai.response.providerMetadata".to_string(),
+                json!({
+                    "anthropic": {
+                        "usage": {
+                            "input_tokens": 1,
+                            "output_tokens": 20,
+                            "cache_creation_input_tokens": 300,
+                            "cache_read_input_tokens": 400
+                        }
+                    }
+                }),
+            ),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(500))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_READ_INPUT_TOKENS),
+            Some(&json!(100))
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_CACHE_WRITE_INPUT_TOKENS),
+            Some(&json!(50))
+        );
+    }
+
+    #[test]
+    fn test_malformed_provider_metadata_is_ignored() {
+        let attributes = HashMap::from([
+            (
+                "ai.response.providerMetadata".to_string(),
+                json!("{not-valid-json"),
+            ),
+            ("gen_ai.usage.input_tokens".to_string(), json!(10)),
+            ("gen_ai.usage.output_tokens".to_string(), json!(20)),
+        ]);
+
+        let mut attrs = SpanAttributes::new(attributes);
+        attrs.normalize_aisdk_attributes();
+
+        assert!(
+            !attrs
+                .raw_attributes
+                .contains_key(GEN_AI_CACHE_READ_INPUT_TOKENS)
+        );
+        assert!(
+            !attrs
+                .raw_attributes
+                .contains_key(GEN_AI_CACHE_WRITE_INPUT_TOKENS)
+        );
+        assert_eq!(
+            attrs.raw_attributes.get(GEN_AI_INPUT_TOKENS),
+            Some(&json!(10))
         );
     }
 

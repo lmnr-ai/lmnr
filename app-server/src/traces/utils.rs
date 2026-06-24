@@ -12,7 +12,7 @@ use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
     language_model::costs::{
-        ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
+        ModelCosts, ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
     },
     traces::prompt_hash::{extract_system_message, structural_skeleton_hash},
 };
@@ -25,7 +25,7 @@ use super::span_attributes::{
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
     OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER, SPAN_PROMPT_HASH,
 };
-use super::spans::{SpanAttributes, SpanUsage};
+use super::spans::{InputTokens, SpanAttributes, SpanUsage};
 
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
@@ -46,6 +46,7 @@ pub async fn get_llm_usage_for_span(
     let input_cost = attributes.input_cost();
     let output_cost = attributes.output_cost();
     let total_cost = attributes.total_cost();
+    let has_incoming_positive_cost = has_positive_cost(input_cost, output_cost, total_cost);
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
     let mut model_name = response_model.clone().or(request_model.clone());
@@ -57,10 +58,13 @@ pub async fn get_llm_usage_for_span(
     // Transform the model name and provider names for universal model pricing lookup
     (model_name, provider_name) = tranform_model_and_provider(model_name, provider_name);
 
-    if input_cost.is_some_and(|c| c > 0.0)
-        || output_cost.is_some_and(|c| c > 0.0)
-        || total_cost.is_some_and(|c| c > 0.0)
-    {
+    if should_use_provided_cost(
+        input_cost,
+        output_cost,
+        total_cost,
+        attributes,
+        &input_tokens,
+    ) {
         return SpanUsage {
             input_tokens: input_tokens.total(),
             output_tokens,
@@ -92,12 +96,19 @@ pub async fn get_llm_usage_for_span(
         )
         .await
         {
-            let span_cost_input: SpanCostInput =
-                build_span_cost_input(attributes, &input_tokens, output_tokens);
-            let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
-            input_cost = cost_entry.input_cost;
-            output_cost = cost_entry.output_cost;
-            total_cost = input_cost + output_cost;
+            if should_calculate_model_cost(
+                &model_costs,
+                has_incoming_positive_cost,
+                attributes,
+                &input_tokens,
+            ) {
+                let span_cost_input: SpanCostInput =
+                    build_span_cost_input(attributes, &input_tokens, output_tokens);
+                let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
+                input_cost = cost_entry.input_cost;
+                output_cost = cost_entry.output_cost;
+                total_cost = input_cost + output_cost;
+            }
         }
     } else if let Some(provider) = attributes
         .raw_attributes
@@ -124,6 +135,71 @@ pub async fn get_llm_usage_for_span(
         request_model,
         provider_name,
     }
+}
+
+fn should_use_provided_cost(
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    total_cost: Option<f64>,
+    attributes: &SpanAttributes,
+    input_tokens: &InputTokens,
+) -> bool {
+    has_positive_cost(input_cost, output_cost, total_cost)
+        && !has_cache_token_breakdown(attributes, input_tokens)
+}
+
+fn has_positive_cost(
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    total_cost: Option<f64>,
+) -> bool {
+    input_cost.is_some_and(|c| c > 0.0)
+        || output_cost.is_some_and(|c| c > 0.0)
+        || total_cost.is_some_and(|c| c > 0.0)
+}
+
+fn has_cache_token_breakdown(attributes: &SpanAttributes, input_tokens: &InputTokens) -> bool {
+    input_tokens.cache_read_tokens > 0
+        || input_tokens.cache_write_tokens > 0
+        || attributes
+            .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS)
+            .is_some_and(|tokens| tokens > 0)
+        || attributes
+            .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS)
+            .is_some_and(|tokens| tokens > 0)
+}
+
+fn should_calculate_model_cost(
+    model_costs: &ModelCosts,
+    has_incoming_positive_cost: bool,
+    attributes: &SpanAttributes,
+    input_tokens: &InputTokens,
+) -> bool {
+    if has_incoming_positive_cost && has_cache_token_breakdown(attributes, input_tokens) {
+        return has_cache_pricing_for_breakdown(model_costs, attributes, input_tokens);
+    }
+
+    true
+}
+
+fn has_cache_pricing_for_breakdown(
+    model_costs: &ModelCosts,
+    attributes: &SpanAttributes,
+    input_tokens: &InputTokens,
+) -> bool {
+    let costs = &model_costs.0;
+    let has_cost = |key: &str| costs.get(key).and_then(Value::as_f64).is_some();
+
+    let needs_cache_read_pricing = input_tokens.cache_read_tokens > 0;
+    let cache_creation_1h_tokens = attributes
+        .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS)
+        .unwrap_or(0);
+    let needs_cache_creation_pricing =
+        input_tokens.cache_write_tokens > 0 || cache_creation_1h_tokens > 0;
+
+    (!needs_cache_read_pricing || has_cost("cache_read_input_token_cost"))
+        && (!needs_cache_creation_pricing || has_cost("cache_creation_input_token_cost"))
+        && (cache_creation_1h_tokens <= 0 || has_cost("cache_creation_input_token_cost_above_1hr"))
 }
 
 /// Build SpanCostInput from span attributes
@@ -379,6 +455,117 @@ fn tranform_model_and_provider(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_float_eq(actual: f64, expected: f64) {
+        assert!(
+            (actual - expected).abs() < 1e-12,
+            "expected {actual} to equal {expected}"
+        );
+    }
+
+    #[test]
+    fn provided_cost_is_authoritative_without_cache_tokens() {
+        let attributes = SpanAttributes::new(HashMap::new());
+        let input_tokens = InputTokens {
+            regular_input_tokens: 100,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+        };
+
+        assert!(should_use_provided_cost(
+            Some(0.1),
+            Some(0.2),
+            Some(0.3),
+            &attributes,
+            &input_tokens
+        ));
+    }
+
+    #[test]
+    fn provided_cost_does_not_bypass_model_pricing_with_cache_tokens() {
+        let attributes = SpanAttributes::new(HashMap::new());
+        let input_tokens = InputTokens {
+            regular_input_tokens: 1,
+            cache_write_tokens: 3421,
+            cache_read_tokens: 6839,
+        };
+
+        assert!(!should_use_provided_cost(
+            Some(0.051305),
+            Some(0.004475),
+            Some(0.05578),
+            &attributes,
+            &input_tokens
+        ));
+    }
+
+    #[test]
+    fn ephemeral_cache_tokens_count_as_cache_breakdown() {
+        let attributes = SpanAttributes::new(HashMap::from([(
+            GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS.to_string(),
+            json!(3421),
+        )]));
+        let input_tokens = InputTokens {
+            regular_input_tokens: 1,
+            cache_write_tokens: 0,
+            cache_read_tokens: 0,
+        };
+
+        assert!(!should_use_provided_cost(
+            Some(0.051305),
+            Some(0.004475),
+            Some(0.05578),
+            &attributes,
+            &input_tokens
+        ));
+    }
+
+    #[test]
+    fn accounting_review_cache_shape_uses_cache_aware_model_cost() {
+        let attributes = SpanAttributes::new(HashMap::from([(
+            GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS.to_string(),
+            json!(3421),
+        )]));
+        let input_tokens = InputTokens {
+            regular_input_tokens: 1,
+            cache_write_tokens: 3421,
+            cache_read_tokens: 6839,
+        };
+        let span_cost_input = build_span_cost_input(&attributes, &input_tokens, 179);
+        let model_costs = ModelCosts(json!({
+            "input_cost_per_token": 0.000005,
+            "output_cost_per_token": 0.000025,
+            "cache_read_input_token_cost": 0.0000005,
+            "cache_creation_input_token_cost": 0.00000625
+        }));
+
+        let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
+
+        assert_float_eq(cost_entry.input_cost, 0.02480575);
+        assert_float_eq(cost_entry.output_cost, 0.004475);
+        assert!(cost_entry.input_cost < 10261.0 * 0.000005);
+    }
+
+    #[test]
+    fn cache_bearing_span_with_incomplete_cache_pricing_keeps_provided_cost() {
+        let attributes = SpanAttributes::new(HashMap::new());
+        let input_tokens = InputTokens {
+            regular_input_tokens: 1,
+            cache_write_tokens: 3421,
+            cache_read_tokens: 6839,
+        };
+        let model_costs = ModelCosts(json!({
+            "input_cost_per_token": 0.000005,
+            "output_cost_per_token": 0.000025
+        }));
+
+        assert!(!should_calculate_model_cost(
+            &model_costs,
+            true,
+            &attributes,
+            &input_tokens
+        ));
+    }
 
     #[test]
     fn prompt_hash_stable_across_cc_versions() {
