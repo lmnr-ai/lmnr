@@ -185,6 +185,16 @@ const TABLES: &[Table] = &[
             ),
             col("dataset_id", "UUID", "Linked dataset id (nil if none)"),
             col(
+                "dataset_datapoint_id",
+                "UUID",
+                "Linked dataset datapoint id (nil if none)",
+            ),
+            col(
+                "dataset_datapoint_created_at",
+                "DateTime64(9,'UTC')",
+                "When the linked dataset datapoint was created (unix epoch if none)",
+            ),
+            col(
                 "duration",
                 "Float64",
                 "Duration in seconds from the associated trace",
