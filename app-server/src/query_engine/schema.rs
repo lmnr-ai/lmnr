@@ -234,12 +234,18 @@ const TABLES: &[Table] = &[
         columns: &[
             col("log_id", "UUID", "Unique id of the log"),
             col("time", "DateTime64(9,'UTC')", "When the log occurred"),
+            col(
+                "observed_time",
+                "DateTime64(9,'UTC')",
+                "When the log was observed",
+            ),
             col("severity_number", "UInt8", "Numeric severity"),
             col("severity_text", "String", "Severity text"),
             col("body", "String", "Log body"),
             col("attributes", "String", "Attributes as stringified JSON"),
             col("trace_id", "UUID", "Id of the trace"),
             col("span_id", "UUID", "Id of the span"),
+            col("flags", "UInt32", "Flags for the log"),
             col("event_name", "String", "Event name"),
         ],
     },
