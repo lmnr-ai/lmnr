@@ -254,6 +254,8 @@ const TABLES: &[Table] = &[
         desc: "Execution records for signals with status and error info.",
         columns: &[
             col("signal_id", "UUID", "Id of the signal"),
+            col("job_id", "UUID", "Id of the job"),
+            col("trigger_id", "UUID", "Id of the trigger"),
             col("run_id", "UUID", "Id of the run"),
             col("trace_id", "UUID", "Id of the trace"),
             col("status", "String (enum signal_run_status)", "Run status"),
