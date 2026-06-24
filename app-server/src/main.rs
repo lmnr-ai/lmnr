@@ -1762,6 +1762,28 @@ fn main() -> anyhow::Result<()> {
                             app = app.app_data(web::Data::new(limiter.clone()));
                         }
 
+                        // Built as a binding so the signals-gated agent twin can be conditionally
+                        // attached (the rest of the chain stays inline).
+                        let cli_scope = web::scope("/v1/cli")
+                            .wrap(cli_auth.clone())
+                            .service(api::v1::cli::list_projects)
+                            .service(api::v1::cli::resolve_project)
+                            .service(
+                                web::scope("/sql").service(api::v1::cli::sql::execute_sql_query),
+                            )
+                            .service(api::v1::cli::datasets::get_datasets)
+                            .service(api::v1::cli::datasets::get_datapoints)
+                            .service(api::v1::cli::datasets::create_datapoints)
+                            .service(
+                                web::scope("/traces")
+                                    .service(api::v1::cli::traces::update_trace_metadata),
+                            )
+                            .service(api::v1::cli::rollouts::update_name)
+                            .service(api::v1::cli::rollouts::register_session);
+                        #[cfg(feature = "signals")]
+                        let cli_scope = cli_scope
+                            .service(web::scope("/agent").service(api::v1::cli::agent::agent_chat));
+
                         app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
@@ -1821,25 +1843,7 @@ fn main() -> anyhow::Result<()> {
                             )
                             // CLI user-token surface: list_projects takes
                             // CliUserAuth, the rest take CliProjectAuth.
-                            .service(
-                                web::scope("/v1/cli")
-                                    .wrap(cli_auth.clone())
-                                    .service(api::v1::cli::list_projects)
-                                    .service(api::v1::cli::resolve_project)
-                                    .service(
-                                        web::scope("/sql")
-                                            .service(api::v1::cli::sql::execute_sql_query),
-                                    )
-                                    .service(api::v1::cli::datasets::get_datasets)
-                                    .service(api::v1::cli::datasets::get_datapoints)
-                                    .service(api::v1::cli::datasets::create_datapoints)
-                                    .service(
-                                        web::scope("/traces")
-                                            .service(api::v1::cli::traces::update_trace_metadata),
-                                    )
-                                    .service(api::v1::cli::rollouts::update_name)
-                                    .service(api::v1::cli::rollouts::register_session),
-                            )
+                            .service(cli_scope)
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
