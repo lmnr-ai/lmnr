@@ -4,6 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ProgressionChart from "@/components/evaluations/progression-chart";
@@ -21,6 +22,7 @@ import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types
 import { type Evaluation } from "@/lib/evaluation/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { track } from "@/lib/posthog";
+import { swrFetcher } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import Header from "../ui/header";
@@ -115,6 +117,13 @@ function EvaluationsContent() {
   const params = useParams<{ projectId: string }>();
   const { toast } = useToast();
   const [groupId] = useQueryState("groupId", parseAsString);
+  const { data: groups, isLoading: isGroupsLoading } = useSWR<{ groupId: string }[]>(
+    `/api/projects/${params?.projectId}/evaluation-groups`,
+    swrFetcher
+  );
+  // The groups bar defaults groupId to the first group on load. Until that default
+  // resolves, hold off fetching so the table never flashes the unfiltered (all-groups) list.
+  const isGroupDefaultPending = isGroupsLoading || (!groupId && (groups?.length ?? 0) > 0);
   const { effective, isLoading: isViewLoading, setSearchAndFilters, setFilters } = useTableView();
   const searchValue = useMemo(
     () => ({ filters: effective.filters, search: effective.search }),
@@ -182,7 +191,7 @@ function EvaluationsContent() {
     refetch,
   } = useInfiniteScroll<Evaluation>({
     fetchFn: fetchEvaluations,
-    enabled: !isViewLoading,
+    enabled: !isViewLoading && !isGroupDefaultPending,
     deps: [filter, groupId, params?.projectId, search],
   });
 
@@ -262,7 +271,7 @@ function EvaluationsContent() {
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}
                 hasMore={hasMore}
                 isFetching={isFetching}
-                isLoading={isLoading || isViewLoading}
+                isLoading={isLoading || isViewLoading || isGroupDefaultPending}
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}

@@ -294,6 +294,10 @@ Route groups: `(auth)/layout.tsx` requires a session (redirects to `/sign-in`); 
 
 - Checkpoint text fields (`name`, `system_prompt`, `tool_definitions`, `model`) originate from user span data and can contain a NUL byte (`0x00`). Postgres `text` columns reject it ("invalid byte sequence for encoding UTF8: 0x00"), which surfaced as `Failed to process checkpoint` errors from `checkpoints::consumer`. The DB write helpers in `app-server/src/db/agents.rs` run every user-controlled string through `crate::utils::sanitize_string` (strips NUL + other control chars, keeps `\n`/`\t`) — the same helper used on the ClickHouse insert path. `version_hash` is hex so it's left untouched. Sanitize at the Postgres write boundary, not at hash time, so dedup hashing keeps the original bytes.
 
+## Evaluations Page (groups + table)
+
+- The evaluations list page (`frontend/components/evaluations/evaluations.tsx`) is split into the groups sidebar (`evaluations-groups-bar.tsx`) and the table. The selected group is the `groupId` URL query param (nuqs); the groups bar defaults it to the first group via an effect on load. The table fetch is gated on `!isGroupDefaultPending` — without that gate the table fires one fetch with `groupId=null` (returns ALL groups' evals) BEFORE the default groupId is applied, then re-fetches filtered, briefly flashing the wrong (unfiltered) rows. `isGroupDefaultPending = isGroupsLoading || (!groupId && groups.length > 0)`; both components hit `/evaluation-groups` via SWR so the request dedupes.
+
 ## Trace Type Upsert
 
 - The `traces.type` column uses a first-non-zero strategy in the ON CONFLICT upsert: `CASE WHEN traces.type = 0 THEN EXCLUDED.type ELSE traces.type END`. Once a trace is assigned a non-default type (e.g. EVALUATION=1), no subsequent batch can overwrite it. Do NOT revert to `COALESCE` (picks first non-null, lets `0` silently reset a previously set type) or `GREATEST` (picks highest numeric value, which conflates type ordering with type precedence).
