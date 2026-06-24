@@ -116,6 +116,17 @@ const TABLES: &[Table] = &[
             col("input_tokens", "Int64", "Input tokens"),
             col("output_tokens", "Int64", "Output tokens"),
             col("total_tokens", "Int64", "Total tokens"),
+            col(
+                "cache_read_input_tokens",
+                "Int64",
+                "Tokens read from prompt cache",
+            ),
+            col(
+                "cache_creation_input_tokens",
+                "Int64",
+                "Tokens written to prompt cache",
+            ),
+            col("reasoning_tokens", "Int64", "Reasoning tokens"),
             col("input_cost", "Float64", "Input cost"),
             col("output_cost", "Float64", "Output cost"),
             col("total_cost", "Float64", "Total cost"),
