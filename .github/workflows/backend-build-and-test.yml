@@ -49,4 +49,8 @@ jobs:
       - name: Run tests inside container
         run: |
           echo "Running tests inside Docker container..."
-          docker run --rm -t app-server-test:latest cargo test -- --nocapture
+          # --release reuses the release artifacts the `builder` stage already
+          # compiled (target/release). A debug `cargo test` reads target/debug,
+          # which is empty, so it recompiles the whole dependency tree from
+          # scratch — the recompile that was blowing past the 30 min timeout.
+          docker run --rm -t app-server-test:latest cargo test --release -- --nocapture
