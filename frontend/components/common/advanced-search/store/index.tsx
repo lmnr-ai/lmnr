@@ -11,8 +11,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
@@ -354,7 +356,7 @@ export const useAdvancedSearchContext = <T,>(selector: (store: AdvancedSearchSto
   if (!store) {
     throw new Error("useAdvancedSearchContext must be used within AdvancedSearchStoreProvider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };
 
 interface AdvancedSearchRefs {

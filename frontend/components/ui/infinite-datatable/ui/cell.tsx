@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type Cell, flexRender, type RowData } from "@tanstack/react-table";
 import { type CSSProperties } from "react";
-import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { TableCell } from "@/components/ui/table.tsx";
 
@@ -15,7 +15,7 @@ interface InfiniteTableCellProps<TData extends RowData> {
 export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTableCellProps<TData>) {
   const columnId = cell.column.id;
   const store = useTableStore();
-  const draggingColumnId = useStore(store, (state) => state.draggingColumnId);
+  const draggingColumnId = useStoreWithEqualityFn(store, (state) => state.draggingColumnId);
   const { isDragging, setNodeRef, transform, transition } = useSortable({
     id: columnId || "",
     disabled: !columnId,

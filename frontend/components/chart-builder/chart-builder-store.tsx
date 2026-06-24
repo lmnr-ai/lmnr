@@ -1,6 +1,8 @@
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type ChartConfig, type ChartType } from "@/components/chart-builder/types";
 import {
@@ -158,7 +160,7 @@ export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderSt
   if (!store) {
     throw new Error("useChartBuilderStoreContext must be used within a ChartBuilderStoreProvider");
   }
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };
 
 export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<ChartBuilderProps>) => {

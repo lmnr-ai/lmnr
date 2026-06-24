@@ -1,6 +1,8 @@
 import { parseISO } from "date-fns";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore } from "zustand";
+import { shallow } from "zustand/shallow";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
 
@@ -116,7 +118,7 @@ export const TracesContext = createContext<TracesStoreApi | null>(null);
 export const useTracesStoreContext = <T,>(selector: (state: TracesStore) => T): T => {
   const store = useContext(TracesContext);
   if (!store) throw new Error("Missing TracesContext.Provider in the tree");
-  return useStore(store, selector);
+  return useStoreWithEqualityFn(store, selector, shallow);
 };
 
 export const TracesStoreProvider = ({ children, ...props }: PropsWithChildren<TracesProps>) => {
