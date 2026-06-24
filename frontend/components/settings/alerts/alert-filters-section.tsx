@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, Plus, Trash2, X } from "lucide-react";
+import { Info, Plus, X } from "lucide-react";
 import { useMemo } from "react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
@@ -55,17 +55,15 @@ const getDefaultFilter = (columns: ColumnFilter[]): StringFilter => {
 
 function FilterConditionRow({
   columns,
-  groupIndex,
   conditionIndex,
   onRemove,
 }: {
   columns: ColumnFilter[];
-  groupIndex: number;
   conditionIndex: number;
   onRemove: () => void;
 }) {
   const { control, watch, setValue } = useFormContext<{ alertFilters: AlertFilterFormItem[] }>();
-  const currentColumn = watch(`alertFilters.${groupIndex}.filters.${conditionIndex}.column`);
+  const currentColumn = watch(`alertFilters.0.filters.${conditionIndex}.column`);
 
   const column = columns.find((c) => c.key === currentColumn);
   const dataType = column?.dataType || "string";
@@ -77,19 +75,19 @@ function FilterConditionRow({
     const defaultOperator = dataTypeOperationsMap[newDataType][0].key;
 
     onChange(newColumn);
-    setValue(`alertFilters.${groupIndex}.filters.${conditionIndex}.operator`, defaultOperator);
+    setValue(`alertFilters.0.filters.${conditionIndex}.operator`, defaultOperator);
 
     if (newDataType === "enum" && newColumnDef && "options" in newColumnDef && newColumnDef.options.length > 0) {
-      setValue(`alertFilters.${groupIndex}.filters.${conditionIndex}.value`, newColumnDef.options[0].value);
+      setValue(`alertFilters.0.filters.${conditionIndex}.value`, newColumnDef.options[0].value);
     } else {
-      setValue(`alertFilters.${groupIndex}.filters.${conditionIndex}.value`, "");
+      setValue(`alertFilters.0.filters.${conditionIndex}.value`, "");
     }
   };
 
   return (
     <div className="flex gap-2 items-start">
       <Controller
-        name={`alertFilters.${groupIndex}.filters.${conditionIndex}.column`}
+        name={`alertFilters.0.filters.${conditionIndex}.column`}
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={(value) => handleColumnChange(value, field.onChange)}>
@@ -107,7 +105,7 @@ function FilterConditionRow({
         )}
       />
       <Controller
-        name={`alertFilters.${groupIndex}.filters.${conditionIndex}.operator`}
+        name={`alertFilters.0.filters.${conditionIndex}.operator`}
         control={control}
         render={({ field }) => (
           <Select value={field.value} onValueChange={field.onChange}>
@@ -125,7 +123,7 @@ function FilterConditionRow({
         )}
       />
       <Controller
-        name={`alertFilters.${groupIndex}.filters.${conditionIndex}.value`}
+        name={`alertFilters.0.filters.${conditionIndex}.value`}
         control={control}
         rules={{ required: "Value is required" }}
         render={({ field }) =>
@@ -160,58 +158,13 @@ function FilterConditionRow({
   );
 }
 
-function FilterCard({
-  columns,
-  groupIndex,
-  onRemove,
-}: {
-  columns: ColumnFilter[];
-  groupIndex: number;
-  onRemove: () => void;
-}) {
-  const { control } = useFormContext<{ alertFilters: AlertFilterFormItem[] }>();
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: `alertFilters.${groupIndex}.filters`,
-  });
-
-  return (
-    <div className="rounded-md border p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">All conditions must match</span>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {fields.map((field, conditionIndex) => (
-          <FilterConditionRow
-            key={field.id}
-            columns={columns}
-            groupIndex={groupIndex}
-            conditionIndex={conditionIndex}
-            onRemove={() => remove(conditionIndex)}
-          />
-        ))}
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={columns.length === 0}
-        onClick={() => append(getDefaultFilter(columns))}
-      >
-        <Plus className="w-3.5 h-3.5 mr-1" />
-        Add condition
-      </Button>
-    </div>
-  );
-}
-
 export default function AlertFiltersSection({ schema }: { schema: unknown }) {
   const columns = useMemo(() => schemaToFilterColumns(schema), [schema]);
   const { control } = useFormContext<{ alertFilters: AlertFilterFormItem[] }>();
-  const { fields, append, remove } = useFieldArray({ control, name: "alertFilters" });
+  // All conditions live in a single ANDed group (alertFilters[0]); the alert
+  // fires only when every condition matches. Editing this field array keeps
+  // alertFilters[0].id intact so an existing row is updated in place on save.
+  const { fields, append, remove } = useFieldArray({ control, name: "alertFilters.0.filters" });
 
   return (
     <div className="grid gap-2">
@@ -224,7 +177,7 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
                 <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-60">
-                <p>Only notify when an event&apos;s extracted output matches one of these filters.</p>
+                <p>Only notify when an event&apos;s extracted output matches all of these conditions.</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -234,10 +187,10 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
           variant="outline"
           className="w-fit"
           disabled={columns.length === 0}
-          onClick={() => append({ filters: [getDefaultFilter(columns)] })}
+          onClick={() => append(getDefaultFilter(columns))}
         >
           <Plus className="w-3.5 h-3.5 mr-1" />
-          Add filter
+          Add condition
         </Button>
       </div>
       <div className="space-y-2">
@@ -248,12 +201,13 @@ export default function AlertFiltersSection({ schema }: { schema: unknown }) {
         ) : (
           fields.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-md">
-              No filters. The alert fires on every matching event. Click &quot;Add filter&quot; to filter by output.
+              No conditions. The alert fires on every matching event. Click &quot;Add condition&quot; to filter by
+              output.
             </div>
           )
         )}
         {fields.map((field, index) => (
-          <FilterCard key={field.id} columns={columns} groupIndex={index} onRemove={() => remove(index)} />
+          <FilterConditionRow key={field.id} columns={columns} conditionIndex={index} onRemove={() => remove(index)} />
         ))}
       </div>
     </div>

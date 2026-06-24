@@ -137,18 +137,13 @@ export function AlertForm({
     return map;
   }, [selectedSignalDetails?.structuredOutput]);
 
-  const filterGroups = useMemo(() => (alertFilters ?? []).filter((t) => t.filters.length > 0), [alertFilters]);
-
-  // The preview ANDs all conditions, so it can only represent a single group;
-  // 2+ groups (OR) drop field conditions and show a note instead of a wrong count.
-  const hasMultipleFilterGroups = alertType === ALERT_TYPE.SIGNAL_EVENT && filterGroups.length > 1;
-
+  // All conditions live in a single ANDed group (alertFilters[0]).
   const previewFilterStrings = useMemo(() => {
-    if (alertType !== ALERT_TYPE.SIGNAL_EVENT || filterGroups.length !== 1) return [];
-    return filterGroups[0].filters
+    if (alertType !== ALERT_TYPE.SIGNAL_EVENT) return [];
+    return (alertFilters?.[0]?.filters ?? [])
       .filter((f) => String(f.value ?? "").trim() !== "")
       .map((f) => JSON.stringify({ ...f, dataType: filterFieldTypes.get(f.column) ?? "string" }));
-  }, [alertType, filterGroups, filterFieldTypes]);
+  }, [alertType, alertFilters, filterFieldTypes]);
 
   const statsBaseUrl = useMemo(() => {
     if (!selectedSignal || !alertType) return "";
@@ -637,11 +632,6 @@ export function AlertForm({
                       />
                     )}
                   </div>
-                  {hasMultipleFilterGroups && (
-                    <p className="text-xs text-muted-foreground">
-                      Preview reflects severity only — multiple filter groups aren&apos;t applied here.
-                    </p>
-                  )}
                 </div>
 
                 <AlertSection title="Delivery" description="Choose where to send notifications.">

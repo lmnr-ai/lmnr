@@ -52,6 +52,21 @@ export function buildDefaultValues({
         ? signalEventMeta.severities
         : [SEVERITY_LEVEL.CRITICAL],
     skipSimilar: signalEventMeta?.skipSimilar ?? false,
-    alertFilters: existingFilters?.items ?? [],
+    // Conditions are now a single ANDed group. Legacy alerts may have multiple
+    // rows (each was OR'd); collapse them into one group keeping the first row's
+    // id so a re-save updates that row and syncAlertFilters deletes the rest.
+    alertFilters: collapseToSingleGroup(existingFilters?.items ?? []),
   };
+}
+
+function collapseToSingleGroup(items: AlertFilterFormItem[]): AlertFilterFormItem[] {
+  if (items.length === 0) {
+    return [];
+  }
+  return [
+    {
+      id: items[0].id,
+      filters: items.flatMap((item) => item.filters),
+    },
+  ];
 }
