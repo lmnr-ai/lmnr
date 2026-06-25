@@ -1,5 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { TriangleAlert } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { ConfigureModelCostDialog } from "@/components/settings/custom-model-costs";
@@ -24,6 +25,10 @@ interface UnpricedModelWarningProps {
 export function UnpricedModelWarning({ model, size = 12, className, onSaved }: UnpricedModelWarningProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Configuring costs requires a project context + membership. On public shared
+  // trace pages the route only carries `traceId`, so offer the info-only warning.
+  const { projectId } = useParams();
+  const canConfigure = !!projectId;
 
   // Stored span costs aren't recomputed retroactively, so hide the warning
   // in-session once the user configures a price to confirm their action landed.
@@ -44,29 +49,33 @@ export function UnpricedModelWarning({ model, size = 12, className, onSaved }: U
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border flex flex-col gap-2 max-w-[224px]">
               <span className="text-xs text-secondary-foreground">No price configured for &quot;{model}&quot;.</span>
-              <Button
-                variant="outline"
-                className="h-6 text-xs px-1.5 bg-transparent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDialogOpen(true);
-                }}
-              >
-                Configure custom model costs
-              </Button>
+              {canConfigure && (
+                <Button
+                  variant="outline"
+                  className="h-6 text-xs px-1.5 bg-transparent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDialogOpen(true);
+                  }}
+                >
+                  Configure custom model costs
+                </Button>
+              )}
             </TooltipContent>
           </TooltipPortal>
         </Tooltip>
       </TooltipProvider>
-      <ConfigureModelCostDialog
-        model={model}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSaved={() => {
-          setSaved(true);
-          onSaved?.();
-        }}
-      />
+      {canConfigure && (
+        <ConfigureModelCostDialog
+          model={model}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSaved={() => {
+            setSaved(true);
+            onSaved?.();
+          }}
+        />
+      )}
     </>
   );
 }
