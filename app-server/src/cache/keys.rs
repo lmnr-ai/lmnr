@@ -13,7 +13,18 @@ pub const SIGNAL_TRIGGER_LOCK_CACHE_KEY: &str = "signal_trigger_lock";
 pub const ALERT_FILTERS_CACHE_KEY: &str = "alert_filters";
 pub const WORKSPACE_BYTES_USAGE_CACHE_KEY: &str = "workspace_bytes_usage";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
-pub const WORKSPACE_SIGNAL_STEPS_USAGE_CACHE_KEY: &str = "workspace_signal_runs_usage";
+// Raw accumulated token counts per workspace; cost in micro-USD is derived at
+// read time so a rate change re-prices the hot cache. Input, cache-read, and
+// output are kept in separate keys because each is priced at a different rate.
+// Must stay in sync with the frontend constants in `frontend/lib/cache.ts`.
+pub const WORKSPACE_SIGNAL_INPUT_TOKENS_USAGE_CACHE_KEY: &str =
+    "workspace_signal_runs_usage_input_tokens";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const WORKSPACE_SIGNAL_CACHE_READ_TOKENS_USAGE_CACHE_KEY: &str =
+    "workspace_signal_runs_usage_cache_read_tokens";
+#[cfg_attr(not(feature = "signals"), allow(dead_code))]
+pub const WORKSPACE_SIGNAL_OUTPUT_TOKENS_USAGE_CACHE_KEY: &str =
+    "workspace_signal_runs_usage_output_tokens";
 #[cfg_attr(not(feature = "signals"), allow(dead_code))]
 pub const CLUSTERING_LOCK_CACHE_KEY: &str = "clustering_lock";
 pub const AUTOCOMPLETE_LOCK_CACHE_KEY: &str = "autocomplete_lock";

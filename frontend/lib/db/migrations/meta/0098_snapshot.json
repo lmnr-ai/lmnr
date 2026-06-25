@@ -1,6 +1,6 @@
 {
-  "id": "a04c21bf-bf11-4126-bd36-631cac595c82",
-  "prevId": "ddd4aafd-baef-4592-9201-d140659fe385",
+  "id": "13f55cd5-7be5-4553-9640-f466fafbcc33",
+  "prevId": "a04c21bf-bf11-4126-bd36-631cac595c82",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2802,6 +2802,50 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.shared_debugger_sessions": {
+      "name": "shared_debugger_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shared_debugger_sessions_project_id_fkey": {
+          "name": "shared_debugger_sessions_project_id_fkey",
+          "tableFrom": "shared_debugger_sessions",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},

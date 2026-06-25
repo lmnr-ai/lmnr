@@ -75,7 +75,7 @@ export default function WarningChip({ workspaceId, id, displayValue, unit, onRem
 
 interface AddWarningPopoverProps {
   workspaceId: string;
-  usageItem: "bytes" | "signal_steps_processed";
+  usageItem: "bytes" | "signal_cost";
   unit: string;
   toRawValue: (display: number) => number;
   onAdd: () => void;

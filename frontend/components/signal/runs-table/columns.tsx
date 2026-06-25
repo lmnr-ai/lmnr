@@ -8,6 +8,11 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 
+// Cost is priced server-side (see `getSignalRuns`) so env rate overrides are
+// honoured; the cell only renders the precomputed micro-USD value as USD.
+const formatRunCost = (row: SignalRunRow): string =>
+  `$${(row.costMicroUsd / 1_000_000).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`;
+
 export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
   {
     accessorKey: "runId",
@@ -35,7 +40,7 @@ export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
   {
     cell: (row) => (
       <Badge className="rounded-3xl mr-1" variant="outline">
-        {row.row.original.jobId !== "00000000-0000-0000-0000-000000000000" ? "Job" : "Trigger"}
+        {row.row.original.jobId !== "00000000-0000-0000-0000-000000000000" ? "Backfill" : "Trigger"}
       </Badge>
     ),
     header: "Source",
@@ -54,6 +59,12 @@ export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
     id: "status",
   },
   {
+    header: "Cost",
+    cell: (row) => <Mono>{formatRunCost(row.row.original)}</Mono>,
+    size: 100,
+    id: "cost",
+  },
+  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
@@ -62,7 +73,7 @@ export const getSignalRunsColumns = (): ColumnDef<SignalRunRow>[] => [
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "cost", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

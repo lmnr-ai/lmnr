@@ -13,7 +13,7 @@
     "format:write": "prettier --write \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
     "format:check": "prettier --check \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
     "test": "tsx --test tests/**/*.test.ts",
-    "schema-pull:lint": "drizzle-kit pull && sed -i.bak \"s/\\.default(')/\\.default('')/g\" lib/db/migrations/schema.ts && sed -i.bak \"s/vector()/jsonb()/g\" lib/db/migrations/schema.ts && rm lib/db/migrations/schema.ts.bak && eslint . --fix",
+    "schema-pull:lint": "drizzle-kit pull && sed -i.bak \"s/\\.default(')/\\.default('')/g\" lib/db/migrations/schema.ts && sed -i.bak \"s/vector()/jsonb()/g\" lib/db/migrations/schema.ts && rm lib/db/migrations/schema.ts.bak && node scripts/fix-auth-timestamp-modes.mjs && eslint . --fix",
     "db:strip-schema": "sed -i.bak 's/\"public\"\\.//g' lib/db/migrations/*.sql && rm -f lib/db/migrations/*.sql.bak",
     "db:generate": "drizzle-kit generate && pnpm db:strip-schema",
     "prepare": "cd .. && husky frontend/.husky"
