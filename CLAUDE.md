@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Laminar is an open-source observability platform for AI agents. It provides OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.
 
+## Design System
+
+`DESIGN.md` at the repo root is the authoritative spec for the `frontend/` UI's visual identity — color tokens (dark theme), typography, spacing, rounded corners, and the canonical core components (button, input, card, dialog, badge, popover). It follows the [Google DESIGN.md format](https://github.com/google-labs-code/design.md).
+
+Consult it before any frontend work that touches colors, typography, spacing, rounding, or component variants — and reflect changes back into it when you modify `frontend/app/globals.css`, `frontend/components/ui/template-renderer/theme.ts`, or the core shadcn primitives in `frontend/components/ui/`. Scope is the Next.js app only; landing pages and the iframe render-template theme are governed separately.
+
 ## Repository Structure
 
 This is a multi-service monorepo with three main components:
