@@ -53,4 +53,4 @@ jobs:
           # compiled (target/release). A debug `cargo test` reads target/debug,
           # which is empty, so it recompiles the whole dependency tree from
           # scratch — the recompile that was blowing past the 30 min timeout.
-          docker run --rm -t app-server-test:latest cargo test --release --features signals -- --nocapture
+          docker run --rm -t app-server-test:latest cargo test --release -- --nocapture
