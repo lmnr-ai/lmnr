@@ -1,28 +1,10 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { CostCell, DurationCell, TokensCell } from "@/components/traces/cells";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SessionRow } from "@/lib/traces/types";
-
-const format = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 5,
-  minimumFractionDigits: 1,
-});
-
-const detailedFormat = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 8,
-});
-
-const numberFormat = new Intl.NumberFormat("en-US");
-
-const formatTokens = (value: number | null | undefined) => (value == null ? "-" : numberFormat.format(value));
 
 export const filters: ColumnFilter[] = [
   {
@@ -79,62 +61,29 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     meta: { sql: "start_time" },
   },
   {
-    accessorFn: (row) => (row.duration ?? 0).toFixed(2) + "s",
+    accessorFn: (row) => row.duration ?? 0,
     header: "Duration",
     id: "duration",
     size: 100,
     meta: { sql: "duration" },
+    // SessionRow.duration is stored in seconds; convert to ms for the cell.
+    cell: (row) => <DurationCell durationMs={((row.getValue() as number) ?? 0) * 1000} />,
   },
   {
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "total_cost",
     meta: { sql: "total_cost" },
-    cell: (row) => {
-      if (row.getValue() > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild className="relative p-0">
-                <div className="truncate">{format.format(row.getValue())}</div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border">
-                  <div>
-                    <div className="flex justify-between space-x-2">
-                      <span>Input cost</span>
-                      <span>{detailedFormat.format(row.row.original.inputCost)}</span>
-                    </div>
-                    <div className="flex justify-between space-x-2">
-                      <span>Output cost</span>
-                      <span>{detailedFormat.format(row.row.original.outputCost)}</span>
-                    </div>
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      return "-";
-    },
-    size: 120,
+    cell: (row) => <CostCell stats={row.row.original} />,
+    size: 100,
   },
   {
-    accessorFn: (row) => row.totalTokens ?? "-",
+    accessorFn: (row) => row.totalTokens ?? 0,
     header: "Tokens",
     id: "total_tokens",
     meta: { sql: "total_tokens" },
-    cell: (row) => (
-      <div className="truncate">
-        {formatTokens(row.row.original.inputTokens)}
-        {" → "}
-        {formatTokens(row.row.original.outputTokens)}
-        {` (${formatTokens(row.row.original.totalTokens)})`}
-      </div>
-    ),
-    size: 180,
+    cell: (row) => <TokensCell stats={row.row.original} showCacheInline />,
+    size: 220,
   },
   {
     accessorFn: (row) => row.traceCount ?? 0,

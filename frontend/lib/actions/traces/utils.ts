@@ -95,6 +95,7 @@ const tracesSelectColumns = [
   "ifNull(trace_tags, []) as traceTags",
   "input_tokens as inputTokens",
   "output_tokens as outputTokens",
+  "cache_read_input_tokens as cacheReadInputTokens",
   "top_span_id as topSpanId",
   "top_span_name as topSpanName",
   "top_span_type as topSpanType",
