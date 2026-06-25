@@ -25,6 +25,15 @@ interface UnpricedModelWarningProps {
 export function UnpricedModelWarning({ model, size = 12, className, onSaved }: UnpricedModelWarningProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Tree/transcript rows are virtualized with index-based keys, so React reuses
+  // this instance for different spans on scroll. Reset the in-session `saved`
+  // flag when the model changes so a prior save doesn't suppress the warning
+  // for a different unpriced model.
+  const [prevModel, setPrevModel] = useState(model);
+  if (model !== prevModel) {
+    setPrevModel(model);
+    setSaved(false);
+  }
   // Configuring costs requires a project context + membership. On public shared
   // trace pages the route only carries `traceId`, so offer the info-only warning.
   const { projectId } = useParams();
