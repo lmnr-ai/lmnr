@@ -1,16 +1,58 @@
+import {
+  Activity,
+  ArrowRight,
+  Bolt,
+  Braces,
+  CircleAlert,
+  DatabaseZap,
+  FlagTriangleRight,
+  Gauge,
+  type LucideIcon,
+  MessageCircle,
+  PersonStanding,
+} from "lucide-react";
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 
 import { getSharedTrace } from "@/lib/actions/shared/trace";
 import { loadOgFonts, OgContainer, OgHeader } from "@/lib/og/og-layout";
+import { SpanType } from "@/lib/traces/types";
 
 export const runtime = "nodejs";
+
+// Mirrors SPAN_TYPE_TO_COLOR (lib/traces/utils) with the CSS-var entries resolved
+// to hex/rgba — satori can't read CSS custom properties.
+const SPAN_TYPE_COLOR: Record<string, string> = {
+  [SpanType.DEFAULT]: "rgba(96, 165, 250, 0.7)",
+  [SpanType.LLM]: "#7C3BED", // --llm
+  [SpanType.EXECUTOR]: "rgba(245, 158, 11, 0.7)",
+  [SpanType.EVALUATOR]: "rgba(7, 189, 213, 0.7)", // --subagent
+  [SpanType.EVALUATION]: "rgba(16, 185, 129, 0.7)",
+  [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
+  [SpanType.TOOL]: "rgba(227, 160, 8, 0.9)",
+  [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
+  [SpanType.CACHED]: "#7C3BED",
+};
+
+// Mirrors createSpanTypeIcon (components/traces/span-type-icon).
+const SPAN_TYPE_ICON: Record<string, LucideIcon> = {
+  [SpanType.DEFAULT]: Braces,
+  [SpanType.LLM]: MessageCircle,
+  [SpanType.CACHED]: DatabaseZap,
+  [SpanType.EXECUTOR]: Activity,
+  [SpanType.EVALUATOR]: ArrowRight,
+  [SpanType.EVALUATION]: Gauge,
+  [SpanType.TOOL]: Bolt,
+  [SpanType.EVENT]: FlagTriangleRight,
+  [SpanType.HUMAN_EVALUATOR]: PersonStanding,
+};
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ traceId: string }> }) {
   const { traceId } = await params;
 
   let status = "unknown";
-  let traceType = "";
+  let rootSpanName = "";
+  let rootSpanType: SpanType | null = null;
   let totalTokens = 0;
   let totalCost = 0;
   let startTime = "";
@@ -20,7 +62,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const trace = await getSharedTrace({ traceId });
     if (trace && trace.visibility === "public") {
       status = trace.status;
-      traceType = trace.traceType;
+      rootSpanName = trace.topSpanName ?? "";
+      rootSpanType = trace.topSpanType ?? null;
       totalTokens = trace.totalTokens;
       totalCost = trace.totalCost;
       startTime = new Date(trace.startTime).toLocaleString("en-US", {
@@ -40,7 +83,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Use defaults
   }
 
-  const statusColor = status === "ok" ? "#22c55e" : status === "error" ? "#ef4444" : "#a3a3a3";
+  // success-bright (#36D399) / destructive-bright (#E25050) from globals.css tokens
+  const accentColor = status === "error" ? "#E25050" : "#36D399";
+
+  // Span-type icon (mirrors the traces table): on error a red alert badge,
+  // otherwise the type-colored square with the matching lucide glyph.
+  const isError = status === "error";
+  const Icon = isError ? CircleAlert : (rootSpanType && SPAN_TYPE_ICON[rootSpanType]) || Braces;
+  const iconBgColor = isError
+    ? "rgba(204, 51, 51, 1)"
+    : (rootSpanType && SPAN_TYPE_COLOR[rootSpanType]) || SPAN_TYPE_COLOR[SpanType.DEFAULT];
 
   let fonts: Awaited<ReturnType<typeof loadOgFonts>> = [];
   try {
@@ -50,93 +102,77 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   return new ImageResponse(
-    (
-      <OgContainer>
-        <OgHeader label="Shared Trace" />
+    <OgContainer accentColor={accentColor}>
+      <OgHeader label="Shared trace" />
 
-        {/* Center content */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px", flex: 1, justifyContent: "center" }}>
-          {/* Status and type */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+      {/* Bottom-anchored content (pushed down by OgContainer's space-between) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        {/* Date */}
+        {startTime && <span style={{ color: "#B5B5B5", fontSize: "40px", fontWeight: 500 }}>{startTime}</span>}
+
+        {/* Root span name with span-type icon (foreground #E8E3E3 from globals.css) */}
+        {rootSpanName && (
+          <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "24px" }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
-                backgroundColor: "#1a1a1a",
-                borderRadius: "9999px",
-                padding: "8px 20px",
-                border: `1px solid ${statusColor}40`,
+                justifyContent: "center",
+                width: "72px",
+                height: "72px",
+                borderRadius: "12px",
+                backgroundColor: iconBgColor,
               }}
             >
-              <div
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  backgroundColor: statusColor,
-                }}
-              />
-              <span style={{ color: statusColor, fontSize: "18px", fontWeight: 600, textTransform: "uppercase" }}>
-                {status}
+              <Icon color="#ffffff" size={44} strokeWidth={2} />
+            </div>
+            <span
+              style={{
+                color: "#E8E3E3",
+                fontSize: "61px",
+                fontWeight: 400,
+                maxWidth: "920px",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {rootSpanName}
+            </span>
+          </div>
+        )}
+
+        {/* Divider (border #2B2B31), full content width within the padding */}
+        <div style={{ height: "2px", backgroundColor: "#2B2B31" }} />
+
+        {/* Metrics, left-aligned */}
+        <div style={{ display: "flex", gap: "80px" }}>
+          {totalTokens > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#B5B5B5", fontSize: "30px", fontWeight: 500 }}>Tokens</span>
+              <span style={{ color: "#ffffff", fontSize: "48px", fontWeight: 500 }}>
+                {totalTokens.toLocaleString()}
               </span>
             </div>
-            {traceType && (
-              <span
-                style={{
-                  color: "#a3a3a3",
-                  fontSize: "18px",
-                  backgroundColor: "#1a1a1a",
-                  borderRadius: "9999px",
-                  padding: "8px 20px",
-                  border: "1px solid #333333",
-                }}
-              >
-                {traceType}
+          )}
+          {totalCost > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#B5B5B5", fontSize: "30px", fontWeight: 500 }}>Cost</span>
+
+              <span style={{ color: "#ffffff", fontSize: "48px", fontWeight: 500 }}>
+                ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
               </span>
-            )}
-          </div>
-
-          {/* Metrics */}
-          <div style={{ display: "flex", gap: "48px" }}>
-            {totalTokens > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Tokens
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
-                  {totalTokens.toLocaleString()}
-                </span>
-              </div>
-            )}
-            {totalCost > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Cost
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>
-                  ${totalCost < 0.01 ? totalCost.toFixed(4) : totalCost.toFixed(2)}
-                </span>
-              </div>
-            )}
-            {duration && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <span style={{ color: "#737373", fontSize: "16px", textTransform: "uppercase", letterSpacing: "1px" }}>
-                  Duration
-                </span>
-                <span style={{ color: "#ffffff", fontSize: "36px", fontWeight: 700 }}>{duration}</span>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
+          {duration && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ color: "#B5B5B5", fontSize: "30px", fontWeight: 500 }}>Duration</span>
+              <span style={{ color: "#ffffff", fontSize: "48px", fontWeight: 500 }}>{duration}</span>
+            </div>
+          )}
         </div>
-
-        {/* Bottom section */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {startTime && <span style={{ color: "#737373", fontSize: "18px" }}>{startTime}</span>}
-          <span style={{ color: "#525252", fontSize: "16px" }}>laminar.sh</span>
-        </div>
-      </OgContainer>
-    ),
+      </div>
+    </OgContainer>,
     {
       width: 1200,
       height: 630,
