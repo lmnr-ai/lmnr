@@ -284,7 +284,7 @@ export function StatsShields({ stats, className, variant = "filled", labelPrefix
     >
       {durationContent}
       {tokensContent}
-      {!stats.totalCost && hasTokens && model ? <UnpricedModelWarning model={model} /> : costContent}
+      {stats.totalCost === 0 && hasTokens && model ? <UnpricedModelWarning model={model} /> : costContent}
     </div>
   );
 }
