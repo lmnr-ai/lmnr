@@ -290,6 +290,13 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
       { name: "error_message", type: "String", description: "Error message if the run failed" },
       { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the signal run was last updated" },
+      { name: "input_tokens", type: "UInt32", description: "Input tokens spent evaluating the signal" },
+      {
+        name: "cache_read_tokens",
+        type: "UInt32",
+        description: "Cached input tokens read (a subset of input_tokens)",
+      },
+      { name: "output_tokens", type: "UInt32", description: "Output tokens produced by the signal" },
     ],
   },
   signal_events: {

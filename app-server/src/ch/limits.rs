@@ -1,7 +1,18 @@
 use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
-use clickhouse::Client;
+use clickhouse::{Client, Row};
+use serde::Deserialize;
 use uuid::Uuid;
+
+/// Workspace signal token spend this billing period. Cache reads are a subset
+/// of input tokens, billed cheaper. Tokens are stored raw and priced into
+/// micro-USD at the call boundary, so a rate change re-prices history.
+#[derive(Row, Deserialize, Debug, Clone, Copy, Default)]
+pub struct WorkspaceSignalTokens {
+    pub input_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub output_tokens: u64,
+}
 
 /// Calculate how many complete months have elapsed from start_date to end_date
 /// This mimics Python's dateutil.relativedelta behavior
@@ -68,11 +79,12 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
     Ok(result.unwrap_or(0))
 }
 
-pub async fn get_workspace_signal_runs_by_project_ids(
+/// Returns the workspace's total signal token spend this billing period.
+pub async fn get_workspace_signal_tokens_by_project_ids(
     clickhouse: Client,
     project_ids: Vec<Uuid>,
     reset_time: DateTime<Utc>,
-) -> Result<usize> {
+) -> Result<WorkspaceSignalTokens> {
     let now = Utc::now();
     let months_elapsed = complete_months_elapsed(reset_time, now);
 
@@ -86,9 +98,14 @@ pub async fn get_workspace_signal_runs_by_project_ids(
         reset_time
     };
 
+    // Signals are billed by the token cost the agent spent. Tokens are stored
+    // raw per run and returned raw here; cost is derived at the call boundary
+    // at the current per-token rate so a future rate change re-prices history.
     let query = "
     SELECT
-      SUM(steps_processed) as total_signal_runs
+      SUM(input_tokens) as total_input_tokens,
+      SUM(cache_read_tokens) as total_cache_read_tokens,
+      SUM(output_tokens) as total_output_tokens
     FROM signal_runs FINAL
     WHERE project_id IN { project_ids: Array(UUID) }
     AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
@@ -99,10 +116,10 @@ pub async fn get_workspace_signal_runs_by_project_ids(
         .query(&query)
         .param("project_ids", project_ids)
         .param("latest_reset_time", latest_reset_time.naive_utc())
-        .fetch_optional::<usize>()
+        .fetch_optional::<WorkspaceSignalTokens>()
         .await?;
 
-    Ok(result.unwrap_or(0))
+    Ok(result.unwrap_or_default())
 }
 
 #[cfg(test)]

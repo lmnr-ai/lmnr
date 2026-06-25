@@ -278,6 +278,21 @@ const TABLES: &[Table] = &[
             col("event_id", "UUID", "Id of the produced event"),
             col("error_message", "String", "Error message if the run failed"),
             col("updated_at", "DateTime64(9,'UTC')", "When last updated"),
+            col(
+                "input_tokens",
+                "UInt32",
+                "Input tokens spent evaluating the signal",
+            ),
+            col(
+                "cache_read_tokens",
+                "UInt32",
+                "Cached input tokens read (a subset of input_tokens)",
+            ),
+            col(
+                "output_tokens",
+                "UInt32",
+                "Output tokens produced by the signal agent",
+            ),
         ],
     },
     Table {

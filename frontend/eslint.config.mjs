@@ -69,6 +69,18 @@ const languageOptionsCommonJs = {
   globals: {
     module: "readonly",
     require: "readonly",
+    // Node runtime globals — eslint.configs.recommended enables no-undef, which
+    // otherwise flags these in plain .js/.mjs scripts (e.g. scripts/*.mjs).
+    process: "readonly",
+    console: "readonly",
+    Buffer: "readonly",
+    __dirname: "readonly",
+    __filename: "readonly",
+    URL: "readonly",
+    setTimeout: "readonly",
+    clearTimeout: "readonly",
+    setInterval: "readonly",
+    clearInterval: "readonly",
   },
 };
 
@@ -118,8 +130,9 @@ export default tseslint.config(
 
   // API routes and webhooks - allow console for debugging
   // instrumentation.ts - executed once on server startup
+  // scripts/** - build/codemod scripts log progress to stdout
   {
-    files: ["app/api/**/*.ts", "app/webhook/**/*.ts", "instrumentation.ts"],
+    files: ["app/api/**/*.ts", "app/webhook/**/*.ts", "instrumentation.ts", "scripts/**/*.{js,mjs}"],
     rules: {
       "no-console": "off",
     },

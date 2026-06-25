@@ -438,7 +438,7 @@ fn render_usage_warning_email(
 ) -> String {
     let meter_description = match usage_item {
         "bytes" => "data ingested",
-        "signal_runs" | "signal_steps_processed" => "signal steps processed",
+        "signal_cost" | "signal_runs" | "signal_steps_processed" => "signals cost",
         _ => "usage",
     };
 

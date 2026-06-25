@@ -1,9 +1,13 @@
+import { eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
+import { normalizeTier, signalTokenCostMicroUsd } from "@/lib/billing/tiers";
+import { db } from "@/lib/db/drizzle";
+import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
 import { buildSignalRunsQueryWithParams } from "./utils";
 
@@ -24,12 +28,29 @@ export type SignalRun = {
   eventId: string;
   updatedAt: string;
   mode: "BATCH" | "REALTIME" | "UNKNOWN";
+  inputTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
 };
 
 export type SignalRunRow = Pick<
   SignalRun,
-  "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt"
->;
+  | "jobId"
+  | "runId"
+  | "traceId"
+  | "triggerId"
+  | "status"
+  | "eventId"
+  | "updatedAt"
+  | "inputTokens"
+  | "cacheReadTokens"
+  | "outputTokens"
+> & {
+  // Run cost is priced server-side so the SIGNAL_*_TOKEN_PRICE_PER_MILLION env
+  // overrides (unavailable in the client bundle) are honoured and the displayed
+  // cost matches metered usage. See `signalTokenCostMicroUsd` in lib/billing/tiers.
+  costMicroUsd: number;
+};
 
 export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) => {
   const { projectId, pageSize, pageNumber, pastHours, startDate, endDate, filter, signalId } = input;
@@ -48,11 +69,34 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
     pastHours,
   });
 
-  const items = await executeQuery<SignalRunRow>({
-    query: mainQuery,
-    parameters: mainParams,
-    projectId,
-  });
+  const [rows, tierRows] = await Promise.all([
+    executeQuery<Omit<SignalRunRow, "costMicroUsd">>({
+      query: mainQuery,
+      parameters: mainParams,
+      projectId,
+    }),
+    db
+      .select({ tierName: subscriptionTiers.name })
+      .from(projects)
+      .innerJoin(workspaces, eq(projects.workspaceId, workspaces.id))
+      .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+      .where(eq(projects.id, projectId))
+      .limit(1),
+  ]);
+
+  // Price each run at the workspace's tier rate (Pro discounted) so the
+  // displayed cost matches metered usage.
+  const tier = normalizeTier(tierRows[0]?.tierName ?? "free");
+
+  const items: SignalRunRow[] = rows.map((row) => ({
+    ...row,
+    costMicroUsd: signalTokenCostMicroUsd(
+      Number(row.inputTokens),
+      Number(row.cacheReadTokens),
+      Number(row.outputTokens),
+      tier
+    ),
+  }));
 
   return {
     items,

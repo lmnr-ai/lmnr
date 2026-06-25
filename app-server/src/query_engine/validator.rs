@@ -306,6 +306,9 @@ impl TableRegistry {
             "error_message",
             "mode",
             "updated_at",
+            "input_tokens",
+            "cache_read_tokens",
+            "output_tokens",
         ];
 
         let signal_events_columns = [
