@@ -1,10 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { Operator } from "@/lib/actions/common/operators";
 import { getMainAgentIOBatch } from "@/lib/actions/sessions/trace-io";
 import { getTraces } from "@/lib/actions/traces";
 import { db } from "@/lib/db/drizzle";
-import { debuggerSessions, sharedDebuggerSessions } from "@/lib/db/migrations/schema";
+import { debuggerSessions, sharedDebuggerSessions, sharedTraces } from "@/lib/db/migrations/schema";
 import { type TraceRow } from "@/lib/traces/types";
 
 // Mirrors the authed store's MAX_RUNS cap (createDebuggerSessionViewStore).
@@ -64,8 +64,9 @@ export async function getSharedDebuggerSessionTraces({
 
 /**
  * Main-agent input/output previews for a shared session's traces. Guarded by the
- * session, then served scoped to its project — every trace in a public session
- * is itself public (the visibility action inserts them all into `shared_traces`).
+ * session, then served scoped to its project. The requested trace ids are
+ * intersected with `shared_traces` first so a public session id can't be used to
+ * read previews for arbitrary (non-shared) traces in the same project.
  */
 export async function getSharedDebuggerSessionTraceIO({
   sessionId,
@@ -79,5 +80,19 @@ export async function getSharedDebuggerSessionTraceIO({
     return undefined;
   }
 
-  return getMainAgentIOBatch({ traceIds, projectId: shared.projectId });
+  if (traceIds.length === 0) {
+    return {};
+  }
+
+  const sharedRows = await db.query.sharedTraces.findMany({
+    columns: { id: true },
+    where: and(eq(sharedTraces.projectId, shared.projectId), inArray(sharedTraces.id, traceIds)),
+  });
+  const allowedTraceIds = sharedRows.map((r) => r.id);
+
+  if (allowedTraceIds.length === 0) {
+    return {};
+  }
+
+  return getMainAgentIOBatch({ traceIds: allowedTraceIds, projectId: shared.projectId });
 }
