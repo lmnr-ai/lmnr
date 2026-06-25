@@ -18,6 +18,10 @@ export type TraceIOEntry = {
 interface UseBatchedTraceIOOptions {
   debounceMs?: number;
   maxEntries?: number;
+  /** Route fetches to the public shared endpoint instead of the project one. */
+  isShared?: boolean;
+  /** Shared debugger session id — required when `isShared` (drives the URL). */
+  sessionId?: string;
 }
 
 export function useBatchedTraceIO(
@@ -25,7 +29,7 @@ export function useBatchedTraceIO(
   visibleTraceIds: string[],
   options: UseBatchedTraceIOOptions = {}
 ) {
-  const { debounceMs = 200, maxEntries = 200 } = options;
+  const { debounceMs = 200, maxEntries = 200, isShared = false, sessionId } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, TraceIOEntry | null>(maxEntries));
   const fetching = useRef(new Set<string>());
@@ -36,10 +40,15 @@ export function useBatchedTraceIO(
 
   const fetchBatch = useCallback(
     async (traceIds: string[]) => {
-      if (traceIds.length === 0 || !projectId) return;
+      if (traceIds.length === 0) return;
+      // Shared mode is keyed by the session id; the project one by projectId.
+      if (isShared ? !sessionId : !projectId) return;
 
       try {
-        const res = await fetch(`/api/projects/${projectId}/traces/io`, {
+        const url = isShared
+          ? `/api/shared/debugger-sessions/${sessionId}/traces/io`
+          : `/api/projects/${projectId}/traces/io`;
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ traceIds }),
@@ -78,7 +87,7 @@ export function useBatchedTraceIO(
         }
       }
     },
-    [projectId, toast]
+    [projectId, isShared, sessionId, toast]
   );
 
   const scheduleFetch = useCallback(async () => {

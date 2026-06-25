@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { type ComponentProps, useEffect } from "react";
 
+import fullLogo from "@/assets/logo/logo.svg";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 import { track } from "@/lib/posthog";
@@ -21,6 +24,11 @@ interface DebuggerSessionViewProps {
   // raw name so it can show a "Set session name" placeholder vs. the breadcrumb,
   // which falls back to the id.
   initialName?: string | null;
+  // Public (unauthenticated) shared view: read-only, fetches via `/api/shared/...`,
+  // realtime disabled. The project id is resolved server-side and passed in since
+  // shared pages live outside the /project/[projectId] route.
+  isShared?: boolean;
+  projectId?: string;
 }
 
 // Last breadcrumb segment is the session/trace title rendered in the header.
@@ -71,15 +79,50 @@ function LiveSessionBreadcrumb({ path }: { path: ComponentProps<typeof Header>["
   return <Header path={livePath} />;
 }
 
-export default function DebuggerSessionView({ trace, headerPath, sessionId, initialName }: DebuggerSessionViewProps) {
+export default function DebuggerSessionView({
+  trace,
+  headerPath,
+  sessionId,
+  initialName,
+  isShared = false,
+  projectId,
+}: DebuggerSessionViewProps) {
   // Multi-trace session view (not the /alpha single-trace harness) is a viewed session.
   useEffect(() => {
-    if (sessionId) track("debugger_sessions", "session_viewed");
-  }, [sessionId]);
+    if (sessionId && !isShared) track("debugger_sessions", "session_viewed");
+  }, [sessionId, isShared]);
 
   const path = headerPath ?? (trace ? `traces/${trace.id}` : "traces");
   const sessionTitle = titleFromPath(path);
   const initialTraceRow = trace ? traceToRow(trace) : undefined;
+
+  // Shared (public) view runs outside the app shell (no sidebar / project
+  // breadcrumb), so it owns its own full-screen frame + a logo top bar instead
+  // of the in-app `LiveSessionBreadcrumb`.
+  if (isShared) {
+    return (
+      <DebuggerSessionViewStoreProvider
+        key={sessionId ?? trace?.id}
+        initialTraceRow={initialTraceRow}
+        initialSessionName={sessionTitle}
+        initialSessionNameRaw={initialName ?? null}
+        isShared
+        projectId={projectId}
+        sessionId={sessionId}
+      >
+        <div className="flex h-screen w-full flex-col overflow-hidden">
+          <div className="flex flex-none items-center gap-2 border-b px-6 py-3.5">
+            <Link className="mr-2" href="/projects">
+              <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
+            </Link>
+            <span className="text-secondary-foreground">/</span>
+            <span className="truncate text-sm font-medium text-secondary-foreground">{sessionTitle}</span>
+          </div>
+          <DebuggerSessionViewContent sessionId={sessionId} isShared />
+        </div>
+      </DebuggerSessionViewStoreProvider>
+    );
+  }
 
   return (
     <DebuggerSessionViewStoreProvider
@@ -87,10 +130,13 @@ export default function DebuggerSessionView({ trace, headerPath, sessionId, init
       initialTraceRow={initialTraceRow}
       initialSessionName={sessionTitle}
       initialSessionNameRaw={initialName ?? null}
+      isShared={isShared}
+      projectId={projectId}
+      sessionId={sessionId}
     >
       <LiveSessionBreadcrumb path={path} />
       <div className="flex-none border-t" />
-      <DebuggerSessionViewContent sessionId={sessionId} />
+      <DebuggerSessionViewContent sessionId={sessionId} isShared={isShared} />
     </DebuggerSessionViewStoreProvider>
   );
 }

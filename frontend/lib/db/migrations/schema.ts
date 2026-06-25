@@ -80,6 +80,22 @@ export const sharedEvals = pgTable(
   ]
 );
 
+export const sharedDebuggerSessions = pgTable(
+  "shared_debugger_sessions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "shared_debugger_sessions_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const signals = pgTable(
   "signals",
   {

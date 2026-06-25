@@ -680,6 +680,13 @@
       "when": 1781016760984,
       "tag": "0096_agent_chat_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1781016760985,
+      "tag": "0097_shared_debugger_sessions",
+      "breakpoints": true
     }
   ]
 }

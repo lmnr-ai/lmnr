@@ -4,6 +4,7 @@ import { type MouseEvent, useState } from "react";
 
 import { useDebuggerSessionViewStore } from "../store";
 import EditableSessionTitle from "./editable-session-title";
+import ShareSessionButton from "./share-session-button";
 import { fmtRelative } from "./utils";
 
 export interface SessionHeaderProps {
@@ -14,6 +15,9 @@ export interface SessionHeaderProps {
   lastActivityMs?: number;
   runCount: number;
   sessionId: string;
+  projectId?: string;
+  // Public shared view: read-only, no editable title / share toggle.
+  isShared?: boolean;
 }
 
 /**
@@ -21,7 +25,15 @@ export interface SessionHeaderProps {
  * left-aligned, a 24px medium title over a single muted meta line. The
  * jump-to-latest affordance lives in the right-rail outline, not here.
  */
-export default function SessionHeader({ title, createdMs, lastActivityMs, runCount, sessionId }: SessionHeaderProps) {
+export default function SessionHeader({
+  title,
+  createdMs,
+  lastActivityMs,
+  runCount,
+  sessionId,
+  projectId,
+  isShared = false,
+}: SessionHeaderProps) {
   const [copied, setCopied] = useState(false);
   const sessionNameRaw = useDebuggerSessionViewStore((s) => s.sessionNameRaw);
   const setSessionName = useDebuggerSessionViewStore((s) => s.setSessionName);
@@ -44,7 +56,7 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
 
   return (
     <header className="flex flex-col gap-3 py-5 h-[180px] pt-14">
-      {sessionId ? (
+      {sessionId && !isShared ? (
         <EditableSessionTitle name={sessionNameRaw} sessionId={sessionId} onRenamed={setSessionName} />
       ) : (
         <h1 className="text-2xl font-medium text-foreground">{title}</h1>
@@ -65,6 +77,12 @@ export default function SessionHeader({ title, createdMs, lastActivityMs, runCou
           Copy ID
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
+        {!isShared && sessionId && projectId && (
+          <>
+            <span>·</span>
+            <ShareSessionButton sessionId={sessionId} projectId={projectId} />
+          </>
+        )}
       </div>
     </header>
   );

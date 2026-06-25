@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm/relations";
 import {
   projects,
   debuggerSessions,
+  sharedDebuggerSessions,
   sharedEvals,
   workspaces,
   workspaceAddons,
@@ -63,6 +64,7 @@ export const tableViewsRelations = relations(tableViews, ({ one }) => ({
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   debuggerSessions: many(debuggerSessions),
+  sharedDebuggerSessions: many(sharedDebuggerSessions),
   sharedEvals: many(sharedEvals),
   datasets: many(datasets),
   workspace: one(workspaces, {
@@ -101,6 +103,13 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
   project: one(projects, {
     fields: [sharedEvals.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const sharedDebuggerSessionsRelations = relations(sharedDebuggerSessions, ({ one }) => ({
+  project: one(projects, {
+    fields: [sharedDebuggerSessions.projectId],
     references: [projects.id],
   }),
 }));

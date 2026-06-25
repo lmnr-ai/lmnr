@@ -37,8 +37,18 @@ const minMaxFromTraces = (traces: { startTime: string; endTime: string }[]) => {
 
 // Page scroll container with a sticky left outline, a 720px article column, and
 // a right spacer; span clicks open the in-flow SessionSpanPanel.
-export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: string }) {
-  const { projectId } = useParams<{ projectId: string }>();
+export default function DebuggerSessionViewContent({
+  sessionId,
+  isShared = false,
+}: {
+  sessionId?: string;
+  isShared?: boolean;
+}) {
+  const params = useParams<{ projectId: string }>();
+  const storeProjectId = useDebuggerSessionViewStore((s) => s.projectId);
+  // Shared pages live outside /project/[projectId]; the store carries the
+  // server-resolved project id in that case.
+  const projectId = storeProjectId ?? params?.projectId;
   const router = useRouter();
   const { toast } = useToast();
   const storeApi = useDebuggerSessionViewStoreRaw();
@@ -150,7 +160,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
   useRealtime({
     key: `rollout_session_${sessionId}`,
     projectId: projectId as string,
-    enabled: !!sessionId && !!projectId,
+    // Shared (public) view is a read-only snapshot — no live streaming.
+    enabled: !isShared && !!sessionId && !!projectId,
     eventHandlers,
   });
 
@@ -178,6 +189,8 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
               lastActivityMs={lastActivityMs}
               runCount={traces.length}
               sessionId={sessionId ?? ""}
+              projectId={projectId}
+              isShared={isShared}
             />
             {/* Same error → loading → content branching as the regular session
                 view (session-panel/index.tsx); fetchSessionTraces owns the flags. */}
@@ -196,7 +209,7 @@ export default function DebuggerSessionViewContent({ sessionId }: { sessionId?: 
             ) : traces.length === 0 ? (
               <div className="flex justify-center py-16 text-sm text-muted-foreground">No runs in this session yet</div>
             ) : (
-              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} />
+              <DebuggerTraceList scrollEl={scrollEl} projectId={projectId} sessionId={sessionId} isShared={isShared} />
             )}
           </div>
           <div className="flex flex-1" />
