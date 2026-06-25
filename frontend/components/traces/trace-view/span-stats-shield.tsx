@@ -67,7 +67,7 @@ export function SpanStatsShield({
           <span>${cost.toFixed(4)}</span>
         </div>
       )}
-      {!cost && hasTokens && model && (
+      {cost === 0 && hasTokens && model && (
         <div className={cn("inline-flex items-center", !isInline && "py-0.5")}>
           <UnpricedModelWarning model={model} size={isInline ? 12 : 14} />
         </div>
