@@ -172,8 +172,10 @@ export function ModelCostDialog({
     }
     if (!ok) return;
     if (mode === "add") {
-      setProvider("");
-      setModel("");
+      // Re-seed from the prefill (matches the onOpenChange close branch) so a
+      // controlled reopen — which skips onOpenChange — keeps the model field.
+      setProvider(initialProvider ?? "");
+      setModel(initialModel ?? "");
       setCostValues(emptyFields());
     }
     setValidationError(undefined);
