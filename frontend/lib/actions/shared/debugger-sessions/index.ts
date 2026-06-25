@@ -40,6 +40,13 @@ export async function getSharedDebuggerSession({ sessionId }: { sessionId: strin
  * Traces grouped to a shared session, by the `rollout.session_id` trace-metadata
  * key (same grouping the authed view uses). Guarded — a private session yields
  * undefined, never the underlying traces.
+ *
+ * Backfills `shared_traces` for the returned runs: visibility is toggled once, but
+ * the agent keeps appending runs to a live session afterwards. Those later runs
+ * carry the session's metadata key (so they show up in this list) but were never
+ * inserted into `shared_traces` at toggle time, so the per-trace shared routes
+ * (spans/previews/panels) would 404 on them. Re-syncing here keeps every run the
+ * list surfaces loadable through those routes.
  */
 export async function getSharedDebuggerSessionTraces({
   sessionId,
@@ -51,7 +58,7 @@ export async function getSharedDebuggerSessionTraces({
     return undefined;
   }
 
-  return getTraces({
+  const traces = await getTraces({
     projectId: shared.projectId,
     pageNumber: 0,
     pageSize: MAX_RUNS,
@@ -60,6 +67,16 @@ export async function getSharedDebuggerSessionTraces({
     sortDirection: "DESC",
     filter: [{ column: "metadata", operator: Operator.Eq, value: `rollout.session_id=${sessionId}` }],
   });
+
+  const traceIds = traces.items.map((t) => t.id);
+  if (traceIds.length > 0) {
+    await db
+      .insert(sharedTraces)
+      .values(traceIds.map((id) => ({ id, projectId: shared.projectId })))
+      .onConflictDoNothing();
+  }
+
+  return traces;
 }
 
 /**
