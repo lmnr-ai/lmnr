@@ -42,12 +42,11 @@ export function UnpricedModelWarning({ model, size = 12, className, onSaved }: U
             </span>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border flex flex-col gap-2 max-w-xs">
+            <TooltipContent side="bottom" className="p-2 border flex flex-col gap-2 max-w-[224px]">
               <span className="text-xs text-secondary-foreground">No price configured for &quot;{model}&quot;.</span>
               <Button
-                variant="warningOutline"
-                size="sm"
-                className="w-full"
+                variant="outline"
+                className="h-6 text-xs px-1.5 bg-transparent"
                 onClick={(e) => {
                   e.stopPropagation();
                   setDialogOpen(true);
