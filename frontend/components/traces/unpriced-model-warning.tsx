@@ -23,6 +23,11 @@ interface UnpricedModelWarningProps {
  */
 export function UnpricedModelWarning({ model, size = 12, className, onSaved }: UnpricedModelWarningProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Stored span costs aren't recomputed retroactively, so hide the warning
+  // in-session once the user configures a price to confirm their action landed.
+  if (saved) return null;
 
   return (
     <>
@@ -54,7 +59,15 @@ export function UnpricedModelWarning({ model, size = 12, className, onSaved }: U
           </TooltipPortal>
         </Tooltip>
       </TooltipProvider>
-      <ConfigureModelCostDialog model={model} open={dialogOpen} onOpenChange={setDialogOpen} onSaved={onSaved} />
+      <ConfigureModelCostDialog
+        model={model}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSaved={() => {
+          setSaved(true);
+          onSaved?.();
+        }}
+      />
     </>
   );
 }
