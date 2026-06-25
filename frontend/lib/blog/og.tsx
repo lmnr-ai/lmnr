@@ -29,15 +29,15 @@ export async function generatePostOgImage(slug: string, label: string) {
   }
 
   return new ImageResponse(
-    <OgContainer>
+    <OgContainer accentColor="#D0754E">
       <OgHeader label={label} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1, justifyContent: "center" }}>
         <h1
           style={{
             color: "#ffffff",
-            fontSize: title.length > 60 ? "36px" : "44px",
-            fontWeight: 700,
+            fontSize: title.length > 60 ? "40px" : "48px",
+            fontWeight: 600,
             lineHeight: 1.2,
             margin: 0,
             maxWidth: "1000px",
