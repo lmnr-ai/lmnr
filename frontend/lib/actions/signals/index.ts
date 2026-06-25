@@ -86,23 +86,42 @@ const SetTemplateSignalsSchema = z.object({
   subscriberEmail: z.email().optional(),
 });
 
-async function purgeSignalEventsFromClickhouse(projectId: string, eventNames: string[]) {
-  if (eventNames.length === 0) return;
+// Purge a signal's ClickHouse footprint: its events, its clusters, and the
+// event<->cluster link rows. The link rows must be deleted before signal_events
+// since they're resolved by event_id against it.
+async function purgeSignalsFromClickhouse(projectId: string, signalIds: string[]) {
+  if (signalIds.length === 0) return;
   try {
     await clickhouseClient.command({
       query: `
-          DELETE FROM events
+          DELETE FROM events_to_clusters
           WHERE project_id = {projectId: UUID}
-            AND name IN ({eventNames: Array(String)})
-            AND source = 'SEMANTIC'
+            AND event_id IN (
+              SELECT id FROM signal_events
+              WHERE project_id = {projectId: UUID}
+                AND signal_id IN ({signalIds: Array(UUID)})
+            )
         `,
-      query_params: {
-        projectId,
-        eventNames,
-      },
+      query_params: { projectId, signalIds },
+    });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_event_clusters
+          WHERE project_id = {projectId: UUID}
+            AND signal_id IN ({signalIds: Array(UUID)})
+        `,
+      query_params: { projectId, signalIds },
+    });
+    await clickhouseClient.command({
+      query: `
+          DELETE FROM signal_events
+          WHERE project_id = {projectId: UUID}
+            AND signal_id IN ({signalIds: Array(UUID)})
+        `,
+      query_params: { projectId, signalIds },
     });
   } catch (error) {
-    console.error("Failed to delete events from ClickHouse:", error);
+    console.error("Failed to purge signals from ClickHouse:", error);
   }
 }
 
@@ -131,7 +150,7 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
 
   const clusteringEnabled = isFeatureEnabled(Feature.CLUSTERING);
 
-  const deletedEvents = await db.transaction(async (tx) => {
+  const deletedSignals = await db.transaction(async (tx) => {
     // Sequential, not Promise.all: drizzle serialises statements on a single
     // connection, and we want a deterministic abort point on failure.
     for (const name of toCreate) {
@@ -210,9 +229,9 @@ export async function setTemplateSignals(input: z.infer<typeof SetTemplateSignal
       .returning();
   });
 
-  await purgeSignalEventsFromClickhouse(
+  await purgeSignalsFromClickhouse(
     projectId,
-    deletedEvents.map((e) => e.name)
+    deletedSignals.map((s) => s.id)
   );
 
   // Creates write triggers too, so invalidate the cache whenever anything changed.
@@ -462,6 +481,8 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
       .returning();
   });
 
+  await purgeSignalsFromClickhouse(projectId, [id]);
+
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
   return result;
@@ -470,7 +491,7 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
-  const events = await db.transaction(async (tx) => {
+  const deletedSignals = await db.transaction(async (tx) => {
     await tx
       .delete(alerts)
       .where(
@@ -487,9 +508,9 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
       .returning();
   });
 
-  await purgeSignalEventsFromClickhouse(
+  await purgeSignalsFromClickhouse(
     projectId,
-    events.map((e) => e.name)
+    deletedSignals.map((s) => s.id)
   );
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
