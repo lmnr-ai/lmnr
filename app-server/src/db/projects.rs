@@ -175,6 +175,18 @@ pub async fn get_projects_for_workspace(
     Ok(projects)
 }
 
+/// Fetch a single project's name by id. Only consumed by the enterprise signal
+/// notification path (`lmnr-private`); unused in OSS.
+#[allow(dead_code)]
+pub async fn get_project_name(pool: &PgPool, project_id: &Uuid) -> anyhow::Result<String> {
+    let name = sqlx::query_scalar::<_, String>("SELECT name FROM projects WHERE id = $1")
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(name)
+}
+
 /// Returns true if `user_id` is a member of the workspace that owns `project_id`.
 /// Any membership grants access (no role filter) — this is the per-request
 /// authorization for the CLI user-token surface (`/v1/cli/*`).

@@ -117,6 +117,8 @@ pub enum NotificationKind {
     EventIdentification {
         project_id: Uuid,
         #[serde(default)]
+        project_name: String,
+        #[serde(default)]
         signal_id: Uuid,
         trace_id: Uuid,
         #[serde(default)]
