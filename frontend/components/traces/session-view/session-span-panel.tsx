@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { SpanView as SharedSpanView } from "@/components/shared/traces/span-view";
 import { SpanView, type SpanViewTab } from "@/components/traces/span-view";
 import { SpanViewSkeleton } from "@/components/traces/span-view/skeleton";
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
@@ -23,7 +24,7 @@ const instantTransition = { duration: 0 } as const;
 // motion.div animates width with overflow-hidden while the inner absolute
 // wrapper is pinned at the target width, so text never reflows mid-animation.
 export default function SessionSpanPanel() {
-  const { open, selection, width, resizePanel, setMaxWidth, setSpanPanelOpen } = useSessionViewBaseStore(
+  const { open, selection, width, resizePanel, setMaxWidth, setSpanPanelOpen, isShared } = useSessionViewBaseStore(
     (s) => ({
       open: s.spanPanelOpen,
       selection: s.selectedSpan,
@@ -31,6 +32,7 @@ export default function SessionSpanPanel() {
       resizePanel: s.resizePanel,
       setMaxWidth: s.setMaxWidth,
       setSpanPanelOpen: s.setSpanPanelOpen,
+      isShared: s.isShared,
     }),
     shallow
   );
@@ -85,13 +87,23 @@ export default function SessionSpanPanel() {
             <LeftEdgeResizeHandle onMouseDown={handleMouseDown} />
             <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
               {shown ? (
-                <SpanView
-                  key={shown.spanId}
-                  spanId={shown.spanId}
-                  traceId={shown.traceId}
-                  initialTab={snippetTab}
-                  onClose={() => setSpanPanelOpen(false)}
-                />
+                isShared ? (
+                  // Read-only span view backed by `/api/shared/...` (no project route).
+                  <SharedSpanView
+                    key={shown.spanId}
+                    spanId={shown.spanId}
+                    traceId={shown.traceId}
+                    onClose={() => setSpanPanelOpen(false)}
+                  />
+                ) : (
+                  <SpanView
+                    key={shown.spanId}
+                    spanId={shown.spanId}
+                    traceId={shown.traceId}
+                    initialTab={snippetTab}
+                    onClose={() => setSpanPanelOpen(false)}
+                  />
+                )
               ) : (
                 <SpanViewSkeleton />
               )}

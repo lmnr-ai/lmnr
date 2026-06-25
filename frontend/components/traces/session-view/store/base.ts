@@ -27,6 +27,10 @@ export interface BaseSessionViewState {
   // Project context (set by content component on mount).
   projectId?: string;
 
+  // Public (unauthenticated) shared view: span/spans fetches route through
+  // `/api/shared/...`. Read by the shared SessionSpanPanel → SpanView. Default false.
+  isShared: boolean;
+
   // Traces loaded upfront for this session.
   traces: TraceRow[];
   isTracesLoading: boolean;
@@ -198,10 +202,11 @@ function distributeDeficit(
 export function createBaseSessionViewSlice<T extends BaseSessionViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  // No options needed today; keep the signature for parity with trace-view's base.
-  _options?: Record<string, never>
+  options?: { isShared?: boolean }
 ): BaseSessionViewStore {
   return {
+    isShared: options?.isShared ?? false,
+
     traces: [],
     isTracesLoading: false,
     tracesError: undefined,

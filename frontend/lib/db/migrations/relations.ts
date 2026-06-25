@@ -55,6 +55,7 @@ import {
   tagClasses,
   agentVersions,
   traces,
+  sharedDebuggerSessions,
 } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({ one }) => ({
@@ -119,6 +120,14 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tagClasses: many(tagClasses),
   agentVersions: many(agentVersions),
   traces: many(traces),
+  sharedDebuggerSessions: many(sharedDebuggerSessions),
+}));
+
+export const sharedDebuggerSessionsRelations = relations(sharedDebuggerSessions, ({ one }) => ({
+  project: one(projects, {
+    fields: [sharedDebuggerSessions.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({

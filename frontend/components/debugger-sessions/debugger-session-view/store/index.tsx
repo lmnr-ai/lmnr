@@ -187,17 +187,24 @@ export const createDebuggerSessionViewStore = (options?: {
   initialSessionNameRaw?: string | null;
   projectId?: string;
   storeKey?: string;
+  isShared?: boolean;
+  // Shared session id (drives the `/api/shared/debugger-sessions/{id}/...` URLs).
+  sessionId?: string;
 }) =>
   createStore<DebuggerSessionViewStore>()(
     persist(
       (set, get) => {
-        const baseSlice = createBaseSessionViewSlice<DebuggerSessionViewStore>(set, get, {});
+        const baseSlice = createBaseSessionViewSlice<DebuggerSessionViewStore>(set, get, {
+          isShared: options?.isShared ?? false,
+        });
 
         return {
           ...baseSlice,
 
           // Seeded at creation (static per page) — no URL-param sync effect.
           projectId: options?.projectId,
+
+          isShared: options?.isShared ?? false,
 
           // Seed base `traces` with the single /alpha trace when provided.
           traces: options?.initialTraceRow ? [options.initialTraceRow] : [],
@@ -219,12 +226,20 @@ export const createDebuggerSessionViewStore = (options?: {
                 }) as Partial<DebuggerSessionViewStore>
             );
             try {
-              const { projectId } = get();
-              if (!projectId) return;
-              const spanParams = new URLSearchParams();
-              spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
-              spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
-              const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`);
+              const { projectId, isShared } = get();
+              if (!isShared && !projectId) return;
+              let url: string;
+              if (isShared) {
+                // Shared route is guarded by the trace's presence in shared_traces
+                // and needs no time window.
+                url = `/api/shared/traces/${trace.id}/spans`;
+              } else {
+                const spanParams = new URLSearchParams();
+                spanParams.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
+                spanParams.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
+                url = `/api/projects/${projectId}/traces/${trace.id}/spans?${spanParams.toString()}`;
+              }
+              const res = await fetch(url);
               if (!res.ok) throw new Error("Failed to load spans");
               const fetchedSpans = (await res.json()) as TraceViewSpan[];
               // Always write the slot (even empty) so the expanded body resolves out
@@ -256,24 +271,32 @@ export const createDebuggerSessionViewStore = (options?: {
           },
 
           fetchSessionTraces: async (sessionId) => {
-            const { projectId } = get();
-            if (!projectId) return;
+            const { projectId, isShared } = get();
+            if (!isShared && !projectId) return;
 
             get().setIsTracesLoading(true);
             get().setTracesError(undefined);
             try {
-              const params = new URLSearchParams();
-              params.set("pageNumber", "0");
-              params.set("pageSize", String(MAX_RUNS));
-              // DESC so a session with > MAX_RUNS runs keeps the NEWEST window;
-              // the display sort below restores oldest-first within it.
-              params.set("sortDirection", "DESC");
-              params.append(
-                "filter",
-                JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
-              );
+              let url: string;
+              if (isShared) {
+                // Shared route is keyed by the session id and applies the
+                // rollout.session_id filter + MAX_RUNS cap server-side.
+                url = `/api/shared/debugger-sessions/${sessionId}/traces`;
+              } else {
+                const params = new URLSearchParams();
+                params.set("pageNumber", "0");
+                params.set("pageSize", String(MAX_RUNS));
+                // DESC so a session with > MAX_RUNS runs keeps the NEWEST window;
+                // the display sort below restores oldest-first within it.
+                params.set("sortDirection", "DESC");
+                params.append(
+                  "filter",
+                  JSON.stringify({ column: "metadata", operator: "eq", value: `rollout.session_id=${sessionId}` })
+                );
+                url = `/api/projects/${projectId}/traces?${params.toString()}`;
+              }
 
-              const res = await fetch(`/api/projects/${projectId}/traces?${params.toString()}`);
+              const res = await fetch(url);
               if (!res.ok) {
                 const err = (await res.json().catch(() => ({ error: "Unknown error" }))) as { error?: string };
                 get().setTracesError(err.error || "Failed to load session traces");
@@ -380,8 +403,9 @@ export const createDebuggerSessionViewStore = (options?: {
           },
 
           hydrateTraceRow: async (traceId) => {
-            const { projectId } = get();
-            if (!projectId) return;
+            const { projectId, isShared } = get();
+            // Realtime-only catch-up; shared sessions never stream, so it's a no-op.
+            if (isShared || !projectId) return;
             if (get().traceSpansFetching[traceId]) return;
 
             // Mark fetching in the SYNCHRONOUS prefix (before any await) so a streamed
@@ -494,6 +518,12 @@ interface DebuggerSessionViewStoreProviderProps {
   initialSessionName?: string;
   initialSessionNameRaw?: string | null;
   storeKey?: string;
+  isShared?: boolean;
+  // Shared pages are unauthenticated and live outside /project/[projectId], so
+  // the project id is resolved server-side and passed in rather than read from
+  // the route. Falls back to the route param for the authed view.
+  projectId?: string;
+  sessionId?: string;
 }
 
 const DebuggerSessionViewStoreProvider = ({
@@ -502,10 +532,22 @@ const DebuggerSessionViewStoreProvider = ({
   initialSessionName,
   initialSessionNameRaw,
   storeKey,
+  isShared,
+  projectId: projectIdProp,
+  sessionId,
 }: PropsWithChildren<DebuggerSessionViewStoreProviderProps>) => {
-  const { projectId } = useParams<{ projectId: string }>();
+  const params = useParams<{ projectId: string }>();
+  const projectId = projectIdProp ?? params?.projectId;
   const [storeState] = useState(() =>
-    createDebuggerSessionViewStore({ initialTraceRow, initialSessionName, initialSessionNameRaw, projectId, storeKey })
+    createDebuggerSessionViewStore({
+      initialTraceRow,
+      initialSessionName,
+      initialSessionNameRaw,
+      projectId,
+      storeKey,
+      isShared,
+      sessionId,
+    })
   );
 
   // Provide both the base context (shared session-view children) and the

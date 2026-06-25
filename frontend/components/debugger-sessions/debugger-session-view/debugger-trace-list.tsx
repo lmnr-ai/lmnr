@@ -16,9 +16,16 @@ interface DebuggerTraceListProps {
   projectId?: string;
   // Debug session id — interpolated into the LLM-span "Copy prompt" payload.
   sessionId?: string;
+  // Public shared view → preview/IO fetches route through `/api/shared/...`.
+  isShared?: boolean;
 }
 
-export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: DebuggerTraceListProps) {
+export default function DebuggerTraceList({
+  scrollEl,
+  projectId,
+  sessionId,
+  isShared = false,
+}: DebuggerTraceListProps) {
   const { traces, traceSpans } = useSessionViewBaseStore(
     (s) => ({ traces: s.traces, traceSpans: s.traceSpans }),
     shallow
@@ -91,10 +98,11 @@ export default function DebuggerTraceList({ scrollEl, projectId, sessionId }: De
     visibleSpanIdsByTrace,
     inputSpanIdsByTrace,
     spanTypesByTrace,
+    options: { isShared },
   });
 
   const traceIds = useMemo(() => traces.map((t) => t.id), [traces]);
-  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds);
+  const { previews: traceIO } = useBatchedTraceIO(projectId, traceIds, { isShared, sessionId });
 
   return (
     <div ref={columnRef} className="w-full">
