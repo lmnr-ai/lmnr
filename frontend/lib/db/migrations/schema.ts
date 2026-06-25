@@ -868,41 +868,58 @@ export const labelingQueues = pgTable(
   ]
 );
 
-export const tracesAgentChats = pgTable(
-  "traces_agent_chats",
+export const chatSessions = pgTable(
+  "chat_sessions",
   {
+    // Surrogate uuid. UI conversations are addressed by (project, user, trace) via the partial unique
+    // index below — not by a composite key. MCP/CLI mint their own uuid.
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    traceId: uuid("trace_id").notNull(),
     projectId: uuid("project_id").notNull(),
+    // Origin of the conversation: 'ui' | 'mcp' | 'cli' (Slack later). Drives GC + analytics.
+    channelType: text("channel_type").default("ui").notNull(),
+    // Resolved once at session create; null until Slack (project-less) needs it.
+    workspaceId: uuid("workspace_id"),
+    // Conversation owner. Set for user-authed surfaces (UI, CLI); null for shared project/workspace-
+    // authed surfaces (MCP, Slack). Ownership record — enforcement needs user-auth on the route.
+    userId: uuid("user_id"),
+    // Trace this UI conversation is about. Null for MCP/CLI/global (non-trace) chats.
+    traceId: uuid("trace_id"),
+    // Bumped per turn so stale MCP/CLI sessions can be garbage-collected.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "traces_agent_chats_project_id_fkey",
+      name: "chat_sessions_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    // One UI conversation per (project, user, trace). Partial so MCP/CLI/global rows (trace_id NULL)
+    // are exempt; also the ON CONFLICT target for the frontend get-or-create upsert.
+    uniqueIndex("chat_sessions_project_user_trace_key")
+      .on(table.projectId, table.userId, table.traceId)
+      .where(sql`${table.traceId} is not null`),
   ]
 );
 
-export const tracesAgentMessages = pgTable(
-  "traces_agent_messages",
+export const chatMessages = pgTable(
+  "chat_messages",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     role: text().notNull(),
     parts: jsonb().notNull(),
+    // Owning chat_sessions row id (uuid — see chat_sessions.id).
     chatId: uuid("chat_id").notNull(),
-    traceId: uuid("trace_id").notNull(),
     projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "traces_agent_messages_project_id_fkey",
+      name: "chat_messages_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
