@@ -205,8 +205,8 @@ export interface ProjectDetails {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
-  signalStepsUsedThisMonth: number;
-  signalStepsLimit: number;
+  signalCostUsedThisMonth: number;
+  signalCostLimit: number;
   logRetentionDays: number;
   isFreeTier: boolean;
   settings: ProjectSettings;
@@ -255,7 +255,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     .select({
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
-      signalStepsLimit: subscriptionTiers.signalStepsProcessed,
+      signalCostLimit: subscriptionTiers.signalCostIncludedMicroUsd,
       logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
@@ -270,7 +270,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
-  const signalStepsLimit = Number(tier.signalStepsLimit);
+  const signalCostLimit = Number(tier.signalCostLimit);
 
   if (!isFreeTier) {
     return {
@@ -281,8 +281,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalStepsLimit,
-      signalStepsUsedThisMonth: 0,
+      signalCostLimit,
+      signalCostUsedThisMonth: 0,
       isFreeTier,
       settings,
     };
@@ -290,7 +290,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
-  const signalStepsUsedThisMonth = usageResult.totalSignalSteps;
+  const signalCostUsedThisMonth = usageResult.totalSignalCostMicroUsd;
 
   return {
     id: project.id,
@@ -299,8 +299,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     logRetentionDays: tier.logRetentionDays,
     gbUsedThisMonth,
     gbLimit,
-    signalStepsUsedThisMonth: signalStepsUsedThisMonth,
-    signalStepsLimit: signalStepsLimit,
+    signalCostUsedThisMonth,
+    signalCostLimit,
     isFreeTier,
     settings,
   };

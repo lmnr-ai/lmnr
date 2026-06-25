@@ -62,6 +62,6 @@ export interface WorkspaceInvitation {
 
 export interface WorkspaceUsage {
   totalBytesIngested: number;
-  totalSignalSteps: number;
+  totalSignalCostMicroUsd: number;
   resetTime: Date;
 }

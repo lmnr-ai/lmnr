@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface LimitRowProps {
   workspaceId: string;
-  limitType: "bytes" | "signal_steps_processed";
+  limitType: "bytes" | "signal_cost";
   label: string;
   currentValue: number | null;
   unit: string;

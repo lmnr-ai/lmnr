@@ -29,11 +29,13 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
   }, [mutate, router]);
 
   const bytesWarnings = warnings.filter((w) => w.usageItem === "bytes").sort((a, b) => a.limitValue - b.limitValue);
-  const signalStepsWarnings = warnings
-    .filter((w) => w.usageItem === "signal_steps_processed")
+  const signalCostWarnings = warnings
+    .filter((w) => w.usageItem === "signal_cost" || w.usageItem === "signal_steps_processed")
     .sort((a, b) => a.limitValue - b.limitValue);
 
   const toDisplayGB = (raw: number) => Math.round((raw / GB_IN_BYTES) * 100) / 100;
+  // Signal warning thresholds are stored in micro-USD (1e-6 USD); show dollars.
+  const toDisplaySignalUsd = (raw: number) => Math.round((raw / 1_000_000) * 100) / 100;
 
   return (
     <SettingsSection>
@@ -70,24 +72,24 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
 
         <div className="flex flex-col rounded-md border flex-1">
           <div className="flex items-center px-3 h-10">
-            <span className="text-sm font-medium">Signal steps processed</span>
+            <span className="text-sm font-medium">Signals usage</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
-            {signalStepsWarnings.map((w) => (
+            {signalCostWarnings.map((w) => (
               <WarningChip
                 key={w.id}
                 workspaceId={workspaceId}
                 id={w.id}
-                displayValue={w.limitValue}
-                unit="steps"
+                displayValue={toDisplaySignalUsd(w.limitValue)}
+                unit="USD"
                 onRemove={handleUpdate}
               />
             ))}
             <AddWarningPopover
               workspaceId={workspaceId}
-              usageItem="signal_steps_processed"
-              unit="steps"
-              toRawValue={(display) => Math.round(display)}
+              usageItem="signal_cost"
+              unit="USD"
+              toRawValue={(display) => Math.round(display * 1_000_000)}
               onAdd={handleUpdate}
             />
           </div>

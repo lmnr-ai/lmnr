@@ -74,19 +74,17 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
     existingLookupKeys.has(tierConfig.overageMegabytesLookupKey) &&
-    existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)
+    existingLookupKeys.has(tierConfig.overageSignalCostLookupKey)
   ) {
     return;
   }
 
   const overagePrices = await s.prices.list({
-    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalStepsProcessedLookupKey],
+    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalCostLookupKey],
   });
 
   const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageMegabytesLookupKey);
-  const signalRunsOveragePrice = overagePrices.data.find(
-    (p) => p.lookup_key === tierConfig.overageSignalStepsProcessedLookupKey
-  );
+  const signalRunsOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageSignalCostLookupKey);
 
   if (!bytesOveragePrice || !signalRunsOveragePrice) {
     console.error(`Could not resolve overage prices for tier ${tierEntry[0]}`);
@@ -97,7 +95,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   if (!existingLookupKeys.has(tierConfig.overageMegabytesLookupKey)) {
     items.push({ price: bytesOveragePrice.id });
   }
-  if (!existingLookupKeys.has(tierConfig.overageSignalStepsProcessedLookupKey)) {
+  if (!existingLookupKeys.has(tierConfig.overageSignalCostLookupKey)) {
     items.push({ price: signalRunsOveragePrice.id });
   }
 
@@ -166,29 +164,35 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       if (invoice.parent?.type !== "subscription_details") break;
 
-      // Filter: must contain a line for a known overage price.
-      // This excludes addon-only invoices and other unrelated invoices.
-      const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.overageMegabytesLookupKey, c.overageSignalStepsProcessedLookupKey])
-      );
+      // Filter: must contain a line for a signal or data overage price.
+      // We match on the lookup-key shape ("signal" / "bytes" substrings) rather
+      // than an exact TIER_CONFIG allowlist so that subscriptions still billing
+      // a previous overage price (e.g. the legacy
+      // `*_overage_signal_steps_processed` keys, which Stripe does not migrate
+      // on a lookup-key rename) are still recognised and reset. An exact-match
+      // gate would silently skip those cycles' billing reset + cache
+      // invalidation. This excludes addon-only and other unrelated invoices.
       let hasBytesOverage = false;
       let hasSignalRunsOverage = false;
       let resetTime: Date | null = null;
       const relevantLines = invoice.lines.data.filter((line) => {
         const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        if (lookupKey) {
-          if (String(lookupKey).toLowerCase().includes("signal")) {
-            // includes signal runs or signal steps lookup key
-            hasSignalRunsOverage = true;
-            resetTime = new Date(line.period.end * 1000);
-          } else if (String(lookupKey).toLowerCase().includes("bytes")) {
-            hasBytesOverage = true;
-            // it's fine to override here, most of the times they are same
-            resetTime = new Date(line.period.end * 1000);
-          }
+        if (!lookupKey) return false;
+        const normalizedLookupKey = String(lookupKey).toLowerCase();
+        if (normalizedLookupKey.includes("signal")) {
+          // includes signal runs or signal steps lookup key
+          hasSignalRunsOverage = true;
+          resetTime = new Date(line.period.end * 1000);
+          return true;
         }
-        return lookupKey && knownLookupKeys.has(lookupKey);
+        if (normalizedLookupKey.includes("bytes")) {
+          hasBytesOverage = true;
+          // it's fine to override here, most of the times they are same
+          resetTime = new Date(line.period.end * 1000);
+          return true;
+        }
+        return false;
       });
       if (relevantLines.length === 0) break;
 

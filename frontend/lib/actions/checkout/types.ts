@@ -3,25 +3,28 @@ import type Stripe from "stripe";
 export type TierConfigEntry = {
   lookupKey: string;
   overageMegabytesLookupKey: string;
-  overageSignalStepsProcessedLookupKey: string;
+  overageSignalCostLookupKey: string;
   includedBytes: number;
-  includedSignalSteps: number;
+  // Included signal budget in micro-USD (1e-6 USD). Signals are billed by the
+  // token cost the agent spends, so the allowance is a dollar amount stored as
+  // micro-USD to stay integer-safe. $15 Hobby, $50 Pro.
+  includedSignalCostMicroUsd: number;
 };
 
 export const TIER_CONFIG = {
   hobby: {
     lookupKey: "hobby_monthly_2026_02",
     overageMegabytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
-    overageSignalStepsProcessedLookupKey: "hobby_monthly_2026_04_overage_signal_steps_processed",
+    overageSignalCostLookupKey: "hobby_monthly_2026_06_overage_signal_cost",
     includedBytes: 3 * 1024 ** 3,
-    includedSignalSteps: 5_000,
+    includedSignalCostMicroUsd: 15_000_000,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
     overageMegabytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
-    overageSignalStepsProcessedLookupKey: "pro_monthly_2026_04_overage_signal_steps_processed",
+    overageSignalCostLookupKey: "pro_monthly_2026_06_overage_signal_cost",
     includedBytes: 10 * 1024 ** 3,
-    includedSignalSteps: 50_000,
+    includedSignalCostMicroUsd: 50_000_000,
   },
 } as const;
 
@@ -58,8 +61,8 @@ export const METER_EVENT_NAMES = {
     payloadKey: "megabytes",
   },
   overageSignalRuns: {
-    eventName: "2026_04_overage_signal_steps_processed",
-    payloadKey: "signal_steps_processed",
+    eventName: "2026_06_overage_signal_cost",
+    payloadKey: "signal_cost",
   },
 } as const;
 
@@ -84,6 +87,8 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   pro_monthly_2025_04_overage_signal_runs: "Signal runs overage",
   pro_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
   hobby_monthly_2026_04_overage_signal_steps_processed: "Signal steps processed overage",
+  pro_monthly_2026_06_overage_signal_cost: "Signal cost overage",
+  hobby_monthly_2026_06_overage_signal_cost: "Signal cost overage",
   // Addons
   [DATAPLANE_ADDON_LOOKUP_KEY]: "Data Plane addon",
 };

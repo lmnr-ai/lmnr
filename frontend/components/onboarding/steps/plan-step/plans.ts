@@ -42,8 +42,8 @@ const buildPlan = (tier: OnboardingTier): PlanOption => {
         ? { label: `${formatDataIncluded(tier)} ingested data`, sub: `then ${formatDataOverage(tier)}` }
         : { label: `${formatDataIncluded(tier)} ingested data`, sub: "no overage" },
       isPaid
-        ? { label: `${formatSignalsCount(tier)} Signals steps`, sub: `then ${formatSignalsOverage(tier)}` }
-        : { label: `${formatSignalsCount(tier)} Signals steps`, sub: "no overage" },
+        ? { label: `${formatSignalsCount(tier)} in Signals`, sub: `then ${formatSignalsOverage(tier)}` }
+        : { label: `${formatSignalsCount(tier)} in Signals`, sub: "no overage" },
       { label: retentionLabel(tier) },
       { label: formatProjects(tier) },
       { label: formatSeats(tier) },
