@@ -340,7 +340,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
-    model={span.spanType === SpanType.LLM ? span.model : undefined}
+    model={span.spanType === SpanType.LLM || span.spanType === SpanType.CACHED ? span.model : undefined}
   />
 );
 
