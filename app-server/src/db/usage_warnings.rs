@@ -22,12 +22,6 @@ pub enum UsageItem {
     /// Signals billed by token cost in micro-USD.
     #[serde(rename = "signal_cost")]
     SignalCost,
-    /// Deprecated: legacy signal usage item billed by steps processed. Retained
-    /// only so pre-LAM-1757 `workspace_usage_warnings` rows still parse; new
-    /// warnings use [`UsageItem::SignalCost`].
-    #[deprecated(note = "use SignalCost; signals are now billed by token cost in micro-USD")]
-    #[serde(rename = "signal_steps_processed")]
-    SignalStepsProcessed,
 }
 
 impl UsageItem {
@@ -35,8 +29,6 @@ impl UsageItem {
         match s.to_lowercase().trim() {
             "bytes" => Ok(Self::Bytes),
             "signal_cost" | "signalcost" => Ok(Self::SignalCost),
-            #[allow(deprecated)]
-            "signal_steps_processed" | "signalstepsprocessed" => Ok(Self::SignalStepsProcessed),
             x => Err(anyhow::anyhow!("unknown usage item value {}", x)),
         }
     }
@@ -47,8 +39,6 @@ impl Display for UsageItem {
         let s = match self {
             Self::Bytes => "bytes",
             Self::SignalCost => "signal_cost",
-            #[allow(deprecated)]
-            Self::SignalStepsProcessed => "signal_steps_processed",
         };
         f.write_str(s)
     }

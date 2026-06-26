@@ -30,7 +30,7 @@ export default function WarningsSettings({ workspaceId }: WarningsSettingsProps)
 
   const bytesWarnings = warnings.filter((w) => w.usageItem === "bytes").sort((a, b) => a.limitValue - b.limitValue);
   const signalCostWarnings = warnings
-    .filter((w) => w.usageItem === "signal_cost" || w.usageItem === "signal_steps_processed")
+    .filter((w) => w.usageItem === "signal_cost")
     .sort((a, b) => a.limitValue - b.limitValue);
 
   const toDisplayGB = (raw: number) => Math.round((raw / GB_IN_BYTES) * 100) / 100;
