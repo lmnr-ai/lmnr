@@ -1247,6 +1247,7 @@ export const slackChannelProjects = pgTable(
     // Cached display name for the settings UI; the channel id is the source of truth for routing.
     channelName: text("channel_name"),
     projectId: uuid("project_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
   },
   (table) => [
     foreignKey({
@@ -1258,6 +1259,11 @@ export const slackChannelProjects = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "slack_channel_projects_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_projects_integration_id_fkey",
     }).onDelete("cascade"),
     // One project per channel within a workspace; lets a binding be upserted by (workspace, channel).
     uniqueIndex("slack_channel_projects_workspace_channel_idx").on(table.workspaceId, table.channelId),

@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { projects, slackChannelProjects } from "@/lib/db/migrations/schema";
+import { projects, slackChannelProjects, slackIntegrations } from "@/lib/db/migrations/schema";
 
 export interface SlackChannelProjectBinding {
   id: string;
@@ -58,12 +58,21 @@ export async function upsertChannelProjectBinding(input: z.infer<typeof UpsertBi
     throw new Error("Project not found in this workspace");
   }
 
+  const [integration] = await db
+    .select({ id: slackIntegrations.id })
+    .from(slackIntegrations)
+    .where(eq(slackIntegrations.workspaceId, workspaceId))
+    .limit(1);
+  if (!integration) {
+    throw new Error("Slack integration not found for this workspace");
+  }
+
   await db
     .insert(slackChannelProjects)
-    .values({ workspaceId, channelId, channelName: channelName ?? null, projectId })
+    .values({ workspaceId, channelId, channelName: channelName ?? null, projectId, integrationId: integration.id })
     .onConflictDoUpdate({
       target: [slackChannelProjects.workspaceId, slackChannelProjects.channelId],
-      set: { projectId, channelName: channelName ?? null },
+      set: { projectId, channelName: channelName ?? null, integrationId: integration.id },
     });
 }
 

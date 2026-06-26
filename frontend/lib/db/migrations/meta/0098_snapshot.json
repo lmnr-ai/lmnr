@@ -4653,6 +4653,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "integration_id": {
+          "name": "integration_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {
@@ -4695,6 +4701,15 @@
           "tableFrom": "slack_channel_projects",
           "tableTo": "projects",
           "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "slack_channel_projects_integration_id_fkey": {
+          "name": "slack_channel_projects_integration_id_fkey",
+          "tableFrom": "slack_channel_projects",
+          "tableTo": "slack_integrations",
+          "columnsFrom": ["integration_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
