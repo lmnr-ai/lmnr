@@ -45,7 +45,7 @@ const FeaturesForEveryStep = () => (
         Icon={Bug}
         title="True Agent Debugger"
         description="Rapid, seamless agent development. Rerun your agent from any step instantly."
-        href="https://laminar.sh/docs/platform/debugger"
+        href="https://laminar.sh/docs/debugger/introduction"
       />
       <Card
         Icon={LayoutDashboard}
