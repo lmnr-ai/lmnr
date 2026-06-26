@@ -174,6 +174,7 @@ function PureEventsTable() {
     (row: Row<EventRow>) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("eventId", row.original.id);
+      params.set("traceId", row.original.traceId);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
@@ -186,6 +187,7 @@ function PureEventsTable() {
       setTraceId(traceId);
 
       const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("eventId", row.original.id);
       newParams.set("traceId", traceId);
       router.push(`${pathName}?${newParams.toString()}`);
     },
@@ -215,12 +217,16 @@ function PureEventsTable() {
     ],
   });
 
-  // Find the first event matching the active traceId to highlight it
+  const eventId = searchParams.get("eventId");
+
+  // Highlight the exact event by id; a trace can now have multiple events, so
+  // fall back to the first event of the trace only for legacy traceId-only links.
   const focusedRowId = useMemo(() => {
-    if (!traceId || !events) return undefined;
-    const match = events.find((e) => e.traceId === traceId);
-    return match?.id;
-  }, [traceId, events]);
+    if (!events) return undefined;
+    if (eventId && events.some((e) => e.id === eventId)) return eventId;
+    if (!traceId) return undefined;
+    return events.find((e) => e.traceId === traceId)?.id;
+  }, [eventId, traceId, events]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
