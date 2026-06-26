@@ -76,16 +76,24 @@ export async function processSlackEvent(input: z.infer<typeof ProcessSlackEventS
 /**
  * Forward a signature-verified Slack event to app-server's internal `/api/v1/slack/process`. Body is
  * the RAW verified bytes (never re-encoded). No auth header — app-server is cluster-internal.
+ *
+ * Best-effort: failures are logged, never thrown. The channel-agent endpoint is signals-gated, so on
+ * OSS / non-signals builds it returns 404 — we must still ack Slack with 200, otherwise Slack treats
+ * the 5xx as a delivery failure and retries the same `app_mention` repeatedly.
  */
 async function forwardSlackEventToBackend(rawBody: string): Promise<void> {
-  const res = await fetch(`${process.env.BACKEND_URL}/api/v1/slack/process`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: rawBody,
-    cache: "no-store",
-  });
+  try {
+    const res = await fetch(`${process.env.BACKEND_URL}/api/v1/slack/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: rawBody,
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
-    throw new Error(`Forwarding Slack event to app-server failed: ${res.status}`);
+    if (!res.ok) {
+      console.error(`Forwarding Slack event to app-server failed: ${res.status}`);
+    }
+  } catch (error) {
+    console.error("Forwarding Slack event to app-server failed:", error);
   }
 }
