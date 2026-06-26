@@ -86,6 +86,7 @@ function PureEventsTable() {
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const setSpanId = useSignalStoreContext((state) => state.setSpanId);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -175,6 +176,7 @@ function PureEventsTable() {
       const params = new URLSearchParams(searchParams.toString());
       params.set("eventId", row.original.id);
       params.set("traceId", row.original.traceId);
+      params.delete("spanId");
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
@@ -185,13 +187,15 @@ function PureEventsTable() {
       const traceId = row.original.traceId;
       track("signals", "event_to_trace");
       setTraceId(traceId);
+      setSpanId(null);
 
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.set("eventId", row.original.id);
       newParams.set("traceId", traceId);
+      newParams.delete("spanId");
       router.push(`${pathName}?${newParams.toString()}`);
     },
-    [setTraceId, searchParams, pathName, router]
+    [setTraceId, setSpanId, searchParams, pathName, router]
   );
 
   const {
