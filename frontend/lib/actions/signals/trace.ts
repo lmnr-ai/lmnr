@@ -19,20 +19,38 @@ export type TraceSignalClusterNode = {
   level: number;
 };
 
+// Mirrored by a client-safe copy in components/traces/trace-view/store/base.ts;
+// this module is server-only so its types can't be imported into client code.
+export type TraceSignalEvent = EventRow & { leafCluster: TraceSignalClusterNode | null };
+
 export type TraceSignal = {
   signalId: string;
   signalName: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
   leafCluster: TraceSignalClusterNode | null;
-  events: EventRow[];
+  events: TraceSignalEvent[];
 };
 
 type SignalEventRow = EventRow & { clusters: string[] | null };
 
+/** Pick the deepest (highest-level) named cluster for one event's cluster ids. */
+function pickLeafCluster(
+  clusterIds: string[] | null,
+  clusterMeta: Map<string, TraceSignalClusterNode>
+): TraceSignalClusterNode | null {
+  return (
+    (clusterIds ?? [])
+      .map((id) => clusterMeta.get(id))
+      .filter((n): n is TraceSignalClusterNode => !!n)
+      .sort((a, b) => b.level - a.level)[0] ?? null
+  );
+}
+
 /**
  * Signals (with their events) that fired on a trace, for the trace-view panel.
- * Each signal carries its deepest (leaf) cluster derived from its latest event.
+ * Each event carries its own deepest (leaf) cluster; the signal-level leaf
+ * cluster (its latest event's) drives the panel accent color.
  */
 export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchema>): Promise<TraceSignal[]> {
   const { projectId, traceId } = GetTraceSignalsSchema.parse(input);
@@ -67,14 +85,17 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
     eventsBySignal.set(e.signalId, list);
   }
 
-  // The panel shows one leaf cluster per signal, off its latest event — so we
-  // only need cluster metadata for those clusters to pick the deepest one.
-  const latestClusterIds = new Set<string>();
+  // The panel shows a leaf cluster per event (one finding may cluster
+  // differently from another), so gather cluster metadata for every event's
+  // clusters to pick each one's deepest node.
+  const allClusterIds = new Set<string>();
   for (const events of eventsBySignal.values()) {
-    for (const cid of events[0].clusters ?? []) latestClusterIds.add(cid);
+    for (const e of events) {
+      for (const cid of e.clusters ?? []) allClusterIds.add(cid);
+    }
   }
   const clusterMeta: Map<string, TraceSignalClusterNode> =
-    latestClusterIds.size > 0 ? await fetchClusterNodes(projectId, [...latestClusterIds]) : new Map();
+    allClusterIds.size > 0 ? await fetchClusterNodes(projectId, [...allClusterIds]) : new Map();
 
   const signalIds = [...eventsBySignal.keys()];
   const signalRows = await db
@@ -89,25 +110,22 @@ export async function getTraceSignals(input: z.infer<typeof GetTraceSignalsSchem
 
   return signalRows.map((signal) => {
     const events = eventsBySignal.get(signal.id) ?? [];
-    const leafCluster =
-      (events[0]?.clusters ?? [])
-        .map((id) => clusterMeta.get(id))
-        .filter((n): n is TraceSignalClusterNode => !!n)
-        .sort((a, b) => b.level - a.level)[0] ?? null;
+    const mappedEvents: TraceSignalEvent[] = events.map((e) => ({
+      id: e.id,
+      signalId: e.signalId,
+      traceId: e.traceId,
+      payload: e.payload,
+      timestamp: e.timestamp,
+      severity: e.severity,
+      leafCluster: pickLeafCluster(e.clusters, clusterMeta),
+    }));
     return {
       signalId: signal.id,
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema as Record<string, unknown>,
-      leafCluster,
-      events: events.map((e) => ({
-        id: e.id,
-        signalId: e.signalId,
-        traceId: e.traceId,
-        payload: e.payload,
-        timestamp: e.timestamp,
-        severity: e.severity,
-      })),
+      leafCluster: mappedEvents[0]?.leafCluster ?? null,
+      events: mappedEvents,
     };
   });
 }

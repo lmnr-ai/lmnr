@@ -64,7 +64,6 @@ function PureEventsTable() {
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
@@ -86,6 +85,7 @@ function PureEventsTable() {
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const setSpanId = useSignalStoreContext((state) => state.setSpanId);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -174,6 +174,8 @@ function PureEventsTable() {
     (row: Row<EventRow>) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("eventId", row.original.id);
+      params.set("traceId", row.original.traceId);
+      params.delete("spanId");
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
@@ -184,12 +186,15 @@ function PureEventsTable() {
       const traceId = row.original.traceId;
       track("signals", "event_to_trace");
       setTraceId(traceId);
+      setSpanId(null);
 
       const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("eventId", row.original.id);
       newParams.set("traceId", traceId);
+      newParams.delete("spanId");
       router.push(`${pathName}?${newParams.toString()}`);
     },
-    [setTraceId, searchParams, pathName, router]
+    [setTraceId, setSpanId, searchParams, pathName, router]
   );
 
   const {
@@ -215,12 +220,17 @@ function PureEventsTable() {
     ],
   });
 
-  // Find the first event matching the active traceId to highlight it
+  const eventId = searchParams.get("eventId");
+
+  // `eventId` is the only signal we trust for highlighting: a trace can now
+  // carry multiple findings, so a traceId alone can't identify which row to
+  // highlight. Trace-only links (e.g. "Open in Signals") still open the drawer
+  // via the store traceId sync, but intentionally highlight nothing. Leave
+  // nothing highlighted until the intended row scrolls into the list.
   const focusedRowId = useMemo(() => {
-    if (!traceId || !events) return undefined;
-    const match = events.find((e) => e.traceId === traceId);
-    return match?.id;
-  }, [traceId, events]);
+    if (!events || !eventId) return undefined;
+    return events.some((e) => e.id === eventId) ? eventId : undefined;
+  }, [eventId, events]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
