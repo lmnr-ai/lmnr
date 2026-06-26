@@ -134,8 +134,13 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
 
         if (mapped.length > 0) {
           setSignalsPanelOpen(true);
+          // A deep link with eventId points at one specific finding — open the
+          // signal tab that owns it so the highlighted card is visible. Fall
+          // back to the initial signal, then the first signal.
+          const eventId = searchParams.get("eventId");
+          const owner = eventId ? mapped.find((s) => s.events.some((e) => e.id === eventId)) : undefined;
           const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
+          setActiveSignalTabId(owner?.signalId ?? preferred?.signalId ?? mapped[0].signalId);
         }
       } catch {
         toast({ variant: "destructive", title: "Failed to load trace signals" });
