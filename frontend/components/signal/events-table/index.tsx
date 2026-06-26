@@ -219,11 +219,14 @@ function PureEventsTable() {
 
   const eventId = searchParams.get("eventId");
 
-  // Highlight the exact event by id; a trace can now have multiple events, so
-  // fall back to the first event of the trace only for legacy traceId-only links.
+  // Highlight the exact event by id. When eventId is present it's authoritative —
+  // never fall back to another event of the same trace (a trace can now have
+  // multiple events, so that would highlight the wrong finding); leave nothing
+  // highlighted until the intended row scrolls into the list. The traceId match
+  // is only for legacy traceId-only links that carry no eventId.
   const focusedRowId = useMemo(() => {
     if (!events) return undefined;
-    if (eventId && events.some((e) => e.id === eventId)) return eventId;
+    if (eventId) return events.some((e) => e.id === eventId) ? eventId : undefined;
     if (!traceId) return undefined;
     return events.find((e) => e.traceId === traceId)?.id;
   }, [eventId, traceId, events]);
