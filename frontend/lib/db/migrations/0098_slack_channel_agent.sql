@@ -12,5 +12,6 @@ ALTER TABLE "slack_channel_projects" ADD CONSTRAINT "slack_channel_projects_work
 ALTER TABLE "slack_channel_projects" ADD CONSTRAINT "slack_channel_projects_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "slack_channel_projects" ADD CONSTRAINT "slack_channel_projects_integration_id_fkey" FOREIGN KEY ("integration_id") REFERENCES "slack_integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "slack_channel_projects_workspace_channel_idx" ON "slack_channel_projects" USING btree ("workspace_id" uuid_ops,"channel_id" text_ops);--> statement-breakpoint
+CREATE UNIQUE INDEX "slack_channel_projects_channel_id_idx" ON "slack_channel_projects" USING btree ("channel_id" text_ops);--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD COLUMN "external_id" text;--> statement-breakpoint
 CREATE UNIQUE INDEX "chat_messages_chat_external_key" ON "chat_messages" USING btree ("chat_id","external_id") WHERE "external_id" IS NOT NULL;
