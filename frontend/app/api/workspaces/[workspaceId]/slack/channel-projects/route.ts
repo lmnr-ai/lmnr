@@ -28,8 +28,8 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ workspac
 
 export async function PUT(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
-  const body = await req.json();
   try {
+    const body = await req.json();
     await upsertChannelProjectBinding({
       workspaceId,
       channelId: body.channelId,
