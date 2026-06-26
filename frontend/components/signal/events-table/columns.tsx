@@ -77,7 +77,15 @@ function parsePayloadField(payload: string, fieldName: string): unknown {
   }
 }
 
-function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<string, string> }) {
+function PayloadText({
+  text,
+  eventId,
+  spanTypes,
+}: {
+  text: string;
+  eventId: string;
+  spanTypes?: Record<string, string>;
+}) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -97,7 +105,7 @@ function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<str
 
         const params = new URLSearchParams(searchParams.toString());
         params.set("traceId", traceId);
-        params.delete("eventId");
+        params.set("eventId", eventId);
         if (spanId) {
           params.set("spanId", spanId);
         } else {
@@ -106,7 +114,7 @@ function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<str
         router.replace(`${pathName}?${params.toString()}`);
       },
     }),
-    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes]
+    [router, pathName, searchParams, setTraceId, setSpanId, spanTypes, eventId]
   );
 
   return <>{renderSpanReferences(text, callbacks) ?? text}</>;
@@ -164,7 +172,7 @@ function createPayloadColumnDef(field: SchemaField): ColumnDef<EventRow> {
         case "string":
           return (
             <span className="line-clamp-3 whitespace-normal break-words text-secondary-foreground">
-              <PayloadText text={String(value)} spanTypes={row.original.spanTypes} />
+              <PayloadText text={String(value)} eventId={row.original.id} spanTypes={row.original.spanTypes} />
             </span>
           );
       }
