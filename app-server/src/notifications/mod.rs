@@ -16,7 +16,7 @@ use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
 mod email;
-mod slack;
+pub mod slack;
 mod utils;
 
 use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
