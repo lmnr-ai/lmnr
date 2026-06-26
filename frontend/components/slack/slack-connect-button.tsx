@@ -30,7 +30,7 @@ export function buildSlackConnectUrl({
   slackRedirectUri,
   returnPath,
   brokerEnabled,
-}: Omit<SlackConnectButtonProps, never>): string | undefined {
+}: SlackConnectButtonProps): string | undefined {
   if (brokerEnabled) {
     const sp = new URLSearchParams({ workspaceId });
     if (returnPath) {
