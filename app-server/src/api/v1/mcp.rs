@@ -74,7 +74,7 @@ scoped to your project — never filter on or reference a `project_id` column. O
 /// joins/examples from its own `<workflow>`/`<principles>` sections).
 const MCP_SQL_EXTRAS: &str = r#"<joins>
 - spans.trace_id = traces.id
-- events.trace_id = traces.id
+- signal_events.trace_id = traces.id
 - has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to
   (clusters.signal_id = signal_events.signal_id only scopes by signal — it is a many-to-many cross
   product, NOT an event-to-cluster match).
