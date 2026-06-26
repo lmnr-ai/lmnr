@@ -167,6 +167,7 @@ export default function SpanItem({
                 outputTokens={span.outputTokens}
                 cost={span.totalCost}
                 cacheReadInputTokens={span.cacheReadInputTokens}
+                model={isLLMType ? span.model : undefined}
               />
             )}
           </div>
