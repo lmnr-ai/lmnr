@@ -64,7 +64,6 @@ function PureEventsTable() {
   const [clusterId] = useClusterId();
   const [emergingClusterId] = useEmergingClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
@@ -223,17 +222,15 @@ function PureEventsTable() {
 
   const eventId = searchParams.get("eventId");
 
-  // Highlight the exact event by id. When eventId is present it's authoritative —
-  // never fall back to another event of the same trace (a trace can now have
-  // multiple events, so that would highlight the wrong finding); leave nothing
-  // highlighted until the intended row scrolls into the list. The traceId match
-  // is only for legacy traceId-only links that carry no eventId.
+  // `eventId` is the only signal we trust for highlighting: a trace can now
+  // carry multiple findings, so a traceId alone can't identify which row to
+  // highlight. Trace-only links (e.g. "Open in Signals") still open the drawer
+  // via the store traceId sync, but intentionally highlight nothing. Leave
+  // nothing highlighted until the intended row scrolls into the list.
   const focusedRowId = useMemo(() => {
-    if (!events) return undefined;
-    if (eventId) return events.some((e) => e.id === eventId) ? eventId : undefined;
-    if (!traceId) return undefined;
-    return events.find((e) => e.traceId === traceId)?.id;
-  }, [eventId, traceId, events]);
+    if (!events || !eventId) return undefined;
+    return events.some((e) => e.id === eventId) ? eventId : undefined;
+  }, [eventId, events]);
 
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
