@@ -140,7 +140,6 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
       maxRetries: 0,
       temperature: 0,
       abortSignal: AbortSignal.timeout(5000),
-      experimental_telemetry: { isEnabled: true },
     });
 
     return object.regex?.trim() || null;

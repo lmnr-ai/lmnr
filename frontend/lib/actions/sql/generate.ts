@@ -32,7 +32,6 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
         schema: GenerationResultSchema,
         system: prompts.system,
         prompt: prompts.user(prompt),
-        experimental_telemetry: { isEnabled: true },
       })
   );
 

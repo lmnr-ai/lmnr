@@ -24,7 +24,6 @@ async function generateAgentName(systemPrompt: string): Promise<string | null> {
         maxRetries: 0,
         temperature: 0,
         abortSignal: AbortSignal.timeout(5000),
-        experimental_telemetry: { isEnabled: true },
       })
     );
 
