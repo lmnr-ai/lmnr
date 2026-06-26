@@ -86,7 +86,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   // success-bright (#36D399) / destructive-bright (#E25050) from globals.css tokens.
   // "unknown" is the default when the trace fails to load / isn't public — no
   // data to color, so leave the accent transparent rather than implying success.
-  const accentColor = status === "error" ? "#E25050" : status === "unknown" ? "transparent" : "#36D399";
+  const accentColor = status === "ok" ? "#36D399" : status === "error" ? "#E25050" : "transparent";
 
   // Span-type icon (mirrors the traces table): on error a red alert badge,
   // otherwise the type-colored square with the matching lucide glyph.
