@@ -1215,6 +1215,9 @@ export const chatMessages = pgTable(
     parts: jsonb().notNull(),
     chatId: uuid("chat_id").notNull(),
     projectId: uuid("project_id").notNull(),
+    // Source-surface dedup key (currently the Slack message ts). Null for live UI/CLI/MCP turns and
+    // the Slack mention echo / assistant reply; set only on backfilled Slack thread messages.
+    externalId: text("external_id"),
   },
   (table) => [
     foreignKey({
@@ -1224,6 +1227,46 @@ export const chatMessages = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    // Upsert target for Slack thread backfill. Partial so live rows (external_id NULL) are exempt.
+    uniqueIndex("chat_messages_chat_external_key")
+      .on(table.chatId, table.externalId)
+      .where(sql`${table.externalId} is not null`),
+  ]
+);
+
+// Maps a Slack channel to the Laminar project an inbound @mention should route to. Set by an admin
+// in workspace integration settings; the app-server resolves it on each app_mention event.
+export const slackChannelProjects = pgTable(
+  "slack_channel_projects",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    // Slack channel id (e.g. "C0ABCDE12"); the conversations.list value, not the display name.
+    channelId: text("channel_id").notNull(),
+    // Cached display name for the settings UI; the channel id is the source of truth for routing.
+    channelName: text("channel_name"),
+    projectId: uuid("project_id").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "slack_channel_projects_workspace_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "slack_channel_projects_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_projects_integration_id_fkey",
+    }).onDelete("cascade"),
+    // One project per channel within a workspace; lets a binding be upserted by (workspace, channel).
+    uniqueIndex("slack_channel_projects_workspace_channel_idx").on(table.workspaceId, table.channelId),
   ]
 );
 

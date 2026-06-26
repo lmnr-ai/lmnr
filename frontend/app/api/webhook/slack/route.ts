@@ -40,7 +40,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       if (data.type === "event_callback") {
         const { event, team_id } = data;
-        await processSlackEvent({ event, teamId: team_id });
+        await processSlackEvent({ event, teamId: team_id, rawBody: body });
         return NextResponse.json({ ok: true }, { status: 200 });
       }
     }

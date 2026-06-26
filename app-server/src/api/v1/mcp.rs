@@ -74,6 +74,7 @@ scoped to your project — never filter on or reference a `project_id` column. O
 /// joins/examples from its own `<workflow>`/`<principles>` sections).
 const MCP_SQL_EXTRAS: &str = r#"<joins>
 - spans.trace_id = traces.id
+- signal_events.trace_id = traces.id
 - has(signal_events.clusters, clusters.id) to match events to the specific clusters they belong to
   (clusters.signal_id = signal_events.signal_id only scopes by signal — it is a many-to-many cross
   product, NOT an event-to-cluster match).
@@ -313,7 +314,7 @@ impl LaminarMcpServer {
         prompt: String,
         conversation_id: Option<String>,
     ) -> anyhow::Result<(String, String)> {
-        use crate::agent::agent::{AgentContext, run_agent};
+        use crate::agent::agent::{AgentContext, AgentSource, finalize, run_agent};
         use crate::agent::persist;
         use crate::agent::stream::AgentEvent;
         use tokio::sync::mpsc;
@@ -346,7 +347,14 @@ impl LaminarMcpServer {
             _ => {
                 let key = Uuid::now_v7().to_string();
                 // MCP is project-key authed — the conversation has no owning user.
-                persist::ensure_chat_session(&self.db.pool, &key, project_id, "mcp", None).await?;
+                persist::ensure_chat_session(
+                    &self.db.pool,
+                    &key,
+                    project_id,
+                    AgentSource::Mcp.as_channel_type(),
+                    None,
+                )
+                .await?;
                 key
             }
         };
@@ -365,18 +373,23 @@ impl LaminarMcpServer {
             persist: Some(conversation_id.clone()),
             // MCP names any target entity inline in the prompt; no separate first-turn note.
             system_note: None,
+            source: AgentSource::Mcp,
+            user_external_id: None,
         };
 
-        // Persistence mode: the agent loop loads prior history; send only the new user turn.
-        let (tx, mut rx) = mpsc::unbounded_channel::<AgentEvent>();
-        run_agent(&ctx, &tx, prompt, conversation_id.clone())
+        // Persistence mode: the agent loop loads prior history; send only the new user turn. `_rx` is
+        // unread (MCP is buffered, not streamed); the `message` frames `finalize` emits are no-ops.
+        let (tx, _rx) = mpsc::unbounded_channel::<AgentEvent>();
+        let run = run_agent(&ctx, &tx, prompt, conversation_id.clone())
             .await
             .map_err(|e| anyhow::anyhow!("Agent run failed: {e:#}"))?;
-        drop(tx);
 
-        // Same buffered drain the HTTP `application/json` path uses; MCP ignores the tool list.
-        let (final_text, _tools) = crate::agent::agent::collect_buffered_result(&mut rx);
+        // Persist the terminal assistant row so a follow-up `ask_agent` sees this turn.
+        finalize(&ctx, &tx, run.final_parts, None, false)
+            .await
+            .map_err(|e| anyhow::anyhow!("Persisting the agent reply failed: {e:#}"))?;
 
+        let final_text = run.final_text;
         if final_text.is_empty() {
             anyhow::bail!("Agent finished without producing a textual answer.");
         }

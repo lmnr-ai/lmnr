@@ -24,6 +24,9 @@ struct SlackApiResponse {
     ok: bool,
     #[serde(default)]
     error: Option<String>,
+    // `ts` of the posted message — the stable per-channel id the agent keys persisted rows on.
+    #[serde(default)]
+    ts: Option<String>,
 }
 
 pub fn decode_slack_token(
@@ -131,7 +134,7 @@ fn md_links_to_slack(text: &str) -> String {
 /// Slack section block `text` fields are capped at 3000 chars. If the input
 /// exceeds the limit, truncate at a char boundary and append `...` so the
 /// block stays under the limit while signalling the truncation to the reader.
-fn truncate_to_slack_section_limit(text: &str) -> String {
+pub(crate) fn truncate_to_slack_section_limit(text: &str) -> String {
     const SLACK_SECTION_TEXT_LIMIT: usize = 3000;
     const ELLIPSIS: &str = "...";
 
@@ -523,6 +526,117 @@ pub async fn send_message(
     }
 
     Ok(())
+}
+
+/// Post a plain-text reply into a Slack thread via `chat.postMessage`. Used by the inbound agent
+/// (`slack/events`) to answer where the user mentioned the bot. `text` is truncated to the Slack
+/// section limit by the caller. Errors propagate so the spawned handler can log them.
+pub async fn post_thread_reply(
+    slack_client: &Client,
+    token: &str,
+    channel_id: &str,
+    thread_ts: &str,
+    text: &str,
+) -> Result<Option<String>> {
+    let body = json!({
+        "channel": channel_id,
+        "thread_ts": thread_ts,
+        "text": text,
+        "unfurl_links": false,
+        "unfurl_media": false,
+    });
+
+    let response = slack_client
+        .post(format!("{}/chat.postMessage", SLACK_API_BASE))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    let status = response.status();
+    let body = response.text().await?;
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to post Slack thread reply. HTTP Status: {}, Response: {}",
+            status,
+            body
+        ));
+    }
+    let parsed: SlackApiResponse = serde_json::from_str(&body)
+        .map_err(|e| anyhow::anyhow!("Failed to parse Slack response: {}. Raw: {}", e, body))?;
+    if !parsed.ok {
+        return Err(anyhow::anyhow!(
+            "Slack API error on chat.postMessage: {}",
+            parsed.error.unwrap_or_else(|| "unknown".to_string())
+        ));
+    }
+    // None (not "") when ts is absent: an empty external_id is non-NULL and would collapse rows under
+    // the partial unique index, whereas None is exempt (same as intermediate/non-Slack turns).
+    Ok(parsed.ts.filter(|ts| !ts.is_empty()))
+}
+
+/// Fetch a thread's prior messages via `conversations.replies` (oldest first). Used to backfill
+/// context when the agent is first mentioned mid-thread. The caller persists each as a `user` turn
+/// (the agent's own replies are written live as `assistant`), so authorship isn't distinguished here.
+/// Best-effort — the caller treats a failure as "no backfill".
+pub async fn fetch_thread_replies(
+    slack_client: &Client,
+    token: &str,
+    channel_id: &str,
+    thread_ts: &str,
+    limit: u32,
+) -> Result<Vec<ThreadMessage>> {
+    #[derive(Deserialize)]
+    struct RepliesResponse {
+        ok: bool,
+        #[serde(default)]
+        error: Option<String>,
+        #[serde(default)]
+        messages: Vec<RawThreadMessage>,
+    }
+    #[derive(Deserialize)]
+    struct RawThreadMessage {
+        #[serde(default)]
+        text: String,
+        #[serde(default)]
+        ts: Option<String>,
+    }
+
+    let response = slack_client
+        .get(format!("{}/conversations.replies", SLACK_API_BASE))
+        .header("Authorization", format!("Bearer {}", token))
+        .query(&[
+            ("channel", channel_id),
+            ("ts", thread_ts),
+            ("limit", &limit.to_string()),
+        ])
+        .send()
+        .await?;
+    let parsed: RepliesResponse = response.json().await?;
+    if !parsed.ok {
+        return Err(anyhow::anyhow!(
+            "Slack conversations.replies error: {}",
+            parsed.error.unwrap_or_else(|| "unknown".to_string())
+        ));
+    }
+
+    Ok(parsed
+        .messages
+        .into_iter()
+        .filter(|m| !m.text.trim().is_empty())
+        .map(|m| ThreadMessage {
+            text: m.text,
+            ts: m.ts,
+        })
+        .collect())
+}
+
+/// One backfilled thread message. Persisted as a `user` turn regardless of author (see
+/// `fetch_thread_replies`).
+#[derive(Debug, Clone)]
+pub struct ThreadMessage {
+    pub text: String,
+    pub ts: Option<String>,
 }
 
 #[cfg(test)]
