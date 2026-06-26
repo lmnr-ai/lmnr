@@ -99,7 +99,7 @@ function FindingCard({
   const severityLabel = SEVERITY_LABELS[event.severity as keyof typeof SEVERITY_LABELS] ?? "Info";
   const severityClassName = SEVERITY_STYLES[event.severity] ?? SEVERITY_STYLES[0];
   const clusterHref = leafCluster
-    ? `/project/${projectId}/signals/${signalId}?clusterId=${leafCluster.id}&traceId=${traceId}`
+    ? `/project/${projectId}/signals/${signalId}?clusterId=${leafCluster.id}&traceId=${traceId}&eventId=${event.id}`
     : undefined;
 
   return (
