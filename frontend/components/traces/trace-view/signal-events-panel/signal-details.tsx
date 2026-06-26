@@ -2,8 +2,8 @@
 
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import ClusterIcon from "@/components/signal/clusters-section/cluster-list/cluster-icon";
@@ -86,6 +86,7 @@ function FindingCard({
   traceId,
   validFields,
   spanRefCallbacks,
+  highlighted,
 }: {
   event: TraceSignalEvent;
   projectId: string;
@@ -93,6 +94,7 @@ function FindingCard({
   traceId: string;
   validFields: SchemaField[];
   spanRefCallbacks?: SpanReferenceCallbacks;
+  highlighted?: boolean;
 }) {
   const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
   const leafCluster = event.leafCluster;
@@ -102,8 +104,21 @@ function FindingCard({
     ? `/project/${projectId}/signals/${signalId}?clusterId=${leafCluster.id}&traceId=${traceId}&eventId=${event.id}`
     : undefined;
 
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (highlighted) {
+      ref.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlighted]);
+
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border p-3">
+    <div
+      ref={ref}
+      className={cn(
+        "flex flex-col gap-2.5 rounded-lg border p-3",
+        highlighted && "border-blue-400/60 ring-1 ring-blue-400/40 bg-blue-400/8"
+      )}
+    >
       <div className="flex items-center gap-1.5 flex-wrap">
         <Badge variant="outline" className={cn("rounded-full font-medium", severityClassName)}>
           {severityLabel}
@@ -139,6 +154,8 @@ function FindingCard({
  *  field-by-field from the schema. */
 export default function SignalDetails({ traceId, signal }: Props) {
   const { projectId } = useParams();
+  const searchParams = useSearchParams();
+  const highlightedEventId = searchParams.get("eventId");
   const featureFlags = useFeatureFlags();
   const { selectSpanById, spans, openSignalInChat } = useTraceViewStore(
     (state) => ({
@@ -206,6 +223,7 @@ export default function SignalDetails({ traceId, signal }: Props) {
               traceId={traceId}
               validFields={validFields}
               spanRefCallbacks={spanRefCallbacks}
+              highlighted={event.id === highlightedEventId}
             />
           ))}
         </div>
