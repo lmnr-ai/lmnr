@@ -1267,6 +1267,9 @@ export const slackChannelProjects = pgTable(
     }).onDelete("cascade"),
     // One project per channel within a workspace; lets a binding be upserted by (workspace, channel).
     uniqueIndex("slack_channel_projects_workspace_channel_idx").on(table.workspaceId, table.channelId),
+    // A Slack channel routes to at most one project across the whole instance, so an inbound @mention
+    // never resolves to >1 binding (the app-server router relies on this).
+    uniqueIndex("slack_channel_projects_channel_id_idx").on(table.channelId),
   ]
 );
 

@@ -4684,6 +4684,22 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "slack_channel_projects_channel_id_idx": {
+          "name": "slack_channel_projects_channel_id_idx",
+          "columns": [
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "text_ops"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
