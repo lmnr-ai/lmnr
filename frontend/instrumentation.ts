@@ -321,10 +321,11 @@ export async function register() {
       console.log("Local DB is not enabled, skipping migrations and initial data");
     }
     if (process.env.LMNR_PROJECT_API_KEY) {
-      const { Laminar, registerAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
+      const { Laminar, LaminarAiSdkTelemetry } = await import("@lmnr-ai/lmnr");
+      const { registerTelemetry } = await import("ai");
       console.log("Initializing Laminar");
       Laminar.initialize();
-      registerAiSdkTelemetry();
+      registerTelemetry(new LaminarAiSdkTelemetry());
     }
 
     // Anonymous self-hosted usage telemetry. No-ops on Laminar Cloud and when
