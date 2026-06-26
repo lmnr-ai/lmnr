@@ -6,7 +6,7 @@ use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::utils::chrono_to_nanoseconds;
+use super::utils::{chrono_to_nanoseconds, merge_json_objects};
 use super::{
     ClickhouseInsertable, DataPlaneBatch, SPANS_CH_ASYNC_INSERT_BUSY_TIMEOUT_MAX_MS, Table,
 };
@@ -240,11 +240,12 @@ impl TraceAggregation {
                     entry.status = Some(status.clone());
                 }
             }
-            if entry.metadata.is_none() {
-                if let Some(metadata) = span.attributes.metadata() {
-                    if let Ok(metadata_value) = serde_json::to_value(&metadata) {
-                        entry.metadata = Some(metadata_value);
-                    }
+            if let Some(metadata) = span.attributes.metadata() {
+                if let Ok(metadata_value) = serde_json::to_value(&metadata) {
+                    entry.metadata = Some(match entry.metadata.take() {
+                        Some(existing) => merge_json_objects(existing, metadata_value),
+                        None => metadata_value,
+                    });
                 }
             }
             if entry.trace_type == 0 {
