@@ -1,4 +1,4 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
+import { observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
@@ -32,10 +32,7 @@ export async function generateSql(input: z.infer<typeof GenerateSchema>): Promis
         schema: GenerationResultSchema,
         system: prompts.system,
         prompt: prompts.user(prompt),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
+        experimental_telemetry: { isEnabled: true },
       })
   );
 

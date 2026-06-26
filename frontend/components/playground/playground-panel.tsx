@@ -111,12 +111,12 @@ export default function PlaygroundPanel({
           return;
         }
 
-        const result = (await response.json()) as GenerateTextResult<ToolSet, Record<string, never>>;
+        const result = (await response.json()) as GenerateTextResult<ToolSet, Record<string, never>, never>;
 
         setText(result.text);
         setToolCalls(result.toolCalls);
-        setReasoning(result.reasoning.map((r) => r.text).join(""));
-        setUsage(result.totalUsage);
+        setReasoning(result.reasoning.map((r) => ("text" in r ? r.text : "")).join(""));
+        setUsage(result.usage);
       } catch (e) {
         if (e instanceof Error && e.name !== "AbortError") {
           toast({ title: "Error", description: e.message, variant: "destructive" });

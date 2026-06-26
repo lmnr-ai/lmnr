@@ -3,6 +3,7 @@ import {
   generateText,
   type GenerateTextResult,
   jsonSchema,
+  type LanguageModelUsage,
   modelMessageSchema,
   type ToolSet,
 } from "ai";
@@ -54,8 +55,16 @@ export const PlaygroundParamsSchema = z.object({
   abortSignal: z.any().optional(),
 });
 
+const emptyUsage: LanguageModelUsage = {
+  inputTokens: 0,
+  inputTokenDetails: { noCacheTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  outputTokens: 0,
+  outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+  totalTokens: 0,
+};
+
 export interface ChatGenerationResult {
-  result: GenerateTextResult<ToolSet, Record<string, never>>;
+  result: GenerateTextResult<ToolSet, Record<string, never>, never>;
   startTime: Date;
   endTime: Date;
 }
@@ -163,32 +172,20 @@ export async function generateChatResponse(
 
 export async function handleChatGeneration(
   params: z.infer<typeof PlaygroundParamsSchema>
-): Promise<GenerateTextResult<ToolSet, Record<string, never>>> {
+): Promise<GenerateTextResult<ToolSet, Record<string, never>, never>> {
   const parsedParams = PlaygroundParamsSchema.parse(params);
   const { messages, model, projectId, maxTokens, temperature, topP, topK, playgroundId, structuredOutput } =
     parsedParams;
 
   const { result, startTime, endTime } = await generateChatResponse(parsedParams);
 
-  const safeResult: GenerateTextResult<ToolSet, Record<string, never>> = {
+  const safeResult: GenerateTextResult<ToolSet, Record<string, never>, never> = {
     ...result,
     text: result.text || "",
     reasoning: result.reasoning || [],
     toolCalls: result.toolCalls || [],
-    usage: result.usage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
-    totalUsage: result.totalUsage || {
-      inputTokens: 0,
-      outputTokens: 0,
-      reasoningTokens: 0,
-      cachedInputTokens: 0,
-      totalTokens: 0,
-    },
+    usage: result.usage || emptyUsage,
+    totalUsage: result.totalUsage || emptyUsage,
     content: result.content || [],
     files: result.files || [],
     sources: result.sources || [],

@@ -118,10 +118,10 @@ export function createSpanAttributes(spanData: SpanData): Record<string, unknown
     "gen_ai.system": provider,
     "gen_ai.request.model": model.split(":")[1],
     "gen_ai.response.model": result.response?.modelId || model.split(":")[1],
-    "gen_ai.usage.input_tokens": result.usage.promptTokens,
-    "gen_ai.usage.output_tokens": result.usage.completionTokens,
-    "gen_ai.usage.prompt_tokens": result.usage.promptTokens, // Legacy support
-    "gen_ai.usage.completion_tokens": result.usage.completionTokens, // Legacy support
+    "gen_ai.usage.input_tokens": result.usage.inputTokens,
+    "gen_ai.usage.output_tokens": result.usage.outputTokens,
+    "gen_ai.usage.prompt_tokens": result.usage.inputTokens, // Legacy support
+    "gen_ai.usage.completion_tokens": result.usage.outputTokens, // Legacy support
     "gen_ai.request.max_tokens": maxTokens,
     "gen_ai.request.temperature": temperature,
     "gen_ai.request.top_p": topP,

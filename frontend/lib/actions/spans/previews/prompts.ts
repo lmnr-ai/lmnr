@@ -1,4 +1,4 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
+import { observe } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 
 import { getLanguageModel } from "@/lib/ai/model";
@@ -136,10 +136,7 @@ export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<
         maxRetries: 0,
         temperature: 0,
         abortSignal: AbortSignal.timeout(5000),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
+        experimental_telemetry: { isEnabled: true },
       })
     );
 
