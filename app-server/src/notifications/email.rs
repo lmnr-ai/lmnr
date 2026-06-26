@@ -69,7 +69,10 @@ pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uui
             let subject = if project_name.is_empty() {
                 format!("{}: {} event", event_name, severity_label)
             } else {
-                format!("[{}] {}: {} event", project_name, event_name, severity_label)
+                format!(
+                    "[{}] {}: {} event",
+                    project_name, event_name, severity_label
+                )
             };
             EmailContent {
                 from: ALERT_FROM_EMAIL.to_string(),
@@ -453,7 +456,7 @@ fn render_usage_warning_email(
 ) -> String {
     let meter_description = match usage_item {
         "bytes" => "data ingested",
-        "signal_cost" | "signal_runs" | "signal_steps_processed" => "signals cost",
+        "signal_cost" => "signals cost",
         _ => "usage",
     };
 

@@ -11,9 +11,7 @@ import {
   isFreeTierWorkspace,
 } from "./utils";
 
-// `signal_steps_processed` is the deprecated legacy value, retained so pre-LAM-1757
-// rows still parse; new signal warnings are written as `signal_cost` (micro-USD).
-export const USAGE_WARNING_ITEMS = ["bytes", "signal_cost", "signal_steps_processed"] as const;
+export const USAGE_WARNING_ITEMS = ["bytes", "signal_cost"] as const;
 export type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
 
 export interface WorkspaceUsageWarning {
