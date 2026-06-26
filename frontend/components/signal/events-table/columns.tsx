@@ -97,6 +97,7 @@ function PayloadText({ text, spanTypes }: { text: string; spanTypes?: Record<str
 
         const params = new URLSearchParams(searchParams.toString());
         params.set("traceId", traceId);
+        params.delete("eventId");
         if (spanId) {
           params.set("spanId", spanId);
         } else {
