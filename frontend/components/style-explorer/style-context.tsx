@@ -7,6 +7,7 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
 
 import {
+  BINDINGS_SEED,
   computeSurfaceColor,
   type CurveKey,
   DEFAULT_ENDPOINTS,
@@ -29,6 +30,7 @@ export interface StyleState {
   foregroundCurve: Curve;
   oklch: Record<string, string>;
   hsl: Record<string, string>;
+  bindings: Record<string, string>; // semantic token -> ramp stop key
 }
 
 function freshState(): StyleState {
@@ -38,6 +40,7 @@ function freshState(): StyleState {
     foregroundCurve: { endpoints: { ...DEFAULT_ENDPOINTS }, points: initialForegroundPoints() },
     oklch: { ...OKLCH_SEED },
     hsl: { ...HSL_SEED },
+    bindings: { ...BINDINGS_SEED },
   };
 }
 
@@ -48,6 +51,7 @@ interface StyleContextValue {
   interpolatePoints: (curve: CurveKey) => void;
   setOklch: (varName: string, value: string) => void;
   setHsl: (varName: string, value: string) => void;
+  setBinding: (token: string, stop: string) => void;
   replaceState: (next: StyleState) => void;
   applyToDocument: () => void;
   toJSON: () => string;
@@ -79,6 +83,10 @@ function applyState(state: StyleState): void {
   for (const [name, value] of Object.entries(state.hsl)) {
     root.style.setProperty(name, value);
   }
+  // Bucket 4 — semantic token -> ramp stop bindings (live var() references).
+  for (const [token, stop] of Object.entries(state.bindings)) {
+    root.style.setProperty(`--color-${token}`, `var(--color-${stop})`);
+  }
 }
 
 function validateState(parsed: unknown): StyleState {
@@ -94,6 +102,7 @@ function validateState(parsed: unknown): StyleState {
   if (!s.foregroundCurve.endpoints) throw new Error("Missing foregroundCurve.endpoints");
   if (!s.oklch || typeof s.oklch !== "object") throw new Error("Missing oklch bucket");
   if (!s.hsl || typeof s.hsl !== "object") throw new Error("Missing hsl bucket");
+  if (!s.bindings || typeof s.bindings !== "object") throw new Error("Missing bindings");
   return s as StyleState;
 }
 
@@ -148,6 +157,10 @@ export function StyleProvider({ children }: PropsWithChildren) {
     setState((prev) => ({ ...prev, hsl: { ...prev.hsl, [varName]: value } }));
   }, []);
 
+  const setBinding = useCallback((token: string, stop: string) => {
+    setState((prev) => ({ ...prev, bindings: { ...prev.bindings, [token]: stop } }));
+  }, []);
+
   const replaceState = useCallback((next: StyleState) => setState(next), []);
 
   const applyToDocument = useCallback(() => applyState(state), [state]);
@@ -168,12 +181,25 @@ export function StyleProvider({ children }: PropsWithChildren) {
       interpolatePoints,
       setOklch,
       setHsl,
+      setBinding,
       replaceState,
       applyToDocument,
       toJSON,
       fromJSON,
     }),
-    [state, setPoint, setEndpoint, interpolatePoints, setOklch, setHsl, replaceState, applyToDocument, toJSON, fromJSON]
+    [
+      state,
+      setPoint,
+      setEndpoint,
+      interpolatePoints,
+      setOklch,
+      setHsl,
+      setBinding,
+      replaceState,
+      applyToDocument,
+      toJSON,
+      fromJSON,
+    ]
   );
 
   return <StyleContext.Provider value={value}>{children}</StyleContext.Provider>;

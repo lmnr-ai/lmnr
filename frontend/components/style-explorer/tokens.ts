@@ -54,6 +54,36 @@ export function pointsFromSeed(seed: { key: string; l: number }[]): SurfacePoint
 export const initialPoints = (): SurfacePoint[] => pointsFromSeed(SURFACE_SEED);
 export const initialForegroundPoints = (): SurfacePoint[] => pointsFromSeed(FOREGROUND_SEED);
 
+export const FOREGROUND_KEYS: string[] = FOREGROUND_SEED.map((s) => s.key);
+export const PRIMARY_KEYS: string[] = ["primary-200", "primary-300", "primary-400"];
+
+// Semantic @theme tokens that bind to a ramp stop -> their default stop key
+// (mirrors the `var(--color-...)` references in globals.css @theme).
+export const BINDINGS_SEED: Record<string, string> = {
+  background: "surface-800",
+  card: "surface-800",
+  popover: "surface-800",
+  secondary: "surface-700",
+  sidebar: "surface-700",
+  muted: "surface-500",
+  "sidebar-accent": "surface-500",
+  accent: "surface-400",
+  border: "surface-400",
+  primary: "primary-400",
+  "primary-foreground": "foreground-100",
+  "secondary-foreground": "foreground-200",
+  "muted-foreground": "foreground-400",
+};
+
+export const BINDING_KEYS: string[] = Object.keys(BINDINGS_SEED);
+
+// Grouped stop options shown in the binding dropdowns.
+export const STOP_GROUPS: { label: string; keys: string[] }[] = [
+  { label: "Surface", keys: SURFACE_KEYS },
+  { label: "Text", keys: FOREGROUND_KEYS },
+  { label: "Primary", keys: PRIMARY_KEYS },
+];
+
 // Bucket 2 — remaining OKLCH @theme ramp (primary). Full oklch(...) strings.
 // Foreground stops moved to FOREGROUND_SEED (driven by the text curve).
 export const OKLCH_SEED: Record<string, string> = {
