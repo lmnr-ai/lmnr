@@ -4,20 +4,35 @@
 // Holds the full editable theme state and live-applies it to document.documentElement via
 // inline custom-property overrides. Does NOT persist anywhere.
 
-import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
+  BINDING_KEYS,
   BINDINGS_SEED,
   computeSurfaceColor,
   type CurveKey,
   DEFAULT_ENDPOINTS,
+  FOREGROUND_KEYS,
+  HSL_KEYS,
   HSL_SEED,
   initialForegroundPoints,
   initialPoints,
   OKLCH_SEED,
+  SURFACE_KEYS,
   type SurfaceEndpoints,
   type SurfacePoint,
 } from "./tokens";
+
+const STORAGE_KEY = "lmnr-style-explorer-v1";
+
+// Every custom property the panel can write — used to fully clear overrides on reset.
+const MANAGED_PROPERTIES: string[] = [
+  ...SURFACE_KEYS.map((k) => `--color-${k}`),
+  ...FOREGROUND_KEYS.map((k) => `--color-${k}`),
+  ...Object.keys(OKLCH_SEED),
+  ...HSL_KEYS,
+  ...BINDING_KEYS.map((t) => `--color-${t}`),
+];
 
 interface Curve {
   endpoints: SurfaceEndpoints;
@@ -54,6 +69,7 @@ interface StyleContextValue {
   setBinding: (token: string, stop: string) => void;
   replaceState: (next: StyleState) => void;
   applyToDocument: () => void;
+  resetAll: () => void;
   toJSON: () => string;
   fromJSON: (raw: string) => void;
 }
@@ -106,8 +122,47 @@ function validateState(parsed: unknown): StyleState {
   return s as StyleState;
 }
 
+// Read persisted state on the client; fall back to fresh defaults (and on SSR).
+function loadInitial(): StyleState {
+  if (typeof window === "undefined") return freshState();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) return validateState(JSON.parse(raw));
+  } catch {
+    /* corrupt/old payload — fall through to defaults */
+  }
+  return freshState();
+}
+
 export function StyleProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<StyleState>(freshState);
+  const [state, setState] = useState<StyleState>(loadInitial);
+
+  // Apply persisted state to the document once on mount so it survives reloads.
+  useEffect(() => {
+    applyState(state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist on every change.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      /* quota/unavailable — non-fatal for a dev tool */
+    }
+  }, [state]);
+
+  const resetAll = useCallback(() => {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (typeof document !== "undefined") {
+      for (const prop of MANAGED_PROPERTIES) document.documentElement.style.removeProperty(prop);
+    }
+    setState(freshState());
+  }, []);
 
   const setPoint = useCallback((curve: CurveKey, key: string, t: number, l: number) => {
     setState((prev) => ({
@@ -184,6 +239,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setBinding,
       replaceState,
       applyToDocument,
+      resetAll,
       toJSON,
       fromJSON,
     }),
@@ -197,6 +253,7 @@ export function StyleProvider({ children }: PropsWithChildren) {
       setBinding,
       replaceState,
       applyToDocument,
+      resetAll,
       toJSON,
       fromJSON,
     ]
